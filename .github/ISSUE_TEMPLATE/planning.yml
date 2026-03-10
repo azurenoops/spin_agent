@@ -1,0 +1,70 @@
+name: Planning Request
+description: Request planning or design work for a goal
+title: "[PLAN] "
+labels: ["planning"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What you want to achieve
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Background information relevant to this goal
+    validations:
+      required: false
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Limitations, requirements, or boundaries
+    validations:
+      required: false
+
+  - type: textarea
+    id: success-criteria
+    attributes:
+      label: Success Criteria
+      description: How to know when this is done
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: false
+
+  - type: dropdown
+    id: workflow-type
+    attributes:
+      label: Workflow Type
+      description: Which workflow fits this goal? See agents/workflows/ for details on each workflow.
+      options:
+        - Feature
+        - Bugfix
+        - Refactor
+        - Hotfix
+        - Security Response
+        - Dependency Update
+        - Documentation
+        - Spike
+        - Release
+        - Not Sure
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: Estimated size of this effort
+      options:
+        - Small (hours)
+        - Medium (days)
+        - Large (weeks)
+    validations:
+      required: false

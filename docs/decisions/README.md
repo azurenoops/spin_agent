@@ -15,3 +15,5 @@ See [`docs/architecture.md`](../architecture.md) for the ADR template and guidan
 | [003](003-go-orchestration-app.md) | Go Orchestration Application | Accepted | 2026-03-02 |
 | [004](004-validate-command-design.md) | Validate Command Design | Proposed | 2025-07-18 |
 | [005](005-install-update-design.md) | Install and Update Command Design | Proposed | 2025-07-18 |
+| [006](006-github-app-worker-design.md) | GitHub App + Cloudflare Worker Auto-Install | Proposed | 2026-03-08 |
+| [007](007-mcp-integration-strategy.md) | MCP Integration Strategy | Proposed | 2026-03-03 |

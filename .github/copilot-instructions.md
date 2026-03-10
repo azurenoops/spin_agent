@@ -45,6 +45,30 @@ Teamwork is an agent-native development template that structures AI-human collab
    - `/rollback-workflow` — Rolling back failed deployments
    - `/setup-teamwork` — Fill in all CUSTOMIZE placeholders by analyzing the repo
 
+## Agent & Skill Usage
+
+When a user request matches what a custom agent is designed to do, **always dispatch that agent** via the `task` tool instead of doing the work yourself. Treat custom agents the same way skills are treated — match the request to the agent's description and invoke it automatically.
+
+**Agent dispatch rules:**
+- Implementation or coding work → dispatch `@coder`
+- Design decisions or architecture review → dispatch `@architect`
+- Writing or improving tests → dispatch `@tester`
+- Code review → dispatch `@reviewer`
+- Security concerns or audits → dispatch `@security-auditor`
+- Planning or breaking down work → dispatch `@planner`
+- Documentation updates → dispatch `@documenter`
+- CI/CD or deployment tasks → dispatch `@devops`
+- Code refactoring → dispatch `@refactorer`
+- Database schema or queries → dispatch `@dba-agent`
+- Dependency updates or audits → dispatch `@dependency-manager`
+- Issue triage → dispatch `@triager`
+- API design or endpoints → dispatch `@api-agent`
+- Code style or formatting fixes → dispatch `@lint-agent`
+
+**Skills** (in `.github/skills/`) are invoked automatically when the request matches a workflow pattern. **Agents** (in `.github/agents/`) should be dispatched with the same automatic behavior via the `task` tool.
+
+**Why this matters:** Without explicit dispatch, Copilot will attempt everything itself rather than delegating to specialized agents — defeating the purpose of role-based architecture. Each agent has domain-specific expertise, boundaries, and quality standards defined in its `.agent.md` file.
+
 ## Key Rules
 
 - **Minimal changes.** Change only what is necessary. Do not refactor unrelated code.
@@ -100,6 +124,25 @@ After selecting your agent, check its **Model Requirements** section for the rec
 - **If you can spawn sub-agents:** Use the tier system to run each agent at the right model level.
 
 See `docs/role-selector.md` for the full tier-to-agent mapping table.
+
+## MCP Tools
+
+When MCP servers are configured, prefer them over improvised shell workarounds. Before starting a task:
+
+1. **Check `.teamwork/config.yaml`** — the `mcp_servers` section lists which servers are available for this project.
+2. **Check your agent file** — `.github/agents/*.agent.md` has an `## MCP Tools` section listing which servers and specific tools you should use.
+3. **Use MCP tools first** for these tasks:
+   - Searching GitHub (issues, PRs, code) → GitHub MCP, not `gh` CLI in bash
+   - Looking up library APIs → Context7, not training memory
+   - Security scanning → Semgrep MCP, not manual grep patterns
+   - Web research → Tavily, not asking the user to look it up
+   - Running untrusted or experimental code → E2B sandbox, not local shell
+   - CVE/vulnerability lookup → OSV MCP, not web search
+   - Generating diagrams → Mermaid MCP, not ASCII art
+   - Infrastructure provisioning → Terraform MCP, not manual HCL
+
+4. **If an MCP server is listed in config but not available** (tool call fails or server not found), fall back to CLI equivalents and note the missing server in your response. Do not block on it.
+5. **Never install MCP servers yourself** — they are configured by the user. If a needed server is not available, surface that as a recommendation.
 
 ## Protocol Integration
 
@@ -158,3 +201,19 @@ This is a high-priority background task — migrated content means the user had 
 - Prefer reading existing code and tests before writing new code.
 - When in doubt, check the glossary — terms like "handoff," "escalation," and "quality bar" have specific meanings.
 - One real code snippet showing your style beats three paragraphs describing it.
+
+## Release Awareness
+
+Proactively monitor for release-readiness signals and suggest cutting a release when warranted:
+
+- **Milestone closed** — When all issues in a GitHub milestone are closed, suggest running the `/release-workflow` skill.
+- **Unreleased changes accumulate** — When `CHANGELOG.md` has 5+ entries in the `[Unreleased]` section, mention that a release may be appropriate.
+- **Security fix merged** — After merging a security fix, recommend an immediate PATCH release.
+- **User requests access to changes** — When a user asks about features only available on main, suggest a release.
+
+When a release is warranted:
+1. Reference `docs/releasing.md` for the release process
+2. Suggest the appropriate version number following semver (MAJOR for breaking changes, MINOR for features, PATCH for fixes)
+3. Invoke the `/release-workflow` skill for the full multi-role workflow
+
+The `make release VERSION=vX.Y.Z` command automates: tests → cross-compile → CHANGELOG verification → git tag → GitHub Release creation.

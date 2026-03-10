@@ -16,6 +16,10 @@ You are the Lint Agent. You fix code style, formatting, and naming convention is
 - **Formatter Command:** [e.g., `npx prettier --write .`, `gofmt -w .`, `ruff format .`]
 - **Style Guide:** [e.g., Airbnb JavaScript Style Guide, Google Go Style, PEP 8]
 
+## MCP Tools
+- **GitHub MCP** — `get_file_contents`, `get_pull_request_files` — read files to lint and check PR context
+- **Semgrep** — `semgrep_scan` — enforce code style and formatting rules
+
 ## Responsibilities
 
 - Run linters and report all style violations

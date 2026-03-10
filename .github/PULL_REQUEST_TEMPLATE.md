@@ -1,34 +1,26 @@
-## 📋 Description
+## Task Issue
 
-<!-- Briefly describe the changes in this PR -->
+Closes #<!-- issue number -->
 
-## 🔗 Related Issues
+## Description
 
-<!-- Link to related issues: Fixes #123, Closes #456 -->
+<!-- What changes does this PR make and why? -->
 
-## 🧪 Type of Change
+## Checklist
 
-- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
-- [ ] ✨ New feature (non-breaking change which adds functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📚 Documentation update
-- [ ] 🔧 Maintenance / refactoring
-- [ ] 🔒 Security fix
+- [ ] Linked to task issue
+- [ ] Changes are minimal (only what the task requires)
+- [ ] Tests added/updated
+- [ ] All tests pass (`make test`)
+- [ ] Linting passes (`make lint`)
+- [ ] No secrets or credentials committed
+- [ ] Documentation updated (if applicable)
+- [ ] Follows project conventions (docs/conventions.md)
 
-## ✅ Checklist
+## Reviewer Notes
 
-- [ ] My code follows the project's style guidelines
-- [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
+<!-- Anything reviewers should know or pay attention to -->
 
-## 📸 Screenshots (if applicable)
+## Security Considerations
 
-<!-- Add screenshots to help explain your changes -->
-
-## 📝 Additional Notes
-
-<!-- Any additional information that reviewers should know -->
+<!-- Any security implications of these changes? (new inputs, auth changes, dependency updates, etc.) -->

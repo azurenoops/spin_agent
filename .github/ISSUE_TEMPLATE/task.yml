@@ -1,0 +1,74 @@
+name: Task
+description: A structured task for agent implementation
+title: "[TASK] "
+labels: ["task"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What needs to be done
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Specific, testable criteria for completion
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: relevant-files
+    attributes:
+      label: Relevant Files
+      description: Files or directories the agent should focus on
+      placeholder: |
+        - src/module/file.py
+        - tests/test_module.py
+    validations:
+      required: false
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Other issues that must complete before this task
+      placeholder: |
+        - #issue_number
+    validations:
+      required: false
+
+  - type: textarea
+    id: technical-notes
+    attributes:
+      label: Technical Notes
+      description: Design constraints, patterns to follow, or other guidance
+    validations:
+      required: false
+
+  - type: dropdown
+    id: agent-role
+    attributes:
+      label: Agent Role
+      description: Which role should handle this task
+      options:
+        # Core roles
+        - Planner
+        - Architect
+        - Coder
+        - Tester
+        - Reviewer
+        - Security Auditor
+        - Documenter
+        # Optional / specialized roles
+        - Triager
+        - DevOps
+        - Dependency Manager
+        - Refactorer
+    validations:
+      required: true

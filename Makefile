@@ -8,7 +8,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup lint test build check plan review clean build-cli install-cli test-cli docker-build docker-run
+.PHONY: help setup lint test build check plan review clean build-cli install-cli test-cli docker-build docker-run release
 
 help: ## Show this help message
 	@echo "Teamwork — available targets:"
@@ -39,15 +39,14 @@ review: ## Invoke review agent (usage: make review REF="pr-number-or-branch")
 
 clean: ## Remove build artifacts
 	@echo "Cleaning build artifacts..."
-	@# TODO: Add project-specific clean commands, e.g.:
-	@#   rm -rf dist/ build/ node_modules/.cache coverage/
-	@echo "Nothing to clean yet — add project-specific paths to the clean target."
+	@rm -rf dist/ bin/teamwork
+	@echo "Clean complete."
 
 # --- Orchestration CLI ---
 
 build-cli: ## Build the teamwork CLI binary
 	@echo "Building teamwork CLI..."
-	@go build -o bin/teamwork ./cmd/teamwork
+	@go build -ldflags="-X main.version=dev" -o bin/teamwork ./cmd/teamwork
 	@echo "Built: bin/teamwork"
 
 install-cli: ## Install the teamwork CLI to GOPATH/bin
@@ -65,3 +64,25 @@ docker-build: ## Build the teamwork Docker image
 
 docker-run: ## Run teamwork in Docker (usage: make docker-run CMD="status")
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" -v "$(PWD):/project" teamwork $(CMD)
+
+# --- Release ---
+
+release: ## Create a new release (usage: make release VERSION=v1.1.0)
+	@test -n "$(VERSION)" || (echo "Usage: make release VERSION=v1.1.0" && exit 1)
+	@echo "=== Releasing $(VERSION) ==="
+	@echo "Step 1: Running tests..."
+	go test ./internal/... ./cmd/...
+	@echo "Step 2: Cross-compiling binaries..."
+	@mkdir -p dist
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(VERSION)" -o dist/teamwork-linux-amd64 ./cmd/teamwork
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(VERSION)" -o dist/teamwork-linux-arm64 ./cmd/teamwork
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(VERSION)" -o dist/teamwork-darwin-amd64 ./cmd/teamwork
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(VERSION)" -o dist/teamwork-darwin-arm64 ./cmd/teamwork
+	@echo "Step 3: Verifying CHANGELOG..."
+	@grep -q "$(VERSION)" CHANGELOG.md || (echo "ERROR: CHANGELOG.md missing $(VERSION) entry" && exit 1)
+	@echo "Step 4: Creating git tag..."
+	git tag -a $(VERSION) -m "Release $(VERSION)"
+	git push origin $(VERSION)
+	@echo "Step 5: Creating GitHub release..."
+	gh release create $(VERSION) dist/teamwork-* --title "$(VERSION)" --generate-notes
+	@echo "=== $(VERSION) released ==="

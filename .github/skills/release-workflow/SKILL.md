@@ -115,3 +115,7 @@ The orchestrator validates each handoff artifact before dispatching the next rol
   quality gate fails, the orchestrator keeps the workflow at the current step and notifies
   the responsible role. If a blocker is raised, the orchestrator sets the workflow to
   `blocked` and escalates to the human.
+- **Release process reference**: See `docs/releasing.md` for the mechanical release process,
+  including `make release` automation, CHANGELOG conventions, semver strategy, and dual-repo
+  sync with `gh-teamwork`. This skill defines the multi-role workflow; `docs/releasing.md`
+  defines the technical steps.
