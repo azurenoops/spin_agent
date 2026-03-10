@@ -1,0 +1,13 @@
+# Key Decisions
+#
+# Significant decisions with rationale and date. Complements ADRs with
+# lighter-weight entries. See docs/protocols.md for format.
+
+entries: []
+  # Example:
+  # - id: decision-001
+  #   date: "2026-03-01"
+  #   source: "Architecture discussion"
+  #   domain: ["architecture", "auth"]
+  #   content: "Use JWT for stateless authentication"
+  #   context: "Chosen over session-based auth for horizontal scalability"

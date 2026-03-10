@@ -1,0 +1,72 @@
+# .teamwork/config.yaml — Project orchestration settings
+#
+# This file configures how the orchestrator coordinates agents and workflows.
+# Customize it for your project's needs.
+
+# Project identity
+project:
+  name: "ato-copilot"
+  repo: "POps-Rox/ato-copilot"
+
+# Active roles — only these roles participate in workflows
+roles:
+  core:
+    - planner
+    - architect
+    - coder
+    - tester
+    - reviewer
+    - security-auditor
+    - documenter
+    - orchestrator
+  optional: []                      # Add: triager, devops, dependency-manager, refactorer
+
+# Workflow customizations
+workflows:
+  # Skip steps for specific workflow types
+  skip_steps:
+    documentation:
+      - security-auditor            # Docs-only changes don't need security audit
+    spike:
+      - tester                      # Spikes produce research, not testable code
+      - security-auditor
+
+  # Additional quality gates beyond the defaults
+  extra_gates: {}
+
+# Quality gate defaults (apply to all workflows unless overridden)
+quality_gates:
+  handoff_complete: true            # All handoff sections must be populated
+  tests_pass: true                  # Tests must pass before handoff
+  lint_pass: true                   # Linting must pass before handoff
+
+# Memory settings
+memory:
+  archive_threshold: 50             # Archive entries when file exceeds this count
+  sync_to_memory_md: true           # Keep MEMORY.md in sync with structured memory
+
+# Model tier configuration
+# Map abstract tiers to actual model identifiers for your provider.
+# Roles reference tiers (premium/standard/fast) — configure actual models here.
+# See docs/role-selector.md for tier-to-role mapping and rationale.
+model_tiers:
+  premium: "claude-sonnet-4"          # Best reasoning — planning, architecture, coding, security
+  standard: "claude-sonnet-4"         # Balanced — testing, review
+  fast: "claude-haiku-4.5"            # Speed/cost — documentation, orchestration
+
+# Override the tier for specific roles (optional)
+# Uncomment to assign a specific model to a role, bypassing the tier system.
+# role_models:
+#   architect: "claude-opus-4.6"      # Upgrade architect to opus for critical projects
+#   coder: "claude-opus-4.6"          # Upgrade coder when code quality is paramount
+#   documenter: "gpt-5-mini"          # Use a different provider for docs
+
+# Multi-repo coordination (hub-spoke model)
+# The repo where teamwork runs is the hub. Spoke repos are listed here.
+# repos:
+#   - name: "ato-copilot"
+#     path: "../api"                # Local path (relative to hub root)
+#     repo: "POps-Rox/ato-copilot"
+#   - name: "ato-copilot"
+#     path: "../frontend"
+#     repo: "POps-Rox/ato-copilot"

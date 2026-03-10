@@ -1,0 +1,17 @@
+# Memory Index
+#
+# Maps domains/topics to entry IDs across all memory files for fast lookup.
+# Updated when entries are added. See docs/protocols.md for format.
+
+domains: {}
+  # Example:
+  # auth:
+  #   - pattern-001
+  #   - decision-003
+  #   - feedback-007
+  # api:
+  #   - pattern-001
+  #   - antipattern-002
+  # testing:
+  #   - pattern-004
+  #   - feedback-012

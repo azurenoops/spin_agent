@@ -1,0 +1,14 @@
+# Reviewer and Human Feedback
+#
+# Broadly applicable feedback from code reviews and human input.
+# Not PR-specific — these are lessons that apply across the project.
+# See docs/protocols.md for format.
+
+entries: []
+  # Example:
+  # - id: feedback-001
+  #   date: "2026-03-01"
+  #   source: "PR #42 review"
+  #   domain: ["testing"]
+  #   content: "Always test error paths, not just happy paths"
+  #   context: "Multiple PRs were missing error case tests"

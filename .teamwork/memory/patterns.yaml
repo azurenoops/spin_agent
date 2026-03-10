@@ -1,0 +1,13 @@
+# Patterns That Work
+#
+# Approaches that work well in this project. Agents should repeat these.
+# Add entries as you discover what works. See docs/protocols.md for format.
+
+entries: []
+  # Example:
+  # - id: pattern-001
+  #   date: "2026-03-01"
+  #   source: "PR #42 review"
+  #   domain: ["auth", "api"]
+  #   content: "Use middleware for auth checks rather than per-route validation"
+  #   context: "Discovered during OAuth implementation — per-route was error-prone"

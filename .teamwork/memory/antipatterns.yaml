@@ -1,0 +1,13 @@
+# Anti-Patterns
+#
+# Approaches that failed or caused problems. Agents should avoid these.
+# Add entries when you discover what doesn't work. See docs/protocols.md for format.
+
+entries: []
+  # Example:
+  # - id: antipattern-001
+  #   date: "2026-03-01"
+  #   source: "Incident retrospective"
+  #   domain: ["deployment"]
+  #   content: "Don't deploy on Fridays without a rollback plan"
+  #   context: "Friday deploy caused weekend outage with no one available to fix"
