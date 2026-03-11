@@ -1,0 +1,20 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ato-copilot
+  description: Authority to Operate (ATO) compliance copilot powered by AI
+  annotations:
+    github.com/project-slug: POps-Rox/ato-copilot
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - platform-engineering
+    - platform-ops
+  links:
+    - url: https://github.com/POps-Rox/ato-copilot
+      title: GitHub Repository
+      icon: github
+spec:
+  type: service
+  owner: platform-ops-team
+  lifecycle: production
+  system: pops-rox-platform
