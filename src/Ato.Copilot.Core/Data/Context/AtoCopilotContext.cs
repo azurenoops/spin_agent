@@ -208,6 +208,26 @@ public class AtoCopilotContext : DbContext
     /// <summary>Persistent cache entries for offline mode (FR-036).</summary>
     public DbSet<CachedResponse> CachedResponses => Set<CachedResponse>();
 
+    // ─── Compliance Dashboard (Feature 030) ──────────────────────────────────
+
+    /// <summary>Organization-wide security capabilities (write once, apply everywhere).</summary>
+    public DbSet<SecurityCapability> SecurityCapabilities => Set<SecurityCapability>();
+
+    /// <summary>Capability-to-control mappings with role and optional system scope.</summary>
+    public DbSet<CapabilityControlMapping> CapabilityControlMappings => Set<CapabilityControlMapping>();
+
+    /// <summary>System component inventory items (Person/Place/Thing).</summary>
+    public DbSet<SystemComponent> SystemComponents => Set<SystemComponent>();
+
+    /// <summary>Join table linking components to capabilities.</summary>
+    public DbSet<ComponentCapabilityLink> ComponentCapabilityLinks => Set<ComponentCapabilityLink>();
+
+    /// <summary>Point-in-time compliance metric snapshots for trend visualization.</summary>
+    public DbSet<ComplianceTrendSnapshot> ComplianceTrendSnapshots => Set<ComplianceTrendSnapshot>();
+
+    /// <summary>Denormalized activity feed entries for dashboard rendering.</summary>
+    public DbSet<DashboardActivity> DashboardActivities => Set<DashboardActivity>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1099,6 +1119,15 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
             entity.Property(e => e.ApprovedVersionId).HasMaxLength(36);
 
+            // Dashboard capability link (Feature 030)
+            entity.Property(e => e.SecurityCapabilityId).HasMaxLength(36);
+            entity.HasOne(e => e.SecurityCapability)
+                .WithMany()
+                .HasForeignKey(e => e.SecurityCapabilityId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(e => e.SecurityCapabilityId)
+                .HasDatabaseName("IX_ControlImplementation_SecurityCapabilityId");
+
             // Unique constraint: one implementation per control per system
             entity.HasIndex(e => new { e.RegisteredSystemId, e.ControlId })
                 .IsUnique()
@@ -1780,6 +1809,139 @@ public class AtoCopilotContext : DbContext
                 .HasDatabaseName("IX_CachedResponse_CacheKey");
             entity.HasIndex(e => new { e.ToolName, e.SubscriptionId })
                 .HasDatabaseName("IX_CachedResponse_Tool_Sub");
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Dashboard Entities (Feature 030)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        // ─── SecurityCapability ──────────────────────────────────────────────────
+        modelBuilder.Entity<SecurityCapability>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Provider).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Category).HasMaxLength(5).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(8000).IsRequired();
+            entity.Property(e => e.ImplementationStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Owner).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ModifiedBy).HasMaxLength(200);
+
+            entity.HasIndex(e => e.Name).IsUnique().HasDatabaseName("IX_SecurityCapability_Name");
+            entity.HasIndex(e => e.Category).HasDatabaseName("IX_SecurityCapability_Category");
+            entity.HasIndex(e => e.ImplementationStatus).HasDatabaseName("IX_SecurityCapability_Status");
+        });
+
+        // ─── CapabilityControlMapping ────────────────────────────────────────────
+        modelBuilder.Entity<CapabilityControlMapping>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SecurityCapabilityId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36);
+            entity.Property(e => e.Role).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+
+            entity.HasIndex(e => new { e.SecurityCapabilityId, e.ControlId, e.RegisteredSystemId })
+                .IsUnique()
+                .HasDatabaseName("IX_CapabilityControlMapping_Unique");
+            entity.HasIndex(e => e.ControlId).HasDatabaseName("IX_CapabilityControlMapping_ControlId");
+            entity.HasIndex(e => e.RegisteredSystemId).HasDatabaseName("IX_CapabilityControlMapping_SystemId");
+
+            entity.HasOne(e => e.SecurityCapability)
+                .WithMany(c => c.ControlMappings)
+                .HasForeignKey(e => e.SecurityCapabilityId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ─── SystemComponent ─────────────────────────────────────────────────────
+        modelBuilder.Entity<SystemComponent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ComponentType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.SubType).HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.Owner).HasMaxLength(200);
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.ComponentType })
+                .HasDatabaseName("IX_SystemComponent_System_Type");
+            entity.HasIndex(e => e.Status).HasDatabaseName("IX_SystemComponent_Status");
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── ComponentCapabilityLink ─────────────────────────────────────────────
+        modelBuilder.Entity<ComponentCapabilityLink>(entity =>
+        {
+            entity.HasKey(e => new { e.SystemComponentId, e.SecurityCapabilityId });
+            entity.Property(e => e.SystemComponentId).HasMaxLength(36);
+            entity.Property(e => e.SecurityCapabilityId).HasMaxLength(36);
+
+            entity.HasOne(e => e.SystemComponent)
+                .WithMany(c => c.CapabilityLinks)
+                .HasForeignKey(e => e.SystemComponentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.SecurityCapability)
+                .WithMany(c => c.ComponentLinks)
+                .HasForeignKey(e => e.SecurityCapabilityId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── ComplianceTrendSnapshot ─────────────────────────────────────────────
+        modelBuilder.Entity<ComplianceTrendSnapshot>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Source).HasMaxLength(50).IsRequired();
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.CapturedAt })
+                .IsDescending(false, true)
+                .HasDatabaseName("IX_ComplianceTrendSnapshot_System_CapturedAt");
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── DashboardActivity ───────────────────────────────────────────────────
+        modelBuilder.Entity<DashboardActivity>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.EventType).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Summary).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.RelatedEntityType).HasMaxLength(100);
+            entity.Property(e => e.RelatedEntityId).HasMaxLength(100);
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.Timestamp })
+                .IsDescending(false, true)
+                .HasDatabaseName("IX_DashboardActivity_System_Timestamp");
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

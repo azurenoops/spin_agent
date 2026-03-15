@@ -985,3 +985,110 @@ EF Core migrations run automatically at startup (`MigrateDatabaseAsync`) with a 
 **CachedResponse Fields**: Id, CacheKey (unique, max 256), ToolName, Response (JSON), CachedAt, TtlSeconds, Source, HitCount, SubscriptionId
 
 **Indexes**: Unique on `CacheKey`, Non-unique on `(ToolName, SubscriptionId)`
+
+---
+
+## Dashboard Entities (Feature 030)
+
+### SecurityCapability
+
+Catalog entry for a reusable security solution mapped to NIST 800-53 controls.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID identifier |
+| Name | string (200) | Unique capability name |
+| Provider | string (200) | Technology provider |
+| Category | string (10) | NIST control family code (e.g., "IA") |
+| Description | string (8000) | Capability description |
+| ImplementationStatus | CapabilityStatus | Planned / InProgress / Implemented / Deprecated |
+| Owner | string (200) | Responsible team or role |
+| CreatedAt, ModifiedAt | DateTime | Timestamps |
+| CreatedBy, ModifiedBy | string | Audit fields |
+
+**Indexes**: Unique on `Name`, Non-unique on `Category`
+
+### CapabilityControlMapping
+
+Maps a security capability to a specific NIST control with a role designation.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID identifier |
+| SecurityCapabilityId | string (FK) | → SecurityCapability |
+| ControlId | string (20) | NIST control ID (e.g., "AC-2") |
+| RegisteredSystemId | string (FK, nullable) | System scope (null = org-wide) |
+| Role | CapabilityMappingRole | Primary / Supporting / Shared |
+| CreatedAt | DateTime | Creation timestamp |
+| CreatedBy | string | Audit field |
+
+**Indexes**: Unique composite on `(SecurityCapabilityId, ControlId, RegisteredSystemId)`
+
+### SystemComponent
+
+Physical or logical element of a system for SSP Appendix A (Person, Place, or Thing).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID identifier |
+| RegisteredSystemId | string (FK) | → RegisteredSystem |
+| Name | string (200) | Component name |
+| ComponentType | ComponentType | Person / Place / Thing |
+| SubType | string (100, nullable) | Sub-classification |
+| Description | string (2000, nullable) | Component description |
+| Owner | string (200, nullable) | Responsible party |
+| Status | ComponentStatus | Active / Planned / Decommissioned |
+| CreatedAt, ModifiedAt | DateTime | Timestamps |
+| CreatedBy | string | Audit field |
+
+### ComponentCapabilityLink
+
+Join table linking components to capabilities (many-to-many).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| SystemComponentId | string (PK, FK) | → SystemComponent |
+| SecurityCapabilityId | string (PK, FK) | → SecurityCapability |
+
+### ComplianceTrendSnapshot
+
+Point-in-time compliance metrics captured daily or after assessments.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID identifier |
+| RegisteredSystemId | string (FK) | → RegisteredSystem |
+| CapturedAt | DateTime | Snapshot timestamp |
+| ComplianceScore | double | Score (0–100) |
+| CatICount, CatIICount, CatIIICount | int | Finding counts by severity |
+| OpenPoamCount, OverduePoamCount | int | POA&M counts |
+| NarrativeCoverage | double | Narrative coverage (0–100) |
+| Source | string (50) | "Scheduled" or "Assessment" |
+
+**Indexes**: Non-unique on `(RegisteredSystemId, CapturedAt DESC)`
+
+### DashboardActivity
+
+Audit trail for dashboard-related events (component deletions, capability changes).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID identifier |
+| RegisteredSystemId | string (FK) | → RegisteredSystem |
+| EventType | string (100) | Event classification |
+| Timestamp | DateTime | Event timestamp |
+| Actor | string (200) | Who triggered the event |
+| Summary | string (2000) | Human-readable description |
+| RelatedEntityType | string (100, nullable) | Type of related entity |
+| RelatedEntityId | string (36, nullable) | ID of related entity |
+
+**Indexes**: Non-unique on `(RegisteredSystemId, Timestamp DESC)`
+
+### Modified Entity: ControlImplementation
+
+Two new fields added to support capability-driven narratives:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| SecurityCapabilityId | string (36, nullable FK) | → SecurityCapability that generated this narrative |
+| IsManuallyCustomized | bool (default false) | True if user manually edited an auto-generated narrative |

@@ -318,6 +318,51 @@ Feature 029 adds production-grade resilience, observability, and offline capabil
 
 ---
 
+## Visual Compliance Dashboard (Feature 030)
+
+### Architecture
+
+The dashboard is a **standalone React SPA** that communicates with the MCP server via REST API endpoints under `/api/dashboard/*`.
+
+```
+┌─────────────────────────┐     REST/JSON      ┌──────────────────────────┐
+│  React SPA (Vite)       │ ──────────────────► │  MCP Server              │
+│  localhost:5173          │ ◄────────────────── │  /api/dashboard/*        │
+│                          │                     │                          │
+│  • Portfolio Overview    │                     │  • DashboardService      │
+│  • System Detail         │                     │  • CapabilityService     │
+│  • Capabilities Library  │                     │  • ComponentService      │
+│  • Component Inventory   │                     │  • NarrativeTemplate     │
+│  • Gap Analysis          │                     │  • TrendSnapshotService  │
+│  • Compliance Trends     │                     │    (BackgroundService)   │
+└─────────────────────────┘                     └──────────────────────────┘
+                                                         │
+                                                         ▼
+                                                ┌──────────────────────────┐
+                                                │  SQL Server (EF Core)    │
+                                                │  + 6 new tables          │
+                                                │  + 2 modified columns    │
+                                                └──────────────────────────┘
+```
+
+### Tech Stack
+
+- **Frontend**: React 19, TypeScript 5, Vite 6, Tailwind CSS 3, Recharts 2, Axios, React Router 7
+- **Backend**: C# 13 / .NET 9.0, EF Core 9.0, Serilog
+- **Polling**: Client-side 15-second polling via `usePolling` hook (pause on tab blur)
+- **Trend Capture**: `ComplianceTrendSnapshotService` (BackgroundService) runs daily at midnight UTC
+
+### New Entities
+
+- `SecurityCapability` — Reusable security solutions catalog
+- `CapabilityControlMapping` — Capability-to-NIST-control mappings with roles
+- `SystemComponent` — Person/Place/Thing inventory for SSP Appendix A
+- `ComponentCapabilityLink` — Component-to-capability join table
+- `ComplianceTrendSnapshot` — Point-in-time compliance metrics
+- `DashboardActivity` — Dashboard-specific audit trail
+
+---
+
 ## Related Documentation
 
 - [Data Model](data-model.md) — Entity relationships and ER diagram
@@ -326,3 +371,7 @@ Feature 029 adds production-grade resilience, observability, and offline capabil
 - [Security Model](security.md) — RBAC, PIM, CAC, audit details
 - [MCP Server API](../api/mcp-server.md) — MCP tool API reference
 - [Deployment Guide](../deployment.md) — Production deployment instructions
+- [Dashboard Guide](../guides/compliance-dashboard.md) — Dashboard user guide
+- [Capabilities Guide](../guides/security-capabilities.md) — Security Capabilities Library
+- [Components Guide](../guides/component-inventory.md) — Component Inventory
+- [Gap Analysis Guide](../guides/gap-analysis.md) — Gap Analysis

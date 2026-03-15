@@ -270,6 +270,57 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("JitRequests");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.CachedResponse", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CacheKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CachedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("HitCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Response")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SubscriptionId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ToolName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TtlSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CacheKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_CachedResponse_CacheKey");
+
+                    b.HasIndex("ToolName", "SubscriptionId")
+                        .HasDatabaseName("IX_CachedResponse_Tool_Sub");
+
+                    b.ToTable("CachedResponses");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AlertIdCounter", b =>
                 {
                     b.Property<DateOnly>("Date")
@@ -740,6 +791,54 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_AutoRemediationRule_Sub_Family_Enabled");
 
                     b.ToTable("AutoRemediationRules");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.CapabilityControlMapping", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ControlId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RegisteredSystemId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecurityCapabilityId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ControlId")
+                        .HasDatabaseName("IX_CapabilityControlMapping_ControlId");
+
+                    b.HasIndex("RegisteredSystemId")
+                        .HasDatabaseName("IX_CapabilityControlMapping_SystemId");
+
+                    b.HasIndex("SecurityCapabilityId", "ControlId", "RegisteredSystemId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_CapabilityControlMapping_Unique");
+
+                    b.ToTable("CapabilityControlMappings");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ComplianceAlert", b =>
@@ -1356,6 +1455,72 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("ComplianceSnapshots");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ComplianceTrendSnapshot", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CapturedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CatICount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CatIICount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CatIIICount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("ComplianceScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("NarrativeCoverage")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("OpenPoamCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("OverduePoamCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RegisteredSystemId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegisteredSystemId", "CapturedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_ComplianceTrendSnapshot_System_CapturedAt");
+
+                    b.ToTable("ComplianceTrendSnapshots");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ComponentCapabilityLink", b =>
+                {
+                    b.Property<string>("SystemComponentId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecurityCapabilityId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("SystemComponentId", "SecurityCapabilityId");
+
+                    b.HasIndex("SecurityCapabilityId");
+
+                    b.ToTable("ComponentCapabilityLinks");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ConMonPlan", b =>
                 {
                     b.Property<string>("Id")
@@ -1722,6 +1887,9 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<bool>("IsAutoPopulated")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsManuallyCustomized")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("ModifiedAt")
                         .HasColumnType("TEXT");
 
@@ -1741,6 +1909,10 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SecurityCapabilityId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApprovalStatus")
@@ -1753,6 +1925,9 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.HasIndex("RegisteredSystemId")
                         .HasDatabaseName("IX_ControlImplementation_SystemId");
+
+                    b.HasIndex("SecurityCapabilityId")
+                        .HasDatabaseName("IX_ControlImplementation_SecurityCapabilityId");
 
                     b.HasIndex("RegisteredSystemId", "ControlId")
                         .IsUnique()
@@ -1858,6 +2033,52 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_ControlTailoring_Baseline_Control");
 
                     b.ToTable("ControlTailorings");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.DashboardActivity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RegisteredSystemId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RelatedEntityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RelatedEntityType")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegisteredSystemId", "Timestamp")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_DashboardActivity_System_Timestamp");
+
+                    b.ToTable("DashboardActivities");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.EscalationPath", b =>
@@ -2054,6 +2275,131 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasIndex("SystemInterconnectionId");
 
                     b.ToTable("InterconnectionAgreements");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.InventoryItem", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BoundaryResourceId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DecommissionDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DecommissionRationale")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("HardwareFunction")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LicenseType")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MacAddress")
+                        .HasMaxLength(17)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Manufacturer")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ParentHardwareId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PatchLevel")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RegisteredSystemId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SerialNumber")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SoftwareFunction")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Vendor")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Version")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BoundaryResourceId")
+                        .HasDatabaseName("IX_InventoryItem_BoundaryResourceId");
+
+                    b.HasIndex("ParentHardwareId");
+
+                    b.HasIndex("RegisteredSystemId")
+                        .HasDatabaseName("IX_InventoryItem_SystemId");
+
+                    b.HasIndex("RegisteredSystemId", "IpAddress")
+                        .IsUnique()
+                        .HasDatabaseName("IX_InventoryItem_System_Ip")
+                        .HasFilter("[IpAddress] IS NOT NULL");
+
+                    b.HasIndex("RegisteredSystemId", "Type")
+                        .HasDatabaseName("IX_InventoryItem_System_Type");
+
+                    b.ToTable("InventoryItems");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.MonitoringConfiguration", b =>
@@ -3003,6 +3349,61 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("NessusControlMappingSource")
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.PrimitiveCollection<string>("NessusCves")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("NessusCvssV2BaseScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("NessusCvssV3BaseScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("NessusCvssV3Vector")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("NessusExploitAvailable")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("NessusHostIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NessusHostname")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NessusPluginFamily")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NessusPluginId")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NessusPluginName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("NessusPort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("NessusProtocol")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NessusServiceName")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("NessusVprScore")
+                        .HasColumnType("REAL");
+
                     b.Property<string>("PrismaAlertId")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
@@ -3155,6 +3556,30 @@ namespace Ato.Copilot.Core.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDryRun")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("NessusCredentialedScan")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("NessusCriticalCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("NessusHighCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("NessusHostCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("NessusInformationalCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("NessusLowCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("NessusMediumCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("NessusPoamCreatedCount")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("NistControlsAffected")
@@ -3317,6 +3742,72 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_SecurityAssessmentPlan_System_Status");
 
                     b.ToTable("SecurityAssessmentPlans");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityCapability", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImplementationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category")
+                        .HasDatabaseName("IX_SecurityCapability_Category");
+
+                    b.HasIndex("ImplementationStatus")
+                        .HasDatabaseName("IX_SecurityCapability_Status");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SecurityCapability_Name");
+
+                    b.ToTable("SecurityCapabilities");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityCategorization", b =>
@@ -3547,6 +4038,66 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_SuppressionRule_Sub_Resource");
 
                     b.ToTable("SuppressionRules");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SystemComponent", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ComponentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Owner")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RegisteredSystemId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SubType")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_SystemComponent_Status");
+
+                    b.HasIndex("RegisteredSystemId", "ComponentType")
+                        .HasDatabaseName("IX_SystemComponent_System_Type");
+
+                    b.ToTable("SystemComponents");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SystemInterconnection", b =>
@@ -3988,6 +4539,24 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("SupersededBy");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.CapabilityControlMapping", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
+                        .WithMany()
+                        .HasForeignKey("RegisteredSystemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.SecurityCapability", "SecurityCapability")
+                        .WithMany("ControlMappings")
+                        .HasForeignKey("SecurityCapabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RegisteredSystem");
+
+                    b.Navigation("SecurityCapability");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ComplianceAlert", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.ComplianceAlert", "GroupedAlert")
@@ -4145,6 +4714,36 @@ namespace Ato.Copilot.Core.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ComplianceTrendSnapshot", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
+                        .WithMany()
+                        .HasForeignKey("RegisteredSystemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RegisteredSystem");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ComponentCapabilityLink", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.SecurityCapability", "SecurityCapability")
+                        .WithMany("ComponentLinks")
+                        .HasForeignKey("SecurityCapabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.SystemComponent", "SystemComponent")
+                        .WithMany("CapabilityLinks")
+                        .HasForeignKey("SystemComponentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SecurityCapability");
+
+                    b.Navigation("SystemComponent");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ConMonPlan", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
@@ -4221,7 +4820,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.NarrativeVersion", "ApprovedVersion")
                         .WithMany()
                         .HasForeignKey("ApprovedVersionId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
                         .WithMany()
@@ -4229,9 +4828,16 @@ namespace Ato.Copilot.Core.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.SecurityCapability", "SecurityCapability")
+                        .WithMany()
+                        .HasForeignKey("SecurityCapabilityId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("ApprovedVersion");
 
                     b.Navigation("RegisteredSystem");
+
+                    b.Navigation("SecurityCapability");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ControlInheritance", b =>
@@ -4256,6 +4862,17 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("ControlBaseline");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.DashboardActivity", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
+                        .WithMany()
+                        .HasForeignKey("RegisteredSystemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RegisteredSystem");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.InformationType", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.SecurityCategorization", "SecurityCategorization")
@@ -4274,6 +4891,31 @@ namespace Ato.Copilot.Core.Migrations
                         .HasForeignKey("SystemInterconnectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.InventoryItem", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundary", "BoundaryResource")
+                        .WithMany()
+                        .HasForeignKey("BoundaryResourceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.InventoryItem", "ParentHardware")
+                        .WithMany("InstalledSoftware")
+                        .HasForeignKey("ParentHardwareId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
+                        .WithMany()
+                        .HasForeignKey("RegisteredSystemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BoundaryResource");
+
+                    b.Navigation("ParentHardware");
+
+                    b.Navigation("RegisteredSystem");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.NarrativeReview", b =>
@@ -4626,6 +5268,17 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("RegisteredSystem");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SystemComponent", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
+                        .WithMany()
+                        .HasForeignKey("RegisteredSystemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RegisteredSystem");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SystemInterconnection", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", null)
@@ -4712,6 +5365,11 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("Versions");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.InventoryItem", b =>
+                {
+                    b.Navigation("InstalledSoftware");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.NarrativeVersion", b =>
                 {
                     b.Navigation("Reviews");
@@ -4755,9 +5413,21 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("TeamMembers");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityCapability", b =>
+                {
+                    b.Navigation("ComponentLinks");
+
+                    b.Navigation("ControlMappings");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityCategorization", b =>
                 {
                     b.Navigation("InformationTypes");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SystemComponent", b =>
+                {
+                    b.Navigation("CapabilityLinks");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SystemInterconnection", b =>

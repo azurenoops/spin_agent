@@ -59,6 +59,15 @@ public class ControlImplementation
     /// <summary>Last modification timestamp (UTC).</summary>
     public DateTime? ModifiedAt { get; set; }
 
+    // ─── Dashboard Capability Link (Feature 030) ──────────────────────────────
+
+    /// <summary>FK to SecurityCapability that generated this narrative (null = manually authored).</summary>
+    [MaxLength(36)]
+    public string? SecurityCapabilityId { get; set; }
+
+    /// <summary>True if user manually edited an auto-generated narrative (excluded from auto-update).</summary>
+    public bool IsManuallyCustomized { get; set; }
+
     // ─── Governance (Feature 024) ────────────────────────────────────────────
 
     /// <summary>Approval lifecycle status for this narrative (Draft → UnderReview → Approved / NeedsRevision).</summary>
@@ -75,6 +84,9 @@ public class ControlImplementation
 
     /// <summary>Parent registered system.</summary>
     public RegisteredSystem RegisteredSystem { get; set; } = null!;
+
+    /// <summary>Security capability that generated this narrative (null if manually authored).</summary>
+    public SecurityCapability? SecurityCapability { get; set; }
 
     /// <summary>All version snapshots for this control implementation.</summary>
     public ICollection<NarrativeVersion> Versions { get; set; } = new List<NarrativeVersion>();

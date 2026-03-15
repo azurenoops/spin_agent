@@ -129,6 +129,27 @@ services:
     networks:
       - ato-network
 
+  # ─── Compliance Dashboard (React SPA + nginx) ───────────
+  ato-dashboard:
+    build:
+      context: .
+      dockerfile: src/Ato.Copilot.Dashboard/Dockerfile
+    container_name: ato-copilot-dashboard
+    restart: unless-stopped
+    depends_on:
+      ato-copilot:
+        condition: service_healthy
+    ports:
+      - "${DASHBOARD_PORT:-5173}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ato-network
+
 volumes:
   sql-data:
     driver: local

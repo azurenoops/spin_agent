@@ -16,6 +16,7 @@ using System.Text.Json;
 using Ato.Copilot.State.Extensions;
 using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Mcp.Extensions;
+using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
 using Microsoft.EntityFrameworkCore;
@@ -290,6 +291,9 @@ async Task RunHttpModeAsync(string[] args)
     var httpBridge = app.Services.GetRequiredService<McpHttpBridge>();
     httpBridge.MapEndpoints(app);
 
+    // Map Dashboard REST API endpoints (Feature 030)
+    app.MapDashboardEndpoints();
+
     // Health check endpoint with custom JSON writer (per FR-045 / SC-015)
     app.MapHealthChecks("/health", new HealthCheckOptions
     {
@@ -401,6 +405,13 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
 
     // MCP server
     services.AddMcpServer(configuration);
+
+    // Dashboard services (Feature 030)
+    services.AddScoped<Ato.Copilot.Mcp.Services.DashboardService>();
+    services.AddScoped<Ato.Copilot.Mcp.Services.CapabilityService>();
+    services.AddScoped<Ato.Copilot.Mcp.Services.ComponentService>();
+    services.AddSingleton<Ato.Copilot.Mcp.Services.NarrativeTemplateService>();
+    services.AddHostedService<Ato.Copilot.Mcp.Services.ComplianceTrendSnapshotService>();
 }
 
 // ────────────────────────────────────────────────────────────────
