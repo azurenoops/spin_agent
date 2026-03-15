@@ -326,3 +326,7 @@ Feature 029 adds production-grade resilience, observability, and offline capabil
 - [Security Model](security.md) — RBAC, PIM, CAC, audit details
 - [MCP Server API](../api/mcp-server.md) — MCP tool API reference
 - [Deployment Guide](../deployment.md) — Production deployment instructions
+- [Dashboard Guide](../guides/compliance-dashboard.md) — Dashboard user guide
+- [Capabilities Guide](../guides/security-capabilities.md) — Security Capabilities Library
+- [Components Guide](../guides/component-inventory.md) — Component Inventory
+- [Gap Analysis Guide](../guides/gap-analysis.md) — Gap Analysis

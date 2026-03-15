@@ -66,7 +66,7 @@ public class DocumentGenerationService : IDocumentGenerationService
 
         var content = docType switch
         {
-            "SSP" => await GenerateSspAsync(resolvedSystemName, resolvedFramework, assessment, findings, cancellationToken),
+            "SSP" => await GenerateSspAsync(db, resolvedSystemName, resolvedFramework, assessment, findings, cancellationToken),
             "SAR" => GenerateSar(resolvedSystemName, resolvedFramework, assessment, findings, activeAlerts),
             "POAM" => GeneratePoam(resolvedSystemName, resolvedFramework, findings, activeAlerts),
             _ => throw new ArgumentException($"Unsupported document type: {docType}")
@@ -105,7 +105,8 @@ public class DocumentGenerationService : IDocumentGenerationService
     // ─── SSP Generation ──────────────────────────────────────────────────
 
     /// <summary>Generates a System Security Plan (SSP) document from the latest assessment data.</summary>
-    private Task<string> GenerateSspAsync(
+    private async Task<string> GenerateSspAsync(
+        AtoCopilotContext db,
         string systemName,
         string framework,
         ComplianceAssessment? assessment,
@@ -211,10 +212,47 @@ public class DocumentGenerationService : IDocumentGenerationService
         // 5. Appendix
         sb.AppendLine("## 5. Appendix");
         sb.AppendLine();
+
+        // Appendix A — System Component Inventory
+        sb.AppendLine("### Appendix A — System Component Inventory");
+        sb.AppendLine();
+
+        var registeredSystemId = assessment?.RegisteredSystemId;
+
+        if (registeredSystemId is not null)
+        {
+            var components = await db.SystemComponents
+                .Where(c => c.RegisteredSystemId == registeredSystemId)
+                .Include(c => c.CapabilityLinks).ThenInclude(cl => cl.SecurityCapability)
+                .OrderBy(c => c.ComponentType).ThenBy(c => c.Name)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            if (components.Count > 0)
+            {
+                sb.AppendLine("| Name | Type | Description | Owner | Capabilities | Status |");
+                sb.AppendLine("|------|------|-------------|-------|-------------|--------|");
+                foreach (var comp in components)
+                {
+                    var caps = string.Join(", ", comp.CapabilityLinks.Select(cl => cl.SecurityCapability.Name));
+                    sb.AppendLine($"| {comp.Name} | {comp.ComponentType} | {comp.Description ?? "—"} | {comp.Owner ?? "—"} | {caps} | {comp.Status} |");
+                }
+            }
+            else
+            {
+                sb.AppendLine("*No system components registered.*");
+            }
+        }
+        else
+        {
+            sb.AppendLine("*System component inventory not available — register components via the dashboard.*");
+        }
+
+        sb.AppendLine();
         sb.AppendLine($"*This SSP was auto-generated on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC by ATO Copilot.*");
         sb.AppendLine("*Review and approval by the System Owner and Authorizing Official is required.*");
 
-        return Task.FromResult(sb.ToString());
+        return sb.ToString();
     }
 
     // ─── SAR Generation ──────────────────────────────────────────────────

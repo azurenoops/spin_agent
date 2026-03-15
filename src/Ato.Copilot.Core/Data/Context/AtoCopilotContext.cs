@@ -1099,6 +1099,15 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
             entity.Property(e => e.ApprovedVersionId).HasMaxLength(36);
 
+            // Dashboard capability link (Feature 030)
+            entity.Property(e => e.SecurityCapabilityId).HasMaxLength(36);
+            entity.HasOne(e => e.SecurityCapability)
+                .WithMany()
+                .HasForeignKey(e => e.SecurityCapabilityId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(e => e.SecurityCapabilityId)
+                .HasDatabaseName("IX_ControlImplementation_SecurityCapabilityId");
+
             // Unique constraint: one implementation per control per system
             entity.HasIndex(e => new { e.RegisteredSystemId, e.ControlId })
                 .IsUnique()

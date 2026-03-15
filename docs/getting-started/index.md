@@ -87,3 +87,36 @@ After completing your persona-specific getting-started guide:
 - [RMF Phase Reference](../rmf-phases/index.md) — Step-by-step walkthrough of all 7 RMF phases
 - [NL Query Reference](../guides/nl-query-reference.md) — Natural language query examples
 - [Quick Reference Cards](../reference/quick-reference-cards.md) — Printable cheat sheets
+
+---
+
+## Dashboard Setup
+
+The Visual Compliance Dashboard provides a web-based view of your compliance posture.
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- MCP server running (provides the REST API)
+
+### Quick Start
+
+```bash
+cd src/Ato.Copilot.Dashboard
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` in your browser.
+
+### Configuration
+
+Edit `.env.local` to point to your MCP server:
+
+```
+VITE_API_BASE_URL=http://localhost:5000/api/dashboard
+VITE_POLL_INTERVAL_MS=15000
+```
+
+See the [Dashboard Guide](../guides/compliance-dashboard.md) for full feature documentation.
