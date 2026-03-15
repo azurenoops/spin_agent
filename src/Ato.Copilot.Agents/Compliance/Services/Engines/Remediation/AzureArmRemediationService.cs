@@ -150,10 +150,7 @@ public class AzureArmRemediationService : IAzureArmRemediationService
         string snapshotJson,
         CancellationToken ct = default)
     {
-        var result = new RemediationRollbackResult
-        {
-            ExecutionId = resourceId
-        };
+        var result = new RemediationRollbackResult();
 
         try
         {

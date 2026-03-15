@@ -899,7 +899,7 @@ public class AtoRemediationEngine : IRemediationEngine
     /// <inheritdoc />
     public Task<RemediationValidationResult> ValidateRemediationAsync(
         string executionId,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         _logger.LogInformation("Validating remediation execution {ExecutionId}", executionId);
 

@@ -36,8 +36,13 @@ public class RateLimitingOptions
     /// <summary>Configuration section name.</summary>
     public const string SectionName = "RateLimiting";
 
-    /// <summary>Per-endpoint rate limit policies. Defaults defined in appsettings.json.</summary>
-    public List<RateLimitPolicy> Policies { get; set; } = [];
+    /// <summary>Per-endpoint rate limit policies.</summary>
+    public List<RateLimitPolicy> Policies { get; set; } =
+    [
+        new() { PolicyName = "chat", Endpoint = "/mcp/chat", PermitLimit = 30, WindowSeconds = 60, SegmentsPerWindow = 2 },
+        new() { PolicyName = "stream", Endpoint = "/mcp/chat/stream", PermitLimit = 10, WindowSeconds = 60, SegmentsPerWindow = 2 },
+        new() { PolicyName = "jsonrpc", Endpoint = "/mcp", PermitLimit = 60, WindowSeconds = 60, SegmentsPerWindow = 2 }
+    ];
 
     /// <summary>Endpoints exempt from rate limiting.</summary>
     public List<string> ExemptEndpoints { get; set; } = ["/health", "/mcp/tools"];

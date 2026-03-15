@@ -356,7 +356,7 @@ public interface IRemediationEngine
     /// <returns>Typed validation result with per-check details</returns>
     Task<RemediationValidationResult> ValidateRemediationAsync(
         string executionId,
-        CancellationToken ct = default);
+        CancellationToken ct);
 
     /// <summary>
     /// Executes batch remediation with concurrency control and typed results.

@@ -485,8 +485,8 @@ public class RemediationExecuteTool : BaseTool
         ["severity"] = new() { Name = "severity", Description = "Severity filter for batch remediation (Critical, High, Medium, Low)", Type = "string" },
         ["family"] = new() { Name = "family", Description = "Control family filter for batch remediation (e.g., AC, IA, SC)", Type = "string" },
         ["subscription_id"] = new() { Name = "subscription_id", Description = "Subscription ID for batch remediation", Type = "string" },
-        ["require_approval"] = new() { Name = "require_approval", Description = "Require approval before execution", Type = "boolean" },
-        ["use_ai"] = new() { Name = "use_ai", Description = "Use AI-generated remediation scripts (default true)", Type = "boolean" }
+        ["require_approval"] = new() { Name = "require_approval", Description = "Require approval before execution (single-finding mode only)", Type = "boolean" },
+        ["use_ai"] = new() { Name = "use_ai", Description = "Use AI-generated remediation scripts (single-finding mode only, default true)", Type = "boolean" }
     };
 
     /// <inheritdoc />
@@ -659,7 +659,30 @@ public class RemediationPlanTool : BaseTool
         var automatableOnly = GetArg<bool?>(arguments, "automatable_only") ?? false;
         var severityFilter = GetArg<string>(arguments, "severity_filter");
 
-        var plan = await _remediationEngine.GeneratePlanAsync(subscriptionId ?? "", resourceGroupName, cancellationToken);
+        // Use enhanced overload when any filter option is provided
+        var optionsProvided =
+            !string.IsNullOrWhiteSpace(includeFamilies) ||
+            !string.IsNullOrWhiteSpace(excludeFamilies) ||
+            automatableOnly ||
+            !string.IsNullOrWhiteSpace(severityFilter);
+
+        static List<string>? SplitFamilies(string? csv) =>
+            string.IsNullOrWhiteSpace(csv)
+                ? null
+                : csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+        var plan = optionsProvided
+            ? await _remediationEngine.GenerateRemediationPlanAsync(
+                subscriptionId ?? "",
+                new RemediationPlanOptions
+                {
+                    IncludeFamilies = SplitFamilies(includeFamilies),
+                    ExcludeFamilies = SplitFamilies(excludeFamilies),
+                    AutomatableOnly = automatableOnly,
+                    MinSeverity = severityFilter
+                },
+                cancellationToken)
+            : await _remediationEngine.GeneratePlanAsync(subscriptionId ?? "", resourceGroupName, cancellationToken);
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"## Remediation Plan\n");

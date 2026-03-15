@@ -99,7 +99,7 @@ public class AssessmentPurgeOptions
 
 /// <summary>
 /// Configuration options for the Remediation Engine.
-/// Bound from <c>AgentConfiguration:ComplianceAgent:Remediation</c> config section.
+/// Bound from <c>Agents:Compliance:Remediation</c> config section.
 /// </summary>
 public class RemediationOptions
 {

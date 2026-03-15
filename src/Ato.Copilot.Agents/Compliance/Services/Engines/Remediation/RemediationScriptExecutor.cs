@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using Ato.Copilot.Core.Interfaces;
+using Microsoft.Extensions.Options;
+using Ato.Copilot.Agents.Compliance.Configuration;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 
@@ -16,20 +17,38 @@ public class RemediationScriptExecutor : IRemediationScriptExecutor
     private readonly IPathSanitizationService _pathSanitizer;
     private readonly ILogger<RemediationScriptExecutor> _logger;
 
-    private const int MaxRetries = 3;
-    private static readonly TimeSpan ScriptTimeout = TimeSpan.FromMinutes(5);
+    private readonly int _maxRetries;
+    private readonly TimeSpan _scriptTimeout;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="RemediationScriptExecutor"/> class.
+    /// Initializes a new instance of the <see cref="RemediationScriptExecutor"/> class
+    /// using configuration values from <see cref="ComplianceAgentOptions.Remediation"/>.
     /// </summary>
     public RemediationScriptExecutor(
         IScriptSanitizationService sanitizer,
-        IPathSanitizationService pathSanitizer,
-        ILogger<RemediationScriptExecutor> logger)
+        ILogger<RemediationScriptExecutor> logger,
+        IOptions<ComplianceAgentOptions> options)
+        : this(sanitizer, logger,
+              options.Value.Remediation.MaxRetries,
+              TimeSpan.FromSeconds(options.Value.Remediation.ScriptTimeoutSeconds))
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RemediationScriptExecutor"/> class
+    /// with explicit retry and timeout settings (for testing).
+    /// </summary>
+    public RemediationScriptExecutor(
+        IScriptSanitizationService sanitizer,
+        ILogger<RemediationScriptExecutor> logger,
+        int maxRetries = 3,
+        TimeSpan? scriptTimeout = null)
     {
         _sanitizer = sanitizer;
         _pathSanitizer = pathSanitizer;
         _logger = logger;
+        _maxRetries = maxRetries;
+        _scriptTimeout = scriptTimeout ?? TimeSpan.FromMinutes(5);
     }
 
     /// <inheritdoc />
@@ -77,16 +96,16 @@ public class RemediationScriptExecutor : IRemediationScriptExecutor
         }
 
         // Execute with retry logic
-        for (int attempt = 1; attempt <= MaxRetries; attempt++)
+        for (int attempt = 1; attempt <= _maxRetries; attempt++)
         {
             try
             {
                 _logger.LogInformation(
                     "Executing {ScriptType} script for {FindingId} (attempt {Attempt}/{Max})",
-                    script.ScriptType, findingId, attempt, MaxRetries);
+                    script.ScriptType, findingId, attempt, _maxRetries);
 
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(ScriptTimeout);
+                cts.CancelAfter(_scriptTimeout);
 
                 // Execute script via subprocess (az CLI / PowerShell / bash)
                 var (exitCode, stdout, stderr) = await RunSubprocessAsync(script, cts.Token);
@@ -118,16 +137,16 @@ public class RemediationScriptExecutor : IRemediationScriptExecutor
                     "Script execution timed out for {FindingId} (attempt {Attempt})",
                     findingId, attempt);
 
-                if (attempt == MaxRetries)
+                if (attempt == _maxRetries)
                 {
                     execution.Status = RemediationExecutionStatus.Failed;
-                    execution.Error = $"Script execution timed out after {MaxRetries} attempts";
+                    execution.Error = $"Script execution timed out after {_maxRetries} attempts";
                     execution.CompletedAt = DateTime.UtcNow;
                     execution.Duration = execution.CompletedAt - execution.StartedAt;
                     return execution;
                 }
             }
-            catch (Exception ex) when (attempt < MaxRetries)
+            catch (Exception ex) when (attempt < _maxRetries)
             {
                 _logger.LogWarning(ex,
                     "Script execution failed for {FindingId} (attempt {Attempt}), retrying",
@@ -136,7 +155,7 @@ public class RemediationScriptExecutor : IRemediationScriptExecutor
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Script execution failed for {FindingId} after {MaxRetries} attempts", findingId, MaxRetries);
+                _logger.LogError(ex, "Script execution failed for {FindingId} after {MaxRetries} attempts", findingId, _maxRetries);
                 execution.Status = RemediationExecutionStatus.Failed;
                 execution.Error = ex.Message;
                 execution.CompletedAt = DateTime.UtcNow;
