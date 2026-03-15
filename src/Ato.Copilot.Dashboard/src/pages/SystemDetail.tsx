@@ -8,6 +8,7 @@ import MetricCard from '../components/cards/MetricCard';
 import FindingsSeverityCard from '../components/cards/FindingsSeverityCard';
 import AtoCountdown from '../components/cards/AtoCountdown';
 import ActivityFeed from '../components/cards/ActivityFeed';
+import TodoPanel from '../components/cards/TodoPanel';
 import { usePolling } from '../hooks/usePolling';
 import { getSystemDetail, getHeatmap } from '../api/systemDetail';
 import type { SystemDetailResponse, HeatmapResponse } from '../types/dashboard';
@@ -56,7 +57,10 @@ export default function SystemDetail() {
   const km = detail.keyMetrics;
 
   return (
-    <PageLayout title={detail.name}>
+    <PageLayout
+      title={detail.name}
+      sidePanel={<TodoPanel systemId={detail.systemId} />}
+    >
       {/* Breadcrumb */}
       <div className="mb-4 text-sm">
         <Link to="/" className="text-blue-600 hover:underline">
@@ -95,6 +99,11 @@ export default function SystemDetail() {
           title="Narrative Coverage"
           value={`${km.narrativeCoverage.toFixed(1)}%`}
         />
+      </div>
+
+      {/* To Do Panel (mobile — shows below metrics when side panel is hidden) */}
+      <div className="mb-6 xl:hidden">
+        <TodoPanel systemId={detail.systemId} />
       </div>
 
       {/* Findings */}
@@ -141,6 +150,12 @@ export default function SystemDetail() {
           className="rounded-md bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100"
         >
           Component Inventory
+        </Link>
+        <Link
+          to={`/systems/${detail.systemId}/roadmap`}
+          className="rounded-md bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100"
+        >
+          Implementation Roadmap
         </Link>
       </div>
     </PageLayout>

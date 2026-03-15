@@ -363,6 +363,52 @@ The dashboard is a **standalone React SPA** that communicates with the MCP serve
 
 ---
 
+## Implementation Roadmap (Feature 031)
+
+### Architecture
+
+Transforms gap analysis data into AI-driven, phased implementation roadmaps with effort estimates, risk reduction projections, and bi-directional Kanban integration. Surfaces through three channels: MCP tools (Teams Adaptive Cards), Visual Compliance Dashboard (React SPA), and PDF export.
+
+```
+┌────────────────────────┐     MCP Tools       ┌──────────────────────────┐
+│  Teams / VS Code /     │ ──────────────────► │  MCP Server              │
+│  GitHub Copilot        │ ◄────────────────── │                          │
+│                        │   Adaptive Cards     │  • RoadmapService        │
+│  • Generate Roadmap    │                     │  • CapabilityService     │
+│  • View Progress       │                     │  • KanbanService (sync)  │
+│  • Export PDF          │                     │  • QuestPDF (PDF export) │
+└────────────────────────┘                     └──────────────────────────┘
+                                                         │
+┌────────────────────────┐     REST/JSON                 │
+│  Dashboard SPA         │ ──────────────────────────────┘
+│  /systems/:id/roadmap  │
+│                        │
+│  • Metric Cards        │
+│  • Phase Timeline      │
+│  • Risk Curve (dual)   │
+│  • Phase Detail Tables │
+└────────────────────────┘
+```
+
+### MCP Tools (6)
+
+| Tool | Description | RBAC |
+|------|-------------|------|
+| `compliance_generate_roadmap` | Generate phased roadmap from gap analysis | ISSM |
+| `compliance_get_roadmap` | Get active roadmap | Any |
+| `compliance_get_roadmap_progress` | Progress metrics with risk curve | Any |
+| `compliance_update_roadmap` | Move/merge/split/reassign | ISSM |
+| `compliance_create_board_from_roadmap` | Create Kanban board from roadmap | ISSM |
+| `compliance_export_roadmap_pdf` | Export as PDF | Any |
+
+### New Entities
+
+- `ImplementationRoadmap` — Versioned action plan per system (one Active at a time)
+- `RoadmapPhase` — Sequenced phase groupings with effort/risk metrics
+- `RoadmapItem` — Individual control gap with severity, effort, role, dependencies
+
+---
+
 ## Related Documentation
 
 - [Data Model](data-model.md) — Entity relationships and ER diagram

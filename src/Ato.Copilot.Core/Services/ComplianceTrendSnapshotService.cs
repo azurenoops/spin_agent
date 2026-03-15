@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
 
-namespace Ato.Copilot.Mcp.Services;
+namespace Ato.Copilot.Core.Services;
 
 /// <summary>
 /// Background service that captures daily compliance trend snapshots for all active systems.

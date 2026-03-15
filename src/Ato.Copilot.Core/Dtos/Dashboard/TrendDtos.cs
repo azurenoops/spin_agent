@@ -1,4 +1,4 @@
-namespace Ato.Copilot.Mcp.Dtos.Dashboard;
+namespace Ato.Copilot.Core.Dtos.Dashboard;
 
 /// <summary>
 /// Response DTO for compliance trend data.

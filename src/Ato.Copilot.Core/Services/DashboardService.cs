@@ -4,9 +4,9 @@ using System.Diagnostics;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
-using Ato.Copilot.Mcp.Dtos.Dashboard;
+using Ato.Copilot.Core.Dtos.Dashboard;
 
-namespace Ato.Copilot.Mcp.Services;
+namespace Ato.Copilot.Core.Services;
 
 /// <summary>
 /// Service for portfolio-level and system-level dashboard queries.

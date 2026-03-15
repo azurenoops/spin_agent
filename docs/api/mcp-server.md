@@ -325,6 +325,92 @@ Generate System Security Plan.
 
 ---
 
+### `compliance_generate_roadmap`
+
+Generate a phased implementation roadmap from gap analysis data. Uses AI-driven clustering with deterministic fallback.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID or name |
+
+**RBAC**: Compliance.SecurityLead (ISSM) only
+
+**Response:** Roadmap ID, system name, status (Draft), phases with items (control ID, gap type, severity, effort, role, dependencies), total effort/risk points, generation method (AI/Deterministic).
+
+---
+
+### `compliance_get_roadmap`
+
+Get the active implementation roadmap for a system.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID or name |
+| `include_items` | boolean | | Include per-phase item details (default: true) |
+
+**RBAC**: Any compliance role (read-only)
+
+---
+
+### `compliance_get_roadmap_progress`
+
+Get progress metrics and risk reduction data for a system's active roadmap.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID or name |
+
+**RBAC**: Any compliance role (read-only)
+
+**Response:** Overall completion %, items completed/total, actual vs projected risk reduction, per-phase progress with overdue detection.
+
+---
+
+### `compliance_update_roadmap`
+
+Update roadmap items — move between phases, change roles, update effort, merge/split phases.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID or name |
+| `move_item` | object | | `{ control_id, target_phase_order }` |
+| `update_effort` | object | | `{ control_id, effort_days }` |
+| `update_role` | object | | `{ control_id, assigned_role }` |
+| `merge_phases` | object | | `{ source_phase_order, target_phase_order }` |
+| `split_phase` | object | | `{ phase_order, split_after_item_index }` |
+
+**RBAC**: Compliance.SecurityLead (ISSM) only
+
+---
+
+### `compliance_create_board_from_roadmap`
+
+Create a Kanban remediation board pre-populated from a roadmap.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID or name |
+
+**RBAC**: Compliance.SecurityLead (ISSM) only
+
+**Response:** Board ID, tasks created count, phases mapped count.
+
+---
+
+### `compliance_export_roadmap_pdf`
+
+Export a roadmap as a PDF document for AO briefings.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID or name |
+
+**RBAC**: Any compliance role (read-only)
+
+**Response:** PDF file as base64-encoded content with filename and content type.
+
+---
+
 ## Phase 5: Assess
 
 ### `compliance_assess_control`
@@ -1451,3 +1537,13 @@ Query parameters: `startDate`, `endDate`, `granularity` (Daily/Weekly/Monthly/Qu
 | DELETE | `/api/dashboard/components/{id}` | Delete a component |
 
 Query parameters for GET: `type`, `status`, `search`, `cursor`, `pageSize`
+
+#### Implementation Roadmap
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/roadmap` | Active roadmap with phases and items |
+| GET | `/api/dashboard/systems/{systemId}/roadmap/progress` | Progress metrics with risk reduction curve |
+| GET | `/api/dashboard/systems/{systemId}/roadmap/export` | Export roadmap as PDF |
+
+Query parameters for roadmap GET: `includeItems` (default: true)

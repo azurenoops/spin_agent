@@ -25,6 +25,8 @@ import { buildSystemSummaryCard } from "./systemSummaryCard";
 import { buildCategorizationCard } from "./categorizationCard";
 import { buildAuthorizationCard } from "./authorizationCard";
 import { buildDashboardCard } from "./dashboardCard";
+import { buildRoadmapCard } from "./roadmapCard";
+import { buildRoadmapPhaseDetailCard } from "./roadmapPhaseDetailCard";
 
 /**
  * Select and build the appropriate Adaptive Card for an MCP response.
@@ -241,6 +243,45 @@ export function selectCard(response: McpResponse): Record<string, unknown> {
           controlId: data?.controlId as string,
           severity: data?.severity as string,
           agentUsed,
+          conversationId,
+        });
+
+      case "roadmap":
+        return buildRoadmapCard({
+          roadmapId: data?.roadmapId as string,
+          systemId: data?.systemId as string,
+          systemName: data?.systemName as string,
+          totalGaps: data?.totalGaps as number,
+          phaseCount: data?.phaseCount as number,
+          totalEffortDays: data?.totalEffortDays as number,
+          riskReduction: data?.riskReduction as number,
+          phases: data?.phases as Array<{
+            name: string;
+            timeline: string;
+            controlCount: number;
+            effortDays: number;
+            riskReductionPercent: number;
+          }>,
+          agentUsed,
+          suggestions,
+          conversationId,
+        });
+
+      case "roadmapPhaseDetail":
+        return buildRoadmapPhaseDetailCard({
+          phaseName: data?.phaseName as string,
+          systemId: data?.systemId as string,
+          phaseOrder: data?.phaseOrder as number,
+          items: data?.items as Array<{
+            controlId: string;
+            effortDays: number;
+            assignedRole: string;
+            gapType: string;
+            dependsOn: string[];
+            status: string;
+          }>,
+          agentUsed,
+          suggestions,
           conversationId,
         });
 

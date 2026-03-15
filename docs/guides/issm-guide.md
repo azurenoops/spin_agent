@@ -1382,6 +1382,81 @@ Decommissioning a hardware item automatically cascades to all installed software
 
 ---
 
+## Implementation Roadmap Workflow
+
+> Feature 031: Implementation Roadmap
+
+The Implementation Roadmap feature generates a phased action plan for closing compliance gaps, with AI-driven clustering, effort estimates, risk projections, and Kanban integration.
+
+### Generate a Roadmap
+
+```
+Tool: compliance_generate_roadmap
+Parameters:
+  system_id: "<system-guid>"
+```
+
+The system must have a selected baseline and at least one unmapped control (gap). The tool generates a multi-phase roadmap with:
+
+- **AI-driven clustering** of controls into phases (falls back to severity-based grouping if AI is unavailable)
+- **Effort estimates** informed by historical Kanban task completion data
+- **Risk reduction projections** using weighted severity scores (CAT I=10, CAT II=5, CAT III=1)
+- **NIST dependency ordering** ensuring prerequisites precede dependent controls
+
+### View the Roadmap
+
+```
+Tool: compliance_get_roadmap
+Parameters:
+  system_id: "<system-guid>"
+  include_items: true
+```
+
+Or view in the dashboard at `/systems/<id>/roadmap` with timeline visualization, risk reduction curve, and expandable phase tables.
+
+### Track Progress
+
+```
+Tool: compliance_get_roadmap_progress
+Parameters:
+  system_id: "<system-guid>"
+```
+
+Shows overall completion %, per-phase progress, overdue detection, and actual vs. projected risk reduction.
+
+### Bridge to Kanban
+
+```
+Tool: compliance_create_board_from_roadmap
+Parameters:
+  system_id: "<system-guid>"
+```
+
+Creates a pre-populated Kanban board with one task per roadmap item. Status changes on Kanban tasks automatically sync back to the roadmap.
+
+### Update and Reassign
+
+```
+Tool: compliance_update_roadmap
+Parameters:
+  system_id: "<system-guid>"
+  move_item: { "item_id": "<id>", "target_phase_id": "<id>" }
+```
+
+Supports moving items between phases, updating effort estimates, reassigning roles, merging phases, and splitting phases. Changes propagate to linked Kanban tasks.
+
+### Export PDF
+
+```
+Tool: compliance_export_roadmap_pdf
+Parameters:
+  system_id: "<system-guid>"
+```
+
+Generates a PDF report with summary metrics, phase timeline, and detailed control tables.
+
+---
+
 ## See Also
 
 - [ISSM Getting Started](../getting-started/issm.md) — First-time setup and first 3 commands

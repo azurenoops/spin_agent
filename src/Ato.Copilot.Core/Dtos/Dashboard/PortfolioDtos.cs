@@ -1,4 +1,4 @@
-namespace Ato.Copilot.Mcp.Dtos.Dashboard;
+namespace Ato.Copilot.Core.Dtos.Dashboard;
 
 /// <summary>
 /// Summary of a registered system for portfolio-level dashboard display.

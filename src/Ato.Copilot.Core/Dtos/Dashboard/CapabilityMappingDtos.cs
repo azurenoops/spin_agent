@@ -1,4 +1,4 @@
-namespace Ato.Copilot.Mcp.Dtos.Dashboard;
+namespace Ato.Copilot.Core.Dtos.Dashboard;
 
 /// <summary>
 /// Read DTO for a single capability-to-control mapping.

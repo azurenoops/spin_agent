@@ -15,7 +15,6 @@
     <PackageReference Include="ClosedXML" Version="0.104.2" />
     <PackageReference Include="DiffPlex" Version="1.7.2" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="9.4.0-preview.1.25207.5" />
-    <PackageReference Include="QuestPDF" Version="2024.12.3" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.4" />

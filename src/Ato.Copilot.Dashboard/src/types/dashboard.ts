@@ -259,3 +259,95 @@ export interface DeleteComponentResponse {
   deletedId: string;
   flaggedCapabilities: { capabilityId: string; capabilityName: string; message: string }[];
 }
+
+// ─── Implementation Roadmap (Feature 031) ──────────────────────────────────────
+
+export interface Roadmap {
+  roadmapId: string;
+  systemId: string;
+  systemName: string;
+  status: string;
+  baselineLevel: string;
+  totalGaps: number;
+  totalEstimatedEffortDays: number;
+  totalRiskPoints: number;
+  overallCompletionPercent: number;
+  phases: RoadmapPhase[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoadmapPhase {
+  phaseId: string;
+  name: string;
+  displayOrder: number;
+  estimatedEffortDays: number;
+  riskPoints: number;
+  riskReductionPercent: number;
+  targetStartWeek: number | null;
+  targetEndWeek: number | null;
+  status: string;
+  completedItemCount: number;
+  totalItemCount: number;
+  items?: RoadmapItem[];
+}
+
+export interface RoadmapItem {
+  itemId: string;
+  controlId: string;
+  controlTitle: string;
+  controlFamily: string;
+  gapType: string;
+  severity: string;
+  riskPoints: number;
+  estimatedEffortDays: number;
+  assignedRole: string;
+  dependsOn: string[] | null;
+  status: string;
+  linkedTaskId: string | null;
+}
+
+export interface RoadmapProgress {
+  roadmapId: string;
+  systemName: string;
+  overallCompletionPercent: number;
+  itemsCompleted: number;
+  itemsTotal: number;
+  riskCurve: RiskCurvePoint[];
+  phaseProgress: PhaseProgress[];
+}
+
+export interface RiskCurvePoint {
+  week: number;
+  riskPoints: number;
+  riskReductionPercent: number;
+}
+
+export interface PhaseProgress {
+  name: string;
+  displayOrder: number;
+  completionPercent: number;
+  status: string;
+  actualRiskReductionPercent: number;
+  isOverdue: boolean;
+  daysOverdue: number;
+}
+
+// ─── Todo List ─────────────────────────────────────────────────────────────────
+
+export interface TodoList {
+  systemId: string;
+  systemName: string;
+  currentPhase: string;
+  nextPhase: string | null;
+  items: TodoItem[];
+}
+
+export interface TodoItem {
+  id: string;
+  label: string;
+  detail: string;
+  category: string;
+  prompt?: string;
+  link?: string;
+}

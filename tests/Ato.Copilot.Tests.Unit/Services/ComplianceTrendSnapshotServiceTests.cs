@@ -6,8 +6,8 @@ using Moq;
 using Xunit;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
-using Ato.Copilot.Mcp.Dtos.Dashboard;
-using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Core.Dtos.Dashboard;
+using Ato.Copilot.Core.Services;
 
 namespace Ato.Copilot.Tests.Unit.Services;
 

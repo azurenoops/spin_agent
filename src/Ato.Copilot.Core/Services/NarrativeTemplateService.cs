@@ -1,7 +1,7 @@
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Models.Compliance;
 
-namespace Ato.Copilot.Mcp.Services;
+namespace Ato.Copilot.Core.Services;
 
 /// <summary>
 /// Generates deterministic narrative text for control implementations

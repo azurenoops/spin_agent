@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
-using Ato.Copilot.Mcp.Dtos.Dashboard;
+using Ato.Copilot.Core.Dtos.Dashboard;
 
-namespace Ato.Copilot.Mcp.Services;
+namespace Ato.Copilot.Core.Services;
 
 /// <summary>
 /// Service for Security Capability CRUD and control-mapping operations.

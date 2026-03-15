@@ -52,6 +52,12 @@ This catalog documents the MCP tools introduced for RMF system registration, aut
 | `compliance_batch_review_narratives` | `BatchReviewNarrativesAsync` | Batch review narratives by family or control IDs |
 | `compliance_narrative_approval_progress` | `GetNarrativeApprovalProgressAsync` | Aggregate approval status and progress dashboard |
 | `compliance_batch_submit_narratives` | `BatchSubmitNarrativesAsync` | Batch submit Draft narratives for review |
+| `compliance_generate_roadmap` | `GenerateRoadmapAsync` | Generate phased implementation roadmap from gap analysis |
+| `compliance_get_roadmap` | `GetRoadmapAsync` | Get active implementation roadmap for a system |
+| `compliance_get_roadmap_progress` | `GetRoadmapProgressAsync` | Get roadmap progress metrics with risk curve |
+| `compliance_update_roadmap` | `UpdateRoadmapAsync` | Update roadmap items, merge/split phases |
+| `compliance_create_board_from_roadmap` | `CreateBoardFromRoadmapAsync` | Create Kanban board from roadmap |
+| `compliance_export_roadmap_pdf` | `ExportRoadmapPdfAsync` | Export roadmap as PDF document |
 
 ---
 
@@ -3276,6 +3282,81 @@ Auto-create hardware inventory items from authorization boundary resources. Idem
 - **Parameters**: `system_id` (required)
 - **Response**: `created_count`, `items[]`
 - **Errors**: `SYSTEM_NOT_FOUND`, `NO_BOUNDARY_DATA`
+
+---
+
+## Implementation Roadmap Tools (Feature 031)
+
+### `compliance_generate_roadmap`
+
+Generate a phased implementation roadmap from a system's gap analysis data. Uses AI-driven clustering to group controls into phases based on severity, dependency chains, and control family relationships. Falls back to deterministic severity-first grouping when AI is unavailable. Historical Kanban task completion data refines effort estimates when available.
+
+- **RBAC**: Compliance.SecurityLead (ISSM) only
+- **RMF Step**: Implement (Phase 4)
+- **Parameters**: `system_id` (required)
+- **Preconditions**: System must have a selected baseline and at least one unmapped control (gap)
+- **Response**: `roadmap_id`, `system_name`, `status` (Draft), `total_gaps`, `total_estimated_effort_days`, `total_risk_points`, `phases[]` (with items), `generation_method` (AI/Deterministic)
+- **Business Rules**: Only one Active roadmap per system; generating a new roadmap archives any existing Active roadmap
+- **Errors**: `SYSTEM_NOT_FOUND`, `NO_BASELINE_SELECTED`, `NO_GAPS_FOUND`
+
+### `compliance_get_roadmap`
+
+Get the active implementation roadmap for a system with phases and items.
+
+- **RBAC**: Any compliance role (read-only, no PIM tier required)
+- **RMF Step**: Implement (Phase 4)
+- **Parameters**: `system_id` (required), `include_items` (optional, default: true)
+- **Response**: Full roadmap with phases and items (same structure as generate), or null if no active roadmap
+- **Errors**: `SYSTEM_NOT_FOUND`
+
+### `compliance_get_roadmap_progress`
+
+Get progress metrics for a system's active roadmap including actual-vs-projected risk reduction and overdue phase detection.
+
+- **RBAC**: Any compliance role (read-only, no PIM tier required)
+- **RMF Step**: Implement (Phase 4), Monitor (Phase 7)
+- **Parameters**: `system_id` (required)
+- **Response**: `overall_completion_percent`, `items_completed`/`items_total`, `actual_risk_reduction`, `projected_risk_reduction`, `phases[]` (with `completion_percent`, `is_overdue`, `days_overdue`, `actual_risk_reduction_percent`), `untracked_gaps`
+- **Errors**: `SYSTEM_NOT_FOUND`, `NO_ACTIVE_ROADMAP`
+
+### `compliance_update_roadmap`
+
+Update a roadmap's items — move items between phases, change role assignments, update effort estimates, merge phases, or split phases. Changes propagate to linked Kanban tasks. Increments the roadmap Version counter.
+
+- **RBAC**: Compliance.SecurityLead (ISSM) only
+- **RMF Step**: Implement (Phase 4)
+- **Parameters**: `system_id` (required), `move_item` (optional: `{ control_id, target_phase_order }`), `update_effort` (optional: `{ control_id, effort_days }`), `update_role` (optional: `{ control_id, assigned_role }`), `merge_phases` (optional: `{ source_phase_order, target_phase_order }`), `split_phase` (optional: `{ phase_order, split_after_item_index }`)
+- **Response**: Updated roadmap (same structure as generate)
+- **Errors**: `SYSTEM_NOT_FOUND`, `NO_ACTIVE_ROADMAP`, `ITEM_NOT_FOUND`, `PHASE_NOT_FOUND`
+
+### `compliance_create_board_from_roadmap`
+
+Create a Kanban remediation board pre-populated from a roadmap. Maps phases to task groupings and items to tasks with effort estimates, role assignments, and dependency ordering. Establishes bi-directional sync — completing a Kanban task updates the corresponding roadmap item.
+
+- **RBAC**: Compliance.SecurityLead (ISSM) only
+- **RMF Step**: Implement (Phase 4)
+- **Parameters**: `system_id` (required)
+- **Preconditions**: System must have an active roadmap without an existing linked board
+- **Response**: `board_id`, `board_name`, `tasks_created`, `roadmap_id`, `phases_mapped`
+- **Errors**: `SYSTEM_NOT_FOUND`, `NO_ACTIVE_ROADMAP`, `BOARD_ALREADY_EXISTS`
+
+### `compliance_export_roadmap_pdf`
+
+Export a roadmap as a PDF document using QuestPDF. Includes header with summary metrics, phase detail tables with control items, and paginated footer. Suitable for AO briefings and authorization package supplements.
+
+- **RBAC**: Any compliance role (read-only, no PIM tier required)
+- **RMF Step**: Implement (Phase 4), Authorize (Phase 6)
+- **Parameters**: `system_id` (required)
+- **Response**: `file_name`, `content_base64`, `content_type` (application/pdf)
+- **Errors**: `SYSTEM_NOT_FOUND`, `NO_ACTIVE_ROADMAP`
+
+### Troubleshooting — Implementation Roadmap Tools
+
+**"No baseline selected" error**: The system must have a baseline selected before a roadmap can be generated. Run `compliance_select_baseline` first.
+
+**"No gaps found" error**: All controls are fully covered — no roadmap is needed. This is a success condition, not an error.
+
+**"Board already exists" error**: A Kanban board is already linked to this roadmap. Use the existing board or archive the current roadmap and regenerate.
 
 ### Troubleshooting — HW/SW Inventory Tools
 

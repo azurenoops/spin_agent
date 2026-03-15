@@ -4,6 +4,42 @@ All notable changes to ATO Copilot are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.0] - 2026-03-15
+
+### Added
+
+#### Feature 031: Implementation Roadmap
+
+- **Roadmap Generation** (`compliance_generate_roadmap`) — AI-driven clustering of compliance gap analysis data into sequenced, multi-phase implementation roadmaps with effort estimates, risk projections, and dependency ordering. CAT I/critical gaps weighted toward earliest phases. Deterministic fallback clustering (severity-first grouping) when AI is unavailable. Historical Kanban task completion data refines effort estimates when available.
+- **Roadmap Retrieval** (`compliance_get_roadmap`) — Read-only access to the active roadmap for any system with eager-loaded phases and items. Supports `include_items` toggle for summary-only views.
+- **Progress Tracking** (`compliance_get_roadmap_progress`) — Per-phase and overall completion metrics with actual-vs-projected risk reduction comparison, overdue phase detection, and untracked gap alerts.
+- **Roadmap Updates** (`compliance_update_roadmap`) — Move items between phases, reassign roles, update effort estimates, merge phases, and split phases. Changes propagate to linked Kanban tasks. Version counter incremented on each edit.
+- **Kanban Bridge** (`compliance_create_board_from_roadmap`) — One-click conversion of a roadmap into a pre-populated remediation Kanban board. Bi-directional status sync: completing a Kanban task updates the roadmap item, phase progress, and risk reduction metrics.
+- **PDF Export** (`compliance_export_roadmap_pdf`) — QuestPDF-based export with header metrics, phase detail tables, and paginated footer for AO briefings and authorization package supplements.
+- **Dashboard Roadmap Page** — React SPA page at `/systems/:id/roadmap` with summary metric cards (total gaps, effort, risk reduction), phase timeline visualization, dual-line risk reduction curve (projected vs actual), and expandable phase detail tables.
+- **M365 Teams Adaptive Cards** — Roadmap summary card with phase rows, effort totals, risk projections, and "Create Kanban Board"/"Export PDF" action buttons. Phase detail card with per-item table.
+- **Entity Model** — `ImplementationRoadmap`, `RoadmapPhase`, `RoadmapItem` entities with `ConcurrentEntity` base, indexed FKs, and enums (`RoadmapStatus`, `PhaseStatus`, `ItemStatus`, `GapType`, `ItemSeverity`).
+- **Risk Calculation** — Weighted severity scoring (CAT I=10, CAT II=5, CAT III=1) with cumulative risk reduction percentages per phase.
+- **RBAC** — ISSM (Compliance.SecurityLead) required for generate/edit/delete; ISSO, Engineer, AO have read-only access via PIM tier enforcement.
+- **28 Tests** — 23 unit tests (risk calculation, service methods, tool PIM tiers/parameters/execution) + 5 integration tests (endpoint 200/404 responses).
+
+### Changed
+
+- **Service Architecture** — Moved all 6 services (`CapabilityService`, `ComplianceTrendSnapshotService`, `ComponentService`, `DashboardService`, `NarrativeTemplateService`, `RoadmapService`) and 10 DTO files from `Ato.Copilot.Mcp` to `Ato.Copilot.Core` for proper cross-cutting architecture.
+- **QuestPDF** — Consolidated to `Ato.Copilot.Core.csproj` at version 2025.7.0 (removed from Mcp and Agents projects).
+- **KanbanService** — Added `SyncLinkedRoadmapItemAsync` hook for bi-directional roadmap-Kanban status synchronization.
+
+### Documentation
+
+- **MCP Server API** — 6 roadmap tool entries with parameter tables and JSON response examples.
+- **Dashboard REST API** — 3 roadmap endpoints (`/roadmap`, `/roadmap/progress`, `/roadmap/export`).
+- **Agent Tool Catalog** — Implementation Roadmap Tools section with full tool reference.
+- **Data Model** — `ImplementationRoadmap`, `RoadmapPhase`, `RoadmapItem` entity documentation and ER diagram update.
+- **Architecture Overview** — Implementation Roadmap section with service architecture and dashboard integration.
+- **ISSM Guide** — Implementation Roadmap Workflow section with tool examples.
+
+---
+
 ## [1.24.0] - 2026-03-14
 
 ### Added

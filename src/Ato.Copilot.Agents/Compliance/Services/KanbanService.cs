@@ -7,6 +7,7 @@ using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Kanban;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Roadmap;
 using Ato.Copilot.State.Abstractions;
 using TaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
 
@@ -618,6 +619,10 @@ public class KanbanService : IKanbanService
 
         _logger.LogInformation("Task {TaskNumber} moved {OldStatus}→{NewStatus} by {User}",
             task.TaskNumber, oldStatus, targetStatus, actingUserId);
+
+        // Feature 031: Sync linked roadmap item status
+        await SyncLinkedRoadmapItemAsync(task, targetStatus, cancellationToken);
+
         return task;
     }
 
@@ -1347,4 +1352,62 @@ public class KanbanService : IKanbanService
     {
         return value.Replace("\"", "\"\"");
     }
+
+    // ─── Feature 031: Roadmap ↔ Kanban sync ──────────────────────────────────
+
+    /// <summary>
+    /// After a Kanban task status change, propagate to the linked RoadmapItem
+    /// (if any) to keep bi-directional sync. Uses DbContext directly to avoid
+    /// circular dependency with IRoadmapService.
+    /// </summary>
+    private async Task SyncLinkedRoadmapItemAsync(
+        RemediationTask task, TaskStatus newTaskStatus, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(task.RoadmapItemId))
+            return;
+
+        var item = await _context.RoadmapItems
+            .Include(i => i.Phase)
+            .FirstOrDefaultAsync(i => i.Id == task.RoadmapItemId, cancellationToken);
+
+        if (item is null)
+        {
+            _logger.LogWarning("Linked RoadmapItem {ItemId} not found for task {TaskId}",
+                task.RoadmapItemId, task.Id);
+            return;
+        }
+
+        var oldStatus = item.Status;
+        item.Status = MapTaskStatusToItemStatus(newTaskStatus);
+
+        if (item.Status == oldStatus)
+            return;
+
+        // Update phase cached counts
+        var phase = item.Phase;
+        if (item.Status == ItemStatus.Complete && oldStatus != ItemStatus.Complete)
+            phase.CompletedItemCount++;
+        else if (item.Status != ItemStatus.Complete && oldStatus == ItemStatus.Complete)
+            phase.CompletedItemCount = Math.Max(0, phase.CompletedItemCount - 1);
+
+        // Update phase status
+        if (phase.CompletedItemCount >= phase.TotalItemCount)
+            phase.Status = PhaseStatus.Complete;
+        else if (phase.CompletedItemCount > 0 || item.Status == ItemStatus.InProgress)
+            phase.Status = PhaseStatus.InProgress;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Synced RoadmapItem {ItemId} status {Old}→{New} from task {TaskNumber}",
+            item.Id, oldStatus, item.Status, task.TaskNumber);
+    }
+
+    private static ItemStatus MapTaskStatusToItemStatus(TaskStatus taskStatus) => taskStatus switch
+    {
+        TaskStatus.Backlog or TaskStatus.ToDo => ItemStatus.NotStarted,
+        TaskStatus.InProgress or TaskStatus.InReview or TaskStatus.Blocked => ItemStatus.InProgress,
+        TaskStatus.Done => ItemStatus.Complete,
+        _ => ItemStatus.NotStarted,
+    };
 }

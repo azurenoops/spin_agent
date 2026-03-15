@@ -10,12 +10,30 @@ import type { GapAnalysisResponse } from '../types/dashboard';
 export default function GapAnalysis() {
   const { id } = useParams<{ id: string }>();
   const fetcher = useCallback(() => getGapAnalysis(id!), [id]);
-  const { data, loading } = usePolling<GapAnalysisResponse>(fetcher, 30000);
+  const { data, loading, error } = usePolling<GapAnalysisResponse>(fetcher, 30000);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <PageLayout title="Gap Analysis">
         <p className="text-gray-400">Loading gap analysis...</p>
+      </PageLayout>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <PageLayout title="Gap Analysis">
+        <nav className="text-sm text-gray-500 mb-4">
+          <Link to="/" className="hover:text-blue-600">Portfolio</Link>
+          <span className="mx-1">/</span>
+          <Link to={`/systems/${id}`} className="hover:text-blue-600">System Detail</Link>
+          <span className="mx-1">/</span>
+          <span className="text-gray-800">Gap Analysis</span>
+        </nav>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800 font-medium">Gap analysis unavailable</p>
+          <p className="text-yellow-600 text-sm mt-1">This system may not have a control baseline configured. Select a baseline first, then map capabilities to controls.</p>
+        </div>
       </PageLayout>
     );
   }

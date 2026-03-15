@@ -23,6 +23,8 @@
 - [Kanban Entities](#kanban-entities)
 - [Authentication Entities](#authentication-entities)
 - [Compliance Watch Entities](#compliance-watch-entities)
+- [Dashboard Entities](#dashboard-entities)
+- [Implementation Roadmap Entities](#implementation-roadmap-entities-feature-031)
 - [Database Configuration](#database-configuration)
 - [Enumerations](#enumerations)
 
@@ -84,6 +86,12 @@ erDiagram
     SecurityAssessmentPlan ||--o{ SapMethodOverride : has
     PrivacyImpactAssessment ||--o{ PiaSection : contains
     SystemInterconnection ||--o| InterconnectionAgreement : has
+
+    RegisteredSystem ||--o{ ImplementationRoadmap : has
+    ImplementationRoadmap ||--o{ RoadmapPhase : contains
+    RoadmapPhase ||--o{ RoadmapItem : contains
+    RoadmapItem }o--o| RemediationTask : links
+    ImplementationRoadmap ||--o| RemediationBoard : links
 ```
 
 ---
@@ -1092,3 +1100,90 @@ Two new fields added to support capability-driven narratives:
 |-------|------|-------------|
 | SecurityCapabilityId | string (36, nullable FK) | → SecurityCapability that generated this narrative |
 | IsManuallyCustomized | bool (default false) | True if user manually edited an auto-generated narrative |
+
+---
+
+## Implementation Roadmap Entities (Feature 031)
+
+### ImplementationRoadmap
+
+A versioned, phased action plan for closing compliance gaps on a specific system.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID identifier |
+| SystemId | string (FK) | → RegisteredSystem |
+| Name | string (200) | Roadmap name (e.g., "Eagle Eye Roadmap") |
+| Status | RoadmapStatus | Draft / Active / Completed / Archived |
+| TotalEstimatedEffort | double | Total effort in person-days |
+| TotalRiskPoints | double | Sum of all gap risk points |
+| LinkedBoardId | string (nullable FK) | → RemediationBoard (if Kanban bridge created) |
+| Version | int | Incremented on each edit |
+| RowVersion | string | Optimistic concurrency token |
+| CreatedAt, UpdatedAt | DateTime | Timestamps |
+
+**Business Rules**: Only one Active roadmap per system. Generating a new roadmap archives any existing Active roadmap.
+
+**Indexes**: `IX_SystemId_Status` on `(SystemId, Status)`
+
+### RoadmapPhase
+
+A logical grouping of related controls within a roadmap, executed in sequence.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID identifier |
+| RoadmapId | string (FK) | → ImplementationRoadmap |
+| Name | string (200) | Phase name (e.g., "Critical Controls") |
+| DisplayOrder | int | Phase sequence number |
+| EstimatedEffort | double | Sum of item effort in person-days |
+| RiskPoints | double | Sum of item risk points |
+| RiskReductionPercent | double | Phase risk reduction contribution (%) |
+| TargetStartWeek | int | Planned start week |
+| TargetEndWeek | int | Planned end week |
+| Status | PhaseStatus | NotStarted / InProgress / Complete |
+| CompletedItemCount | int | Cached count of completed items |
+| TotalItemCount | int | Cached count of total items |
+| RowVersion | string | Optimistic concurrency token |
+
+**Indexes**: `IX_RoadmapId_DisplayOrder` on `(RoadmapId, DisplayOrder)`
+
+### RoadmapItem
+
+An individual control gap assigned to a phase with effort estimate and role assignment.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID identifier |
+| PhaseId | string (FK) | → RoadmapPhase |
+| RoadmapId | string (FK) | → ImplementationRoadmap |
+| ControlId | string (20) | NIST control ID (e.g., "AC-2") |
+| GapType | GapType | Unmapped / PartiallyImplemented / NotAssessed |
+| Severity | ItemSeverity | Critical / High / Medium |
+| RiskPoints | double | Risk score based on severity |
+| EstimatedEffortDays | double | Estimated effort in person-days |
+| AssignedRole | string (50) | Responsible role (ISSO, Engineer, ISSM) |
+| DependsOn | string (nullable) | Comma-separated prerequisite control IDs |
+| Status | ItemStatus | NotStarted / InProgress / Complete |
+| LinkedTaskId | string (nullable FK) | → RemediationTask (if Kanban bridge created) |
+| RowVersion | string | Optimistic concurrency token |
+
+**Indexes**: `IX_PhaseId` on `PhaseId`, `IX_ControlId` on `ControlId`
+
+### Modified Entity: RemediationTask
+
+One new field added to support bi-directional Kanban sync:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| RoadmapItemId | string (nullable FK) | → RoadmapItem that generated this task |
+
+### Enumerations
+
+| Enum | Values |
+|------|--------|
+| RoadmapStatus | Draft, Active, Completed, Archived |
+| PhaseStatus | NotStarted, InProgress, Complete |
+| ItemStatus | NotStarted, InProgress, Complete |
+| GapType | Unmapped, PartiallyImplemented, NotAssessed |
+| ItemSeverity | Critical, High, Medium |

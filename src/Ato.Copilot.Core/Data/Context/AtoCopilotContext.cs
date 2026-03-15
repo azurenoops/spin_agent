@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Roadmap;
 
 namespace Ato.Copilot.Core.Data.Context;
 
@@ -227,6 +228,17 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>Denormalized activity feed entries for dashboard rendering.</summary>
     public DbSet<DashboardActivity> DashboardActivities => Set<DashboardActivity>();
+
+    // ─── Implementation Roadmap (Feature 031) ────────────────────────────────
+
+    /// <summary>Phased implementation roadmaps for closing compliance gaps.</summary>
+    public DbSet<ImplementationRoadmap> ImplementationRoadmaps => Set<ImplementationRoadmap>();
+
+    /// <summary>Logical phase groupings within implementation roadmaps.</summary>
+    public DbSet<RoadmapPhase> RoadmapPhases => Set<RoadmapPhase>();
+
+    /// <summary>Individual control-gap items assigned to roadmap phases.</summary>
+    public DbSet<RoadmapItem> RoadmapItems => Set<RoadmapItem>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -511,6 +523,7 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ValidationCriteria).HasMaxLength(2000);
             entity.Property(e => e.FindingId).HasMaxLength(100);
             entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.RoadmapItemId).HasMaxLength(36);
             entity.Property(e => e.RowVersion).IsConcurrencyToken();
 
             // Value conversion for List<string> AffectedResources
@@ -536,6 +549,7 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => e.DueDate);
             entity.HasIndex(e => new { e.BoardId, e.Status });
             entity.HasIndex(e => new { e.BoardId, e.ControlFamily });
+            entity.HasIndex(e => e.RoadmapItemId);
         });
 
         // ─── TaskComment ─────────────────────────────────────────────────────────
@@ -1942,6 +1956,73 @@ public class AtoCopilotContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.RegisteredSystemId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── ImplementationRoadmap (Feature 031) ────────────────────────────────
+        modelBuilder.Entity<ImplementationRoadmap>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.BaselineLevel).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.LinkedBoardId).HasMaxLength(36);
+            entity.Property(e => e.GenerationMethod).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            entity.HasMany(e => e.Phases)
+                .WithOne(p => p.Roadmap)
+                .HasForeignKey(p => p.RoadmapId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => e.SystemId);
+            entity.HasIndex(e => new { e.SystemId, e.Status })
+                .HasDatabaseName("IX_ImplementationRoadmaps_SystemId_Status");
+        });
+
+        // ─── RoadmapPhase ────────────────────────────────────────────────────────
+        modelBuilder.Entity<RoadmapPhase>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RoadmapId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            entity.HasMany(e => e.Items)
+                .WithOne(i => i.Phase)
+                .HasForeignKey(i => i.PhaseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.RoadmapId, e.DisplayOrder })
+                .HasDatabaseName("IX_RoadmapPhases_RoadmapId_DisplayOrder");
+        });
+
+        // ─── RoadmapItem ─────────────────────────────────────────────────────────
+        modelBuilder.Entity<RoadmapItem>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.PhaseId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.RoadmapId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ControlTitle).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.ControlFamily).HasMaxLength(5).IsRequired();
+            entity.Property(e => e.EstimationSource).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.AssignedRole).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.DependsOn).HasMaxLength(500);
+            entity.Property(e => e.LinkedTaskId).HasMaxLength(36);
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            entity.HasOne(e => e.Roadmap)
+                .WithMany()
+                .HasForeignKey(e => e.RoadmapId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasIndex(e => e.PhaseId);
+            entity.HasIndex(e => e.RoadmapId);
+            entity.HasIndex(e => e.ControlId);
         });
     }
 

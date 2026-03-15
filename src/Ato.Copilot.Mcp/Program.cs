@@ -407,11 +407,15 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     services.AddMcpServer(configuration);
 
     // Dashboard services (Feature 030)
-    services.AddScoped<Ato.Copilot.Mcp.Services.DashboardService>();
-    services.AddScoped<Ato.Copilot.Mcp.Services.CapabilityService>();
-    services.AddScoped<Ato.Copilot.Mcp.Services.ComponentService>();
-    services.AddSingleton<Ato.Copilot.Mcp.Services.NarrativeTemplateService>();
-    services.AddHostedService<Ato.Copilot.Mcp.Services.ComplianceTrendSnapshotService>();
+    services.AddScoped<Ato.Copilot.Core.Services.DashboardService>();
+    services.AddScoped<Ato.Copilot.Core.Services.TodoService>();
+    services.AddScoped<Ato.Copilot.Core.Services.CapabilityService>();
+    services.AddScoped<Ato.Copilot.Core.Services.ComponentService>();
+    services.AddSingleton<Ato.Copilot.Core.Services.NarrativeTemplateService>();
+    services.AddHostedService<Ato.Copilot.Core.Services.ComplianceTrendSnapshotService>();
+
+    // Roadmap services (Feature 031)
+    services.AddScoped<Ato.Copilot.Core.Interfaces.Roadmap.IRoadmapService, Ato.Copilot.Core.Services.RoadmapService>();
 }
 
 // ────────────────────────────────────────────────────────────────
