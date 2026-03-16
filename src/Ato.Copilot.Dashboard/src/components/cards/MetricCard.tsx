@@ -1,9 +1,12 @@
+import HelpTooltip from '../help/HelpTooltip';
+
 interface MetricCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
   trend?: number;
   severityColor?: string;
+  helpKey?: string;
 }
 
 export default function MetricCard({
@@ -12,6 +15,7 @@ export default function MetricCard({
   subtitle,
   trend,
   severityColor,
+  helpKey,
 }: MetricCardProps) {
   const trendArrow =
     trend !== undefined
@@ -33,7 +37,10 @@ export default function MetricCard({
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-gray-500">{title}</p>
+      <div className="flex items-center">
+        <p className="text-sm font-medium text-gray-500">{title}</p>
+        {helpKey && <HelpTooltip helpKey={helpKey} />}
+      </div>
       <div className="mt-1 flex items-baseline gap-2">
         <span
           className="text-2xl font-bold"

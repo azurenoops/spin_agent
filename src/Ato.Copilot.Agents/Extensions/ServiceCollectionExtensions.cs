@@ -588,6 +588,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Ato.Copilot.Agents.Tools.ClearCacheTool>();
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<Ato.Copilot.Agents.Tools.ClearCacheTool>());
 
+        // Feature 031: Implementation Roadmap tools
+        services.AddSingleton<GenerateRoadmapTool>();
+        services.AddSingleton<GetRoadmapTool>();
+        services.AddSingleton<GetRoadmapProgressTool>();
+        services.AddSingleton<UpdateRoadmapTool>();
+        services.AddSingleton<CreateBoardFromRoadmapTool>();
+        services.AddSingleton<ExportRoadmapPdfTool>();
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<GenerateRoadmapTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<GetRoadmapTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<GetRoadmapProgressTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<UpdateRoadmapTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<CreateBoardFromRoadmapTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ExportRoadmapPdfTool>());
+
         // Register the agent
         services.AddSingleton<ComplianceAgent>();
         services.AddSingleton<BaseAgent>(sp => sp.GetRequiredService<ComplianceAgent>());

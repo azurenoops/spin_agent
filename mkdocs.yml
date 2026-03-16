@@ -76,6 +76,7 @@ nav:
     - Authorize: rmf-phases/authorize.md
     - Monitor: rmf-phases/monitor.md
   - Guides:
+    - Compliance Dashboard: guides/compliance-dashboard.md
     - Compliance Watch: guides/compliance-watch.md
     - Remediation Kanban: guides/remediation-kanban.md
     - Portfolio Management: guides/portfolio-management.md

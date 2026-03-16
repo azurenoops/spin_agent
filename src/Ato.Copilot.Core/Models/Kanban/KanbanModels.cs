@@ -122,6 +122,9 @@ public class RemediationTask : ConcurrentEntity
     /// <summary>Optional FK to PoamItem for formal POA&amp;M tracking.</summary>
     public string? PoamItemId { get; set; }
 
+    /// <summary>Optional FK to RoadmapItem for bi-directional Kanban sync (Feature 031).</summary>
+    public string? RoadmapItemId { get; set; }
+
     /// <summary>User who created the task.</summary>
     public string CreatedBy { get; set; } = "";
 

@@ -90,6 +90,222 @@ Shows the 10 most recent events for the system: assessments, narrative updates, 
 
 - **Gap Analysis** — Navigate to `/systems/{systemId}/gaps`
 - **Component Inventory** — Navigate to `/systems/{systemId}/components`
+- **Implementation Roadmap** — Navigate to `/systems/{systemId}/roadmap`
+
+---
+
+## To Do Panel
+
+The To Do panel appears as a collapsible side panel on desktop (right side) and below the main content on mobile. It provides phase-aware remediation tasks.
+
+### Task Categories
+
+- **phase-action** — Activities required for the current RMF step
+- **finding** — Security assessment results requiring remediation
+- **POA&M** — Plan of Action items with scheduled milestone dates
+- **narrative** — Control documentation tasks needing attention
+- **authorization** — Approval requirements for the current phase
+
+### Phase Awareness
+
+The panel header shows the system's current RMF phase and the next phase. As a system progresses through the RMF lifecycle, tasks update automatically. A next-phase teaser at the bottom previews upcoming work.
+
+### Action Dialog
+
+Click any task to open the action dialog:
+
+- **Open in Dashboard** — Navigates to the relevant dashboard page
+- **Ask in Teams** — Copies an `@ato` prompt to your clipboard for Microsoft Teams
+- **Ask in VS Code** — Copies an `@ato` prompt for the VS Code Copilot extension
+
+---
+
+## Capability Library
+
+Navigate to `/capabilities` to manage your organization's security capabilities.
+
+### Features
+
+- **Search & Filter** — Search by name, filter by NIST control family or status (Planned, InProgress, Implemented, Deprecated)
+- **CRUD Operations** — Create, read, update, and delete security capabilities
+- **Control Mapping** — Map capabilities to NIST 800-53 controls with role assignments (Primary, Supporting, Shared)
+
+### Creating a Capability
+
+1. Click **"+ New Capability"**
+2. Fill in name, provider, NIST category, status, and description
+3. Click **Save** to create the capability
+
+### Managing Control Mappings
+
+1. Click a capability card to expand it
+2. In the control mappings section, enter a control ID
+3. Select the mapping role (Primary, Supporting, or Shared)
+4. Click **Add** to create the mapping
+
+### Deleting a Capability
+
+Deleting a capability unlinks all control narratives and creates review tasks for affected controls. You will be prompted to confirm before deletion.
+
+---
+
+## Component Inventory
+
+Navigate to `/systems/{systemId}/components` to manage system components.
+
+### Component Types
+
+Components are organized into three categories:
+
+| Type | Description | Examples |
+|------|-------------|----------|
+| **People** | Users, administrators, roles | System admin, end users, auditors |
+| **Places** | Data centers, cloud regions, facilities | AWS us-east-1, on-prem DC |
+| **Things** | Servers, applications, network devices | Web server, firewall, VPN |
+
+### Adding a Component
+
+1. Click **"+ Add Component"**
+2. Enter name, select type and subtype, set status, assign owner
+3. Click **Save** to add the component
+
+### Linking Capabilities
+
+After creating a component, link it to security capabilities to create traceability from components → capabilities → controls.
+
+### Deleting a Component
+
+Deleting a component flags linked capabilities for review. A confirmation dialog lists any capabilities that may be affected.
+
+---
+
+## Gap Analysis
+
+Navigate to `/systems/{systemId}/gaps` to view control coverage gaps.
+
+### Summary Metrics
+
+| Metric | Description |
+|--------|-------------|
+| **Total Controls** | Number of controls in the system's baseline |
+| **Covered** | Controls mapped to one or more capabilities |
+| **Gaps** | Unmapped controls requiring capability assignments |
+| **Coverage** | Coverage percentage with family-level alerts |
+
+### Coverage Matrix Colors
+
+| Color | Meaning |
+|-------|---------|
+| 🟢 Green | ≥80% coverage — well covered |
+| 🟡 Yellow | 50–79% coverage — needs attention |
+| 🔴 Red | <50% coverage — critical gap |
+
+### Using the Matrix
+
+Click any family cell to expand and see individual unmapped controls. Focus on red families first to address the largest security gaps.
+
+---
+
+## Implementation Roadmap
+
+Navigate to `/systems/{systemId}/roadmap` to view the implementation plan.
+
+### Summary Metrics
+
+- **Total Gaps** — Number of items to remediate
+- **Total Effort** — Estimated days of work
+- **Risk Reduction** — Percentage of risk addressed
+- **Timeline** — Total weeks with phase count
+
+### Phase Timeline
+
+A Gantt-style chart shows each phase as a horizontal bar spanning its target weeks. Overlapping bars indicate parallel work streams.
+
+### Risk Reduction Curve
+
+A line chart showing projected risk reduction over time. When actual progress data is available, a second line compares reality to the plan. Falling behind the curve signals a need to accelerate remediation.
+
+### Phase Details
+
+Click any phase heading to expand a table showing:
+
+| Column | Description |
+|--------|-------------|
+| Control ID | The NIST control being addressed |
+| Gap Type | Type of coverage gap |
+| Severity | CAT I, II, or III |
+| Effort | Estimated days |
+| Role | Assigned team role |
+| Dependencies | Controls that must be completed first |
+| Status | Current completion status |
+
+---
+
+## Contextual Help
+
+The dashboard includes built-in contextual help accessible in two ways:
+
+### Help Panel
+
+Click the **?** icon in the header to open a slide-out help panel. The panel contains collapsible sections covering all dashboard pages with step-by-step guides. When open, the help panel replaces the To Do side panel.
+
+### Contextual Tooltips
+
+On the System Detail page, look for small **?** icons next to section headers: RMF Phase Progress, Compliance Score, ATO Status, POA&Ms, Narrative Coverage, Findings, Compliance Trends, and Recent Activity. Click any icon for a brief description with empty-state guidance.
+
+---
+
+## Reference
+
+### Severity Levels
+
+| Level | Risk | Priority |
+|-------|------|----------|
+| **CAT I** | Critical — exploitable vulnerability | Immediate remediation |
+| **CAT II** | Medium — security weakness | Address promptly |
+| **CAT III** | Low — best practice deviation | Routine maintenance |
+
+### Compliance Statuses
+
+| Status | Meaning |
+|--------|---------|
+| **Satisfied** | Control fully implemented and assessed |
+| **OtherThanSatisfied** | Control has deficiencies |
+| **NotAssessed** | Control not yet evaluated |
+
+### RMF Phases
+
+1. **Prepare** — Establish context and priorities
+2. **Categorize** — Determine impact level (FIPS 199)
+3. **Select** — Choose applicable controls
+4. **Implement** — Put controls in place
+5. **Assess** — Evaluate control effectiveness
+6. **Authorize** — ATO decision (accept residual risk)
+7. **Monitor** — Ongoing surveillance
+
+### Common Acronyms
+
+| Acronym | Meaning |
+|---------|---------|
+| RMF | Risk Management Framework |
+| ATO | Authority to Operate |
+| POA&M | Plan of Action and Milestones |
+| NIST | National Institute of Standards and Technology |
+| SSP | System Security Plan |
+| SAR | Security Assessment Report |
+| ConMon | Continuous Monitoring |
+| ISSO | Information System Security Officer |
+| ISSM | Information System Security Manager |
+| SCA | Security Control Assessor |
+| AO | Authorizing Official |
+
+### Related Guides
+
+- [ISSO Guide](isso-guide.md) — Information System Security Officer workflows
+- [ISSM Guide](issm-guide.md) — Information System Security Manager workflows
+- [SCA Guide](sca-guide.md) — Security Control Assessor workflows
+- [AO Quick Reference](ao-quick-reference.md) — Authorizing Official workflows
+- [Engineer Guide](engineer-guide.md) — Developer and engineer workflows
 
 ---
 

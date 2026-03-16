@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Roadmap;
 
 namespace Ato.Copilot.Core.Data.Context;
 
@@ -207,6 +208,37 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>Persistent cache entries for offline mode (FR-036).</summary>
     public DbSet<CachedResponse> CachedResponses => Set<CachedResponse>();
+
+    // ─── Compliance Dashboard (Feature 030) ──────────────────────────────────
+
+    /// <summary>Organization-wide security capabilities (write once, apply everywhere).</summary>
+    public DbSet<SecurityCapability> SecurityCapabilities => Set<SecurityCapability>();
+
+    /// <summary>Capability-to-control mappings with role and optional system scope.</summary>
+    public DbSet<CapabilityControlMapping> CapabilityControlMappings => Set<CapabilityControlMapping>();
+
+    /// <summary>System component inventory items (Person/Place/Thing).</summary>
+    public DbSet<SystemComponent> SystemComponents => Set<SystemComponent>();
+
+    /// <summary>Join table linking components to capabilities.</summary>
+    public DbSet<ComponentCapabilityLink> ComponentCapabilityLinks => Set<ComponentCapabilityLink>();
+
+    /// <summary>Point-in-time compliance metric snapshots for trend visualization.</summary>
+    public DbSet<ComplianceTrendSnapshot> ComplianceTrendSnapshots => Set<ComplianceTrendSnapshot>();
+
+    /// <summary>Denormalized activity feed entries for dashboard rendering.</summary>
+    public DbSet<DashboardActivity> DashboardActivities => Set<DashboardActivity>();
+
+    // ─── Implementation Roadmap (Feature 031) ────────────────────────────────
+
+    /// <summary>Phased implementation roadmaps for closing compliance gaps.</summary>
+    public DbSet<ImplementationRoadmap> ImplementationRoadmaps => Set<ImplementationRoadmap>();
+
+    /// <summary>Logical phase groupings within implementation roadmaps.</summary>
+    public DbSet<RoadmapPhase> RoadmapPhases => Set<RoadmapPhase>();
+
+    /// <summary>Individual control-gap items assigned to roadmap phases.</summary>
+    public DbSet<RoadmapItem> RoadmapItems => Set<RoadmapItem>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -491,6 +523,7 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ValidationCriteria).HasMaxLength(2000);
             entity.Property(e => e.FindingId).HasMaxLength(100);
             entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.RoadmapItemId).HasMaxLength(36);
             entity.Property(e => e.RowVersion).IsConcurrencyToken();
 
             // Value conversion for List<string> AffectedResources
@@ -516,6 +549,7 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => e.DueDate);
             entity.HasIndex(e => new { e.BoardId, e.Status });
             entity.HasIndex(e => new { e.BoardId, e.ControlFamily });
+            entity.HasIndex(e => e.RoadmapItemId);
         });
 
         // ─── TaskComment ─────────────────────────────────────────────────────────
@@ -1789,6 +1823,206 @@ public class AtoCopilotContext : DbContext
                 .HasDatabaseName("IX_CachedResponse_CacheKey");
             entity.HasIndex(e => new { e.ToolName, e.SubscriptionId })
                 .HasDatabaseName("IX_CachedResponse_Tool_Sub");
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Dashboard Entities (Feature 030)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        // ─── SecurityCapability ──────────────────────────────────────────────────
+        modelBuilder.Entity<SecurityCapability>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Provider).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Category).HasMaxLength(5).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(8000).IsRequired();
+            entity.Property(e => e.ImplementationStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Owner).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ModifiedBy).HasMaxLength(200);
+
+            entity.HasIndex(e => e.Name).IsUnique().HasDatabaseName("IX_SecurityCapability_Name");
+            entity.HasIndex(e => e.Category).HasDatabaseName("IX_SecurityCapability_Category");
+            entity.HasIndex(e => e.ImplementationStatus).HasDatabaseName("IX_SecurityCapability_Status");
+        });
+
+        // ─── CapabilityControlMapping ────────────────────────────────────────────
+        modelBuilder.Entity<CapabilityControlMapping>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SecurityCapabilityId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36);
+            entity.Property(e => e.Role).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+
+            entity.HasIndex(e => new { e.SecurityCapabilityId, e.ControlId, e.RegisteredSystemId })
+                .IsUnique()
+                .HasDatabaseName("IX_CapabilityControlMapping_Unique");
+            entity.HasIndex(e => e.ControlId).HasDatabaseName("IX_CapabilityControlMapping_ControlId");
+            entity.HasIndex(e => e.RegisteredSystemId).HasDatabaseName("IX_CapabilityControlMapping_SystemId");
+
+            entity.HasOne(e => e.SecurityCapability)
+                .WithMany(c => c.ControlMappings)
+                .HasForeignKey(e => e.SecurityCapabilityId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ─── SystemComponent ─────────────────────────────────────────────────────
+        modelBuilder.Entity<SystemComponent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ComponentType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.SubType).HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.Owner).HasMaxLength(200);
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.ComponentType })
+                .HasDatabaseName("IX_SystemComponent_System_Type");
+            entity.HasIndex(e => e.Status).HasDatabaseName("IX_SystemComponent_Status");
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── ComponentCapabilityLink ─────────────────────────────────────────────
+        modelBuilder.Entity<ComponentCapabilityLink>(entity =>
+        {
+            entity.HasKey(e => new { e.SystemComponentId, e.SecurityCapabilityId });
+            entity.Property(e => e.SystemComponentId).HasMaxLength(36);
+            entity.Property(e => e.SecurityCapabilityId).HasMaxLength(36);
+
+            entity.HasOne(e => e.SystemComponent)
+                .WithMany(c => c.CapabilityLinks)
+                .HasForeignKey(e => e.SystemComponentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.SecurityCapability)
+                .WithMany(c => c.ComponentLinks)
+                .HasForeignKey(e => e.SecurityCapabilityId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── ComplianceTrendSnapshot ─────────────────────────────────────────────
+        modelBuilder.Entity<ComplianceTrendSnapshot>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Source).HasMaxLength(50).IsRequired();
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.CapturedAt })
+                .IsDescending(false, true)
+                .HasDatabaseName("IX_ComplianceTrendSnapshot_System_CapturedAt");
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── DashboardActivity ───────────────────────────────────────────────────
+        modelBuilder.Entity<DashboardActivity>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.EventType).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Summary).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.RelatedEntityType).HasMaxLength(100);
+            entity.Property(e => e.RelatedEntityId).HasMaxLength(100);
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.Timestamp })
+                .IsDescending(false, true)
+                .HasDatabaseName("IX_DashboardActivity_System_Timestamp");
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── ImplementationRoadmap (Feature 031) ────────────────────────────────
+        modelBuilder.Entity<ImplementationRoadmap>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.BaselineLevel).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.LinkedBoardId).HasMaxLength(36);
+            entity.Property(e => e.GenerationMethod).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            entity.HasMany(e => e.Phases)
+                .WithOne(p => p.Roadmap)
+                .HasForeignKey(p => p.RoadmapId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => e.SystemId);
+            entity.HasIndex(e => new { e.SystemId, e.Status })
+                .HasDatabaseName("IX_ImplementationRoadmaps_SystemId_Status");
+        });
+
+        // ─── RoadmapPhase ────────────────────────────────────────────────────────
+        modelBuilder.Entity<RoadmapPhase>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RoadmapId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            entity.HasMany(e => e.Items)
+                .WithOne(i => i.Phase)
+                .HasForeignKey(i => i.PhaseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.RoadmapId, e.DisplayOrder })
+                .HasDatabaseName("IX_RoadmapPhases_RoadmapId_DisplayOrder");
+        });
+
+        // ─── RoadmapItem ─────────────────────────────────────────────────────────
+        modelBuilder.Entity<RoadmapItem>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.PhaseId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.RoadmapId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ControlTitle).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.ControlFamily).HasMaxLength(5).IsRequired();
+            entity.Property(e => e.EstimationSource).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.AssignedRole).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.DependsOn).HasMaxLength(500);
+            entity.Property(e => e.LinkedTaskId).HasMaxLength(36);
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            entity.HasOne(e => e.Roadmap)
+                .WithMany()
+                .HasForeignKey(e => e.RoadmapId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasIndex(e => e.PhaseId);
+            entity.HasIndex(e => e.RoadmapId);
+            entity.HasIndex(e => e.ControlId);
         });
     }
 

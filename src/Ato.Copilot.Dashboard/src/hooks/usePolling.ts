@@ -9,7 +9,7 @@ export function usePolling<T>(
   fetcher: () => Promise<T>,
   intervalMs?: number,
   enabled?: boolean,
-): { data: T | null; loading: boolean; refresh: () => void };
+): { data: T | null; loading: boolean; error: Error | null; refresh: () => void };
 
 /**
  * Polls a fire-and-forget callback at a configurable interval.
@@ -25,11 +25,12 @@ export function usePolling<T = void>(
   callback: () => T | Promise<T>,
   intervalMs?: number,
   enabled = true,
-): { data: T | null; loading: boolean; refresh: () => void } | void {
+): { data: T | null; loading: boolean; error: Error | null; refresh: () => void } | void {
   const interval = intervalMs ?? Number(import.meta.env.VITE_POLL_INTERVAL_MS || '15000');
   const savedCallback = useRef(callback);
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const isDataFetcher = useRef(false);
 
   useEffect(() => {
@@ -42,7 +43,10 @@ export function usePolling<T = void>(
       if (result !== undefined) {
         isDataFetcher.current = true;
         setData(result as T);
+        setError(null);
       }
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoading(false);
     }
@@ -86,5 +90,5 @@ export function usePolling<T = void>(
     };
   }, [interval, enabled, tick]);
 
-  return { data, loading, refresh: tick };
+  return { data, loading, error, refresh: tick };
 }

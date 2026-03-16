@@ -25,4 +25,6 @@ export { buildSystemSummaryCard, type SystemSummaryData } from "./systemSummaryC
 export { buildCategorizationCard, type CategorizationData } from "./categorizationCard";
 export { buildAuthorizationCard, type AuthorizationData } from "./authorizationCard";
 export { buildDashboardCard, type DashboardData } from "./dashboardCard";
+export { buildRoadmapCard, type RoadmapCardData } from "./roadmapCard";
+export { buildRoadmapPhaseDetailCard, type RoadmapPhaseDetailData } from "./roadmapPhaseDetailCard";
 export { selectCard } from "./cardRouter";
