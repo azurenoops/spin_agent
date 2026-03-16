@@ -88,7 +88,7 @@ public class RoadmapService : IRoadmapService
         _logger.LogInformation("Generating roadmap for system {SystemId}", systemId);
 
         // Fetch gap analysis
-        var gapAnalysis = await _capabilityService.GetGapAnalysisAsync(systemId, cancellationToken);
+        var gapAnalysis = await _capabilityService.GetGapAnalysisAsync(systemId, null, cancellationToken);
         if (gapAnalysis is null)
             throw new InvalidOperationException($"Cannot generate roadmap: no baseline selected for system {systemId}. Select a baseline first.");
 
@@ -268,7 +268,7 @@ public class RoadmapService : IRoadmapService
 
         // Compute actual risk reduction via current gap analysis (FR-014)
         double actualRiskReduction = 0;
-        var currentGaps = await _capabilityService.GetGapAnalysisAsync(systemId, cancellationToken);
+        var currentGaps = await _capabilityService.GetGapAnalysisAsync(systemId, null, cancellationToken);
         if (currentGaps is not null && roadmap.TotalGaps > 0)
         {
             var currentGapCount = currentGaps.GapCount;

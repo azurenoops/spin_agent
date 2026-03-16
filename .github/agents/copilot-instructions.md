@@ -65,6 +65,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 - SQL Server via `AtoCopilotContext` (EF Core, `EnsureCreatedAsync` model) (031-implementation-roadmap)
 - TypeScript 5.7 (frontend), C# 13 / .NET 9.0 (backend — no changes expected) + React 19, Tailwind CSS 3.4, Vite 6.0, React Router 7.0 (032-dashboard-documentation)
 - N/A (help content is static, embedded in component code) (032-dashboard-documentation)
+- C# 13 / .NET 9.0 (backend), TypeScript 5.7 (dashboard) + ASP.NET Core, Entity Framework Core, Azure.Identity, Azure.ResourceManager.ResourceGraph (new for US8), React 19, Vite 6.0, Tailwind CSS 3.4 (033-boundary-scoped-model)
+- SQL Server (production), SQLite (development) via EF Core (033-boundary-scoped-model)
 
 - C# 13 / .NET 9.0 + Azure.Identity 1.13, Azure.ResourceManager 1.13, Microsoft.Extensions.AI 9.4-preview, Microsoft.EntityFrameworkCore 9.0, Serilog 4.2, xUnit 2.9, FluentAssertions 7.0, Moq 4.20 (001-core-compliance)
 
@@ -84,9 +86,9 @@ dotnet build Ato.Copilot.sln [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMAN
 C# .NET 9: Follow standard conventions
 
 ## Recent Changes
+- 033-boundary-scoped-model: Added C# 13 / .NET 9.0 (backend), TypeScript 5.7 (dashboard) + ASP.NET Core, Entity Framework Core, Azure.Identity, Azure.ResourceManager.ResourceGraph (new for US8), React 19, Vite 6.0, Tailwind CSS 3.4
 - 032-dashboard-documentation: Added TypeScript 5.7 (frontend), C# 13 / .NET 9.0 (backend — no changes expected) + React 19, Tailwind CSS 3.4, Vite 6.0, React Router 7.0
 - 031-implementation-roadmap: Added C# 13 / .NET 9.0 + ASP.NET Core 9.0, EF Core 9.0 (SQL Server), Azure OpenAI (effort estimation), React 19, TypeScript 5, Recharts 2, Tailwind CSS 3
-- 030-compliance-dashboard: Added C# 13 / .NET 9.0 (backend); TypeScript 5 (frontend) + ASP.NET Core 9.0, EF Core 9.0, Serilog (backend); React 19, Vite 6, Recharts 2, Tailwind CSS 3, Axios 1, React Router 7 (frontend)
 
 
 <!-- MANUAL ADDITIONS START -->

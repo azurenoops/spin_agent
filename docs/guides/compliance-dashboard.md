@@ -359,3 +359,21 @@ The dashboard will be available at `http://localhost:5173`.
 |----------|---------|-------------|
 | `VITE_API_BASE_URL` | `http://localhost:5000/api/dashboard` | MCP server dashboard API base URL |
 | `VITE_POLL_INTERVAL_MS` | `15000` | Auto-refresh interval in milliseconds |
+
+---
+
+## Boundary Management (Feature 033)
+
+The Boundary Management page (`/systems/{id}/boundaries`) provides a dedicated interface for managing authorization boundary definitions.
+
+### Features
+
+- **Create/Edit/Delete** boundary definitions (Physical, Logical, Hybrid types)
+- **Boundary summary cards** showing resource count, component count, and coverage percentage
+- **Primary boundary protection** — the primary boundary cannot be deleted; deleting other boundaries reassigns resources to Primary
+- **Azure Resource Discovery** — click "Discover Azure Resources" to auto-discover resources from the system's Azure subscription, grouped by resource group as suggested boundaries
+- **Boundary selector** on Gap Analysis page filters coverage results by specific boundary
+
+### Navigation
+
+Access from the System Detail page breadcrumb: Portfolio → System → Boundaries.

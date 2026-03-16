@@ -243,6 +243,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<AssignRmfRoleTool>();
         services.AddSingleton<ListRmfRolesTool>();
 
+        // Boundary Definition tools (Feature 033)
+        services.AddSingleton<ListBoundaryDefinitionsTool>();
+        services.AddSingleton<CreateBoundaryDefinitionTool>();
+        services.AddSingleton<DeleteBoundaryDefinitionTool>();
+        services.AddSingleton<BoundaryGapAnalysisTool>();
+
         // RMF Categorization tools (Feature 015 - US2)
         services.AddSingleton<CategorizeSystemTool>();
         services.AddSingleton<GetCategorizationTool>();
@@ -458,6 +464,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ExcludeFromBoundaryTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<AssignRmfRoleTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ListRmfRolesTool>());
+
+        // Boundary Definition tools as BaseTool (Feature 033)
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ListBoundaryDefinitionsTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<CreateBoundaryDefinitionTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<DeleteBoundaryDefinitionTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<BoundaryGapAnalysisTool>());
 
         // RMF Categorization tools as BaseTool (Feature 015 - US2)
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<CategorizeSystemTool>());

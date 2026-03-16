@@ -1465,3 +1465,14 @@ Generates a PDF report with summary metrics, phase timeline, and detailed contro
 - [ISSO Guide](../personas/isso.md) — ISSO workflows for day-to-day operations
 - [Compliance Watch Guide](compliance-watch.md) — Detailed continuous monitoring documentation
 - [Quick Reference Card](../reference/quick-reference-cards.md) — Printable ISSM cheat sheet
+
+---
+
+## Boundary Oversight (Feature 033)
+
+ISSMs can review and manage authorization boundaries for systems under their purview:
+
+- **Boundary Review**: View boundary definitions, resource assignments, and coverage metrics on the Boundary Management page
+- **Gap Analysis**: Use the boundary selector to compare compliance coverage across different security perimeters
+- **SSP §11 Verification**: The SSP Authorization Boundary section auto-generates with per-boundary resource tables and component inventories
+- **Boundary Comparison**: The gap analysis page shows a comparison table when "All Boundaries" is selected, highlighting coverage differences

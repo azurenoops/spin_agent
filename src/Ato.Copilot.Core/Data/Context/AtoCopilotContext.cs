@@ -229,6 +229,11 @@ public class AtoCopilotContext : DbContext
     /// <summary>Denormalized activity feed entries for dashboard rendering.</summary>
     public DbSet<DashboardActivity> DashboardActivities => Set<DashboardActivity>();
 
+    // ─── Boundary-Scoped Model (Feature 033) ───────────────────────────────
+
+    /// <summary>Named authorization boundary definitions within registered systems.</summary>
+    public DbSet<AuthorizationBoundaryDefinition> AuthorizationBoundaryDefinitions => Set<AuthorizationBoundaryDefinition>();
+
     // ─── Implementation Roadmap (Feature 031) ────────────────────────────────
 
     /// <summary>Phased implementation roadmaps for closing compliance gaps.</summary>
@@ -2023,6 +2028,76 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => e.PhaseId);
             entity.HasIndex(e => e.RoadmapId);
             entity.HasIndex(e => e.ControlId);
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Boundary-Scoped Model (Feature 033)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        // ─── AuthorizationBoundaryDefinition ───────────────────────────────────
+        modelBuilder.Entity<AuthorizationBoundaryDefinition>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.BoundaryType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany(s => s.AuthorizationBoundaryDefinitions)
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.Name })
+                .IsUnique()
+                .HasDatabaseName("IX_BoundaryDefinition_System_Name");
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.IsPrimary })
+                .HasDatabaseName("IX_BoundaryDefinition_System_Primary");
+        });
+
+        // ─── AuthorizationBoundary → BoundaryDefinition (nullable FK) ────────
+        modelBuilder.Entity<AuthorizationBoundary>(entity =>
+        {
+            entity.HasOne(e => e.AuthorizationBoundaryDefinition)
+                .WithMany(d => d.AuthorizationBoundaries)
+                .HasForeignKey(e => e.AuthorizationBoundaryDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property(e => e.AuthorizationBoundaryDefinitionId).HasMaxLength(36);
+
+            entity.HasIndex(e => e.AuthorizationBoundaryDefinitionId)
+                .HasDatabaseName("IX_AuthorizationBoundary_BoundaryDefinitionId");
+        });
+
+        // ─── SystemComponent → BoundaryDefinition (nullable FK) ─────────────
+        modelBuilder.Entity<SystemComponent>(entity =>
+        {
+            entity.HasOne(e => e.AuthorizationBoundaryDefinition)
+                .WithMany(d => d.SystemComponents)
+                .HasForeignKey(e => e.AuthorizationBoundaryDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property(e => e.AuthorizationBoundaryDefinitionId).HasMaxLength(36);
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.AuthorizationBoundaryDefinitionId, e.ComponentType })
+                .HasDatabaseName("IX_SystemComponent_System_Boundary_Type");
+        });
+
+        // ─── CapabilityControlMapping → BoundaryDefinition (nullable FK) ────
+        modelBuilder.Entity<CapabilityControlMapping>(entity =>
+        {
+            entity.HasOne(e => e.AuthorizationBoundaryDefinition)
+                .WithMany(d => d.CapabilityControlMappings)
+                .HasForeignKey(e => e.AuthorizationBoundaryDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property(e => e.AuthorizationBoundaryDefinitionId).HasMaxLength(36);
+
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.AuthorizationBoundaryDefinitionId, e.ControlId })
+                .HasDatabaseName("IX_CapabilityMapping_System_Boundary_Control");
         });
     }
 

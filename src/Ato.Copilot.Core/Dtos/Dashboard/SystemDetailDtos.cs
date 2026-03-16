@@ -11,6 +11,18 @@ public class SystemDetailDto
     /// <summary>System name.</summary>
     public required string Name { get; init; }
 
+    /// <summary>System acronym.</summary>
+    public string? Acronym { get; init; }
+
+    /// <summary>System type (e.g. MajorApplication).</summary>
+    public required string SystemType { get; init; }
+
+    /// <summary>Mission criticality designation.</summary>
+    public required string MissionCriticality { get; init; }
+
+    /// <summary>Hosting environment.</summary>
+    public required string HostingEnvironment { get; init; }
+
     /// <summary>FIPS 199 impact level.</summary>
     public required string ImpactLevel { get; init; }
 

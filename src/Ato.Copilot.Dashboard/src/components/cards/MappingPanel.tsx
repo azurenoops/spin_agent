@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import type { CapabilityMappingDto } from '../../types/dashboard';
+import type { CapabilityMappingDto, BoundaryDefinitionDto } from '../../types/dashboard';
 import { getCapabilityMappings, createCapabilityMappings } from '../../api/capabilities';
+import { fetchBoundaryDefinitions } from '../../api/boundaries';
 
 const narrativeStatusBadge: Record<string, string> = {
   Populated: 'bg-green-100 text-green-800',
@@ -10,14 +11,17 @@ const narrativeStatusBadge: Record<string, string> = {
 
 interface MappingPanelProps {
   capabilityId: string;
+  systemId?: string;
 }
 
-export function MappingPanel({ capabilityId }: MappingPanelProps) {
+export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
   const [mappings, setMappings] = useState<CapabilityMappingDto[]>([]);
+  const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [controlId, setControlId] = useState('');
   const [role, setRole] = useState<'Primary' | 'Supporting' | 'Shared'>('Primary');
+  const [boundaryDefinitionId, setBoundaryDefinitionId] = useState('');
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +36,12 @@ export function MappingPanel({ capabilityId }: MappingPanelProps) {
     }
   };
 
-  useEffect(() => { fetchMappings(); }, [capabilityId]);
+  useEffect(() => {
+    fetchMappings();
+    if (systemId) {
+      fetchBoundaryDefinitions(systemId).then(setBoundaries).catch(() => {});
+    }
+  }, [capabilityId, systemId]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,12 +49,21 @@ export function MappingPanel({ capabilityId }: MappingPanelProps) {
     setAdding(true);
     setError(null);
     try {
-      await createCapabilityMappings(capabilityId, {
-        mappings: [{ controlId: controlId.trim().toUpperCase(), role }],
+      const result = await createCapabilityMappings(capabilityId, {
+        mappings: [{
+          controlId: controlId.trim(),
+          role,
+          boundaryDefinitionId: boundaryDefinitionId || undefined,
+        }],
       });
-      setControlId('');
-      setShowAdd(false);
-      await fetchMappings();
+      if (result.warnings?.length) {
+        setError(result.warnings.map((w) => w.message).join('; '));
+      }
+      if (result.created > 0) {
+        setControlId('');
+        setShowAdd(false);
+        await fetchMappings();
+      }
     } catch (err: any) {
       setError(err?.response?.data?.error ?? 'Failed to create mapping');
     } finally {
@@ -77,8 +95,8 @@ export function MappingPanel({ capabilityId }: MappingPanelProps) {
       {error && <div className="text-xs text-red-600 bg-red-50 p-2 rounded">{error}</div>}
 
       {showAdd && (
-        <form onSubmit={handleAdd} className="flex gap-2 items-end">
-          <div className="flex-1">
+        <form onSubmit={handleAdd} className="flex flex-wrap gap-2 items-end">
+          <div className="flex-1 min-w-[120px]">
             <label className="block text-xs text-gray-500 mb-1">Control ID</label>
             <input
               type="text"
@@ -100,6 +118,21 @@ export function MappingPanel({ capabilityId }: MappingPanelProps) {
               <option value="Shared">Shared</option>
             </select>
           </div>
+          {boundaries.length > 0 && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Boundary</label>
+              <select
+                value={boundaryDefinitionId}
+                onChange={(e) => setBoundaryDefinitionId(e.target.value)}
+                className="border rounded px-2 py-1.5 text-sm"
+              >
+                <option value="">All Systems</option>
+                {boundaries.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <button
             type="submit"
             disabled={adding || !controlId.trim()}
@@ -132,6 +165,9 @@ export function MappingPanel({ capabilityId }: MappingPanelProps) {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-400">{m.role}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                          {m.boundaryDefinitionName ?? 'All Systems'}
+                        </span>
                         <span className={`text-xs px-1.5 py-0.5 rounded ${narrativeStatusBadge[m.narrativeStatus] ?? 'bg-gray-100 text-gray-600'}`}>
                           {m.narrativeStatus}
                         </span>

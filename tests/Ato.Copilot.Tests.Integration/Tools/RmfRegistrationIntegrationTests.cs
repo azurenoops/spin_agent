@@ -48,7 +48,7 @@ public class RmfRegistrationIntegrationTests : IDisposable
         _getTool = new GetSystemTool(lifecycleSvc, Mock.Of<ILogger<GetSystemTool>>());
         _listTool = new ListSystemsTool(lifecycleSvc, Mock.Of<ILogger<ListSystemsTool>>());
         _advanceTool = new AdvanceRmfStepTool(lifecycleSvc, Mock.Of<ILogger<AdvanceRmfStepTool>>());
-        _boundaryTool = new DefineBoundaryTool(boundarySvc, Mock.Of<ILogger<DefineBoundaryTool>>());
+        _boundaryTool = new DefineBoundaryTool(boundarySvc, scopeFactory, Mock.Of<ILogger<DefineBoundaryTool>>());
         _excludeTool = new ExcludeFromBoundaryTool(boundarySvc, Mock.Of<ILogger<ExcludeFromBoundaryTool>>());
         _assignTool = new AssignRmfRoleTool(boundarySvc, Mock.Of<ILogger<AssignRmfRoleTool>>());
         _listRolesTool = new ListRmfRolesTool(boundarySvc, Mock.Of<ILogger<ListRmfRolesTool>>());

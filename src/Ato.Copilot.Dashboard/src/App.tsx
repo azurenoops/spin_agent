@@ -5,6 +5,7 @@ import CapabilityLibrary from './pages/CapabilityLibrary';
 import ComponentInventory from './pages/ComponentInventory';
 import GapAnalysis from './pages/GapAnalysis';
 import Roadmap from './pages/Roadmap';
+import BoundaryManagement from './pages/BoundaryManagement';
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Route path="/" element={<PortfolioDashboard />} />
       <Route path="/systems/:id" element={<SystemDetail />} />
       <Route path="/systems/:id/roadmap" element={<Roadmap />} />
+      <Route path="/systems/:id/boundaries" element={<BoundaryManagement />} />
       <Route path="/capabilities" element={<CapabilityLibrary />} />
       <Route path="/systems/:id/components" element={<ComponentInventory />} />
       <Route path="/systems/:id/gaps" element={<GapAnalysis />} />

@@ -165,6 +165,11 @@ public class RegisteredSystem
     /// </summary>
     public bool HasNoExternalInterconnections { get; set; }
 
+    // ─── Feature 033: Boundary-Scoped Model ──────────────────────────────────
+
+    /// <summary>Named authorization boundary definitions for this system.</summary>
+    public ICollection<AuthorizationBoundaryDefinition> AuthorizationBoundaryDefinitions { get; set; } = new List<AuthorizationBoundaryDefinition>();
+
     // ─── SSP & System Identifier Fields (Feature 022) ────────────────────────
 
     /// <summary>DoD IT Portfolio Repository identifier.</summary>
@@ -421,6 +426,15 @@ public class AuthorizationBoundary
 
     /// <summary>Parent system.</summary>
     public RegisteredSystem RegisteredSystem { get; set; } = null!;
+
+    // ─── Feature 033: Boundary-Scoped Model ──────────────────────────────────
+
+    /// <summary>FK to AuthorizationBoundaryDefinition (nullable — assigned during migration).</summary>
+    [MaxLength(36)]
+    public string? AuthorizationBoundaryDefinitionId { get; set; }
+
+    /// <summary>Parent boundary definition.</summary>
+    public AuthorizationBoundaryDefinition? AuthorizationBoundaryDefinition { get; set; }
 }
 
 /// <summary>
@@ -790,4 +804,76 @@ public class ContingencyPlanReference
 
     /// <summary>Parent system.</summary>
     public RegisteredSystem? RegisteredSystem { get; set; }
+}
+
+// ───────────────────────────── Boundary-Scoped Model (Feature 033) ─────────────────────────────
+
+/// <summary>Authorization boundary type classification.</summary>
+public enum BoundaryDefinitionType
+{
+    /// <summary>Physical security perimeter (e.g., data center, secure room).</summary>
+    Physical,
+    /// <summary>Logical security perimeter (e.g., cloud subscription, VLAN).</summary>
+    Logical,
+    /// <summary>Combined physical and logical boundary.</summary>
+    Hybrid
+}
+
+/// <summary>
+/// A named security perimeter within a registered system.
+/// Represents the boundary container (e.g., "Production", "Dev/Test").
+/// One system can have many boundary definitions.
+/// </summary>
+public class AuthorizationBoundaryDefinition
+{
+    /// <summary>Unique identifier (GUID).</summary>
+    [Key]
+    [MaxLength(36)]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>FK to RegisteredSystem.</summary>
+    [Required]
+    [MaxLength(36)]
+    public string RegisteredSystemId { get; set; } = string.Empty;
+
+    /// <summary>Boundary name (unique within system).</summary>
+    [Required]
+    [MaxLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Boundary type classification.</summary>
+    [Required]
+    public BoundaryDefinitionType BoundaryType { get; set; }
+
+    /// <summary>Free-text description of the boundary.</summary>
+    [MaxLength(2000)]
+    public string? Description { get; set; }
+
+    /// <summary>Whether this is the primary boundary for the system. One per system; cannot be deleted.</summary>
+    public bool IsPrimary { get; set; }
+
+    /// <summary>Creation timestamp (UTC).</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>User who created the boundary definition.</summary>
+    [Required]
+    [MaxLength(200)]
+    public string CreatedBy { get; set; } = string.Empty;
+
+    /// <summary>Last modification timestamp (UTC).</summary>
+    public DateTime? ModifiedAt { get; set; }
+
+    // ─── Navigation properties ───────────────────────────────────────────────
+
+    /// <summary>Parent system.</summary>
+    public RegisteredSystem RegisteredSystem { get; set; } = null!;
+
+    /// <summary>Resource records within this boundary.</summary>
+    public ICollection<AuthorizationBoundary> AuthorizationBoundaries { get; set; } = new List<AuthorizationBoundary>();
+
+    /// <summary>Components within this boundary.</summary>
+    public ICollection<SystemComponent> SystemComponents { get; set; } = new List<SystemComponent>();
+
+    /// <summary>Boundary-scoped capability-to-control mappings.</summary>
+    public ICollection<CapabilityControlMapping> CapabilityControlMappings { get; set; } = new List<CapabilityControlMapping>();
 }

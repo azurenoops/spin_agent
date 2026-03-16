@@ -460,13 +460,25 @@ public class SspService : ISspService
             .Where(ic => ic.RegisteredSystemId == systemId && ic.Status != InterconnectionStatus.Terminated)
             .ToListAsync(cancellationToken);
 
+        var boundaryDefinitions = await context.AuthorizationBoundaryDefinitions
+            .Where(bd => bd.RegisteredSystemId == systemId)
+            .OrderBy(bd => bd.IsPrimary ? 0 : 1).ThenBy(bd => bd.Name)
+            .ToListAsync(cancellationToken);
+
         var boundaries = await context.AuthorizationBoundaries
+            .Include(b => b.AuthorizationBoundaryDefinition)
             .Where(b => b.RegisteredSystemId == systemId && b.IsInBoundary)
             .ToListAsync(cancellationToken);
 
         var inventoryItems = await context.InventoryItems
+            .Include(i => i.BoundaryResource)
             .Where(i => i.RegisteredSystemId == systemId && i.Status != InventoryItemStatus.Decommissioned)
             .OrderBy(i => i.Type).ThenBy(i => i.ItemName)
+            .ToListAsync(cancellationToken);
+
+        var components = await context.SystemComponents
+            .Where(c => c.RegisteredSystemId == systemId && c.Status == ComponentStatus.Active)
+            .OrderBy(c => c.ComponentType).ThenBy(c => c.Name)
             .ToListAsync(cancellationToken);
 
         var sspSections = await context.SspSections
@@ -576,7 +588,7 @@ public class SspService : ISspService
                     7 => GenerateSection7Content(interconnections, system, storedSection),
                     9 => GenerateSection9Content(baseline, narratives),
                     10 => GenerateSection10Content(system, baseline, narratives, approvedVersions),
-                    11 => GenerateSection11Content(boundaries, inventoryItems, storedSection),
+                    11 => GenerateSection11Content(boundaryDefinitions, boundaries, inventoryItems, components, storedSection),
                     _ => ""
                 };
 
@@ -685,13 +697,25 @@ public class SspService : ISspService
             .Where(ic => ic.RegisteredSystemId == systemId && ic.Status != InterconnectionStatus.Terminated)
             .ToListAsync(cancellationToken);
 
+        var boundaryDefinitions = await context.AuthorizationBoundaryDefinitions
+            .Where(bd => bd.RegisteredSystemId == systemId)
+            .OrderBy(bd => bd.IsPrimary ? 0 : 1).ThenBy(bd => bd.Name)
+            .ToListAsync(cancellationToken);
+
         var boundaries = await context.AuthorizationBoundaries
+            .Include(b => b.AuthorizationBoundaryDefinition)
             .Where(b => b.RegisteredSystemId == systemId && b.IsInBoundary)
             .ToListAsync(cancellationToken);
 
         var inventoryItems = await context.InventoryItems
+            .Include(i => i.BoundaryResource)
             .Where(i => i.RegisteredSystemId == systemId && i.Status != InventoryItemStatus.Decommissioned)
             .OrderBy(i => i.Type).ThenBy(i => i.ItemName)
+            .ToListAsync(cancellationToken);
+
+        var components = await context.SystemComponents
+            .Where(c => c.RegisteredSystemId == systemId && c.Status == ComponentStatus.Active)
+            .OrderBy(c => c.ComponentType).ThenBy(c => c.Name)
             .ToListAsync(cancellationToken);
 
         var sspSections = await context.SspSections
@@ -737,7 +761,7 @@ public class SspService : ISspService
                     7 => GenerateSection7Content(interconnections, system, storedSection),
                     9 => GenerateSection9Content(baseline, narratives),
                     10 => GenerateSection10Content(system, baseline, narratives, approvedVersions),
-                    11 => GenerateSection11Content(boundaries, inventoryItems, storedSection),
+                    11 => GenerateSection11Content(boundaryDefinitions, boundaries, inventoryItems, components, storedSection),
                     _ => ""
                 };
                 if (storedSection?.HasManualOverride == true && !string.IsNullOrWhiteSpace(storedSection.Content))
@@ -1512,9 +1536,12 @@ public class SspService : ISspService
     }
 
     /// <summary>§11 Authorization Boundary: resource inventory + HW/SW inventory tables + authored boundary narrative.</summary>
+    /// <remarks>Feature 033: multi-boundary support. Single boundary renders flat for backward compatibility.</remarks>
     internal static string GenerateSection11Content(
+        List<AuthorizationBoundaryDefinition> boundaryDefinitions,
         List<AuthorizationBoundary> boundaries,
         List<InventoryItem> inventoryItems,
+        List<SystemComponent> components,
         SspSection? section)
     {
         var sb = new StringBuilder();
@@ -1527,13 +1554,136 @@ public class SspService : ISspService
             sb.AppendLine();
         }
 
-        if (boundaries.Count == 0)
+        if (boundaries.Count == 0 && boundaryDefinitions.Count == 0)
         {
             if (section == null || string.IsNullOrWhiteSpace(section.Content))
                 sb.AppendLine("*Authorization boundary has not been defined.*");
             return sb.ToString().TrimEnd();
         }
 
+        // ─── Single-boundary backward compatibility (T057) ──────────────────
+        if (boundaryDefinitions.Count <= 1)
+        {
+            AppendFlatResourceInventory(sb, boundaries, inventoryItems);
+            AppendFlatComponentInventory(sb, components);
+            return sb.ToString().TrimEnd();
+        }
+
+        // ─── Multi-boundary organized output (T056) ─────────────────────────
+        sb.AppendLine($"**Authorization Boundaries**: {boundaryDefinitions.Count}");
+        sb.AppendLine();
+
+        // Build lookup: boundary resource → definition id
+        var resourceDefLookup = boundaries
+            .Where(b => b.AuthorizationBoundaryDefinitionId != null)
+            .ToLookup(b => b.AuthorizationBoundaryDefinitionId!);
+
+        // Build inventory lookup via boundary resource chain
+        var inventoryByDefId = inventoryItems
+            .Where(i => i.BoundaryResource?.AuthorizationBoundaryDefinitionId != null)
+            .ToLookup(i => i.BoundaryResource!.AuthorizationBoundaryDefinitionId!);
+
+        var componentsByDefId = components
+            .Where(c => c.AuthorizationBoundaryDefinitionId != null)
+            .ToLookup(c => c.AuthorizationBoundaryDefinitionId!);
+
+        foreach (var def in boundaryDefinitions)
+        {
+            sb.AppendLine($"### {def.Name} ({def.BoundaryType})");
+            sb.AppendLine();
+
+            if (!string.IsNullOrWhiteSpace(def.Description))
+            {
+                sb.AppendLine(def.Description);
+                sb.AppendLine();
+            }
+
+            var defBoundaries = resourceDefLookup[def.Id].ToList();
+            var defInventory = inventoryByDefId[def.Id].ToList();
+            var defComponents = componentsByDefId[def.Id].ToList();
+
+            // Resource table
+            if (defBoundaries.Count > 0)
+            {
+                sb.AppendLine($"**Resources**: {defBoundaries.Count}");
+                sb.AppendLine();
+                sb.AppendLine("| Resource ID | Resource Type | Display Name | Inheritance Provider |");
+                sb.AppendLine("|-------------|---------------|--------------|---------------------|");
+                foreach (var b in defBoundaries.OrderBy(b => b.ResourceType).ThenBy(b => b.ResourceName))
+                {
+                    sb.AppendLine($"| {b.ResourceId} | {b.ResourceType} | {b.ResourceName ?? "—"} | {b.InheritanceProvider ?? "—"} |");
+                }
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.AppendLine("*No resources assigned to this boundary.*");
+                sb.AppendLine();
+            }
+
+            // Component inventory
+            if (defComponents.Count > 0)
+            {
+                sb.AppendLine($"**Components**: {defComponents.Count}");
+                sb.AppendLine();
+                sb.AppendLine("| Name | Type | Sub-Type | Description | Owner |");
+                sb.AppendLine("|------|------|----------|-------------|-------|");
+                foreach (var c in defComponents.OrderBy(c => c.ComponentType).ThenBy(c => c.Name))
+                {
+                    sb.AppendLine($"| {c.Name} | {c.ComponentType} | {c.SubType ?? "—"} | {c.Description ?? "—"} | {c.Owner ?? "—"} |");
+                }
+                sb.AppendLine();
+            }
+
+            // HW/SW inventory for this boundary
+            AppendInventoryTables(sb, defInventory);
+        }
+
+        // Unassigned resources (null FK — legacy/org-wide)
+        var unassignedBoundaries = boundaries.Where(b => b.AuthorizationBoundaryDefinitionId == null).ToList();
+        var unassignedInventory = inventoryItems
+            .Where(i => i.BoundaryResource == null || i.BoundaryResource.AuthorizationBoundaryDefinitionId == null)
+            .ToList();
+        var unassignedComponents = components.Where(c => c.AuthorizationBoundaryDefinitionId == null).ToList();
+
+        if (unassignedBoundaries.Count > 0 || unassignedComponents.Count > 0)
+        {
+            sb.AppendLine("### Unassigned Resources");
+            sb.AppendLine();
+            sb.AppendLine("*The following resources have not been assigned to a specific boundary.*");
+            sb.AppendLine();
+
+            if (unassignedBoundaries.Count > 0)
+            {
+                sb.AppendLine("| Resource ID | Resource Type | Display Name | Inheritance Provider |");
+                sb.AppendLine("|-------------|---------------|--------------|---------------------|");
+                foreach (var b in unassignedBoundaries.OrderBy(b => b.ResourceType).ThenBy(b => b.ResourceName))
+                {
+                    sb.AppendLine($"| {b.ResourceId} | {b.ResourceType} | {b.ResourceName ?? "—"} | {b.InheritanceProvider ?? "—"} |");
+                }
+                sb.AppendLine();
+            }
+
+            if (unassignedComponents.Count > 0)
+            {
+                sb.AppendLine("| Name | Type | Sub-Type | Description | Owner |");
+                sb.AppendLine("|------|------|----------|-------------|-------|");
+                foreach (var c in unassignedComponents.OrderBy(c => c.ComponentType).ThenBy(c => c.Name))
+                {
+                    sb.AppendLine($"| {c.Name} | {c.ComponentType} | {c.SubType ?? "—"} | {c.Description ?? "—"} | {c.Owner ?? "—"} |");
+                }
+                sb.AppendLine();
+            }
+
+            AppendInventoryTables(sb, unassignedInventory);
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>Renders the original flat resource + HW/SW inventory format for single-boundary backward compatibility.</summary>
+    private static void AppendFlatResourceInventory(StringBuilder sb, List<AuthorizationBoundary> boundaries, List<InventoryItem> inventoryItems)
+    {
         var inBoundary = boundaries.Where(b => b.IsInBoundary).ToList();
         var excluded = boundaries.Where(b => !b.IsInBoundary).ToList();
 
@@ -1542,7 +1692,6 @@ public class SspService : ISspService
         sb.AppendLine($"**Total Resources**: {boundaries.Count} ({inBoundary.Count} in-boundary, {excluded.Count} excluded)");
         sb.AppendLine();
 
-        // Group by resource type
         var byType = inBoundary.GroupBy(b => b.ResourceType).OrderBy(g => g.Key);
         sb.AppendLine("| Resource ID | Resource Type | Display Name | Inheritance Provider |");
         sb.AppendLine("|-------------|---------------|--------------|---------------------|");
@@ -1567,14 +1716,35 @@ public class SspService : ISspService
             }
         }
 
-        // ─── HW/SW Inventory Tables (FR-015) ────────────────────────────────
+        AppendInventoryTables(sb, inventoryItems);
+    }
+
+    /// <summary>Renders flat component inventory table.</summary>
+    private static void AppendFlatComponentInventory(StringBuilder sb, List<SystemComponent> components)
+    {
+        if (components.Count == 0) return;
+
+        sb.AppendLine();
+        sb.AppendLine("### Component Inventory");
+        sb.AppendLine();
+        sb.AppendLine("| Name | Type | Sub-Type | Description | Owner |");
+        sb.AppendLine("|------|------|----------|-------------|-------|");
+        foreach (var c in components.OrderBy(c => c.ComponentType).ThenBy(c => c.Name))
+        {
+            sb.AppendLine($"| {c.Name} | {c.ComponentType} | {c.SubType ?? "—"} | {c.Description ?? "—"} | {c.Owner ?? "—"} |");
+        }
+    }
+
+    /// <summary>Appends HW/SW inventory tables for a list of inventory items.</summary>
+    private static void AppendInventoryTables(StringBuilder sb, List<InventoryItem> inventoryItems)
+    {
         var hwItems = inventoryItems.Where(i => i.Type == InventoryItemType.Hardware).ToList();
         var swItems = inventoryItems.Where(i => i.Type == InventoryItemType.Software).ToList();
 
         if (hwItems.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine("### Hardware Inventory");
+            sb.AppendLine("#### Hardware Inventory");
             sb.AppendLine();
             sb.AppendLine("| Name | Manufacturer | Model | Serial Number | Function | IP Address | MAC Address | Location |");
             sb.AppendLine("|------|-------------|-------|---------------|----------|------------|-------------|----------|");
@@ -1587,7 +1757,7 @@ public class SspService : ISspService
         if (swItems.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine("### Software Inventory");
+            sb.AppendLine("#### Software Inventory");
             sb.AppendLine();
             sb.AppendLine("| Name | Vendor | Version | Patch Level | Function | License Type |");
             sb.AppendLine("|------|--------|---------|-------------|----------|-------------|");
@@ -1597,13 +1767,11 @@ public class SspService : ISspService
             }
         }
 
-        if (hwItems.Count == 0 && swItems.Count == 0 && boundaries.Count > 0)
+        if (hwItems.Count == 0 && swItems.Count == 0 && inventoryItems.Count > 0)
         {
             sb.AppendLine();
             sb.AppendLine("*No hardware/software inventory items have been registered. Use `inventory_auto_seed` to populate from boundary resources.*");
         }
-
-        return sb.ToString().TrimEnd();
     }
 
     /// <summary>§12 Personnel Security: auto role list + authored screening/access/training/separation procedures.</summary>

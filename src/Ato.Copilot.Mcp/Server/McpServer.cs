@@ -196,7 +196,8 @@ public class McpServer
             // Check cache before agent dispatch (FR-016)
             var subscriptionId = context?.TryGetValue("subscriptionId", out var subId) == true
                 ? subId?.ToString() ?? "default" : "default";
-            var paramsJson = context != null ? JsonSerializer.Serialize(context, _jsonOptions) : "{}";
+            var contextJson = context != null ? JsonSerializer.Serialize(context, _jsonOptions) : "{}";
+            var paramsJson = $"{message}::{contextJson}";
             var cacheStatus = _cacheService.GetCacheStatus(targetAgent.AgentName, paramsJson, subscriptionId);
             string cachedResponse;
             using (var agentActivity = ActivitySource.StartActivity("AgentDispatch", ActivityKind.Internal))

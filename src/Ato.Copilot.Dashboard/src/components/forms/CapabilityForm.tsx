@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { CreateCapabilityRequest, SecurityCapabilityDto } from '../../types/dashboard';
+import { generateCapabilityDescription } from '../../api/capabilities';
 
 const NIST_FAMILIES: Record<string, string> = {
   AC: 'Access Control',
@@ -42,6 +43,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
   const [description, setDescription] = useState(initial?.description ?? '');
   const [implementationStatus, setImplementationStatus] = useState<CapabilityStatusOption>(initial?.implementationStatus as CapabilityStatusOption ?? 'Planned');
   const [owner, setOwner] = useState(initial?.owner ?? '');
+  const [generatingDesc, setGeneratingDesc] = useState(false);
 
   useEffect(() => {
     if (initial) {
@@ -57,6 +59,17 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({ name, provider, category, description, implementationStatus, owner });
+  };
+
+  const handleGenerateDescription = async () => {
+    if (!name.trim() || !provider.trim()) return;
+    setGeneratingDesc(true);
+    try {
+      const desc = await generateCapabilityDescription(name, provider, category || undefined);
+      setDescription(desc);
+    } finally {
+      setGeneratingDesc(false);
+    }
   };
 
   const isValid = name.trim() && provider.trim() && category && description.trim() && owner.trim();
@@ -106,7 +119,32 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium text-gray-700">Description *</label>
+          <button
+            type="button"
+            onClick={handleGenerateDescription}
+            disabled={!name.trim() || !provider.trim() || generatingDesc}
+            className="inline-flex items-center gap-1.5 rounded-md bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {generatingDesc ? (
+              <>
+                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Generating…
+              </>
+            ) : (
+              <>
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                </svg>
+                AI Summary
+              </>
+            )}
+          </button>
+        </div>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}

@@ -209,3 +209,20 @@
 | **eMASS HW/SW Export** | Excel workbook export with Hardware and Software worksheets formatted for import into the Enterprise Mission Assurance Support Service (eMASS) |
 | **Significant Change** | An event that may require system reauthorization per NIST SP 800-37 |
 | **Software Inventory** | Catalog of software applications, operating systems, middleware, and security tools installed on hardware within a system's authorization boundary |
+
+---
+
+## Feature 033 Terms
+
+| Term | Definition |
+|------|-----------|
+| **Authorization Boundary Definition** | A named security perimeter within a registered system (e.g., "Production", "Dev/Test") that groups resources, components, and capability mappings |
+| **Physical Boundary** | An authorization boundary defined by physical infrastructure (e.g., data center, secure room) |
+| **Logical Boundary** | An authorization boundary defined by logical infrastructure (e.g., cloud subscription, VLAN, resource group) |
+| **Hybrid Boundary** | An authorization boundary combining physical and logical security perimeters |
+| **Boundary-Scoped Mapping** | A capability-to-control mapping assigned to a specific authorization boundary |
+| **Organization-Wide Mapping** | A capability-to-control mapping with no boundary assignment (null FK), applicable to all boundaries |
+| **Composite Narrative** | An auto-generated SSP control narrative that includes sections for organization-wide and per-boundary capability mapping descriptions |
+| **Primary Boundary** | The default boundary definition auto-created for each system during migration; cannot be deleted |
+| **Boundary Comparison Table** | A dashboard visualization showing per-boundary compliance coverage percentages with color coding |
+| **Azure Resource Discovery** | Automated discovery of Azure resources via Resource Graph API, grouped by resource group as suggested boundaries |

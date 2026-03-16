@@ -87,6 +87,13 @@ export const tooltipContent: Record<string, HelpContent> = {
     emptyStateHint:
       'Activity will appear as users interact with the system — importing data, updating controls, or modifying POA&Ms.',
   },
+  boundaries: {
+    title: 'Authorization Boundaries',
+    description:
+      'Named security perimeters (Physical, Logical, Hybrid) that group resources, components, and capability mappings within a system.',
+    emptyStateHint:
+      'A Primary boundary is auto-created for each system. Navigate to Boundaries to add additional perimeters.',
+  },
 };
 
 /* ─── Help Panel Sections ───────────────────────────────────────── */
@@ -371,6 +378,34 @@ export const helpSections: HelpSection[] = [
         title: 'Glossary',
         content:
           'RMF — Risk Management Framework. ATO — Authority to Operate. POA&M — Plan of Action and Milestones. FIPS 199 — Federal standard for security categorization. NIST 800-53 — Security and privacy control catalog. SSP — System Security Plan. SAR — Security Assessment Report. ConMon — Continuous Monitoring. ISSO — Information System Security Officer. ISSM — Information System Security Manager. SCA — Security Control Assessor. AO — Authorizing Official.',
+      },
+    ],
+  },
+  {
+    id: 'boundaries',
+    title: 'Authorization Boundaries',
+    content:
+      'Authorization boundaries define the security perimeters of your system. Each boundary can be Physical, Logical, or Hybrid and contains resources and components.',
+    subsections: [
+      {
+        title: 'Boundary Types',
+        content:
+          'Physical — defined by physical infrastructure (data center, secure room). Logical — defined by logical infrastructure (cloud subscription, VLAN, resource group). Hybrid — combination of physical and logical perimeters.',
+      },
+      {
+        title: 'Primary Boundary',
+        content:
+          'Every system has one Primary boundary that cannot be deleted. When other boundaries are removed, their resources, components, and mappings are automatically reassigned to the Primary boundary.',
+      },
+      {
+        title: 'Azure Discovery',
+        content:
+          'Click "Discover Azure Resources" on the Boundary Management page to auto-discover resources from your Azure subscription. Resources are grouped by resource group and suggested as new boundary definitions.',
+      },
+      {
+        title: 'Boundary-Scoped Compliance',
+        content:
+          'Capability-to-control mappings can be scoped to specific boundaries for per-boundary compliance tracking. Use the boundary selector on the Gap Analysis page to view coverage for a specific boundary or compare across all boundaries.',
       },
     ],
   },

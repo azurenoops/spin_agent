@@ -121,6 +121,11 @@ public class DashboardService
             {
                 SystemId = system.Id,
                 Name = system.Name,
+                Acronym = system.Acronym,
+                SystemType = system.SystemType.ToString(),
+                MissionCriticality = system.MissionCriticality.ToString(),
+                HostingEnvironment = system.HostingEnvironment,
+                Description = system.Description,
                 ImpactLevel = baselineLevel,
                 CurrentRmfPhase = system.CurrentRmfStep.ToString(),
                 ComplianceScore = Math.Round(complianceScore, 1),
@@ -347,6 +352,10 @@ public class DashboardService
         {
             SystemId = system.Id,
             Name = system.Name,
+            Acronym = system.Acronym,
+            SystemType = system.SystemType.ToString(),
+            MissionCriticality = system.MissionCriticality.ToString(),
+            HostingEnvironment = system.HostingEnvironment,
             ImpactLevel = baselineLevel,
             BaselineLevel = baselineLevel,
             CurrentRmfPhase = system.CurrentRmfStep.ToString(),

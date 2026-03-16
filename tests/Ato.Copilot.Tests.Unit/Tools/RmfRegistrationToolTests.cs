@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -399,7 +400,7 @@ public class RmfRegistrationToolTests
         mock.Setup(s => s.DefineBoundaryAsync("sys-1", It.IsAny<IEnumerable<BoundaryResourceInput>>(), "mcp-user", It.IsAny<CancellationToken>()))
             .ReturnsAsync(entries.AsReadOnly());
 
-        var tool = new DefineBoundaryTool(mock.Object, Mock.Of<ILogger<DefineBoundaryTool>>());
+        var tool = new DefineBoundaryTool(mock.Object, Mock.Of<IServiceScopeFactory>(), Mock.Of<ILogger<DefineBoundaryTool>>());
         var result = await tool.ExecuteAsync(new Dictionary<string, object?>
         {
             ["system_id"] = "sys-1",
@@ -423,7 +424,7 @@ public class RmfRegistrationToolTests
     public async Task DefineBoundary_MissingSystemId_ReturnsError()
     {
         var tool = new DefineBoundaryTool(
-            Mock.Of<IBoundaryService>(),
+            Mock.Of<IBoundaryService>(), Mock.Of<IServiceScopeFactory>(),
             Mock.Of<ILogger<DefineBoundaryTool>>());
 
         var result = await tool.ExecuteAsync(new Dictionary<string, object?>
@@ -439,7 +440,7 @@ public class RmfRegistrationToolTests
     public async Task DefineBoundary_EmptyResources_ReturnsError()
     {
         var tool = new DefineBoundaryTool(
-            Mock.Of<IBoundaryService>(),
+            Mock.Of<IBoundaryService>(), Mock.Of<IServiceScopeFactory>(),
             Mock.Of<ILogger<DefineBoundaryTool>>());
 
         var result = await tool.ExecuteAsync(new Dictionary<string, object?>
@@ -460,7 +461,7 @@ public class RmfRegistrationToolTests
         mock.Setup(s => s.DefineBoundaryAsync("non-existent", It.IsAny<IEnumerable<BoundaryResourceInput>>(), "mcp-user", It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("System 'non-existent' not found."));
 
-        var tool = new DefineBoundaryTool(mock.Object, Mock.Of<ILogger<DefineBoundaryTool>>());
+        var tool = new DefineBoundaryTool(mock.Object, Mock.Of<IServiceScopeFactory>(), Mock.Of<ILogger<DefineBoundaryTool>>());
         var result = await tool.ExecuteAsync(new Dictionary<string, object?>
         {
             ["system_id"] = "non-existent",
@@ -745,7 +746,7 @@ public class RmfRegistrationToolTests
     [Fact]
     public void DefineBoundaryTool_HasCorrectName()
     {
-        var tool = new DefineBoundaryTool(Mock.Of<IBoundaryService>(), Mock.Of<ILogger<DefineBoundaryTool>>());
+        var tool = new DefineBoundaryTool(Mock.Of<IBoundaryService>(), Mock.Of<IServiceScopeFactory>(), Mock.Of<ILogger<DefineBoundaryTool>>());
         tool.Name.Should().Be("compliance_define_boundary");
     }
 

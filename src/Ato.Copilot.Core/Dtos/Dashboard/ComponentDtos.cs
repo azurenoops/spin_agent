@@ -12,6 +12,8 @@ public class SystemComponentDto
     public string? Description { get; init; }
     public string? Owner { get; init; }
     public required string Status { get; init; }
+    public string? BoundaryDefinitionId { get; init; }
+    public string? BoundaryDefinitionName { get; init; }
     public List<LinkedCapabilityDto> LinkedCapabilities { get; init; } = [];
     public DateTime CreatedAt { get; init; }
     public DateTime? ModifiedAt { get; init; }
@@ -37,6 +39,7 @@ public class CreateComponentRequest
     public string? Description { get; init; }
     public string? Owner { get; init; }
     public required string Status { get; init; }
+    public string? BoundaryDefinitionId { get; init; }
     public List<string> LinkedCapabilityIds { get; init; } = [];
 }
 
@@ -90,4 +93,5 @@ public class ComponentQuery : PaginationQuery
     public string? Type { get; init; }
     public string? Status { get; init; }
     public string? Search { get; init; }
+    public string? BoundaryDefinitionId { get; init; }
 }

@@ -414,6 +414,10 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     services.AddSingleton<Ato.Copilot.Core.Services.NarrativeTemplateService>();
     services.AddHostedService<Ato.Copilot.Core.Services.ComplianceTrendSnapshotService>();
 
+    // Boundary services (Feature 033)
+    services.AddScoped<Ato.Copilot.Core.Services.BoundaryDefinitionService>();
+    services.AddSingleton<Ato.Copilot.Agents.Compliance.Services.AzureResourceDiscoveryService>();
+
     // Roadmap services (Feature 031)
     services.AddScoped<Ato.Copilot.Core.Interfaces.Roadmap.IRoadmapService, Ato.Copilot.Core.Services.RoadmapService>();
 }

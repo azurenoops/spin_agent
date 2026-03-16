@@ -61,4 +61,13 @@ public class SystemComponent
 
     /// <summary>Capability links (many-to-many via join entity).</summary>
     public ICollection<ComponentCapabilityLink> CapabilityLinks { get; set; } = new List<ComponentCapabilityLink>();
+
+    // ─── Feature 033: Boundary-Scoped Model ──────────────────────────────────
+
+    /// <summary>FK to AuthorizationBoundaryDefinition (nullable — null means legacy/assigned to Primary after migration).</summary>
+    [MaxLength(36)]
+    public string? AuthorizationBoundaryDefinitionId { get; set; }
+
+    /// <summary>Parent boundary definition.</summary>
+    public AuthorizationBoundaryDefinition? AuthorizationBoundaryDefinition { get; set; }
 }

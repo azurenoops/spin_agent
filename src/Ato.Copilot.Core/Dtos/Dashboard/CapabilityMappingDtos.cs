@@ -12,6 +12,8 @@ public class CapabilityMappingDto
     public required string Role { get; init; }
     public string? RegisteredSystemId { get; init; }
     public string? RegisteredSystemName { get; init; }
+    public string? BoundaryDefinitionId { get; init; }
+    public string? BoundaryDefinitionName { get; init; }
     public required string NarrativeStatus { get; init; }
     public bool IsManuallyCustomized { get; init; }
 }
@@ -32,6 +34,7 @@ public class CreateMappingItem
     public required string ControlId { get; init; }
     public required string Role { get; init; }
     public string? RegisteredSystemId { get; init; }
+    public string? BoundaryDefinitionId { get; init; }
 }
 
 /// <summary>

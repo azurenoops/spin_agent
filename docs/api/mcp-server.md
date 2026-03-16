@@ -1547,3 +1547,31 @@ Query parameters for GET: `type`, `status`, `search`, `cursor`, `pageSize`
 | GET | `/api/dashboard/systems/{systemId}/roadmap/export` | Export roadmap as PDF |
 
 Query parameters for roadmap GET: `includeItems` (default: true)
+
+#### Boundary Definitions (Feature 033)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/boundary-definitions` | List boundary definitions |
+| POST | `/api/dashboard/systems/{systemId}/boundary-definitions` | Create a boundary definition |
+| PUT | `/api/dashboard/boundary-definitions/{id}` | Update a boundary definition |
+| DELETE | `/api/dashboard/boundary-definitions/{id}` | Delete (reassigns to Primary) |
+
+#### Azure Resource Discovery (Feature 033)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/azure-discovery` | Discover Azure resources via Resource Graph |
+| POST | `/api/dashboard/systems/{systemId}/azure-discovery/apply` | Apply discovery suggestions (create boundaries + components) |
+
+Query parameters for discovery GET: `resourceGroup`, `resourceType`, `search`, `cursor`
+
+#### Boundary MCP Tools (Feature 033)
+
+| Tool Name | Description |
+|-----------|-------------|
+| `compliance_list_boundary_definitions` | List all boundary definitions for a system |
+| `compliance_create_boundary_definition` | Create a new boundary definition (name, type, description) |
+| `compliance_delete_boundary_definition` | Delete a boundary (reassigns resources to Primary) |
+| `compliance_boundary_gap_analysis` | Run boundary-scoped gap analysis with optional boundary filter |
+| `compliance_define_boundary` (modified) | Optionally assigns resources to a named boundary definition |

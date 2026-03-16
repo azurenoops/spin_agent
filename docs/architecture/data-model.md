@@ -38,6 +38,10 @@ erDiagram
     RegisteredSystem ||--o| ControlBaseline : has
     RegisteredSystem ||--o| ConMonPlan : has
     RegisteredSystem ||--o{ AuthorizationBoundary : contains
+    RegisteredSystem ||--o{ AuthorizationBoundaryDefinition : defines
+    AuthorizationBoundaryDefinition ||--o{ AuthorizationBoundary : groups
+    AuthorizationBoundaryDefinition ||--o{ SystemComponent : scopes
+    AuthorizationBoundaryDefinition ||--o{ CapabilityControlMapping : scopes
     RegisteredSystem ||--o{ RmfRoleAssignment : has
     RegisteredSystem ||--o{ ControlImplementation : has
     ControlImplementation ||--o{ NarrativeVersion : versions
@@ -144,7 +148,25 @@ Azure resources within a system's authorization boundary.
 | `ResourceName` | `string` (200) | Resource display name |
 | `IsExcluded` | `bool` | Whether excluded from boundary |
 | `ExclusionRationale` | `string?` (2000) | Justification for exclusion |
+| `AuthorizationBoundaryDefinitionId` | `string?` (36) | FK → AuthorizationBoundaryDefinition (nullable — null = legacy/org-wide) |
 | `AddedAt` | `DateTime` | When resource was added |
+
+### AuthorizationBoundaryDefinition (Feature 033)
+
+A named security perimeter within a registered system (e.g., "Production", "Dev/Test").
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id` | `Guid` | Primary key |
+| `RegisteredSystemId` | `string` (36) | FK → RegisteredSystem |
+| `Name` | `string` (200) | Boundary name (unique within system) |
+| `BoundaryType` | `BoundaryDefinitionType` | Physical, Logical, or Hybrid |
+| `Description` | `string?` (2000) | Free-text description |
+| `IsPrimary` | `bool` | Whether this is the primary boundary (one per system, cannot be deleted) |
+| `CreatedAt` | `DateTime` | Creation timestamp (UTC) |
+| `CreatedBy` | `string` (200) | User who created the definition |
+
+**Relationships**: Contains many `AuthorizationBoundary` resources, `SystemComponent` entries, and `CapabilityControlMapping` records.
 
 ### RmfRoleAssignment
 

@@ -31,6 +31,11 @@ export interface ErrorResponse {
 export interface PortfolioSystemSummary {
   systemId: string;
   name: string;
+  acronym: string | null;
+  systemType: string;
+  missionCriticality: string;
+  hostingEnvironment: string;
+  description: string | null;
   impactLevel: string;
   currentRmfPhase: string;
   complianceScore: number;
@@ -85,6 +90,10 @@ export interface RecentActivity {
 export interface SystemDetailResponse {
   systemId: string;
   name: string;
+  acronym: string | null;
+  systemType: string;
+  missionCriticality: string;
+  hostingEnvironment: string;
   impactLevel: string;
   baselineLevel: string;
   currentRmfPhase: string;
@@ -186,17 +195,24 @@ export interface CapabilityMappingDto {
   role: CapabilityMappingRole;
   registeredSystemId: string | null;
   registeredSystemName: string | null;
+  boundaryDefinitionId: string | null;
+  boundaryDefinitionName: string | null;
   narrativeStatus: NarrativeStatus;
   isManuallyCustomized: boolean;
 }
 
 export interface CreateMappingsRequest {
-  mappings: { controlId: string; role: CapabilityMappingRole; registeredSystemId?: string }[];
+  mappings: { controlId: string; role: CapabilityMappingRole; registeredSystemId?: string; boundaryDefinitionId?: string }[];
+}
+
+export interface MappingWarning {
+  controlId: string;
+  message: string;
 }
 
 export interface CreateMappingsResponse {
   created: number;
-  warnings: string[];
+  warnings: MappingWarning[];
   narrativesGenerated: number;
 }
 
@@ -221,6 +237,18 @@ export interface GapAnalysisResponse {
   gapCount: number;
   coveragePercent: number;
   familyBreakdown: GapFamilyBreakdown[];
+  boundaryComparison?: BoundaryComparisonItem[] | null;
+}
+
+export interface BoundaryComparisonItem {
+  boundaryId: string;
+  boundaryName: string;
+  boundaryType: string;
+  isPrimary: boolean;
+  totalControls: number;
+  coveredControls: number;
+  gapCount: number;
+  coveragePercent: number;
 }
 
 // ─── Components (US5) ─────────────────────────────────────────────────────────
@@ -233,6 +261,8 @@ export interface SystemComponentDto {
   description: string | null;
   owner: string | null;
   status: ComponentStatus;
+  boundaryDefinitionId: string | null;
+  boundaryDefinitionName: string | null;
   linkedCapabilities: { capabilityId: string; capabilityName: string }[];
   createdAt: string;
   modifiedAt: string | null;
@@ -245,6 +275,7 @@ export interface CreateComponentRequest {
   description?: string;
   owner?: string;
   status: ComponentStatus;
+  boundaryDefinitionId?: string;
   linkedCapabilityIds?: string[];
 }
 
@@ -350,4 +381,85 @@ export interface TodoItem {
   category: string;
   prompt?: string;
   link?: string;
+}
+
+// ─── Boundary Definitions (Feature 033) ────────────────────────────────────────
+
+export type BoundaryDefinitionType = 'Physical' | 'Logical' | 'Hybrid';
+
+export interface BoundaryDefinitionDto {
+  id: string;
+  registeredSystemId: string;
+  name: string;
+  boundaryType: BoundaryDefinitionType;
+  description: string | null;
+  isPrimary: boolean;
+  resourceCount: number;
+  componentCount: number;
+  coveragePercent: number;
+  createdAt: string;
+}
+
+export interface CreateBoundaryDefinitionRequest {
+  name: string;
+  boundaryType: string;
+  description?: string | null;
+}
+
+export interface DeleteBoundaryDefinitionResponse {
+  deletedId: string;
+  reassignedComponents: number;
+  reassignedMappings: number;
+  reassignedResources: number;
+  primaryBoundaryId: string;
+}
+
+// ─── Azure Resource Discovery (Feature 033 US8) ────────────────────────────
+
+export interface AzureDiscoveredResourceDto {
+  resourceId: string;
+  name: string;
+  type: string;
+  resourceGroup: string;
+  location: string;
+  alreadyInBoundary: boolean;
+}
+
+export interface AzureSuggestedBoundaryDto {
+  resourceGroupName: string;
+  boundaryType: string;
+  resourceCount: number;
+  alreadyExists: boolean;
+  resources: AzureDiscoveredResourceDto[];
+}
+
+export interface AzureDiscoveryResponse {
+  suggestedBoundaries: AzureSuggestedBoundaryDto[];
+  nextCursor: string | null;
+  totalResourceCount: number;
+}
+
+export interface ApplyBoundaryItem {
+  resourceGroupName: string;
+  name: string;
+  boundaryType: string;
+  description?: string;
+}
+
+export interface ApplyComponentItem {
+  boundaryDefinitionId?: string;
+  resourceId: string;
+  name: string;
+  subType?: string;
+}
+
+export interface ApplyDiscoveryRequest {
+  boundaries: ApplyBoundaryItem[];
+  components: ApplyComponentItem[];
+}
+
+export interface ApplyDiscoveryResponse {
+  boundariesCreated: number;
+  componentsCreated: number;
+  skipped: number;
 }

@@ -3369,3 +3369,53 @@ Export a roadmap as a PDF document using QuestPDF. Includes header with summary 
   "resolution": "Verify IInventoryService is registered and database migration is applied."
 }
 ```
+
+---
+
+## Boundary Definition Tools (Feature 033)
+
+Tools for managing authorization boundary definitions and boundary-scoped compliance analysis.
+
+### `compliance_list_boundary_definitions`
+
+Lists all boundary definitions for a system.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | Registered system ID |
+
+### `compliance_create_boundary_definition`
+
+Creates a new boundary definition.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | Registered system ID |
+| `name` | string | Yes | Boundary name (unique within system) |
+| `boundary_type` | string | Yes | Physical, Logical, or Hybrid |
+| `description` | string | No | Boundary description |
+
+### `compliance_delete_boundary_definition`
+
+Deletes a boundary definition. Resources and components are reassigned to the Primary boundary.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `boundary_id` | string | Yes | Boundary definition ID |
+
+### `compliance_boundary_gap_analysis`
+
+Runs gap analysis with optional boundary filter. Returns boundary comparison table when no filter is applied.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | Registered system ID |
+| `boundary_id` | string | No | Filter to a specific boundary (omit for all boundaries with comparison) |
+
+### `compliance_define_boundary` (Modified)
+
+The existing define boundary tool now supports an optional `boundary_definition_name` parameter to assign resources to a specific boundary definition.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `boundary_definition_name` | string | No | Name of boundary definition to assign resources to |
