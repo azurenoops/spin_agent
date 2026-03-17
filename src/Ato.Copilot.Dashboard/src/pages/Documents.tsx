@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import PageLayout from '../components/layout/PageLayout';
+import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { getSystemDocuments } from '../api/documents';
 import type {
@@ -483,42 +482,20 @@ export default function Documents() {
   const { data, loading, error } = usePolling<SystemDocumentsResponse>(fetcher, 30000);
 
   if (loading) {
-    return (
-      <PageLayout title="Documents">
-        <p className="text-gray-500">Loading document catalog...</p>
-      </PageLayout>
-    );
+    return <p className="text-gray-500">Loading document catalog...</p>;
   }
 
   if (error || !data) {
     return (
-      <PageLayout title="Documents">
-        <nav className="text-sm text-gray-500 mb-4">
-          <Link to="/" className="hover:text-blue-600">Portfolio</Link>
-          <span className="mx-1">/</span>
-          <Link to={`/systems/${id}`} className="hover:text-blue-600">System Detail</Link>
-          <span className="mx-1">/</span>
-          <span className="text-gray-800">Documents</span>
-        </nav>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800 font-medium">Document catalog unavailable</p>
-          <p className="text-yellow-600 text-sm mt-1">Unable to load documents for this system.</p>
-        </div>
-      </PageLayout>
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p className="text-yellow-800 font-medium">Document catalog unavailable</p>
+        <p className="text-yellow-600 text-sm mt-1">Unable to load documents for this system.</p>
+      </div>
     );
   }
 
   return (
-    <PageLayout title={`${data.systemName} — Documents`}>
-      {/* Breadcrumb */}
-      <nav className="text-sm mb-6">
-        <Link to="/" className="text-blue-600 hover:underline">Portfolio</Link>
-        <span className="mx-2 text-gray-400">/</span>
-        <Link to={`/systems/${data.systemId}`} className="text-blue-600 hover:underline">{data.systemName}</Link>
-        <span className="mx-2 text-gray-400">/</span>
-        <span className="text-gray-700">Documents</span>
-      </nav>
-
+    <>
       {/* Phase indicator */}
       <div className="mb-6 flex items-center gap-2">
         <span className="text-xs text-gray-500">Current Phase:</span>
@@ -553,6 +530,6 @@ export default function Documents() {
         {/* Inventory */}
         <InventoryRow count={data.inventoryItemCount} />
       </div>
-    </PageLayout>
+    </>
   );
 }

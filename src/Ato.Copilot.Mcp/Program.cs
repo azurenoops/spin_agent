@@ -389,6 +389,9 @@ async Task MigrateDatabaseAsync(IServiceProvider services)
             // Create any new tables that were added after initial creation.
             await EnsureNewTablesAsync(db, logger, cts.Token);
 
+            // Always apply column additions to existing tables
+            await EnsureSchemaAdditionsAsync(db, logger, cts.Token);
+
             logger.LogInformation("SQL Server database ready");
         }
         else
@@ -586,6 +589,12 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
 
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AlertNotification_User_Read')
             CREATE INDEX IX_AlertNotification_User_Read ON AlertNotifications (UserId, IsRead);
+
+        IF COL_LENGTH('PoamItems', 'DeviationId') IS NULL
+            ALTER TABLE PoamItems ADD DeviationId NVARCHAR(450) NULL;
+
+        IF COL_LENGTH('Findings', 'DeviationId') IS NULL
+            ALTER TABLE Findings ADD DeviationId NVARCHAR(450) NULL;
         """;
 
     try

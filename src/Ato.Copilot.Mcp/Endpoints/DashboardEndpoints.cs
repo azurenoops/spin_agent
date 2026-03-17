@@ -3082,10 +3082,16 @@ public static class DashboardEndpoints
             if (!string.IsNullOrEmpty(systemId))
             {
                 var boardIds = await context.RemediationBoards
-                    .Where(b => b.SubscriptionId == systemId)
+                    .Where(b => b.SubscriptionId == systemId || b.AssessmentId != null)
                     .Select(b => b.Id)
                     .ToListAsync(ct);
-                taskQuery = taskQuery.Where(t => boardIds.Contains(t.BoardId));
+                // Also include tasks linked to POA&M items for this system
+                var poamTaskIds = await context.PoamItems
+                    .Where(p => p.RegisteredSystemId == systemId && p.RemediationTaskId != null)
+                    .Select(p => p.RemediationTaskId!)
+                    .Distinct()
+                    .ToListAsync(ct);
+                taskQuery = taskQuery.Where(t => boardIds.Contains(t.BoardId) || poamTaskIds.Contains(t.Id));
             }
 
             if (!string.IsNullOrEmpty(status) && Enum.TryParse<KanbanTaskStatus>(status, true, out var ts))

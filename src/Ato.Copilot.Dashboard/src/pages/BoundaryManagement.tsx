@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import PageLayout from '../components/layout/PageLayout';
+import { useParams } from 'react-router-dom';
 import { BoundarySummaryCard } from '../components/cards/BoundarySummaryCard';
 import { BoundaryForm } from '../components/forms/BoundaryForm';
 import { usePolling } from '../hooks/usePolling';
@@ -206,24 +205,11 @@ export default function BoundaryManagement() {
   };
 
   if (loading) {
-    return (
-      <PageLayout title="Boundary Management">
-        <p className="text-gray-500">Loading boundaries...</p>
-      </PageLayout>
-    );
+    return <p className="text-gray-500">Loading boundaries...</p>;
   }
 
   return (
-    <PageLayout title="Boundary Management">
-      {/* Breadcrumb */}
-      <div className="mb-4 text-sm">
-        <Link to="/" className="text-blue-600 hover:underline">Portfolio</Link>
-        <span className="mx-2 text-gray-400">/</span>
-        <Link to={`/systems/${systemId}`} className="text-blue-600 hover:underline">System</Link>
-        <span className="mx-2 text-gray-400">/</span>
-        <span className="text-gray-700">Boundaries</span>
-      </div>
-
+    <>
       {error && (
         <div className="mb-4 bg-red-50 text-red-700 p-3 rounded text-sm">{error}</div>
       )}
@@ -585,6 +571,6 @@ export default function BoundaryManagement() {
       {boundaries.length === 0 && !loading && (
         <p className="text-gray-500 text-sm mt-4">No boundary definitions found.</p>
       )}
-    </PageLayout>
+    </>
   );
 }

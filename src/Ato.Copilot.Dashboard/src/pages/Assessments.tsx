@@ -2,12 +2,10 @@ import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import PageLayout from '../components/layout/PageLayout';
 import { usePolling } from '../hooks/usePolling';
+import { useSystemContext } from '../components/layout/SystemLayout';
 import { getAssessments, runAssessment, getAssessmentDetail } from '../api/assessments';
 import type { AssessmentListItem, AssessmentDetail, AssessmentFinding } from '../api/assessments';
-import { getPortfolio } from '../api/portfolio';
-import type { PortfolioSystemSummary } from '../types/dashboard';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -58,13 +56,12 @@ function SeverityBadge({ severity }: { severity: string }) {
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Assessments() {
+  const { detail } = useSystemContext();
+  const systemId = detail.systemId;
   const [filter, setFilter] = useState('');
   const [showRunDialog, setShowRunDialog] = useState(false);
-  const [systems, setSystems] = useState<PortfolioSystemSummary[]>([]);
-  const [selectedSystemId, setSelectedSystemId] = useState('');
   const [runLoading, setRunLoading] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
-  const [systemsLoading, setSystemsLoading] = useState(false);
   const [detailData, setDetailData] = useState<AssessmentDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -72,31 +69,16 @@ export default function Assessments() {
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
 
   const fetchAssessments = useCallback(() => getAssessments(), []);
-  const { data: assessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
+  const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
 
-  const openRunDialog = async () => {
-    setShowRunDialog(true);
-    setRunError(null);
-    setSelectedSystemId('');
-    setSystemsLoading(true);
-    try {
-      const res = await getPortfolio({ pageSize: 200 });
-      const items = res.items ?? [];
-      setSystems(items);
-      if (items.length === 1 && items[0]) setSelectedSystemId(items[0].systemId);
-    } catch {
-      setRunError('Failed to load systems');
-    } finally {
-      setSystemsLoading(false);
-    }
-  };
+  // Filter to current system
+  const assessments = (allAssessments ?? []).filter(a => a.systemId === systemId);
 
   const handleRunAssessment = async () => {
-    if (!selectedSystemId) { setRunError('Please select a system'); return; }
     setRunLoading(true);
     setRunError(null);
     try {
-      await runAssessment(selectedSystemId);
+      await runAssessment(systemId);
       setShowRunDialog(false);
       refresh();
     } catch (err: unknown) {
@@ -135,7 +117,7 @@ export default function Assessments() {
     });
   };
 
-  const filtered = (assessments ?? []).filter((a) => {
+  const filtered = assessments.filter((a) => {
     if (!filter) return true;
     const q = filter.toLowerCase();
     return (
@@ -147,13 +129,12 @@ export default function Assessments() {
   });
 
   return (
-    <PageLayout title="Assessments">
-      <div className="space-y-6 p-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Compliance Assessments</h2>
-            <p className="mt-1 text-sm text-gray-500">All assessments that have been run against registered systems.</p>
+            <p className="mt-1 text-sm text-gray-500">Assessments run against this system.</p>
           </div>
           <div className="flex items-center gap-3">
             <input
@@ -164,7 +145,7 @@ export default function Assessments() {
               className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <button
-              onClick={() => void openRunDialog()}
+              onClick={() => { setShowRunDialog(true); setRunError(null); }}
               className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -177,7 +158,7 @@ export default function Assessments() {
         </div>
 
         {/* Summary cards */}
-        {assessments && (
+        {assessments.length > 0 && (
           <div className="grid grid-cols-4 gap-4">
             <div className="rounded-lg border border-gray-200 bg-white p-4">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total</p>
@@ -573,55 +554,19 @@ export default function Assessments() {
               {/* Body */}
               <div className="px-6 py-5 space-y-4">
                 <p className="text-sm text-gray-600">
-                  Select a registered system to run a NIST 800-53 compliance assessment against.
-                  The system must have a security categorization configured.
+                  Run a NIST 800-53 compliance assessment against <strong>{detail.name}</strong>.
                 </p>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">System</label>
-                  {systemsLoading ? (
-                    <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                      Loading systems...
-                    </div>
-                  ) : systems.length === 0 ? (
-                    <p className="text-sm text-gray-400 py-2">No registered systems found.</p>
-                  ) : (
-                    <select
-                      value={selectedSystemId}
-                      onChange={(e) => { setSelectedSystemId(e.target.value); setRunError(null); }}
-                      className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="">Select a system...</option>
-                      {systems.map((s) => (
-                        <option key={s.systemId} value={s.systemId}>
-                          {s.name}{s.acronym ? ` (${s.acronym})` : ''} — {s.currentRmfPhase}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">System</span>
+                    <span className="font-medium text-gray-800">{detail.name}{detail.acronym ? ` (${detail.acronym})` : ''}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Impact Level</span>
+                    <span className="font-medium text-gray-800">{detail.categorization?.overall ?? '—'}</span>
+                  </div>
                 </div>
-
-                {selectedSystemId && (() => {
-                  const sys = systems.find(s => s.systemId === selectedSystemId);
-                  if (!sys) return null;
-                  return (
-                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Impact Level</span>
-                        <span className="font-medium text-gray-800">{sys.impactLevel || '—'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">RMF Phase</span>
-                        <span className="font-medium text-gray-800">{sys.currentRmfPhase}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Compliance Score</span>
-                        <span className="font-medium text-gray-800">{sys.complianceScore}%</span>
-                      </div>
-                    </div>
-                  );
-                })()}
 
                 {runError && (
                   <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -642,7 +587,7 @@ export default function Assessments() {
                 <button
                   type="button"
                   onClick={() => void handleRunAssessment()}
-                  disabled={runLoading || !selectedSystemId || systemsLoading}
+                  disabled={runLoading}
                   className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   {runLoading ? 'Running...' : 'Run Assessment'}
@@ -651,7 +596,6 @@ export default function Assessments() {
             </div>
           </div>
         )}
-      </div>
-    </PageLayout>
+    </div>
   );
 }

@@ -9,8 +9,6 @@ import { useNotifications } from '../../hooks/useNotifications';
 
 const navItems = [
   { to: '/', label: 'Portfolio' },
-  { to: '/assessments', label: 'Assessments' },
-  { to: '/remediation', label: 'Remediation' },
   { to: '/capabilities', label: 'Capabilities' },
 ];
 

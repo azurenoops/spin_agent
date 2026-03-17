@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import PageLayout from '../components/layout/PageLayout';
+import { useParams } from 'react-router-dom';
 import RoadmapTimeline from '../components/charts/RoadmapTimeline';
 import RiskReductionCurve from '../components/charts/RiskReductionCurve';
 import MetricCard from '../components/cards/MetricCard';
@@ -38,21 +37,17 @@ export default function Roadmap() {
   usePolling(fetchData);
 
   if (loading) {
-    return (
-      <PageLayout title="Implementation Roadmap">
-        <p className="text-gray-500">Loading roadmap...</p>
-      </PageLayout>
-    );
+    return <p className="text-gray-500">Loading roadmap...</p>;
   }
 
   if (error || !roadmap) {
     return (
-      <PageLayout title="Implementation Roadmap">
+      <div>
         <p className="text-red-500">{error ?? 'No active roadmap found'}</p>
         <p className="mt-2 text-sm text-gray-500">
           Generate a roadmap using the ISSM chat command: &quot;Generate an implementation roadmap for this system&quot;
         </p>
-      </PageLayout>
+      </div>
     );
   }
 
@@ -63,18 +58,7 @@ export default function Roadmap() {
   const maxWeek = Math.max(...roadmap.phases.map((p) => p.targetEndWeek ?? 0), 12);
 
   return (
-    <PageLayout title={`Implementation Roadmap — ${roadmap.systemName}`}>
-      {/* Breadcrumb */}
-      <div className="mb-4 text-sm">
-        <Link to="/" className="text-blue-600 hover:underline">Portfolio</Link>
-        <span className="mx-2 text-gray-400">/</span>
-        <Link to={`/systems/${id}`} className="text-blue-600 hover:underline">
-          {roadmap.systemName}
-        </Link>
-        <span className="mx-2 text-gray-400">/</span>
-        <span className="text-gray-700">Roadmap</span>
-      </div>
-
+    <>
       {/* Summary Metrics */}
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <MetricCard title="Total Gaps" value={roadmap.totalGaps} />
@@ -210,7 +194,7 @@ export default function Roadmap() {
           </div>
         ))}
       </div>
-    </PageLayout>
+    </>
   );
 }
 

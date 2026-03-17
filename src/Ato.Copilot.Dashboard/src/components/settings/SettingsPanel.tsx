@@ -174,8 +174,6 @@ function DashboardSection({ settings, update }: { settings: DashboardSettings; u
       <SectionDivider title="Layout" />
       <SelectField label="Landing Page" value={settings.defaultLandingPage} onChange={(v) => update({ defaultLandingPage: v })} options={[
         { label: 'Portfolio', value: '/' },
-        { label: 'Assessments', value: '/assessments' },
-        { label: 'Remediation', value: '/remediation' },
         { label: 'Capabilities', value: '/capabilities' },
       ]} />
       <SelectField label="Remediation Default View" value={settings.defaultRemediationView} onChange={(v) => update({ defaultRemediationView: v })} options={[

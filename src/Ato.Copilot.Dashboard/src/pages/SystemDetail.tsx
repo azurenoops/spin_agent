@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import PageLayout from '../components/layout/PageLayout';
+import { Link } from 'react-router-dom';
 import RmfPhaseProgressComponent from '../components/charts/RmfPhaseProgress';
 import PhaseReadinessPanel from '../components/cards/PhaseReadinessPanel';
 import ComplianceHeatmap from '../components/charts/ComplianceHeatmap';
@@ -14,195 +13,31 @@ import RoleAssignmentPanel from '../components/cards/RoleAssignmentPanel';
 import { BoundarySummaryCard } from '../components/cards/BoundarySummaryCard';
 import HelpTooltip from '../components/help/HelpTooltip';
 import { usePolling } from '../hooks/usePolling';
-import { getSystemDetail, getHeatmap } from '../api/systemDetail';
+import { getHeatmap } from '../api/systemDetail';
 import { fetchBoundaryDefinitions } from '../api/boundaries';
-import type { SystemDetailResponse, HeatmapResponse, BoundaryDefinitionDto } from '../types/dashboard';
+import { useSystemContext } from '../components/layout/SystemLayout';
+import type { HeatmapResponse, BoundaryDefinitionDto } from '../types/dashboard';
 
 export default function SystemDetail() {
-  const { id } = useParams<{ id: string }>();
-  const [detail, setDetail] = useState<SystemDetailResponse | null>(null);
+  const { detail, refetch } = useSystemContext();
   const [heatmapData, setHeatmapData] = useState<HeatmapResponse | null>(null);
   const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [navCollapsed, setNavCollapsed] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    if (!id) return;
-    try {
-      const [d, h, b] = await Promise.allSettled([
-        getSystemDetail(id),
-        getHeatmap(id),
-        fetchBoundaryDefinitions(id),
-      ]);
-      if (d.status === 'fulfilled') {
-        setDetail(d.value);
-        setError(null);
-      } else {
-        setError('Failed to load system detail');
-      }
-      setHeatmapData(h.status === 'fulfilled' ? h.value : null);
-      setBoundaries(b.status === 'fulfilled' ? b.value : []);
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+  const fetchExtra = useCallback(async () => {
+    const [h, b] = await Promise.allSettled([
+      getHeatmap(detail.systemId),
+      fetchBoundaryDefinitions(detail.systemId),
+    ]);
+    setHeatmapData(h.status === 'fulfilled' ? h.value : null);
+    setBoundaries(b.status === 'fulfilled' ? b.value : []);
+  }, [detail.systemId]);
 
-  usePolling(fetchData);
-
-  if (loading) {
-    return (
-      <PageLayout title="System Detail">
-        <p className="text-gray-500">Loading system detail...</p>
-      </PageLayout>
-    );
-  }
-
-  if (error || !detail) {
-    return (
-      <PageLayout title="System Detail">
-        <p className="text-red-500">{error ?? 'System not found'}</p>
-      </PageLayout>
-    );
-  }
+  usePolling(fetchExtra);
 
   const km = detail.keyMetrics;
 
-  const sidePanel = (
-    <div className="space-y-4">
-      {/* System Summary */}
-      <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="px-5 pt-5 pb-1">
-          <h2 className="text-lg font-semibold text-gray-900">System Details</h2>
-        </div>
-        <div className="divide-y divide-gray-100 text-sm">
-          <div className="flex items-center justify-between px-5 py-2.5">
-            <span className="text-gray-500">Name</span>
-            <span className="font-medium text-gray-900">{detail.name}</span>
-          </div>
-          <div className="flex items-center justify-between px-5 py-2.5">
-            <span className="text-gray-500">Acronym</span>
-            <span className="font-medium text-gray-900">{detail.acronym || '—'}</span>
-          </div>
-          <div className="flex items-center justify-between px-5 py-2.5">
-            <span className="text-gray-500">System Type</span>
-            <span className="font-medium text-gray-900">{detail.systemType}</span>
-          </div>
-          <div className="flex items-center justify-between px-5 py-2.5">
-            <span className="text-gray-500">Mission Criticality</span>
-            <span className="font-medium text-gray-900">{detail.missionCriticality}</span>
-          </div>
-          <div className="flex items-center justify-between px-5 py-2.5">
-            <span className="text-gray-500">Hosting</span>
-            <span className="font-medium text-gray-900">{detail.hostingEnvironment}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* To Do */}
-      <TodoPanel systemId={detail.systemId} />
-
-      {/* Security Categorization */}
-      {detail.categorization && (
-        <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="px-5 pt-5 pb-1">
-            <h2 className="text-lg font-semibold text-gray-900">Security Categorization</h2>
-            <p className="text-xs text-gray-400 mt-0.5">{detail.categorization.formalNotation}</p>
-          </div>
-          <div className="divide-y divide-gray-100 text-sm">
-            {(['confidentiality', 'integrity', 'availability'] as const).map((dim) => {
-              const val = detail.categorization![dim];
-              const color = val === 'High' ? 'bg-red-100 text-red-700' : val === 'Moderate' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700';
-              return (
-                <div key={dim} className="flex items-center justify-between px-5 py-2.5">
-                  <span className="text-gray-500 capitalize">{dim}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{val}</span>
-                </div>
-              );
-            })}
-            <div className="flex items-center justify-between px-5 py-2.5">
-              <span className="text-gray-500">Overall</span>
-              <span className="font-medium text-gray-900">{detail.categorization.overall}</span>
-            </div>
-            <div className="flex items-center justify-between px-5 py-2.5">
-              <span className="text-gray-500">DoD IL</span>
-              <span className="font-medium text-gray-900">{detail.categorization.dodImpactLevel}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-
-  const leftPanel = (
-    <aside
-      className={`hidden md:flex flex-col flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto transition-all duration-200 ${
-        navCollapsed ? 'w-14' : 'w-56'
-      }`}
-    >
-      <div className={`flex items-center ${navCollapsed ? 'justify-center' : 'justify-between'} px-3 py-3 border-b border-gray-100`}>
-        {!navCollapsed && (
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Navigation</span>
-        )}
-        <button
-          type="button"
-          onClick={() => setNavCollapsed(!navCollapsed)}
-          className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-          title={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-          aria-label={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-        >
-          <svg className={`h-4 w-4 transition-transform ${navCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-      </div>
-      <nav className="flex-1 py-2 space-y-0.5 px-2">
-        {[
-          { to: `/systems/${detail.systemId}`, label: 'Overview', d: 'M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25' },
-          { to: `/systems/${detail.systemId}/documents`, label: 'Documents', d: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z' },
-          { to: `/systems/${detail.systemId}/narratives`, label: 'Narratives', d: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25' },
-          { to: `/systems/${detail.systemId}/gaps`, label: 'Gap Analysis', d: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z' },
-          { to: `/systems/${detail.systemId}/components`, label: 'Components', d: 'M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9' },
-          { to: `/systems/${detail.systemId}/boundaries`, label: 'Boundaries', d: 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z' },
-          { to: `/systems/${detail.systemId}/roadmap`, label: 'Roadmap', d: 'M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5' },
-          { to: `/systems/${detail.systemId}/deviations`, label: 'Deviations', d: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z' },
-        ].map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-              item.to === `/systems/${detail.systemId}`
-                ? 'bg-blue-50 text-blue-700 font-medium'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            } ${navCollapsed ? 'justify-center' : ''}`}
-            title={navCollapsed ? item.label : undefined}
-          >
-            <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d={item.d} />
-            </svg>
-            {!navCollapsed && <span className="truncate">{item.label}</span>}
-          </Link>
-        ))}
-      </nav>
-    </aside>
-  );
-
   return (
-    <PageLayout
-      title={detail.name}
-      sidePanel={sidePanel}
-      leftPanel={leftPanel}
-    >
-      {/* Breadcrumb */}
-      <div className="mb-4 text-sm">
-        <Link to="/" className="text-blue-600 hover:underline">
-          Portfolio
-        </Link>
-        <span className="mx-2 text-gray-400">/</span>
-        <span className="text-gray-700">{detail.name}</span>
-      </div>
-
+    <>
       {/* RMF Phase Progress */}
       <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-1">
@@ -218,7 +53,7 @@ export default function SystemDetail() {
       <div className="mb-6">
         <PhaseReadinessPanel
           systemId={detail.systemId}
-          onAdvanced={fetchData}
+          onAdvanced={refetch}
         />
       </div>
 
@@ -325,6 +160,6 @@ export default function SystemDetail() {
         </div>
         <ActivityFeed activities={detail.recentActivity} />
       </div>
-    </PageLayout>
+    </>
   );
 }

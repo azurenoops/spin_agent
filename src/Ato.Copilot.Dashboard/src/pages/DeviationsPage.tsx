@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import PageLayout from '../components/layout/PageLayout';
 import DeviationSummaryCards from '../components/DeviationSummaryCards';
 import DeviationTable from '../components/DeviationTable';
 import DeviationDetailDrawer from '../components/DeviationDetailDrawer';
@@ -57,7 +56,7 @@ export default function DeviationsPage() {
   if (!systemId) return null;
 
   return (
-    <PageLayout title="Deviations">
+    <>
       {loading ? (
         <p className="text-sm text-gray-400">Loading...</p>
       ) : (
@@ -86,6 +85,6 @@ export default function DeviationsPage() {
         onClose={() => setSelectedId(null)}
         onActionComplete={handleActionComplete}
       />
-    </PageLayout>
+    </>
   );
 }
