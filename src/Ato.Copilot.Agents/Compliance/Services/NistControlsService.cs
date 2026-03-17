@@ -302,7 +302,8 @@ public class NistControlsService : INistControlsService
             {
                 AbsoluteExpirationRelativeToNow = absoluteExpiration,
                 SlidingExpiration = slidingExpiration,
-                Priority = CacheItemPriority.High
+                Priority = CacheItemPriority.High,
+                Size = 1
             };
 
             _cache.Set(CatalogCacheKey, catalog, cacheOptions);

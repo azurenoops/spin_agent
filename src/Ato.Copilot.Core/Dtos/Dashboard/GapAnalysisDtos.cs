@@ -12,6 +12,25 @@ public class GapAnalysisDto
     public int GapCount { get; init; }
     public double CoveragePercent { get; init; }
     public required List<GapFamilyBreakdownDto> FamilyBreakdown { get; init; }
+    /// <summary>
+    /// Per-boundary comparison summary. Populated when no boundaryDefinitionId filter is specified.
+    /// </summary>
+    public List<BoundaryComparisonItemDto>? BoundaryComparison { get; init; }
+}
+
+/// <summary>
+/// Per-boundary coverage summary for the comparison table.
+/// </summary>
+public class BoundaryComparisonItemDto
+{
+    public required string BoundaryId { get; init; }
+    public required string BoundaryName { get; init; }
+    public required string BoundaryType { get; init; }
+    public bool IsPrimary { get; init; }
+    public int TotalControls { get; init; }
+    public int CoveredControls { get; init; }
+    public int GapCount { get; init; }
+    public double CoveragePercent { get; init; }
 }
 
 /// <summary>

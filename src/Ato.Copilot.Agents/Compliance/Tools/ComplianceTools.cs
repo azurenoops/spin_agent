@@ -69,6 +69,31 @@ public class ComplianceAssessmentTool : BaseTool
         var result = await _complianceEngine.RunComprehensiveAssessmentAsync(
             subscriptionId, resourceGroup: null, progress: null, cancellationToken);
 
+        // Link assessment to registered system by matching subscription ID
+        if (string.IsNullOrEmpty(result.RegisteredSystemId))
+        {
+            try
+            {
+                using var linkScope = _scopeFactory.CreateScope();
+                var linkContext = linkScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+                var activeSystems = await linkContext.RegisteredSystems
+                    .Where(s => s.IsActive)
+                    .AsNoTracking()
+                    .ToListAsync(cancellationToken);
+                var matchedSystem = activeSystems.FirstOrDefault(s =>
+                    s.AzureProfile?.SubscriptionIds.Contains(subscriptionId) == true);
+                if (matchedSystem != null)
+                {
+                    result.RegisteredSystemId = matchedSystem.Id;
+                    result.InitiatedBy = "system";
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to link assessment to system by subscription {Sub}", subscriptionId);
+            }
+        }
+
         var output = $"## Compliance Assessment Results\n\n" +
                $"**Assessment ID**: {result.Id}\n" +
                $"**Subscription**: {result.SubscriptionId}\n" +
@@ -891,5 +916,126 @@ public class ComplianceMonitoringTool : BaseTool
             "trend" => await _monitoringService.GetTrendAsync(subscriptionId, days, cancellationToken),
             _ => await _monitoringService.GetStatusAsync(subscriptionId, cancellationToken)
         };
+    }
+}
+
+/// <summary>
+/// Tool for showing existing assessment findings for a registered system.
+/// Queries the database for the latest assessment and returns findings grouped by family.
+/// </summary>
+public class ShowFindingsTool : BaseTool
+{
+    private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
+
+    public ShowFindingsTool(IDbContextFactory<AtoCopilotContext> dbFactory, ILogger<ShowFindingsTool> logger) : base(logger)
+    {
+        _dbFactory = dbFactory;
+    }
+
+    /// <inheritdoc />
+    public override string Name => "compliance_show_findings";
+    /// <inheritdoc />
+    public override string Description => "Show open compliance findings for a registered system from the latest assessment. Use this when the user asks to see findings, remediation suggestions, or assessment results for a system.";
+
+    /// <inheritdoc />
+    public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
+    {
+        ["system_id"] = new() { Name = "system_id", Description = "Registered system ID", Type = "string", Required = true },
+        ["severity"] = new() { Name = "severity", Description = "Filter by severity: Critical, High, Medium, Low, Informational", Type = "string" },
+        ["family"] = new() { Name = "family", Description = "Filter by control family code (e.g., AC, AU, SC)", Type = "string" },
+    };
+
+    /// <inheritdoc />
+    public override async Task<string> ExecuteCoreAsync(Dictionary<string, object?> arguments, CancellationToken cancellationToken = default)
+    {
+        var systemId = GetArg<string>(arguments, "system_id");
+        var severityFilter = GetArg<string>(arguments, "severity");
+        var familyFilter = GetArg<string>(arguments, "family")?.ToUpperInvariant();
+
+        if (string.IsNullOrWhiteSpace(systemId))
+            return "⚠️ System ID is required. Specify which system to show findings for.";
+
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var system = await db.RegisteredSystems
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
+
+        if (system is null)
+            return $"⚠️ System '{systemId}' not found or inactive.";
+
+        var assessment = await db.Assessments
+            .Where(a => a.RegisteredSystemId == systemId && a.Status == AssessmentStatus.Completed)
+            .OrderByDescending(a => a.AssessedAt)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (assessment is null)
+            return $"No completed assessment found for **{system.Name}**. Run a compliance assessment first.";
+
+        var findingsQuery = db.Findings
+            .Where(f => f.AssessmentId == assessment.Id && f.Status == FindingStatus.Open)
+            .AsNoTracking();
+
+        if (!string.IsNullOrEmpty(severityFilter) && Enum.TryParse<FindingSeverity>(severityFilter, true, out var sev))
+            findingsQuery = findingsQuery.Where(f => f.Severity == sev);
+
+        if (!string.IsNullOrEmpty(familyFilter))
+            findingsQuery = findingsQuery.Where(f => f.ControlId != null && f.ControlId.StartsWith(familyFilter + "-"));
+
+        var findings = await findingsQuery.OrderBy(f => f.ControlId).ToListAsync(cancellationToken);
+
+        var output = $"## Assessment Findings for {system.Name}\n\n" +
+                     $"**Assessment ID**: {assessment.Id}\n" +
+                     $"**Score**: {assessment.ComplianceScore:F1}%\n" +
+                     $"**Assessed**: {assessment.AssessedAt:yyyy-MM-dd HH:mm UTC}\n" +
+                     $"**Controls**: {assessment.PassedControls} passed / {assessment.FailedControls} failed / {assessment.TotalControls} total\n\n";
+
+        if (findings.Count == 0)
+        {
+            output += "✅ No open findings" + (string.IsNullOrEmpty(severityFilter) && string.IsNullOrEmpty(familyFilter)
+                ? " — all assessed controls are compliant."
+                : " matching the specified filters.");
+            return output;
+        }
+
+        // Severity summary
+        var critCount = findings.Count(f => f.Severity == FindingSeverity.Critical);
+        var highCount = findings.Count(f => f.Severity == FindingSeverity.High);
+        var medCount = findings.Count(f => f.Severity == FindingSeverity.Medium);
+        var lowCount = findings.Count(f => f.Severity == FindingSeverity.Low);
+        var infoCount = findings.Count(f => f.Severity == FindingSeverity.Informational);
+
+        output += $"### Open Findings: {findings.Count}\n\n" +
+                  $"| Severity | Count |\n|----------|-------|\n";
+        if (critCount > 0) output += $"| 🔴 Critical | {critCount} |\n";
+        if (highCount > 0) output += $"| 🟠 High | {highCount} |\n";
+        if (medCount > 0) output += $"| 🟡 Medium | {medCount} |\n";
+        if (lowCount > 0) output += $"| 🔵 Low | {lowCount} |\n";
+        if (infoCount > 0) output += $"| ⚪ Informational | {infoCount} |\n";
+        output += "\n";
+
+        // Group by control family
+        var grouped = findings
+            .GroupBy(f => f.ControlId?.Split('-').FirstOrDefault() ?? "Unknown")
+            .OrderByDescending(g => g.Max(f => f.Severity))
+            .ThenByDescending(g => g.Count());
+
+        output += "### Findings by Control Family\n\n";
+        foreach (var group in grouped)
+        {
+            output += $"#### {group.Key} ({group.Count()} findings)\n\n";
+            foreach (var f in group.OrderBy(f => f.Severity).Take(10))
+            {
+                output += $"- **{f.Severity}** [{f.ControlId}] {f.Title}\n";
+                if (!string.IsNullOrEmpty(f.RemediationGuidance))
+                    output += $"  - 💡 *Remediation*: {f.RemediationGuidance}\n";
+            }
+            if (group.Count() > 10)
+                output += $"- ... and {group.Count() - 10} more\n";
+            output += "\n";
+        }
+
+        return output;
     }
 }

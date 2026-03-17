@@ -218,3 +218,18 @@ VS Code Extension
 - **VS Code CSS variables** — All theming uses CSS custom properties for automatic light/dark mode support
 - **XSS escaping** — All user-provided text is HTML-escaped via `escapeHtml()` before rendering
 - **Message-based communication** — Webview ↔ extension communication via `postMessage` / `onDidReceiveMessage`
+
+---
+
+## Boundary-Aware Chat Queries (Feature 033)
+
+The `@ato` chat participant supports boundary-aware queries:
+
+| Query Pattern | Description |
+|---------------|-------------|
+| `@ato list boundary definitions for [system]` | List all boundaries |
+| `@ato create a logical boundary named "Production"` | Create boundary |
+| `@ato delete boundary [name/id]` | Delete boundary (reassigns to Primary) |
+| `@ato run boundary gap analysis for [system]` | Gap analysis with comparison |
+| `@ato gap analysis for Production boundary` | Filtered to one boundary |
+| `@ato compare boundary coverage` | Compare coverage across boundaries |

@@ -84,3 +84,17 @@ Coverage varies significantly by baseline level:
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/dashboard/systems/{systemId}/gaps` | Get gap analysis for a system |
+
+---
+
+## Boundary-Scoped Gap Analysis (Feature 033)
+
+When a system has multiple boundary definitions, the gap analysis page adds a **boundary selector** dropdown:
+
+- **All Boundaries** (default): Shows combined coverage across all boundaries, plus a **Boundary Comparison Table** with color-coded per-boundary coverage percentages
+- **Specific Boundary**: Filters gap results to show only controls covered by capabilities mapped to the selected boundary (including organization-wide/null-FK mappings)
+
+The boundary comparison table uses color coding:
+- 🟢 Green (≥80%): Strong coverage
+- 🟡 Yellow (50–79%): Partial coverage  
+- 🔴 Red (<50%): Needs attention

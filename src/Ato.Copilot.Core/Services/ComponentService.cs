@@ -52,6 +52,9 @@ public class ComponentService
             q = q.Where(c => c.Name.Contains(term) || (c.Description != null && c.Description.Contains(term)));
         }
 
+        if (!string.IsNullOrWhiteSpace(query.BoundaryDefinitionId))
+            q = q.Where(c => c.AuthorizationBoundaryDefinitionId == query.BoundaryDefinitionId);
+
         var totalCount = await q.CountAsync(cancellationToken);
 
         // Summary counts (unfiltered)
@@ -76,6 +79,7 @@ public class ComponentService
             .Take(pageSize)
             .Include(c => c.CapabilityLinks)
                 .ThenInclude(cl => cl.SecurityCapability)
+            .Include(c => c.AuthorizationBoundaryDefinition)
             .ToListAsync(cancellationToken);
 
         var items = components.Select(MapToDto).ToList();
@@ -122,7 +126,18 @@ public class ComponentService
             Owner = request.Owner,
             Status = compStatus,
             CreatedBy = createdBy,
+            AuthorizationBoundaryDefinitionId = request.BoundaryDefinitionId,
         };
+
+        // Default to Primary boundary if not specified
+        if (string.IsNullOrEmpty(entity.AuthorizationBoundaryDefinitionId))
+        {
+            var primary = await _db.AuthorizationBoundaryDefinitions
+                .Where(b => b.RegisteredSystemId == systemId && b.IsPrimary)
+                .Select(b => b.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            entity.AuthorizationBoundaryDefinitionId = primary;
+        }
 
         _db.SystemComponents.Add(entity);
 
@@ -149,6 +164,7 @@ public class ComponentService
         // Reload with links
         var created = await _db.SystemComponents
             .Include(c => c.CapabilityLinks).ThenInclude(cl => cl.SecurityCapability)
+            .Include(c => c.AuthorizationBoundaryDefinition)
             .FirstAsync(c => c.Id == entity.Id, cancellationToken);
 
         return MapToDto(created);
@@ -200,6 +216,7 @@ public class ComponentService
         // Reload
         var updated = await _db.SystemComponents
             .Include(c => c.CapabilityLinks).ThenInclude(cl => cl.SecurityCapability)
+            .Include(c => c.AuthorizationBoundaryDefinition)
             .AsNoTracking()
             .FirstAsync(c => c.Id == id, cancellationToken);
 
@@ -271,6 +288,8 @@ public class ComponentService
             Description = entity.Description,
             Owner = entity.Owner,
             Status = entity.Status.ToString(),
+            BoundaryDefinitionId = entity.AuthorizationBoundaryDefinitionId,
+            BoundaryDefinitionName = entity.AuthorizationBoundaryDefinition?.Name,
             LinkedCapabilities = entity.CapabilityLinks.Select(cl => new LinkedCapabilityDto
             {
                 CapabilityId = cl.SecurityCapabilityId,

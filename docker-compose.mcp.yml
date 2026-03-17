@@ -142,7 +142,7 @@ services:
     ports:
       - "${DASHBOARD_PORT:-5173}:8080"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3

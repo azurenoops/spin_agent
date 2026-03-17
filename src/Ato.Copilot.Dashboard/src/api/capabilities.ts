@@ -67,3 +67,16 @@ export async function createCapabilityMappings(id: string, request: CreateMappin
   );
   return data;
 }
+
+export async function generateCapabilityDescription(
+  name: string,
+  provider: string,
+  category?: string,
+): Promise<string> {
+  const { data } = await apiClient.post<{ description: string }>('/ai/capability-description', {
+    name,
+    provider,
+    category: category || undefined,
+  });
+  return data.description;
+}

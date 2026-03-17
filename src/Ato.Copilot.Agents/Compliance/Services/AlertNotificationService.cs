@@ -19,6 +19,7 @@ public class AlertNotificationService : IAlertNotificationService
 {
     private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly IComplianceWatchService _watchService;
+    private readonly INotificationBroadcaster? _broadcaster;
     private readonly ILogger<AlertNotificationService> _logger;
 
     // Rate limiter: max 10 notifications per minute per channel
@@ -27,11 +28,13 @@ public class AlertNotificationService : IAlertNotificationService
     public AlertNotificationService(
         IDbContextFactory<AtoCopilotContext> dbFactory,
         IComplianceWatchService watchService,
-        ILogger<AlertNotificationService> logger)
+        ILogger<AlertNotificationService> logger,
+        INotificationBroadcaster? broadcaster = null)
     {
         _dbFactory = dbFactory;
         _watchService = watchService;
         _logger = logger;
+        _broadcaster = broadcaster;
 
         _rateLimiters = new Dictionary<NotificationChannel, SlidingWindowRateLimiter>
         {
@@ -166,6 +169,10 @@ public class AlertNotificationService : IAlertNotificationService
             createdAt = alert.CreatedAt
         });
 
+        // TODO: Implement actual SMTP/Teams/Slack delivery when channels are configured.
+        // Currently records notification for audit trail but does not deliver externally.
+        _logger.LogDebug("Notification recorded for channel {Channel} (delivery pending external integration)", channel);
+
         await RecordNotification(alert, channel, recipient,
             isDelivered: true, error: null, cancellationToken, subject, body);
     }
@@ -215,7 +222,8 @@ public class AlertNotificationService : IAlertNotificationService
         string? error,
         CancellationToken cancellationToken,
         string? subject = null,
-        string? body = null)
+        string? body = null,
+        string? userId = null)
     {
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
@@ -230,11 +238,25 @@ public class AlertNotificationService : IAlertNotificationService
             IsDelivered = isDelivered,
             DeliveryError = error,
             SentAt = DateTimeOffset.UtcNow,
-            DeliveredAt = isDelivered ? DateTimeOffset.UtcNow : null
+            DeliveredAt = isDelivered ? DateTimeOffset.UtcNow : null,
+            UserId = userId ?? recipient,
         };
 
         db.AlertNotifications.Add(notification);
         await db.SaveChangesAsync(cancellationToken);
+
+        // Push real-time notification to connected clients
+        if (_broadcaster != null && notification.UserId != null)
+        {
+            try
+            {
+                await _broadcaster.BroadcastToUserAsync(notification.UserId, notification, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to broadcast notification {Id} — client may not be connected", notification.Id);
+            }
+        }
     }
 
     /// <summary>

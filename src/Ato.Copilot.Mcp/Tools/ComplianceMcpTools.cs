@@ -128,6 +128,12 @@ public class ComplianceMcpTools
     private readonly AssignRmfRoleTool _assignRmfRoleTool;
     private readonly ListRmfRolesTool _listRmfRolesTool;
 
+    // Boundary Definition tools (Feature 033)
+    private readonly ListBoundaryDefinitionsTool _listBoundaryDefinitionsTool;
+    private readonly CreateBoundaryDefinitionTool _createBoundaryDefinitionTool;
+    private readonly DeleteBoundaryDefinitionTool _deleteBoundaryDefinitionTool;
+    private readonly BoundaryGapAnalysisTool _boundaryGapAnalysisTool;
+
     // RMF Categorization tools (Feature 015 - US2)
     private readonly CategorizeSystemTool _categorizeSystemTool;
     private readonly GetCategorizationTool _getCategorizationTool;
@@ -288,6 +294,10 @@ public class ComplianceMcpTools
         ExcludeFromBoundaryTool excludeFromBoundaryTool,
         AssignRmfRoleTool assignRmfRoleTool,
         ListRmfRolesTool listRmfRolesTool,
+        ListBoundaryDefinitionsTool listBoundaryDefinitionsTool,
+        CreateBoundaryDefinitionTool createBoundaryDefinitionTool,
+        DeleteBoundaryDefinitionTool deleteBoundaryDefinitionTool,
+        BoundaryGapAnalysisTool boundaryGapAnalysisTool,
         CategorizeSystemTool categorizeSystemTool,
         GetCategorizationTool getCategorizationTool,
         SuggestInfoTypesTool suggestInfoTypesTool,
@@ -430,6 +440,10 @@ public class ComplianceMcpTools
         _excludeFromBoundaryTool = excludeFromBoundaryTool;
         _assignRmfRoleTool = assignRmfRoleTool;
         _listRmfRolesTool = listRmfRolesTool;
+        _listBoundaryDefinitionsTool = listBoundaryDefinitionsTool;
+        _createBoundaryDefinitionTool = createBoundaryDefinitionTool;
+        _deleteBoundaryDefinitionTool = deleteBoundaryDefinitionTool;
+        _boundaryGapAnalysisTool = boundaryGapAnalysisTool;
         _categorizeSystemTool = categorizeSystemTool;
         _getCategorizationTool = getCategorizationTool;
         _suggestInfoTypesTool = suggestInfoTypesTool;
@@ -1639,6 +1653,52 @@ public class ComplianceMcpTools
     {
         var args = new Dictionary<string, object?> { ["system_id"] = systemId };
         return await _listRmfRolesTool.ExecuteAsync(args, cancellationToken);
+    }
+
+    // ─── Boundary Definitions (Feature 033) ─────────────────────────────────
+
+    [Description("List all authorization boundary definitions for a system.")]
+    public async Task<string> ListBoundaryDefinitionsAsync(
+        string systemId,
+        CancellationToken cancellationToken = default)
+    {
+        var args = new Dictionary<string, object?> { ["system_id"] = systemId };
+        return await _listBoundaryDefinitionsTool.ExecuteAsync(args, cancellationToken);
+    }
+
+    [Description("Create a new authorization boundary definition for a system (e.g., Dev/Test, DMZ, Production).")]
+    public async Task<string> CreateBoundaryDefinitionAsync(
+        string systemId,
+        string name,
+        string boundaryType,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        var args = new Dictionary<string, object?>
+        {
+            ["system_id"] = systemId, ["name"] = name,
+            ["boundary_type"] = boundaryType, ["description"] = description
+        };
+        return await _createBoundaryDefinitionTool.ExecuteAsync(args, cancellationToken);
+    }
+
+    [Description("Delete a boundary definition. Orphaned resources and mappings are reassigned to the Primary boundary.")]
+    public async Task<string> DeleteBoundaryDefinitionAsync(
+        string boundaryId,
+        CancellationToken cancellationToken = default)
+    {
+        var args = new Dictionary<string, object?> { ["boundary_id"] = boundaryId };
+        return await _deleteBoundaryDefinitionTool.ExecuteAsync(args, cancellationToken);
+    }
+
+    [Description("Run gap analysis scoped to a specific authorization boundary, or compare all boundaries side-by-side.")]
+    public async Task<string> BoundaryGapAnalysisAsync(
+        string systemId,
+        string? boundaryId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var args = new Dictionary<string, object?> { ["system_id"] = systemId, ["boundary_id"] = boundaryId };
+        return await _boundaryGapAnalysisTool.ExecuteAsync(args, cancellationToken);
     }
 
     // ─── RMF Categorization (Feature 015 - US2) ─────────────────────────────

@@ -111,3 +111,14 @@ The component inventory feeds into SSP Appendix A generation via the `DocumentGe
 | POST | `/api/dashboard/systems/{systemId}/components` | Create a new component |
 | PUT | `/api/dashboard/components/{id}` | Update a component |
 | DELETE | `/api/dashboard/components/{id}` | Delete a component (flags capabilities) |
+
+---
+
+## Boundary-Scoped Components (Feature 033)
+
+Components can be assigned to specific authorization boundaries:
+
+- When creating a component, an optional **Boundary** selector appears if the system has multiple boundary definitions
+- Components with no boundary assignment are treated as organization-wide (applicable to all boundaries)
+- The component list groups entries by boundary when multiple boundaries exist
+- Deleting a boundary reassigns its components to the Primary boundary

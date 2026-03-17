@@ -409,6 +409,26 @@ Transforms gap analysis data into AI-driven, phased implementation roadmaps with
 
 ---
 
+## Boundary-Scoped Model (Feature 033)
+
+Feature 033 introduces authorization boundary definitions as first-class entities, allowing systems to manage multiple named security perimeters:
+
+- **AuthorizationBoundaryDefinition**: A named boundary container (Physical, Logical, or Hybrid) that groups resources, components, and capability mappings
+- **Multi-Boundary Architecture**: Systems can define multiple boundaries (e.g., "Production", "Dev/Test", "DMZ") with independent resource and component inventories
+- **Boundary-Scoped Capabilities**: Capability-to-control mappings can target specific boundaries, enabling per-boundary compliance tracking
+- **Composite Narratives**: When a control has capability mappings across multiple boundaries, SSP narratives are auto-generated with organization-wide and per-boundary sections
+- **SSP §11 Generation**: Authorization Boundary section automatically organizes output by boundary definition with resource tables and component inventories
+- **Azure Resource Discovery**: Automated discovery of Azure resources via Resource Graph, with suggested boundary creation from resource groups
+- **Dashboard Integration**: Boundary management page, boundary-filtered gap analysis, and boundary comparison tables in the compliance dashboard
+
+### Key Design Decisions
+
+- **Null FK = Legacy/Org-Wide**: Resources, components, and mappings with a null `AuthorizationBoundaryDefinitionId` are treated as organization-wide (applicable to all boundaries)
+- **Primary Boundary**: Each system has exactly one primary boundary (auto-created during migration) that cannot be deleted. Deleting other boundaries reassigns their resources/components to the primary.
+- **Backward Compatibility**: Single-boundary systems render identically to pre-feature behavior
+
+---
+
 ## Related Documentation
 
 - [Data Model](data-model.md) — Entity relationships and ER diagram

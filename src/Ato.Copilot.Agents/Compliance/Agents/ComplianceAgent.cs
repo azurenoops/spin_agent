@@ -519,6 +519,25 @@ public class ComplianceAgent : BaseAgent
             }
         }
 
+        // Word-level action + entity combination — catches natural phrasing
+        // like "list open poams" or "show me the assessment findings"
+        if (score < 0.9)
+        {
+            string[] actionWords = ["list", "show", "get", "create", "update", "delete",
+                "run", "check", "view", "open", "find", "query", "search", "generate",
+                "export", "import", "assign", "set", "add", "remove", "compare"];
+            string[] entityWords = ["poam", "poa&m", "finding", "assessment", "boundary",
+                "narrative", "control", "baseline", "system", "ato", "conmon", "sar",
+                "role", "categorization", "ssp", "snapshot", "capability", "component",
+                "risk", "authorization", "remediation", "package"];
+            bool hasAction = false;
+            bool hasEntity = false;
+            foreach (var w in actionWords) { if (lower.Contains(w)) { hasAction = true; break; } }
+            foreach (var w in entityWords) { if (lower.Contains(w)) { hasEntity = true; break; } }
+            if (hasAction && hasEntity)
+                score = Math.Max(score, 0.85);
+        }
+
         // Framework mentions — moderate
         if ((lower.Contains("nist") || lower.Contains("fedramp") || lower.Contains("dod") || lower.Contains("rmf")) && score < 0.4)
             score = Math.Max(score, 0.4);
@@ -1298,6 +1317,18 @@ public class ComplianceAgent : BaseAgent
             {
                 ["subscription_id"] = GetContextValue(context, "subscription_id")
             }, cancellationToken);
+        }
+
+        if (ContainsAny(lowerMessage, "show findings", "open findings", "view findings", "list findings", "show open findings"))
+        {
+            var showFindingsTool = Tools.FirstOrDefault(t => t.Name == "compliance_show_findings");
+            if (showFindingsTool != null)
+            {
+                return await showFindingsTool.ExecuteAsync(new Dictionary<string, object?>
+                {
+                    ["system_id"] = GetContextValue(context, "system_id")
+                }, cancellationToken);
+            }
         }
 
         if (ContainsAny(lowerMessage, "compliance status", "current status", "posture"))

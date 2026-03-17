@@ -36,12 +36,34 @@ public class AgentOrchestrator
     /// above the minimum threshold is selected.
     /// </summary>
     /// <param name="message">User message to route.</param>
+    /// <param name="context">Optional context dictionary with page, systemId, rmfPhase, etc.</param>
     /// <returns>The best-matching agent, or null if no agent scores above the threshold.</returns>
-    public virtual BaseAgent? SelectAgent(string message)
+    public virtual BaseAgent? SelectAgent(string message, IDictionary<string, object?>? context = null)
     {
         var scored = _agents
             .Select(a => (agent: a, score: a.CanHandle(message)))
             .ToList();
+
+        // Context-aware boost: when the user is on a system page (systemId present),
+        // the Compliance agent gets a boost because system-scoped actions are more
+        // likely than generic knowledge queries.
+        if (context != null &&
+            context.TryGetValue("systemId", out var sysId) &&
+            sysId is string systemId &&
+            !string.IsNullOrEmpty(systemId))
+        {
+            scored = scored.Select(x =>
+            {
+                if (x.agent.AgentName.Contains("Compliance", StringComparison.OrdinalIgnoreCase))
+                {
+                    var boosted = Math.Min(1.0, x.score + 0.15);
+                    _logger.LogDebug("Context boost: {AgentId} {OrigScore:F2} → {BoostedScore:F2} (systemId present)",
+                        x.agent.AgentId, x.score, boosted);
+                    return (x.agent, score: boosted);
+                }
+                return x;
+            }).ToList();
+        }
 
         // Log all scores for observability
         foreach (var (agent, score) in scored)

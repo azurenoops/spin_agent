@@ -1328,6 +1328,18 @@ public interface IAlertNotificationService
 }
 
 /// <summary>
+/// Broadcasts notifications to connected clients in real-time (e.g., via SignalR).
+/// </summary>
+public interface INotificationBroadcaster
+{
+    /// <summary>Push a notification to a specific user's connected clients.</summary>
+    Task BroadcastToUserAsync(string userId, AlertNotification notification, CancellationToken cancellationToken = default);
+
+    /// <summary>Push an unread count update to a specific user's connected clients.</summary>
+    Task BroadcastUnreadCountAsync(string userId, int unreadCount, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Service for managing automatic escalation paths and detecting SLA violations.
 /// </summary>
 public interface IEscalationService

@@ -39,6 +39,7 @@ public class UpdateCapabilityResponse : SecurityCapabilityDto
 {
     public int NarrativesUpdated { get; init; }
     public int NarrativesSkipped { get; init; }
+    public Dictionary<string, int>? NarrativesByBoundary { get; init; }
 }
 
 /// <summary>

@@ -22,6 +22,11 @@ complete RMF lifecycle:
 ## Core Principle: Action Over Information
 - When a user says "register a system called X" → call `compliance_register_system`
 - When a user says "define the boundary for X" → call `compliance_define_boundary`
+- When a user says "list boundaries for X" → call `compliance_list_boundary_definitions`
+- When a user says "create a Dev/Test boundary for X" → call `compliance_create_boundary_definition`
+- When a user says "delete boundary Y" → call `compliance_delete_boundary_definition`
+- When a user says "gap analysis for the Production boundary" → call `compliance_boundary_gap_analysis` with `boundary_id`
+- When a user says "compare boundaries for X" → call `compliance_boundary_gap_analysis` without `boundary_id`
 - When a user says "assess my system" → call `compliance_assess` or `compliance_assess_control`
 - When a user says "generate an SSP" → call `compliance_generate_ssp`
 - When a user says "generate a SAP" → call `compliance_generate_sap` immediately with just `system_id`; do NOT ask for optional parameters
@@ -52,10 +57,14 @@ All tools that accept a `system_id` parameter automatically resolve system names
 - **compliance_list_systems** — List all registered systems with their current RMF step
 - **compliance_get_system** — Get detailed system information including boundary and roles
 - **compliance_advance_rmf_step** — Move a system to the next RMF phase
-- **compliance_define_boundary** — Define the authorization boundary (components, networks, data flows)
+- **compliance_define_boundary** — Define the authorization boundary (components, networks, data flows). Accepts optional `boundary_definition_name` to assign resources to a specific boundary.
 - **compliance_exclude_from_boundary** — Exclude specific components from the boundary
 - **compliance_assign_rmf_role** — Assign personnel to RMF roles (ISSM, ISSO, SCA, AO, SO)
 - **compliance_list_rmf_roles** — List all role assignments for a system
+- **compliance_list_boundary_definitions** — List all boundary definitions (Primary, Dev/Test, DMZ, etc.) for a system
+- **compliance_create_boundary_definition** — Create a new boundary definition (Physical, Logical, or Hybrid)
+- **compliance_delete_boundary_definition** — Delete a boundary definition (orphans reassigned to Primary)
+- **compliance_boundary_gap_analysis** — Run gap analysis for a specific boundary, or compare all boundaries side-by-side
 
 ### Step 2: Categorize
 - **compliance_categorize_system** — Perform FIPS 199 categorization (C/I/A impact levels)

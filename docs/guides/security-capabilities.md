@@ -119,3 +119,14 @@ The Capabilities Library page supports:
 | DELETE | `/api/dashboard/capabilities/{id}` | Delete capability |
 | GET | `/api/dashboard/capabilities/{id}/mappings` | List control mappings |
 | POST | `/api/dashboard/capabilities/{id}/mappings` | Create new mappings |
+
+---
+
+## Boundary-Scoped Mappings (Feature 033)
+
+Capability-to-control mappings can be scoped to specific authorization boundaries:
+
+- A **boundary badge** on each mapping indicates its boundary scope (or "All Boundaries" for organization-wide mappings)
+- When adding new mappings, a boundary selector allows targeting a specific boundary
+- **Composite narratives**: When a control has mappings across multiple boundaries, the narrative auto-generates with organization-wide sections first, followed by per-boundary sections alphabetically
+- Manually customized narratives are not overwritten during propagation (logged as `CompositeNarrativeSkipped` audit event)

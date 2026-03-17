@@ -126,6 +126,48 @@ public class BaselineService : IBaselineService
         system.ModifiedAt = DateTime.UtcNow;
         await context.SaveChangesAsync(cancellationToken);
 
+        // Auto-populate ControlImplementation records with AI-generated narrative templates
+        var existingControlIds = await context.ControlImplementations
+            .Where(ci => ci.RegisteredSystemId == systemId)
+            .Select(ci => ci.ControlId)
+            .ToListAsync(cancellationToken);
+
+        var newImplementations = new List<ControlImplementation>();
+        var now = DateTime.UtcNow;
+
+        foreach (var controlId in controlIds)
+        {
+            if (existingControlIds.Contains(controlId))
+                continue;
+
+            var family = controlId.Contains('-')
+                ? controlId[..controlId.IndexOf('-')]
+                : controlId.Length >= 2 ? controlId[..2] : controlId;
+
+            newImplementations.Add(new ControlImplementation
+            {
+                ControlId = controlId,
+                RegisteredSystemId = systemId,
+                ImplementationStatus = ImplementationStatus.Planned,
+                ApprovalStatus = SspSectionStatus.NotStarted,
+                Narrative = SspService.GenerateCustomerNarrativeTemplate(family, controlId, system),
+                IsAutoPopulated = true,
+                AiSuggested = true,
+                AuthoredBy = selectedBy,
+                AuthoredAt = now,
+                CurrentVersion = 1,
+            });
+        }
+
+        if (newImplementations.Count > 0)
+        {
+            context.ControlImplementations.AddRange(newImplementations);
+            await context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation(
+                "Auto-populated {Count} control implementations with AI narrative templates for system '{SystemId}'",
+                newImplementations.Count, systemId);
+        }
+
         _logger.LogInformation(
             "Selected {Level} baseline for system '{SystemId}': {Count} controls, overlay={Overlay}",
             baselineLevel, systemId, controlIds.Count, appliedOverlay ?? "none");

@@ -1456,3 +1456,122 @@ The `/mcp/chat/stream` endpoint supports SSE reconnection:
 | `/metrics` | GET | Prometheus metrics (when `OpenTelemetry:EnablePrometheus` is true) |
 
 Metrics include `ato.copilot.http.request.duration`, `ato.copilot.http.request.total`, `ato.copilot.cache.hits`, `ato.copilot.cache.misses`. OTLP export is configured via `OpenTelemetry:OtlpEndpoint`.
+
+---
+
+## Dashboard REST API
+
+The Visual Compliance Dashboard exposes REST endpoints under `/api/dashboard/*`. These endpoints power the standalone React SPA dashboard.
+
+### Authentication
+
+All dashboard endpoints require a valid Bearer token in the `Authorization` header. RBAC filtering ensures users only see systems they have role assignments for.
+
+### CORS
+
+The MCP server is configured to allow requests from the dashboard SPA origin (`http://localhost:5173` in development).
+
+### Error Response Schema
+
+All error responses follow the Constitution Principle VII format:
+
+```json
+{
+  "error": "Human-readable error message",
+  "errorCode": "MACHINE_READABLE_CODE",
+  "details": "Optional additional context",
+  "suggestion": "Corrective guidance for the caller"
+}
+```
+
+### Endpoints
+
+#### Portfolio
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/portfolio` | List all systems with compliance metrics |
+
+Query parameters: `sortBy`, `sortDir`, `impactLevel`, `rmfPhase`, `cursor`, `pageSize`
+
+#### System Detail
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}` | System detail with RMF progress, metrics, and activity |
+| GET | `/api/dashboard/systems/{systemId}/heatmap` | Control family compliance heatmap |
+| GET | `/api/dashboard/systems/{systemId}/heatmap/{familyCode}/controls` | Drill-down into individual controls |
+
+#### Trends
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/trends` | Compliance trend data |
+
+Query parameters: `startDate`, `endDate`, `granularity` (Daily/Weekly/Monthly/Quarterly)
+
+#### Gap Analysis
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/gaps` | Capability-to-control gap analysis |
+
+#### Capabilities
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/capabilities` | List capabilities with search/filter |
+| POST | `/api/dashboard/capabilities` | Create a new security capability |
+| PUT | `/api/dashboard/capabilities/{id}` | Update capability (triggers narrative propagation) |
+| DELETE | `/api/dashboard/capabilities/{id}` | Delete capability |
+| GET | `/api/dashboard/capabilities/{id}/mappings` | List control mappings |
+| POST | `/api/dashboard/capabilities/{id}/mappings` | Create new control mappings |
+
+#### Components
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/components` | List system components |
+| POST | `/api/dashboard/systems/{systemId}/components` | Create a component |
+| PUT | `/api/dashboard/components/{id}` | Update a component |
+| DELETE | `/api/dashboard/components/{id}` | Delete a component |
+
+Query parameters for GET: `type`, `status`, `search`, `cursor`, `pageSize`
+
+#### Implementation Roadmap
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/roadmap` | Active roadmap with phases and items |
+| GET | `/api/dashboard/systems/{systemId}/roadmap/progress` | Progress metrics with risk reduction curve |
+| GET | `/api/dashboard/systems/{systemId}/roadmap/export` | Export roadmap as PDF |
+
+Query parameters for roadmap GET: `includeItems` (default: true)
+
+#### Boundary Definitions (Feature 033)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/boundary-definitions` | List boundary definitions |
+| POST | `/api/dashboard/systems/{systemId}/boundary-definitions` | Create a boundary definition |
+| PUT | `/api/dashboard/boundary-definitions/{id}` | Update a boundary definition |
+| DELETE | `/api/dashboard/boundary-definitions/{id}` | Delete (reassigns to Primary) |
+
+#### Azure Resource Discovery (Feature 033)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/azure-discovery` | Discover Azure resources via Resource Graph |
+| POST | `/api/dashboard/systems/{systemId}/azure-discovery/apply` | Apply discovery suggestions (create boundaries + components) |
+
+Query parameters for discovery GET: `resourceGroup`, `resourceType`, `search`, `cursor`
+
+#### Boundary MCP Tools (Feature 033)
+
+| Tool Name | Description |
+|-----------|-------------|
+| `compliance_list_boundary_definitions` | List all boundary definitions for a system |
+| `compliance_create_boundary_definition` | Create a new boundary definition (name, type, description) |
+| `compliance_delete_boundary_definition` | Delete a boundary (reassigns resources to Primary) |
+| `compliance_boundary_gap_analysis` | Run boundary-scoped gap analysis with optional boundary filter |
+| `compliance_define_boundary` (modified) | Optionally assigns resources to a named boundary definition |

@@ -1,7 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Agents.Common;
+using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 
@@ -407,13 +410,16 @@ public class AdvanceRmfStepTool : BaseTool
 public class DefineBoundaryTool : BaseTool
 {
     private readonly IBoundaryService _boundaryService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public DefineBoundaryTool(
         IBoundaryService boundaryService,
+        IServiceScopeFactory scopeFactory,
         ILogger<DefineBoundaryTool> logger) : base(logger)
     {
         _boundaryService = boundaryService;
+        _scopeFactory = scopeFactory;
     }
 
     public override string Name => "compliance_define_boundary";
@@ -424,7 +430,8 @@ public class DefineBoundaryTool : BaseTool
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {
         ["system_id"] = new() { Name = "system_id", Description = "System GUID, name, or acronym", Type = "string", Required = true },
-        ["resources"] = new() { Name = "resources", Description = "Array of resources: [{resourceId, resourceType, resourceName?, inheritanceProvider?}]", Type = "array", Required = true }
+        ["resources"] = new() { Name = "resources", Description = "Array of resources: [{resourceId, resourceType, resourceName?, inheritanceProvider?}]", Type = "array", Required = true },
+        ["boundary_definition_name"] = new() { Name = "boundary_definition_name", Description = "Optional boundary definition name to assign resources to (e.g., 'Dev/Test'). If omitted, resources are unassigned.", Type = "string", Required = false }
     };
 
     public override async Task<string> ExecuteCoreAsync(
@@ -485,6 +492,30 @@ public class DefineBoundaryTool : BaseTool
             var entries = await _boundaryService.DefineBoundaryAsync(
                 systemId, resources, "mcp-user", cancellationToken);
 
+            // Assign resources to a specific boundary definition if name provided
+            var boundaryDefName = GetArg<string>(arguments, "boundary_definition_name");
+            string? assignedBoundaryName = null;
+            if (!string.IsNullOrWhiteSpace(boundaryDefName))
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+                var boundaryDef = await db.AuthorizationBoundaryDefinitions
+                    .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId && b.Name == boundaryDefName, cancellationToken);
+
+                if (boundaryDef != null)
+                {
+                    foreach (var entry in entries)
+                    {
+                        var tracked = await db.AuthorizationBoundaries
+                            .FirstOrDefaultAsync(b => b.Id == entry.Id, cancellationToken);
+                        if (tracked != null)
+                            tracked.AuthorizationBoundaryDefinitionId = boundaryDef.Id;
+                    }
+                    await db.SaveChangesAsync(cancellationToken);
+                    assignedBoundaryName = boundaryDef.Name;
+                }
+            }
+
             sw.Stop();
             return JsonSerializer.Serialize(new
             {
@@ -493,6 +524,7 @@ public class DefineBoundaryTool : BaseTool
                 {
                     system_id = systemId,
                     resources_added = entries.Count,
+                    assigned_boundary = assignedBoundaryName,
                     boundary = entries.Select(b => new
                     {
                         id = b.Id,

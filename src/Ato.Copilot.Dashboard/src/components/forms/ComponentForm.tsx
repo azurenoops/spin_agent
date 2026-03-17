@@ -1,37 +1,48 @@
 import { useState, useEffect } from 'react';
-import type { CreateComponentRequest, SystemComponentDto, ComponentType, ComponentStatus, SecurityCapabilityDto } from '../../types/dashboard';
+import type { CreateComponentRequest, SystemComponentDto, ComponentType, ComponentStatus, SecurityCapabilityDto, BoundaryDefinitionDto } from '../../types/dashboard';
 import { getCapabilities } from '../../api/capabilities';
+import { fetchBoundaryDefinitions } from '../../api/boundaries';
+import { generateComponentDescription } from '../../api/components';
 
 const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing'];
 const STATUS_OPTIONS: ComponentStatus[] = ['Active', 'Planned', 'Decommissioned'];
 
 interface ComponentFormProps {
   initial?: SystemComponentDto;
+  systemId: string;
   onSubmit: (data: CreateComponentRequest) => void;
   onCancel: () => void;
   isSubmitting?: boolean;
   error?: string | null;
 }
 
-export function ComponentForm({ initial, onSubmit, onCancel, isSubmitting, error }: ComponentFormProps) {
+export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitting, error }: ComponentFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [componentType, setComponentType] = useState<ComponentType>(initial?.componentType ?? 'Thing');
   const [subType, setSubType] = useState(initial?.subType ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [owner, setOwner] = useState(initial?.owner ?? '');
   const [status, setStatus] = useState<ComponentStatus>(initial?.status ?? 'Active');
+  const [boundaryDefinitionId, setBoundaryDefinitionId] = useState(initial?.boundaryDefinitionId ?? '');
   const [selectedCapIds, setSelectedCapIds] = useState<string[]>(
     initial?.linkedCapabilities.map((lc) => lc.capabilityId) ?? [],
   );
   const [capabilities, setCapabilities] = useState<SecurityCapabilityDto[]>([]);
+  const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
+  const [generatingDesc, setGeneratingDesc] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     getCapabilities({ pageSize: 200 }).then((res) => {
       if (!cancelled) setCapabilities(res.items);
     });
+    if (systemId) {
+      fetchBoundaryDefinitions(systemId).then((items) => {
+        if (!cancelled) setBoundaries(items);
+      });
+    }
     return () => { cancelled = true; };
-  }, []);
+  }, [systemId]);
 
   useEffect(() => {
     if (initial) {
@@ -41,6 +52,7 @@ export function ComponentForm({ initial, onSubmit, onCancel, isSubmitting, error
       setDescription(initial.description ?? '');
       setOwner(initial.owner ?? '');
       setStatus(initial.status);
+      setBoundaryDefinitionId(initial.boundaryDefinitionId ?? '');
       setSelectedCapIds(initial.linkedCapabilities.map((lc) => lc.capabilityId));
     }
   }, [initial]);
@@ -54,12 +66,24 @@ export function ComponentForm({ initial, onSubmit, onCancel, isSubmitting, error
       description: description || undefined,
       owner: owner || undefined,
       status,
+      boundaryDefinitionId: boundaryDefinitionId || undefined,
       linkedCapabilityIds: selectedCapIds,
     });
   };
 
   const toggleCap = (id: string) => {
     setSelectedCapIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const handleGenerateDescription = async () => {
+    if (!name.trim()) return;
+    setGeneratingDesc(true);
+    try {
+      const desc = await generateComponentDescription(name, componentType, subType || undefined);
+      setDescription(desc);
+    } finally {
+      setGeneratingDesc(false);
+    }
   };
 
   const isValid = name.trim().length > 0;
@@ -114,7 +138,32 @@ export function ComponentForm({ initial, onSubmit, onCancel, isSubmitting, error
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium text-gray-700">Description</label>
+          <button
+            type="button"
+            onClick={handleGenerateDescription}
+            disabled={!name.trim() || generatingDesc}
+            className="inline-flex items-center gap-1.5 rounded-md bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {generatingDesc ? (
+              <>
+                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Generating…
+              </>
+            ) : (
+              <>
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                </svg>
+                AI Summary
+              </>
+            )}
+          </button>
+        </div>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -150,6 +199,24 @@ export function ComponentForm({ initial, onSubmit, onCancel, isSubmitting, error
           </select>
         </div>
       </div>
+
+      {boundaries.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Authorization Boundary</label>
+          <select
+            value={boundaryDefinitionId}
+            onChange={(e) => setBoundaryDefinitionId(e.target.value)}
+            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          >
+            <option value="">Default (Primary)</option>
+            {boundaries.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}{b.isPrimary ? ' (Primary)' : ''} — {b.boundaryType}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {capabilities.length > 0 && (
         <div>

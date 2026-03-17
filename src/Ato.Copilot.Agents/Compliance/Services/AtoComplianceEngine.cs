@@ -159,10 +159,11 @@ public class AtoComplianceEngine : IAtoComplianceEngine
                     .ToList();
             }
 
-            // Set assessment ID on all findings
+            // Set assessment ID and CatSeverity on all findings
             foreach (var finding in assessment.Findings)
             {
                 finding.AssessmentId = assessment.Id;
+                finding.CatSeverity ??= MapToCatSeverity(finding.Severity);
             }
 
             // Compute compliance score using NIST catalog
@@ -331,13 +332,15 @@ public class AtoComplianceEngine : IAtoComplianceEngine
                     var policyAssignId = state.TryGetProperty("policyAssignmentId", out var paElem)
                         ? paElem.GetString() : null;
 
+                    var policySeverity = ClassifyPolicySeverity(controlId);
                     findings.Add(new ComplianceFinding
                     {
                         ControlId = controlId,
                         ControlFamily = family,
                         Title = $"Policy non-compliance: {controlId}",
                         Description = $"Azure Policy detected non-compliance for control {controlId}",
-                        Severity = ClassifyPolicySeverity(controlId),
+                        Severity = policySeverity,
+                        CatSeverity = MapToCatSeverity(policySeverity),
                         Status = FindingStatus.Open,
                         ResourceId = resourceId,
                         ResourceType = resourceType,
@@ -426,13 +429,15 @@ public class AtoComplianceEngine : IAtoComplianceEngine
                     if (familyFilter != null && !familyFilter.Contains(family))
                         continue;
 
+                    var defenderSeverity = ClassifyDefenderSeverity(status);
                     findings.Add(new ComplianceFinding
                     {
                         ControlId = controlId,
                         ControlFamily = family,
                         Title = displayName,
                         Description = $"Defender for Cloud recommends action: {displayName}",
-                        Severity = ClassifyDefenderSeverity(status),
+                        Severity = defenderSeverity,
+                        CatSeverity = MapToCatSeverity(defenderSeverity),
                         Status = FindingStatus.Open,
                         ResourceId = "",
                         ResourceType = "",
@@ -583,6 +588,15 @@ public class AtoComplianceEngine : IAtoComplianceEngine
             _ => FindingSeverity.Medium
         };
 
+    /// <summary>Maps FindingSeverity to CatSeverity for STIG-style categorization.</summary>
+    private static CatSeverity MapToCatSeverity(FindingSeverity severity) =>
+        severity switch
+        {
+            FindingSeverity.Critical or FindingSeverity.High => CatSeverity.CatI,
+            FindingSeverity.Medium => CatSeverity.CatII,
+            _ => CatSeverity.CatIII,
+        };
+
     /// <summary>Returns true if the control family is high-risk (AC, IA, SC).</summary>
     private static bool IsHighRiskFamily(string family) =>
         family is "AC" or "IA" or "SC";
@@ -730,10 +744,11 @@ public class AtoComplianceEngine : IAtoComplianceEngine
             assessment.ProgressMessage = "Correlating findings...";
             CorrelateFindings(assessment.Findings);
 
-            // Set assessment ID on all findings
+            // Set assessment ID and CatSeverity on all findings
             foreach (var finding in assessment.Findings)
             {
                 finding.AssessmentId = assessment.Id;
+                finding.CatSeverity ??= MapToCatSeverity(finding.Severity);
             }
 
             // Compute overall compliance scores

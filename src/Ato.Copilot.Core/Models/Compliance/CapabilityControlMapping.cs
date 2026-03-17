@@ -46,4 +46,13 @@ public class CapabilityControlMapping
 
     /// <summary>Optional parent system scope.</summary>
     public RegisteredSystem? RegisteredSystem { get; set; }
+
+    // ─── Feature 033: Boundary-Scoped Model ──────────────────────────────────
+
+    /// <summary>FK to AuthorizationBoundaryDefinition (nullable — null means org-wide / all boundaries).</summary>
+    [MaxLength(36)]
+    public string? AuthorizationBoundaryDefinitionId { get; set; }
+
+    /// <summary>Parent boundary definition scope.</summary>
+    public AuthorizationBoundaryDefinition? AuthorizationBoundaryDefinition { get; set; }
 }

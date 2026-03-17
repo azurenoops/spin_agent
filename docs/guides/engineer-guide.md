@@ -627,3 +627,21 @@ Unavailable: AI chat, ARM scans, live assessments, Prisma Cloud.
 - `X-Cache: HIT` — Response served from cache (fast)
 - `X-Cache: MISS` — Fresh response from service (slower)
 - `X-Cache-Age: 45` — Cached entry is 45 seconds old
+
+---
+
+## Boundary Management Workflows (Feature 033)
+
+Engineers can manage authorization boundaries through both the dashboard and MCP chat:
+
+### Dashboard Workflow
+1. Navigate to Portfolio → System → Boundaries
+2. Click "+ Add Boundary" to create Physical, Logical, or Hybrid boundaries
+3. Use "Discover Azure Resources" to auto-discover and import resources from Azure
+4. View boundary-scoped gap analysis via the boundary selector on the Gap Analysis page
+
+### MCP Chat Workflow
+- `@ato list boundary definitions for [system]` — view all boundaries
+- `@ato create a logical boundary named "Production" for [system]` — create boundary
+- `@ato run boundary gap analysis for [system]` — compare coverage across boundaries
+- `@ato define boundary resources and assign to Production` — assign resources to boundary

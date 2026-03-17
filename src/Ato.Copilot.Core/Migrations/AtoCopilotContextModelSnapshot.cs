@@ -604,6 +604,10 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AuthorizationBoundaryDefinitionId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ExclusionRationale")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
@@ -636,6 +640,9 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AuthorizationBoundaryDefinitionId")
+                        .HasDatabaseName("IX_AuthorizationBoundary_BoundaryDefinitionId");
+
                     b.HasIndex("RegisteredSystemId")
                         .HasDatabaseName("IX_AuthorizationBoundary_SystemId");
 
@@ -643,6 +650,57 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_AuthorizationBoundary_System_Resource");
 
                     b.ToTable("AuthorizationBoundaries");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BoundaryType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RegisteredSystemId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegisteredSystemId", "IsPrimary")
+                        .HasDatabaseName("IX_BoundaryDefinition_System_Primary");
+
+                    b.HasIndex("RegisteredSystemId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_BoundaryDefinition_System_Name");
+
+                    b.ToTable("AuthorizationBoundaryDefinitions");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationDecision", b =>
@@ -799,6 +857,10 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AuthorizationBoundaryDefinitionId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ControlId")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -828,11 +890,16 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AuthorizationBoundaryDefinitionId");
+
                     b.HasIndex("ControlId")
                         .HasDatabaseName("IX_CapabilityControlMapping_ControlId");
 
                     b.HasIndex("RegisteredSystemId")
                         .HasDatabaseName("IX_CapabilityControlMapping_SystemId");
+
+                    b.HasIndex("RegisteredSystemId", "AuthorizationBoundaryDefinitionId", "ControlId")
+                        .HasDatabaseName("IX_CapabilityMapping_System_Boundary_Control");
 
                     b.HasIndex("SecurityCapabilityId", "ControlId", "RegisteredSystemId")
                         .IsUnique()
@@ -4046,6 +4113,10 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AuthorizationBoundaryDefinitionId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ComponentType")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -4091,11 +4162,16 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AuthorizationBoundaryDefinitionId");
+
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_SystemComponent_Status");
 
                     b.HasIndex("RegisteredSystemId", "ComponentType")
                         .HasDatabaseName("IX_SystemComponent_System_Type");
+
+                    b.HasIndex("RegisteredSystemId", "AuthorizationBoundaryDefinitionId", "ComponentType")
+                        .HasDatabaseName("IX_SystemComponent_System_Boundary_Type");
 
                     b.ToTable("SystemComponents");
                 });
@@ -4315,6 +4391,10 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("RoadmapItemId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("RowVersion")
                         .IsConcurrencyToken()
                         .HasColumnType("TEXT");
@@ -4354,6 +4434,8 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.HasIndex("PoamItemId")
                         .HasDatabaseName("IX_RemediationTask_PoamItemId");
+
+                    b.HasIndex("RoadmapItemId");
 
                     b.HasIndex("Status");
 
@@ -4470,6 +4552,231 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("TaskHistoryEntries");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Roadmap.ImplementationRoadmap", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BaselineLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GenerationMethod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LinkedBoardId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("ProjectedRiskReduction")
+                        .HasColumnType("REAL");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SystemId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("TotalEstimatedEffort")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("TotalGaps")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("TotalRiskPoints")
+                        .HasColumnType("REAL");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SystemId");
+
+                    b.HasIndex("SystemId", "Status")
+                        .HasDatabaseName("IX_ImplementationRoadmaps_SystemId_Status");
+
+                    b.ToTable("ImplementationRoadmaps");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Roadmap.RoadmapItem", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AssignedRole")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ControlFamily")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ControlId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ControlTitle")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DependsOn")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("EstimatedEffortDays")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("EstimationSource")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("GapType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LinkedTaskId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PhaseId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("RiskPoints")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("RoadmapId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Severity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ControlId");
+
+                    b.HasIndex("PhaseId");
+
+                    b.HasIndex("RoadmapId");
+
+                    b.ToTable("RoadmapItems");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Roadmap.RoadmapPhase", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CompletedItemCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("EstimatedEffort")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("RiskPoints")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("RiskReductionPercent")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("RoadmapId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("TargetCompletionDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TargetEndWeek")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TargetStartWeek")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalItemCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RoadmapId", "DisplayOrder")
+                        .HasDatabaseName("IX_RoadmapPhases_RoadmapId_DisplayOrder");
+
+                    b.ToTable("RoadmapPhases");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Auth.JitRequestEntity", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Auth.CacSession", "Session")
@@ -4512,8 +4819,26 @@ namespace Ato.Copilot.Core.Migrations
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundary", b =>
                 {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", "AuthorizationBoundaryDefinition")
+                        .WithMany("AuthorizationBoundaries")
+                        .HasForeignKey("AuthorizationBoundaryDefinitionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
                         .WithMany("AuthorizationBoundaries")
+                        .HasForeignKey("RegisteredSystemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizationBoundaryDefinition");
+
+                    b.Navigation("RegisteredSystem");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
+                        .WithMany("AuthorizationBoundaryDefinitions")
                         .HasForeignKey("RegisteredSystemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -4541,6 +4866,11 @@ namespace Ato.Copilot.Core.Migrations
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.CapabilityControlMapping", b =>
                 {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", "AuthorizationBoundaryDefinition")
+                        .WithMany("CapabilityControlMappings")
+                        .HasForeignKey("AuthorizationBoundaryDefinitionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
                         .WithMany()
                         .HasForeignKey("RegisteredSystemId")
@@ -4551,6 +4881,8 @@ namespace Ato.Copilot.Core.Migrations
                         .HasForeignKey("SecurityCapabilityId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("AuthorizationBoundaryDefinition");
 
                     b.Navigation("RegisteredSystem");
 
@@ -5270,11 +5602,18 @@ namespace Ato.Copilot.Core.Migrations
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SystemComponent", b =>
                 {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", "AuthorizationBoundaryDefinition")
+                        .WithMany("SystemComponents")
+                        .HasForeignKey("AuthorizationBoundaryDefinitionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
                         .WithMany()
                         .HasForeignKey("RegisteredSystemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("AuthorizationBoundaryDefinition");
 
                     b.Navigation("RegisteredSystem");
                 });
@@ -5327,6 +5666,45 @@ namespace Ato.Copilot.Core.Migrations
                         .IsRequired();
 
                     b.Navigation("Task");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Roadmap.RoadmapItem", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Roadmap.RoadmapPhase", "Phase")
+                        .WithMany("Items")
+                        .HasForeignKey("PhaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ato.Copilot.Core.Models.Roadmap.ImplementationRoadmap", "Roadmap")
+                        .WithMany()
+                        .HasForeignKey("RoadmapId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Phase");
+
+                    b.Navigation("Roadmap");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Roadmap.RoadmapPhase", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Roadmap.ImplementationRoadmap", "Roadmap")
+                        .WithMany("Phases")
+                        .HasForeignKey("RoadmapId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Roadmap");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", b =>
+                {
+                    b.Navigation("AuthorizationBoundaries");
+
+                    b.Navigation("CapabilityControlMappings");
+
+                    b.Navigation("SystemComponents");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationDecision", b =>
@@ -5389,6 +5767,8 @@ namespace Ato.Copilot.Core.Migrations
                 {
                     b.Navigation("AuthorizationBoundaries");
 
+                    b.Navigation("AuthorizationBoundaryDefinitions");
+
                     b.Navigation("ContingencyPlanReference");
 
                     b.Navigation("ControlBaseline");
@@ -5445,6 +5825,16 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("Comments");
 
                     b.Navigation("History");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Roadmap.ImplementationRoadmap", b =>
+                {
+                    b.Navigation("Phases");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Roadmap.RoadmapPhase", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

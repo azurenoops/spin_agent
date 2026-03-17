@@ -189,6 +189,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ComplianceHistoryTool>();
         services.AddSingleton<ComplianceStatusTool>();
         services.AddSingleton<ComplianceMonitoringTool>();
+        services.AddSingleton<ShowFindingsTool>();
         services.AddSingleton<ComplianceChatTool>();
         services.AddSingleton<IacComplianceScanTool>();
 
@@ -242,6 +243,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ExcludeFromBoundaryTool>();
         services.AddSingleton<AssignRmfRoleTool>();
         services.AddSingleton<ListRmfRolesTool>();
+
+        // Boundary Definition tools (Feature 033)
+        services.AddSingleton<ListBoundaryDefinitionsTool>();
+        services.AddSingleton<CreateBoundaryDefinitionTool>();
+        services.AddSingleton<DeleteBoundaryDefinitionTool>();
+        services.AddSingleton<BoundaryGapAnalysisTool>();
 
         // RMF Categorization tools (Feature 015 - US2)
         services.AddSingleton<CategorizeSystemTool>();
@@ -404,6 +411,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<EscalationHostedService>();
         services.AddSingleton<IEscalationService>(sp => sp.GetRequiredService<EscalationHostedService>());
         services.AddHostedService(sp => sp.GetRequiredService<EscalationHostedService>());
+        services.AddHostedService<DigestSchedulerHostedService>();
 
         // Register tools as BaseTool collection
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceAssessmentTool>());
@@ -417,6 +425,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceHistoryTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceStatusTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceMonitoringTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ShowFindingsTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceChatTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<IacComplianceScanTool>());
 
@@ -458,6 +467,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ExcludeFromBoundaryTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<AssignRmfRoleTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ListRmfRolesTool>());
+
+        // Boundary Definition tools as BaseTool (Feature 033)
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ListBoundaryDefinitionsTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<CreateBoundaryDefinitionTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<DeleteBoundaryDefinitionTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<BoundaryGapAnalysisTool>());
 
         // RMF Categorization tools as BaseTool (Feature 015 - US2)
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<CategorizeSystemTool>());

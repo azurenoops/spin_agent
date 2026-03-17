@@ -147,5 +147,5 @@ internal class StubOrchestrator : AgentOrchestrator
 
     public void SetSelectedAgent(BaseAgent? agent) => _selectedAgent = agent;
 
-    public override BaseAgent? SelectAgent(string message) => _selectedAgent;
+    public override BaseAgent? SelectAgent(string message, IDictionary<string, object?>? context = null) => _selectedAgent;
 }

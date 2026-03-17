@@ -1926,9 +1926,33 @@ public class AlertNotification
     /// <summary>UTC timestamp when delivery was confirmed.</summary>
     public DateTimeOffset? DeliveredAt { get; set; }
 
+    /// <summary>Target user ID for this notification.</summary>
+    public string? UserId { get; set; }
+
+    /// <summary>Whether the notification has been read by the user.</summary>
+    public bool IsRead { get; set; }
+
+    /// <summary>UTC timestamp when the notification was read.</summary>
+    public DateTimeOffset? ReadAt { get; set; }
+
     // Navigation
     /// <summary>The alert this notification belongs to.</summary>
     public ComplianceAlert Alert { get; set; } = null!;
+}
+
+/// <summary>
+/// Per-user notification preferences persisted in EF Core.
+/// </summary>
+public class NotificationPreferences
+{
+    public Guid Id { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    public bool PoamOverdueAlerts { get; set; } = true;
+    public bool AtoExpirationAlerts { get; set; } = true;
+    public bool ComplianceDriftAlerts { get; set; } = true;
+    public int AlertDaysBefore { get; set; } = 30;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 /// <summary>

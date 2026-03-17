@@ -43,4 +43,7 @@ public class TodoItemDto
 
     /// <summary>Optional link path for the dashboard.</summary>
     public string? Link { get; init; }
+
+    /// <summary>Deferred prerequisite ID (present when category = "deferred").</summary>
+    public string? DeferredId { get; init; }
 }

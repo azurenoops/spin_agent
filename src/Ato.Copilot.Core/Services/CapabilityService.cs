@@ -200,12 +200,15 @@ public class CapabilityService
             entity.ImplementationStatus = status;
 
         int narrativesUpdated = 0, narrativesSkipped = 0;
+        Dictionary<string, int>? narrativesByBoundary = null;
 
         if (descriptionChanged)
         {
             var affectedImpls = await _db.ControlImplementations
                 .Where(ci => ci.SecurityCapabilityId == id)
                 .ToListAsync(cancellationToken);
+
+            narrativesByBoundary = new Dictionary<string, int>();
 
             foreach (var impl in affectedImpls)
             {
@@ -215,7 +218,7 @@ public class CapabilityService
                     _db.DashboardActivities.Add(new DashboardActivity
                     {
                         RegisteredSystemId = impl.RegisteredSystemId,
-                        EventType = "CapabilityChanged",
+                        EventType = "CompositeNarrativeSkipped",
                         Actor = modifiedBy,
                         Summary = $"Upstream capability '{entity.Name}' changed — review customized narrative for {impl.ControlId}",
                         RelatedEntityType = "ControlImplementation",
@@ -224,18 +227,60 @@ public class CapabilityService
                     continue;
                 }
 
+                // Find all mappings for this control + system to build composite narrative
+                var mappings = await _db.CapabilityControlMappings
+                    .Include(m => m.SecurityCapability)
+                    .Include(m => m.AuthorizationBoundaryDefinition)
+                    .Where(m => m.ControlId == impl.ControlId &&
+                                (m.RegisteredSystemId == impl.RegisteredSystemId || m.RegisteredSystemId == null))
+                    .ToListAsync(cancellationToken);
+
                 var nist = await _db.NistControls
                     .AsNoTracking()
                     .FirstOrDefaultAsync(n => n.Id == impl.ControlId, cancellationToken);
+                var controlTitle = nist?.Title ?? impl.ControlId;
 
-                impl.Narrative = _narrativeService.GenerateNarrative(
-                    entity.Name,
-                    entity.Provider,
-                    entity.Description,
-                    impl.ControlId,
-                    nist?.Title ?? impl.ControlId);
+                if (mappings.Count <= 1)
+                {
+                    // Single mapping — simple narrative
+                    impl.Narrative = _narrativeService.GenerateNarrative(
+                        entity.Name, entity.Provider, entity.Description,
+                        impl.ControlId, controlTitle);
+                }
+                else
+                {
+                    // Multi-mapping — composite narrative
+                    var contexts = mappings
+                        .Select(m => new BoundaryMappingContext(
+                            m.SecurityCapability.Name,
+                            m.SecurityCapability.Provider,
+                            m.SecurityCapability.Description,
+                            m.AuthorizationBoundaryDefinition?.Name))
+                        .ToList();
+
+                    impl.Narrative = _narrativeService.GenerateCompositeNarrative(
+                        impl.ControlId, controlTitle, contexts);
+                }
+
                 impl.ModifiedAt = DateTime.UtcNow;
                 narrativesUpdated++;
+
+                // Track per-boundary counts
+                var boundaryNames = mappings
+                    .Where(m => m.AuthorizationBoundaryDefinition != null)
+                    .Select(m => m.AuthorizationBoundaryDefinition!.Name)
+                    .Distinct();
+
+                foreach (var bName in boundaryNames)
+                {
+                    narrativesByBoundary[bName] = narrativesByBoundary.GetValueOrDefault(bName, 0) + 1;
+                }
+
+                if (mappings.Any(m => m.AuthorizationBoundaryDefinitionId == null))
+                {
+                    const string orgWide = "Organization-Wide";
+                    narrativesByBoundary[orgWide] = narrativesByBoundary.GetValueOrDefault(orgWide, 0) + 1;
+                }
             }
         }
 
@@ -268,6 +313,7 @@ public class CapabilityService
             ModifiedAt = entity.ModifiedAt,
             NarrativesUpdated = narrativesUpdated,
             NarrativesSkipped = narrativesSkipped,
+            NarrativesByBoundary = narrativesByBoundary,
         }, false);
     }
 
@@ -344,6 +390,7 @@ public class CapabilityService
         var mappings = await _db.CapabilityControlMappings
             .Where(m => m.SecurityCapabilityId == capabilityId)
             .Include(m => m.RegisteredSystem)
+            .Include(m => m.AuthorizationBoundaryDefinition)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
@@ -385,6 +432,8 @@ public class CapabilityService
                 Role = m.Role.ToString(),
                 RegisteredSystemId = m.RegisteredSystemId,
                 RegisteredSystemName = m.RegisteredSystem?.Name,
+                BoundaryDefinitionId = m.AuthorizationBoundaryDefinitionId,
+                BoundaryDefinitionName = m.AuthorizationBoundaryDefinition?.Name,
                 NarrativeStatus = narrativeStatus,
                 IsManuallyCustomized = impl?.IsManuallyCustomized ?? false,
             };
@@ -414,9 +463,9 @@ public class CapabilityService
 
         if (cap is null) return null;
 
-        var requestedControlIds = request.Mappings.Select(m => m.ControlId).Distinct().ToList();
+        var requestedControlIds = request.Mappings.Select(m => m.ControlId.ToLowerInvariant()).Distinct().ToList();
 
-        // Validate control IDs exist
+        // Validate control IDs exist (OSCAL IDs are lowercase)
         var validControls = await _db.NistControls
             .Where(n => requestedControlIds.Contains(n.Id))
             .AsNoTracking()
@@ -428,7 +477,8 @@ public class CapabilityService
 
         foreach (var item in request.Mappings)
         {
-            if (!validControls.ContainsKey(item.ControlId))
+            var normalizedControlId = item.ControlId.ToLowerInvariant();
+            if (!validControls.ContainsKey(normalizedControlId))
             {
                 warnings.Add(new MappingWarning
                 {
@@ -447,7 +497,7 @@ public class CapabilityService
                 var existingPrimary = await _db.CapabilityControlMappings
                     .Include(m => m.SecurityCapability)
                     .FirstOrDefaultAsync(m =>
-                        m.ControlId == item.ControlId &&
+                        m.ControlId == normalizedControlId &&
                         m.RegisteredSystemId == item.RegisteredSystemId &&
                         m.Role == CapabilityMappingRole.Primary &&
                         m.SecurityCapabilityId != capabilityId,
@@ -466,8 +516,9 @@ public class CapabilityService
             var mapping = new CapabilityControlMapping
             {
                 SecurityCapabilityId = capabilityId,
-                ControlId = item.ControlId,
+                ControlId = normalizedControlId,
                 RegisteredSystemId = item.RegisteredSystemId,
+                AuthorizationBoundaryDefinitionId = item.BoundaryDefinitionId,
                 Role = role,
                 CreatedBy = createdBy,
             };
@@ -476,7 +527,7 @@ public class CapabilityService
             created++;
 
             // Generate narrative for matching ControlImplementation(s)
-            var nist = validControls[item.ControlId];
+            var nist = validControls[normalizedControlId];
             var targetSystems = item.RegisteredSystemId != null
                 ? new List<string> { item.RegisteredSystemId }
                 : await _db.RegisteredSystems
@@ -489,7 +540,7 @@ public class CapabilityService
                 var impl = await _db.ControlImplementations
                     .FirstOrDefaultAsync(ci =>
                         ci.RegisteredSystemId == sysId &&
-                        ci.ControlId == item.ControlId,
+                        ci.ControlId == normalizedControlId,
                         cancellationToken);
 
                 if (impl is null)
@@ -544,11 +595,42 @@ public class CapabilityService
     // ─── Gap Analysis ─────────────────────────────────────────────────────
 
     /// <summary>
+    /// Returns the set of control IDs that are covered by capability mappings
+    /// for a system, combining boundary-specific and org-wide (null FK) mappings.
+    /// When <paramref name="boundaryDefinitionId"/> is specified, includes
+    /// boundary-specific + org-wide mappings; boundary-specific takes precedence.
+    /// </summary>
+    public async Task<HashSet<string>> GetCoveredControlIdsAsync(
+        string systemId,
+        string? boundaryDefinitionId,
+        CancellationToken ct)
+    {
+        var query = _db.CapabilityControlMappings
+            .Where(m => m.RegisteredSystemId == systemId || m.RegisteredSystemId == null);
+
+        if (boundaryDefinitionId is not null)
+        {
+            // Include boundary-specific + org-wide (null FK = all boundaries)
+            query = query.Where(m =>
+                m.AuthorizationBoundaryDefinitionId == boundaryDefinitionId ||
+                m.AuthorizationBoundaryDefinitionId == null);
+        }
+
+        var controlIds = await query
+            .Select(m => m.ControlId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return new HashSet<string>(controlIds, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Returns coverage analysis for a system's baseline — which controls have
     /// capability mappings and which are unmapped gaps.
     /// </summary>
     public async Task<GapAnalysisDto?> GetGapAnalysisAsync(
         string systemId,
+        string? boundaryDefinitionId = null,
         CancellationToken cancellationToken = default)
     {
         var system = await _db.RegisteredSystems
@@ -561,14 +643,8 @@ public class CapabilityService
         var baseline = system.ControlBaseline;
         var controlIds = baseline.ControlIds;
 
-        // Get all capability mappings that cover this system (system-scoped + org-wide)
-        var mappedControlIds = await _db.CapabilityControlMappings
-            .Where(m => m.RegisteredSystemId == systemId || m.RegisteredSystemId == null)
-            .Select(m => m.ControlId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        var mappedSet = new HashSet<string>(mappedControlIds, StringComparer.OrdinalIgnoreCase);
+        // Get all capability mappings that cover this system (filtered by boundary if specified)
+        var mappedSet = await GetCoveredControlIdsAsync(systemId, boundaryDefinitionId, cancellationToken);
 
         // Get NIST control titles for unmapped controls
         var unmappedIds = controlIds.Where(c => !mappedSet.Contains(c)).ToList();
@@ -614,6 +690,38 @@ public class CapabilityService
         var totalControls = controlIds.Count;
         var totalCovered = controlIds.Count(c => mappedSet.Contains(c));
 
+        // Build per-boundary comparison when no boundary filter is specified
+        List<BoundaryComparisonItemDto>? boundaryComparison = null;
+        if (boundaryDefinitionId is null)
+        {
+            var boundaries = await _db.AuthorizationBoundaryDefinitions
+                .Where(b => b.RegisteredSystemId == systemId)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            if (boundaries.Count > 1)
+            {
+                boundaryComparison = [];
+                foreach (var boundary in boundaries.OrderByDescending(b => b.IsPrimary).ThenBy(b => b.Name))
+                {
+                    var bCovered = await GetCoveredControlIdsAsync(systemId, boundary.Id, cancellationToken);
+                    var bTotal = controlIds.Count;
+                    var bCoveredCount = controlIds.Count(c => bCovered.Contains(c));
+                    boundaryComparison.Add(new BoundaryComparisonItemDto
+                    {
+                        BoundaryId = boundary.Id,
+                        BoundaryName = boundary.Name,
+                        BoundaryType = boundary.BoundaryType.ToString(),
+                        IsPrimary = boundary.IsPrimary,
+                        TotalControls = bTotal,
+                        CoveredControls = bCoveredCount,
+                        GapCount = bTotal - bCoveredCount,
+                        CoveragePercent = bTotal > 0 ? Math.Round(100.0 * bCoveredCount / bTotal, 1) : 0,
+                    });
+                }
+            }
+        }
+
         return new GapAnalysisDto
         {
             SystemId = systemId,
@@ -624,6 +732,7 @@ public class CapabilityService
             CoveragePercent = totalControls > 0
                 ? Math.Round(100.0 * totalCovered / totalControls, 1) : 0,
             FamilyBreakdown = familyBreakdown,
+            BoundaryComparison = boundaryComparison,
         };
     }
 

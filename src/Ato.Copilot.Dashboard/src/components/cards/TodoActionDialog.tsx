@@ -37,7 +37,7 @@ export default function TodoActionDialog({ item, systemName, onClose }: TodoActi
 
   const copyPrompt = () => {
     if (!item.prompt) return;
-    navigator.clipboard.writeText(`@ato ${item.prompt}`);
+    navigator.clipboard.writeText(`${item.prompt}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -133,7 +133,7 @@ export default function TodoActionDialog({ item, systemName, onClose }: TodoActi
                   {copied ? 'Copied! Paste in Teams or VS Code' : 'Ask in Teams or VS Code'}
                 </p>
                 <p className="text-xs text-gray-500 truncate font-mono mt-0.5">
-                  @ato {item.prompt}
+                  {item.prompt}
                 </p>
               </div>
             </button>

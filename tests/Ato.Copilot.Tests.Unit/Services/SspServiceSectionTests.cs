@@ -733,6 +733,10 @@ public class SspServiceSectionTests : IDisposable
     [Fact]
     public void Section11_BoundaryResourceInventory()
     {
+        var boundaryDefinitions = new List<AuthorizationBoundaryDefinition>
+        {
+            new() { Id = "bd-1", Name = "Primary", BoundaryType = BoundaryDefinitionType.Logical, IsPrimary = true, RegisteredSystemId = "sys-1", CreatedBy = "system" }
+        };
         var boundaries = new List<AuthorizationBoundary>
         {
             new() { ResourceId = "/sub/rg/vm1", ResourceType = "Microsoft.Compute/virtualMachines",
@@ -752,7 +756,7 @@ public class SspServiceSectionTests : IDisposable
             RegisteredSystemId = "sys-1", SectionTitle = "Authorization Boundary"
         };
 
-        var content = SspService.GenerateSection11Content(boundaries, new List<InventoryItem>(), section);
+        var content = SspService.GenerateSection11Content(boundaryDefinitions, boundaries, new List<InventoryItem>(), new List<SystemComponent>(), section);
 
         content.Should().Contain("### Boundary Description");
         content.Should().Contain("all Azure resources in RG-Web");
@@ -765,7 +769,7 @@ public class SspServiceSectionTests : IDisposable
     [Fact]
     public void Section11_NoBoundaries_ReturnsPlaceholder()
     {
-        var content = SspService.GenerateSection11Content([], new List<InventoryItem>(), null);
+        var content = SspService.GenerateSection11Content(new List<AuthorizationBoundaryDefinition>(), [], new List<InventoryItem>(), new List<SystemComponent>(), null);
 
         content.Should().Contain("not been defined");
     }

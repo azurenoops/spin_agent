@@ -42,3 +42,16 @@ export async function deleteComponent(id: string): Promise<DeleteComponentRespon
   const { data } = await apiClient.delete<DeleteComponentResponse>(`/components/${id}`);
   return data;
 }
+
+export async function generateComponentDescription(
+  name: string,
+  componentType: string,
+  subType?: string,
+): Promise<string> {
+  const { data } = await apiClient.post<{ description: string }>('/ai/component-description', {
+    name,
+    componentType,
+    subType: subType || undefined,
+  });
+  return data.description;
+}

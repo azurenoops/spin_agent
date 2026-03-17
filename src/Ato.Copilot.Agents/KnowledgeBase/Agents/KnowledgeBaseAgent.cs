@@ -93,7 +93,9 @@ public class KnowledgeBaseAgent : BaseAgent
             "remove control", "add control", "tailor baseline", "generate the customer",
             "register system", "register a new", "define boundary", "categorize system",
             "select baseline", "set controls", "write narrative", "generate crm",
-            "generate sar", "issue ato", "create poam", "assign rmf"];
+            "generate sar", "issue ato", "create poam", "assign rmf",
+            "list open", "show open", "list all", "show all", "show me the",
+            "get the", "run assessment", "create conmon", "generate conmon"];
         foreach (var keyword in actionKeywords)
         {
             if (lower.Contains(keyword))

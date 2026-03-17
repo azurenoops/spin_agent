@@ -6,7 +6,8 @@ import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
 import { usePolling } from '../hooks/usePolling';
 import { getComponents, createComponent, updateComponent, deleteComponent } from '../api/components';
-import type { SystemComponentDto, CreateComponentRequest, ComponentType } from '../types/dashboard';
+import { fetchBoundaryDefinitions } from '../api/boundaries';
+import type { SystemComponentDto, CreateComponentRequest, ComponentType, BoundaryDefinitionDto } from '../types/dashboard';
 
 const SECTIONS: { title: string; type: ComponentType }[] = [
   { title: 'People', type: 'Person' },
@@ -17,6 +18,7 @@ const SECTIONS: { title: string; type: ComponentType }[] = [
 export default function ComponentInventory() {
   const { id: systemId } = useParams<{ id: string }>();
   const [components, setComponents] = useState<SystemComponentDto[]>([]);
+  const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
   const [summary, setSummary] = useState({ personCount: 0, placeCount: 0, thingCount: 0, totalCount: 0 });
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -29,14 +31,18 @@ export default function ComponentInventory() {
 
   const fetchData = useCallback(async () => {
     if (!systemId) return;
-    const result = await getComponents(systemId, {
-      search: search || undefined,
-      type: typeFilter || undefined,
-      status: statusFilter || undefined,
-      pageSize: 200,
-    });
+    const [result, boundaryItems] = await Promise.all([
+      getComponents(systemId, {
+        search: search || undefined,
+        type: typeFilter || undefined,
+        status: statusFilter || undefined,
+        pageSize: 200,
+      }),
+      fetchBoundaryDefinitions(systemId).catch(() => [] as BoundaryDefinitionDto[]),
+    ]);
     setComponents(result.items);
     setSummary(result.summary);
+    setBoundaries(boundaryItems);
   }, [systemId, search, typeFilter, statusFilter]);
 
   usePolling(fetchData, 15000);
@@ -147,6 +153,7 @@ export default function ComponentInventory() {
             <h2 className="text-lg font-semibold mb-4">{editing ? 'Edit Component' : 'Add Component'}</h2>
             <ComponentForm
               initial={editing}
+              systemId={systemId}
               onSubmit={handleSubmit}
               onCancel={handleCancel}
               isSubmitting={submitting}
@@ -177,6 +184,76 @@ export default function ComponentInventory() {
         <div className="text-center py-16 text-gray-400">
           <p className="text-lg mb-2">No components yet</p>
           <p className="text-sm">Add People, Places, and Things that make up your system.</p>
+        </div>
+      ) : boundaries.length > 1 ? (
+        // Group by boundary when multiple boundaries exist
+        <div className="space-y-6">
+          {boundaries.map((boundary) => {
+            const boundaryComponents = components.filter(
+              (c) => c.boundaryDefinitionId === boundary.id
+            );
+            if (boundaryComponents.length === 0) return null;
+            return (
+              <div key={boundary.id} className="rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-700">{boundary.name}</h3>
+                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                      {boundary.boundaryType}
+                    </span>
+                    {boundary.isPrimary && (
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">
+                        Primary
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-400 ml-auto">{boundaryComponents.length} components</span>
+                  </div>
+                </div>
+                <div className="p-4 space-y-4">
+                  {SECTIONS.map(({ title, type }) => {
+                    const items = boundaryComponents.filter((c) => c.componentType === type);
+                    if (items.length === 0) return null;
+                    return (
+                      <ComponentSection
+                        key={`${boundary.id}-${type}`}
+                        title={title}
+                        type={type}
+                        components={items}
+                        count={items.length}
+                        onEdit={handleEdit}
+                        onDelete={(id) => setDeleteConfirm(id)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {/* Components without boundary assignment */}
+          {components.filter((c) => !c.boundaryDefinitionId).length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+                <h3 className="text-sm font-semibold text-gray-500">Unassigned</h3>
+              </div>
+              <div className="p-4 space-y-4">
+                {SECTIONS.map(({ title, type }) => {
+                  const items = components.filter((c) => !c.boundaryDefinitionId && c.componentType === type);
+                  if (items.length === 0) return null;
+                  return (
+                    <ComponentSection
+                      key={`unassigned-${type}`}
+                      title={title}
+                      type={type}
+                      components={items}
+                      count={items.length}
+                      onEdit={handleEdit}
+                      onDelete={(id) => setDeleteConfirm(id)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

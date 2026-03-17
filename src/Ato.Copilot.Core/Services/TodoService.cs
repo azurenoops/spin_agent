@@ -73,6 +73,10 @@ public class TodoService
         await AddPoamItems(items, systemId, ct);
         await AddFindingItems(items, systemId, ct);
 
+        // ── Deferred prerequisites from force-advances ──────────────────────
+        try { await AddDeferredPrerequisiteItems(items, systemId, ct); }
+        catch { /* table may not exist yet — non-critical */ }
+
         // ── Next phase teaser ───────────────────────────────────────────────
         if (nextPhase.HasValue)
         {
@@ -519,6 +523,33 @@ public class TodoService
                 Detail = "High severity — remediate or accept risk",
                 Category = "finding",
                 Prompt = $"Show CAT II findings for {_systemName}",
+            });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Deferred prerequisites from force-advances
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private async Task AddDeferredPrerequisiteItems(List<TodoItemDto> items, string systemId, CancellationToken ct)
+    {
+        var deferred = await _db.DeferredPrerequisites
+            .Where(d => d.RegisteredSystemId == systemId && !d.IsResolved)
+            .OrderBy(d => d.CreatedAt)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        foreach (var d in deferred)
+        {
+            items.Insert(0, new TodoItemDto
+            {
+                Id = $"deferred-{d.Id}",
+                Label = $"⚠ {d.GateName}",
+                Detail = $"Skipped during force-advance from {d.SkippedFromPhase} → {d.AdvancedToPhase}. {d.Message}",
+                Category = "deferred",
+                Prompt = $"Help me resolve the {d.GateName} prerequisite for {_systemName}",
+                Link = $"/systems/{systemId}",
+                DeferredId = d.Id,
             });
         }
     }

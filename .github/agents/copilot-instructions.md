@@ -59,6 +59,16 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 - SQLite (dev) / SQL Server (prod) via EF Core; Foundry threads are server-side (ephemeral, no local persistence) (028-foundry-agents)
 - C# 13 / .NET 9.0 + ASP.NET Core 9.0, Polly 8.4.2 (`Microsoft.Extensions.Http.Resilience` 9.0.0), `System.Threading.RateLimiting`, `System.Diagnostics.Metrics`, Serilog, Entity Framework Core 9.0, OpenTelemetry SDK (new) (029-enterprise-mcp-hardening)
 - SQL Server / SQLite via EF Core (existing); `IMemoryCache` for response caching; embedded OSCAL JSON resource (029-enterprise-mcp-hardening)
+- C# 13 / .NET 9.0 (backend); TypeScript 5 (frontend) + ASP.NET Core 9.0, EF Core 9.0, Serilog (backend); React 19, Vite 6, Recharts 2, Tailwind CSS 3, Axios 1, React Router 7 (frontend) (030-compliance-dashboard)
+- SQL Server via EF Core (AtoCopilotContext) (030-compliance-dashboard)
+- C# 13 / .NET 9.0 + ASP.NET Core 9.0, EF Core 9.0 (SQL Server), Azure OpenAI (effort estimation), React 19, TypeScript 5, Recharts 2, Tailwind CSS 3 (031-implementation-roadmap)
+- SQL Server via `AtoCopilotContext` (EF Core, `EnsureCreatedAsync` model) (031-implementation-roadmap)
+- TypeScript 5.7 (frontend), C# 13 / .NET 9.0 (backend — no changes expected) + React 19, Tailwind CSS 3.4, Vite 6.0, React Router 7.0 (032-dashboard-documentation)
+- N/A (help content is static, embedded in component code) (032-dashboard-documentation)
+- C# 13 / .NET 9.0 (backend), TypeScript 5.7 (dashboard) + ASP.NET Core, Entity Framework Core, Azure.Identity, Azure.ResourceManager.ResourceGraph (new for US8), React 19, Vite 6.0, Tailwind CSS 3.4 (033-boundary-scoped-model)
+- SQL Server (production), SQLite (development) via EF Core (033-boundary-scoped-model)
+- TypeScript 5.7 / React 19 / C# 13 (.NET 9.0 — backend, no changes expected) + React 19, react-router-dom 7, axios 1.7, react-markdown (new), remark-gfm (new), react-syntax-highlighter (new) (034-dashboard-chat)
+- Browser localStorage (conversations); no server-side DB changes (034-dashboard-chat)
 
 - C# 13 / .NET 9.0 + Azure.Identity 1.13, Azure.ResourceManager 1.13, Microsoft.Extensions.AI 9.4-preview, Microsoft.EntityFrameworkCore 9.0, Serilog 4.2, xUnit 2.9, FluentAssertions 7.0, Moq 4.20 (001-core-compliance)
 
@@ -78,6 +88,9 @@ dotnet build Ato.Copilot.sln [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMAN
 C# .NET 9: Follow standard conventions
 
 ## Recent Changes
+- 034-dashboard-chat: Added TypeScript 5.7 / React 19 / C# 13 (.NET 9.0 — backend, no changes expected) + React 19, react-router-dom 7, axios 1.7, react-markdown (new), remark-gfm (new), react-syntax-highlighter (new)
+- 033-boundary-scoped-model: Added C# 13 / .NET 9.0 (backend), TypeScript 5.7 (dashboard) + ASP.NET Core, Entity Framework Core, Azure.Identity, Azure.ResourceManager.ResourceGraph (new for US8), React 19, Vite 6.0, Tailwind CSS 3.4
+- 032-dashboard-documentation: Added TypeScript 5.7 (frontend), C# 13 / .NET 9.0 (backend — no changes expected) + React 19, Tailwind CSS 3.4, Vite 6.0, React Router 7.0
 - 029-enterprise-mcp-hardening: Added C# 13 / .NET 9.0 + ASP.NET Core 9.0, Polly 8.4.2 (`Microsoft.Extensions.Http.Resilience` 9.0.0), `System.Threading.RateLimiting`, `System.Diagnostics.Metrics`, Serilog, Entity Framework Core 9.0, OpenTelemetry SDK (new)
 - 028-foundry-agents: Added C# 13 / .NET 9.0 + Azure.AI.Agents.Persistent 1.1.0, Azure.AI.OpenAI 2.1.0, Microsoft.Extensions.AI 9.4.x, Azure.Identity 1.13.2, EF Core 9.0, Serilog
 - 028-foundry-agents: Added C# 13 / .NET 9.0 + `Azure.AI.Projects` (new — Foundry SDK), `Azure.AI.OpenAI` 2.1.0 (existing), `Microsoft.Extensions.AI` 9.4.x (existing), EF Core 9.0, ASP.NET Core

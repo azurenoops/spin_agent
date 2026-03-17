@@ -1,9 +1,17 @@
 import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePolling } from '../../hooks/usePolling';
 import type { TodoList, TodoItem } from '../../types/dashboard';
 import apiClient from '../../api/client';
 import TodoActionDialog from './TodoActionDialog';
 import HelpTooltip from '../help/HelpTooltip';
+
+interface ResolveBlockedInfo {
+  gateName: string;
+  message: string;
+  actionLink: string;
+  actionLabel: string;
+}
 
 interface TodoPanelProps {
   systemId: string;
@@ -11,11 +19,35 @@ interface TodoPanelProps {
 
 export default function TodoPanel({ systemId }: TodoPanelProps) {
   const [selectedItem, setSelectedItem] = useState<TodoItem | null>(null);
+  const [resolving, setResolving] = useState<string | null>(null);
+  const [resolveBlocked, setResolveBlocked] = useState<ResolveBlockedInfo | null>(null);
+  const navigate = useNavigate();
   const fetcher = useCallback(
     () => apiClient.get<TodoList>(`/systems/${systemId}/todos`).then((r) => r.data),
     [systemId],
   );
-  const { data, loading, error } = usePolling(fetcher, 30000);
+  const { data, loading, error, refresh } = usePolling(fetcher, 30000);
+
+  const handleResolve = async (item: TodoItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!item.deferredId) return;
+    setResolving(item.deferredId);
+    try {
+      await apiClient.post(`/systems/${systemId}/deferred-prerequisites/${item.deferredId}/resolve`);
+      refresh();
+    } catch (err: unknown) {
+      // 422 = gate still failing
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { status?: number; data?: ResolveBlockedInfo } };
+        if (axiosErr.response?.status === 422 && axiosErr.response.data) {
+          setResolveBlocked(axiosErr.response.data);
+          return;
+        }
+      }
+    } finally {
+      setResolving(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -52,13 +84,25 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
               key={item.id}
               type="button"
               onClick={() => setSelectedItem(item)}
-              className="flex w-full items-center justify-between gap-4 px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer text-left"
+              className={`flex w-full items-center justify-between gap-4 px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer text-left ${
+                item.category === 'deferred' ? 'bg-amber-50 border-l-4 border-amber-400' : ''
+              }`}
             >
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900">{item.label}</p>
-                <p className="text-sm text-gray-500 mt-0.5">{item.detail}</p>
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm font-medium ${item.category === 'deferred' ? 'text-amber-900' : 'text-gray-900'}`}>{item.label}</p>
+                <p className={`text-sm mt-0.5 ${item.category === 'deferred' ? 'text-amber-700' : 'text-gray-500'}`}>{item.detail}</p>
               </div>
-              {arrow}
+              {item.category === 'deferred' && item.deferredId ? (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => void handleResolve(item, e)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleResolve(item, e as unknown as React.MouseEvent); }}
+                  className="flex-shrink-0 rounded-md border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
+                >
+                  {resolving === item.deferredId ? 'Resolving...' : 'Resolve'}
+                </span>
+              ) : arrow}
             </button>
           ))}
         </div>
@@ -70,6 +114,62 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
           systemName={data.systemName}
           onClose={() => setSelectedItem(null)}
         />
+      )}
+
+      {resolveBlocked && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setResolveBlocked(null); }}
+        >
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="px-6 pt-5 pb-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                </span>
+                <h3 className="text-lg font-semibold text-gray-900">Cannot Resolve Yet</h3>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                <span className="font-medium text-red-800">{resolveBlocked.gateName}</span> has not been completed yet.
+              </p>
+              <p className="text-sm text-gray-500 mt-1">{resolveBlocked.message}</p>
+            </div>
+
+            <div className="border-t border-gray-100 px-6 py-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">To resolve this item:</p>
+              <button
+                type="button"
+                onClick={() => {
+                  navigate(resolveBlocked.actionLink);
+                  setResolveBlocked(null);
+                }}
+                className="flex w-full items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-left hover:bg-blue-100 transition-colors"
+              >
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-900">{resolveBlocked.actionLabel}</p>
+                  <p className="text-xs text-blue-700 mt-0.5">Complete this action, then try resolving again</p>
+                </div>
+              </button>
+            </div>
+
+            <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setResolveBlocked(null)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
