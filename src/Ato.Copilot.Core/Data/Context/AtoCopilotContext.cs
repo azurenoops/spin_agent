@@ -242,6 +242,11 @@ public class AtoCopilotContext : DbContext
     /// <summary>Prerequisites skipped during forced RMF phase advances.</summary>
     public DbSet<DeferredPrerequisite> DeferredPrerequisites => Set<DeferredPrerequisite>();
 
+    // ─── Deviation Management (Feature 035) ──────────────────────────────────
+
+    /// <summary>Compliance deviations (false positives, risk acceptances, waivers) with approval workflow.</summary>
+    public DbSet<Deviation> Deviations => Set<Deviation>();
+
     // ─── Implementation Roadmap (Feature 031) ────────────────────────────────
 
     /// <summary>Phased implementation roadmaps for closing compliance gaps.</summary>
@@ -371,6 +376,8 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => e.ControlFamily);
             entity.HasIndex(e => new { e.AssessmentId, e.Severity });
             entity.HasIndex(e => e.ImportRecordId).HasDatabaseName("IX_ComplianceFinding_ImportRecordId");
+            entity.HasIndex(e => e.DeviationId).HasDatabaseName("IX_ComplianceFinding_DeviationId");
+            entity.Property(e => e.DeviationId).HasMaxLength(36);
         });
 
         // ─── NistControl ────────────────────────────────────────────────────────
@@ -1355,6 +1362,9 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
             entity.Property(e => e.Comments).HasMaxLength(4000);
 
+            // DeviationId FK (Feature 035)
+            entity.Property(e => e.DeviationId).HasMaxLength(36);
+
             // FK to RegisteredSystem
             entity.HasOne(e => e.RegisteredSystem)
                 .WithMany()
@@ -1378,6 +1388,70 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => e.Status).HasDatabaseName("IX_PoamItem_Status");
             entity.HasIndex(e => e.CatSeverity).HasDatabaseName("IX_PoamItem_CatSeverity");
             entity.HasIndex(e => e.ScheduledCompletionDate).HasDatabaseName("IX_PoamItem_ScheduledDate");
+            entity.HasIndex(e => e.DeviationId).HasDatabaseName("IX_PoamItem_DeviationId");
+        });
+
+        // ─── Deviation (Feature 035) ────────────────────────────────────────────
+        modelBuilder.Entity<Deviation>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.DeviationType).HasConversion<string>().HasMaxLength(50);
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+            entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.CatSeverity).HasConversion<string>().HasMaxLength(10);
+            entity.Property(e => e.Justification).HasMaxLength(4000).IsRequired();
+            entity.Property(e => e.CompensatingControls).HasMaxLength(2000);
+            entity.Property(e => e.ReviewCycle).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.FindingId).HasMaxLength(100);
+            entity.Property(e => e.PoamEntryId).HasMaxLength(36);
+            entity.Property(e => e.AuthorizationDecisionId).HasMaxLength(36);
+            entity.Property(e => e.BoundaryDefinitionId).HasMaxLength(36);
+            entity.Property(e => e.RequestedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ReviewedBy).HasMaxLength(200);
+            entity.Property(e => e.ReviewerRole).HasMaxLength(50);
+            entity.Property(e => e.ReviewerComments).HasMaxLength(2000);
+            entity.Property(e => e.ISSMRecommendation).HasMaxLength(20);
+            entity.Property(e => e.ISSMRecommendedBy).HasMaxLength(200);
+            entity.Property(e => e.RevokedBy).HasMaxLength(200);
+            entity.Property(e => e.RevocationReason).HasMaxLength(1000);
+
+            // FK to RegisteredSystem
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // FK to ComplianceFinding (optional)
+            entity.HasOne(e => e.Finding)
+                .WithMany()
+                .HasForeignKey(e => e.FindingId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // FK to PoamItem (optional)
+            entity.HasOne(e => e.PoamEntry)
+                .WithMany()
+                .HasForeignKey(e => e.PoamEntryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // FK to AuthorizationDecision (optional)
+            entity.HasOne(e => e.AuthorizationDecision)
+                .WithMany()
+                .HasForeignKey(e => e.AuthorizationDecisionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // FK to AuthorizationBoundaryDefinition (optional, waivers only)
+            entity.HasOne(e => e.BoundaryDefinition)
+                .WithMany()
+                .HasForeignKey(e => e.BoundaryDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Indexes
+            entity.HasIndex(e => e.RegisteredSystemId).HasDatabaseName("IX_Deviations_RegisteredSystemId");
+            entity.HasIndex(e => e.Status).HasDatabaseName("IX_Deviations_Status");
+            entity.HasIndex(e => e.FindingId).HasDatabaseName("IX_Deviations_FindingId");
+            entity.HasIndex(e => e.ExpirationDate).HasDatabaseName("IX_Deviations_ExpirationDate");
         });
 
         // ─── PoamMilestone ───────────────────────────────────────────────────────

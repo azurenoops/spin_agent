@@ -617,6 +617,18 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<CreateBoardFromRoadmapTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ExportRoadmapPdfTool>());
 
+        // Feature 035: Deviation Management tools
+        services.AddSingleton<RequestDeviationTool>();
+        services.AddSingleton<ReviewDeviationTool>();
+        services.AddSingleton<ListDeviationsTool>();
+        services.AddSingleton<RevokeDeviationTool>();
+        services.AddSingleton<ExtendDeviationTool>();
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<RequestDeviationTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ReviewDeviationTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ListDeviationsTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<RevokeDeviationTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ExtendDeviationTool>());
+
         // Register the agent
         services.AddSingleton<ComplianceAgent>();
         services.AddSingleton<BaseAgent>(sp => sp.GetRequiredService<ComplianceAgent>());

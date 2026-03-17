@@ -93,7 +93,14 @@ public class AlertNotificationService : IAlertNotificationService
                 && a.Status == AlertStatus.New)
             .ToListAsync(cancellationToken);
 
-        if (alerts.Count == 0) return;
+        // Deviation digest section (Feature 035)
+        var pendingDeviations = await db.Deviations
+            .CountAsync(d => d.Status == DeviationStatus.Pending, cancellationToken);
+        var expiringDeviations = await db.Deviations
+            .CountAsync(d => d.Status == DeviationStatus.Approved
+                && d.ExpirationDate <= DateTime.UtcNow.AddDays(30), cancellationToken);
+
+        if (alerts.Count == 0 && pendingDeviations == 0 && expiringDeviations == 0) return;
 
         var subject = $"[Compliance Digest] {alerts.Count} alert(s) for {subscriptionId}";
         var body = JsonSerializer.Serialize(new
@@ -102,13 +109,18 @@ public class AlertNotificationService : IAlertNotificationService
             subscriptionId,
             alertCount = alerts.Count,
             alerts = alerts.Select(a => new { a.AlertId, a.Title, severity = a.Severity.ToString(), a.CreatedAt }),
+            deviations = new
+            {
+                pendingReviews = pendingDeviations,
+                expiringWithin30Days = expiringDeviations,
+            },
             generatedAt = DateTimeOffset.UtcNow
         });
 
         var notification = new AlertNotification
         {
             Id = Guid.NewGuid(),
-            AlertId = alerts.First().Id,
+            AlertId = alerts.Count > 0 ? alerts.First().Id : Guid.Empty,
             Channel = NotificationChannel.Email,
             Recipient = "digest",
             Subject = subject,
@@ -121,7 +133,8 @@ public class AlertNotificationService : IAlertNotificationService
         db.AlertNotifications.Add(notification);
         await db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Sent digest with {Count} alerts for {Sub}", alerts.Count, subscriptionId);
+        _logger.LogInformation("Sent digest with {AlertCount} alerts, {PendingDeviations} pending deviations for {Sub}",
+            alerts.Count, pendingDeviations, subscriptionId);
     }
 
     /// <inheritdoc />

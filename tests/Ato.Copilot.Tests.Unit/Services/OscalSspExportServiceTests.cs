@@ -358,7 +358,7 @@ public class OscalSspExportServiceTests
         var warnings = new List<string>();
 
         var result = OscalSspExportService.BuildControlImplementation(
-            system, implementations, null, componentMap, warnings);
+            system, implementations, null, componentMap, new List<Deviation>(), warnings);
 
         result["description"].Should().Be("Control implementation narratives for Test System.");
 
@@ -388,7 +388,7 @@ public class OscalSspExportServiceTests
 
         var result = OscalSspExportService.BuildControlImplementation(
             system, new List<ControlImplementation>(), null,
-            new Dictionary<string, string>(), warnings);
+            new Dictionary<string, string>(), new List<Deviation>(), warnings);
 
         result["implemented-requirements"].Should().BeEquivalentTo(Array.Empty<object>());
         warnings.Should().ContainSingle().Which.Should().Contain("No control implementation narratives");
@@ -430,7 +430,7 @@ public class OscalSspExportServiceTests
 
         var result = OscalSspExportService.BuildControlImplementation(
             system, implementations, baseline,
-            new Dictionary<string, string>(), warnings);
+            new Dictionary<string, string>(), new List<Deviation>(), warnings);
 
         var reqs = result["implemented-requirements"] as List<Dictionary<string, object>>;
         reqs.Should().HaveCount(1);
@@ -477,7 +477,7 @@ public class OscalSspExportServiceTests
         };
         var warnings = new List<string>();
 
-        var result = OscalSspExportService.BuildBackMatter(interconnections, contingencyPlan, warnings);
+        var result = OscalSspExportService.BuildBackMatter(interconnections, contingencyPlan, new List<Deviation>(), warnings);
 
         var resources = result["resources"] as List<Dictionary<string, object>>;
         resources.Should().HaveCount(2);
@@ -501,7 +501,7 @@ public class OscalSspExportServiceTests
         var warnings = new List<string>();
 
         var result = OscalSspExportService.BuildBackMatter(
-            new List<SystemInterconnection>(), null, warnings);
+            new List<SystemInterconnection>(), null, new List<Deviation>(), warnings);
 
         var resources = result["resources"] as List<Dictionary<string, object>>;
         resources.Should().BeEmpty();

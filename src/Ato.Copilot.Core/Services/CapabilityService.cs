@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Dtos.Dashboard;
 
@@ -15,16 +16,19 @@ public class CapabilityService
     private readonly AtoCopilotContext _db;
     private readonly ILogger<CapabilityService> _logger;
     private readonly NarrativeTemplateService _narrativeService;
+    private readonly IDeviationService _deviationService;
 
     /// <summary>Initializes a new instance of <see cref="CapabilityService"/>.</summary>
     public CapabilityService(
         AtoCopilotContext db,
         ILogger<CapabilityService> logger,
-        NarrativeTemplateService narrativeService)
+        NarrativeTemplateService narrativeService,
+        IDeviationService deviationService)
     {
         _db = db;
         _logger = logger;
         _narrativeService = narrativeService;
+        _deviationService = deviationService;
     }
 
     // ─── List / Search ───────────────────────────────────────────────────────
@@ -646,8 +650,21 @@ public class CapabilityService
         // Get all capability mappings that cover this system (filtered by boundary if specified)
         var mappedSet = await GetCoveredControlIdsAsync(systemId, boundaryDefinitionId, cancellationToken);
 
+        // Get waived controls (approved waivers exclude controls from gap calculations)
+        var waivedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (boundaryDefinitionId is not null)
+        {
+            var waived = await _deviationService.GetWaivedControlsForBoundaryAsync(
+                systemId, boundaryDefinitionId, cancellationToken);
+            foreach (var id in waived) waivedSet.Add(id);
+        }
+
+        // Effective covered = mapped by capability OR waived
+        var effectiveSet = new HashSet<string>(mappedSet, StringComparer.OrdinalIgnoreCase);
+        foreach (var id in waivedSet) effectiveSet.Add(id);
+
         // Get NIST control titles for unmapped controls
-        var unmappedIds = controlIds.Where(c => !mappedSet.Contains(c)).ToList();
+        var unmappedIds = controlIds.Where(c => !effectiveSet.Contains(c)).ToList();
         var nistControls = await _db.NistControls
             .Where(n => unmappedIds.Contains(n.Id))
             .AsNoTracking()
@@ -662,7 +679,8 @@ public class CapabilityService
         var familyBreakdown = familyGroups.Select(g =>
         {
             var total = g.Count();
-            var covered = g.Count(c => mappedSet.Contains(c));
+            var covered = g.Count(c => effectiveSet.Contains(c));
+            var waived = g.Count(c => waivedSet.Contains(c));
             var gaps = total - covered;
             var pct = total > 0 ? Math.Round(100.0 * covered / total, 1) : 0;
 
@@ -672,11 +690,12 @@ public class CapabilityService
                 FamilyName = ControlFamilies.FamilyNames.GetValueOrDefault(g.Key, g.Key),
                 TotalControls = total,
                 CoveredControls = covered,
+                WaivedControls = waived,
                 GapCount = gaps,
                 CoveragePercent = pct,
                 IsBelow50 = pct < 50,
                 UnmappedControls = g
-                    .Where(c => !mappedSet.Contains(c))
+                    .Where(c => !effectiveSet.Contains(c))
                     .Select(c => new UnmappedControlDto
                     {
                         ControlId = c,
@@ -684,11 +703,13 @@ public class CapabilityService
                     })
                     .OrderBy(u => u.ControlId)
                     .ToList(),
+                WaivedControlIds = g.Where(c => waivedSet.Contains(c)).OrderBy(c => c).ToList(),
             };
         }).ToList();
 
         var totalControls = controlIds.Count;
-        var totalCovered = controlIds.Count(c => mappedSet.Contains(c));
+        var totalCovered = controlIds.Count(c => effectiveSet.Contains(c));
+        var totalWaived = controlIds.Count(c => waivedSet.Contains(c));
 
         // Build per-boundary comparison when no boundary filter is specified
         List<BoundaryComparisonItemDto>? boundaryComparison = null;
@@ -705,8 +726,13 @@ public class CapabilityService
                 foreach (var boundary in boundaries.OrderByDescending(b => b.IsPrimary).ThenBy(b => b.Name))
                 {
                     var bCovered = await GetCoveredControlIdsAsync(systemId, boundary.Id, cancellationToken);
+                    var bWaived = await _deviationService.GetWaivedControlsForBoundaryAsync(
+                        systemId, boundary.Id, cancellationToken);
+                    var bEffective = new HashSet<string>(bCovered, StringComparer.OrdinalIgnoreCase);
+                    foreach (var id in bWaived) bEffective.Add(id);
                     var bTotal = controlIds.Count;
-                    var bCoveredCount = controlIds.Count(c => bCovered.Contains(c));
+                    var bCoveredCount = controlIds.Count(c => bEffective.Contains(c));
+                    var bWaivedCount = controlIds.Count(c => bWaived.Contains(c, StringComparer.OrdinalIgnoreCase));
                     boundaryComparison.Add(new BoundaryComparisonItemDto
                     {
                         BoundaryId = boundary.Id,
@@ -715,6 +741,7 @@ public class CapabilityService
                         IsPrimary = boundary.IsPrimary,
                         TotalControls = bTotal,
                         CoveredControls = bCoveredCount,
+                        WaivedControls = bWaivedCount,
                         GapCount = bTotal - bCoveredCount,
                         CoveragePercent = bTotal > 0 ? Math.Round(100.0 * bCoveredCount / bTotal, 1) : 0,
                     });
@@ -728,6 +755,7 @@ public class CapabilityService
             BaselineLevel = baseline.BaselineLevel,
             TotalBaselineControls = totalControls,
             CoveredControls = totalCovered,
+            WaivedControls = totalWaived,
             GapCount = totalControls - totalCovered,
             CoveragePercent = totalControls > 0
                 ? Math.Round(100.0 * totalCovered / totalControls, 1) : 0,

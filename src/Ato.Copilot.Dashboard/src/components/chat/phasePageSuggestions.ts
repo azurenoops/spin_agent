@@ -295,6 +295,14 @@ export function getIntelligentSuggestions(context: ChatContext): SuggestedAction
     );
   }
 
+  if (page === 'deviations') {
+    suggestions.push(
+      { label: 'Pending reviews', prompt: 'List all pending deviation requests that need my review', icon: '📋', priority: 60 },
+      { label: 'Expiring soon', prompt: 'Which deviations are expiring in the next 30 days?', icon: '⏰', priority: 55 },
+      { label: 'Request deviation', prompt: 'Help me request a false positive or risk acceptance for a finding', icon: '➕', priority: 50 },
+    );
+  }
+
   // ─── Cross-cutting urgency triggers (regardless of phase/page) ──────
 
   if (d) {
@@ -320,6 +328,82 @@ export function getIntelligentSuggestions(context: ChatContext): SuggestedAction
         prompt: 'My compliance score is low — what are the top things to fix?',
         icon: '⚠️',
         priority: 85,
+      });
+    }
+
+    // ─── Deviation urgency triggers (Feature 035 — T022) ────────────────
+    if ((d.pendingDeviations ?? 0) > 0) {
+      suggestions.push({
+        label: `${d.pendingDeviations} pending reviews`,
+        prompt: `There are ${d.pendingDeviations} deviation requests pending review — show me the details`,
+        icon: '📋',
+        priority: 90,
+      });
+    }
+    if ((d.expiringDeviations ?? 0) > 0) {
+      suggestions.push({
+        label: `${d.expiringDeviations} deviations expiring`,
+        prompt: 'Show me deviations expiring within 30 days that need renewal',
+        icon: '⏰',
+        priority: 85,
+      });
+    }
+    if ((d.deviationsMissingEvidence ?? 0) > 0) {
+      suggestions.push({
+        label: `${d.deviationsMissingEvidence} missing evidence`,
+        prompt: 'Which deviations are missing supporting evidence?',
+        icon: '📎',
+        priority: 70,
+      });
+    }
+    if ((d.catIDeviations ?? 0) > 0) {
+      suggestions.push({
+        label: `${d.catIDeviations} CAT I deviations`,
+        prompt: 'Show me CAT I deviations requiring AO approval',
+        icon: '🔴',
+        priority: 88,
+      });
+    }
+
+    // ─── Outstanding-info urgency triggers (Feature 035 — T023) ─────────
+    if ((d.catIWithoutDeviationOrRemediation ?? 0) > 0) {
+      suggestions.push({
+        label: `${d.catIWithoutDeviationOrRemediation} unaddressed CAT I`,
+        prompt: 'Show CAT I findings without remediation plans or deviation requests',
+        icon: '🔴',
+        priority: 95,
+      });
+    }
+    if ((d.draftSspSections ?? 0) > 0) {
+      suggestions.push({
+        label: `${d.draftSspSections} SSP sections need work`,
+        prompt: 'Which SSP sections are still in Draft or NeedsRevision status?',
+        icon: '📝',
+        priority: 80,
+      });
+    }
+    if ((d.missingDocDueDates ?? 0) > 0) {
+      suggestions.push({
+        label: `${d.missingDocDueDates} docs missing due dates`,
+        prompt: 'Show documents that are missing due dates',
+        icon: '📅',
+        priority: 75,
+      });
+    }
+    if ((d.poamMissingCompletionDates ?? 0) > 0) {
+      suggestions.push({
+        label: `${d.poamMissingCompletionDates} POA&Ms need dates`,
+        prompt: 'Which POA&M items are missing scheduled completion dates?',
+        icon: '📅',
+        priority: 78,
+      });
+    }
+    if ((d.authDecisionMissingExpiry ?? 0) > 0) {
+      suggestions.push({
+        label: 'Authorization missing expiry',
+        prompt: 'The authorization decision is missing an expiration date — help me set one',
+        icon: '⚠️',
+        priority: 82,
       });
     }
   }

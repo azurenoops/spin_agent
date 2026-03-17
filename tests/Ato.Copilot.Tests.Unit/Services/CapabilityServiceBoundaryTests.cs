@@ -5,6 +5,7 @@ using Moq;
 using Xunit;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Services;
 
@@ -28,7 +29,7 @@ public class CapabilityServiceBoundaryTests : IDisposable
         _db = new AtoCopilotContext(options);
         var logger = Mock.Of<ILogger<CapabilityService>>();
         var narrativeService = new NarrativeTemplateService();
-        _sut = new CapabilityService(_db, logger, narrativeService);
+        _sut = new CapabilityService(_db, logger, narrativeService, Mock.Of<IDeviationService>());
 
         SeedData();
     }

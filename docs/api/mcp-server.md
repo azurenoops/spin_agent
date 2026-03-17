@@ -19,6 +19,7 @@
 - [Document Templates](#document-templates)
 - [CAC Authentication](#cac-authentication)
 - [PIM — Privileged Identity Management](#pim--privileged-identity-management)
+- [Deviation Management](#deviation-management)
 - [Error Responses](#error-responses)
 
 ---
@@ -1352,6 +1353,69 @@ Delete template.
 | `jit_request_access` | `vm_name`, `resource_group`, `ports`, `duration_hours?`, `justification` | Request JIT |
 | `jit_list_sessions` | *(none)* | List JIT sessions |
 | `jit_revoke_access` | `session_id` | Revoke JIT |
+
+---
+
+## Deviation Management
+
+### `compliance_request_deviation`
+
+Create a new deviation request (false positive, risk acceptance, or waiver).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✅ | Target system ID |
+| `control_id` | string | ✅ | NIST 800-53 control ID |
+| `deviation_type` | string | ✅ | `FalsePositive`, `RiskAcceptance`, or `Waiver` |
+| `justification` | string | ✅ | Justification text |
+| `cat_severity` | string | ✅ | `CatI`, `CatII`, or `CatIII` |
+| `expiration_date` | string | ✅ | ISO 8601 date (max 365 days) |
+| `compensating_controls` | string | | Compensating controls description |
+| `finding_id` | string | | Link to compliance finding |
+| `poam_entry_id` | string | | Link to POA&M item |
+| `boundary_id` | string | | Scope to authorization boundary |
+
+### `compliance_review_deviation`
+
+Approve or deny a pending deviation.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `deviation_id` | string | ✅ | Deviation to review |
+| `decision` | string | ✅ | `Approve` or `Deny` |
+| `reviewer_role` | string | | `ISSM` (default) or `AO` |
+| `comments` | string | | Reviewer comments |
+
+### `compliance_list_deviations`
+
+List deviations with optional filters and pagination.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✅ | Target system ID |
+| `status` | string | | Filter by status |
+| `type` | string | | Filter by deviation type |
+| `page` | int | | Page number (default: 1) |
+| `page_size` | int | | Items per page (default: 20) |
+
+### `compliance_revoke_deviation`
+
+Revoke an active deviation.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `deviation_id` | string | ✅ | Deviation to revoke |
+| `reason` | string | ✅ | Revocation reason |
+
+### `compliance_extend_deviation`
+
+Extend the expiration date of an approved deviation.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `deviation_id` | string | ✅ | Deviation to extend |
+| `new_expiration_date` | string | ✅ | New ISO 8601 date (max 365 days) |
+| `justification` | string | | Updated justification |
 
 ---
 

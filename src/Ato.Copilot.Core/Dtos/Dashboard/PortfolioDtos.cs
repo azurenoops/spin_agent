@@ -242,6 +242,9 @@ public class SystemDocumentsResponse
     // SSP Sections
     public required List<SspSectionInfo> SspSections { get; init; }
 
+    // Active waivers (Feature 035 — Deviation Management)
+    public int ActiveWaiverCount { get; init; }
+
     // Narrative Governance
     public NarrativeGovernanceInfo? NarrativeGovernance { get; init; }
 
@@ -424,6 +427,8 @@ public class AssessmentFindingDto
     public string? ResourceId { get; init; }
     public string? RemediationGuidance { get; init; }
     public DateTime DiscoveredAt { get; init; }
+    public string? DeviationId { get; init; }
+    public string? DeviationType { get; init; }
 }
 
 // ───────────── Narrative Viewer DTOs ──────────────────────────────────────────

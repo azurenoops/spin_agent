@@ -223,6 +223,11 @@ public class PoamItem
 
     /// <summary>Milestones for this POA&amp;M item.</summary>
     public List<PoamMilestone> Milestones { get; set; } = new();
+
+    // ─── New Properties (Feature 035 — Deviation Management) ──────────────
+
+    /// <summary>FK → Deviation (optional link to active deviation record).</summary>
+    public string? DeviationId { get; set; }
 }
 
 /// <summary>

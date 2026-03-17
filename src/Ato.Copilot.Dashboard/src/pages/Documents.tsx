@@ -206,7 +206,7 @@ function PrivacySection({ data }: { data: SystemDocumentsResponse }) {
   );
 }
 
-function SspSectionsSection({ sections }: { sections: SspSectionInfo[] }) {
+function SspSectionsSection({ sections, activeWaiverCount }: { sections: SspSectionInfo[]; activeWaiverCount: number }) {
   if (sections.length === 0) return null;
 
   const completed = sections.filter(s => s.status === 'Approved').length;
@@ -217,7 +217,14 @@ function SspSectionsSection({ sections }: { sections: SspSectionInfo[] }) {
         icon="📝"
         title="SSP Sections"
         action={
-          <span className="text-xs text-gray-500">{completed}/{sections.length} approved</span>
+          <div className="flex items-center gap-3">
+            {activeWaiverCount > 0 && (
+              <span className="inline-flex items-center rounded-full border border-dashed border-purple-300 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+                {activeWaiverCount} waived control{activeWaiverCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            <span className="text-xs text-gray-500">{completed}/{sections.length} approved</span>
+          </div>
         }
       />
       <div className="divide-y divide-gray-100">
@@ -523,7 +530,7 @@ export default function Documents() {
         <AuthPackageSection data={data} />
 
         {/* SSP Sections */}
-        <SspSectionsSection sections={data.sspSections} />
+        <SspSectionsSection sections={data.sspSections} activeWaiverCount={data.activeWaiverCount} />
 
         {/* Narrative Governance */}
         <NarrativeGovernanceSection data={data} />

@@ -72,6 +72,8 @@ public class TodoService
         // ── Cross-phase items (always applicable) ───────────────────────────
         await AddPoamItems(items, systemId, ct);
         await AddFindingItems(items, systemId, ct);
+        await AddDeviationItems(items, systemId, ct);
+        await AddOutstandingInfoItems(items, systemId, ct);
 
         // ── Deferred prerequisites from force-advances ──────────────────────
         try { await AddDeferredPrerequisiteItems(items, systemId, ct); }
@@ -523,6 +525,127 @@ public class TodoService
                 Detail = "High severity — remediate or accept risk",
                 Category = "finding",
                 Prompt = $"Show CAT II findings for {_systemName}",
+            });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Deviation items (Feature 035 — T024)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private async Task AddDeviationItems(List<TodoItemDto> items, string systemId, CancellationToken ct)
+    {
+        var pendingCount = await _db.Deviations
+            .CountAsync(d => d.RegisteredSystemId == systemId && d.Status == DeviationStatus.Pending, ct);
+
+        if (pendingCount > 0)
+        {
+            items.Add(new TodoItemDto
+            {
+                Id = "deviation-pending",
+                Label = $"Review {pendingCount} pending deviation request{(pendingCount > 1 ? "s" : "")}",
+                Detail = "Deviation requests awaiting ISSM/AO review",
+                Category = "deviation",
+                Prompt = $"Show pending deviation requests for {_systemName}",
+                Link = $"/systems/{systemId}/deviations",
+            });
+        }
+
+        var expiringCount = await _db.Deviations
+            .CountAsync(d => d.RegisteredSystemId == systemId
+                && d.Status == DeviationStatus.Approved
+                && d.ExpirationDate <= DateTime.UtcNow.AddDays(30), ct);
+
+        if (expiringCount > 0)
+        {
+            items.Add(new TodoItemDto
+            {
+                Id = "deviation-expiring",
+                Label = $"Renew {expiringCount} expiring deviation{(expiringCount > 1 ? "s" : "")}",
+                Detail = "Approved deviations expiring within 30 days",
+                Category = "deviation",
+                Prompt = $"Show deviations expiring soon for {_systemName} and help me extend them",
+                Link = $"/systems/{systemId}/deviations",
+            });
+        }
+
+        var catIAoCount = await _db.Deviations
+            .CountAsync(d => d.RegisteredSystemId == systemId
+                && d.Status == DeviationStatus.Pending
+                && d.CatSeverity == CatSeverity.CatI, ct);
+
+        if (catIAoCount > 0)
+        {
+            items.Add(new TodoItemDto
+            {
+                Id = "deviation-cat-i-ao",
+                Label = $"{catIAoCount} CAT I deviation{(catIAoCount > 1 ? "s" : "")} require your approval",
+                Detail = "CAT I deviations require both ISSM recommendation and AO approval",
+                Category = "deviation",
+                Prompt = $"Show CAT I deviation requests for {_systemName} that need AO approval",
+                Link = $"/systems/{systemId}/deviations",
+            });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Outstanding-info items (Feature 035 — T025)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private async Task AddOutstandingInfoItems(List<TodoItemDto> items, string systemId, CancellationToken ct)
+    {
+        // POA&M items missing scheduled completion dates
+        var poamMissingDates = await _db.PoamItems
+            .CountAsync(p => p.RegisteredSystemId == systemId
+                && p.Status != PoamStatus.Completed
+                && p.ScheduledCompletionDate == null, ct);
+
+        if (poamMissingDates > 0)
+        {
+            items.Add(new TodoItemDto
+            {
+                Id = "outstanding-poam-dates",
+                Label = $"{poamMissingDates} POA&M item{(poamMissingDates > 1 ? "s" : "")} missing completion dates",
+                Detail = "POA&M entries need scheduled completion dates for authorization review",
+                Category = "outstanding-info",
+                Prompt = $"Which POA&M items for {_systemName} are missing completion dates?",
+                Link = $"/remediation",
+            });
+        }
+
+        // Deviations without evidence
+        var devNoEvidence = await _db.Deviations
+            .CountAsync(d => d.RegisteredSystemId == systemId
+                && d.Status == DeviationStatus.Approved
+                && (d.EvidenceReferences == null || d.EvidenceReferences == "[]"), ct);
+
+        if (devNoEvidence > 0)
+        {
+            items.Add(new TodoItemDto
+            {
+                Id = "outstanding-deviation-evidence",
+                Label = $"{devNoEvidence} deviation{(devNoEvidence > 1 ? "s" : "")} without evidence",
+                Detail = "Approved deviations should have supporting evidence attached",
+                Category = "outstanding-info",
+                Prompt = $"Show deviations for {_systemName} that are missing evidence",
+                Link = $"/systems/{systemId}/deviations",
+            });
+        }
+
+        // Authorization decision missing expiration
+        var authNoExpiry = await _db.AuthorizationDecisions
+            .CountAsync(a => a.RegisteredSystemId == systemId
+                && a.ExpirationDate == null, ct);
+
+        if (authNoExpiry > 0)
+        {
+            items.Add(new TodoItemDto
+            {
+                Id = "outstanding-auth-expiry",
+                Label = "Authorization decision missing expiration date",
+                Detail = "Set an expiration date for the authorization to enable monitoring alerts",
+                Category = "outstanding-info",
+                Prompt = $"Help me set an expiration date on the authorization decision for {_systemName}",
             });
         }
     }

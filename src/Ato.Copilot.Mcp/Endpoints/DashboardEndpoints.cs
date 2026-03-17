@@ -1689,6 +1689,12 @@ public static class DashboardEndpoints
                     .OrderBy(s => s.SectionNumber)
                     .ToListAsync(ct);
 
+                // Active waivers (Feature 035)
+                var activeWaiverCount = await context.Deviations
+                    .CountAsync(d => d.RegisteredSystemId == systemId
+                        && d.DeviationType == DeviationType.Waiver
+                        && (d.Status == DeviationStatus.Pending || d.Status == DeviationStatus.Approved), ct);
+
                 // Narrative governance
                 var narrativeStatuses = await context.ControlImplementations
                     .Where(ci => ci.RegisteredSystemId == systemId)
@@ -1809,6 +1815,8 @@ public static class DashboardEndpoints
                         ReviewedAt = s.ReviewedAt,
                         Version = s.Version,
                     }).ToList(),
+
+                    ActiveWaiverCount = activeWaiverCount,
 
                     NarrativeGovernance = totalNarratives == 0 ? null : new NarrativeGovernanceInfo
                     {
@@ -1943,6 +1951,18 @@ public static class DashboardEndpoints
                         ComplianceScore = 0,
                     }).ToList();
 
+            var findingDeviationIds = assessment.Findings
+                .Where(f => f.DeviationId != null)
+                .Select(f => f.DeviationId!)
+                .Distinct()
+                .ToList();
+            var deviationTypes = findingDeviationIds.Count > 0
+                ? await context.Deviations
+                    .Where(d => findingDeviationIds.Contains(d.Id))
+                    .Select(d => new { d.Id, Type = d.DeviationType.ToString() })
+                    .ToDictionaryAsync(d => d.Id, d => d.Type, ct)
+                : new Dictionary<string, string>();
+
             var findingDtos = assessment.Findings
                 .OrderBy(f => f.ControlId)
                 .Select(f => new AssessmentFindingDto
@@ -1958,6 +1978,8 @@ public static class DashboardEndpoints
                     ResourceId = f.ResourceId,
                     RemediationGuidance = f.RemediationGuidance,
                     DiscoveredAt = f.DiscoveredAt,
+                    DeviationId = f.DeviationId,
+                    DeviationType = f.DeviationId != null && deviationTypes.TryGetValue(f.DeviationId, out var dt) ? dt : null,
                 }).ToList();
 
             // Compute severity counts
@@ -2672,6 +2694,7 @@ public static class DashboardEndpoints
                     p.Comments,
                     p.FindingId,
                     p.RemediationTaskId,
+                    p.DeviationId,
                     isOverdue = p.Status != PoamStatus.Completed &&
                                 p.Status != PoamStatus.RiskAccepted &&
                                 p.ScheduledCompletionDate < DateTime.UtcNow,
@@ -3229,6 +3252,214 @@ public static class DashboardEndpoints
             return Results.Ok(new { updated = poams.Count, status = newStatus.ToString() });
         })
         .WithName("BulkUpdatePoamStatus");
+
+        // ─── Deviation CRUD (Feature 035) ────────────────────────────────────
+
+        group.MapGet("/systems/{systemId}/deviations", async (
+                string systemId,
+                string? type,
+                string? status,
+                string? severity,
+                string? search,
+                int? expiringWithinDays,
+                int? page,
+                int? pageSize,
+                IDeviationService deviationService,
+                CancellationToken ct) =>
+            {
+                var result = await deviationService.ListDeviationsAsync(
+                    systemId, type, status, severity, search, expiringWithinDays,
+                    page ?? 1, pageSize ?? 50, ct);
+                return Results.Ok(result);
+            })
+            .WithName("ListDeviations");
+
+        group.MapGet("/systems/{systemId}/deviations/summary", async (
+                string systemId,
+                IDeviationService deviationService,
+                CancellationToken ct) =>
+            {
+                var result = await deviationService.GetDeviationSummaryAsync(systemId, ct);
+                return Results.Ok(result);
+            })
+            .WithName("GetDeviationSummary");
+
+        group.MapGet("/deviations/{deviationId}", async (
+                string deviationId,
+                IDeviationService deviationService,
+                CancellationToken ct) =>
+            {
+                var detail = await deviationService.GetDeviationDetailAsync(deviationId, ct);
+                if (detail is null)
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = "Deviation not found",
+                        ErrorCode = "DEVIATION_NOT_FOUND",
+                        Suggestion = "Check the deviation ID and try again",
+                    });
+                return Results.Ok(detail);
+            })
+            .WithName("GetDeviationDetail");
+
+        group.MapPost("/systems/{systemId}/deviations", async (
+                string systemId,
+                CreateDeviationRequest request,
+                IDeviationService deviationService,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    var deviation = await deviationService.CreateDeviationAsync(
+                        systemId, request, "dashboard-user", ct);
+                    return Results.Created($"/api/dashboard/deviations/{deviation.Id}", deviation);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("DUPLICATE_DEVIATION"))
+                {
+                    return Results.Conflict(new ErrorResponse
+                    {
+                        Error = "Duplicate active deviation",
+                        ErrorCode = "DUPLICATE_DEVIATION",
+                        Details = ex.Message,
+                        Suggestion = "Revoke or wait for the existing deviation to expire before creating a new one",
+                    });
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+                {
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = "System not found",
+                        ErrorCode = "SYSTEM_NOT_FOUND",
+                        Suggestion = "Check the system ID and try again",
+                    });
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "Invalid request",
+                        ErrorCode = "VALIDATION_ERROR",
+                        Details = ex.Message,
+                    });
+                }
+            })
+            .WithName("CreateDeviation");
+
+        // ─── Deviation Workflow (Feature 035) ────────────────────────────────
+
+        group.MapPut("/deviations/{deviationId}/review", async (
+                string deviationId,
+                ReviewDeviationRequest request,
+                string? reviewerRole,
+                IDeviationService deviationService,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    var result = await deviationService.ReviewDeviationAsync(
+                        deviationId, request, "dashboard-user", reviewerRole ?? "ISSM", ct);
+                    return Results.Ok(result);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("NOT_PENDING"))
+                {
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "Deviation is not pending",
+                        ErrorCode = "NOT_PENDING",
+                        Details = ex.Message,
+                    });
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+                {
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = "Deviation not found",
+                        ErrorCode = "DEVIATION_NOT_FOUND",
+                    });
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "Invalid decision",
+                        ErrorCode = "INVALID_DECISION",
+                        Details = ex.Message,
+                    });
+                }
+            })
+            .WithName("ReviewDeviation");
+
+        group.MapPut("/deviations/{deviationId}/revoke", async (
+                string deviationId,
+                RevokeDeviationRequest request,
+                IDeviationService deviationService,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    var result = await deviationService.RevokeDeviationAsync(
+                        deviationId, request, "dashboard-user", ct);
+                    return Results.Ok(result);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("NOT_APPROVED"))
+                {
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "Deviation is not approved",
+                        ErrorCode = "NOT_APPROVED",
+                        Details = ex.Message,
+                    });
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+                {
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = "Deviation not found",
+                        ErrorCode = "DEVIATION_NOT_FOUND",
+                    });
+                }
+            })
+            .WithName("RevokeDeviation");
+
+        group.MapPut("/deviations/{deviationId}/extend", async (
+                string deviationId,
+                ExtendDeviationRequest request,
+                IDeviationService deviationService,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    var result = await deviationService.ExtendDeviationAsync(
+                        deviationId, request, "dashboard-user", ct);
+                    return Results.Ok(result);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("NOT_APPROVED"))
+                {
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "Deviation must be approved to extend",
+                        ErrorCode = "NOT_APPROVED",
+                        Details = ex.Message,
+                    });
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+                {
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = "Deviation not found",
+                        ErrorCode = "DEVIATION_NOT_FOUND",
+                    });
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "Invalid extension request",
+                        ErrorCode = "VALIDATION_ERROR",
+                        Details = ex.Message,
+                    });
+                }
+            })
+            .WithName("ExtendDeviation");
 
         return app;
     }

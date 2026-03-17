@@ -134,6 +134,9 @@ public class KeyMetricsDto
 
     /// <summary>Percentage of baseline controls with narratives.</summary>
     public double NarrativeCoverage { get; init; }
+
+    /// <summary>Count of active (Pending or Approved) deviations for this system.</summary>
+    public int ActiveDeviations { get; init; }
 }
 
 /// <summary>

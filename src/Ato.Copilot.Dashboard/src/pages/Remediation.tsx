@@ -831,6 +831,17 @@ export default function Remediation() {
                   </div>
                 )}
 
+                {/* Deviation Link (Feature 035) */}
+                {selectedPoam.status === 'RiskAccepted' && selectedPoam.deviationId && (
+                  <Link
+                    to={`/systems/${selectedPoam.registeredSystemId}/deviations`}
+                    className="flex items-center gap-2 rounded-md border border-purple-200 bg-purple-50 p-3 hover:bg-purple-100 transition-colors"
+                  >
+                    <span className="text-xs font-semibold text-purple-700 uppercase tracking-wider">View Deviation</span>
+                    <span className="text-xs text-purple-600">→</span>
+                  </Link>
+                )}
+
                 {/* Comments */}
                 {selectedPoam.comments && (
                   <div>

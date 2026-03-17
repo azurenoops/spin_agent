@@ -65,9 +65,12 @@ export default function GapAnalysis() {
       </nav>
 
       {/* Summary metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <MetricCard title="Total Controls" value={data.totalBaselineControls} subtitle={`${data.baselineLevel} baseline`} />
         <MetricCard title="Covered" value={data.coveredControls} subtitle="With capability mapping" />
+        {data.waivedControls > 0 && (
+          <MetricCard title="Waived" value={data.waivedControls} subtitle="Excluded by waiver" />
+        )}
         <MetricCard title="Gaps" value={data.gapCount} subtitle="Unmapped controls" />
         <MetricCard title="Coverage" value={`${data.coveragePercent}%`} subtitle={criticalFamilies > 0 ? `${criticalFamilies} families below 50%` : 'All families above 50%'} />
       </div>

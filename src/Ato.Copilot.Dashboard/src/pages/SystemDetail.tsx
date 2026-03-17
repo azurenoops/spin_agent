@@ -198,7 +198,7 @@ export default function SystemDetail() {
       </div>
 
       {/* Key Metrics */}
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <MetricCard
           title="Compliance Score"
           value={`${km.complianceScore.toFixed(1)}%`}
@@ -226,6 +226,13 @@ export default function SystemDetail() {
           value={`${km.narrativeCoverage.toFixed(1)}%`}
           helpKey="narrativeCoverage"
         />
+        <Link to={`/systems/${detail.systemId}/deviations`} className="block">
+          <MetricCard
+            title="Active Deviations"
+            value={km.activeDeviations}
+            severityColor={km.activeDeviations > 0 ? 'purple' : undefined}
+          />
+        </Link>
         <FindingsSeverityCard
           catI={km.catIFindings}
           catII={km.catIIFindings}

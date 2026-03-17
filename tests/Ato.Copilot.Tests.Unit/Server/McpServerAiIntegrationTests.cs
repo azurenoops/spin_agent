@@ -446,7 +446,7 @@ public class McpServerAiIntegrationTests
             new CheckEvidenceCompletenessTool(Mock.Of<IAssessmentArtifactService>(), Mock.Of<ILogger<CheckEvidenceCompletenessTool>>()),
             new GenerateSarTool(Mock.Of<IAssessmentArtifactService>(), Mock.Of<ILogger<GenerateSarTool>>()),
             new IssueAuthorizationTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<IssueAuthorizationTool>>()),
-            new AcceptRiskTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<AcceptRiskTool>>()),
+            new AcceptRiskTool(Mock.Of<IDeviationService>(), Mock.Of<ILogger<AcceptRiskTool>>()),
             new ShowRiskRegisterTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<ShowRiskRegisterTool>>()),
             new CreatePoamTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<CreatePoamTool>>()),
             new ListPoamTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<ListPoamTool>>()),

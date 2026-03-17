@@ -476,6 +476,11 @@ export default function Assessments() {
                                             <SeverityBadge severity={f.severity} />
                                             <span className="font-mono text-gray-500">{f.controlId}</span>
                                             <span className="text-gray-800">{f.title}</span>
+                                            {f.deviationId && f.deviationType && (
+                                              <span className="inline-flex items-center rounded-full border border-dashed border-purple-300 bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700">
+                                                {f.deviationType === 'FalsePositive' ? 'False Positive' : 'Risk Accepted'}
+                                              </span>
+                                            )}
                                           </div>
                                           <p className="mt-1 text-gray-500 pl-1">{f.description}</p>
                                           {f.remediationGuidance && (

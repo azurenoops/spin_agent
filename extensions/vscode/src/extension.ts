@@ -74,6 +74,16 @@ export function activate(context: vscode.ExtensionContext): void {
     )
   );
 
+  // Request False Positive — opens justification input and calls deviation MCP tool
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ato.requestFalsePositive", async () => {
+      const { requestFalsePositive } = await import(
+        "./commands/requestFalsePositive"
+      );
+      await requestFalsePositive(mcpClient);
+    })
+  );
+
   // Save template internal command (for stream.button() actions)
   context.subscriptions.push(
     vscode.commands.registerCommand(

@@ -5,6 +5,7 @@ using Xunit;
 using FluentAssertions;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Kanban;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Roadmap;
 using Ato.Copilot.Core.Services;
 
@@ -32,7 +33,8 @@ public class RoadmapServiceTests : IDisposable
             new CapabilityService(
                 _context,
                 Mock.Of<ILogger<CapabilityService>>(),
-                new NarrativeTemplateService()),
+                new NarrativeTemplateService(),
+                Mock.Of<IDeviationService>()),
             Mock.Of<ILogger<RoadmapService>>());
     }
 

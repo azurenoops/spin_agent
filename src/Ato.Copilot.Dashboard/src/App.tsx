@@ -11,6 +11,7 @@ import Documents from './pages/Documents';
 import Assessments from './pages/Assessments';
 import Remediation from './pages/Remediation';
 import Narratives from './pages/Narratives';
+import DeviationsPage from './pages/DeviationsPage';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
 import { SettingsContext, useSettingsProvider } from './hooks/useSettings';
@@ -45,6 +46,7 @@ function AppContent() {
         <Route path="/assessments" element={<Assessments />} />
         <Route path="/remediation" element={<Remediation />} />
         <Route path="/systems/:id/narratives" element={<Narratives />} />
+        <Route path="/systems/:id/deviations" element={<DeviationsPage />} />
       </Routes>
       <ChatPanel
         isOpen={panelState.isOpen}

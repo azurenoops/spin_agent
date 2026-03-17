@@ -971,6 +971,11 @@ public class ComplianceFinding
     /// Null for manually-created findings. See data-model.md §Modified Entities.
     /// </summary>
     public string? ImportRecordId { get; set; }
+
+    // ─── New Properties (Feature 035 — Deviation Management) ──────────────
+
+    /// <summary>FK → Deviation (optional link to active deviation record).</summary>
+    public string? DeviationId { get; set; }
 }
 
 /// <summary>

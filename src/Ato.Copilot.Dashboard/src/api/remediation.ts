@@ -29,6 +29,7 @@ export interface PoamItem {
   comments: string | null;
   findingId: string | null;
   remediationTaskId: string | null;
+  deviationId: string | null;
   createdAt: string;
   isOverdue: boolean;
   daysRemaining: number | null;

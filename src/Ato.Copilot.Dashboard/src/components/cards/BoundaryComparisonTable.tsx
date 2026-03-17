@@ -7,6 +7,8 @@ interface BoundaryComparisonTableProps {
 export function BoundaryComparisonTable({ items }: BoundaryComparisonTableProps) {
   if (items.length === 0) return null;
 
+  const hasWaivedControls = items.some((item) => item.waivedControls > 0);
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
       <table className="w-full text-sm">
@@ -16,6 +18,7 @@ export function BoundaryComparisonTable({ items }: BoundaryComparisonTableProps)
             <th className="text-left px-4 py-2 font-medium text-gray-700">Type</th>
             <th className="text-right px-4 py-2 font-medium text-gray-700">Controls</th>
             <th className="text-right px-4 py-2 font-medium text-gray-700">Covered</th>
+            {hasWaivedControls && <th className="text-right px-4 py-2 font-medium text-gray-700">Waived</th>}
             <th className="text-right px-4 py-2 font-medium text-gray-700">Gaps</th>
             <th className="text-right px-4 py-2 font-medium text-gray-700">Coverage</th>
           </tr>
@@ -36,6 +39,7 @@ export function BoundaryComparisonTable({ items }: BoundaryComparisonTableProps)
               <td className="px-4 py-2 text-gray-600">{item.boundaryType}</td>
               <td className="px-4 py-2 text-right text-gray-900">{item.totalControls}</td>
               <td className="px-4 py-2 text-right text-green-700">{item.coveredControls}</td>
+              {hasWaivedControls && <td className="px-4 py-2 text-right text-purple-600">{item.waivedControls}</td>}
               <td className="px-4 py-2 text-right text-red-600">{item.gapCount}</td>
               <td className="px-4 py-2 text-right">
                 <span

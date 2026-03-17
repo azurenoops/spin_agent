@@ -64,8 +64,22 @@
         "command": "ato.followUpSuggestion",
         "title": "ATO Copilot: Follow-Up Suggestion",
         "category": "ATO Copilot"
+      },
+      {
+        "command": "ato.requestFalsePositive",
+        "title": "ATO Copilot: Request False Positive",
+        "category": "ATO Copilot"
       }
     ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "ato.requestFalsePositive",
+          "when": "editorTextFocus",
+          "group": "ATO Copilot"
+        }
+      ]
+    },
     "configuration": {
       "title": "ATO Copilot",
       "properties": {

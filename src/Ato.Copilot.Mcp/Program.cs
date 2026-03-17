@@ -536,6 +536,10 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
 
     // Roadmap services (Feature 031)
     services.AddScoped<Ato.Copilot.Core.Interfaces.Roadmap.IRoadmapService, Ato.Copilot.Core.Services.RoadmapService>();
+
+    // Deviation services (Feature 035)
+    services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IDeviationService, Ato.Copilot.Core.Services.DeviationService>();
+    services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.DeviationExpirationService>();
 }
 
 // ────────────────────────────────────────────────────────────────
