@@ -27,44 +27,111 @@ public class BoundaryDefinitionService
     public async Task<List<BoundaryDefinitionDto>> ListAsync(
         string systemId, CancellationToken ct = default)
     {
+        // Check if a Primary boundary exists — if not, null-boundary assignments
+        // are counted toward all boundaries (they belong to the system as a whole).
+        var hasPrimary = await _db.AuthorizationBoundaryDefinitions
+            .AnyAsync(b => b.RegisteredSystemId == systemId && b.IsPrimary, ct);
+
         var boundaries = await _db.AuthorizationBoundaryDefinitions
             .Where(b => b.RegisteredSystemId == systemId)
             .OrderByDescending(b => b.IsPrimary)
             .ThenBy(b => b.Name)
-            .Select(b => new BoundaryDefinitionDto(
-                b.Id,
-                b.RegisteredSystemId,
-                b.Name,
-                b.BoundaryType.ToString(),
-                b.Description,
-                b.IsPrimary,
-                b.AuthorizationBoundaries.Count,
-                b.SystemComponents.Count,
-                0m, // CoveragePercent computed separately
-                b.CreatedAt))
+            .Select(b => new
+            {
+                Boundary = b,
+                ResourceCount = b.AuthorizationBoundaries.Count,
+                // Total org-wide component count for this boundary
+                TotalComponents =
+                    _db.ComponentSystemAssignments.Count(a =>
+                        a.AuthorizationBoundaryDefinitionId == b.Id)
+                    + ((b.IsPrimary || !hasPrimary)
+                        ? _db.ComponentSystemAssignments.Count(a =>
+                            a.RegisteredSystemId == systemId
+                            && a.AuthorizationBoundaryDefinitionId == null)
+                        : 0),
+                // Components with at least one capability link
+                CoveredComponents =
+                    _db.ComponentSystemAssignments
+                        .Where(a =>
+                            a.AuthorizationBoundaryDefinitionId == b.Id
+                            || ((b.IsPrimary || !hasPrimary)
+                                && a.RegisteredSystemId == systemId
+                                && a.AuthorizationBoundaryDefinitionId == null))
+                        .Select(a => a.SystemComponent)
+                        .Distinct()
+                        .Count(c => c.CapabilityLinks.Any()),
+            })
             .ToListAsync(ct);
 
-        return boundaries;
+        return boundaries.Select(r => new BoundaryDefinitionDto(
+            r.Boundary.Id,
+            r.Boundary.RegisteredSystemId,
+            r.Boundary.Name,
+            r.Boundary.BoundaryType.ToString(),
+            r.Boundary.Description,
+            r.Boundary.IsPrimary,
+            r.ResourceCount,
+            r.TotalComponents,
+            r.TotalComponents > 0
+                ? Math.Round((decimal)r.CoveredComponents / r.TotalComponents * 100, 1)
+                : 0m,
+            r.Boundary.CreatedAt)).ToList();
     }
 
     /// <summary>Get a single boundary definition by ID.</summary>
     public async Task<BoundaryDefinitionDto?> GetByIdAsync(
         string id, CancellationToken ct = default)
     {
-        return await _db.AuthorizationBoundaryDefinitions
+        var boundary = await _db.AuthorizationBoundaryDefinitions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == id, ct);
+        if (boundary is null) return null;
+
+        var hasPrimary = await _db.AuthorizationBoundaryDefinitions
+            .AnyAsync(b => b.RegisteredSystemId == boundary.RegisteredSystemId && b.IsPrimary, ct);
+
+        var raw = await _db.AuthorizationBoundaryDefinitions
             .Where(b => b.Id == id)
-            .Select(b => new BoundaryDefinitionDto(
-                b.Id,
-                b.RegisteredSystemId,
-                b.Name,
-                b.BoundaryType.ToString(),
-                b.Description,
-                b.IsPrimary,
-                b.AuthorizationBoundaries.Count,
-                b.SystemComponents.Count,
-                0m,
-                b.CreatedAt))
+            .Select(b => new
+            {
+                Boundary = b,
+                ResourceCount = b.AuthorizationBoundaries.Count,
+                TotalComponents =
+                    _db.ComponentSystemAssignments.Count(a =>
+                        a.AuthorizationBoundaryDefinitionId == b.Id)
+                    + ((b.IsPrimary || !hasPrimary)
+                        ? _db.ComponentSystemAssignments.Count(a =>
+                            a.RegisteredSystemId == b.RegisteredSystemId
+                            && a.AuthorizationBoundaryDefinitionId == null)
+                        : 0),
+                CoveredComponents =
+                    _db.ComponentSystemAssignments
+                        .Where(a =>
+                            a.AuthorizationBoundaryDefinitionId == b.Id
+                            || ((b.IsPrimary || !hasPrimary)
+                                && a.RegisteredSystemId == b.RegisteredSystemId
+                                && a.AuthorizationBoundaryDefinitionId == null))
+                        .Select(a => a.SystemComponent)
+                        .Distinct()
+                        .Count(c => c.CapabilityLinks.Any()),
+            })
             .FirstOrDefaultAsync(ct);
+
+        if (raw is null) return null;
+
+        return new BoundaryDefinitionDto(
+            raw.Boundary.Id,
+            raw.Boundary.RegisteredSystemId,
+            raw.Boundary.Name,
+            raw.Boundary.BoundaryType.ToString(),
+            raw.Boundary.Description,
+            raw.Boundary.IsPrimary,
+            raw.ResourceCount,
+            raw.TotalComponents,
+            raw.TotalComponents > 0
+                ? Math.Round((decimal)raw.CoveredComponents / raw.TotalComponents * 100, 1)
+                : 0m,
+            raw.Boundary.CreatedAt);
     }
 
     /// <summary>Create a new boundary definition for a system.</summary>

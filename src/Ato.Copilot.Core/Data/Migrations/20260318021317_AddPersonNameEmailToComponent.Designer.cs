@@ -3,16 +3,19 @@ using System;
 using Ato.Copilot.Core.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Ato.Copilot.Core.Migrations
+namespace Ato.Copilot.Core.Data.Migrations
 {
     [DbContext(typeof(AtoCopilotContext))]
-    partial class AtoCopilotContextModelSnapshot : ModelSnapshot
+    [Migration("20260318021317_AddPersonNameEmailToComponent")]
+    partial class AddPersonNameEmailToComponent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");

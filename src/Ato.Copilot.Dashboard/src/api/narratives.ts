@@ -51,3 +51,60 @@ export async function bulkUpdateNarratives(
   );
   return data;
 }
+
+export async function saveNarrative(
+  systemId: string,
+  controlId: string,
+  narrative: string,
+): Promise<void> {
+  await apiClient.patch(
+    `/systems/${encodeURIComponent(systemId)}/controls/${encodeURIComponent(controlId)}/narrative`,
+    { narrative },
+  );
+}
+
+export async function regenerateNarrative(
+  systemId: string,
+  controlId: string,
+): Promise<string | null> {
+  const { data } = await apiClient.post<{ narrative: string }>(
+    `/systems/${encodeURIComponent(systemId)}/controls/${encodeURIComponent(controlId)}/regenerate-ai`,
+  );
+  return data.narrative;
+}
+
+export interface AvailableControl {
+  id: string;
+  family: string;
+  title: string;
+}
+
+export async function getAvailableControls(
+  systemId: string,
+  search?: string,
+): Promise<AvailableControl[]> {
+  const params: Record<string, string> = {};
+  if (search) params.search = search;
+  const { data } = await apiClient.get<AvailableControl[]>(
+    `/systems/${encodeURIComponent(systemId)}/available-controls`,
+    { params },
+  );
+  return data;
+}
+
+export interface CreateNarrativeRequest {
+  controlId: string;
+  narrative?: string;
+  implementationStatus?: string;
+}
+
+export async function createNarrative(
+  systemId: string,
+  request: CreateNarrativeRequest,
+): Promise<NarrativeListItem> {
+  const { data } = await apiClient.post<NarrativeListItem>(
+    `/systems/${encodeURIComponent(systemId)}/narratives`,
+    request,
+  );
+  return data;
+}

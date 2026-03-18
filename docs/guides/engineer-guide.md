@@ -645,3 +645,44 @@ Engineers can manage authorization boundaries through both the dashboard and MCP
 - `@ato create a logical boundary named "Production" for [system]` — create boundary
 - `@ato run boundary gap analysis for [system]` — compare coverage across boundaries
 - `@ato define boundary resources and assign to Production` — assign resources to boundary
+
+---
+
+## Narrative Cascade & AI Regeneration (Feature 036)
+
+### Cascade Regeneration
+
+When a **security capability** or **component** is updated, all linked control narratives are automatically regenerated using deterministic templates. This ensures narratives always reflect the current state of your security posture.
+
+**Triggers:**
+
+- Capability description, provider, or name change
+- Component name, description, or owner change
+- Component assigned to or removed from a system
+
+**Safeguards:**
+
+- **Manually customized** narratives are never overwritten — the cascade skips them
+- A **NarrativeVersion** snapshot is created before each update, preserving the audit trail
+- Each narrative's `CurrentVersion` is incremented after regeneration
+
+### AI-Assisted Narrative Regeneration
+
+For individual control narratives, engineers can request an **AI-generated** narrative via the dashboard:
+
+1. Navigate to a system's Narratives page
+2. Click the **Regenerate with AI** button on a control implementation
+3. The system queries linked capabilities, components, and boundary context
+4. An AI model generates a tailored narrative incorporating all context
+5. A NarrativeVersion is created and the narrative is marked `AiSuggested = true`
+
+!!! note "AI Must Be Enabled"
+    AI regeneration requires Azure OpenAI to be configured (`AzureAi__Enabled=true`). If not configured, the endpoint returns HTTP 503.
+
+### Capability Coverage View
+
+The Capability Coverage page (`/systems/{systemId}/capability-coverage`) provides a matrix showing how capabilities map to controls for a given system:
+
+- **Summary cards**: Total capabilities, mapped controls, populated/custom/empty narrative counts, coverage percentage
+- **Expandable rows**: Each capability shows its role (Primary/Supporting/Shared), narrative progress, and linked components
+- **Narrative breakdown**: Per-capability counts of populated, custom, empty, and AI-suggested narratives

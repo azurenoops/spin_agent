@@ -9,7 +9,9 @@ import {
   createCapability,
   updateCapability,
   deleteCapability,
+  getCapabilityImpactPreview,
 } from '../api/capabilities';
+import type { CapabilityImpactPreview } from '../api/capabilities';
 import type {
   SecurityCapabilityDto,
   CreateCapabilityRequest,
@@ -40,6 +42,8 @@ export default function CapabilityLibrary() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [impactPreview, setImpactPreview] = useState<CapabilityImpactPreview | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<CreateCapabilityRequest | null>(null);
 
   const fetcher = useCallback(
     () => getCapabilities({ search: search || undefined, category: categoryFilter || undefined, status: statusFilter || undefined }),
@@ -64,11 +68,37 @@ export default function CapabilityLibrary() {
 
   const handleUpdate = async (req: CreateCapabilityRequest) => {
     if (!editingCap) return;
+    // Check if description/provider changed — if so, show impact preview first
+    const descChanged = req.description !== editingCap.description || req.provider !== editingCap.provider;
+    if (descChanged && !impactPreview) {
+      setSubmitting(true);
+      setFormError(null);
+      try {
+        const preview = await getCapabilityImpactPreview(editingCap.id);
+        if (preview.totalNarratives > 0) {
+          setImpactPreview(preview);
+          setPendingUpdate(req);
+          return;
+        }
+        // No affected narratives — proceed directly
+      } catch {
+        // Preview failed — proceed with update anyway
+      } finally {
+        setSubmitting(false);
+      }
+    }
+    await executeUpdate(req);
+  };
+
+  const executeUpdate = async (req: CreateCapabilityRequest) => {
+    if (!editingCap) return;
     setSubmitting(true);
     setFormError(null);
     try {
       await updateCapability(editingCap.id, req);
       setEditingCap(null);
+      setImpactPreview(null);
+      setPendingUpdate(null);
       refresh();
     } catch (err: any) {
       setFormError(err?.response?.data?.error ?? 'Failed to update capability');
@@ -155,6 +185,57 @@ export default function CapabilityLibrary() {
               isSubmitting={submitting}
               error={formError}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Impact preview modal */}
+      {impactPreview && pendingUpdate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold mb-3">Narrative Impact Preview</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Changing this capability will regenerate narratives across {impactPreview.totalSystems} system{impactPreview.totalSystems !== 1 ? 's' : ''}.
+            </p>
+            <div className="bg-gray-50 rounded p-3 mb-4 text-sm space-y-1">
+              <div className="flex justify-between"><span>Narratives to regenerate:</span><span className="font-medium">{impactPreview.totalNarratives}</span></div>
+              <div className="flex justify-between"><span>Custom narratives (skipped):</span><span className="font-medium">{impactPreview.customSkipped}</span></div>
+            </div>
+            {impactPreview.bySystem.length > 0 && (
+              <table className="w-full text-sm mb-4">
+                <thead>
+                  <tr className="border-b text-left text-gray-500">
+                    <th className="pb-1">System</th>
+                    <th className="pb-1 text-right">Regenerate</th>
+                    <th className="pb-1 text-right">Skipped</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {impactPreview.bySystem.map((s) => (
+                    <tr key={s.systemId} className="border-b last:border-0">
+                      <td className="py-1">{s.systemName ?? s.systemId}</td>
+                      <td className="py-1 text-right">{s.narrativeCount}</td>
+                      <td className="py-1 text-right">{s.customSkipped}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setImpactPreview(null); setPendingUpdate(null); }}
+                className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeUpdate(pendingUpdate)}
+                disabled={submitting}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitting ? 'Saving...' : 'Confirm & Save'}
+              </button>
+            </div>
           </div>
         </div>
       )}

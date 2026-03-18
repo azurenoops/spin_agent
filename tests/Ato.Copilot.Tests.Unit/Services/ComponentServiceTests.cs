@@ -27,7 +27,7 @@ public class ComponentServiceTests : IDisposable
             .Options;
         _db = new AtoCopilotContext(_dbOptions);
         var logger = Mock.Of<ILogger<ComponentService>>();
-        _sut = new ComponentService(_db, logger);
+        _sut = new ComponentService(_db, logger, new NarrativeTemplateService());
 
         SeedData();
     }
@@ -380,5 +380,175 @@ public class ComponentServiceTests : IDisposable
 
         await _db.SaveChangesAsync();
         return entity;
+    }
+
+    // ─── Component Cascade Tests ─────────────────────────────────────────────
+
+    private async Task<string> SeedCascadeData()
+    {
+        var comp = new SystemComponent
+        {
+            Id = "comp-cascade",
+            Name = "Old Component Name",
+            ComponentType = ComponentType.Thing,
+            Status = ComponentStatus.Active,
+            Description = "Old description",
+            Owner = "Old Owner",
+            CreatedBy = "test",
+        };
+        _db.SystemComponents.Add(comp);
+
+        _db.ComponentCapabilityLinks.Add(new ComponentCapabilityLink
+        {
+            SystemComponentId = comp.Id,
+            SecurityCapabilityId = CapId1,
+        });
+
+        _db.ComponentSystemAssignments.Add(new ComponentSystemAssignment
+        {
+            SystemComponentId = comp.Id,
+            RegisteredSystemId = SystemId,
+            CreatedBy = "test",
+        });
+
+        _db.CapabilityControlMappings.Add(new CapabilityControlMapping
+        {
+            SecurityCapabilityId = CapId1,
+            ControlId = "ia-2",
+            RegisteredSystemId = SystemId,
+            Role = CapabilityMappingRole.Primary,
+            CreatedBy = "test",
+        });
+
+        _db.NistControls.Add(new NistControl
+        {
+            Id = "ia-2",
+            Title = "Identification and Authentication",
+            Family = "IA",
+            ImpactLevel = "Low",
+        });
+
+        _db.ControlImplementations.Add(new ControlImplementation
+        {
+            Id = "impl-cascade",
+            RegisteredSystemId = SystemId,
+            ControlId = "ia-2",
+            SecurityCapabilityId = CapId1,
+            Narrative = "Original narrative text",
+            IsAutoPopulated = true,
+            AuthoredBy = "test",
+            CurrentVersion = 1,
+        });
+
+        await _db.SaveChangesAsync();
+        return comp.Id;
+    }
+
+    [Fact]
+    public async Task UpdateOrgComponent_NameChange_CascadesNarrativeRegeneration()
+    {
+        var compId = await SeedCascadeData();
+
+        await _sut.UpdateOrgComponentAsync(compId, new CreateComponentRequest
+        {
+            Name = "New Component Name",
+            ComponentType = "Thing",
+            Status = "Active",
+            Description = "Old description",
+            Owner = "Old Owner",
+            LinkedCapabilityIds = [CapId1],
+        });
+
+        var impl = await _db.ControlImplementations.FindAsync("impl-cascade");
+        impl!.Narrative.Should().NotBe("Original narrative text");
+        impl.Narrative.Should().Contain("New Component Name");
+    }
+
+    [Fact]
+    public async Task UpdateOrgComponent_NameChange_CreatesNarrativeVersion()
+    {
+        var compId = await SeedCascadeData();
+
+        await _sut.UpdateOrgComponentAsync(compId, new CreateComponentRequest
+        {
+            Name = "Renamed",
+            ComponentType = "Thing",
+            Status = "Active",
+            Description = "Old description",
+            Owner = "Old Owner",
+            LinkedCapabilityIds = [CapId1],
+        });
+
+        var versions = await _db.NarrativeVersions.ToListAsync();
+        versions.Should().HaveCount(1);
+        versions[0].Content.Should().Be("Original narrative text");
+        versions[0].ChangeReason.Should().Contain("component");
+
+        var impl = await _db.ControlImplementations.FindAsync("impl-cascade");
+        impl!.CurrentVersion.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task UpdateOrgComponent_NoMetadataChange_SkipsCascade()
+    {
+        var compId = await SeedCascadeData();
+
+        await _sut.UpdateOrgComponentAsync(compId, new CreateComponentRequest
+        {
+            Name = "Old Component Name", // same
+            ComponentType = "Person",    // different type, not cascade-triggering
+            Status = "Active",
+            Description = "Old description", // same
+            Owner = "Old Owner",             // same
+            LinkedCapabilityIds = [CapId1],
+        });
+
+        var impl = await _db.ControlImplementations.FindAsync("impl-cascade");
+        impl!.Narrative.Should().Be("Original narrative text"); // unchanged
+    }
+
+    [Fact]
+    public async Task UpdateOrgComponent_ManuallyCustomized_SkipsCascade()
+    {
+        var compId = await SeedCascadeData();
+        var impl = await _db.ControlImplementations.FindAsync("impl-cascade");
+        impl!.IsManuallyCustomized = true;
+        impl.Narrative = "Custom narrative";
+        await _db.SaveChangesAsync();
+
+        await _sut.UpdateOrgComponentAsync(compId, new CreateComponentRequest
+        {
+            Name = "New Name",
+            ComponentType = "Thing",
+            Status = "Active",
+            Description = "Old description",
+            Owner = "Old Owner",
+            LinkedCapabilityIds = [CapId1],
+        });
+
+        impl = await _db.ControlImplementations.FindAsync("impl-cascade");
+        impl!.Narrative.Should().Be("Custom narrative"); // unchanged
+    }
+
+    [Fact]
+    public async Task GetComponentImpactPreview_ReturnsCorrectCounts()
+    {
+        var compId = await SeedCascadeData();
+
+        var preview = await _sut.GetComponentImpactPreviewAsync(compId);
+
+        preview.Should().NotBeNull();
+        preview!.TotalNarratives.Should().Be(1);
+        preview.TotalSystems.Should().Be(1);
+        preview.CustomSkipped.Should().Be(0);
+        preview.BySystem.Should().HaveCount(1);
+        preview.BySystem[0].SystemId.Should().Be(SystemId);
+    }
+
+    [Fact]
+    public async Task GetComponentImpactPreview_NotFound_ReturnsNull()
+    {
+        var preview = await _sut.GetComponentImpactPreviewAsync("nonexistent");
+        preview.Should().BeNull();
     }
 }

@@ -80,3 +80,63 @@ export async function generateCapabilityDescription(
   });
   return data.description;
 }
+
+export interface CapabilityImpactPreview {
+  totalNarratives: number;
+  totalSystems: number;
+  customSkipped: number;
+  bySystem: { systemId: string; systemName: string | null; narrativeCount: number; customSkipped: number }[];
+}
+
+export async function getCapabilityImpactPreview(id: string) {
+  const { data } = await apiClient.get<CapabilityImpactPreview>(
+    `/capabilities/${id}/impact-preview`,
+  );
+  return data;
+}
+
+export interface CapabilityCoverageResponse {
+  systemId: string;
+  systemName: string | null;
+  capabilities: CapabilityCoverageDto[];
+  summary: CoverageSummaryDto;
+}
+
+export interface CapabilityCoverageDto {
+  capabilityId: string;
+  capabilityName: string;
+  provider: string;
+  category: string;
+  implementationStatus: string;
+  owner: string | null;
+  role: string;
+  mappedControlCount: number;
+  narrativeStatus: { populated: number; custom: number; empty: number; aiGenerated: number };
+  components: CoverageComponentDto[];
+}
+
+export interface CoverageComponentDto {
+  componentId: string;
+  name: string;
+  componentType: string;
+  owner: string | null;
+  status: string;
+  boundaryName: string | null;
+  boundaryDefinitionId: string | null;
+}
+
+export interface CoverageSummaryDto {
+  totalCapabilities: number;
+  totalMappedControls: number;
+  totalNarrativesPopulated: number;
+  totalNarrativesCustom: number;
+  totalNarrativesEmpty: number;
+  coveragePercent: number;
+}
+
+export async function getCapabilityCoverage(systemId: string) {
+  const { data } = await apiClient.get<CapabilityCoverageResponse>(
+    `/systems/${systemId}/capability-coverage`,
+  );
+  return data;
+}

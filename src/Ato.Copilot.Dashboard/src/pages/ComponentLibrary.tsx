@@ -1,0 +1,485 @@
+import { useState, useCallback, useEffect } from 'react';
+import PageLayout from '../components/layout/PageLayout';
+import { usePolling } from '../hooks/usePolling';
+import {
+  listComponents,
+  createOrgComponent,
+  updateOrgComponent,
+  deleteOrgComponent,
+  getComponentImpactPreview,
+  type OrgComponentDto,
+  type OrgComponentListResponse,
+  type ComponentImpactPreview,
+} from '../api/components';
+import { getCapabilities } from '../api/capabilities';
+import type { CreateComponentRequest, ComponentType, ComponentStatus, SecurityCapabilityDto } from '../types/dashboard';
+
+const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing'];
+const STATUS_OPTIONS: ComponentStatus[] = ['Active', 'Planned', 'Decommissioned'];
+
+const TYPE_COLORS: Record<string, string> = {
+  Person: 'bg-blue-50 text-blue-700 border-blue-200',
+  Place: 'bg-green-50 text-green-700 border-green-200',
+  Thing: 'bg-purple-50 text-purple-700 border-purple-200',
+};
+
+export default function ComponentLibrary() {
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingComp, setEditingComp] = useState<OrgComponentDto | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [impactPreview, setImpactPreview] = useState<ComponentImpactPreview | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<CreateComponentRequest | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  const fetcher = useCallback(
+    () => listComponents({
+      search: search || undefined,
+      type: typeFilter || undefined,
+      status: statusFilter || undefined,
+    }),
+    [search, typeFilter, statusFilter],
+  );
+  const { data, refresh } = usePolling<OrgComponentListResponse>(fetcher, 30000);
+  const components = data?.items ?? [];
+
+  const handleCreate = async (req: CreateComponentRequest) => {
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await createOrgComponent(req);
+      setShowCreate(false);
+      refresh();
+    } catch (err: any) {
+      setFormError(err?.response?.data?.error ?? 'Failed to create component');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (req: CreateComponentRequest) => {
+    if (!editingComp) return;
+    // Check if name/description/owner changed — if so, check impact
+    const metadataChanged = req.name !== editingComp.name ||
+      req.description !== (editingComp.description ?? '') ||
+      req.owner !== (editingComp.owner ?? '');
+    if (metadataChanged && !impactPreview) {
+      setSubmitting(true);
+      try {
+        const preview = await getComponentImpactPreview(editingComp.id);
+        if (preview.totalNarratives > 0) {
+          setImpactPreview(preview);
+          setPendingUpdate(req);
+          return;
+        }
+      } catch {
+        // Preview failed — proceed anyway
+      } finally {
+        setSubmitting(false);
+      }
+    }
+    await executeUpdate(req);
+  };
+
+  const executeUpdate = async (req: CreateComponentRequest) => {
+    if (!editingComp) return;
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await updateOrgComponent(editingComp.id, req);
+      setEditingComp(null);
+      setImpactPreview(null);
+      setPendingUpdate(null);
+      refresh();
+    } catch (err: any) {
+      setFormError(err?.response?.data?.error ?? 'Failed to update component');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteWithPreview = async (id: string) => {
+    try {
+      const preview = await getComponentImpactPreview(id);
+      if (preview.totalNarratives > 0) {
+        setImpactPreview(preview);
+        setPendingDeleteId(id);
+        setDeleteConfirm(null);
+        return;
+      }
+    } catch {
+      // Preview failed — proceed anyway
+    }
+    await handleDelete(id);
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteOrgComponent(id);
+      setDeleteConfirm(null);
+      setImpactPreview(null);
+      setPendingDeleteId(null);
+      refresh();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <PageLayout title="Component Library">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Component Library</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Org-wide People, Places, and Things — assign to systems with boundary scope
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setShowCreate(true); setFormError(null); }}
+            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            + New Component
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search components..."
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          >
+            <option value="">All Types</option>
+            {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          >
+            <option value="">All Statuses</option>
+            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {data && (
+            <span className="self-center text-sm text-gray-500">
+              {data.totalCount} component{data.totalCount !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {/* Component Cards */}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {components.map((comp) => (
+            <div key={comp.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900 truncate">{comp.name}</h3>
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[comp.componentType] ?? 'bg-gray-50 text-gray-600'}`}>
+                      {comp.componentType}
+                    </span>
+                  </div>
+                  {comp.subType && <p className="text-xs text-gray-500 mt-0.5">{comp.subType}</p>}
+                  {comp.description && <p className="mt-1 text-xs text-gray-600 line-clamp-2">{comp.description}</p>}
+                  {comp.owner && <p className="mt-1 text-xs text-gray-500">Owner: {comp.owner}</p>}
+                </div>
+                <div className="flex gap-1 ml-2">
+                  <button
+                    type="button"
+                    onClick={() => { setEditingComp(comp); setFormError(null); }}
+                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                    title="Edit"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirm(comp.id)}
+                    className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                    title="Delete"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Capability Links */}
+              {comp.capabilityLinks.length > 0 && (
+                <div className="mt-2 border-t border-gray-100 pt-2">
+                  <p className="text-xs font-medium text-gray-500 mb-1">Linked Capabilities</p>
+                  <div className="flex flex-wrap gap-1">
+                    {comp.capabilityLinks.map((cl) => (
+                      <span key={cl.capabilityId} className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
+                        {cl.capabilityName}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {components.length === 0 && !submitting && (
+          <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
+            <p className="text-sm text-gray-500">No components found. Create one to get started.</p>
+          </div>
+        )}
+
+        {/* Create/Edit Modal */}
+        {(showCreate || editingComp) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingComp ? 'Edit Component' : 'Create Component'}
+              </h3>
+              {formError && <p className="mb-3 text-sm text-red-600">{formError}</p>}
+              <ComponentFormInline
+                initial={editingComp}
+                onSubmit={editingComp ? handleUpdate : handleCreate}
+                onCancel={() => { setShowCreate(false); setEditingComp(null); }}
+                submitting={submitting}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirm */}
+        {deleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Component?</h3>
+              <p className="mb-4 text-sm text-gray-600">
+                This will remove the component and all system assignments. Affected narratives will be regenerated.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setDeleteConfirm(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="button" onClick={() => handleDeleteWithPreview(deleteConfirm)} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Delete</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Impact Preview Modal */}
+        {impactPreview && (pendingUpdate || pendingDeleteId) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Narrative Impact Preview</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                This change will regenerate narratives across {impactPreview.totalSystems} system{impactPreview.totalSystems !== 1 ? 's' : ''}.
+              </p>
+              <div className="bg-gray-50 rounded p-3 mb-4 text-sm space-y-1">
+                <div className="flex justify-between"><span>Narratives to regenerate:</span><span className="font-medium">{impactPreview.totalNarratives}</span></div>
+                <div className="flex justify-between"><span>Custom narratives (skipped):</span><span className="font-medium">{impactPreview.customSkipped}</span></div>
+              </div>
+              {impactPreview.bySystem.length > 0 && (
+                <table className="w-full text-sm mb-4">
+                  <thead>
+                    <tr className="border-b text-left text-gray-500">
+                      <th className="pb-1">System</th>
+                      <th className="pb-1 text-right">Regenerate</th>
+                      <th className="pb-1 text-right">Skipped</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {impactPreview.bySystem.map((s) => (
+                      <tr key={s.systemId} className="border-b last:border-0">
+                        <td className="py-1">{s.systemName ?? s.systemId}</td>
+                        <td className="py-1 text-right">{s.narrativeCount}</td>
+                        <td className="py-1 text-right">{s.customSkipped}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setImpactPreview(null); setPendingUpdate(null); setPendingDeleteId(null); }}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pendingUpdate) executeUpdate(pendingUpdate);
+                    else if (pendingDeleteId) handleDelete(pendingDeleteId);
+                  }}
+                  disabled={submitting}
+                  className={`rounded-md px-4 py-2 text-sm text-white disabled:opacity-50 ${
+                    pendingDeleteId ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {submitting ? 'Processing...' : (pendingDeleteId ? 'Confirm Delete' : 'Confirm & Save')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </PageLayout>
+  );
+}
+
+// ─── Inline Form ─────────────────────────────────────────────────────────
+
+function ComponentFormInline({
+  initial,
+  onSubmit,
+  onCancel,
+  submitting,
+}: {
+  initial: OrgComponentDto | null;
+  onSubmit: (req: CreateComponentRequest) => void;
+  onCancel: () => void;
+  submitting: boolean;
+}) {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [componentType, setComponentType] = useState<ComponentType>((initial?.componentType as ComponentType) ?? 'Thing');
+  const [subType, setSubType] = useState(initial?.subType ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [owner, setOwner] = useState(initial?.owner ?? '');
+  const [personName, setPersonName] = useState(initial?.personName ?? '');
+  const [email, setEmail] = useState(initial?.email ?? '');
+  const [status, setStatus] = useState<ComponentStatus>((initial?.status as ComponentStatus) ?? 'Active');
+  const [capabilities, setCapabilities] = useState<SecurityCapabilityDto[]>([]);
+  const [selectedCapIds, setSelectedCapIds] = useState<Set<string>>(
+    new Set(initial?.capabilityLinks.map((cl) => cl.capabilityId) ?? []),
+  );
+  const [capSearch, setCapSearch] = useState('');
+
+  useEffect(() => {
+    getCapabilities({ pageSize: 200 }).then((r) => setCapabilities(r.items)).catch(() => {});
+  }, []);
+
+  const toggleCap = (id: string) => {
+    setSelectedCapIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const filteredCaps = capSearch
+    ? capabilities.filter((c) => c.name.toLowerCase().includes(capSearch.toLowerCase()))
+    : capabilities;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      name,
+      componentType,
+      subType: subType || undefined,
+      description: description || undefined,
+      owner: owner || undefined,
+      personName: componentType === 'Person' ? (personName || undefined) : undefined,
+      email: componentType === 'Person' ? (email || undefined) : undefined,
+      status,
+      linkedCapabilityIds: [...selectedCapIds],
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Name *</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Type *</label>
+          <select value={componentType} onChange={(e) => setComponentType(e.target.value as ComponentType)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+            {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Status *</label>
+          <select value={status} onChange={(e) => setStatus(e.target.value as ComponentStatus)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Sub-Type</label>
+        <input type="text" value={subType} onChange={(e) => setSubType(e.target.value)} maxLength={100} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Description</label>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Owner</label>
+        <input type="text" value={owner} onChange={(e) => setOwner(e.target.value)} maxLength={200} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      {componentType === 'Person' && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Person Name</label>
+            <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} maxLength={200} placeholder="e.g. John Smith" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} placeholder="e.g. john@example.com" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </div>
+        </div>
+      )}
+      {/* Capability Picker */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Linked Capabilities {selectedCapIds.size > 0 && <span className="text-gray-400">({selectedCapIds.size})</span>}
+        </label>
+        <input
+          type="text"
+          value={capSearch}
+          onChange={(e) => setCapSearch(e.target.value)}
+          placeholder="Search capabilities..."
+          className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-1 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <div className="max-h-36 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 p-2 space-y-1">
+          {filteredCaps.length === 0 ? (
+            <p className="text-xs text-gray-400 italic py-1">
+              {capabilities.length === 0 ? 'Loading...' : 'No matching capabilities'}
+            </p>
+          ) : (
+            filteredCaps.map((cap) => (
+              <label key={cap.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white rounded px-1 py-0.5">
+                <input
+                  type="checkbox"
+                  checked={selectedCapIds.has(cap.id)}
+                  onChange={() => toggleCap(cap.id)}
+                  className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="truncate text-gray-700">{cap.name}</span>
+                <span className="ml-auto text-xs text-gray-400 flex-shrink-0">{cap.category}</span>
+              </label>
+            ))
+          )}
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 pt-2">
+        <button type="button" onClick={onCancel} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+        <button type="submit" disabled={submitting || !name} className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+          {submitting ? 'Saving...' : (initial ? 'Update' : 'Create')}
+        </button>
+      </div>
+    </form>
+  );
+}
