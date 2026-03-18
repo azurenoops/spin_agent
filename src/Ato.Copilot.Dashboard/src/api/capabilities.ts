@@ -140,3 +140,18 @@ export async function getCapabilityCoverage(systemId: string) {
   );
   return data;
 }
+
+export interface BulkRegenerateResult {
+  totalControls: number;
+  regenerated: number;
+  skippedCustom: number;
+  failed: number;
+  regeneratedControlIds: string[];
+}
+
+export async function bulkRegenerateNarratives(systemId: string, capabilityId: string) {
+  const { data } = await apiClient.post<BulkRegenerateResult>(
+    `/systems/${systemId}/capabilities/${capabilityId}/bulk-regenerate`,
+  );
+  return data;
+}

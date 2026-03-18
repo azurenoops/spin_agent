@@ -144,6 +144,9 @@ The report shows:
 - Per-control status: `verified`, `unverified`, or `missing`
 - Controls lacking any evidence
 
+!!! tip "Dashboard Evidence Repository"
+    The **Evidence** page in the Compliance Dashboard provides a complementary visual interface for reviewing evidence. Navigate to a system's Evidence page to browse all uploaded and automated evidence artifacts, verify SHA-256 hashes, filter by control family or category, and review version history — without using MCP commands.
+
 ---
 
 ## 5. Compare Assessment Cycles

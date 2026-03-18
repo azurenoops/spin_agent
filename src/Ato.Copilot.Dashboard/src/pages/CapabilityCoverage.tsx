@@ -3,10 +3,13 @@ import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import {
   getCapabilityCoverage,
+  bulkRegenerateNarratives,
   type CapabilityCoverageResponse,
   type CapabilityCoverageDto,
+  type BulkRegenerateResult,
 } from '../api/capabilities';
 import AddCapabilityDialog from '../components/AddCapabilityDialog';
+import EvidenceUploadDialog from '../components/EvidenceUploadDialog';
 
 const ROLE_COLORS: Record<string, string> = {
   Primary: 'bg-indigo-100 text-indigo-700',
@@ -29,7 +32,7 @@ export default function CapabilityCoverage() {
     () => (systemId ? getCapabilityCoverage(systemId) : Promise.reject('No systemId')),
     [systemId],
   );
-  const { data } = usePolling<CapabilityCoverageResponse>(fetcher, 30000);
+  const { data, refresh } = usePolling<CapabilityCoverageResponse>(fetcher, 30000);
 
   if (!data) {
     return (
@@ -82,8 +85,10 @@ export default function CapabilityCoverage() {
             <CapabilityRow
               key={cap.capabilityId}
               capability={cap}
+              systemId={systemId ?? ''}
               isExpanded={expandedId === cap.capabilityId}
               onToggle={() => setExpandedId(expandedId === cap.capabilityId ? null : cap.capabilityId)}
+              onRefresh={refresh}
             />
           ))}
         </div>
@@ -97,6 +102,7 @@ export default function CapabilityCoverage() {
           onClose={() => setShowAddDialog(false)}
           onAdded={() => {
             setShowAddDialog(false);
+            refresh();
           }}
         />
       )}
@@ -115,16 +121,37 @@ function SummaryCard({ label, value, color }: { label: string; value: string | n
 
 function CapabilityRow({
   capability: cap,
+  systemId,
   isExpanded,
   onToggle,
+  onRefresh,
 }: {
   capability: CapabilityCoverageDto;
+  systemId: string;
   isExpanded: boolean;
   onToggle: () => void;
+  onRefresh: () => void;
 }) {
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenResult, setRegenResult] = useState<BulkRegenerateResult | null>(null);
   const ns = cap.narrativeStatus;
   const total = ns.populated + ns.custom + ns.empty;
   const filled = ns.populated + ns.custom;
+
+  const handleBulkRegenerate = async () => {
+    if (!systemId || regenerating) return;
+    setRegenerating(true);
+    setRegenResult(null);
+    try {
+      const result = await bulkRegenerateNarratives(systemId, cap.capabilityId);
+      setRegenResult(result);
+      onRefresh();
+    } catch {
+      setRegenResult({ totalControls: 0, regenerated: 0, skippedCustom: 0, failed: 1, regeneratedControlIds: [] });
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -195,7 +222,129 @@ function CapabilityRow({
             <span>Status: {cap.implementationStatus}</span>
             {cap.owner && <span>Owner: {cap.owner}</span>}
           </div>
+
+          {/* Bulk Regenerate Narratives */}
+          {cap.mappedControlCount > 0 && (
+            <div className="border-t border-gray-100 pt-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleBulkRegenerate}
+                  disabled={regenerating}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {regenerating ? (
+                    <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                    </svg>
+                  )}
+                  {regenerating ? 'Regenerating...' : 'Regenerate Narratives'}
+                </button>
+                {regenResult && (
+                  <span className="text-xs text-gray-600">
+                    {regenResult.failed > 0 ? (
+                      <span className="text-red-600">Regeneration failed</span>
+                    ) : (
+                      <>
+                        <span className="text-green-600 font-medium">{regenResult.regenerated} regenerated</span>
+                        {regenResult.skippedCustom > 0 && (
+                          <span className="text-amber-600 ml-2">{regenResult.skippedCustom} custom skipped</span>
+                        )}
+                      </>
+                    )}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Evidence Section (Feature 038) */}
+          {systemId && (
+            <CapabilityEvidenceSection systemId={systemId} capabilityId={cap.capabilityId} />
+          )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Capability Evidence (inline, Feature 038 US3) ──────────────────────────
+
+function CapabilityEvidenceSection({ systemId, capabilityId }: { systemId: string; capabilityId: string }) {
+  const [showUpload, setShowUpload] = useState(false);
+  const [artifacts, setArtifacts] = useState<{ id: string; fileName: string; artifactCategory: string; uploadedBy: string; uploadedAt: string }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useCallback(() => {}, [refreshKey]); // keep lint happy
+
+  // Lazy-load evidence on mount
+  useState(() => {
+    import('../api/evidence').then(({ listEvidence }) => {
+      listEvidence({ systemId, pageSize: 100 })
+        .then((res) => {
+          const capEvidence = res.items.filter(
+            (e: { securityCapabilityId?: string | null }) => e.securityCapabilityId === capabilityId,
+          );
+          setArtifacts(capEvidence.map((e: { id: string; fileName?: string | null; artifactCategory: string; uploadedBy: string; uploadedAt: string }) => ({
+            id: e.id,
+            fileName: e.fileName ?? 'Evidence',
+            artifactCategory: e.artifactCategory,
+            uploadedBy: e.uploadedBy,
+            uploadedAt: e.uploadedAt,
+          })));
+        })
+        .finally(() => setLoaded(true));
+    });
+  });
+
+  return (
+    <div className="border-t border-gray-100 pt-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-gray-500">
+          Evidence {artifacts.length > 0 && <span className="ml-1 text-blue-600">({artifacts.length})</span>}
+        </p>
+        <button
+          onClick={() => setShowUpload(true)}
+          className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+        >
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Attach
+        </button>
+      </div>
+      {loaded && artifacts.length === 0 && (
+        <p className="mt-2 text-xs text-gray-400 italic">No evidence attached to this capability.</p>
+      )}
+      {artifacts.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {artifacts.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 text-xs text-gray-600">
+              <span className="font-medium">{a.fileName}</span>
+              <span className="text-gray-400">&middot;</span>
+              <span>{a.artifactCategory.replace(/([A-Z])/g, ' $1').trim()}</span>
+              <span className="text-gray-400">&middot;</span>
+              <span>{a.uploadedBy}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {showUpload && (
+        <EvidenceUploadDialog
+          systemId={systemId}
+          securityCapabilityId={capabilityId}
+          onClose={() => setShowUpload(false)}
+          onUploaded={() => {
+            setShowUpload(false);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
       )}
     </div>
   );

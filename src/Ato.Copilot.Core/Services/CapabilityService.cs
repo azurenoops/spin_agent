@@ -706,6 +706,127 @@ public class CapabilityService
         return (narrative, null);
     }
 
+    /// <summary>
+    /// Bulk-regenerates all narratives linked to a capability for a given system.
+    /// Skips manually customized narratives. Uses AI if available, else deterministic.
+    /// </summary>
+    public async Task<BulkRegenerateResult?> BulkRegenerateNarrativesForCapabilityAsync(
+        string systemId,
+        string capabilityId,
+        string modifiedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var systemExists = await _db.RegisteredSystems
+            .AnyAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
+        if (!systemExists) return null;
+
+        var cap = await _db.SecurityCapabilities
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == capabilityId, cancellationToken);
+        if (cap is null) return null;
+
+        // Find all control implementations for this capability + system
+        var impls = await _db.ControlImplementations
+            .Where(ci => ci.RegisteredSystemId == systemId && ci.SecurityCapabilityId == capabilityId)
+            .ToListAsync(cancellationToken);
+
+        if (impls.Count == 0)
+            return new BulkRegenerateResult { TotalControls = 0 };
+
+        // Gather component context once (shared across all controls)
+        var componentContexts = await _db.ComponentCapabilityLinks
+            .Where(cl => cl.SecurityCapabilityId == capabilityId)
+            .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == systemId),
+                cl => cl.SystemComponentId,
+                a => a.SystemComponentId,
+                (cl, a) => new { cl.SystemComponent, a.AuthorizationBoundaryDefinition })
+            .Select(x => new ComponentContext(
+                x.SystemComponent.Name,
+                x.SystemComponent.ComponentType.ToString(),
+                x.SystemComponent.Owner,
+                x.SystemComponent.PersonName))
+            .ToListAsync(cancellationToken);
+
+        var boundaryName = await _db.ComponentSystemAssignments
+            .Where(a => a.RegisteredSystemId == systemId && a.AuthorizationBoundaryDefinition != null)
+            .Select(a => a.AuthorizationBoundaryDefinition!.Name)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        boundaryName ??= await _db.AuthorizationBoundaryDefinitions
+            .Where(b => b.RegisteredSystemId == systemId)
+            .OrderByDescending(b => b.IsPrimary)
+            .Select(b => b.Name)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        int regenerated = 0, skippedCustom = 0, failed = 0;
+        var regeneratedControlIds = new List<string>();
+
+        foreach (var impl in impls)
+        {
+            if (impl.IsManuallyCustomized)
+            {
+                skippedCustom++;
+                continue;
+            }
+
+            var controlId = impl.ControlId;
+            var nist = await _db.NistControls
+                .AsNoTracking()
+                .FirstOrDefaultAsync(n => n.Id == controlId, cancellationToken);
+            var controlTitle = nist?.Title ?? controlId;
+
+            // Try AI first, fall back to deterministic
+            string? narrative = await _narrativeService.GenerateNarrativeWithAiAsync(
+                cap.Name, cap.Provider, cap.Description,
+                controlId, controlTitle,
+                componentContexts.Count > 0 ? componentContexts : null,
+                boundaryName,
+                cancellationToken);
+
+            narrative ??= _narrativeService.GenerateEnrichedNarrative(
+                cap.Name, cap.Provider, cap.Description,
+                controlId, controlTitle,
+                componentContexts.Count > 0 ? componentContexts : null,
+                boundaryName);
+
+            // Save version history
+            var previousNarrative = impl.Narrative;
+            if (previousNarrative is not null)
+            {
+                _db.NarrativeVersions.Add(new NarrativeVersion
+                {
+                    ControlImplementationId = impl.Id,
+                    VersionNumber = impl.CurrentVersion,
+                    Content = previousNarrative,
+                    AuthoredBy = modifiedBy,
+                    ChangeReason = "Bulk regeneration for capability",
+                });
+                impl.CurrentVersion++;
+            }
+
+            impl.Narrative = narrative;
+            impl.AiSuggested = true;
+            impl.ModifiedAt = DateTime.UtcNow;
+            regenerated++;
+            regeneratedControlIds.Add(controlId);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Bulk regenerated {Regenerated} narratives for capability {CapabilityId} in system {SystemId} (skipped {Skipped} custom)",
+            regenerated, capabilityId, systemId, skippedCustom);
+
+        return new BulkRegenerateResult
+        {
+            TotalControls = impls.Count,
+            Regenerated = regenerated,
+            SkippedCustom = skippedCustom,
+            Failed = failed,
+            RegeneratedControlIds = regeneratedControlIds,
+        };
+    }
+
     // ─── Mappings ────────────────────────────────────────────────────────────
 
     /// <summary>

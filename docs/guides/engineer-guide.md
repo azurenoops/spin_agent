@@ -128,6 +128,23 @@ The tool uses **upsert behavior** — calling it again for the same (system_id, 
 
 ---
 
+## Step 3b: Attach Evidence
+
+After authoring a control narrative, attach supporting evidence to strengthen the implementation claim. From the **Compliance Dashboard**, navigate to the control narrative and click **Attach Evidence** to upload:
+
+- **Screenshots** — showing configured settings, enabled security features
+- **Scan results** — ACAS/Nessus/Prisma Cloud output for the control family
+- **Configuration exports** — JSON/XML dumps from Azure Policy, Defender, or Group Policy
+- **Policy documents** — signed ATO memos, SOPs, or operating procedures
+
+You can also click **Collect Evidence** to automatically gather Azure Policy compliance snapshots and Defender assessment results for the control.
+
+Evidence uploaded at the capability level (via the Capability Coverage page) is automatically inherited by all controls mapped to that capability, reducing duplicate uploads.
+
+Browse all evidence for a system on the **Evidence** page in the sidebar.
+
+---
+
 ## Step 4: Track Progress
 
 Monitor SSP completion across all control families:

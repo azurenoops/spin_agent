@@ -141,3 +141,15 @@ public class CoverageSummaryDto
     public int TotalNarrativesEmpty { get; init; }
     public double CoveragePercent { get; init; }
 }
+
+/// <summary>
+/// Result of a bulk narrative regeneration for a capability.
+/// </summary>
+public class BulkRegenerateResult
+{
+    public int TotalControls { get; init; }
+    public int Regenerated { get; init; }
+    public int SkippedCustom { get; init; }
+    public int Failed { get; init; }
+    public List<string> RegeneratedControlIds { get; init; } = [];
+}

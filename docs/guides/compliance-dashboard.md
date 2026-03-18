@@ -377,3 +377,36 @@ The Boundary Management page (`/systems/{id}/boundaries`) provides a dedicated i
 ### Navigation
 
 Access from the System Detail page breadcrumb: Portfolio → System → Boundaries.
+
+## Evidence Repository (Feature 038)
+
+The Evidence Repository provides centralized management of compliance evidence artifacts — screenshots, scan results, configuration exports, policy documents, and audit logs — linked to control implementations and security capabilities.
+
+### Upload Evidence
+
+From any control narrative, click **Attach Evidence** to upload a file. Supported formats: PNG, JPG, PDF, CSV, XLSX, DOCX, JSON, XML, TXT, ZIP (max 25 MB). Select a category and collection method, then optionally add a description.
+
+Evidence can also be attached at the capability level from the Capability Coverage page. Capability-level evidence is automatically inherited by all controls mapped to that capability.
+
+### Evidence Repository Page
+
+Navigate to **Evidence** from the system sidebar. The page provides:
+
+- **Summary bar** — five cards showing total evidence count, manual uploads, automated collections, control coverage percentage, and controls with evidence
+- **Search and filters** — text search across file names and descriptions, plus dropdowns for control family, category, and source (Manual/Automated)
+- **Sortable table** — columns for file name, source, category, control, size, uploader, date, and actions (download, delete)
+- **Pagination** — browse large evidence sets with Previous/Next controls
+
+Click any row to open the **detail panel**, a slide-over showing file preview (images and PDFs), metadata, description, SHA-256 integrity hash, and version history.
+
+### Automated Evidence
+
+Click **Collect Evidence** on a control narrative to trigger automated evidence collection from Azure Policy and Defender for Cloud. Automated evidence appears alongside manual uploads with an "Automated" badge.
+
+### Delete and Replace
+
+Manual evidence can be soft-deleted (click the trash icon) or replaced with a newer version (click **Replace** in the detail panel). Replaced files are retained for a configurable period (default: 365 days) before automatic purge.
+
+### Navigation
+
+Access from the System Detail sidebar: Portfolio → System → Evidence.

@@ -146,6 +146,15 @@ public class ComponentService
 
         _db.SystemComponents.Add(entity);
 
+        // Create system assignment so the component appears in system-scoped queries
+        _db.ComponentSystemAssignments.Add(new ComponentSystemAssignment
+        {
+            SystemComponentId = entity.Id,
+            RegisteredSystemId = systemId,
+            AuthorizationBoundaryDefinitionId = entity.AuthorizationBoundaryDefinitionId,
+            CreatedBy = createdBy,
+        });
+
         // Link capabilities
         foreach (var capId in request.LinkedCapabilityIds)
         {

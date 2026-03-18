@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { getNarratives, bulkUpdateNarratives, saveNarrative, regenerateNarrative, getAvailableControls, createNarrative } from '../api/narratives';
 import type { NarrativeListItem, AvailableControl } from '../api/narratives';
+import EvidenceSection from '../components/EvidenceSection';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -558,6 +559,13 @@ export default function Narratives() {
                               onChange={e => setEditedNarratives(prev => ({ ...prev, [n.controlId]: e.target.value }))}
                               onBlur={e => handleNarrativeBlur(n.controlId, e.target.value, n.narrative)}
                             />
+                            {systemId && (
+                              <EvidenceSection
+                                systemId={systemId}
+                                controlId={n.controlId}
+                                controlImplementationId={n.id}
+                              />
+                            )}
                           </div>
                         </td>
                       </tr>
