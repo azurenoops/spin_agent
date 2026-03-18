@@ -97,6 +97,9 @@ C# .NET 9: Follow standard conventions
 - 037-ssp-document-export: Added C# 12 / .NET 9.0 (backend), TypeScript 5.x / React (frontend) + QuestPDF 2025.7.0 (PDF), DocumentFormat.OpenXml via ZipArchive (DOCX), ClosedXML 0.104.2 (Excel), System.Text.Json (OSCAL), SignalR (real-time), axios (frontend HTTP)
 - 036-risk-solutions: Added C# 9 / .NET 8 (backend), TypeScript / React 18 (dashboard) + EF Core 8 (SQL Server), ASP.NET Minimal APIs, Vite, TailwindCSS
 - 035-deviation-management: Added C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (dashboard), TypeScript 5 / Node.js (M365 Teams + VS Code extensions) + EF Core 9.0, ASP.NET Core Minimal APIs, Serilog, SignalR, Recharts (frontend), @microsoft/signalr (frontend)
+- 036-risk-solutions: Added C# 9 / .NET 8 (backend), TypeScript / React 18 (dashboard) + EF Core 8 (SQL Server), ASP.NET Minimal APIs, Vite, TailwindCSS
+- 035-deviation-management: Added C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (dashboard), TypeScript 5 / Node.js (M365 Teams + VS Code extensions) + EF Core 9.0, ASP.NET Core Minimal APIs, Serilog, SignalR, Recharts (frontend), @microsoft/signalr (frontend)
+- 034-dashboard-chat: Added TypeScript 5.7 / React 19 / C# 13 (.NET 9.0 — backend, no changes expected) + React 19, react-router-dom 7, axios 1.7, react-markdown (new), remark-gfm (new), react-syntax-highlighter (new)
 
 
 <!-- MANUAL ADDITIONS START -->
