@@ -291,13 +291,29 @@ public class DashboardService
 
         // Narrative coverage
         var baselineControlCount = system.ControlBaseline?.TotalControls ?? 0;
-        var narrativeCount = baselineControlCount > 0
-            ? await _db.ControlImplementations
+        int totalControls;
+        int narrativeCount;
+        if (baselineControlCount > 0)
+        {
+            totalControls = baselineControlCount;
+            narrativeCount = await _db.ControlImplementations
                 .Where(ci => ci.RegisteredSystemId == systemId && ci.Narrative != null && ci.Narrative != "")
-                .CountAsync(cancellationToken)
-            : 0;
-        var narrativeCoverage = baselineControlCount > 0
-            ? Math.Round(100.0 * narrativeCount / baselineControlCount, 1)
+                .CountAsync(cancellationToken);
+        }
+        else
+        {
+            // No baseline selected — use total control implementations as denominator
+            totalControls = await _db.ControlImplementations
+                .Where(ci => ci.RegisteredSystemId == systemId)
+                .CountAsync(cancellationToken);
+            narrativeCount = totalControls > 0
+                ? await _db.ControlImplementations
+                    .Where(ci => ci.RegisteredSystemId == systemId && ci.Narrative != null && ci.Narrative != "")
+                    .CountAsync(cancellationToken)
+                : 0;
+        }
+        var narrativeCoverage = totalControls > 0
+            ? Math.Round(100.0 * narrativeCount / totalControls, 1)
             : 0;
 
         // Active deviations (Feature 035)

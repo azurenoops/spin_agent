@@ -595,6 +595,17 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
 
         IF COL_LENGTH('Findings', 'DeviationId') IS NULL
             ALTER TABLE Findings ADD DeviationId NVARCHAR(450) NULL;
+
+        -- Feature 036: Make RegisteredSystemId nullable for org-wide components
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('SystemComponents') AND name = 'RegisteredSystemId' AND is_nullable = 0)
+            ALTER TABLE SystemComponents ALTER COLUMN RegisteredSystemId NVARCHAR(36) NULL;
+
+        -- Person fields on SystemComponents
+        IF COL_LENGTH('SystemComponents', 'PersonName') IS NULL
+            ALTER TABLE SystemComponents ADD PersonName NVARCHAR(200) NULL;
+
+        IF COL_LENGTH('SystemComponents', 'Email') IS NULL
+            ALTER TABLE SystemComponents ADD Email NVARCHAR(200) NULL;
         """;
 
     try
@@ -605,6 +616,37 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     catch (Exception ex)
     {
         logger.LogWarning(ex, "Could not apply schema additions — non-fatal");
+    }
+
+    // Feature 036: Migrate existing system-scoped components to org-wide assignments
+    try
+    {
+        var componentsToMigrate = await db.SystemComponents
+            .Where(c => c.RegisteredSystemId != null)
+            .Where(c => !db.ComponentSystemAssignments.Any(a => a.SystemComponentId == c.Id && a.RegisteredSystemId == c.RegisteredSystemId))
+            .ToListAsync(ct);
+
+        if (componentsToMigrate.Count > 0)
+        {
+            foreach (var comp in componentsToMigrate)
+            {
+                db.ComponentSystemAssignments.Add(new Ato.Copilot.Core.Models.Compliance.ComponentSystemAssignment
+                {
+                    SystemComponentId = comp.Id,
+                    RegisteredSystemId = comp.RegisteredSystemId!,
+                    AuthorizationBoundaryDefinitionId = comp.AuthorizationBoundaryDefinitionId,
+                    CreatedBy = "system-migration",
+                });
+                comp.RegisteredSystemId = null;
+            }
+
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Migrated {Count} system-scoped components to org-wide assignments", componentsToMigrate.Count);
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Could not migrate system-scoped components — non-fatal");
     }
 }
 
@@ -636,7 +678,13 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     services.AddScoped<Ato.Copilot.Core.Services.TodoService>();
     services.AddScoped<Ato.Copilot.Core.Services.CapabilityService>();
     services.AddScoped<Ato.Copilot.Core.Services.ComponentService>();
-    services.AddSingleton<Ato.Copilot.Core.Services.NarrativeTemplateService>();
+    services.AddSingleton<Ato.Copilot.Core.Services.NarrativeTemplateService>(sp =>
+    {
+        var chatClient = sp.GetService<Microsoft.Extensions.AI.IChatClient>();
+        var aiOptions = sp.GetService<Microsoft.Extensions.Options.IOptions<Ato.Copilot.Core.Configuration.AzureAiOptions>>()?.Value;
+        var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<Ato.Copilot.Core.Services.NarrativeTemplateService>>();
+        return new Ato.Copilot.Core.Services.NarrativeTemplateService(chatClient, aiOptions, logger);
+    });
     services.AddSingleton<Ato.Copilot.Core.Services.ComplianceTrendSnapshotService>();
     services.AddHostedService(sp => sp.GetRequiredService<Ato.Copilot.Core.Services.ComplianceTrendSnapshotService>());
 

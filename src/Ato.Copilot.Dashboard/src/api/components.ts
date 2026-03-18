@@ -17,6 +17,8 @@ interface ComponentInventoryResponse {
   totalCount: number;
 }
 
+// ─── System-Scoped (existing) ────────────────────────────────────────────
+
 export async function getComponents(systemId: string, params?: ComponentParams) {
   const { data } = await apiClient.get<ComponentInventoryResponse>(
     `/systems/${systemId}/components`,
@@ -54,4 +56,102 @@ export async function generateComponentDescription(
     subType: subType || undefined,
   });
   return data.description;
+}
+
+// ─── Org-Wide Component Library (Feature 036) ────────────────────────────
+
+export interface OrgComponentDto {
+  id: string;
+  name: string;
+  componentType: string;
+  subType?: string;
+  description?: string;
+  owner?: string;
+  personName?: string;
+  email?: string;
+  status: string;
+  createdAt: string;
+  createdBy?: string;
+  modifiedAt?: string;
+  systemAssignments: SystemAssignmentDto[];
+  capabilityLinks: { capabilityId: string; capabilityName: string }[];
+}
+
+export interface SystemAssignmentDto {
+  id: string;
+  registeredSystemId: string;
+  systemName?: string;
+  boundaryDefinitionId?: string;
+  boundaryName?: string;
+}
+
+export interface OrgComponentListResponse {
+  items: OrgComponentDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+interface OrgComponentParams {
+  search?: string;
+  type?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+interface AssignComponentRequest {
+  registeredSystemId: string;
+  authorizationBoundaryDefinitionId?: string;
+}
+
+export async function listComponents(params?: OrgComponentParams) {
+  const { data } = await apiClient.get<OrgComponentListResponse>('/components', { params });
+  return data;
+}
+
+export async function getComponentById(id: string) {
+  const { data } = await apiClient.get<OrgComponentDto>(`/components/${id}`);
+  return data;
+}
+
+export async function createOrgComponent(request: CreateComponentRequest) {
+  const { data } = await apiClient.post<OrgComponentDto>('/components', request);
+  return data;
+}
+
+export async function updateOrgComponent(id: string, request: CreateComponentRequest) {
+  const { data } = await apiClient.put<OrgComponentDto>(`/components/${id}`, request);
+  return data;
+}
+
+export async function deleteOrgComponent(id: string) {
+  const { data } = await apiClient.delete<DeleteComponentResponse>(`/components/${id}`);
+  return data;
+}
+
+export async function assignToSystem(componentId: string, request: AssignComponentRequest) {
+  const { data } = await apiClient.post<SystemAssignmentDto>(
+    `/components/${componentId}/assignments`,
+    request,
+  );
+  return data;
+}
+
+export async function removeAssignment(componentId: string, assignmentId: string) {
+  await apiClient.delete(`/components/${componentId}/assignments/${assignmentId}`);
+}
+
+export interface ComponentImpactPreview {
+  totalNarratives: number;
+  totalSystems: number;
+  customSkipped: number;
+  bySystem: { systemId: string; systemName: string | null; narrativeCount: number; customSkipped: number }[];
+}
+
+export async function getComponentImpactPreview(id: string) {
+  const { data } = await apiClient.get<ComponentImpactPreview>(
+    `/components/${id}/impact-preview`,
+  );
+  return data;
 }

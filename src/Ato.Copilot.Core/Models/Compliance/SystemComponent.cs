@@ -13,10 +13,9 @@ public class SystemComponent
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
-    /// <summary>FK to RegisteredSystem.</summary>
-    [Required]
+    /// <summary>FK to RegisteredSystem (nullable for org-wide components).</summary>
     [MaxLength(36)]
-    public string RegisteredSystemId { get; set; } = string.Empty;
+    public string? RegisteredSystemId { get; set; }
 
     /// <summary>Component name.</summary>
     [Required]
@@ -39,6 +38,14 @@ public class SystemComponent
     [MaxLength(200)]
     public string? Owner { get; set; }
 
+    /// <summary>Full name of the person (only when ComponentType == Person).</summary>
+    [MaxLength(200)]
+    public string? PersonName { get; set; }
+
+    /// <summary>Email address of the person (only when ComponentType == Person).</summary>
+    [MaxLength(200)]
+    public string? Email { get; set; }
+
     /// <summary>Operational status.</summary>
     [Required]
     public ComponentStatus Status { get; set; } = ComponentStatus.Active;
@@ -56,11 +63,14 @@ public class SystemComponent
 
     // ─── Navigation ──────────────────────────────────────────────────────────
 
-    /// <summary>Parent registered system.</summary>
-    public RegisteredSystem RegisteredSystem { get; set; } = null!;
+    /// <summary>Parent registered system (nullable for org-wide components).</summary>
+    public RegisteredSystem? RegisteredSystem { get; set; }
 
     /// <summary>Capability links (many-to-many via join entity).</summary>
     public ICollection<ComponentCapabilityLink> CapabilityLinks { get; set; } = new List<ComponentCapabilityLink>();
+
+    /// <summary>Org-wide system assignments (many-to-many via join entity).</summary>
+    public ICollection<ComponentSystemAssignment> SystemAssignments { get; set; } = new List<ComponentSystemAssignment>();
 
     // ─── Feature 033: Boundary-Scoped Model ──────────────────────────────────
 

@@ -226,6 +226,9 @@ public class AtoCopilotContext : DbContext
     /// <summary>Join table linking components to capabilities.</summary>
     public DbSet<ComponentCapabilityLink> ComponentCapabilityLinks => Set<ComponentCapabilityLink>();
 
+    /// <summary>Join table linking org-wide components to systems with boundary scope (Feature 036).</summary>
+    public DbSet<ComponentSystemAssignment> ComponentSystemAssignments => Set<ComponentSystemAssignment>();
+
     /// <summary>Point-in-time compliance metric snapshots for trend visualization.</summary>
     public DbSet<ComplianceTrendSnapshot> ComplianceTrendSnapshots => Set<ComplianceTrendSnapshot>();
 
@@ -1979,7 +1982,8 @@ public class AtoCopilotContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasMaxLength(36);
-            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            // RegisteredSystemId is now nullable for org-wide components
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36);
             entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
             entity.Property(e => e.ComponentType).HasConversion<string>().HasMaxLength(20);
             entity.Property(e => e.SubType).HasMaxLength(100);
@@ -1995,7 +1999,40 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.RegisteredSystem)
                 .WithMany()
                 .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ─── ComponentSystemAssignment (Feature 036) ─────────────────────────────
+        modelBuilder.Entity<ComponentSystemAssignment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SystemComponentId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.AuthorizationBoundaryDefinitionId).HasMaxLength(36);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+
+            entity.HasIndex(e => new { e.SystemComponentId, e.RegisteredSystemId, e.AuthorizationBoundaryDefinitionId })
+                .IsUnique()
+                .HasDatabaseName("IX_ComponentSystemAssignment_Unique");
+
+            entity.HasIndex(e => e.RegisteredSystemId)
+                .HasDatabaseName("IX_ComponentSystemAssignment_System");
+
+            entity.HasOne(e => e.SystemComponent)
+                .WithMany(c => c.SystemAssignments)
+                .HasForeignKey(e => e.SystemComponentId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.AuthorizationBoundaryDefinition)
+                .WithMany()
+                .HasForeignKey(e => e.AuthorizationBoundaryDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ─── ComponentCapabilityLink ─────────────────────────────────────────────

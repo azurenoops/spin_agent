@@ -79,6 +79,8 @@ export default function PhaseReadinessPanel({ systemId, onAdvanced }: PhaseReadi
   const getGateAction = (gate: GateResult): { label: string; action: GateAction }[] | null => {
     const name = gate.gateName.toLowerCase();
     const msg = gate.message.toLowerCase();
+    if (name.includes('role'))
+      return [{ label: 'Assign', action: 'roles' }];
     if (name.includes('privacy') && msg.includes('pia'))
       return [{ label: 'Approve PIA', action: 'pia' }];
     if (name.includes('privacy'))

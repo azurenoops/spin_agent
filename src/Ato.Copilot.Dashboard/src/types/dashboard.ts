@@ -283,6 +283,8 @@ export interface SystemComponentDto {
   subType: string | null;
   description: string | null;
   owner: string | null;
+  personName: string | null;
+  email: string | null;
   status: ComponentStatus;
   boundaryDefinitionId: string | null;
   boundaryDefinitionName: string | null;
@@ -297,6 +299,8 @@ export interface CreateComponentRequest {
   subType?: string;
   description?: string;
   owner?: string;
+  personName?: string;
+  email?: string;
   status: ComponentStatus;
   boundaryDefinitionId?: string;
   linkedCapabilityIds?: string[];

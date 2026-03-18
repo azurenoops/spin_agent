@@ -455,3 +455,15 @@ public class BulkNarrativeUpdateRequest
     public string? ApprovalStatus { get; init; }
     public string? UpdatedBy { get; init; }
 }
+
+public class SaveNarrativeRequest
+{
+    public required string Narrative { get; init; }
+}
+
+public class CreateNarrativeRequest
+{
+    public required string ControlId { get; init; }
+    public string? Narrative { get; init; }
+    public string? ImplementationStatus { get; init; }
+}

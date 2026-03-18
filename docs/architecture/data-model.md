@@ -96,6 +96,12 @@ erDiagram
     RoadmapPhase ||--o{ RoadmapItem : contains
     RoadmapItem }o--o| RemediationTask : links
     ImplementationRoadmap ||--o| RemediationBoard : links
+
+    SystemComponent ||--o{ ComponentCapabilityLink : has
+    SystemComponent ||--o{ ComponentSystemAssignment : assigned
+    ComponentCapabilityLink }o--|| SecurityCapability : links
+    ComponentSystemAssignment }o--|| RegisteredSystem : scopes
+    SecurityCapability ||--o{ CapabilityControlMapping : maps
 ```
 
 ---
@@ -1056,12 +1062,12 @@ Maps a security capability to a specific NIST control with a role designation.
 
 ### SystemComponent
 
-Physical or logical element of a system for SSP Appendix A (Person, Place, or Thing).
+Physical or logical element of a system for SSP Appendix A (Person, Place, or Thing). Can be org-wide (nullable `RegisteredSystemId`) and assigned to systems via `ComponentSystemAssignment`.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | Id | string (PK) | GUID identifier |
-| RegisteredSystemId | string (FK) | → RegisteredSystem |
+| RegisteredSystemId | string (FK, nullable) | → RegisteredSystem (null = org-wide, F036) |
 | Name | string (200) | Component name |
 | ComponentType | ComponentType | Person / Place / Thing |
 | SubType | string (100, nullable) | Sub-classification |
@@ -1070,6 +1076,23 @@ Physical or logical element of a system for SSP Appendix A (Person, Place, or Th
 | Status | ComponentStatus | Active / Planned / Decommissioned |
 | CreatedAt, ModifiedAt | DateTime | Timestamps |
 | CreatedBy | string | Audit field |
+
+**Navigation**: `CapabilityLinks` (many ComponentCapabilityLink), `SystemAssignments` (many ComponentSystemAssignment)
+
+### ComponentSystemAssignment (Feature 036)
+
+Assigns an org-wide component to a registered system with optional boundary scope.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID identifier |
+| SystemComponentId | string (FK) | → SystemComponent |
+| RegisteredSystemId | string (FK) | → RegisteredSystem |
+| AuthorizationBoundaryDefinitionId | string (FK, nullable) | → AuthorizationBoundaryDefinition |
+| CreatedAt | DateTime | Creation timestamp |
+| CreatedBy | string | Audit field |
+
+**Indexes**: Unique composite on `(SystemComponentId, RegisteredSystemId)`
 
 ### ComponentCapabilityLink
 
