@@ -118,6 +118,9 @@ export interface SystemDocumentsResponse {
 
   sspSections: SspSectionInfo[];
 
+  // Active waivers (Feature 035)
+  activeWaiverCount: number;
+
   narrativeGovernance: NarrativeGovernanceInfo | null;
 
   importHistory: ScanImportInfo[];

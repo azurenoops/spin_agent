@@ -149,25 +149,26 @@ public class IssueAuthorizationTool : BaseTool
 
 /// <summary>
 /// MCP tool: compliance_accept_risk — Accept risk on a specific finding/control.
+/// Creates a Deviation record (type=RiskAcceptance) and auto-approves it.
 /// RBAC: Compliance.AuthorizingOfficial ONLY
 /// </summary>
 public class AcceptRiskTool : BaseTool
 {
-    private readonly IAuthorizationService _service;
+    private readonly IDeviationService _deviationService;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public AcceptRiskTool(
-        IAuthorizationService service,
+        IDeviationService deviationService,
         ILogger<AcceptRiskTool> logger) : base(logger)
     {
-        _service = service;
+        _deviationService = deviationService;
     }
 
     public override string Name => "compliance_accept_risk";
 
     public override string Description =>
-        "Accept risk on a specific finding and control. Requires an active authorization decision. " +
-        "Supports compensating controls and expiration dates. " +
+        "Accept risk on a specific finding and control. Creates a deviation record (RiskAcceptance) " +
+        "and auto-approves it. Supports compensating controls and expiration dates. " +
         "RBAC: Compliance.AuthorizingOfficial ONLY.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
@@ -212,15 +213,32 @@ public class AcceptRiskTool : BaseTool
 
         try
         {
-            var result = await _service.AcceptRiskAsync(
-                systemId, findingId, controlId, catSeverity, justification,
-                expDate, compensatingControl, "mcp-user", cancellationToken);
+            // Create Deviation with type=RiskAcceptance
+            var request = new CreateDeviationRequest
+            {
+                DeviationType = "RiskAcceptance",
+                ControlId = controlId,
+                CatSeverity = catSeverity,
+                Justification = justification,
+                CompensatingControls = compensatingControl,
+                ExpirationDate = expDate,
+                ReviewCycle = "180d",
+                FindingId = findingId,
+            };
+
+            var deviation = await _deviationService.CreateDeviationAsync(
+                systemId, request, "mcp-user", cancellationToken);
+
+            // Auto-approve (AO tool — direct approval)
+            var review = new ReviewDeviationRequest { Decision = "Approve", Comments = "Auto-approved via compliance_accept_risk MCP tool" };
+            deviation = await _deviationService.ReviewDeviationAsync(
+                deviation.Id, review, "mcp-user", "AO", cancellationToken);
 
             sw.Stop();
             return JsonSerializer.Serialize(new
             {
                 status = "success",
-                data = FormatAcceptance(result),
+                data = FormatDeviation(deviation),
                 metadata = Meta(sw)
             }, JsonOpts);
         }
@@ -235,19 +253,21 @@ public class AcceptRiskTool : BaseTool
         }
     }
 
-    private static object FormatAcceptance(RiskAcceptance r) => new
+    private static object FormatDeviation(Deviation d) => new
     {
-        id = r.Id,
-        authorization_decision_id = r.AuthorizationDecisionId,
-        finding_id = r.FindingId,
-        control_id = r.ControlId,
-        cat_severity = r.CatSeverity.ToString(),
-        justification = r.Justification,
-        compensating_control = r.CompensatingControl,
-        expiration_date = r.ExpirationDate.ToString("O"),
-        accepted_by = r.AcceptedBy,
-        accepted_at = r.AcceptedAt.ToString("O"),
-        is_active = r.IsActive
+        id = d.Id,
+        deviation_type = d.DeviationType.ToString(),
+        status = d.Status.ToString(),
+        control_id = d.ControlId,
+        cat_severity = d.CatSeverity.ToString(),
+        justification = d.Justification,
+        compensating_controls = d.CompensatingControls,
+        expiration_date = d.ExpirationDate.ToString("O"),
+        requested_by = d.RequestedBy,
+        requested_at = d.RequestedAt.ToString("O"),
+        reviewed_by = d.ReviewedBy,
+        reviewed_at = d.ReviewedAt?.ToString("O"),
+        finding_id = d.FindingId,
     };
 
     private static string Error(string code, string message) =>

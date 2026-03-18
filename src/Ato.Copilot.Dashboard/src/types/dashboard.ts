@@ -75,6 +75,7 @@ export interface KeyMetrics {
   catIIIFindings: number;
   totalFindings: number;
   narrativeCoverage: number;
+  activeDeviations: number;
 }
 
 export interface RecentActivity {
@@ -241,10 +242,12 @@ export interface GapFamilyBreakdown {
   familyName: string;
   totalControls: number;
   coveredControls: number;
+  waivedControls: number;
   gapCount: number;
   coveragePercent: number;
   isBelow50: boolean;
   unmappedControls: { controlId: string; controlTitle: string }[];
+  waivedControlIds: string[];
 }
 
 export interface GapAnalysisResponse {
@@ -252,6 +255,7 @@ export interface GapAnalysisResponse {
   baselineLevel: string;
   totalBaselineControls: number;
   coveredControls: number;
+  waivedControls: number;
   gapCount: number;
   coveragePercent: number;
   familyBreakdown: GapFamilyBreakdown[];
@@ -265,6 +269,7 @@ export interface BoundaryComparisonItem {
   isPrimary: boolean;
   totalControls: number;
   coveredControls: number;
+  waivedControls: number;
   gapCount: number;
   coveragePercent: number;
 }
@@ -482,4 +487,136 @@ export interface ApplyDiscoveryResponse {
   boundariesCreated: number;
   componentsCreated: number;
   skipped: number;
+}
+
+// ─── Deviations (Feature 035) ──────────────────────────────────────────────────
+
+export type DeviationType = 'FalsePositive' | 'RiskAcceptance' | 'Waiver';
+export type DeviationStatus = 'Pending' | 'Approved' | 'Denied' | 'Expired' | 'Revoked';
+
+export interface DeviationListItem {
+  id: string;
+  deviationType: string;
+  controlId: string;
+  catSeverity: number;
+  status: string;
+  justification: string;
+  expirationDate: string;
+  daysUntilExpiration: number;
+  requestedBy: string;
+  requestedAt: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  evidenceCount: number;
+  findingId: string | null;
+  poamEntryId: string | null;
+  boundaryDefinitionId: string | null;
+}
+
+export interface DeviationListResponse {
+  items: DeviationListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface DeviationSummary {
+  total: number;
+  pending: number;
+  approved: number;
+  denied: number;
+  expired: number;
+  revoked: number;
+  expiringWithin30d: number;
+  catI: number;
+  catII: number;
+  catIII: number;
+  withoutEvidence: number;
+}
+
+export interface DeviationFindingRef {
+  id: string;
+  controlId: string;
+  status: string;
+  severity: string;
+}
+
+export interface DeviationPoamRef {
+  id: string;
+  weakness: string;
+  status: string;
+}
+
+export interface DeviationEvidenceRef {
+  scanImportRecordId: string;
+  fileName: string;
+  scanType: string;
+  scanDate: string | null;
+  benchmarkTitle: string | null;
+}
+
+export interface DeviationAuditEntry {
+  eventType: string;
+  actor: string;
+  timestamp: string;
+  summary: string;
+}
+
+export interface DeviationDetail {
+  id: string;
+  deviationType: string;
+  controlId: string;
+  catSeverity: number;
+  status: string;
+  justification: string;
+  compensatingControls: string | null;
+  evidenceReferences: string[];
+  expirationDate: string;
+  reviewCycle: string;
+  requestedBy: string;
+  requestedAt: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewerRole: string | null;
+  reviewerComments: string | null;
+  issmRecommendation: string | null;
+  issmRecommendedBy: string | null;
+  issmRecommendedAt: string | null;
+  revokedBy: string | null;
+  revokedAt: string | null;
+  revocationReason: string | null;
+  boundaryDefinitionId: string | null;
+  boundaryDefinitionName: string | null;
+  finding: DeviationFindingRef | null;
+  poamEntry: DeviationPoamRef | null;
+  evidence: DeviationEvidenceRef[];
+  auditTrail: DeviationAuditEntry[];
+}
+
+export interface CreateDeviationRequest {
+  deviationType: string;
+  controlId: string;
+  catSeverity: string;
+  justification: string;
+  compensatingControls?: string;
+  evidenceIds?: string[];
+  expirationDate: string;
+  reviewCycle: string;
+  findingId?: string;
+  poamEntryId?: string;
+  boundaryDefinitionId?: string;
+}
+
+export interface ReviewDeviationRequest {
+  decision: string;
+  comments?: string;
+}
+
+export interface RevokeDeviationRequest {
+  reason: string;
+}
+
+export interface ExtendDeviationRequest {
+  newExpirationDate: string;
+  justification?: string;
 }

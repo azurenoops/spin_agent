@@ -46,6 +46,8 @@ export interface AssessmentFinding {
   resourceId: string | null;
   remediationGuidance: string | null;
   discoveredAt: string;
+  deviationId: string | null;
+  deviationType: string | null;
 }
 
 export interface AssessmentDetail {

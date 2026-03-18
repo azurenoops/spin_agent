@@ -52,6 +52,16 @@ export interface PageData {
   boundaryCount?: number;
   roleCount?: number;
   phaseCompletionPercent?: number;
+  // Deviation & outstanding-info metrics (Feature 035)
+  pendingDeviations?: number;
+  expiringDeviations?: number;
+  catIDeviations?: number;
+  deviationsMissingEvidence?: number;
+  missingDocDueDates?: number;
+  poamMissingCompletionDates?: number;
+  draftSspSections?: number;
+  authDecisionMissingExpiry?: number;
+  catIWithoutDeviationOrRemediation?: number;
 }
 
 export interface FileAttachment {

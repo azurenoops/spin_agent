@@ -9,6 +9,7 @@ public class GapAnalysisDto
     public required string BaselineLevel { get; init; }
     public int TotalBaselineControls { get; init; }
     public int CoveredControls { get; init; }
+    public int WaivedControls { get; init; }
     public int GapCount { get; init; }
     public double CoveragePercent { get; init; }
     public required List<GapFamilyBreakdownDto> FamilyBreakdown { get; init; }
@@ -29,6 +30,7 @@ public class BoundaryComparisonItemDto
     public bool IsPrimary { get; init; }
     public int TotalControls { get; init; }
     public int CoveredControls { get; init; }
+    public int WaivedControls { get; init; }
     public int GapCount { get; init; }
     public double CoveragePercent { get; init; }
 }
@@ -42,10 +44,12 @@ public class GapFamilyBreakdownDto
     public required string FamilyName { get; init; }
     public int TotalControls { get; init; }
     public int CoveredControls { get; init; }
+    public int WaivedControls { get; init; }
     public int GapCount { get; init; }
     public double CoveragePercent { get; init; }
     public bool IsBelow50 { get; init; }
     public required List<UnmappedControlDto> UnmappedControls { get; init; }
+    public List<string> WaivedControlIds { get; init; } = [];
 }
 
 /// <summary>

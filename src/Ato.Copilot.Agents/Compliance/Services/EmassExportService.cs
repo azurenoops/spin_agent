@@ -57,7 +57,8 @@ public class EmassExportService : IEmassExportService
         "Scheduled Completion Date", "Planned Milestones", "Milestone Changes",
         "Resources Required", "Cost Estimate",
         "Status", "Completion Date", "Comments", "Is Active",
-        "Created Date", "Last Updated Date", "Last Updated By"
+        "Created Date", "Last Updated Date", "Last Updated By",
+        "Deviation Justification", "Deviation Type", "Deviation Expiration"
     ];
 
     public EmassExportService(
@@ -152,7 +153,15 @@ public class EmassExportService : IEmassExportService
             .Where(p => p.RegisteredSystemId == registeredSystemId)
             .ToListAsync(cancellationToken);
 
-        var rows = BuildPoamRows(system, poamItems);
+        // Load approved deviations linked to POA&M items (Feature 035)
+        var deviationByPoamId = await db.Deviations
+            .AsNoTracking()
+            .Where(d => d.RegisteredSystemId == registeredSystemId
+                && d.PoamEntryId != null
+                && d.Status == DeviationStatus.Approved)
+            .ToDictionaryAsync(d => d.PoamEntryId!, d => d, cancellationToken);
+
+        var rows = BuildPoamRows(system, poamItems, deviationByPoamId);
 
         return GenerateExcel("POAM", PoamHeaders, rows);
     }
@@ -335,7 +344,8 @@ public class EmassExportService : IEmassExportService
 
     private static List<EmassPoamExportRow> BuildPoamRows(
         RegisteredSystem system,
-        List<PoamItem> poamItems)
+        List<PoamItem> poamItems,
+        Dictionary<string, Deviation> deviationByPoamId)
     {
         return poamItems.Select(p =>
         {
@@ -351,6 +361,8 @@ public class EmassExportService : IEmassExportService
                 ? string.Join("; ", p.Milestones.OrderBy(m => m.Sequence)
                     .Select(m => $"{m.Description} (Target: {m.TargetDate:MM/dd/yyyy})"))
                 : null;
+
+            deviationByPoamId.TryGetValue(p.Id, out var deviation);
 
             return new EmassPoamExportRow(
                 SystemName: system.Name,
@@ -377,7 +389,10 @@ public class EmassExportService : IEmassExportService
                 IsActive: p.Status != PoamStatus.Completed && p.Status != PoamStatus.RiskAccepted,
                 CreatedDate: p.CreatedAt,
                 LastUpdatedDate: p.ModifiedAt,
-                LastUpdatedBy: null
+                LastUpdatedBy: null,
+                DeviationJustification: deviation?.Justification,
+                DeviationTypeName: deviation?.DeviationType.ToString(),
+                DeviationExpiration: deviation?.ExpirationDate.ToString("yyyy-MM-dd")
             );
         }).ToList();
     }
@@ -477,6 +492,9 @@ public class EmassExportService : IEmassExportService
         ws.Cell(row, 23).SetValue(r.CreatedDate);
         ws.Cell(row, 24).SetValue(r.LastUpdatedDate);
         ws.Cell(row, 25).Value = r.LastUpdatedBy ?? "";
+        ws.Cell(row, 26).Value = r.DeviationJustification ?? "";
+        ws.Cell(row, 27).Value = r.DeviationTypeName ?? "";
+        ws.Cell(row, 28).Value = r.DeviationExpiration ?? "";
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo, Fragment } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import PageLayout from '../components/layout/PageLayout';
+import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { getNarratives, bulkUpdateNarratives } from '../api/narratives';
 import type { NarrativeListItem } from '../api/narratives';
@@ -138,17 +137,7 @@ export default function Narratives() {
   if (!systemId) return null;
 
   return (
-    <PageLayout title="Narratives">
-      <div className="space-y-6 p-6">
-        {/* Breadcrumb */}
-        <nav className="text-sm text-gray-500">
-          <Link to="/" className="hover:text-blue-600">Portfolio</Link>
-          <span className="mx-1">/</span>
-          <Link to={`/systems/${systemId}`} className="hover:text-blue-600">System</Link>
-          <span className="mx-1">/</span>
-          <span className="text-gray-900 font-medium">Narratives</span>
-        </nav>
-
+    <div className="space-y-6">
         {/* Header */}
         <div>
           <h2 className="text-xl font-bold text-gray-900">Control Narratives</h2>
@@ -351,7 +340,6 @@ export default function Narratives() {
             </table>
           </div>
         )}
-      </div>
-    </PageLayout>
+    </div>
   );
 }

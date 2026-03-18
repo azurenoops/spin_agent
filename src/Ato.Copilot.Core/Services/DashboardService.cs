@@ -300,6 +300,20 @@ public class DashboardService
             ? Math.Round(100.0 * narrativeCount / baselineControlCount, 1)
             : 0;
 
+        // Active deviations (Feature 035)
+        int activeDeviations;
+        try
+        {
+            activeDeviations = await _db.Deviations
+                .CountAsync(d => d.RegisteredSystemId == systemId
+                    && (d.Status == DeviationStatus.Pending || d.Status == DeviationStatus.Approved),
+                    cancellationToken);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException)
+        {
+            activeDeviations = 0;
+        }
+
         // RMF phase progress
         var currentPhaseOrdinal = (int)system.CurrentRmfStep;
         var rmfPhases = Enum.GetValues<RmfPhase>().Select(phase =>
@@ -378,6 +392,7 @@ public class DashboardService
                 CatIIIFindings = catIII,
                 TotalFindings = catI + catII + catIII,
                 NarrativeCoverage = narrativeCoverage,
+                ActiveDeviations = activeDeviations,
             },
             RecentActivity = activities,
             Categorization = system.SecurityCategorization is null ? null : new CategorizationDto

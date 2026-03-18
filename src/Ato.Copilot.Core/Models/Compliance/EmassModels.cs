@@ -90,7 +90,12 @@ public record EmassPoamExportRow(
     // ─── Metadata ───
     DateTime? CreatedDate,
     DateTime? LastUpdatedDate,
-    string? LastUpdatedBy
+    string? LastUpdatedBy,
+
+    // ─── Deviation (Feature 035) ───
+    string? DeviationJustification = null,
+    string? DeviationTypeName = null,
+    string? DeviationExpiration = null
 );
 
 /// <summary>

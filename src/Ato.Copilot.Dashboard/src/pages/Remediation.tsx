@@ -1,12 +1,10 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import PageLayout from '../components/layout/PageLayout';
 import { usePolling } from '../hooks/usePolling';
 import { useSettings } from '../hooks/useSettings';
+import { useSystemContext } from '../components/layout/SystemLayout';
 import { getRemediationSummary, getRemediationTasks, updatePoamStatus, bulkUpdatePoamStatus, moveTask } from '../api/remediation';
-import { getPortfolio } from '../api/portfolio';
 import type { RemediationSummary, PoamItem, RemediationTask } from '../api/remediation';
-import type { PortfolioSystemSummary } from '../types/dashboard';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -78,8 +76,9 @@ function MilestoneBar({ total, completed }: { total: number; completed: number }
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Remediation() {
+  const { detail } = useSystemContext();
+  const systemId = detail.systemId;
   const { settings } = useSettings();
-  const [systemFilter, setSystemFilter] = useState('');
   const [activeTab, setActiveTab] = useState<PoamTab>('all');
   const [searchText, setSearchText] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>(settings.defaultRemediationView);
@@ -89,26 +88,13 @@ export default function Remediation() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [statusUpdateLoading, setStatusUpdateLoading] = useState<string | null>(null);
-  const [systems, setSystems] = useState<PortfolioSystemSummary[]>([]);
-  const [systemsLoaded, setSystemsLoaded] = useState(false);
 
-  // Load systems for filter dropdown (once)
-  const fetchSystems = useCallback(async () => {
-    if (systemsLoaded) return systems;
-    const res = await getPortfolio({ pageSize: 200 });
-    const items = res.items ?? [];
-    setSystems(items);
-    setSystemsLoaded(true);
-    return items;
-  }, [systemsLoaded, systems]);
-  usePolling(fetchSystems, 0, !systemsLoaded);
-
-  // Main data
+  // Main data — always scoped to current system
   const pollInterval = settings.autoRefreshInterval || undefined;
-  const fetchSummary = useCallback(() => getRemediationSummary(systemFilter || undefined), [systemFilter]);
+  const fetchSummary = useCallback(() => getRemediationSummary(systemId), [systemId]);
   const { data: summary, loading, error, refresh } = usePolling<RemediationSummary>(fetchSummary, pollInterval);
 
-  const fetchTasks = useCallback(() => getRemediationTasks(systemFilter ? { systemId: systemFilter } : undefined), [systemFilter]);
+  const fetchTasks = useCallback(() => getRemediationTasks({ systemId }), [systemId]);
   const { data: tasksData, refresh: refreshTasks } = usePolling(fetchTasks, pollInterval);
 
   // DnD state
@@ -275,26 +261,14 @@ export default function Remediation() {
   ] : [];
 
   return (
-    <PageLayout title="Remediation">
-      <div className="space-y-6 p-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Remediation & POA&M Management</h2>
-            <p className="mt-1 text-sm text-gray-500">Track POA&M items, remediation tasks, and risk posture across systems.</p>
+            <p className="mt-1 text-sm text-gray-500">Track POA&M items, remediation tasks, and risk posture.</p>
           </div>
           <div className="flex items-center gap-3">
-            {/* System filter */}
-            <select
-              value={systemFilter}
-              onChange={(e) => { setSystemFilter(e.target.value); setSelectedPoamIds(new Set()); }}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">All Systems</option>
-              {systems.map(s => (
-                <option key={s.systemId} value={s.systemId}>{s.name}</option>
-              ))}
-            </select>
             {/* Search */}
             <input
               type="text"
@@ -542,7 +516,6 @@ export default function Remediation() {
                           />
                         </th>
                         <th className="px-3 py-3 text-left font-medium text-gray-500">Control</th>
-                        {!systemFilter && <th className="px-3 py-3 text-left font-medium text-gray-500">System</th>}
                         <th className="px-3 py-3 text-left font-medium text-gray-500">Weakness</th>
                         <th className="px-3 py-3 text-center font-medium text-gray-500">Severity</th>
                         <th className="px-3 py-3 text-center font-medium text-gray-500">Status</th>
@@ -557,7 +530,7 @@ export default function Remediation() {
                     <tbody className="divide-y divide-gray-100">
                       {filteredPoams.length === 0 ? (
                         <tr>
-                          <td colSpan={systemFilter ? 11 : 12} className="px-4 py-12 text-center text-gray-400">
+                          <td colSpan={11} className="px-4 py-12 text-center text-gray-400">
                             {searchText ? 'No POA&M items match your search.' : 'No POA&M items found.'}
                           </td>
                         </tr>
@@ -576,16 +549,7 @@ export default function Remediation() {
                             />
                           </td>
                           <td className="px-3 py-2.5 font-mono text-xs text-gray-700">{p.controlId}</td>
-                          {!systemFilter && (
-                            <td className="px-3 py-2.5">
-                              {p.registeredSystemId ? (
-                                <Link to={`/systems/${p.registeredSystemId}`} className="text-blue-600 hover:underline text-xs" onClick={(e) => e.stopPropagation()}>
-                                  {p.systemName ?? 'Unknown'}
-                                </Link>
-                              ) : <span className="text-xs text-gray-400">—</span>}
-                            </td>
-                          )}
-                          <td className="px-3 py-2.5 text-gray-600 max-w-[200px] truncate" title={p.weakness}>{p.weakness}</td>
+                          <td className="px-3 py-2.5 text-xs text-gray-600 max-w-[200px] truncate" title={p.weakness}>{p.weakness}</td>
                           <td className="px-3 py-2.5 text-center"><CatBadge cat={p.catSeverity} /></td>
                           <td className="px-3 py-2.5 text-center"><StatusBadge status={p.status} /></td>
                           <td className="px-3 py-2.5 text-xs text-gray-600">{p.pointOfContact}</td>
@@ -831,6 +795,17 @@ export default function Remediation() {
                   </div>
                 )}
 
+                {/* Deviation Link (Feature 035) */}
+                {selectedPoam.status === 'RiskAccepted' && selectedPoam.deviationId && (
+                  <Link
+                    to={`/systems/${selectedPoam.registeredSystemId}/deviations`}
+                    className="flex items-center gap-2 rounded-md border border-purple-200 bg-purple-50 p-3 hover:bg-purple-100 transition-colors"
+                  >
+                    <span className="text-xs font-semibold text-purple-700 uppercase tracking-wider">View Deviation</span>
+                    <span className="text-xs text-purple-600">→</span>
+                  </Link>
+                )}
+
                 {/* Comments */}
                 {selectedPoam.comments && (
                   <div>
@@ -842,7 +817,6 @@ export default function Remediation() {
             </div>
           </div>
         )}
-      </div>
-    </PageLayout>
+    </div>
   );
 }

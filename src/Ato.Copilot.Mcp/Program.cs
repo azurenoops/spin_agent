@@ -177,8 +177,10 @@ async Task RunHttpModeAsync(string[] args)
 
     builder.Services.AddRateLimiter(options =>
     {
+        var addedPolicies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var policy in rateLimitingOptions.Policies)
         {
+            if (!addedPolicies.Add(policy.PolicyName)) continue;
             options.AddPolicy(policy.PolicyName, context =>
                 RateLimitPartition.GetSlidingWindowLimiter(
                     partitionKey: context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
@@ -387,6 +389,9 @@ async Task MigrateDatabaseAsync(IServiceProvider services)
             // Create any new tables that were added after initial creation.
             await EnsureNewTablesAsync(db, logger, cts.Token);
 
+            // Always apply column additions to existing tables
+            await EnsureSchemaAdditionsAsync(db, logger, cts.Token);
+
             logger.LogInformation("SQL Server database ready");
         }
         else
@@ -406,95 +411,200 @@ async Task MigrateDatabaseAsync(IServiceProvider services)
 
 /// <summary>
 /// Creates tables that were added to the model after the initial EnsureCreated call.
-/// EnsureCreated is a no-op when the database already exists, so new DbSets
-/// need manual CREATE TABLE IF NOT EXISTS statements.
+/// Queries INFORMATION_SCHEMA.TABLES to find which model entity tables are missing,
+/// then generates and runs CREATE TABLE + index DDL from the EF Core model.
 /// </summary>
 async Task EnsureNewTablesAsync(AtoCopilotContext db, Microsoft.Extensions.Logging.ILogger<AtoCopilotContext> logger, CancellationToken ct)
 {
-    const string deferredSql = """
-        IF OBJECT_ID(N'DeferredPrerequisites', N'U') IS NULL
-        BEGIN
-            CREATE TABLE DeferredPrerequisites (
-                Id           NVARCHAR(36)   NOT NULL PRIMARY KEY,
-                RegisteredSystemId NVARCHAR(36) NOT NULL,
-                GateName     NVARCHAR(200)  NOT NULL,
-                Message      NVARCHAR(1000) NOT NULL,
-                SkippedFromPhase NVARCHAR(50) NOT NULL,
-                AdvancedToPhase  NVARCHAR(50) NOT NULL,
-                CreatedAt    DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
-                CreatedBy    NVARCHAR(200)  NOT NULL DEFAULT '',
-                IsResolved   BIT            NOT NULL DEFAULT 0,
-                ResolvedAt   DATETIME2      NULL,
-                ResolvedBy   NVARCHAR(200)  NULL,
-                CONSTRAINT FK_DeferredPrerequisites_RegisteredSystems
-                    FOREIGN KEY (RegisteredSystemId) REFERENCES RegisteredSystems(Id)
-                    ON DELETE CASCADE
-            );
-            CREATE INDEX IX_DeferredPrerequisite_System_Resolved
-                ON DeferredPrerequisites (RegisteredSystemId, IsResolved);
-        END
-        """;
+    // 1. Gather all table names the EF model expects
+    var model = db.Model;
+    var modelTables = model.GetEntityTypes()
+        .Select(e => e.GetTableName())
+        .Where(t => t != null)
+        .Distinct()
+        .ToList();
 
-    try
+    // 2. Gather all table names that actually exist in SQL Server
+    var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    await using (var cmd = db.Database.GetDbConnection().CreateCommand())
     {
-        await db.Database.ExecuteSqlRawAsync(deferredSql, ct);
-        logger.LogInformation("Verified DeferredPrerequisites table exists");
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Could not ensure DeferredPrerequisites table — non-fatal");
+        cmd.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
+        if (cmd.Connection!.State != System.Data.ConnectionState.Open)
+            await cmd.Connection.OpenAsync(ct);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            existingTables.Add(reader.GetString(0));
     }
 
-    // Add notification columns and table for notification enhancements
-    const string notificationSchemaSql = """
-        -- Add new columns to AlertNotifications if they don't exist
+    var missingTables = modelTables
+        .Where(t => !existingTables.Contains(t!))
+        .ToList();
+
+    if (missingTables.Count == 0)
+    {
+        logger.LogInformation("All model tables exist in SQL Server — nothing to create");
+        return;
+    }
+
+    logger.LogInformation("Found {Count} missing table(s): {Tables}", missingTables.Count, string.Join(", ", missingTables));
+
+    // 3. Also ensure new columns on existing tables (schema additions)
+    await EnsureSchemaAdditionsAsync(db, logger, ct);
+
+    // 4. Generate CREATE TABLE DDL from the EF model for missing tables
+    var missingEntityTypes = model.GetEntityTypes()
+        .Where(e => missingTables.Contains(e.GetTableName(), StringComparer.OrdinalIgnoreCase))
+        .ToList();
+
+    foreach (var entityType in missingEntityTypes)
+    {
+        var tableName = entityType.GetTableName()!;
+        var schema = entityType.GetSchema();
+        var storeObject = Microsoft.EntityFrameworkCore.Metadata.StoreObjectIdentifier.Table(tableName, schema);
+
+        // Build column definitions
+        var columns = new List<string>();
+        foreach (var property in entityType.GetProperties())
+        {
+            var columnName = property.GetColumnName(storeObject) ?? property.Name;
+            var columnType = property.GetColumnType() ?? GetSqlServerColumnType(property);
+            var nullable = property.IsNullable ? "NULL" : "NOT NULL";
+
+            var defaultValue = property.GetDefaultValueSql();
+            var defaultClause = defaultValue != null ? $" DEFAULT {defaultValue}" : "";
+
+            columns.Add($"    [{columnName}] {columnType} {nullable}{defaultClause}");
+        }
+
+        // Build primary key
+        var pk = entityType.FindPrimaryKey();
+        var pkColumns = pk?.Properties.Select(p => $"[{p.GetColumnName(storeObject) ?? p.Name}]");
+        if (pkColumns != null)
+            columns.Add($"    CONSTRAINT [PK_{tableName}] PRIMARY KEY ({string.Join(", ", pkColumns)})");
+
+        var createSql = $"CREATE TABLE [{tableName}] (\n{string.Join(",\n", columns)}\n);";
+
+        // Build indexes
+        var indexStatements = new List<string>();
+        foreach (var index in entityType.GetIndexes())
+        {
+            var indexName = index.GetDatabaseName() ?? $"IX_{tableName}_{string.Join("_", index.Properties.Select(p => p.Name))}";
+            var unique = index.IsUnique ? "UNIQUE " : "";
+            var indexColumns = string.Join(", ", index.Properties.Select(p => $"[{p.GetColumnName(storeObject) ?? p.Name}]"));
+            indexStatements.Add($"CREATE {unique}INDEX [{indexName}] ON [{tableName}] ({indexColumns});");
+        }
+
+        // Build foreign keys
+        var fkStatements = new List<string>();
+        foreach (var fk in entityType.GetForeignKeys())
+        {
+            var principalTable = fk.PrincipalEntityType.GetTableName();
+            if (principalTable == null) continue;
+            var principalStoreObject = Microsoft.EntityFrameworkCore.Metadata.StoreObjectIdentifier.Table(principalTable, fk.PrincipalEntityType.GetSchema());
+
+            var fkColumns = string.Join(", ", fk.Properties.Select(p => $"[{p.GetColumnName(storeObject) ?? p.Name}]"));
+            var pkRefColumns = string.Join(", ", fk.PrincipalKey.Properties.Select(p => $"[{p.GetColumnName(principalStoreObject) ?? p.Name}]"));
+            var fkName = $"FK_{tableName}_{principalTable}_{string.Join("_", fk.Properties.Select(p => p.Name))}";
+            var deleteAction = fk.DeleteBehavior switch
+            {
+                DeleteBehavior.Cascade => "CASCADE",
+                DeleteBehavior.SetNull => "SET NULL",
+                DeleteBehavior.Restrict or DeleteBehavior.NoAction => "NO ACTION",
+                _ => "NO ACTION"
+            };
+            fkStatements.Add($"ALTER TABLE [{tableName}] ADD CONSTRAINT [{fkName}] FOREIGN KEY ({fkColumns}) REFERENCES [{principalTable}] ({pkRefColumns}) ON DELETE {deleteAction};");
+        }
+
+        try
+        {
+            logger.LogInformation("Creating table [{Table}] with {Cols} columns, {Idx} indexes, {Fks} foreign keys",
+                tableName, entityType.GetProperties().Count(), indexStatements.Count, fkStatements.Count);
+
+            await db.Database.ExecuteSqlRawAsync(createSql, ct);
+
+            foreach (var idx in indexStatements)
+                await db.Database.ExecuteSqlRawAsync(idx, ct);
+
+            foreach (var fk in fkStatements)
+            {
+                try { await db.Database.ExecuteSqlRawAsync(fk, ct); }
+                catch (Exception ex) { logger.LogWarning(ex, "Could not create FK: {Sql}", fk); }
+            }
+
+            logger.LogInformation("Successfully created table [{Table}]", tableName);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not create table [{Table}] — non-fatal", tableName);
+        }
+    }
+}
+
+/// <summary>
+/// Maps CLR types to SQL Server column types when EF metadata doesn't provide an explicit column type.
+/// </summary>
+string GetSqlServerColumnType(Microsoft.EntityFrameworkCore.Metadata.IProperty property)
+{
+    var clrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+    var maxLength = property.GetMaxLength();
+
+    return clrType switch
+    {
+        Type t when t == typeof(string) => maxLength.HasValue ? $"NVARCHAR({maxLength})" : "NVARCHAR(MAX)",
+        Type t when t == typeof(int) => "INT",
+        Type t when t == typeof(long) => "BIGINT",
+        Type t when t == typeof(short) => "SMALLINT",
+        Type t when t == typeof(byte) => "TINYINT",
+        Type t when t == typeof(bool) => "BIT",
+        Type t when t == typeof(decimal) => "DECIMAL(18,2)",
+        Type t when t == typeof(double) => "FLOAT",
+        Type t when t == typeof(float) => "REAL",
+        Type t when t == typeof(DateTime) => "DATETIME2",
+        Type t when t == typeof(DateTimeOffset) => "DATETIMEOFFSET",
+        Type t when t == typeof(DateOnly) => "DATE",
+        Type t when t == typeof(TimeOnly) => "TIME",
+        Type t when t == typeof(TimeSpan) => "TIME",
+        Type t when t == typeof(Guid) => "UNIQUEIDENTIFIER",
+        Type t when t == typeof(byte[]) => maxLength.HasValue ? $"VARBINARY({maxLength})" : "VARBINARY(MAX)",
+        Type t when t.IsEnum => "INT",
+        _ => "NVARCHAR(MAX)"
+    };
+}
+
+/// <summary>
+/// Applies ALTER TABLE ADD COLUMN for known schema additions that EnsureCreated won't cover.
+/// </summary>
+async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions.Logging.ILogger<AtoCopilotContext> logger, CancellationToken ct)
+{
+    // Add columns/indexes that were added to existing tables after initial EnsureCreated
+    const string alterSql = """
         IF COL_LENGTH('AlertNotifications', 'UserId') IS NULL
-        BEGIN
             ALTER TABLE AlertNotifications ADD UserId NVARCHAR(200) NULL;
-        END
 
         IF COL_LENGTH('AlertNotifications', 'IsRead') IS NULL
-        BEGIN
             ALTER TABLE AlertNotifications ADD IsRead BIT NOT NULL DEFAULT 0;
-        END
 
         IF COL_LENGTH('AlertNotifications', 'ReadAt') IS NULL
-        BEGIN
             ALTER TABLE AlertNotifications ADD ReadAt DATETIMEOFFSET NULL;
-        END
 
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AlertNotification_User_Read')
-        BEGIN
-            CREATE INDEX IX_AlertNotification_User_Read
-                ON AlertNotifications (UserId, IsRead);
-        END
+            CREATE INDEX IX_AlertNotification_User_Read ON AlertNotifications (UserId, IsRead);
 
-        -- Create NotificationPreferences table
-        IF OBJECT_ID(N'NotificationPreferences', N'U') IS NULL
-        BEGIN
-            CREATE TABLE NotificationPreferences (
-                Id                    UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-                UserId                NVARCHAR(200)    NOT NULL,
-                PoamOverdueAlerts     BIT              NOT NULL DEFAULT 1,
-                AtoExpirationAlerts   BIT              NOT NULL DEFAULT 1,
-                ComplianceDriftAlerts BIT              NOT NULL DEFAULT 1,
-                AlertDaysBefore       INT              NOT NULL DEFAULT 30,
-                CreatedAt             DATETIMEOFFSET   NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-                UpdatedAt             DATETIMEOFFSET   NOT NULL DEFAULT SYSDATETIMEOFFSET()
-            );
-            CREATE UNIQUE INDEX IX_NotificationPreferences_UserId
-                ON NotificationPreferences (UserId);
-        END
+        IF COL_LENGTH('PoamItems', 'DeviationId') IS NULL
+            ALTER TABLE PoamItems ADD DeviationId NVARCHAR(450) NULL;
+
+        IF COL_LENGTH('Findings', 'DeviationId') IS NULL
+            ALTER TABLE Findings ADD DeviationId NVARCHAR(450) NULL;
         """;
 
     try
     {
-        await db.Database.ExecuteSqlRawAsync(notificationSchemaSql, ct);
-        logger.LogInformation("Verified notification schema enhancements exist");
+        await db.Database.ExecuteSqlRawAsync(alterSql, ct);
+        logger.LogInformation("Verified schema additions on existing tables");
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Could not ensure notification schema — non-fatal");
+        logger.LogWarning(ex, "Could not apply schema additions — non-fatal");
     }
 }
 
@@ -536,6 +646,10 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
 
     // Roadmap services (Feature 031)
     services.AddScoped<Ato.Copilot.Core.Interfaces.Roadmap.IRoadmapService, Ato.Copilot.Core.Services.RoadmapService>();
+
+    // Deviation services (Feature 035)
+    services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IDeviationService, Ato.Copilot.Core.Services.DeviationService>();
+    services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.DeviationExpirationService>();
 }
 
 // ────────────────────────────────────────────────────────────────

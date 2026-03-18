@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Ato.Copilot.Agents.Compliance.Configuration;
+using Ato.Copilot.Core.Interfaces;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 
@@ -26,22 +27,26 @@ public class RemediationScriptExecutor : IRemediationScriptExecutor
     /// </summary>
     public RemediationScriptExecutor(
         IScriptSanitizationService sanitizer,
+        IPathSanitizationService pathSanitizer,
         ILogger<RemediationScriptExecutor> logger,
         IOptions<ComplianceAgentOptions> options)
-        : this(sanitizer, logger,
-              options.Value.Remediation.MaxRetries,
-              TimeSpan.FromSeconds(options.Value.Remediation.ScriptTimeoutSeconds))
     {
+        _sanitizer = sanitizer;
+        _pathSanitizer = pathSanitizer;
+        _logger = logger;
+        _maxRetries = options.Value.Remediation.MaxRetries;
+        _scriptTimeout = TimeSpan.FromSeconds(options.Value.Remediation.ScriptTimeoutSeconds);
     }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RemediationScriptExecutor"/> class
     /// with explicit retry and timeout settings (for testing).
     /// </summary>
-    public RemediationScriptExecutor(
+    internal RemediationScriptExecutor(
         IScriptSanitizationService sanitizer,
+        IPathSanitizationService pathSanitizer,
         ILogger<RemediationScriptExecutor> logger,
-        int maxRetries = 3,
+        int maxRetries,
         TimeSpan? scriptTimeout = null)
     {
         _sanitizer = sanitizer;

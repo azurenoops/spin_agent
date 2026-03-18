@@ -109,6 +109,13 @@ public class OscalSspExportService : IOscalSspExportService
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.RegisteredSystemId == registeredSystemId, cancellationToken);
 
+        // Approved deviations for deviation props and back-matter resources (Feature 035)
+        var deviations = await db.Deviations
+            .AsNoTracking()
+            .Where(d => d.RegisteredSystemId == registeredSystemId
+                && d.Status == DeviationStatus.Approved)
+            .ToListAsync(cancellationToken);
+
         // Build component UUID map for cross-references
         var componentMap = new Dictionary<string, string>(); // ResourceId → UUID
         foreach (var b in boundaries)
@@ -127,13 +134,13 @@ public class OscalSspExportService : IOscalSspExportService
         var importProfile = BuildImportProfile(baseline, warnings);
         var systemChars = BuildSystemCharacteristics(system, categorization, sectionMap, warnings);
         var systemImpl = BuildSystemImplementation(boundaries, roles, baseline, componentMap, partyMap, warnings);
-        var controlImpl = BuildControlImplementation(system, implementations, baseline, componentMap, warnings);
+        var controlImpl = BuildControlImplementation(system, implementations, baseline, componentMap, deviations, warnings);
 
         Dictionary<string, object>? backMatter = null;
         var backMatterCount = 0;
         if (includeBackMatter)
         {
-            backMatter = BuildBackMatter(interconnections, contingencyPlan, warnings);
+            backMatter = BuildBackMatter(interconnections, contingencyPlan, deviations, warnings);
             if (backMatter.TryGetValue("resources", out var resources) && resources is List<Dictionary<string, object>> resList)
                 backMatterCount = resList.Count;
         }
@@ -472,6 +479,7 @@ public class OscalSspExportService : IOscalSspExportService
         List<ControlImplementation> implementations,
         ControlBaseline? baseline,
         Dictionary<string, string> componentMap,
+        List<Deviation> deviations,
         List<string> warnings)
     {
         var ci = new Dictionary<string, object>
@@ -491,28 +499,52 @@ public class OscalSspExportService : IOscalSspExportService
             ?.ToDictionary(i => i.ControlId, i => i, StringComparer.OrdinalIgnoreCase)
             ?? new Dictionary<string, ControlInheritance>(StringComparer.OrdinalIgnoreCase);
 
+        // Build deviation lookup by control ID (Feature 035)
+        var devByControl = deviations
+            .GroupBy(d => d.ControlId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
         ci["implemented-requirements"] = implementations.Select(impl =>
         {
+            var props = new List<Dictionary<string, string>>
+            {
+                new()
+                {
+                    ["name"] = "implementation-status",
+                    ["value"] = impl.ImplementationStatus switch
+                    {
+                        ImplementationStatus.Implemented => "implemented",
+                        ImplementationStatus.PartiallyImplemented => "partial",
+                        ImplementationStatus.Planned => "planned",
+                        ImplementationStatus.NotApplicable => "not-applicable",
+                        _ => "planned"
+                    }
+                }
+            };
+
+            // Add deviation prop if control has an active deviation
+            if (devByControl.TryGetValue(impl.ControlId, out var dev))
+            {
+                props.Add(new Dictionary<string, string>
+                {
+                    ["name"] = "deviation-type",
+                    ["value"] = dev.DeviationType switch
+                    {
+                        DeviationType.FalsePositive => "false-positive",
+                        DeviationType.RiskAcceptance => "risk-acceptance",
+                        DeviationType.Waiver => "waiver",
+                        _ => "risk-acceptance"
+                    },
+                    ["ns"] = "https://ato-copilot.azurenoops.io/ns/oscal"
+                });
+            }
+
             var req = new Dictionary<string, object>
             {
                 ["uuid"] = Guid.NewGuid().ToString(),
                 ["control-id"] = impl.ControlId.ToLowerInvariant(),
                 ["description"] = impl.Narrative ?? "Not documented.",
-                ["props"] = new[]
-                {
-                    new Dictionary<string, string>
-                    {
-                        ["name"] = "implementation-status",
-                        ["value"] = impl.ImplementationStatus switch
-                        {
-                            ImplementationStatus.Implemented => "implemented",
-                            ImplementationStatus.PartiallyImplemented => "partial",
-                            ImplementationStatus.Planned => "planned",
-                            ImplementationStatus.NotApplicable => "not-applicable",
-                            _ => "planned"
-                        }
-                    }
-                }
+                ["props"] = props.ToArray()
             };
 
             // Add responsible-roles from inheritance
@@ -552,6 +584,7 @@ public class OscalSspExportService : IOscalSspExportService
     internal static Dictionary<string, object> BuildBackMatter(
         List<SystemInterconnection> interconnections,
         ContingencyPlanReference? contingencyPlan,
+        List<Deviation> deviations,
         List<string> warnings)
     {
         var resources = new List<Dictionary<string, object>>();
@@ -593,6 +626,33 @@ public class OscalSspExportService : IOscalSspExportService
                         ["href"] = contingencyPlan.DocumentLocation,
                         ["media-type"] = "application/pdf"
                     }
+                }
+            });
+        }
+
+        // Deviation resources (Feature 035)
+        foreach (var dev in deviations)
+        {
+            var typeLabel = dev.DeviationType switch
+            {
+                DeviationType.FalsePositive => "False Positive",
+                DeviationType.RiskAcceptance => "Risk Acceptance",
+                DeviationType.Waiver => "Waiver",
+                _ => "Deviation"
+            };
+
+            resources.Add(new Dictionary<string, object>
+            {
+                ["uuid"] = dev.Id,
+                ["title"] = $"{typeLabel}: {dev.ControlId}",
+                ["description"] = dev.Justification,
+                ["props"] = new object[]
+                {
+                    new Dictionary<string, string> { ["name"] = "deviation-type", ["value"] = typeLabel.ToLowerInvariant().Replace(' ', '-') },
+                    new Dictionary<string, string> { ["name"] = "severity", ["value"] = dev.CatSeverity.ToString() },
+                    new Dictionary<string, string> { ["name"] = "expiration-date", ["value"] = dev.ExpirationDate.ToString("yyyy-MM-dd") },
+                    new Dictionary<string, string> { ["name"] = "reviewed-by", ["value"] = dev.ReviewedBy ?? "" },
+                    new Dictionary<string, string> { ["name"] = "compensating-controls", ["value"] = dev.CompensatingControls ?? "" }
                 }
             });
         }

@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import PageLayout from '../components/layout/PageLayout';
 import { ComponentSection } from '../components/cards/ComponentSection';
 import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
@@ -100,7 +99,7 @@ export default function ComponentInventory() {
   if (!systemId) return null;
 
   return (
-    <PageLayout title="Component Inventory">
+    <>
       {/* Summary metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <MetricCard title="Total" value={summary.totalCount} />
@@ -274,6 +273,6 @@ export default function ComponentInventory() {
           })}
         </div>
       )}
-    </PageLayout>
+    </>
   );
 }

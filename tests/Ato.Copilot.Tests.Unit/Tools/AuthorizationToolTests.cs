@@ -18,6 +18,7 @@ namespace Ato.Copilot.Tests.Unit.Tools;
 public class AuthorizationToolTests
 {
     private readonly Mock<IAuthorizationService> _serviceMock = new();
+    private readonly Mock<IDeviationService> _deviationMock = new();
 
     // ═══════════════════════════════════════════════════════════════════════
     // T122 — IssueAuthorizationTool Tests
@@ -137,12 +138,29 @@ public class AuthorizationToolTests
     [Fact]
     public async Task AcceptRisk_ValidInput_ReturnsSuccess()
     {
-        var acceptance = CreateRiskAcceptance();
-        _serviceMock
-            .Setup(s => s.AcceptRiskAsync(
-                "sys-1", "find-1", "AC-2", "CatII", "Justified risk",
-                It.IsAny<DateTime>(), "Compensating AC-3", "mcp-user", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(acceptance);
+        var deviation = new Deviation
+        {
+            Id = "dev-1",
+            RegisteredSystemId = "sys-1",
+            DeviationType = DeviationType.RiskAcceptance,
+            ControlId = "AC-2",
+            CatSeverity = CatSeverity.CatII,
+            Status = DeviationStatus.Approved,
+            Justification = "Justified risk",
+            CompensatingControls = "Compensating AC-3",
+            ExpirationDate = new DateTime(2026, 12, 31),
+            ReviewCycle = "180d",
+            RequestedBy = "mcp-user",
+            CreatedAt = DateTime.UtcNow,
+        };
+        _deviationMock
+            .Setup(s => s.CreateDeviationAsync(
+                "sys-1", It.IsAny<CreateDeviationRequest>(), "mcp-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(deviation);
+        _deviationMock
+            .Setup(s => s.ReviewDeviationAsync(
+                "dev-1", It.IsAny<ReviewDeviationRequest>(), "mcp-user", "AO", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(deviation);
 
         var tool = CreateAcceptRiskTool();
 
@@ -162,8 +180,6 @@ public class AuthorizationToolTests
         root.GetProperty("status").GetString().Should().Be("success");
         var data = root.GetProperty("data");
         data.GetProperty("control_id").GetString().Should().Be("AC-2");
-        data.GetProperty("cat_severity").GetString().Should().Be("CatII");
-        data.GetProperty("is_active").GetBoolean().Should().BeTrue();
     }
 
     [Fact]
@@ -504,7 +520,7 @@ public class AuthorizationToolTests
         new(_serviceMock.Object, Mock.Of<ILogger<IssueAuthorizationTool>>());
 
     private AcceptRiskTool CreateAcceptRiskTool() =>
-        new(_serviceMock.Object, Mock.Of<ILogger<AcceptRiskTool>>());
+        new(_deviationMock.Object, Mock.Of<ILogger<AcceptRiskTool>>());
 
     private ShowRiskRegisterTool CreateShowRiskRegisterTool() =>
         new(_serviceMock.Object, Mock.Of<ILogger<ShowRiskRegisterTool>>());

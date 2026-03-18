@@ -11,6 +11,8 @@ import Documents from './pages/Documents';
 import Assessments from './pages/Assessments';
 import Remediation from './pages/Remediation';
 import Narratives from './pages/Narratives';
+import DeviationsPage from './pages/DeviationsPage';
+import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
 import { SettingsContext, useSettingsProvider } from './hooks/useSettings';
@@ -35,16 +37,19 @@ function AppContent() {
     <SystemDataProvider>
       <Routes>
         <Route path="/" element={<PortfolioDashboard />} />
-        <Route path="/systems/:id" element={<SystemDetail />} />
-        <Route path="/systems/:id/roadmap" element={<Roadmap />} />
-        <Route path="/systems/:id/boundaries" element={<BoundaryManagement />} />
+        <Route path="/systems/:id" element={<SystemLayout />}>
+          <Route index element={<SystemDetail />} />
+          <Route path="roadmap" element={<Roadmap />} />
+          <Route path="boundaries" element={<BoundaryManagement />} />
+          <Route path="components" element={<ComponentInventory />} />
+          <Route path="gaps" element={<GapAnalysis />} />
+          <Route path="documents" element={<Documents />} />
+          <Route path="narratives" element={<Narratives />} />
+          <Route path="deviations" element={<DeviationsPage />} />
+          <Route path="assessments" element={<Assessments />} />
+          <Route path="remediation" element={<Remediation />} />
+        </Route>
         <Route path="/capabilities" element={<CapabilityLibrary />} />
-        <Route path="/systems/:id/components" element={<ComponentInventory />} />
-        <Route path="/systems/:id/gaps" element={<GapAnalysis />} />
-        <Route path="/systems/:id/documents" element={<Documents />} />
-        <Route path="/assessments" element={<Assessments />} />
-        <Route path="/remediation" element={<Remediation />} />
-        <Route path="/systems/:id/narratives" element={<Narratives />} />
       </Routes>
       <ChatPanel
         isOpen={panelState.isOpen}

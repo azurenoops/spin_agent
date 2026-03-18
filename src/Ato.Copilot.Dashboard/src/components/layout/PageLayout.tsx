@@ -9,8 +9,6 @@ import { useNotifications } from '../../hooks/useNotifications';
 
 const navItems = [
   { to: '/', label: 'Portfolio' },
-  { to: '/assessments', label: 'Assessments' },
-  { to: '/remediation', label: 'Remediation' },
   { to: '/capabilities', label: 'Capabilities' },
 ];
 
@@ -18,9 +16,10 @@ interface PageLayoutProps {
   title: string;
   children: ReactNode;
   sidePanel?: ReactNode;
+  leftPanel?: ReactNode;
 }
 
-export default function PageLayout({ title, children, sidePanel }: PageLayoutProps) {
+export default function PageLayout({ title, children, sidePanel, leftPanel }: PageLayoutProps) {
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [helpPanelOpen, setHelpPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -107,6 +106,7 @@ export default function PageLayout({ title, children, sidePanel }: PageLayoutPro
 
       {/* Content area */}
       <div className="flex flex-1 overflow-hidden">
+        {leftPanel}
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
         {(sidePanel || helpPanelOpen) && (
           <div className="hidden xl:flex flex-shrink-0">

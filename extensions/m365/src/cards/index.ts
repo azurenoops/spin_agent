@@ -27,4 +27,5 @@ export { buildAuthorizationCard, type AuthorizationData } from "./authorizationC
 export { buildDashboardCard, type DashboardData } from "./dashboardCard";
 export { buildRoadmapCard, type RoadmapCardData } from "./roadmapCard";
 export { buildRoadmapPhaseDetailCard, type RoadmapPhaseDetailData } from "./roadmapPhaseDetailCard";
+export { buildDeviationCard, type DeviationData } from "./deviationCard";
 export { selectCard } from "./cardRouter";

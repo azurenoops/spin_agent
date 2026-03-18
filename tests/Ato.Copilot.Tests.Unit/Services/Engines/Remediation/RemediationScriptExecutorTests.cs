@@ -191,7 +191,7 @@ public class RemediationScriptExecutorTests
     {
         public TestableRemediationScriptExecutor(
             IScriptSanitizationService sanitizer,
-            ILogger<RemediationScriptExecutor> logger) : base(sanitizer, Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>(), logger) { }
+            ILogger<RemediationScriptExecutor> logger) : base(sanitizer, Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>(), logger, 3) { }
 
         protected override Task<(int ExitCode, string Stdout, string Stderr)> RunSubprocessAsync(
             RemediationScript script, CancellationToken ct)
