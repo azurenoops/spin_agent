@@ -38,7 +38,9 @@ public enum ComponentType
     /// <summary>A location where system components reside (e.g., data center, cloud region).</summary>
     Place,
     /// <summary>A technical asset (e.g., Entra ID, Defender, Key Vault).</summary>
-    Thing
+    Thing,
+    /// <summary>A law, regulation, or policy applicable to the system (e.g., FISMA, Privacy Act).</summary>
+    Policy
 }
 
 /// <summary>

@@ -55,6 +55,7 @@ public class ComponentSummaryDto
     public int PersonCount { get; init; }
     public int PlaceCount { get; init; }
     public int ThingCount { get; init; }
+    public int PolicyCount { get; init; }
     public int TotalCount { get; init; }
 }
 

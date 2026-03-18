@@ -34,6 +34,9 @@ appsettings.*.local.json
 # Docker
 docker-compose.override.yml
 
+# Export data (generated SSP files and templates)
+data/
+
 # NuGet
 *.nupkg
 nuget.config

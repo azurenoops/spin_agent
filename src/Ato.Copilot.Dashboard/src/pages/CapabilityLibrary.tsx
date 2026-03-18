@@ -120,6 +120,11 @@ export default function CapabilityLibrary() {
 
   return (
     <PageLayout title="Security Capabilities">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Security Capabilities</h1>
+        <p className="text-sm text-gray-500 mt-1">Define and manage organizational security capabilities mapped to controls</p>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <input

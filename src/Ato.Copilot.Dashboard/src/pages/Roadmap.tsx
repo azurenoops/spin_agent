@@ -36,18 +36,30 @@ export default function Roadmap() {
 
   usePolling(fetchData);
 
+  const header = (
+    <div className="mb-6">
+      <h2 className="text-2xl font-bold text-gray-900">Roadmap</h2>
+      <p className="mt-1 text-sm text-gray-500">
+        Phased implementation timeline with effort estimates, risk reduction targets, and milestone tracking.
+      </p>
+    </div>
+  );
+
   if (loading) {
-    return <p className="text-gray-500">Loading roadmap...</p>;
+    return <>{header}<p className="text-gray-500">Loading roadmap...</p></>;
   }
 
   if (error || !roadmap) {
     return (
-      <div>
-        <p className="text-red-500">{error ?? 'No active roadmap found'}</p>
-        <p className="mt-2 text-sm text-gray-500">
-          Generate a roadmap using the ISSM chat command: &quot;Generate an implementation roadmap for this system&quot;
-        </p>
-      </div>
+      <>
+        {header}
+        <div>
+          <p className="text-red-500">{error ?? 'No active roadmap found'}</p>
+          <p className="mt-2 text-sm text-gray-500">
+            Generate a roadmap using the ISSM chat command: &quot;Generate an implementation roadmap for this system&quot;
+          </p>
+        </div>
+      </>
     );
   }
 
@@ -59,6 +71,8 @@ export default function Roadmap() {
 
   return (
     <>
+      {header}
+
       {/* Summary Metrics */}
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <MetricCard title="Total Gaps" value={roadmap.totalGaps} />

@@ -10,6 +10,7 @@ RUN npm ci
 
 # Copy source and build
 COPY src/Ato.Copilot.Dashboard/ ./
+RUN rm -rf dist tsconfig.tsbuildinfo
 
 # API calls use relative /api path — nginx proxies to MCP server
 ENV VITE_API_BASE_URL=/api/dashboard

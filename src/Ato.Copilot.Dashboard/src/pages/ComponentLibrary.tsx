@@ -14,6 +14,7 @@ import {
 import { getCapabilities } from '../api/capabilities';
 import type { CreateComponentRequest, ComponentType, ComponentStatus, SecurityCapabilityDto } from '../types/dashboard';
 
+const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing', 'Policy'];
 const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing'];
 const STATUS_OPTIONS: ComponentStatus[] = ['Active', 'Planned', 'Decommissioned'];
 
@@ -21,6 +22,7 @@ const TYPE_COLORS: Record<string, string> = {
   Person: 'bg-blue-50 text-blue-700 border-blue-200',
   Place: 'bg-green-50 text-green-700 border-green-200',
   Thing: 'bg-purple-50 text-purple-700 border-purple-200',
+  Policy: 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
 export default function ComponentLibrary() {
@@ -137,6 +139,7 @@ export default function ComponentLibrary() {
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Component Library</h2>
             <p className="mt-1 text-sm text-gray-500">
+              Org-wide People, Places, Things, and Policies — assign to systems with boundary scope
               Org-wide People, Places, and Things — assign to systems with boundary scope
             </p>
           </div>

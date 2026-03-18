@@ -41,6 +41,14 @@ export default function GapAnalysis() {
 
   return (
     <>
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Gap Analysis</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Identifies unmapped controls and coverage gaps across the selected baseline, highlighting families that need attention.
+        </p>
+      </div>
+
       {/* Summary metrics */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <MetricCard title="Total Controls" value={data.totalBaselineControls} subtitle={`${data.baselineLevel} baseline`} />

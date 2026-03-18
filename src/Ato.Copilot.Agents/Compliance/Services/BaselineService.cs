@@ -132,12 +132,15 @@ public class BaselineService : IBaselineService
             .Select(ci => ci.ControlId)
             .ToListAsync(cancellationToken);
 
+        // Use case-insensitive lookup (SQL Server collation is CI, but C# Contains is CS)
+        var existingSet = new HashSet<string>(existingControlIds, StringComparer.OrdinalIgnoreCase);
+
         var newImplementations = new List<ControlImplementation>();
         var now = DateTime.UtcNow;
 
         foreach (var controlId in controlIds)
         {
-            if (existingControlIds.Contains(controlId))
+            if (existingSet.Contains(controlId))
                 continue;
 
             var family = controlId.Contains('-')

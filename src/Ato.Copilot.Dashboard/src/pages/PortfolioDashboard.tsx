@@ -135,7 +135,12 @@ export default function PortfolioDashboard() {
   };
 
   return (
-    <PageLayout title="Portfolio Dashboard">
+    <PageLayout title="Systems">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Systems</h1>
+        <p className="text-sm text-gray-500 mt-1">Register, manage, and monitor all information systems in your portfolio</p>
+      </div>
+
       {/* Filters */}
       <div className="mb-4 flex gap-3">
         <select

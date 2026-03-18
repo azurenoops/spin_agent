@@ -3,6 +3,8 @@ bin/
 obj/
 publish/
 node_modules/
+dist/
+*.tsbuildinfo
 
 # IDE
 .vs/

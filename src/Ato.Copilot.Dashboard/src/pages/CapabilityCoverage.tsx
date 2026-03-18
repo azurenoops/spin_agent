@@ -6,6 +6,7 @@ import {
   type CapabilityCoverageResponse,
   type CapabilityCoverageDto,
 } from '../api/capabilities';
+import AddCapabilityDialog from '../components/AddCapabilityDialog';
 
 const ROLE_COLORS: Record<string, string> = {
   Primary: 'bg-indigo-100 text-indigo-700',
@@ -22,6 +23,7 @@ const TYPE_COLORS: Record<string, string> = {
 export default function CapabilityCoverage() {
   const { id: systemId } = useParams<{ id: string }>();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const fetcher = useCallback(
     () => (systemId ? getCapabilityCoverage(systemId) : Promise.reject('No systemId')),
@@ -39,6 +41,26 @@ export default function CapabilityCoverage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Capability Coverage</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Maps organizational capabilities to NIST SP 800-53 controls, showing which security requirements are addressed by each capability.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAddDialog(true)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add Capability
+        </button>
+      </div>
+
       {/* Summary bar */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <SummaryCard label="Capabilities" value={summary.totalCapabilities} />
@@ -65,6 +87,18 @@ export default function CapabilityCoverage() {
             />
           ))}
         </div>
+      )}
+
+      {/* Add Capability Dialog */}
+      {showAddDialog && systemId && (
+        <AddCapabilityDialog
+          systemId={systemId}
+          existingCapabilityIds={capabilities.map((c) => c.capabilityId)}
+          onClose={() => setShowAddDialog(false)}
+          onAdded={() => {
+            setShowAddDialog(false);
+          }}
+        />
       )}
     </div>
   );

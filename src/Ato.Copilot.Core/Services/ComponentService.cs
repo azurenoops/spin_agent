@@ -66,6 +66,7 @@ public class ComponentService
             PersonCount = await allComponents.CountAsync(c => c.ComponentType == ComponentType.Person, cancellationToken),
             PlaceCount = await allComponents.CountAsync(c => c.ComponentType == ComponentType.Place, cancellationToken),
             ThingCount = await allComponents.CountAsync(c => c.ComponentType == ComponentType.Thing, cancellationToken),
+            PolicyCount = await allComponents.CountAsync(c => c.ComponentType == ComponentType.Policy, cancellationToken),
             TotalCount = await allComponents.CountAsync(cancellationToken),
         };
 

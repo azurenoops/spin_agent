@@ -9,6 +9,7 @@ import { useNotifications } from '../../hooks/useNotifications';
 
 const navItems = [
   { to: '/', label: 'Portfolio' },
+  { to: '/systems', label: 'Systems' },
   { to: '/capabilities', label: 'Capabilities' },
   { to: '/components', label: 'Components' },
 ];
@@ -46,7 +47,13 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
       {/* Top header */}
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
         <div className="flex items-center gap-6">
-          <NavLink to="/" className="text-lg font-semibold text-blue-700 hover:text-blue-800">ATO Copilot</NavLink>
+          <NavLink to="/" className="flex items-center gap-2 text-lg font-semibold text-blue-700 hover:text-blue-800">
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5Z" fill="#2563EB" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="m8.5 12.5 2.5 2.5 4.5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            ATO Copilot
+          </NavLink>
           <nav className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => (
               <NavLink
@@ -131,7 +138,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
               </aside>
             ) : (
               sidePanelOpen && sidePanel && (
-                <aside className="w-80 overflow-y-auto border-l border-gray-200 bg-gray-50 p-4">
+                <aside className="w-80 flex flex-col border-l border-gray-200 bg-white">
                   {sidePanel}
                 </aside>
               )

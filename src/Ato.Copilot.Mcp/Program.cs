@@ -648,6 +648,61 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     {
         logger.LogWarning(ex, "Could not migrate system-scoped components — non-fatal");
     }
+
+    // Feature 037: SSP Document Export tables
+    const string sspExportSql = """
+        IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'SspExports')
+        CREATE TABLE SspExports (
+            Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+            SystemId NVARCHAR(36) NOT NULL,
+            Format NVARCHAR(10) NOT NULL,
+            Status NVARCHAR(20) NOT NULL DEFAULT 'Pending',
+            FilePath NVARCHAR(500) NULL,
+            FileSize BIGINT NULL,
+            ContentHash NVARCHAR(128) NULL,
+            TemplateId UNIQUEIDENTIFIER NULL,
+            GeneratedBy NVARCHAR(200) NOT NULL,
+            GeneratedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+            CompletedAt DATETIMEOFFSET NULL,
+            ExpiresAt DATETIMEOFFSET NOT NULL,
+            ErrorMessage NVARCHAR(2000) NULL,
+            ControlCount INT NULL
+        );
+
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_SspExports_SystemId_GeneratedAt')
+            CREATE INDEX IX_SspExports_SystemId_GeneratedAt ON SspExports (SystemId, GeneratedAt DESC);
+
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_SspExports_ExpiresAt')
+            CREATE INDEX IX_SspExports_ExpiresAt ON SspExports (ExpiresAt);
+
+        IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'SspTemplates')
+        CREATE TABLE SspTemplates (
+            Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+            Name NVARCHAR(200) NOT NULL,
+            Description NVARCHAR(1000) NULL,
+            FilePath NVARCHAR(500) NOT NULL,
+            FileSize BIGINT NOT NULL,
+            MergeFields NVARCHAR(MAX) NULL,
+            IsDefault BIT NOT NULL DEFAULT 0,
+            IsActive BIT NOT NULL DEFAULT 1,
+            UploadedBy NVARCHAR(200) NOT NULL,
+            UploadedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+            UpdatedAt DATETIMEOFFSET NULL
+        );
+
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_SspTemplates_IsActive_Name')
+            CREATE INDEX IX_SspTemplates_IsActive_Name ON SspTemplates (IsActive, Name);
+        """;
+
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(sspExportSql, ct);
+        logger.LogInformation("Verified SSP Export schema (Feature 037)");
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Could not apply SSP Export schema — non-fatal");
+    }
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -698,6 +753,18 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     // Deviation services (Feature 035)
     services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IDeviationService, Ato.Copilot.Core.Services.DeviationService>();
     services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.DeviationExpirationService>();
+
+    // SSP Export services (Feature 037)
+    services.Configure<Ato.Copilot.Core.Configuration.ExportSettings>(
+        configuration.GetSection(Ato.Copilot.Core.Configuration.ExportSettings.SectionName));
+    services.AddSingleton(System.Threading.Channels.Channel.CreateBounded<Ato.Copilot.Core.Dtos.Dashboard.SspExportJob>(
+        new System.Threading.Channels.BoundedChannelOptions(100) { FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait }));
+    services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.ISspExportService,
+        Ato.Copilot.Agents.Compliance.Services.SspExportService>();
+    services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.ISspExportNotifier,
+        Ato.Copilot.Mcp.Services.SignalRSspExportNotifier>();
+    services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportBackgroundService>();
+    services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportRetentionService>();
 }
 
 // ────────────────────────────────────────────────────────────────

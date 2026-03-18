@@ -261,6 +261,14 @@ public class AtoCopilotContext : DbContext
     /// <summary>Individual control-gap items assigned to roadmap phases.</summary>
     public DbSet<RoadmapItem> RoadmapItems => Set<RoadmapItem>();
 
+    // ─── SSP Document Export (Feature 037) ──────────────────────────────────
+
+    /// <summary>SSP export job metadata and audit records.</summary>
+    public DbSet<SspExport> SspExports => Set<SspExport>();
+
+    /// <summary>Custom DOCX templates for SSP document generation.</summary>
+    public DbSet<SspTemplate> SspTemplates => Set<SspTemplate>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

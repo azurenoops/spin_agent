@@ -343,18 +343,17 @@ public class PrivacyService : IPrivacyService
             return;
         }
 
+        // Remove any PIA linked to this PTA first (PtaId is a required FK)
+        var pia = await context.PrivacyImpactAssessments
+            .FirstOrDefaultAsync(p => p.PtaId == pta.Id, cancellationToken);
+
+        if (pia != null)
+        {
+            context.PrivacyImpactAssessments.Remove(pia);
+        }
+
         // Delete PTA
         context.PrivacyThresholdAnalyses.Remove(pta);
-
-        // Set any approved PIA to UnderReview (preserve content for re-review)
-        var pia = await context.PrivacyImpactAssessments
-            .FirstOrDefaultAsync(p => p.RegisteredSystemId == systemId, cancellationToken);
-
-        if (pia != null && pia.Status == PiaStatus.Approved)
-        {
-            pia.Status = PiaStatus.UnderReview;
-            pia.ModifiedAt = DateTime.UtcNow;
-        }
 
         await context.SaveChangesAsync(cancellationToken);
 

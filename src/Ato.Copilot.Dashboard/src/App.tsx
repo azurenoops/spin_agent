@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import PortfolioRiskProfile from './pages/PortfolioRiskProfile';
 import PortfolioDashboard from './pages/PortfolioDashboard';
 import SystemDetail from './pages/SystemDetail';
 import CapabilityLibrary from './pages/CapabilityLibrary';
@@ -13,6 +14,7 @@ import Remediation from './pages/Remediation';
 import Narratives from './pages/Narratives';
 import DeviationsPage from './pages/DeviationsPage';
 import CapabilityCoverage from './pages/CapabilityCoverage';
+import LegalRegulatory from './pages/LegalRegulatory';
 import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
@@ -37,11 +39,13 @@ function AppContent() {
   return (
     <SystemDataProvider>
       <Routes>
-        <Route path="/" element={<PortfolioDashboard />} />
+        <Route path="/" element={<PortfolioRiskProfile />} />
+        <Route path="/systems" element={<PortfolioDashboard />} />
         <Route path="/systems/:id" element={<SystemLayout />}>
           <Route index element={<SystemDetail />} />
           <Route path="roadmap" element={<Roadmap />} />
           <Route path="boundaries" element={<BoundaryManagement />} />
+          <Route path="legal" element={<LegalRegulatory />} />
           <Route path="gaps" element={<GapAnalysis />} />
           <Route path="documents" element={<Documents />} />
           <Route path="narratives" element={<Narratives />} />

@@ -8,7 +8,7 @@ export type NarrativeStatus = 'Populated' | 'Empty' | 'Customized';
 
 export type CapabilityStatus = 'Planned' | 'InProgress' | 'Implemented' | 'Deprecated';
 export type CapabilityMappingRole = 'Primary' | 'Supporting' | 'Shared';
-export type ComponentType = 'Person' | 'Place' | 'Thing';
+export type ComponentType = 'Person' | 'Place' | 'Thing' | 'Policy';
 export type ComponentStatus = 'Active' | 'Planned' | 'Decommissioned';
 
 // ─── Common ────────────────────────────────────────────────────────────────────
