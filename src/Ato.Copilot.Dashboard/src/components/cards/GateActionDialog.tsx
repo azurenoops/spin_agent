@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   createPta,
   addInterconnection,
@@ -7,13 +7,17 @@ import {
   setCategorization,
   selectBaseline,
 } from '../../api/systemDetail';
+import { assignRole, fetchRoles, deleteRole } from '../../api/roles';
+import type { RoleAssignment } from '../../api/roles';
+import { listComponents } from '../../api/components';
+import type { OrgComponentDto } from '../../api/components';
 import type {
   CreatePtaRequest,
   AddInterconnectionRequest,
   InfoTypeInput,
 } from '../../api/systemDetail';
 
-export type GateAction = 'pta' | 'pia' | 'interconnection' | 'certify-none' | 'categorization' | 'baseline';
+export type GateAction = 'pta' | 'pia' | 'interconnection' | 'certify-none' | 'categorization' | 'baseline' | 'roles';
 
 interface GateActionDialogProps {
   action: GateAction;
@@ -41,7 +45,31 @@ const DIALOG_TITLES: Record<GateAction, string> = {
   'certify-none': 'Certify No External Interconnections',
   categorization: 'FIPS 199 Security Categorization',
   baseline: 'Select Control Baseline',
+  roles: 'Assign RMF Roles',
 };
+
+const ROLE_OPTIONS = [
+  { value: 'AuthorizingOfficial', label: 'Authorizing Official (AO)' },
+  { value: 'Issm', label: 'ISSM' },
+  { value: 'Isso', label: 'ISSO' },
+  { value: 'Sca', label: 'SCA' },
+  { value: 'SystemOwner', label: 'System Owner' },
+];
+
+function roleBadgeColor(role: string): string {
+  switch (role) {
+    case 'AuthorizingOfficial': return 'bg-purple-100 text-purple-800';
+    case 'Issm': return 'bg-blue-100 text-blue-800';
+    case 'Isso': return 'bg-green-100 text-green-800';
+    case 'Sca': return 'bg-amber-100 text-amber-800';
+    case 'SystemOwner': return 'bg-indigo-100 text-indigo-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+}
+
+function roleLabel(role: string): string {
+  return ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role;
+}
 
 export default function GateActionDialog({ action, systemId, onClose, onSuccess }: GateActionDialogProps) {
   const [loading, setLoading] = useState(false);
@@ -69,6 +97,43 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
   // Baseline state
   const [blApplyOverlay, setBlApplyOverlay] = useState(true);
   const [blOverlayName, setBlOverlayName] = useState('');
+
+  // Roles state
+  const [roleSelected, setRoleSelected] = useState(ROLE_OPTIONS[0]!.value);
+  const [personComponents, setPersonComponents] = useState<OrgComponentDto[]>([]);
+  const [personSearch, setPersonSearch] = useState('');
+  const [selectedPerson, setSelectedPerson] = useState<OrgComponentDto | null>(null);
+  const [existingRoles, setExistingRoles] = useState<RoleAssignment[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
+
+  // Load Person components and existing roles for the roles action
+  useEffect(() => {
+    if (action !== 'roles') return;
+    setRolesLoading(true);
+    Promise.all([
+      listComponents({ type: 'Person', pageSize: 200 }),
+      fetchRoles(systemId),
+    ]).then(([compResult, rolesResult]) => {
+      setPersonComponents(compResult.items);
+      setExistingRoles(rolesResult);
+    }).finally(() => setRolesLoading(false));
+  }, [action, systemId]);
+
+  const filteredPersons = personComponents.filter(
+    (c) => !personSearch || c.name.toLowerCase().includes(personSearch.toLowerCase()),
+  );
+
+  const handleDeleteRole = async (roleId: string) => {
+    setDeletingRoleId(roleId);
+    try {
+      await deleteRole(systemId, roleId);
+      const updated = await fetchRoles(systemId);
+      setExistingRoles(updated);
+    } finally {
+      setDeletingRoleId(null);
+    }
+  };
 
   const togglePiiCategory = (cat: string) => {
     setPtaCategories((prev) => prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]);
@@ -134,6 +199,19 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
             overlayName: blOverlayName || undefined,
           });
           break;
+        case 'roles': {
+          if (!selectedPerson) { setError('Select a person to assign'); setLoading(false); return; }
+          await assignRole(systemId, {
+            role: roleSelected,
+            userDisplayName: selectedPerson.name,
+          });
+          // Refresh existing roles list
+          const updated = await fetchRoles(systemId);
+          setExistingRoles(updated);
+          setSelectedPerson(null);
+          setLoading(false);
+          return; // Don't close — let user assign more roles
+        }
       }
       onSuccess();
     } catch (err) {
@@ -148,6 +226,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
       const labels: Record<GateAction, string> = {
         pta: 'Creating...', pia: 'Processing...', interconnection: 'Adding...',
         'certify-none': 'Certifying...', categorization: 'Saving...', baseline: 'Selecting...',
+        roles: 'Assigning...',
       };
       return labels[action];
     }
@@ -155,11 +234,12 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
       pta: 'Create PTA', pia: 'Generate & Approve PIA', interconnection: 'Add Interconnection',
       'certify-none': 'Certify', categorization: `Save Categorization (${catInfoTypes.length} type${catInfoTypes.length !== 1 ? 's' : ''})`,
       baseline: 'Select Baseline',
+      roles: 'Assign Role',
     };
     return labels[action];
   };
 
-  const isSubmitDisabled = loading || (action === 'categorization' && catInfoTypes.length === 0);
+  const isSubmitDisabled = loading || (action === 'categorization' && catInfoTypes.length === 0) || (action === 'roles' && !selectedPerson);
 
   const submitColor = action === 'certify-none'
     ? 'bg-amber-600 hover:bg-amber-700'
@@ -378,19 +458,126 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
             </div>
           )}
 
+          {action === 'roles' && (
+            <div className="space-y-4">
+              {/* Existing role assignments */}
+              {existingRoles.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-700 mb-1.5">Current Assignments</p>
+                  <div className="divide-y divide-gray-100 rounded-md border border-gray-200">
+                    {existingRoles.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between px-3 py-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${roleBadgeColor(r.role)}`}>
+                            {roleLabel(r.role)}
+                          </span>
+                          <span className="text-sm text-gray-900 truncate">{r.userDisplayName ?? r.userId}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRole(r.id)}
+                          disabled={deletingRoleId === r.id}
+                          className="text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                          title="Remove"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Role selector */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Role</label>
+                <select
+                  value={roleSelected}
+                  onChange={(e) => setRoleSelected(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                >
+                  {ROLE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Person picker */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Assign Person (from Components)</label>
+                <input
+                  type="text"
+                  value={personSearch}
+                  onChange={(e) => setPersonSearch(e.target.value)}
+                  placeholder="Search person components..."
+                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+                {rolesLoading ? (
+                  <p className="text-xs text-gray-500 py-2">Loading persons...</p>
+                ) : filteredPersons.length === 0 ? (
+                  <p className="text-xs text-gray-500 italic py-2 text-center">
+                    {personComponents.length === 0 ? 'No Person components found in the Component Library.' : 'No matches.'}
+                  </p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-1 rounded-md border border-gray-200 p-1">
+                    {filteredPersons.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setSelectedPerson(p)}
+                        className={`w-full text-left flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors ${
+                          selectedPerson?.id === p.id
+                            ? 'bg-blue-50 border border-blue-300 text-blue-800'
+                            : 'bg-white hover:bg-gray-50 border border-transparent'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <span className="font-medium">{p.name}</span>
+                          {p.subType && <span className="ml-2 text-xs text-gray-500">{p.subType}</span>}
+                        </div>
+                        {selectedPerson?.id === p.id && (
+                          <svg className="h-4 w-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
         </div>
 
         {/* Footer */}
         <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end gap-2 flex-shrink-0">
-          <button type="button" onClick={onClose}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">
-            Cancel
-          </button>
-          <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitDisabled}
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${submitColor} disabled:opacity-50 transition-colors`}>
-            {submitLabel()}
-          </button>
+          {action === 'roles' ? (
+            <>
+              <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitDisabled}
+                className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${submitColor} disabled:opacity-50 transition-colors`}>
+                {submitLabel()}
+              </button>
+              <button type="button" onClick={() => { onSuccess(); }}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-colors">
+                Done
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={onClose}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitDisabled}
+                className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${submitColor} disabled:opacity-50 transition-colors`}>
+                {submitLabel()}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

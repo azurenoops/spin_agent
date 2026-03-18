@@ -51,3 +51,93 @@ public class DeleteCapabilityResponse
     public int AffectedNarratives { get; init; }
     public required string Message { get; init; }
 }
+
+/// <summary>
+/// Impact preview for capability changes — shows how many narratives would be regenerated.
+/// </summary>
+public class CapabilityImpactPreview
+{
+    public int TotalNarratives { get; init; }
+    public int TotalSystems { get; init; }
+    public int CustomSkipped { get; init; }
+    public List<CapabilitySystemImpactDto> BySystem { get; init; } = [];
+}
+
+/// <summary>
+/// Per-system breakdown for capability impact preview.
+/// </summary>
+public class CapabilitySystemImpactDto
+{
+    public required string SystemId { get; init; }
+    public string? SystemName { get; init; }
+    public int NarrativeCount { get; init; }
+    public int CustomSkipped { get; init; }
+}
+
+// ─── Capability Coverage DTOs ────────────────────────────────────────────
+
+/// <summary>
+/// Full capability coverage response for a system.
+/// </summary>
+public class CapabilityCoverageResponse
+{
+    public required string SystemId { get; init; }
+    public string? SystemName { get; init; }
+    public List<CapabilityCoverageDto> Capabilities { get; init; } = [];
+    public required CoverageSummaryDto Summary { get; init; }
+}
+
+/// <summary>
+/// Individual capability in the coverage view with linked components and narrative status.
+/// </summary>
+public class CapabilityCoverageDto
+{
+    public required string CapabilityId { get; init; }
+    public required string CapabilityName { get; init; }
+    public required string Provider { get; init; }
+    public required string Category { get; init; }
+    public required string ImplementationStatus { get; init; }
+    public string? Owner { get; init; }
+    public required string Role { get; init; }
+    public int MappedControlCount { get; init; }
+    public required NarrativeStatusDto NarrativeStatus { get; init; }
+    public List<CoverageComponentDto> Components { get; init; } = [];
+}
+
+/// <summary>
+/// Narrative status breakdown for a capability in the coverage view.
+/// </summary>
+public class NarrativeStatusDto
+{
+    public int Populated { get; init; }
+    public int Custom { get; init; }
+    public int Empty { get; init; }
+    public int AiGenerated { get; init; }
+}
+
+/// <summary>
+/// Component information in the coverage view.
+/// </summary>
+public class CoverageComponentDto
+{
+    public required string ComponentId { get; init; }
+    public required string Name { get; init; }
+    public required string ComponentType { get; init; }
+    public string? Owner { get; init; }
+    public required string Status { get; init; }
+    public string? BoundaryName { get; init; }
+    public string? BoundaryDefinitionId { get; init; }
+}
+
+/// <summary>
+/// Summary counts for the coverage view.
+/// </summary>
+public class CoverageSummaryDto
+{
+    public int TotalCapabilities { get; init; }
+    public int TotalMappedControls { get; init; }
+    public int TotalNarrativesPopulated { get; init; }
+    public int TotalNarrativesCustom { get; init; }
+    public int TotalNarrativesEmpty { get; init; }
+    public double CoveragePercent { get; init; }
+}

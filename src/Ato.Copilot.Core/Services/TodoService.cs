@@ -138,7 +138,47 @@ public class TodoService
             });
         }
 
-        if (hasRoles && hasBoundary)
+        // ── Privacy Readiness ────────────────────────────────────────────
+        var pta = await _db.PrivacyThresholdAnalyses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.RegisteredSystemId == systemId, ct);
+
+        if (pta is null)
+        {
+            items.Add(new TodoItemDto
+            {
+                Id = "create-pta",
+                Label = "Complete Privacy Threshold Analysis",
+                Detail = "PTA must be completed before categorization",
+                Category = "phase-action",
+                Prompt = $"Create a Privacy Threshold Analysis (PTA) for {SystemName(systemId)}",
+            });
+        }
+
+        // ── Interconnection Documentation ────────────────────────────────
+        var system = await _db.RegisteredSystems
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == systemId, ct);
+
+        if (system is not null && !system.HasNoExternalInterconnections)
+        {
+            var hasInterconnections = await _db.SystemInterconnections
+                .AnyAsync(ic => ic.RegisteredSystemId == systemId, ct);
+
+            if (!hasInterconnections)
+            {
+                items.Add(new TodoItemDto
+                {
+                    Id = "interconnection-docs",
+                    Label = "Document Interconnections",
+                    Detail = "Register interconnections or certify no external interconnections",
+                    Category = "phase-action",
+                    Prompt = $"Document system interconnections for {SystemName(systemId)}",
+                });
+            }
+        }
+
+        if (hasRoles && hasBoundary && pta != null && system?.HasNoExternalInterconnections == true)
         {
             items.Add(new TodoItemDto
             {

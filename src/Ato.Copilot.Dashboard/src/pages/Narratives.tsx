@@ -1,8 +1,8 @@
-import { useState, useCallback, useMemo, Fragment } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
-import { getNarratives, bulkUpdateNarratives } from '../api/narratives';
-import type { NarrativeListItem } from '../api/narratives';
+import { getNarratives, bulkUpdateNarratives, saveNarrative, regenerateNarrative, getAvailableControls, createNarrative } from '../api/narratives';
+import type { NarrativeListItem, AvailableControl } from '../api/narratives';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -43,6 +43,164 @@ function formatDate(dt: string | null | undefined): string {
 
 const FAMILIES = ['All', 'AC', 'AU', 'AT', 'CA', 'CM', 'CP', 'IA', 'IR', 'MA', 'MP', 'PE', 'PL', 'PM', 'PS', 'RA', 'SA', 'SC', 'SI', 'SR'];
 const STATUSES = ['All', 'Implemented', 'PartiallyImplemented', 'Planned', 'NotApplicable'];
+const IMPL_STATUSES = ['Planned', 'Implemented', 'PartiallyImplemented', 'NotApplicable'];
+
+// ─── Add Narrative Dialog ───────────────────────────────────────────────────
+
+function AddNarrativeDialog({
+  systemId,
+  onClose,
+  onCreated,
+}: {
+  systemId: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [controlSearch, setControlSearch] = useState('');
+  const [controls, setControls] = useState<AvailableControl[]>([]);
+  const [loadingControls, setLoadingControls] = useState(false);
+  const [selectedControl, setSelectedControl] = useState<AvailableControl | null>(null);
+  const [narrative, setNarrative] = useState('');
+  const [implStatus, setImplStatus] = useState('Planned');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load controls on mount and when search changes
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setLoadingControls(true);
+      getAvailableControls(systemId, controlSearch || undefined)
+        .then(setControls)
+        .catch(() => setControls([]))
+        .finally(() => setLoadingControls(false));
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [systemId, controlSearch]);
+
+  const handleSubmit = async () => {
+    if (!selectedControl) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await createNarrative(systemId, {
+        controlId: selectedControl.id,
+        narrative: narrative || undefined,
+        implementationStatus: implStatus,
+      });
+      onCreated();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to create narrative';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+        <div className="border-b border-gray-200 px-6 py-4">
+          <h3 className="text-lg font-semibold text-gray-900">Add Narrative</h3>
+          <p className="mt-1 text-sm text-gray-500">Create a new control implementation narrative.</p>
+        </div>
+        <div className="space-y-4 px-6 py-4">
+          {/* Control Picker */}
+          {!selectedControl ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select Control *</label>
+              <input
+                type="text"
+                value={controlSearch}
+                onChange={e => setControlSearch(e.target.value)}
+                placeholder="Search controls (e.g. ac-2, audit)..."
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <div className="mt-2 max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-gray-50">
+                {loadingControls ? (
+                  <p className="px-3 py-2 text-sm text-gray-400">Loading...</p>
+                ) : controls.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-gray-400 italic">No available controls found</p>
+                ) : (
+                  controls.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setSelectedControl(c)}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50"
+                    >
+                      <span className="font-medium text-gray-900">{c.id}</span>
+                      <span className="ml-2 truncate text-gray-500">{c.title}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Control</label>
+              <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                <span className="font-medium text-gray-900">{selectedControl.id}</span>
+                <span className="text-gray-500">{selectedControl.title}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedControl(null)}
+                  className="ml-auto text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Implementation Status</label>
+            <select
+              value={implStatus}
+              onChange={e => setImplStatus(e.target.value)}
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              {IMPL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Narrative Text */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Narrative</label>
+            <textarea
+              value={narrative}
+              onChange={e => setNarrative(e.target.value)}
+              rows={5}
+              placeholder="Enter the implementation narrative text (optional — can be added later)..."
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-gray-200 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!selectedControl || submitting}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {submitting ? 'Creating...' : 'Create'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -56,6 +214,12 @@ export default function Narratives() {
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkApproval, setBulkApproval] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [editedNarratives, setEditedNarratives] = useState<Record<string, string>>({});
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set());
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const savedTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const fetchNarratives = useCallback(() => {
     if (!systemId) return Promise.resolve([]);
@@ -134,15 +298,65 @@ export default function Narratives() {
     }
   };
 
+  const handleNarrativeBlur = async (controlId: string, text: string, original: string | null) => {
+    if (text === (original ?? '')) return; // No change
+    if (!systemId) return;
+    setSavingIds(prev => new Set([...prev, controlId]));
+    try {
+      await saveNarrative(systemId, controlId, text);
+      setSavedIds(prev => new Set([...prev, controlId]));
+      // Clear "Saved" indicator after 2s
+      if (savedTimers.current[controlId]) clearTimeout(savedTimers.current[controlId]);
+      savedTimers.current[controlId] = setTimeout(() => {
+        setSavedIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
+      }, 2000);
+      refresh();
+    } finally {
+      setSavingIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
+    }
+  };
+
+  const handleRegenerate = async (controlId: string) => {
+    if (!systemId) return;
+    setRegeneratingIds(prev => new Set([...prev, controlId]));
+    try {
+      const newNarrative = await regenerateNarrative(systemId, controlId);
+      if (newNarrative) {
+        setEditedNarratives(prev => ({ ...prev, [controlId]: newNarrative }));
+      }
+      refresh();
+    } catch {
+      // ignore
+    } finally {
+      setRegeneratingIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
+    }
+  };
+
   if (!systemId) return null;
 
   return (
     <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Control Narratives</h2>
-          <p className="mt-1 text-sm text-gray-500">View and manage control implementation narratives for this system.</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Control Narratives</h2>
+            <p className="mt-1 text-sm text-gray-500">View and manage control implementation narratives for this system.</p>
+          </div>
+          <button
+            onClick={() => setShowAddDialog(true)}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            + Add Narrative
+          </button>
         </div>
+
+        {showAddDialog && (
+          <AddNarrativeDialog
+            systemId={systemId!}
+            onClose={() => setShowAddDialog(false)}
+            onCreated={() => { setShowAddDialog(false); refresh(); }}
+          />
+        )}
 
         {/* Progress bar */}
         {stats.total > 0 && (
@@ -322,14 +536,28 @@ export default function Narratives() {
                       <tr className="bg-gray-50">
                         <td colSpan={9} className="px-6 py-4">
                           <div className="space-y-2">
-                            <div className="flex items-center gap-4 text-xs text-gray-500">
-                              <span>Authored: {formatDate(n.authoredAt)}</span>
-                              <span>Version: {n.version}</span>
-                              {n.aiSuggested && <span className="text-purple-600 font-medium">AI-generated narrative</span>}
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <div className="flex items-center gap-4">
+                                <span>Authored: {formatDate(n.authoredAt)}</span>
+                                <span>Version: {n.version}</span>
+                                {n.aiSuggested && <span className="text-purple-600 font-medium">AI-generated narrative</span>}
+                                {savingIds.has(n.controlId) && <span className="text-blue-600 font-medium">Saving…</span>}
+                                {savedIds.has(n.controlId) && !savingIds.has(n.controlId) && <span className="text-green-600 font-medium">Saved ✓</span>}
+                              </div>
+                              <button
+                                className="inline-flex items-center gap-1 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                                disabled={regeneratingIds.has(n.controlId)}
+                                onClick={() => handleRegenerate(n.controlId)}
+                              >
+                                {regeneratingIds.has(n.controlId) ? 'Regenerating…' : 'Regenerate'}
+                              </button>
                             </div>
-                            <div className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-700 whitespace-pre-wrap">
-                              {n.narrative || <span className="italic text-gray-400">No narrative content.</span>}
-                            </div>
+                            <textarea
+                              className="w-full rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-700 min-h-[120px] resize-y focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                              value={editedNarratives[n.controlId] ?? n.narrative ?? ''}
+                              onChange={e => setEditedNarratives(prev => ({ ...prev, [n.controlId]: e.target.value }))}
+                              onBlur={e => handleNarrativeBlur(n.controlId, e.target.value, n.narrative)}
+                            />
                           </div>
                         </td>
                       </tr>

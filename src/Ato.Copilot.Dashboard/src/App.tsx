@@ -3,7 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import PortfolioDashboard from './pages/PortfolioDashboard';
 import SystemDetail from './pages/SystemDetail';
 import CapabilityLibrary from './pages/CapabilityLibrary';
-import ComponentInventory from './pages/ComponentInventory';
+import ComponentLibrary from './pages/ComponentLibrary';
 import GapAnalysis from './pages/GapAnalysis';
 import Roadmap from './pages/Roadmap';
 import BoundaryManagement from './pages/BoundaryManagement';
@@ -12,6 +12,7 @@ import Assessments from './pages/Assessments';
 import Remediation from './pages/Remediation';
 import Narratives from './pages/Narratives';
 import DeviationsPage from './pages/DeviationsPage';
+import CapabilityCoverage from './pages/CapabilityCoverage';
 import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
@@ -41,15 +42,16 @@ function AppContent() {
           <Route index element={<SystemDetail />} />
           <Route path="roadmap" element={<Roadmap />} />
           <Route path="boundaries" element={<BoundaryManagement />} />
-          <Route path="components" element={<ComponentInventory />} />
           <Route path="gaps" element={<GapAnalysis />} />
           <Route path="documents" element={<Documents />} />
           <Route path="narratives" element={<Narratives />} />
           <Route path="deviations" element={<DeviationsPage />} />
           <Route path="assessments" element={<Assessments />} />
           <Route path="remediation" element={<Remediation />} />
+          <Route path="capability-coverage" element={<CapabilityCoverage />} />
         </Route>
         <Route path="/capabilities" element={<CapabilityLibrary />} />
+        <Route path="/components" element={<ComponentLibrary />} />
       </Routes>
       <ChatPanel
         isOpen={panelState.isOpen}

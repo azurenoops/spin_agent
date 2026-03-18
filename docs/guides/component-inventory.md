@@ -122,3 +122,57 @@ Components can be assigned to specific authorization boundaries:
 - Components with no boundary assignment are treated as organization-wide (applicable to all boundaries)
 - The component list groups entries by boundary when multiple boundaries exist
 - Deleting a boundary reassigns its components to the Primary boundary
+
+---
+
+## Org-Wide Component Library (Feature 036)
+
+Components can be created at the **organization level** (not tied to a specific system) and then assigned to one or more registered systems.
+
+### Creating Org-Wide Components
+
+Navigate to `/components` to view the org-wide component library. Click **+ Add Component** to create a component with:
+
+- **Name**, **Type**, **Status** — same as system-scoped components
+- **Linked Capabilities** — security capabilities this component implements
+
+### Assigning to Systems
+
+From the component library or a system's component page, assign an org-wide component to a system:
+
+1. Click the **Assign to System** action on a component
+2. Select a target system and optional authorization boundary
+3. The component now appears in that system's component inventory
+
+A component can be assigned to **multiple systems** — useful for shared infrastructure like Entra ID or Defender.
+
+### Impact Preview
+
+When editing or deleting a component that is linked to capabilities with control mappings, a **cascade impact preview** appears showing:
+
+- Number of systems affected
+- Number of control narratives that will be regenerated
+- Number of manually customized narratives that will be **skipped** (preserved)
+
+### Cascade Narrative Regeneration
+
+When you change a component's **name**, **description**, or **owner**, all linked control narratives are automatically regenerated:
+
+1. The system traverses: Component → Linked Capabilities → Control Mappings → Control Implementations
+2. For each affected narrative, a **NarrativeVersion** snapshot is created (preserving the previous text)
+3. The narrative is regenerated using deterministic templates with updated component context
+4. Manually customized narratives (`IsManuallyCustomized = true`) are **never overwritten**
+
+The same cascade triggers when a component is **assigned to** or **removed from** a system.
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/components` | List all org-wide components |
+| POST | `/api/dashboard/components` | Create an org-wide component |
+| PUT | `/api/dashboard/components/{id}` | Update (triggers cascade) |
+| DELETE | `/api/dashboard/components/{id}` | Delete a component |
+| POST | `/api/dashboard/components/{id}/assign` | Assign to a system |
+| DELETE | `/api/dashboard/components/{id}/assignments/{assignmentId}` | Remove assignment |
+| GET | `/api/dashboard/components/{id}/impact-preview` | Preview cascade impact |

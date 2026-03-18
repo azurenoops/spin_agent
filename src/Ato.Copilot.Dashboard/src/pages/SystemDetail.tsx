@@ -9,27 +9,21 @@ import FindingsSeverityCard from '../components/cards/FindingsSeverityCard';
 import AtoCountdown from '../components/cards/AtoCountdown';
 import ActivityFeed from '../components/cards/ActivityFeed';
 import TodoPanel from '../components/cards/TodoPanel';
-import RoleAssignmentPanel from '../components/cards/RoleAssignmentPanel';
-import { BoundarySummaryCard } from '../components/cards/BoundarySummaryCard';
 import HelpTooltip from '../components/help/HelpTooltip';
 import { usePolling } from '../hooks/usePolling';
 import { getHeatmap } from '../api/systemDetail';
-import { fetchBoundaryDefinitions } from '../api/boundaries';
 import { useSystemContext } from '../components/layout/SystemLayout';
-import type { HeatmapResponse, BoundaryDefinitionDto } from '../types/dashboard';
+import type { HeatmapResponse } from '../types/dashboard';
 
 export default function SystemDetail() {
   const { detail, refetch } = useSystemContext();
   const [heatmapData, setHeatmapData] = useState<HeatmapResponse | null>(null);
-  const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
 
   const fetchExtra = useCallback(async () => {
-    const [h, b] = await Promise.allSettled([
+    const [h] = await Promise.allSettled([
       getHeatmap(detail.systemId),
-      fetchBoundaryDefinitions(detail.systemId),
     ]);
     setHeatmapData(h.status === 'fulfilled' ? h.value : null);
-    setBoundaries(b.status === 'fulfilled' ? b.value : []);
   }, [detail.systemId]);
 
   usePolling(fetchExtra);
@@ -103,31 +97,6 @@ export default function SystemDetail() {
       {/* To Do Panel (mobile — shows below metrics when side panel is hidden) */}
       <div className="mb-6 xl:hidden">
         <TodoPanel systemId={detail.systemId} />
-      </div>
-
-      {/* Team & Roles */}
-      <RoleAssignmentPanel systemId={detail.systemId} />
-
-      {/* Boundary Summary (Feature 033) */}
-      <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-700">Authorization Boundaries</h2>
-          <Link
-            to={`/systems/${detail.systemId}/boundaries`}
-            className="text-xs text-blue-600 hover:underline"
-          >
-            Manage Boundaries →
-          </Link>
-        </div>
-        {boundaries.length > 0 ? (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {boundaries.map((b) => (
-              <BoundarySummaryCard key={b.id} boundary={b} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">No boundaries defined yet.</p>
-        )}
       </div>
 
       {/* Heatmap */}

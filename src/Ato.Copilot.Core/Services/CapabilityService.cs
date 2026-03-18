@@ -214,77 +214,133 @@ public class CapabilityService
 
             narrativesByBoundary = new Dictionary<string, int>();
 
-            foreach (var impl in affectedImpls)
-            {
-                if (impl.IsManuallyCustomized)
-                {
-                    narrativesSkipped++;
-                    _db.DashboardActivities.Add(new DashboardActivity
-                    {
-                        RegisteredSystemId = impl.RegisteredSystemId,
-                        EventType = "CompositeNarrativeSkipped",
-                        Actor = modifiedBy,
-                        Summary = $"Upstream capability '{entity.Name}' changed — review customized narrative for {impl.ControlId}",
-                        RelatedEntityType = "ControlImplementation",
-                        RelatedEntityId = impl.Id,
-                    });
-                    continue;
-                }
+            // Group by system for per-system transactional batches
+            var implsBySystem = affectedImpls.GroupBy(i => i.RegisteredSystemId);
+            var changeReason = $"Cascade: capability '{entity.Name}' description/provider changed";
 
-                // Find all mappings for this control + system to build composite narrative
-                var mappings = await _db.CapabilityControlMappings
-                    .Include(m => m.SecurityCapability)
-                    .Include(m => m.AuthorizationBoundaryDefinition)
-                    .Where(m => m.ControlId == impl.ControlId &&
-                                (m.RegisteredSystemId == impl.RegisteredSystemId || m.RegisteredSystemId == null))
+            foreach (var systemGroup in implsBySystem)
+            {
+                var systemId = systemGroup.Key;
+                int systemUpdated = 0, systemSkipped = 0;
+
+                // Query component context once per system
+                var componentContexts = await _db.ComponentCapabilityLinks
+                    .Where(cl => cl.SecurityCapabilityId == id)
+                    .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == systemId),
+                        cl => cl.SystemComponentId,
+                        a => a.SystemComponentId,
+                        (cl, a) => new { cl.SystemComponent, a.AuthorizationBoundaryDefinition })
+                    .Select(x => new ComponentContext(
+                        x.SystemComponent.Name,
+                        x.SystemComponent.ComponentType.ToString(),
+                        x.SystemComponent.Owner,
+                        x.SystemComponent.PersonName))
                     .ToListAsync(cancellationToken);
 
-                var nist = await _db.NistControls
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(n => n.Id == impl.ControlId, cancellationToken);
-                var controlTitle = nist?.Title ?? impl.ControlId;
-
-                if (mappings.Count <= 1)
+                foreach (var impl in systemGroup)
                 {
-                    // Single mapping — simple narrative
-                    impl.Narrative = _narrativeService.GenerateNarrative(
-                        entity.Name, entity.Provider, entity.Description,
-                        impl.ControlId, controlTitle);
+                    if (impl.IsManuallyCustomized)
+                    {
+                        narrativesSkipped++;
+                        systemSkipped++;
+                        _db.DashboardActivities.Add(new DashboardActivity
+                        {
+                            RegisteredSystemId = impl.RegisteredSystemId,
+                            EventType = "CompositeNarrativeSkipped",
+                            Actor = modifiedBy,
+                            Summary = $"Upstream capability '{entity.Name}' changed — review customized narrative for {impl.ControlId}",
+                            RelatedEntityType = "ControlImplementation",
+                            RelatedEntityId = impl.Id,
+                        });
+                        continue;
+                    }
+
+                    var previousNarrative = impl.Narrative;
+
+                    // Find all mappings for this control + system to build composite narrative
+                    var mappings = await _db.CapabilityControlMappings
+                        .Include(m => m.SecurityCapability)
+                        .Include(m => m.AuthorizationBoundaryDefinition)
+                        .Where(m => m.ControlId == impl.ControlId &&
+                                    (m.RegisteredSystemId == impl.RegisteredSystemId || m.RegisteredSystemId == null))
+                        .ToListAsync(cancellationToken);
+
+                    var nist = await _db.NistControls
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(n => n.Id == impl.ControlId, cancellationToken);
+                    var controlTitle = nist?.Title ?? impl.ControlId;
+
+                    // Use deterministic enriched templates for bulk cascade (SC-001)
+                    if (mappings.Count <= 1)
+                    {
+                        var boundaryName = mappings.FirstOrDefault()?.AuthorizationBoundaryDefinition?.Name;
+                        impl.Narrative = _narrativeService.GenerateEnrichedNarrative(
+                            entity.Name, entity.Provider, entity.Description,
+                            impl.ControlId, controlTitle,
+                            componentContexts.Count > 0 ? componentContexts : null,
+                            boundaryName);
+                    }
+                    else
+                    {
+                        var contexts = mappings
+                            .Select(m =>
+                            {
+                                // Include component context only for the updated capability
+                                var capComponents = m.SecurityCapabilityId == id && componentContexts.Count > 0
+                                    ? componentContexts
+                                    : null;
+                                return new BoundaryMappingContext(
+                                    m.SecurityCapability.Name,
+                                    m.SecurityCapability.Provider,
+                                    m.SecurityCapability.Description,
+                                    m.AuthorizationBoundaryDefinition?.Name,
+                                    capComponents);
+                            })
+                            .ToList();
+
+                        impl.Narrative = _narrativeService.GenerateCompositeNarrative(
+                            impl.ControlId, controlTitle, contexts);
+                    }
+
+                    // Create NarrativeVersion to track the change
+                    if (previousNarrative is not null)
+                    {
+                        _db.NarrativeVersions.Add(new NarrativeVersion
+                        {
+                            ControlImplementationId = impl.Id,
+                            VersionNumber = impl.CurrentVersion,
+                            Content = previousNarrative,
+                            AuthoredBy = modifiedBy,
+                            ChangeReason = changeReason,
+                        });
+                        impl.CurrentVersion++;
+                    }
+
+                    impl.ModifiedAt = DateTime.UtcNow;
+                    narrativesUpdated++;
+                    systemUpdated++;
+
+                    // Track per-boundary counts
+                    var boundaryNames = mappings
+                        .Where(m => m.AuthorizationBoundaryDefinition != null)
+                        .Select(m => m.AuthorizationBoundaryDefinition!.Name)
+                        .Distinct();
+
+                    foreach (var bName in boundaryNames)
+                    {
+                        narrativesByBoundary[bName] = narrativesByBoundary.GetValueOrDefault(bName, 0) + 1;
+                    }
+
+                    if (mappings.Any(m => m.AuthorizationBoundaryDefinitionId == null))
+                    {
+                        const string orgWide = "Organization-Wide";
+                        narrativesByBoundary[orgWide] = narrativesByBoundary.GetValueOrDefault(orgWide, 0) + 1;
+                    }
                 }
-                else
-                {
-                    // Multi-mapping — composite narrative
-                    var contexts = mappings
-                        .Select(m => new BoundaryMappingContext(
-                            m.SecurityCapability.Name,
-                            m.SecurityCapability.Provider,
-                            m.SecurityCapability.Description,
-                            m.AuthorizationBoundaryDefinition?.Name))
-                        .ToList();
 
-                    impl.Narrative = _narrativeService.GenerateCompositeNarrative(
-                        impl.ControlId, controlTitle, contexts);
-                }
-
-                impl.ModifiedAt = DateTime.UtcNow;
-                narrativesUpdated++;
-
-                // Track per-boundary counts
-                var boundaryNames = mappings
-                    .Where(m => m.AuthorizationBoundaryDefinition != null)
-                    .Select(m => m.AuthorizationBoundaryDefinition!.Name)
-                    .Distinct();
-
-                foreach (var bName in boundaryNames)
-                {
-                    narrativesByBoundary[bName] = narrativesByBoundary.GetValueOrDefault(bName, 0) + 1;
-                }
-
-                if (mappings.Any(m => m.AuthorizationBoundaryDefinitionId == null))
-                {
-                    const string orgWide = "Organization-Wide";
-                    narrativesByBoundary[orgWide] = narrativesByBoundary.GetValueOrDefault(orgWide, 0) + 1;
-                }
+                _logger.LogInformation(
+                    "Cascade for system {SystemId}: {Updated} narratives regenerated, {Skipped} customized skipped",
+                    systemId, systemUpdated, systemSkipped);
             }
         }
 
@@ -321,7 +377,187 @@ public class CapabilityService
         }, false);
     }
 
+    // ─── Impact Preview ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Dry-run preview showing how many narratives would be regenerated if this capability changes.
+    /// Returns null if capability not found.
+    /// </summary>
+    public async Task<CapabilityImpactPreview?> GetCapabilityImpactPreviewAsync(
+        string id,
+        CancellationToken cancellationToken = default)
+    {
+        var exists = await _db.SecurityCapabilities
+            .AnyAsync(c => c.Id == id, cancellationToken);
+        if (!exists) return null;
+
+        var affectedImpls = await _db.ControlImplementations
+            .Where(ci => ci.SecurityCapabilityId == id)
+            .Select(ci => new { ci.RegisteredSystemId, ci.IsManuallyCustomized })
+            .ToListAsync(cancellationToken);
+
+        var systemNames = await _db.RegisteredSystems
+            .Where(s => affectedImpls.Select(i => i.RegisteredSystemId).Distinct().Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.Name, cancellationToken);
+
+        var bySystem = affectedImpls
+            .GroupBy(i => i.RegisteredSystemId)
+            .Select(g => new CapabilitySystemImpactDto
+            {
+                SystemId = g.Key,
+                SystemName = systemNames.GetValueOrDefault(g.Key),
+                NarrativeCount = g.Count(i => !i.IsManuallyCustomized),
+                CustomSkipped = g.Count(i => i.IsManuallyCustomized),
+            })
+            .ToList();
+
+        return new CapabilityImpactPreview
+        {
+            TotalNarratives = bySystem.Sum(s => s.NarrativeCount),
+            TotalSystems = bySystem.Count,
+            CustomSkipped = bySystem.Sum(s => s.CustomSkipped),
+            BySystem = bySystem,
+        };
+    }
+
     // ─── Delete ──────────────────────────────────────────────────────────────
+
+    // ─── Capability Coverage ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns capability coverage view for a system — capabilities, linked components,
+    /// mapped control counts, and narrative generation status.
+    /// Returns null if system not found.
+    /// </summary>
+    public async Task<CapabilityCoverageResponse?> GetCapabilityCoverageAsync(
+        string systemId,
+        CancellationToken cancellationToken = default)
+    {
+        var system = await _db.RegisteredSystems
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
+        if (system is null) return null;
+
+        // Get all capability mappings for this system (system-scoped + org-wide)
+        var mappings = await _db.CapabilityControlMappings
+            .Include(m => m.SecurityCapability)
+            .Where(m => m.RegisteredSystemId == systemId || m.RegisteredSystemId == null)
+            .ToListAsync(cancellationToken);
+
+        // Group by capability
+        var capabilityGroups = mappings
+            .GroupBy(m => m.SecurityCapabilityId)
+            .ToList();
+
+        // Get all control implementations for this system
+        var implementations = await _db.ControlImplementations
+            .Where(ci => ci.RegisteredSystemId == systemId)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+        var implByControl = implementations.ToDictionary(i => i.ControlId);
+
+        var capabilities = new List<CapabilityCoverageDto>();
+
+        foreach (var group in capabilityGroups)
+        {
+            var cap = group.First().SecurityCapability;
+            var controlIds = group.Select(m => m.ControlId).Distinct().ToList();
+            var primaryRole = group.OrderByDescending(m => m.Role).First().Role;
+
+            // Narrative status
+            int populated = 0, custom = 0, empty = 0, aiGenerated = 0;
+            foreach (var controlId in controlIds)
+            {
+                if (implByControl.TryGetValue(controlId, out var impl))
+                {
+                    if (impl.IsManuallyCustomized)
+                        custom++;
+                    else if (!string.IsNullOrEmpty(impl.Narrative))
+                        populated++;
+                    else
+                        empty++;
+
+                    if (impl.AiSuggested) aiGenerated++;
+                }
+                else
+                {
+                    empty++;
+                }
+            }
+
+            // Linked components for this system
+            var components = await _db.ComponentCapabilityLinks
+                .Where(cl => cl.SecurityCapabilityId == cap.Id)
+                .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == systemId),
+                    cl => cl.SystemComponentId,
+                    a => a.SystemComponentId,
+                    (cl, a) => new { cl.SystemComponent, a.AuthorizationBoundaryDefinition, a.AuthorizationBoundaryDefinitionId })
+                .Select(x => new CoverageComponentDto
+                {
+                    ComponentId = x.SystemComponent.Id,
+                    Name = x.SystemComponent.Name,
+                    ComponentType = x.SystemComponent.ComponentType.ToString(),
+                    Owner = x.SystemComponent.Owner,
+                    Status = x.SystemComponent.Status.ToString(),
+                    BoundaryName = x.AuthorizationBoundaryDefinition != null ? x.AuthorizationBoundaryDefinition.Name : null,
+                    BoundaryDefinitionId = x.AuthorizationBoundaryDefinitionId,
+                })
+                .ToListAsync(cancellationToken);
+
+            capabilities.Add(new CapabilityCoverageDto
+            {
+                CapabilityId = cap.Id,
+                CapabilityName = cap.Name,
+                Provider = cap.Provider,
+                Category = cap.Category,
+                ImplementationStatus = cap.ImplementationStatus.ToString(),
+                Owner = cap.Owner,
+                Role = primaryRole.ToString(),
+                MappedControlCount = controlIds.Count,
+                NarrativeStatus = new NarrativeStatusDto
+                {
+                    Populated = populated,
+                    Custom = custom,
+                    Empty = empty,
+                    AiGenerated = aiGenerated,
+                },
+                Components = components,
+            });
+        }
+
+        // Sort: Primary first, then Supporting, then Shared
+        capabilities = capabilities
+            .OrderByDescending(c => c.Role == "Primary")
+            .ThenByDescending(c => c.Role == "Supporting")
+            .ThenBy(c => c.CapabilityName)
+            .ToList();
+
+        var totalMapped = capabilities.Sum(c => c.MappedControlCount);
+        var totalPopulated = capabilities.Sum(c => c.NarrativeStatus.Populated);
+        var totalCustom = capabilities.Sum(c => c.NarrativeStatus.Custom);
+        var totalEmpty = capabilities.Sum(c => c.NarrativeStatus.Empty);
+        var totalNarratives = totalPopulated + totalCustom + totalEmpty;
+
+        return new CapabilityCoverageResponse
+        {
+            SystemId = systemId,
+            SystemName = system.Name,
+            Capabilities = capabilities,
+            Summary = new CoverageSummaryDto
+            {
+                TotalCapabilities = capabilities.Count,
+                TotalMappedControls = totalMapped,
+                TotalNarrativesPopulated = totalPopulated,
+                TotalNarrativesCustom = totalCustom,
+                TotalNarrativesEmpty = totalEmpty,
+                CoveragePercent = totalNarratives > 0
+                    ? Math.Round((totalPopulated + totalCustom) * 100.0 / totalNarratives, 1)
+                    : 0,
+            },
+        };
+    }
+
+    // ─── Delete (continued) ──────────────────────────────────────────────────
 
     /// <summary>
     /// Deletes a capability, nulls out affected ControlImplementation FKs, and creates audit events.
@@ -374,6 +610,100 @@ public class CapabilityService
             AffectedNarratives = affectedImpls.Count,
             Message = $"Capability deleted. {affectedImpls.Count} control narratives flagged for review.",
         };
+    }
+
+    // ─── AI Regeneration ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Regenerates a single control narrative using AI for a specific system/control.
+    /// Returns the updated narrative text, or null if not found.
+    /// Returns (null, "AI_NOT_ENABLED") if AI is not available.
+    /// </summary>
+    public async Task<(string? Narrative, string? ErrorCode)> RegenerateNarrativeWithAiAsync(
+        string systemId,
+        string controlId,
+        string modifiedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var impl = await _db.ControlImplementations
+            .FirstOrDefaultAsync(ci => ci.RegisteredSystemId == systemId && ci.ControlId == controlId,
+                cancellationToken);
+        if (impl is null) return (null, "NOT_FOUND");
+
+        var capId = impl.SecurityCapabilityId;
+        if (capId is null) return (null, "NO_CAPABILITY");
+
+        var cap = await _db.SecurityCapabilities
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == capId, cancellationToken);
+        if (cap is null) return (null, "NO_CAPABILITY");
+
+        var nist = await _db.NistControls
+            .AsNoTracking()
+            .FirstOrDefaultAsync(n => n.Id == controlId, cancellationToken);
+        var controlTitle = nist?.Title ?? controlId;
+
+        // Query component context
+        var componentContexts = await _db.ComponentCapabilityLinks
+            .Where(cl => cl.SecurityCapabilityId == capId)
+            .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == systemId),
+                cl => cl.SystemComponentId,
+                a => a.SystemComponentId,
+                (cl, a) => new { cl.SystemComponent, a.AuthorizationBoundaryDefinition })
+            .Select(x => new ComponentContext(
+                x.SystemComponent.Name,
+                x.SystemComponent.ComponentType.ToString(),
+                x.SystemComponent.Owner,
+                x.SystemComponent.PersonName))
+            .ToListAsync(cancellationToken);
+
+        var boundaryName = await _db.ComponentSystemAssignments
+            .Where(a => a.RegisteredSystemId == systemId && a.AuthorizationBoundaryDefinition != null)
+            .Select(a => a.AuthorizationBoundaryDefinition!.Name)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // Fall back to system's first boundary definition if no assignment-level boundary
+        boundaryName ??= await _db.AuthorizationBoundaryDefinitions
+            .Where(b => b.RegisteredSystemId == systemId)
+            .OrderByDescending(b => b.IsPrimary)
+            .Select(b => b.Name)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var narrative = await _narrativeService.GenerateNarrativeWithAiAsync(
+            cap.Name, cap.Provider, cap.Description,
+            controlId, controlTitle,
+            componentContexts.Count > 0 ? componentContexts : null,
+            boundaryName,
+            cancellationToken);
+
+        if (narrative is null) return (null, "AI_NOT_ENABLED");
+
+        // Save old narrative as NarrativeVersion
+        var previousNarrative = impl.Narrative;
+        if (previousNarrative is not null)
+        {
+            _db.NarrativeVersions.Add(new NarrativeVersion
+            {
+                ControlImplementationId = impl.Id,
+                VersionNumber = impl.CurrentVersion,
+                Content = previousNarrative,
+                AuthoredBy = modifiedBy,
+                ChangeReason = "AI regeneration requested by user",
+            });
+            impl.CurrentVersion++;
+        }
+
+        impl.Narrative = narrative;
+        impl.AiSuggested = true;
+        impl.ModifiedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "AI-regenerated narrative for system {SystemId} control {ControlId}",
+            systemId, controlId);
+
+        return (narrative, null);
     }
 
     // ─── Mappings ────────────────────────────────────────────────────────────
@@ -570,12 +900,63 @@ public class CapabilityService
                     impl.SecurityCapabilityId = capabilityId;
                 }
 
-                impl.Narrative = _narrativeService.GenerateNarrative(
-                    cap.Name,
-                    cap.Provider,
-                    cap.Description,
-                    item.ControlId,
-                    nist.Title);
+                // Query component context for enriched narratives (Feature 036)
+                var componentContexts = await _db.ComponentCapabilityLinks
+                    .Where(cl => cl.SecurityCapabilityId == capabilityId)
+                    .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == sysId),
+                        cl => cl.SystemComponentId,
+                        a => a.SystemComponentId,
+                        (cl, a) => new { cl.SystemComponent, a.AuthorizationBoundaryDefinition })
+                    .Select(x => new ComponentContext(
+                        x.SystemComponent.Name,
+                        x.SystemComponent.ComponentType.ToString(),
+                        x.SystemComponent.Owner,
+                        x.SystemComponent.PersonName))
+                    .ToListAsync(cancellationToken);
+
+                var boundary = await _db.ComponentSystemAssignments
+                    .Where(a => a.RegisteredSystemId == sysId)
+                    .Select(a => a.AuthorizationBoundaryDefinition)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var boundaryName = boundary?.Name;
+                if (boundaryName is null && item.BoundaryDefinitionId is not null)
+                {
+                    boundaryName = await _db.AuthorizationBoundaryDefinitions
+                        .Where(b => b.Id == item.BoundaryDefinitionId)
+                        .Select(b => b.Name)
+                        .FirstOrDefaultAsync(cancellationToken);
+                }
+
+                // Fall back to system's first boundary definition if no assignment-level boundary
+                boundaryName ??= await _db.AuthorizationBoundaryDefinitions
+                    .Where(b => b.RegisteredSystemId == sysId)
+                    .OrderByDescending(b => b.IsPrimary)
+                    .Select(b => b.Name)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                // Try AI-assisted generation for single narratives, fall back to deterministic
+                string? narrative = await _narrativeService.GenerateNarrativeWithAiAsync(
+                    cap.Name, cap.Provider, cap.Description,
+                    item.ControlId, nist.Title,
+                    componentContexts.Count > 0 ? componentContexts : null,
+                    boundaryName,
+                    cancellationToken);
+
+                if (narrative is not null)
+                {
+                    impl.Narrative = narrative;
+                    impl.AiSuggested = true;
+                }
+                else
+                {
+                    impl.Narrative = _narrativeService.GenerateEnrichedNarrative(
+                        cap.Name, cap.Provider, cap.Description,
+                        item.ControlId, nist.Title,
+                        componentContexts.Count > 0 ? componentContexts : null,
+                        boundaryName);
+                }
+
                 impl.IsAutoPopulated = true;
                 impl.ModifiedAt = DateTime.UtcNow;
                 narrativesGenerated++;

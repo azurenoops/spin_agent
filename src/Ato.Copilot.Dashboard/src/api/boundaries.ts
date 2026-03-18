@@ -4,6 +4,7 @@ import type {
   CreateBoundaryDefinitionRequest,
   DeleteBoundaryDefinitionResponse,
 } from '../types/dashboard';
+import type { OrgComponentDto } from './components';
 
 export interface BoundaryResourceDto {
   id: string;
@@ -88,4 +89,33 @@ export async function deleteBoundaryResource(
   resourceEntryId: string,
 ): Promise<void> {
   await apiClient.delete(`/boundary-definitions/${definitionId}/resources/${resourceEntryId}`);
+}
+
+// ─── Boundary Components ─────────────────────────────────────────────────
+
+export async function fetchBoundaryComponents(
+  definitionId: string,
+): Promise<OrgComponentDto[]> {
+  const { data } = await apiClient.get<{ items: OrgComponentDto[]; totalCount: number }>(
+    `/boundary-definitions/${definitionId}/components`,
+  );
+  return data.items;
+}
+
+export async function assignComponentToBoundary(
+  componentId: string,
+  registeredSystemId: string,
+  authorizationBoundaryDefinitionId: string,
+): Promise<void> {
+  await apiClient.post(`/components/${componentId}/assignments`, {
+    registeredSystemId,
+    authorizationBoundaryDefinitionId,
+  });
+}
+
+export async function removeComponentFromBoundary(
+  componentId: string,
+  assignmentId: string,
+): Promise<void> {
+  await apiClient.delete(`/components/${componentId}/assignments/${assignmentId}`);
 }
