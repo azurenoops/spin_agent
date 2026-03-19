@@ -104,6 +104,10 @@ C# .NET 9: Follow standard conventions
 - 039-poam-management: Added C# / .NET 9.0 (backend); TypeScript 5.7 / React 19 (frontend) + EF Core 9.0 (SqlServer + SQLite), Azure.Identity 1.13.2, Azure.AI.OpenAI 2.1.0, Serilog 4.2.0, QuestPDF 2025.7.0 (backend); React Router 7.0, Axios 1.7, Recharts 2.15, Tailwind CSS 3.4, Vite 6.0 (frontend)
 - 038-evidence-repository: Added C# / .NET 9.0 (backend), TypeScript / React 18+ (frontend) + ASP.NET Core Minimal APIs, Entity Framework Core 9, Axios, React, Tailwind CSS, Heroicons
 - 037-ssp-document-export: Added C# 12 / .NET 9.0 (backend), TypeScript 5.x / React (frontend) + QuestPDF 2025.7.0 (PDF), DocumentFormat.OpenXml via ZipArchive (DOCX), ClosedXML 0.104.2 (Excel), System.Text.Json (OSCAL), SignalR (real-time), axios (frontend HTTP)
+- 035-deviation-management: Added C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (dashboard), TypeScript 5 / Node.js (M365 Teams + VS Code extensions) + EF Core 9.0, ASP.NET Core Minimal APIs, Serilog, SignalR, Recharts (frontend), @microsoft/signalr (frontend)
+- 036-risk-solutions: Added C# 9 / .NET 8 (backend), TypeScript / React 18 (dashboard) + EF Core 8 (SQL Server), ASP.NET Minimal APIs, Vite, TailwindCSS
+- 035-deviation-management: Added C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (dashboard), TypeScript 5 / Node.js (M365 Teams + VS Code extensions) + EF Core 9.0, ASP.NET Core Minimal APIs, Serilog, SignalR, Recharts (frontend), @microsoft/signalr (frontend)
+- 034-dashboard-chat: Added TypeScript 5.7 / React 19 / C# 13 (.NET 9.0 — backend, no changes expected) + React 19, react-router-dom 7, axios 1.7, react-markdown (new), remark-gfm (new), react-syntax-highlighter (new)
 
 
 <!-- MANUAL ADDITIONS START -->
