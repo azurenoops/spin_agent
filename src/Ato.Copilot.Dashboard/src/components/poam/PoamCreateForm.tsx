@@ -11,7 +11,7 @@ interface PoamCreateFormProps {
 export default function PoamCreateForm({ onClose, onSubmit, loading }: PoamCreateFormProps) {
   const [weakness, setWeakness] = useState('');
   const [controlId, setControlId] = useState('');
-  const [severity, setSeverity] = useState('CatII');
+  const [severity, setSeverity] = useState<'I' | 'II' | 'III'>('II');
   const [poc, setPoc] = useState('');
   const [pocEmail, setPocEmail] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -32,7 +32,7 @@ export default function PoamCreateForm({ onClose, onSubmit, loading }: PoamCreat
       weakness,
       weaknessSource: source || 'Manual',
       controlId,
-      catSeverity: severity as 'CatI' | 'CatII' | 'CatIII',
+      catSeverity: severity,
       poc,
       pocEmail: pocEmail || undefined,
       scheduledCompletionDate: dueDate,
@@ -75,10 +75,10 @@ export default function PoamCreateForm({ onClose, onSubmit, loading }: PoamCreat
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">CAT Severity *</label>
-            <select className="w-full rounded-lg border px-3 py-2 text-sm" value={severity} onChange={e => setSeverity(e.target.value)}>
-              <option value="CatI">CAT I — Critical</option>
-              <option value="CatII">CAT II — High</option>
-              <option value="CatIII">CAT III — Medium</option>
+            <select className="w-full rounded-lg border px-3 py-2 text-sm" value={severity} onChange={e => setSeverity(e.target.value as 'I' | 'II' | 'III')}>
+              <option value="I">CAT I — Critical</option>
+              <option value="II">CAT II — High</option>
+              <option value="III">CAT III — Medium</option>
             </select>
           </div>
 

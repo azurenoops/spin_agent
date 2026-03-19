@@ -65,12 +65,12 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                       <span className={`text-xs px-1.5 py-0.5 rounded ${statusColors[comp.status] ?? 'bg-gray-100'}`}>
                         {comp.status}
                       </span>
-                      {riskMap?.[comp.id] && riskMap[comp.id].openCount > 0 && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${severityBadge[riskMap[comp.id].highestSeverity ?? 'III'] ?? 'bg-gray-200'}`}
-                          title={`${riskMap[comp.id].openCount} open POA&M(s), ${riskMap[comp.id].overdueCount} overdue`}
+                      {riskMap?.[comp.id] && riskMap[comp.id]!.openCount > 0 && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${severityBadge[riskMap[comp.id]!.highestSeverity ?? 'III'] ?? 'bg-gray-200'}`}
+                          title={`${riskMap[comp.id]!.openCount} open POA&M(s), ${riskMap[comp.id]!.overdueCount} overdue`}
                         >
-                          {riskMap[comp.id].openCount} POA&M{riskMap[comp.id].openCount > 1 ? 's' : ''}
-                          {riskMap[comp.id].overdueCount > 0 && ` (${riskMap[comp.id].overdueCount} overdue)`}
+                          {riskMap[comp.id]!.openCount} POA&M{riskMap[comp.id]!.openCount > 1 ? 's' : ''}
+                          {riskMap[comp.id]!.overdueCount > 0 && ` (${riskMap[comp.id]!.overdueCount} overdue)`}
                         </span>
                       )}
                     </div>

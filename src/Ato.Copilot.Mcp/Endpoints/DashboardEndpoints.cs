@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -2913,105 +2914,6 @@ public static class DashboardEndpoints
         })
         .WithName("IssueAuthorization");
 
-        // ─── List POA&M Items ────────────────────────────────────────────────
-        app.MapGet("/api/dashboard/systems/{systemId}/poam", async (
-            string systemId,
-            string? status,
-            string? severity,
-            bool? overdueOnly,
-            IAuthorizationService authorizationService,
-            CancellationToken ct) =>
-        {
-            var items = await authorizationService.ListPoamAsync(
-                systemId, status, severity, overdueOnly ?? false, ct);
-
-            return Results.Ok(new
-            {
-                items = items.Select(p => new
-                {
-                    p.Id,
-                    p.Weakness,
-                    p.WeaknessSource,
-                    controlId = p.SecurityControlNumber,
-                    catSeverity = p.CatSeverity.ToString(),
-                    p.PointOfContact,
-                    p.PocEmail,
-                    p.ResourcesRequired,
-                    p.CostEstimate,
-                    p.ScheduledCompletionDate,
-                    p.ActualCompletionDate,
-                    status = p.Status.ToString(),
-                    p.Comments,
-                    p.FindingId,
-                    p.RemediationTaskId,
-                    p.DeviationId,
-                    isOverdue = p.Status != PoamStatus.Completed &&
-                                p.Status != PoamStatus.RiskAccepted &&
-                                p.ScheduledCompletionDate < DateTime.UtcNow,
-                    milestones = p.Milestones.Select(m => new
-                    {
-                        m.Id,
-                        m.Description,
-                        m.TargetDate,
-                        m.CompletedDate,
-                        m.Sequence,
-                    }),
-                }),
-                totalCount = items.Count,
-            });
-        })
-        .WithName("ListPoamItems");
-
-        // ─── Create POA&M Item ───────────────────────────────────────────────
-        app.MapPost("/api/dashboard/systems/{systemId}/poam", async (
-            string systemId,
-            CreatePoamRequest body,
-            IAuthorizationService authorizationService,
-            AtoCopilotContext context,
-            CancellationToken ct) =>
-        {
-            try
-            {
-                var poam = await authorizationService.CreatePoamAsync(
-                    systemId,
-                    body.Weakness,
-                    body.ControlId,
-                    body.CatSeverity,
-                    body.PointOfContact,
-                    body.ScheduledCompletionDate,
-                    body.FindingId,
-                    body.ResourcesRequired,
-                    body.Milestones,
-                    ct);
-
-                context.DashboardActivities.Add(new DashboardActivity
-                {
-                    RegisteredSystemId = systemId,
-                    EventType = "PoamCreated",
-                    Actor = "dashboard-user",
-                    Summary = $"POA&M item created for {body.ControlId} ({body.CatSeverity})",
-                    RelatedEntityType = "PoamItem",
-                    RelatedEntityId = poam.Id,
-                });
-                await context.SaveChangesAsync(ct);
-
-                return Results.Created($"/api/dashboard/systems/{systemId}/poam/{poam.Id}", new
-                {
-                    id = poam.Id,
-                    controlId = poam.SecurityControlNumber,
-                    catSeverity = poam.CatSeverity.ToString(),
-                    status = poam.Status.ToString(),
-                    scheduledCompletionDate = poam.ScheduledCompletionDate,
-                    milestoneCount = poam.Milestones.Count,
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
-            }
-        })
-        .WithName("CreatePoamItem");
-
         // ─── Accept Risk ─────────────────────────────────────────────────────
         app.MapPost("/api/dashboard/systems/{systemId}/risk-acceptances", async (
             string systemId,
@@ -3430,78 +3332,6 @@ public static class DashboardEndpoints
             });
         })
         .WithName("MoveRemediationTask");
-
-        // ─── Update POA&M Status (with lifecycle enforcement via PoamService) ──
-        app.MapPut("/api/dashboard/systems/{systemId}/poam/{poamId}/status", async (
-            string systemId,
-            string poamId,
-            UpdatePoamStatusRequest body,
-            PoamService poamService,
-            AtoCopilotContext context,
-            CancellationToken ct) =>
-        {
-            if (!Enum.TryParse<PoamStatus>(body.Status, true, out var newStatus))
-                return Results.BadRequest(new ErrorResponse { Error = $"Invalid status: {body.Status}", ErrorCode = "INVALID_INPUT" });
-
-            if (!Guid.TryParse(body.RowVersion, out var rv))
-                return Results.BadRequest(new ErrorResponse { Error = "Valid rowVersion is required", ErrorCode = "INVALID_INPUT" });
-
-            try
-            {
-                var poam = await poamService.UpdateStatusAsync(
-                    poamId, newStatus, rv, "dashboard-user",
-                    body.DelayReason, 
-                    !string.IsNullOrEmpty(body.RevisedDate) && DateTime.TryParse(body.RevisedDate, out var rd) ? rd : null,
-                    body.DeviationId, body.Comments, ct: ct);
-
-                context.DashboardActivities.Add(new DashboardActivity
-                {
-                    RegisteredSystemId = systemId,
-                    EventType = "PoamStatusUpdated",
-                    Actor = "dashboard-user",
-                    Summary = $"POA&M {poam.SecurityControlNumber} status changed to {newStatus}",
-                    RelatedEntityType = "PoamItem",
-                    RelatedEntityId = poam.Id,
-                });
-                await context.SaveChangesAsync(ct);
-
-                return Results.Ok(new { id = poam.Id, status = poam.Status.ToString(), modifiedAt = poam.ModifiedAt, rowVersion = poam.RowVersion.ToString() });
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("CONCURRENCY"))
-            {
-                return Results.Conflict(new ErrorResponse { Error = ex.Message, ErrorCode = "CONCURRENCY_CONFLICT" });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "VALIDATION_ERROR" });
-            }
-        })
-        .WithName("UpdatePoamStatus");
-
-        // ─── Bulk Update POA&M Status (with lifecycle enforcement) ─────────────
-        app.MapPut("/api/dashboard/remediation/poam/bulk-status", async (
-            BulkPoamStatusRequest body,
-            PoamService poamService,
-            CancellationToken ct) =>
-        {
-            if (body.PoamIds == null || body.PoamIds.Count == 0)
-                return Results.BadRequest(new ErrorResponse { Error = "No POA&M IDs provided", ErrorCode = "INVALID_INPUT" });
-
-            if (!Enum.TryParse<PoamStatus>(body.Status, true, out var newStatus))
-                return Results.BadRequest(new ErrorResponse { Error = $"Invalid status: {body.Status}", ErrorCode = "INVALID_INPUT" });
-
-            DateTime? revisedDate = !string.IsNullOrEmpty(body.RevisedDate) && DateTime.TryParse(body.RevisedDate, out var rd) ? rd : null;
-
-            var results = await poamService.BulkUpdateStatusAsync(
-                body.PoamIds, newStatus, "dashboard-user",
-                body.DelayReason, revisedDate, body.Comments, ct);
-
-            var succeeded = results.Count(r => r.Success);
-            var failed = results.Count(r => !r.Success);
-
-            return Results.Ok(new { total = results.Count, succeeded, failed, results = results.Select(r => new { poamId = r.PoamId, success = r.Success, error = r.Error }) });
-        })
-        .WithName("BulkUpdatePoamStatus");
 
         // ─── Deviation CRUD (Feature 035) ────────────────────────────────────
 
@@ -4675,7 +4505,7 @@ public static class DashboardEndpoints
                 pageSize = effectivePageSize,
                 totalPages = effectivePageSize > 0 ? (int)Math.Ceiling((double)totalCount / effectivePageSize) : 0
             });
-        }).WithName("ListPoamItems");
+        }).WithName("ListPoamItemsV2");
 
         // ── GET /poam — cross-system POA&M list
         group.MapGet("/poam", async (
@@ -4751,7 +4581,7 @@ public static class DashboardEndpoints
                 req.FindingId, "mcp-user", req.ComponentIds, milestones, ct);
 
             return Results.Created($"/api/dashboard/poam/{poam.Id}", MapToDetail(poam));
-        }).WithName("CreatePoamItem");
+        }).WithName("CreatePoamItemV2");
 
         // ── PUT /poam/{poamId} — update
         group.MapPut("/poam/{poamId}", async (
@@ -4858,7 +4688,7 @@ public static class DashboardEndpoints
             {
                 return Results.NotFound(new ErrorResponse { Error = ex.Message, ErrorCode = "POAM_NOT_FOUND" });
             }
-        }).WithName("UpdatePoamStatus");
+        }).WithName("UpdatePoamStatusV2");
 
         // ── POST /poam/bulk-status — bulk status updates
         group.MapPost("/poam/bulk-status", async (
@@ -4879,7 +4709,7 @@ public static class DashboardEndpoints
                 failed = results.Count(r => !r.Success),
                 results = results.Select(r => new { poamId = r.PoamId, success = r.Success, error = r.Error })
             });
-        }).WithName("BulkUpdatePoamStatus");
+        }).WithName("BulkUpdatePoamStatusV2");
 
         // ── POST /poam/{poamId}/components — link components
         group.MapPost("/poam/{poamId}/components", async (
@@ -4901,7 +4731,7 @@ public static class DashboardEndpoints
 
         // ── DELETE /poam/{poamId}/components — unlink components
         group.MapDelete("/poam/{poamId}/components", async (
-            string poamId, Feature039UnlinkComponentsRequest req, PoamService poamService, CancellationToken ct) =>
+            string poamId, [FromBody] Feature039UnlinkComponentsRequest req, PoamService poamService, CancellationToken ct) =>
         {
             if (req.ComponentIds == null || req.ComponentIds.Count == 0)
                 return Results.BadRequest(new ErrorResponse { Error = "At least one componentId is required.", ErrorCode = "INVALID_INPUT" });

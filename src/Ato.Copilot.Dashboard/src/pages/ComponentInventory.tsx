@@ -120,6 +120,16 @@ export default function ComponentInventory() {
 
   return (
     <>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Components</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            People, Places, and Things that make up your system
+          </p>
+        </div>
+      </div>
+
       {/* Summary metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <MetricCard title="Total" value={summary.totalCount} />
@@ -249,15 +259,19 @@ export default function ComponentInventory() {
               </div>
             );
           })}
-          {/* Components without boundary assignment */}
-          {components.filter((c) => !c.boundaryDefinitionId).length > 0 && (
-            <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-                <h3 className="text-sm font-semibold text-gray-500">Unassigned</h3>
-              </div>
-              <div className="p-4 space-y-4">
-                {SECTIONS.map(({ title, type }) => {
-                  const items = components.filter((c) => !c.boundaryDefinitionId && c.componentType === type);
+          {/* Components without boundary assignment or with unrecognized boundary */}
+          {(() => {
+            const boundaryIds = new Set(boundaries.map((b) => b.id));
+            const unassigned = components.filter((c) => !c.boundaryDefinitionId || !boundaryIds.has(c.boundaryDefinitionId));
+            if (unassigned.length === 0) return null;
+            return (
+              <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+                  <h3 className="text-sm font-semibold text-gray-500">Unassigned</h3>
+                </div>
+                <div className="p-4 space-y-4">
+                  {SECTIONS.map(({ title, type }) => {
+                    const items = unassigned.filter((c) => c.componentType === type);
                   if (items.length === 0) return null;
                   return (
                     <ComponentSection
@@ -274,7 +288,8 @@ export default function ComponentInventory() {
                 })}
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       ) : (
         <div className="space-y-4">
