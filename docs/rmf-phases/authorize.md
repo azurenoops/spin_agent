@@ -165,3 +165,8 @@
 - [Next Phase: Monitor](monitor.md)
 - [AO Guide](../guides/ao-quick-reference.md) — Full AO workflow documentation
 - [ISSM Guide](../guides/issm-guide.md) — Package preparation workflows
+- [POA&M Management Guide](../guides/poam-management.md) — POA&M exports for authorization packages
+
+### POA&M Exports for Authorization (Feature 039)
+
+During authorization, export POA&M data in eMASS Excel format for inclusion in the authorization package. Use `compliance_export_poam` with format `emass_excel` or the Export button on the POA&M dashboard.

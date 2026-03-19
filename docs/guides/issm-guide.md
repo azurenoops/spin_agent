@@ -1476,3 +1476,15 @@ ISSMs can review and manage authorization boundaries for systems under their pur
 - **Gap Analysis**: Use the boundary selector to compare compliance coverage across different security perimeters
 - **SSP §11 Verification**: The SSP Authorization Boundary section auto-generates with per-boundary resource tables and component inventories
 - **Boundary Comparison**: The gap analysis page shows a comparison table when "All Boundaries" is selected, highlighting coverage differences
+
+---
+
+## POA&M Oversight (Feature 039)
+
+ISSMs have full oversight of POA&M items across systems:
+
+- **Dashboard Review**: Navigate to `/systems/{systemId}/poam` for the POA&M management dashboard with summary metrics, severity heatbar, and item table
+- **Trend Analysis**: Use the Trends tab to review open-over-time, closure rates, aging breakdown, and time-to-close distributions
+- **eMASS Export**: Export POA&M data in eMASS Excel format for submission to authorization systems
+- **Ticketing Management**: Configure Jira/ServiceNow integration from the Ticketing tab and monitor sync status
+- **Chat Commands**: Use `compliance_poam_metrics` for quick status checks and `compliance_export_poam` for on-demand exports

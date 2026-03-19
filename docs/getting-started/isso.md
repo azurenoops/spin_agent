@@ -93,3 +93,15 @@ Beyond narrative authoring and Watch monitoring, ISSOs can also:
 | "What systems am I assigned to?" returns empty | ISSM has not yet assigned you as ISSO | Ask your ISSM to run `compliance_assign_rmf_role` for the target system |
 | "Access denied: Compliance.Analyst cannot invoke watch_dismiss_alert" | ISSOs cannot dismiss alerts — only officers (ISSM) can | Escalate to your ISSM to dismiss false positive alerts |
 | AI narrative suggestions unavailable | Air-gapped environment without LLM endpoint | Write narratives manually using `compliance_write_narrative`; inherited narratives still auto-populate from the embedded catalog |
+
+---
+
+## POA&M Management (Feature 039)
+
+ISSOs manage day-to-day POA&M operations:
+
+- **Create Items**: Add POA&M entries for new findings via the dashboard or `compliance_create_poam`
+- **Lifecycle Management**: Transition items through Ongoing → Completed/Delayed/Risk Accepted with appropriate validation
+- **Component Linkage**: Link POA&M items to affected system components for traceability
+- **Remediation Sync**: Create or link remediation tasks and track bidirectional status
+- **Milestones**: Add and track milestones with target dates for each POA&M item

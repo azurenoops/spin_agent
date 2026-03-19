@@ -7,7 +7,9 @@ using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Kanban;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Models.Roadmap;
+using Ato.Copilot.Core.Services;
 using Ato.Copilot.State.Abstractions;
 using TaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
 
@@ -26,6 +28,7 @@ public class KanbanService : IKanbanService
     private readonly IAtoComplianceEngine _complianceEngine;
     private readonly IRemediationEngine _remediationEngine;
     private readonly ITaskEnrichmentService? _taskEnrichmentService;
+    private readonly PoamService? _poamService;
 
     /// <summary>
     /// Initializes a new instance of <see cref="KanbanService"/>.
@@ -37,7 +40,8 @@ public class KanbanService : IKanbanService
         IAgentStateManager stateManager,
         IAtoComplianceEngine complianceEngine,
         IRemediationEngine remediationEngine,
-        ITaskEnrichmentService? taskEnrichmentService = null)
+        ITaskEnrichmentService? taskEnrichmentService = null,
+        PoamService? poamService = null)
     {
         _context = context;
         _logger = logger;
@@ -46,6 +50,7 @@ public class KanbanService : IKanbanService
         _complianceEngine = complianceEngine;
         _remediationEngine = remediationEngine;
         _taskEnrichmentService = taskEnrichmentService;
+        _poamService = poamService;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -147,6 +152,65 @@ public class KanbanService : IKanbanService
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex, "Board enrichment failed for {BoardId} — tasks created without enrichment", board.Id);
+            }
+        }
+
+        // Feature 039: Auto-create POA&M items from open findings and link to tasks
+        if (_poamService != null && board.Tasks.Count > 0)
+        {
+            try
+            {
+                var systemId = board.SubscriptionId;
+                var findingLookup = findings.ToDictionary(f => f.Id);
+                var poamCreated = 0;
+
+                foreach (var task in board.Tasks)
+                {
+                    if (string.IsNullOrEmpty(task.FindingId) || !findingLookup.TryGetValue(task.FindingId, out var finding))
+                        continue;
+
+                    // Duplicate detection: check if active POA&M already exists for this finding
+                    var existing = await _context.PoamItems
+                        .AnyAsync(p => p.FindingId == finding.Id &&
+                                       p.SecurityControlNumber == finding.ControlId &&
+                                       p.Status != PoamStatus.Completed &&
+                                       p.Status != PoamStatus.RiskAccepted, cancellationToken);
+                    if (existing) continue;
+
+                    var severity = finding.Severity switch
+                    {
+                        FindingSeverity.Critical or FindingSeverity.High => CatSeverity.CatI,
+                        FindingSeverity.Medium => CatSeverity.CatII,
+                        _ => CatSeverity.CatIII
+                    };
+
+                    var poam = await _poamService.CreateAsync(
+                        systemId,
+                        finding.Title,
+                        "Assessment",
+                        finding.ControlId,
+                        severity,
+                        owner,
+                        DateTime.UtcNow.AddDays(severity == CatSeverity.CatI ? 30 : severity == CatSeverity.CatII ? 90 : 180),
+                        findingId: finding.Id,
+                        createdBy: owner,
+                        ct: cancellationToken);
+
+                    // Set bidirectional FKs
+                    task.PoamItemId = poam.Id;
+                    poam.RemediationTaskId = task.Id;
+                    poamCreated++;
+                }
+
+                if (poamCreated > 0)
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                    _logger.LogInformation("Board {BoardId}: auto-created {Count} POA&M items linked to tasks", board.Id, poamCreated);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Auto-POA&M creation failed for board {BoardId} — tasks created without POA&M items", board.Id);
             }
         }
 

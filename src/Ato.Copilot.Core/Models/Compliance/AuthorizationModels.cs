@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Poam;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -145,7 +147,7 @@ public class RiskAcceptance
 /// A Plan of Action and Milestones (POA&amp;M) item tracking a weakness
 /// and remediation plan, linked to a ComplianceFinding and optionally to a Kanban RemediationTask.
 /// </summary>
-public class PoamItem
+public class PoamItem : ConcurrentEntity
 {
     /// <summary>Unique identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -228,6 +230,26 @@ public class PoamItem
 
     /// <summary>FK → Deviation (optional link to active deviation record).</summary>
     public string? DeviationId { get; set; }
+
+    // ─── New Properties (Feature 039 — POA&M Management) ──────────────────
+
+    /// <summary>Actor who created this POA&amp;M item.</summary>
+    [MaxLength(200)]
+    public string? CreatedBy { get; set; }
+
+    /// <summary>Actor who last modified this POA&amp;M item.</summary>
+    [MaxLength(200)]
+    public string? ModifiedBy { get; set; }
+
+    /// <summary>External ticket reference (e.g., JIRA-123).</summary>
+    [MaxLength(200)]
+    public string? ExternalTicketRef { get; set; }
+
+    /// <summary>Linked system components (many-to-many via junction).</summary>
+    public List<PoamComponentLink> ComponentLinks { get; set; } = new();
+
+    /// <summary>Audit trail history entries.</summary>
+    public List<PoamHistoryEntry> History { get; set; } = new();
 }
 
 /// <summary>

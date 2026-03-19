@@ -605,3 +605,17 @@ This ensures data integrity without locking, which is appropriate for the chat-d
 | `TASKS_REMAINING` | Cannot archive board with open tasks | Close or move all tasks to Done first |
 | `EXPORT_TOO_LARGE` | Board exceeds export limit (500 tasks) | Use filters to narrow the export, or export in batches |
 | `SUBSCRIPTION_NOT_CONFIGURED` | Subscription ID not provided or invalid | Provide a valid Azure subscription ID |
+
+---
+
+## POA&M Integration (Feature 039)
+
+The Remediation Kanban integrates bidirectionally with POA&M Management:
+
+- **Linked POA&M Column**: Tasks linked to POA&M items display a "Linked POA&M" indicator showing the POA&M control ID and severity
+- **Click-to-Open**: Click the POA&M indicator on a task card to open the POA&M detail drawer
+- **Cascade on Completion**: When a task linked to a POA&M is moved to Done, a cascade confirmation dialog asks whether to also close the associated POA&M item
+- **Create from POA&M**: Use `compliance_create_task_from_poam` or the "Create Task" button in the POA&M detail drawer to generate a task pre-filled from POA&M data
+- **Status Sync**: The sync indicator on the Remediation page shows linked POA&M status for each task
+
+See [POA&M Management Guide](poam-management.md) for complete POA&M documentation.

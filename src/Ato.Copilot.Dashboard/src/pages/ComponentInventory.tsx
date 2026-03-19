@@ -6,6 +6,7 @@ import MetricCard from '../components/cards/MetricCard';
 import { usePolling } from '../hooks/usePolling';
 import { getComponents, createComponent, updateComponent, deleteComponent } from '../api/components';
 import { fetchBoundaryDefinitions } from '../api/boundaries';
+import apiClient from '../api/client';
 import type { SystemComponentDto, CreateComponentRequest, ComponentType, BoundaryDefinitionDto } from '../types/dashboard';
 
 const SECTIONS: { title: string; type: ComponentType }[] = [
@@ -27,6 +28,7 @@ export default function ComponentInventory() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [riskMap, setRiskMap] = useState<Record<string, { openCount: number; overdueCount: number; highestSeverity: string | null }>>({});
 
   const fetchData = useCallback(async () => {
     if (!systemId) return;
@@ -42,6 +44,24 @@ export default function ComponentInventory() {
     setComponents(result.items);
     setSummary(result.summary);
     setBoundaries(boundaryItems);
+
+    // Fetch POA&M risk summaries for visible components
+    const riskEntries: Record<string, { openCount: number; overdueCount: number; highestSeverity: string | null }> = {};
+    await Promise.all(
+      result.items.map(async (comp) => {
+        try {
+          const { data } = await apiClient.get<{ openCount: number; overdueCount: number; highestSeverity: string | null }>(
+            `/components/${comp.id}/poam`,
+          );
+          if (data.openCount > 0) {
+            riskEntries[comp.id] = data;
+          }
+        } catch {
+          // non-fatal — component has no POA&M data
+        }
+      }),
+    );
+    setRiskMap(riskEntries);
   }, [systemId, search, typeFilter, statusFilter]);
 
   usePolling(fetchData, 15000);
@@ -221,6 +241,7 @@ export default function ComponentInventory() {
                         count={items.length}
                         onEdit={handleEdit}
                         onDelete={(id) => setDeleteConfirm(id)}
+                        riskMap={riskMap}
                       />
                     );
                   })}
@@ -247,6 +268,7 @@ export default function ComponentInventory() {
                       count={items.length}
                       onEdit={handleEdit}
                       onDelete={(id) => setDeleteConfirm(id)}
+                        riskMap={riskMap}
                     />
                   );
                 })}
@@ -268,6 +290,7 @@ export default function ComponentInventory() {
                 count={count}
                 onEdit={handleEdit}
                 onDelete={(id) => setDeleteConfirm(id)}
+                        riskMap={riskMap}
               />
             );
           })}

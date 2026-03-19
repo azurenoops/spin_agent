@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Ato.Copilot.Agents.Common;
 using Ato.Copilot.Agents.Compliance.Agents;
 using Ato.Copilot.Agents.Compliance.Tools;
+using Ato.Copilot.Agents.Compliance.Tools.Poam;
 using Ato.Copilot.Agents.Configuration.Agents;
 using Ato.Copilot.Agents.Configuration.Tools;
 using Ato.Copilot.Agents.KnowledgeBase.Agents;
@@ -450,6 +451,14 @@ public class McpServerAiIntegrationTests
             new ShowRiskRegisterTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<ShowRiskRegisterTool>>()),
             new CreatePoamTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<CreatePoamTool>>()),
             new ListPoamTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<ListPoamTool>>()),
+            new GetPoamTool(sf, Mock.Of<ILogger<GetPoamTool>>()),
+            new UpdatePoamTool(sf, Mock.Of<ILogger<UpdatePoamTool>>()),
+            new ClosePoamTool(sf, Mock.Of<ILogger<ClosePoamTool>>()),
+            new UpdatePoamMilestoneTool(sf, Mock.Of<ILogger<UpdatePoamMilestoneTool>>()),
+            new BulkUpdatePoamTool(sf, Mock.Of<ILogger<BulkUpdatePoamTool>>()),
+            new LinkPoamTaskTool(sf, Mock.Of<ILogger<LinkPoamTaskTool>>()),
+            new UnlinkPoamTaskTool(sf, Mock.Of<ILogger<UnlinkPoamTaskTool>>()),
+            new CreateTaskFromPoamTool(sf, Mock.Of<ILogger<CreateTaskFromPoamTool>>()),
             new GenerateRarTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<GenerateRarTool>>()),
             new BundleAuthorizationPackageTool(Mock.Of<IAuthorizationService>(), Mock.Of<ILogger<BundleAuthorizationPackageTool>>()),
             // US9: Continuous Monitoring tools

@@ -703,3 +703,14 @@ The Capability Coverage page (`/systems/{systemId}/capability-coverage`) provide
 - **Summary cards**: Total capabilities, mapped controls, populated/custom/empty narrative counts, coverage percentage
 - **Expandable rows**: Each capability shows its role (Primary/Supporting/Shared), narrative progress, and linked components
 - **Narrative breakdown**: Per-capability counts of populated, custom, empty, and AI-suggested narratives
+
+---
+
+## POA&M Visibility (Feature 039)
+
+Engineers have read-only access to POA&M data for their assigned systems:
+
+- **View POA&M Items**: Navigate to `/systems/{systemId}/poam` to see all POA&M items with severity, status, and due dates
+- **Task Cascade**: When a remediation task linked to a POA&M is completed, a cascade confirmation asks whether to also close the POA&M item
+- **Component Context**: POA&M items linked to components you own appear in the component detail view
+- **Chat Queries**: Use `compliance_list_poam` or `compliance_poam_metrics` for quick status checks

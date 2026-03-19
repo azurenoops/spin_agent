@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Models.Roadmap;
 
 namespace Ato.Copilot.Core.Data.Context;
@@ -276,6 +277,20 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>Immutable version snapshots created when evidence artifacts are replaced.</summary>
     public DbSet<EvidenceVersion> EvidenceVersions => Set<EvidenceVersion>();
+
+    // ─── POA&M Management (Feature 039) ──────────────────────────────────────
+
+    /// <summary>Junction linking POA&amp;M items to system components (many-to-many).</summary>
+    public DbSet<PoamComponentLink> PoamComponentLinks => Set<PoamComponentLink>();
+
+    /// <summary>Immutable audit trail entries for POA&amp;M item changes.</summary>
+    public DbSet<PoamHistoryEntry> PoamHistoryEntries => Set<PoamHistoryEntry>();
+
+    /// <summary>External ticketing system configurations (Jira/ServiceNow) per system.</summary>
+    public DbSet<TicketingIntegration> TicketingIntegrations => Set<TicketingIntegration>();
+
+    /// <summary>Sync state tracking between POA&amp;M items and external tickets.</summary>
+    public DbSet<PoamTicketSync> PoamTicketSyncs => Set<PoamTicketSync>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -1384,6 +1399,11 @@ public class AtoCopilotContext : DbContext
             // DeviationId FK (Feature 035)
             entity.Property(e => e.DeviationId).HasMaxLength(36);
 
+            // Feature 039 — new properties
+            entity.Property(e => e.CreatedBy).HasMaxLength(200);
+            entity.Property(e => e.ModifiedBy).HasMaxLength(200);
+            entity.Property(e => e.ExternalTicketRef).HasMaxLength(200);
+
             // FK to RegisteredSystem
             entity.HasOne(e => e.RegisteredSystem)
                 .WithMany()
@@ -1402,12 +1422,26 @@ public class AtoCopilotContext : DbContext
                 .HasForeignKey(e => e.PoamItemId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Feature 039 — component links (many-to-many via junction)
+            entity.HasMany(e => e.ComponentLinks)
+                .WithOne(e => e.PoamItem)
+                .HasForeignKey(e => e.PoamItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Feature 039 — history entries
+            entity.HasMany(e => e.History)
+                .WithOne(e => e.PoamItem)
+                .HasForeignKey(e => e.PoamItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Indexes
             entity.HasIndex(e => e.RegisteredSystemId).HasDatabaseName("IX_PoamItem_SystemId");
             entity.HasIndex(e => e.Status).HasDatabaseName("IX_PoamItem_Status");
             entity.HasIndex(e => e.CatSeverity).HasDatabaseName("IX_PoamItem_CatSeverity");
             entity.HasIndex(e => e.ScheduledCompletionDate).HasDatabaseName("IX_PoamItem_ScheduledDate");
             entity.HasIndex(e => e.DeviationId).HasDatabaseName("IX_PoamItem_DeviationId");
+            entity.HasIndex(e => e.RemediationTaskId).HasDatabaseName("IX_PoamItem_RemediationTaskId");
+            entity.HasIndex(e => e.FindingId).HasDatabaseName("IX_PoamItem_FindingId");
         });
 
         // ─── Deviation (Feature 035) ────────────────────────────────────────────
@@ -1513,10 +1547,16 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.RegisteredSystem).WithMany().HasForeignKey(e => e.RegisteredSystemId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        // ─── RemediationTask: Add optional PoamItemId FK (US8 — T111) ─────────
+        // ─── RemediationTask: POA&M FK + bidirectional sync (US8 → Feature 039) ──
         modelBuilder.Entity<RemediationTask>(entity =>
         {
             entity.HasIndex(e => e.PoamItemId).HasDatabaseName("IX_RemediationTask_PoamItemId");
+
+            // Feature 039: Bidirectional FK to PoamItem with SetNull delete
+            entity.HasOne(e => e.PoamItem)
+                .WithMany()
+                .HasForeignKey(e => e.PoamItemId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ─── ScanImportRecord (Feature 017 — SCAP/STIG Import) ──────────────
@@ -2297,6 +2337,102 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(x => x.EvidenceArtifact)
                 .WithMany(a => a.Versions)
                 .HasForeignKey(x => x.EvidenceArtifactId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── PoamComponentLink (Feature 039) ─────────────────────────────────
+        modelBuilder.Entity<PoamComponentLink>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.PoamItemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.SystemComponentId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.LinkedBy).HasMaxLength(200);
+
+            // Composite unique index — prevent duplicate links
+            entity.HasIndex(e => new { e.PoamItemId, e.SystemComponentId })
+                .IsUnique()
+                .HasDatabaseName("UX_PoamComponentLink_PoamComponent");
+
+            entity.HasIndex(e => e.SystemComponentId)
+                .HasDatabaseName("IX_PoamComponentLink_ComponentId");
+
+            entity.HasOne(e => e.SystemComponent)
+                .WithMany()
+                .HasForeignKey(e => e.SystemComponentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── PoamHistoryEntry (Feature 039) ──────────────────────────────────
+        modelBuilder.Entity<PoamHistoryEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.PoamItemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.EventType).HasConversion<string>().HasMaxLength(30);
+            entity.Property(e => e.OldValue).HasMaxLength(500);
+            entity.Property(e => e.NewValue).HasMaxLength(500);
+            entity.Property(e => e.ActingUserId).HasMaxLength(100);
+            entity.Property(e => e.ActingUserName).HasMaxLength(200);
+            entity.Property(e => e.Details).HasMaxLength(4000);
+            entity.Property(e => e.CascadeOrigin).HasConversion<string?>().HasMaxLength(20);
+
+            // Composite index for chronological retrieval
+            entity.HasIndex(e => new { e.PoamItemId, e.Timestamp })
+                .HasDatabaseName("IX_PoamHistory_ItemTimestamp");
+        });
+
+        // ─── TicketingIntegration (Feature 039) ─────────────────────────────
+        modelBuilder.Entity<TicketingIntegration>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Provider).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.BaseUrl).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.ProjectKeyOrTableName).HasMaxLength(200);
+            entity.Property(e => e.IssueType).HasMaxLength(100);
+            entity.Property(e => e.KeyVaultSecretUri).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.FieldMappingJson).HasMaxLength(4000);
+            entity.Property(e => e.LastSyncError).HasMaxLength(1000);
+
+            // Unique index — one integration per provider per system
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.Provider })
+                .IsUnique()
+                .HasDatabaseName("UX_TicketingIntegration_SystemProvider");
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── PoamTicketSync (Feature 039) ────────────────────────────────────
+        modelBuilder.Entity<PoamTicketSync>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.PoamItemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.TicketingIntegrationId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ExternalTicketId).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ExternalTicketUrl).HasMaxLength(500);
+            entity.Property(e => e.SyncStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.LastSyncError).HasMaxLength(1000);
+            entity.Property(e => e.ExternalStatusRaw).HasMaxLength(100);
+
+            // Unique index — one sync per POA&M per integration
+            entity.HasIndex(e => new { e.PoamItemId, e.TicketingIntegrationId })
+                .IsUnique()
+                .HasDatabaseName("UX_PoamTicketSync_ItemIntegration");
+
+            entity.HasOne(e => e.PoamItem)
+                .WithMany()
+                .HasForeignKey(e => e.PoamItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.TicketingIntegration)
+                .WithMany()
+                .HasForeignKey(e => e.TicketingIntegrationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

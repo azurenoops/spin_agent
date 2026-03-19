@@ -173,4 +173,7 @@ public record NessusImportResult(
     bool CredentialedScan,
     bool IsDryRun,
     List<string> Warnings,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    int PoamItemsCreated = 0,
+    int PoamItemsDeduplicated = 0,
+    int ComponentLinksCreated = 0);

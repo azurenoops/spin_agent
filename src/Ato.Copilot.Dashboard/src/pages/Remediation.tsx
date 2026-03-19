@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { useSettings } from '../hooks/useSettings';
 import { useSystemContext } from '../components/layout/SystemLayout';
-import { getRemediationSummary, getRemediationTasks, updatePoamStatus, bulkUpdatePoamStatus, moveTask } from '../api/remediation';
-import type { RemediationSummary, PoamItem, RemediationTask } from '../api/remediation';
+import { getRemediationSummary, getRemediationTasks, moveTask } from '../api/remediation';
+import { linkTask as poamLinkTask } from '../api/poam';
+import { listPoamItems } from '../api/poam';
+import type { RemediationSummary, RemediationTask } from '../api/remediation';
+import SyncIndicator from '../components/poam/SyncIndicator';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-type PoamTab = 'all' | 'Ongoing' | 'Delayed' | 'overdue' | 'Completed' | 'RiskAccepted';
 type ViewMode = 'table' | 'kanban';
 
 function formatDate(dt: string | null | undefined): string {
@@ -57,37 +59,19 @@ function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
-function MilestoneBar({ total, completed }: { total: number; completed: number }) {
-  if (total === 0) return <span className="text-xs text-gray-400">—</span>;
-  const pct = Math.round((completed / total) * 100);
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 rounded-full bg-gray-200">
-        <div
-          className={`h-1.5 rounded-full ${pct === 100 ? 'bg-green-500' : pct > 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="text-xs text-gray-500">{completed}/{total}</span>
-    </div>
-  );
-}
-
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Remediation() {
   const { detail } = useSystemContext();
   const systemId = detail.systemId;
   const { settings } = useSettings();
-  const [activeTab, setActiveTab] = useState<PoamTab>('all');
   const [searchText, setSearchText] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>(settings.defaultRemediationView);
-  const [selectedPoam, setSelectedPoam] = useState<PoamItem | null>(null);
-  const [selectedPoamIds, setSelectedPoamIds] = useState<Set<string>>(new Set());
-  const [bulkStatus, setBulkStatus] = useState('');
-  const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkError, setBulkError] = useState<string | null>(null);
-  const [statusUpdateLoading, setStatusUpdateLoading] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<RemediationTask | null>(null);
+  const [linkPickerTask, setLinkPickerTask] = useState<RemediationTask | null>(null);
+  const [linkPoamSearch, setLinkPoamSearch] = useState('');
+  const [linkPoamResults, setLinkPoamResults] = useState<{ id: string; controlId: string; weakness: string; status: string }[]>([]);
+  const [linkLoading, setLinkLoading] = useState(false);
 
   // Main data — always scoped to current system
   const pollInterval = settings.autoRefreshInterval || undefined;
@@ -158,30 +142,6 @@ export default function Remediation() {
     }
   };
 
-  // Filtered POA&Ms
-  const filteredPoams = useMemo(() => {
-    if (!summary) return [];
-    let items = summary.poams;
-
-    // Tab filter
-    if (activeTab === 'overdue') items = items.filter(p => p.isOverdue);
-    else if (activeTab !== 'all') items = items.filter(p => p.status === activeTab);
-
-    // Search filter
-    if (searchText) {
-      const q = searchText.toLowerCase();
-      items = items.filter(p =>
-        p.controlId.toLowerCase().includes(q) ||
-        p.weakness.toLowerCase().includes(q) ||
-        p.pointOfContact.toLowerCase().includes(q) ||
-        (p.systemName?.toLowerCase().includes(q)) ||
-        p.catSeverity.toLowerCase().includes(q)
-      );
-    }
-
-    return items;
-  }, [summary, activeTab, searchText]);
-
   // Kanban columns
   const kanbanColumns = useMemo(() => {
     const tasks = tasksData?.items ?? [];
@@ -204,75 +164,62 @@ export default function Remediation() {
     return cols;
   }, [tasksData]);
 
-  // Bulk selection
-  const toggleSelection = (id: string) => {
-    setSelectedPoamIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+  // Filtered tasks for table view
+  const filteredTasks = useMemo(() => {
+    const tasks = tasksData?.items ?? [];
+    if (!searchText) return tasks;
+    const q = searchText.toLowerCase();
+    return tasks.filter(t =>
+      t.taskNumber.toLowerCase().includes(q) ||
+      t.title.toLowerCase().includes(q) ||
+      t.controlId.toLowerCase().includes(q) ||
+      (t.assigneeName?.toLowerCase().includes(q)) ||
+      t.severity.toLowerCase().includes(q)
+    );
+  }, [tasksData, searchText]);
 
-  const toggleSelectAll = () => {
-    if (selectedPoamIds.size === filteredPoams.length) {
-      setSelectedPoamIds(new Set());
-    } else {
-      setSelectedPoamIds(new Set(filteredPoams.map(p => p.id)));
+  // POA&M search for Link to POA&M picker
+  const handleLinkPoamSearch = async (query: string) => {
+    setLinkPoamSearch(query);
+    if (query.length < 2) { setLinkPoamResults([]); return; }
+    try {
+      const resp = await listPoamItems(systemId, { search: query, status: 'Ongoing', pageSize: 10 });
+      setLinkPoamResults(resp.items.map(p => ({
+        id: p.id, controlId: p.controlId, weakness: p.weakness, status: p.status,
+      })));
+    } catch {
+      setLinkPoamResults([]);
     }
   };
 
-  // Bulk status update
-  const handleBulkUpdate = async () => {
-    if (!bulkStatus || selectedPoamIds.size === 0) return;
-    setBulkLoading(true);
-    setBulkError(null);
+  const handleLinkPoamToTask = async (poamId: string, taskId: string) => {
+    setLinkLoading(true);
     try {
-      await bulkUpdatePoamStatus([...selectedPoamIds], bulkStatus);
-      setSelectedPoamIds(new Set());
-      setBulkStatus('');
-      refresh();
-    } catch (err) {
-      setBulkError(err instanceof Error ? err.message : 'Bulk update failed');
-    } finally {
-      setBulkLoading(false);
-    }
-  };
-
-  // Single status update
-  const handleStatusUpdate = async (poam: PoamItem, newStatus: string) => {
-    setStatusUpdateLoading(poam.id);
-    try {
-      await updatePoamStatus(poam.registeredSystemId, poam.id, newStatus);
+      await poamLinkTask(poamId, { taskId });
+      setLinkPickerTask(null);
+      setSelectedTask(null);
+      refreshTasks();
       refresh();
     } catch {
-      // silent — will show stale status until next refresh
+      // Silent — will refresh
     } finally {
-      setStatusUpdateLoading(null);
+      setLinkLoading(false);
     }
   };
-
-  const tabs: { key: PoamTab; label: string; count: number }[] = summary ? [
-    { key: 'all', label: 'All', count: summary.totalPoams },
-    { key: 'Ongoing', label: 'Ongoing', count: summary.openCount - summary.delayedCount },
-    { key: 'Delayed', label: 'Delayed', count: summary.delayedCount },
-    { key: 'overdue', label: 'Overdue', count: summary.overdueCount },
-    { key: 'Completed', label: 'Completed', count: summary.completedCount },
-    { key: 'RiskAccepted', label: 'Risk Accepted', count: summary.riskAcceptedCount },
-  ] : [];
 
   return (
     <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Remediation & POA&M Management</h2>
-            <p className="mt-1 text-sm text-gray-500">Track POA&M items, remediation tasks, and risk posture.</p>
+            <h2 className="text-xl font-bold text-gray-900">Remediation Tasks</h2>
+            <p className="mt-1 text-sm text-gray-500">Track remediation tasks and manage task lifecycle.</p>
           </div>
           <div className="flex items-center gap-3">
             {/* Search */}
             <input
               type="text"
-              placeholder="Search POA&Ms..."
+              placeholder="Search tasks..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48"
@@ -307,106 +254,23 @@ export default function Remediation() {
 
         {summary && (
           <>
-            {/* ──── Summary Cards ──── */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {/* ──── Task Summary Cards ──── */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Open POA&Ms</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">{summary.openCount}</p>
-              </div>
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Overdue</p>
-                <p className={`mt-1 text-2xl font-bold ${summary.overdueCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>{summary.overdueCount}</p>
-              </div>
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">CAT I Open</p>
-                <p className={`mt-1 text-2xl font-bold ${summary.severityBreakdown.catI > 0 ? 'text-purple-700' : 'text-gray-900'}`}>{summary.severityBreakdown.catI}</p>
-              </div>
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Remediation Tasks</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Tasks</p>
                 <p className="mt-1 text-2xl font-bold text-blue-600">{summary.totalTasks}</p>
               </div>
               <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Days to Close</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">{summary.avgDaysToClose}</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">In Progress</p>
+                <p className="mt-1 text-2xl font-bold text-indigo-600">{summary.tasksByStatus.inProgress}</p>
               </div>
-            </div>
-
-            {/* ──── Severity Heatbar + Aging + By-System ──── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Severity Heatbar */}
               <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Severity Breakdown</h3>
-                {summary.openCount > 0 ? (
-                  <>
-                    <div className="flex h-4 w-full overflow-hidden rounded-full">
-                      {summary.severityBreakdown.catIPercent > 0 && (
-                        <div className="bg-purple-500" style={{ width: `${summary.severityBreakdown.catIPercent}%` }} title={`CAT I: ${summary.severityBreakdown.catI}`} />
-                      )}
-                      {summary.severityBreakdown.catIIPercent > 0 && (
-                        <div className="bg-red-500" style={{ width: `${summary.severityBreakdown.catIIPercent}%` }} title={`CAT II: ${summary.severityBreakdown.catII}`} />
-                      )}
-                      {summary.severityBreakdown.catIIIPercent > 0 && (
-                        <div className="bg-amber-400" style={{ width: `${summary.severityBreakdown.catIIIPercent}%` }} title={`CAT III: ${summary.severityBreakdown.catIII}`} />
-                      )}
-                    </div>
-                    <div className="mt-2 flex justify-between text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-purple-500" /> CAT I: {summary.severityBreakdown.catI}</span>
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" /> CAT II: {summary.severityBreakdown.catII}</span>
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> CAT III: {summary.severityBreakdown.catIII}</span>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-400 text-center py-2">No open POA&Ms</p>
-                )}
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Blocked</p>
+                <p className={`mt-1 text-2xl font-bold ${summary.tasksByStatus.blocked > 0 ? 'text-red-600' : 'text-gray-900'}`}>{summary.tasksByStatus.blocked}</p>
               </div>
-
-              {/* Aging Chart */}
               <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">POA&M Aging</h3>
-                {summary.openCount > 0 ? (
-                  <div className="space-y-2">
-                    {[
-                      { label: '0–30 days', value: summary.aging.days0To30, color: 'bg-green-500' },
-                      { label: '31–60 days', value: summary.aging.days31To60, color: 'bg-blue-500' },
-                      { label: '61–90 days', value: summary.aging.days61To90, color: 'bg-amber-500' },
-                      { label: '90+ days', value: summary.aging.days90Plus, color: 'bg-red-500' },
-                    ].map(b => {
-                      const max = Math.max(summary.aging.days0To30, summary.aging.days31To60, summary.aging.days61To90, summary.aging.days90Plus, 1);
-                      return (
-                        <div key={b.label} className="flex items-center gap-2">
-                          <span className="w-20 text-xs text-gray-500 text-right">{b.label}</span>
-                          <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-                            <div className={`h-3 rounded-full ${b.color}`} style={{ width: `${(b.value / max) * 100}%` }} />
-                          </div>
-                          <span className="w-6 text-xs font-medium text-gray-700 text-right">{b.value}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 text-center py-2">No open POA&Ms</p>
-                )}
-              </div>
-
-              {/* By-System Breakdown */}
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">By System</h3>
-                {summary.bySystem.length > 0 ? (
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {summary.bySystem.map(s => (
-                      <div key={s.systemId} className="flex items-center justify-between text-xs">
-                        <Link to={`/systems/${s.systemId}`} className="text-blue-600 hover:underline truncate max-w-[120px]">{s.systemName}</Link>
-                        <div className="flex items-center gap-3">
-                          <span className="text-gray-600">{s.open} open</span>
-                          {s.overdue > 0 && <span className="text-red-600 font-medium">{s.overdue} overdue</span>}
-                          {s.catI > 0 && <span className="text-purple-700 font-medium">{s.catI} CAT I</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 text-center py-2">No systems with open POA&Ms</p>
-                )}
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Done</p>
+                <p className="mt-1 text-2xl font-bold text-green-600">{summary.tasksByStatus.done}</p>
               </div>
             </div>
 
@@ -453,130 +317,64 @@ export default function Remediation() {
             {/* ──── View Switcher: Table vs Kanban ──── */}
             {viewMode === 'table' ? (
               <>
-                {/* Tabs */}
-                <div className="flex items-center gap-1 border-b border-gray-200">
-                  {tabs.map(t => (
-                    <button
-                      key={t.key}
-                      onClick={() => { setActiveTab(t.key); setSelectedPoamIds(new Set()); }}
-                      className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === t.key
-                          ? 'border-blue-500 text-blue-700'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      {t.label} <span className="ml-1 text-xs text-gray-400">({t.count})</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Bulk Actions */}
-                {selectedPoamIds.size > 0 && (
-                  <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2">
-                    <span className="text-sm font-medium text-blue-700">{selectedPoamIds.size} selected</span>
-                    <select
-                      value={bulkStatus}
-                      onChange={(e) => setBulkStatus(e.target.value)}
-                      className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm"
-                    >
-                      <option value="">Change status...</option>
-                      <option value="Ongoing">Ongoing</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Delayed">Delayed</option>
-                      <option value="RiskAccepted">Risk Accepted</option>
-                    </select>
-                    <button
-                      onClick={() => void handleBulkUpdate()}
-                      disabled={!bulkStatus || bulkLoading}
-                      className="rounded-md bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {bulkLoading ? 'Updating…' : 'Apply'}
-                    </button>
-                    <button
-                      onClick={() => setSelectedPoamIds(new Set())}
-                      className="text-sm text-gray-500 hover:text-gray-700"
-                    >
-                      Clear
-                    </button>
-                    {bulkError && <span className="text-sm text-red-600">{bulkError}</span>}
-                  </div>
-                )}
-
-                {/* POA&M Table */}
+                {/* Task Table */}
                 <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-3 py-3 text-center w-8">
-                          <input
-                            type="checkbox"
-                            checked={selectedPoamIds.size === filteredPoams.length && filteredPoams.length > 0}
-                            onChange={toggleSelectAll}
-                            className="rounded border-gray-300"
-                          />
-                        </th>
+                        <th className="px-3 py-3 text-left font-medium text-gray-500">Task #</th>
+                        <th className="px-3 py-3 text-left font-medium text-gray-500">Title</th>
                         <th className="px-3 py-3 text-left font-medium text-gray-500">Control</th>
-                        <th className="px-3 py-3 text-left font-medium text-gray-500">Weakness</th>
                         <th className="px-3 py-3 text-center font-medium text-gray-500">Severity</th>
                         <th className="px-3 py-3 text-center font-medium text-gray-500">Status</th>
-                        <th className="px-3 py-3 text-left font-medium text-gray-500">POC</th>
+                        <th className="px-3 py-3 text-left font-medium text-gray-500">Assignee</th>
                         <th className="px-3 py-3 text-left font-medium text-gray-500">Due Date</th>
-                        <th className="px-3 py-3 text-center font-medium text-gray-500">Days Left</th>
-                        <th className="px-3 py-3 text-center font-medium text-gray-500">Milestones</th>
-                        <th className="px-3 py-3 text-center font-medium text-gray-500">Task</th>
+                        <th className="px-3 py-3 text-center font-medium text-gray-500">Linked POA&M</th>
                         <th className="px-3 py-3 text-center font-medium text-gray-500">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {filteredPoams.length === 0 ? (
+                      {filteredTasks.length === 0 ? (
                         <tr>
-                          <td colSpan={11} className="px-4 py-12 text-center text-gray-400">
-                            {searchText ? 'No POA&M items match your search.' : 'No POA&M items found.'}
+                          <td colSpan={9} className="px-4 py-12 text-center text-gray-400">
+                            {searchText ? 'No tasks match your search.' : 'No remediation tasks found.'}
                           </td>
                         </tr>
-                      ) : filteredPoams.map(p => (
+                      ) : filteredTasks.map(t => (
                         <tr
-                          key={p.id}
-                          className={`hover:bg-gray-50 cursor-pointer ${selectedPoam?.id === p.id ? 'bg-blue-50' : ''}`}
-                          onClick={() => setSelectedPoam(selectedPoam?.id === p.id ? null : p)}
+                          key={t.id}
+                          className={`hover:bg-gray-50 cursor-pointer ${selectedTask?.id === t.id ? 'bg-blue-50' : ''}`}
+                          onClick={() => setSelectedTask(selectedTask?.id === t.id ? null : t)}
                         >
+                          <td className="px-3 py-2.5 font-mono text-xs text-gray-400">{t.taskNumber}</td>
+                          <td className="px-3 py-2.5 text-xs text-gray-700 max-w-[200px] truncate" title={t.title}>{t.title}</td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-gray-700">{t.controlId}</td>
+                          <td className="px-3 py-2.5 text-center">
+                            {t.catSeverity ? <CatBadge cat={t.catSeverity} /> : <SeverityBadge severity={t.severity} />}
+                          </td>
+                          <td className="px-3 py-2.5 text-center"><StatusBadge status={t.status} /></td>
+                          <td className="px-3 py-2.5 text-xs text-gray-600">{t.assigneeName ?? '—'}</td>
+                          <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                            {t.isOverdue ? (
+                              <span className="text-red-600 font-medium">Overdue · {formatDate(t.dueDate)}</span>
+                            ) : formatDate(t.dueDate)}
+                          </td>
                           <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={selectedPoamIds.has(p.id)}
-                              onChange={() => toggleSelection(p.id)}
-                              className="rounded border-gray-300"
-                            />
-                          </td>
-                          <td className="px-3 py-2.5 font-mono text-xs text-gray-700">{p.controlId}</td>
-                          <td className="px-3 py-2.5 text-xs text-gray-600 max-w-[200px] truncate" title={p.weakness}>{p.weakness}</td>
-                          <td className="px-3 py-2.5 text-center"><CatBadge cat={p.catSeverity} /></td>
-                          <td className="px-3 py-2.5 text-center"><StatusBadge status={p.status} /></td>
-                          <td className="px-3 py-2.5 text-xs text-gray-600">{p.pointOfContact}</td>
-                          <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">{formatDate(p.scheduledCompletionDate)}</td>
-                          <td className="px-3 py-2.5 text-center">
-                            {p.daysRemaining != null ? (
-                              <span className={`text-xs font-medium ${p.daysRemaining < 0 ? 'text-red-600' : p.daysRemaining <= 14 ? 'text-amber-600' : 'text-gray-600'}`}>
-                                {p.daysRemaining < 0 ? `${Math.abs(p.daysRemaining)}d over` : `${p.daysRemaining}d`}
-                              </span>
-                            ) : <span className="text-xs text-green-600">Done</span>}
-                          </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <MilestoneBar total={p.milestoneProgress.total} completed={p.milestoneProgress.completed} />
-                          </td>
-                          <td className="px-3 py-2.5 text-center">
-                            {p.remediationTaskId ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-green-600" title="Linked to remediation task">
-                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            {t.poamItemId ? (
+                              <Link
+                                to={`/systems/${systemId}/poam?detail=${t.poamItemId}`}
+                                className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-200"
+                              >
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                 </svg>
-                                Linked
-                              </span>
+                                POA&M
+                              </Link>
                             ) : <span className="text-xs text-gray-400">—</span>}
                           </td>
                           <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                             <button
-                              onClick={() => setSelectedPoam(p)}
+                              onClick={() => setSelectedTask(t)}
                               className="text-xs text-blue-600 hover:text-blue-800"
                             >
                               Detail
@@ -628,11 +426,17 @@ export default function Remediation() {
                             draggable
                             onDragStart={(e) => handleDragStart(e, t.id)}
                             onDragEnd={handleDragEnd}
+                            onClick={() => setSelectedTask(t)}
                             className={`rounded-md border border-gray-200 bg-white p-3 shadow-sm hover:shadow transition-all cursor-grab active:cursor-grabbing ${movingTaskId === t.id ? 'opacity-50 animate-pulse' : ''}`}
                           >
                             <div className="flex items-center gap-1.5 mb-1">
                               <span className="text-[10px] font-mono text-gray-400">{t.taskNumber}</span>
                               {t.catSeverity ? <CatBadge cat={t.catSeverity} /> : <SeverityBadge severity={t.severity} />}
+                              {t.poamItemId && (
+                                <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[8px] font-bold text-blue-700" title="Linked to POA&M">
+                                  POA&M
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs font-medium text-gray-800 line-clamp-2">{t.title}</p>
                             <div className="mt-2 flex items-center justify-between text-[10px] text-gray-500">
@@ -654,25 +458,25 @@ export default function Remediation() {
           </>
         )}
 
-        {/* ──── POA&M Detail Drawer ──── */}
-        {selectedPoam && (
+        {/* ──── Task Detail Drawer ──── */}
+        {selectedTask && (
           <div
             className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm"
-            onClick={(e) => { if (e.target === e.currentTarget) setSelectedPoam(null); }}
+            onClick={(e) => { if (e.target === e.currentTarget) setSelectedTask(null); }}
           >
             <div className="w-full max-w-lg bg-white shadow-2xl border-l border-gray-200 flex flex-col overflow-hidden animate-in slide-in-from-right">
               {/* Header */}
               <div className="flex items-center justify-between px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">POA&M Detail</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Task Detail</h3>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="font-mono text-sm text-gray-600">{selectedPoam.controlId}</span>
-                    <CatBadge cat={selectedPoam.catSeverity} />
-                    <StatusBadge status={selectedPoam.status} />
+                    <span className="font-mono text-sm text-gray-400">{selectedTask.taskNumber}</span>
+                    {selectedTask.catSeverity ? <CatBadge cat={selectedTask.catSeverity} /> : <SeverityBadge severity={selectedTask.severity} />}
+                    <StatusBadge status={selectedTask.status} />
                   </div>
                 </div>
                 <button
-                  onClick={() => setSelectedPoam(null)}
+                  onClick={() => setSelectedTask(null)}
                   className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -683,136 +487,134 @@ export default function Remediation() {
 
               {/* Body */}
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-                {/* Weakness */}
+                {/* Title */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Weakness</h4>
-                  <p className="text-sm text-gray-700">{selectedPoam.weakness}</p>
-                  <p className="text-xs text-gray-400 mt-1">Source: {selectedPoam.weaknessSource}</p>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Title</h4>
+                  <p className="text-sm text-gray-700">{selectedTask.title}</p>
                 </div>
+
+                {/* Description */}
+                {selectedTask.description && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Description</h4>
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{selectedTask.description}</p>
+                  </div>
+                )}
 
                 {/* Key Info Grid */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-md border border-gray-200 p-3">
-                    <p className="text-xs text-gray-500">Point of Contact</p>
-                    <p className="text-sm font-medium text-gray-800">{selectedPoam.pointOfContact}</p>
-                    {selectedPoam.pocEmail && <p className="text-xs text-gray-400">{selectedPoam.pocEmail}</p>}
+                    <p className="text-xs text-gray-500">Control</p>
+                    <p className="text-sm font-medium text-gray-800 font-mono">{selectedTask.controlId}</p>
                   </div>
                   <div className="rounded-md border border-gray-200 p-3">
-                    <p className="text-xs text-gray-500">Scheduled Completion</p>
-                    <p className="text-sm font-medium text-gray-800">{formatDate(selectedPoam.scheduledCompletionDate)}</p>
-                    {selectedPoam.daysRemaining != null && (
-                      <p className={`text-xs ${selectedPoam.daysRemaining < 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                        {selectedPoam.daysRemaining < 0 ? `${Math.abs(selectedPoam.daysRemaining)} days overdue` : `${selectedPoam.daysRemaining} days remaining`}
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-500">Assignee</p>
+                    <p className="text-sm font-medium text-gray-800">{selectedTask.assigneeName ?? 'Unassigned'}</p>
                   </div>
-                  {selectedPoam.resourcesRequired && (
-                    <div className="rounded-md border border-gray-200 p-3">
-                      <p className="text-xs text-gray-500">Resources Required</p>
-                      <p className="text-sm text-gray-700">{selectedPoam.resourcesRequired}</p>
-                    </div>
-                  )}
-                  {selectedPoam.costEstimate != null && (
-                    <div className="rounded-md border border-gray-200 p-3">
-                      <p className="text-xs text-gray-500">Cost Estimate</p>
-                      <p className="text-sm font-medium text-gray-800">${selectedPoam.costEstimate.toLocaleString()}</p>
-                    </div>
-                  )}
-                  {selectedPoam.systemName && (
-                    <div className="rounded-md border border-gray-200 p-3">
-                      <p className="text-xs text-gray-500">System</p>
-                      <Link to={`/systems/${selectedPoam.registeredSystemId}`} className="text-sm text-blue-600 hover:underline">
-                        {selectedPoam.systemName}
+                  <div className="rounded-md border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Due Date</p>
+                    <p className={`text-sm font-medium ${selectedTask.isOverdue ? 'text-red-600' : 'text-gray-800'}`}>
+                      {formatDate(selectedTask.dueDate)}
+                      {selectedTask.isOverdue && ' (Overdue)'}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Status</p>
+                    <StatusBadge status={selectedTask.status} />
+                  </div>
+                </div>
+
+                {/* POA&M Sync Indicator (T065) */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Linked POA&M</h4>
+                  {selectedTask.poamItemId ? (
+                    <div className="space-y-2">
+                      <SyncIndicator
+                        linked={true}
+                        linkedEntityName="POA&M Item"
+                        linkedEntityId={selectedTask.poamItemId}
+                      />
+                      <Link
+                        to={`/systems/${systemId}/poam?detail=${selectedTask.poamItemId}`}
+                        className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                      >
+                        View POA&M →
                       </Link>
                     </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <SyncIndicator linked={false} />
+                      <button
+                        onClick={() => { setLinkPickerTask(selectedTask); setLinkPoamSearch(''); setLinkPoamResults([]); }}
+                        className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        Link to POA&M
+                      </button>
+                    </div>
                   )}
                 </div>
 
-                {/* Status Quick-Change */}
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Change Status</h4>
-                  <div className="flex gap-2">
-                    {['Ongoing', 'Delayed', 'Completed', 'RiskAccepted'].map(s => (
-                      <button
-                        key={s}
-                        onClick={() => void handleStatusUpdate(selectedPoam, s)}
-                        disabled={selectedPoam.status === s || statusUpdateLoading === selectedPoam.id}
-                        className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-                          selectedPoam.status === s
-                            ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        } disabled:opacity-50`}
-                      >
-                        {s === 'RiskAccepted' ? 'Risk Accepted' : s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Milestones */}
-                {selectedPoam.milestones.length > 0 && (
+                {/* Remediation Script */}
+                {selectedTask.remediationScript && (
                   <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                      Milestones ({selectedPoam.milestoneProgress.completed}/{selectedPoam.milestoneProgress.total})
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                      Remediation Script {selectedTask.remediationScriptType && `(${selectedTask.remediationScriptType})`}
                     </h4>
-                    <div className="space-y-2">
-                      {selectedPoam.milestones.map(m => (
-                        <div key={m.id} className={`flex items-start gap-2 rounded-md border p-2.5 ${m.completedDate ? 'border-green-200 bg-green-50' : m.isOverdue ? 'border-red-200 bg-red-50' : 'border-gray-200'}`}>
-                          <div className={`mt-0.5 flex-shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center ${m.completedDate ? 'border-green-500 bg-green-500' : m.isOverdue ? 'border-red-400' : 'border-gray-300'}`}>
-                            {m.completedDate && (
-                              <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs ${m.completedDate ? 'text-green-700 line-through' : 'text-gray-700'}`}>{m.description}</p>
-                            <div className="flex gap-2 mt-0.5 text-[10px]">
-                              <span className="text-gray-400">Target: {formatDate(m.targetDate)}</span>
-                              {m.completedDate && <span className="text-green-600">Done: {formatDate(m.completedDate)}</span>}
-                              {m.isOverdue && <span className="text-red-600 font-medium">Overdue</span>}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <pre className="rounded-md bg-gray-900 p-3 text-xs text-green-400 overflow-x-auto">{selectedTask.remediationScript}</pre>
                   </div>
                 )}
 
-                {/* Linked Task */}
-                {selectedPoam.remediationTaskId && (
-                  <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
-                    <h4 className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1">Linked Remediation Task</h4>
-                    <p className="text-xs text-blue-600">Task ID: {selectedPoam.remediationTaskId}</p>
-                  </div>
-                )}
-
-                {/* Finding Link */}
-                {selectedPoam.findingId && (
-                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Originating Finding</h4>
-                    <p className="text-xs text-gray-600">Finding ID: {selectedPoam.findingId}</p>
-                  </div>
-                )}
-
-                {/* Deviation Link (Feature 035) */}
-                {selectedPoam.status === 'RiskAccepted' && selectedPoam.deviationId && (
-                  <Link
-                    to={`/systems/${selectedPoam.registeredSystemId}/deviations`}
-                    className="flex items-center gap-2 rounded-md border border-purple-200 bg-purple-50 p-3 hover:bg-purple-100 transition-colors"
-                  >
-                    <span className="text-xs font-semibold text-purple-700 uppercase tracking-wider">View Deviation</span>
-                    <span className="text-xs text-purple-600">→</span>
-                  </Link>
-                )}
-
-                {/* Comments */}
-                {selectedPoam.comments && (
+                {/* Validation Criteria */}
+                {selectedTask.validationCriteria && (
                   <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Comments</h4>
-                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{selectedPoam.comments}</p>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Validation Criteria</h4>
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{selectedTask.validationCriteria}</p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ──── Link to POA&M Picker Dialog (T067) ──── */}
+        {linkPickerTask && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" onClick={() => setLinkPickerTask(null)}>
+            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+              <h3 className="mb-4 text-lg font-bold text-gray-900">Link to POA&M</h3>
+              <p className="mb-3 text-sm text-gray-500">Search for an open POA&M item to link to task {linkPickerTask.taskNumber}.</p>
+              <input
+                type="text"
+                placeholder="Search by control ID or weakness..."
+                value={linkPoamSearch}
+                onChange={(e) => void handleLinkPoamSearch(e.target.value)}
+                className="w-full rounded-lg border px-3 py-2 text-sm mb-3"
+              />
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {linkPoamResults.length === 0 && linkPoamSearch.length >= 2 && (
+                  <p className="text-sm text-gray-400 text-center py-4">No matching POA&M items found.</p>
+                )}
+                {linkPoamResults.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => void handleLinkPoamToTask(p.id, linkPickerTask.id)}
+                    disabled={linkLoading}
+                    className="w-full flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-blue-50 disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-gray-600">{p.controlId}</span>
+                      <span className="text-gray-700 truncate max-w-[200px]">{p.weakness}</span>
+                    </div>
+                    <StatusBadge status={p.status} />
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-end mt-4">
+                <button onClick={() => setLinkPickerTask(null)} className="rounded-lg bg-gray-100 px-4 py-2 text-sm hover:bg-gray-200">
+                  Cancel
+                </button>
               </div>
             </div>
           </div>

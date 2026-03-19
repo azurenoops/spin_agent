@@ -226,3 +226,18 @@
 | **Primary Boundary** | The default boundary definition auto-created for each system during migration; cannot be deleted |
 | **Boundary Comparison Table** | A dashboard visualization showing per-boundary compliance coverage percentages with color coding |
 | **Azure Resource Discovery** | Automated discovery of Azure resources via Resource Graph API, grouped by resource group as suggested boundaries |
+
+## Feature 039 Terms
+
+| Term | Definition |
+|------|-----------|
+| **POA&M** | Plan of Action & Milestones — A document tracking known security weaknesses, the planned remediation, and milestone schedule |
+| **POA&M Lifecycle** | Status flow: Ongoing → Completed (with validation), Delayed (with reason), or Risk Accepted (with deviation) |
+| **CAT Severity** | Category I (critical), II (moderate), III (low) — DoD vulnerability severity rating |
+| **Cascade Confirmation** | Dialog shown when a linked entity changes status, asking whether to propagate the change to the POA&M item |
+| **Bidirectional Sync** | Two-way synchronization between POA&M items and external ticketing systems (Jira/ServiceNow) |
+| **eMASS Export** | Export in the Enterprise Mission Assurance Support Service 24-column Excel template format |
+| **OSCAL POA&M** | Export in NIST Open Security Controls Assessment Language Plan of Action schema |
+| **Ticketing Integration** | Configuration linking a system to an external Jira or ServiceNow instance for POA&M ticket synchronization |
+| **Component Linkage** | Association between a POA&M item and one or more system components for traceability |
+| **Remediation Task Sync** | Bidirectional link between a POA&M item and a Kanban remediation task |

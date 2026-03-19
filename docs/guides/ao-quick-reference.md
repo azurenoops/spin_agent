@@ -223,3 +223,14 @@ Tool: `compliance_show_risk_register`
 - [Persona Overview](../personas/index.md) — All personas, RACI matrix, and role definitions
 - [RMF Phase Reference](../rmf-phases/index.md) — Phase-by-phase workflow details
 - [Quick Reference Card](../reference/quick-reference-cards.md) — Printable AO cheat sheet
+
+---
+
+## POA&M for Authorization Decisions (Feature 039)
+
+As an Authorizing Official, POA&M data informs your authorization decisions:
+
+- **Trend Reports**: Use `compliance_poam_trend` to review open POA&M trends before making ATO decisions
+- **Risk Posture**: Use `compliance_poam_metrics` to see total open, overdue, and severity breakdown
+- **eMASS Export**: Request POA&M exports in eMASS format for inclusion in authorization packages
+- **Dashboard**: Navigate to the POA&M Trends tab for visual analytics on closure rates and aging

@@ -202,6 +202,9 @@ public class ImportNessusTool : BaseTool
                         findings_updated = result.FindingsUpdated,
                         skipped = result.SkippedCount,
                         poam_weaknesses_created = result.PoamWeaknessesCreated,
+                        poam_items_created = result.PoamItemsCreated,
+                        poam_items_deduplicated = result.PoamItemsDeduplicated,
+                        component_links_created = result.ComponentLinksCreated,
                         effectiveness_created = result.EffectivenessRecordsCreated,
                         effectiveness_updated = result.EffectivenessRecordsUpdated,
                         nist_controls_affected = result.NistControlsAffected
