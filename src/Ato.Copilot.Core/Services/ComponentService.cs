@@ -36,9 +36,8 @@ public class ComponentService
 
         if (!systemExists) return null;
 
-        var q = _db.SystemComponents
-            .Where(c => c.RegisteredSystemId == systemId)
-            .AsNoTracking();
+        IQueryable<SystemComponent> q = _db.SystemComponents
+            .Where(c => c.RegisteredSystemId == systemId);
 
         if (!string.IsNullOrWhiteSpace(query.Type) &&
             Enum.TryParse<ComponentType>(query.Type, ignoreCase: true, out var typeFilter))
@@ -83,6 +82,7 @@ public class ComponentService
             .Include(c => c.CapabilityLinks)
                 .ThenInclude(cl => cl.SecurityCapability)
             .Include(c => c.AuthorizationBoundaryDefinition)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         var items = components.Select(MapToDto).ToList();
@@ -327,7 +327,8 @@ public class ComponentService
         OrgComponentQuery query,
         CancellationToken cancellationToken = default)
     {
-        var q = _db.SystemComponents.AsNoTracking().AsQueryable();
+        IQueryable<SystemComponent> q = _db.SystemComponents
+            .Where(c => c.RegisteredSystemId == null);
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -355,6 +356,7 @@ public class ComponentService
             .Include(c => c.CapabilityLinks).ThenInclude(cl => cl.SecurityCapability)
             .Include(c => c.SystemAssignments).ThenInclude(a => a.RegisteredSystem)
             .Include(c => c.SystemAssignments).ThenInclude(a => a.AuthorizationBoundaryDefinition)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         var items = components.Select(MapToOrgDto).ToList();
@@ -846,9 +848,12 @@ public class ComponentService
         if (!systemExists) return null;
 
         // Query components assigned to this system via ComponentSystemAssignment
-        var q = _db.ComponentSystemAssignments
+        var assignedComponentIds = _db.ComponentSystemAssignments
             .Where(a => a.RegisteredSystemId == systemId)
-            .Select(a => a.SystemComponent)
+            .Select(a => a.SystemComponentId);
+
+        IQueryable<SystemComponent> q = _db.SystemComponents
+            .Where(c => assignedComponentIds.Contains(c.Id))
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(query.Type) &&
@@ -868,9 +873,8 @@ public class ComponentService
         var totalCount = await q.CountAsync(cancellationToken);
 
         // Summary counts (unfiltered for this system)
-        var allForSystem = _db.ComponentSystemAssignments
-            .Where(a => a.RegisteredSystemId == systemId)
-            .Select(a => a.SystemComponent);
+        var allForSystem = _db.SystemComponents
+            .Where(c => assignedComponentIds.Contains(c.Id));
         var summary = new ComponentSummaryDto
         {
             PersonCount = await allForSystem.CountAsync(c => c.ComponentType == ComponentType.Person, cancellationToken),

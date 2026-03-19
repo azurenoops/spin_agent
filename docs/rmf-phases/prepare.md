@@ -20,14 +20,15 @@
 
 ### ISSM (Lead)
 
-**Tasks in this phase**:
+**Tasks in this phase** (per NIST SP 800-37 Rev 2, Tasks P-14 through P-18):
 
 1. Register the system → Tool: `compliance_register_system`
-2. Define the authorization boundary → Tool: `compliance_define_boundary`
-3. Exclude shared/inherited resources → Tool: `compliance_exclude_from_boundary`
-4. Assign RMF roles → Tool: `compliance_assign_rmf_role`
-5. Verify role assignments → Tool: `compliance_list_rmf_roles`
-6. Advance to Categorize → Tool: `compliance_advance_rmf_step`
+2. Identify system components (People, Places, Things) → Dashboard: **Components** page
+3. Define the authorization boundary around identified assets → Tool: `compliance_define_boundary`
+4. Exclude shared/inherited resources → Tool: `compliance_exclude_from_boundary`
+5. Assign RMF roles → Tool: `compliance_assign_rmf_role`
+6. Verify role assignments → Tool: `compliance_list_rmf_roles`
+7. Advance to Categorize → Tool: `compliance_advance_rmf_step`
 
 **Natural Language Queries**:
 

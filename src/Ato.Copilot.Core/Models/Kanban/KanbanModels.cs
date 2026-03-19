@@ -139,6 +139,11 @@ public class RemediationTask : ConcurrentEntity
 
     /// <summary>Navigation to parent board.</summary>
     public RemediationBoard? Board { get; set; }
+
+    // ─── New Navigation (Feature 039 — POA&M Bidirectional Sync) ────────────
+
+    /// <summary>Navigation to linked POA&amp;M item for bidirectional sync support.</summary>
+    public PoamItem? PoamItem { get; set; }
 }
 
 /// <summary>

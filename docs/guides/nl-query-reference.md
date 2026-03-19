@@ -270,6 +270,27 @@ Replace `{id}`, `{sub-id}`, and similar placeholders with your actual system, su
 
 ---
 
+## POA&M Management Queries (Feature 039)
+
+| Query | Tool | Persona |
+|-------|------|---------|
+| Show all POA&M items for system {id} | `compliance_list_poam` | All |
+| Show overdue POA&M items for system {id} | `compliance_list_poam` (overdue filter) | All |
+| Show POA&M details for item {poamId} | `compliance_get_poam` | All |
+| Create a POA&M for AC-2 on system {id} | `compliance_create_poam` | ISSO, ISSM |
+| Update POA&M {poamId} status to Completed | `compliance_update_poam` | ISSO, ISSM |
+| Close POA&M {poamId} | `compliance_close_poam` | ISSO, ISSM |
+| What's the POA&M status for system {id}? | `compliance_poam_metrics` | All |
+| Show POA&M trends for system {id} | `compliance_poam_trend` | All |
+| Export POA&M to eMASS format for system {id} | `compliance_export_poam` | ISSO, ISSM, AO |
+| Export POA&M to CSV for system {id} | `compliance_export_poam` | ISSO, ISSM, AO |
+| Sync POA&M {poamId} to Jira | `compliance_sync_poam_ticket` | ISSO, ISSM |
+| Show POA&M items for component {componentId} | `compliance_poam_by_component` | All |
+| Link POA&M {poamId} to component {componentId} | `compliance_link_poam_component` | ISSO, ISSM |
+| Create a task from POA&M {poamId} | `compliance_create_task_from_poam` | ISSO, ISSM |
+
+---
+
 ## See Also
 
 - [Getting Started](../getting-started/index.md) — Per-persona onboarding

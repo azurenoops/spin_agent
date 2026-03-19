@@ -297,7 +297,14 @@ NIST 800-18 SSP section authoring, review workflow, and OSCAL 1.1.2 SSP export.
 | SAP Generation | 5 | Security Assessment Plan lifecycle |
 | Privacy & Interconnection | 12 | Privacy analysis, ISA/MOU management |
 | SSP Authoring & OSCAL | 5 | SSP sections and OSCAL export |
-| **Total** | **142** | |
+| POA&M Lifecycle | 6 | Create, update, close, milestones, bulk update, bulk create |
+| POA&M Component Linkage | 3 | Link/unlink components, component POA&M view |
+| POA&M Remediation Sync | 3 | Link/unlink/create tasks |
+| POA&M Trend & Metrics | 2 | Metrics summary, trend analysis |
+| POA&M Export | 1 | eMASS Excel, OSCAL JSON, CSV |
+| POA&M Ticketing | 3 | Configure, sync, bulk sync |
+| POA&M Bulk Operations | 2 | Bulk update, bulk create from findings |
+| **Total** | **162** | |
 
 ---
 

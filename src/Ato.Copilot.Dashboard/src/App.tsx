@@ -16,6 +16,8 @@ import DeviationsPage from './pages/DeviationsPage';
 import CapabilityCoverage from './pages/CapabilityCoverage';
 import EvidenceRepository from './pages/EvidenceRepository';
 import LegalRegulatory from './pages/LegalRegulatory';
+import ComponentInventory from './pages/ComponentInventory';
+import PoamManagement from './pages/PoamManagement';
 import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
@@ -54,6 +56,8 @@ function AppContent() {
           <Route path="assessments" element={<Assessments />} />
           <Route path="remediation" element={<Remediation />} />
           <Route path="evidence" element={<EvidenceRepository />} />
+          <Route path="components" element={<ComponentInventory />} />
+          <Route path="poam" element={<PoamManagement />} />
           <Route path="capability-coverage" element={<CapabilityCoverage />} />
         </Route>
         <Route path="/capabilities" element={<CapabilityLibrary />} />

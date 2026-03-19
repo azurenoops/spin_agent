@@ -20,9 +20,16 @@ interface ComponentSectionProps {
   count: number;
   onEdit: (comp: SystemComponentDto) => void;
   onDelete: (id: string) => void;
+  riskMap?: Record<string, { openCount: number; overdueCount: number; highestSeverity: string | null }>;
 }
 
-export function ComponentSection({ title, type, components, count, onEdit, onDelete }: ComponentSectionProps) {
+const severityBadge: Record<string, string> = {
+  I: 'bg-red-600 text-white',
+  II: 'bg-orange-500 text-white',
+  III: 'bg-yellow-400 text-gray-900',
+};
+
+export function ComponentSection({ title, type, components, count, onEdit, onDelete, riskMap }: ComponentSectionProps) {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -58,6 +65,14 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                       <span className={`text-xs px-1.5 py-0.5 rounded ${statusColors[comp.status] ?? 'bg-gray-100'}`}>
                         {comp.status}
                       </span>
+                      {riskMap?.[comp.id] && riskMap[comp.id]!.openCount > 0 && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${severityBadge[riskMap[comp.id]!.highestSeverity ?? 'III'] ?? 'bg-gray-200'}`}
+                          title={`${riskMap[comp.id]!.openCount} open POA&M(s), ${riskMap[comp.id]!.overdueCount} overdue`}
+                        >
+                          {riskMap[comp.id]!.openCount} POA&M{riskMap[comp.id]!.openCount > 1 ? 's' : ''}
+                          {riskMap[comp.id]!.overdueCount > 0 && ` (${riskMap[comp.id]!.overdueCount} overdue)`}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                       {comp.subType && <span>{comp.subType}</span>}

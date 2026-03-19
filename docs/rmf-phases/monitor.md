@@ -268,3 +268,8 @@ This is a continuous phase — there is no outbound transition gate. Reauthoriza
 - [ISSO Guide](../personas/isso.md) — Day-to-day monitoring workflows
 - [Compliance Watch Guide](../guides/compliance-watch.md) — Detailed Watch documentation
 - [AO Guide](../guides/ao-quick-reference.md) — Reauthorization and risk decisions
+- [POA&M Management Guide](../guides/poam-management.md) — POA&M trend tracking and lifecycle
+
+### POA&M Trend Monitoring (Feature 039)
+
+During continuous monitoring, use the POA&M Trends tab or `compliance_poam_trend` to track open-over-time trends, closure rates, aging breakdown, and time-to-close distributions. Export trend reports as PDF for ConMon reporting.

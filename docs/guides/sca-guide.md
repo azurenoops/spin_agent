@@ -509,3 +509,14 @@ Cross-reference against the authorization boundary to verify all in-scope resour
 - [Persona Overview](../personas/index.md) — All personas, RACI matrix, and role definitions
 - [RMF Phase Reference](../rmf-phases/index.md) — Phase-by-phase workflow details
 - [Quick Reference Card](../reference/quick-reference-cards.md) — Printable SCA cheat sheet
+
+---
+
+## Assessment-Driven POA&M Creation (Feature 039)
+
+After completing security control assessments, SCAs can trigger automatic POA&M generation:
+
+- **Auto-Create from Findings**: After importing scan results, use the post-import prompt or `compliance_bulk_create_poam_from_findings` to auto-generate POA&M items
+- **Deduplication**: Items are not created for findings that already have POA&M entries
+- **Severity Mapping**: CAT severity is mapped from finding severity to POA&M category
+- **Component Linkage**: Auto-generated POA&M items inherit component associations from the originating findings

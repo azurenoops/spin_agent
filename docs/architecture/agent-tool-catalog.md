@@ -3419,3 +3419,169 @@ The existing define boundary tool now supports an optional `boundary_definition_
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `boundary_definition_name` | string | No | Name of boundary definition to assign resources to |
+
+---
+
+## POA&M Management Tools (Feature 039)
+
+### `compliance_get_poam`
+
+Retrieve detailed POA&M item information including milestones, history, components, and ticket sync status.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poam_id` | string | Yes | POA&M item ID |
+
+### `compliance_update_poam`
+
+Update a POA&M item's fields. Enforces lifecycle transition rules.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poam_id` | string | Yes | POA&M item ID |
+| `status` | string | No | Target status (Ongoing, Completed, Delayed, RiskAccepted) |
+| `cat_severity` | string | No | Target severity (CatI, CatII, CatIII) |
+| `poc` | string | No | Point of contact |
+| `scheduled_completion` | string | No | Target date (ISO 8601) |
+| `comment` | string | No | Comment text |
+| `row_version` | string | Yes | Concurrency token |
+
+### `compliance_close_poam`
+
+Close a POA&M item as Completed with milestone and finding validation.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poam_id` | string | Yes | POA&M item ID |
+| `row_version` | string | Yes | Concurrency token |
+
+### `compliance_update_poam_milestone`
+
+Add or update a milestone on a POA&M item.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poam_id` | string | Yes | POA&M item ID |
+| `milestone_id` | string | No | Milestone ID (omit to create new) |
+| `description` | string | Yes | Milestone description |
+| `target_date` | string | Yes | Target date (ISO 8601) |
+| `completed` | boolean | No | Mark as completed |
+
+### `compliance_link_poam_component` / `compliance_unlink_poam_component`
+
+Link or unlink system components to a POA&M item.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poam_id` | string | Yes | POA&M item ID |
+| `component_ids` | string[] | Yes | Component IDs to link/unlink |
+
+### `compliance_poam_by_component`
+
+Get all POA&M items linked to a component with summary metrics.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `component_id` | string | Yes | Component ID |
+
+### `compliance_link_poam_task` / `compliance_unlink_poam_task`
+
+Link or unlink a remediation task to a POA&M item.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poam_id` | string | Yes | POA&M item ID |
+| `task_id` | string | Yes (link only) | Remediation task ID |
+
+### `compliance_create_task_from_poam`
+
+Create a new Kanban task from a POA&M item.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poam_id` | string | Yes | POA&M item ID |
+| `board_id` | string | Yes | Target Kanban board ID |
+
+### `compliance_bulk_create_poam_from_findings`
+
+Auto-generate POA&M items from scan findings with deduplication.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System ID |
+| `finding_ids` | string[] | Yes | Finding IDs |
+| `default_poc` | string | No | Default point of contact |
+
+### `compliance_bulk_update_poam`
+
+Bulk update multiple POA&M items.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poam_ids` | string[] | Yes | POA&M item IDs (1-100) |
+| `status` | string | No | Target status |
+| `cat_severity` | string | No | Target severity |
+| `poc` | string | No | Target POC |
+| `comment` | string | No | Comment for all items |
+
+### `compliance_poam_metrics`
+
+Get POA&M summary metrics (open, overdue, severity breakdown, avg days to close).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | No | System ID (omit for cross-system) |
+
+### `compliance_poam_trend`
+
+Get POA&M trend data (open over time, closure rates, aging, time-to-close).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System ID |
+| `period` | string | No | daily, weekly, monthly (default: monthly) |
+| `start_date` | string | No | Start date (ISO 8601) |
+| `end_date` | string | No | End date (ISO 8601) |
+
+### `compliance_export_poam`
+
+Export POA&M data in specified format.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System ID |
+| `format` | string | Yes | emass_excel, oscal_json, csv |
+| `status_filter` | string | No | Filter by status |
+| `severity_filter` | string | No | Filter by severity |
+| `include_all` | boolean | No | Include all items ignoring filters |
+
+### `compliance_configure_ticketing`
+
+Configure Jira/ServiceNow integration for a system.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System ID |
+| `provider` | string | Yes | jira or servicenow |
+| `base_url` | string | Yes | Ticketing system base URL |
+| `project_key` | string | Yes | Jira project key or ServiceNow table name |
+| `api_key_secret` | string | Yes | Key Vault secret URI |
+| `sync_enabled` | boolean | No | Enable auto-sync (default: true) |
+
+### `compliance_sync_poam_ticket`
+
+Sync a POA&M item with external ticketing system.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poam_id` | string | Yes | POA&M item ID |
+| `direction` | string | No | push, pull, or bidirectional |
+
+### `compliance_bulk_sync_tickets`
+
+Bulk sync all active POA&Ms for a system.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System ID |
+| `direction` | string | No | push, pull, or bidirectional |

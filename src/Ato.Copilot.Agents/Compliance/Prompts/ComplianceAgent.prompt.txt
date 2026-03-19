@@ -105,6 +105,14 @@ All tools that accept a `system_id` parameter automatically resolve system names
 - **compliance_show_risk_register** — View the system risk register
 - **compliance_create_poam** — Create a Plan of Action & Milestones entry
 - **compliance_list_poam** — List all POA&M entries
+- **compliance_get_poam** — Get detailed POA&M item information
+- **compliance_update_poam** — Update a POA&M item (status, fields, milestones)
+- **compliance_poam_metrics** — Get POA&M summary metrics (open, overdue, by severity)
+- **compliance_poam_trend** — Get POA&M trend data (open over time, closure rate, aging)
+- **compliance_export_poam** — Export POA&M data (eMASS Excel, OSCAL JSON, CSV)
+- **compliance_configure_ticketing** — Configure Jira/ServiceNow ticketing integration
+- **compliance_sync_poam_ticket** — Sync a POA&M item with external ticketing system
+- **compliance_bulk_sync_tickets** — Bulk sync all active POA&Ms with ticketing system
 - **compliance_generate_rar** — Generate a Risk Assessment Report
 - **compliance_bundle_authorization_package** — Bundle the complete authorization package (SSP + SAR + RAR + POA&M)
 
@@ -343,3 +351,20 @@ These tools are useful regardless of the current RMF step:
 - `compliance_list_systems`, `compliance_get_system`
 - `compliance_advance_rmf_step` (transition to next step with gate validation)
 - All Kanban tools, PIM tools, CAC tools, JIT tools
+
+### POA&M Management (Always Available)
+Use these tools to manage Plans of Action & Milestones:
+- **List**: `compliance_list_poam` — show POA&M items with filters (status, severity, overdue)
+- **Details**: `compliance_get_poam` — show full item details with milestones and history
+- **Create**: `compliance_create_poam` — create new item with weakness, control, severity, POC, due date
+- **Update**: `compliance_update_poam` — update status, add milestones, change fields
+- **Metrics**: `compliance_poam_metrics` — summary counts, severity breakdown, overdue, avg days to close
+- **Trends**: `compliance_poam_trend` — open over time, closure rates, aging breakdown
+- **Export**: `compliance_export_poam` — export as eMASS Excel, OSCAL JSON, or CSV
+- **Ticketing**: `compliance_sync_poam_ticket` — push/pull to Jira or ServiceNow
+
+Example invocations:
+- "Show me all overdue POA&M items" → `compliance_list_poam` with overdue filter
+- "What's the POA&M status for system X?" → `compliance_poam_metrics`
+- "Export POA&M to eMASS format" → `compliance_export_poam` with format=emass_excel
+- "Create a POA&M for AC-2 vulnerability on sys-001" → `compliance_create_poam`

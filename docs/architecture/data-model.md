@@ -1308,3 +1308,83 @@ EvidenceArtifact ||--o{ EvidenceVersion : "has versions"
 | .xml | application/xml, text/xml |
 | .txt | text/plain |
 | .zip | application/zip |
+
+---
+
+## POA&M Management Entities (Feature 039)
+
+### PoamItem Extensions
+
+The `PoamItem` entity has been extended with:
+
+- `ExternalTicketRef` — Reference to external ticketing system ticket
+- `RemediationTaskId` — FK to linked remediation Kanban task
+- Navigation properties: `ComponentLinks`, `Milestones`, `History`, `TicketSyncs`
+
+### PoamComponentLink
+
+Junction table linking POA&M items to system components.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier |
+| PoamItemId | string | FK → PoamItem |
+| SystemComponentId | string | FK → SystemComponent |
+
+### PoamHistoryEntry
+
+Audit trail for POA&M item changes.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier |
+| PoamItemId | string | FK → PoamItem |
+| EventType | PoamHistoryEventType | StatusChanged, FieldUpdated, MilestoneAdded, etc. |
+| OldValue | string? | Previous value |
+| NewValue | string? | New value |
+| ActingUserName | string | User who made the change |
+| Timestamp | DateTime | When the change occurred |
+| Details | string? | Additional context |
+| CascadeOrigin | string? | Source of cascaded change |
+
+### TicketingIntegration
+
+External ticketing system configuration per registered system.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier |
+| RegisteredSystemId | string | FK → RegisteredSystem |
+| Provider | TicketingProvider | Jira or ServiceNow |
+| BaseUrl | string | Ticketing system base URL |
+| ProjectKeyOrTableName | string? | Jira project key or ServiceNow table |
+| IssueType | string? | Jira issue type |
+| KeyVaultSecretUri | string | Azure Key Vault secret URI (NOT the credential) |
+| FieldMappingJson | string? | JSON field mapping configuration |
+| SyncEnabled | bool | Whether auto-sync is enabled |
+| SyncIntervalMinutes | int | Sync interval (default: 15) |
+
+### PoamTicketSync
+
+Records of individual POA&M ticket synchronization events.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier |
+| PoamItemId | string | FK → PoamItem |
+| TicketingIntegrationId | string | FK → TicketingIntegration |
+| SyncStatus | TicketSyncStatus | Synced, Pending, Conflict, Error |
+| ExternalTicketId | string | External system ticket ID |
+| LastSyncAt | DateTime | Last synchronization timestamp |
+| LastSyncError | string? | Error message from last failed sync |
+
+### Entity Relationships
+
+```
+PoamItem ||--o{ PoamComponentLink : "linked to"
+PoamItem ||--o{ PoamHistoryEntry : "history"
+PoamItem ||--o{ PoamTicketSync : "syncs"
+SystemComponent ||--o{ PoamComponentLink : "linked from"
+RegisteredSystem ||--o{ TicketingIntegration : "configured"
+TicketingIntegration ||--o{ PoamTicketSync : "records"
+```

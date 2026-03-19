@@ -791,6 +791,13 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IEvidenceArtifactService,
         Ato.Copilot.Mcp.Services.EvidenceArtifactService>();
     services.AddHostedService<Ato.Copilot.Mcp.Services.EvidenceVersionPurgeService>();
+
+    // POA&M Management services (Feature 039)
+    services.AddScoped<Ato.Copilot.Core.Services.PoamService>();
+    services.AddScoped<Ato.Copilot.Core.Services.PoamSyncService>();
+    services.AddScoped<Ato.Copilot.Core.Services.TicketingService>();
+    services.AddScoped<Ato.Copilot.Core.Services.Ticketing.ITicketingProvider, Ato.Copilot.Core.Services.Ticketing.JiraProvider>();
+    services.AddScoped<Ato.Copilot.Core.Services.Ticketing.ITicketingProvider, Ato.Copilot.Core.Services.Ticketing.ServiceNowProvider>();
 }
 
 // ────────────────────────────────────────────────────────────────

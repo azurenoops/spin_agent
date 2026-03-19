@@ -256,3 +256,8 @@ This is the primary stage for initial Prisma import. For ongoing monitoring, see
 - [SCA Guide](../guides/sca-guide.md) — Full SCA assessment workflow
 - [ISSO Guide](../personas/isso.md) — Evidence collection and remediation
 - [Remediation Kanban Guide](../guides/remediation-kanban.md) — Task management
+- [POA&M Management Guide](../guides/poam-management.md) — Finding-driven POA&M auto-creation and lifecycle
+
+### Assessment-Driven POA&M Creation (Feature 039)
+
+After completing assessments, findings with CAT I/II/III severity can be automatically converted to POA&M items using `compliance_bulk_create_poam_from_findings`. The post-import prompt on the dashboard offers one-click bulk creation with deduplication.
