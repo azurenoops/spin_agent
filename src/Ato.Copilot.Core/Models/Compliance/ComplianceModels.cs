@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Ato.Copilot.Core.Models.Compliance;
@@ -976,6 +977,18 @@ public class ComplianceFinding
 
     /// <summary>FK → Deviation (optional link to active deviation record).</summary>
     public string? DeviationId { get; set; }
+
+    // ─── Component Linkage (Feature 040) ────────────────────────────────────────
+
+    /// <summary>
+    /// FK to the <see cref="SystemComponent"/> whose AzureResourceId matches this finding's ResourceId.
+    /// Null when the finding's resource has not been imported as a component.
+    /// </summary>
+    [MaxLength(36)]
+    public string? ComponentId { get; set; }
+
+    /// <summary>Linked component (nullable).</summary>
+    public SystemComponent? Component { get; set; }
 }
 
 /// <summary>

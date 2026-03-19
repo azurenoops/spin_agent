@@ -985,6 +985,17 @@ public class ShowFindingsTool : BaseTool
 
         var findings = await findingsQuery.OrderBy(f => f.ControlId).ToListAsync(cancellationToken);
 
+        // Look up which findings have linked remediation tasks or POA&M items
+        var findingIds = findings.Select(f => f.Id).ToHashSet();
+        var tasksByFinding = await db.RemediationTasks
+            .Where(t => t.FindingId != null && findingIds.Contains(t.FindingId))
+            .AsNoTracking()
+            .ToDictionaryAsync(t => t.FindingId!, t => new { t.Id, t.TaskNumber, Status = t.Status.ToString() }, cancellationToken);
+        var poamByFinding = await db.PoamItems
+            .Where(p => p.FindingId != null && findingIds.Contains(p.FindingId))
+            .AsNoTracking()
+            .ToDictionaryAsync(p => p.FindingId!, p => new { p.Id, p.SecurityControlNumber, Status = p.Status.ToString() }, cancellationToken);
+
         var output = $"## Assessment Findings for {system.Name}\n\n" +
                      $"**Assessment ID**: {assessment.Id}\n" +
                      $"**Score**: {assessment.ComplianceScore:F1}%\n" +
@@ -1030,6 +1041,10 @@ public class ShowFindingsTool : BaseTool
                 output += $"- **{f.Severity}** [{f.ControlId}] {f.Title}\n";
                 if (!string.IsNullOrEmpty(f.RemediationGuidance))
                     output += $"  - 💡 *Remediation*: {f.RemediationGuidance}\n";
+                if (tasksByFinding.TryGetValue(f.Id, out var task))
+                    output += $"  - 🔧 *Remediation Task*: {task.TaskNumber} (Status: {task.Status})\n";
+                if (poamByFinding.TryGetValue(f.Id, out var poam))
+                    output += $"  - 📋 *POA&M*: {poam.SecurityControlNumber} (Status: {poam.Status})\n";
             }
             if (group.Count() > 10)
                 output += $"- ... and {group.Count() - 10} more\n";

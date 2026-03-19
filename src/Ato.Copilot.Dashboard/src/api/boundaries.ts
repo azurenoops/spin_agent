@@ -3,6 +3,10 @@ import type {
   BoundaryDefinitionDto,
   CreateBoundaryDefinitionRequest,
   DeleteBoundaryDefinitionResponse,
+  BoundaryComponentDto,
+  AssignComponentRequest,
+  UpdateAssignmentRequest,
+  BoundaryLockStatus,
 } from '../types/dashboard';
 import type { OrgComponentDto } from './components';
 
@@ -118,4 +122,92 @@ export async function removeComponentFromBoundary(
   assignmentId: string,
 ): Promise<void> {
   await apiClient.delete(`/components/${componentId}/assignments/${assignmentId}`);
+}
+
+// ─── Boundary Component Assignment API (Feature 040 — US3) ──────────────
+
+export interface BoundaryComponentListResponse {
+  items: BoundaryComponentDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function listBoundaryComponents(
+  systemId: string,
+  boundaryId: string,
+  params?: { search?: string; type?: string; scope?: string; page?: number; pageSize?: number },
+): Promise<BoundaryComponentListResponse> {
+  const { data } = await apiClient.get<BoundaryComponentListResponse>(
+    `/systems/${systemId}/boundary-definitions/${boundaryId}/components`,
+    { params },
+  );
+  return data;
+}
+
+export async function assignComponent(
+  systemId: string,
+  boundaryId: string,
+  request: AssignComponentRequest,
+): Promise<BoundaryComponentDto> {
+  const { data } = await apiClient.post<BoundaryComponentDto>(
+    `/systems/${systemId}/boundary-definitions/${boundaryId}/components`,
+    request,
+  );
+  return data;
+}
+
+export async function updateAssignment(
+  systemId: string,
+  boundaryId: string,
+  assignmentId: string,
+  request: UpdateAssignmentRequest,
+): Promise<BoundaryComponentDto> {
+  const { data } = await apiClient.put<BoundaryComponentDto>(
+    `/systems/${systemId}/boundary-definitions/${boundaryId}/components/${assignmentId}`,
+    request,
+  );
+  return data;
+}
+
+export async function removeAssignment(
+  systemId: string,
+  boundaryId: string,
+  assignmentId: string,
+): Promise<void> {
+  await apiClient.delete(
+    `/systems/${systemId}/boundary-definitions/${boundaryId}/components/${assignmentId}`,
+  );
+}
+
+export async function acquireLock(
+  systemId: string,
+  boundaryId: string,
+  userId: string,
+  userDisplayName: string,
+): Promise<BoundaryLockStatus> {
+  const { data } = await apiClient.post<BoundaryLockStatus>(
+    `/systems/${systemId}/boundary-definitions/${boundaryId}/lock`,
+    { userId, userDisplayName },
+  );
+  return data;
+}
+
+export async function releaseLock(
+  systemId: string,
+  boundaryId: string,
+): Promise<void> {
+  await apiClient.delete(
+    `/systems/${systemId}/boundary-definitions/${boundaryId}/lock`,
+  );
+}
+
+export async function checkLockStatus(
+  systemId: string,
+  boundaryId: string,
+): Promise<BoundaryLockStatus> {
+  const { data } = await apiClient.get<BoundaryLockStatus>(
+    `/systems/${systemId}/boundary-definitions/${boundaryId}/lock`,
+  );
+  return data;
 }

@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePoamDetail } from '../../hooks/usePoam';
 import { linkComponents, unlinkComponents, createTaskFromPoam, linkTask, unlinkTask, syncTicket } from '../../api/poam';
+import { getDeviationDetail } from '../../api/deviations';
+import type { DeviationDetail } from '../../types/dashboard';
 import { SeverityBadge, StatusBadge } from './PoamTable';
 import ComponentPicker from './ComponentPicker';
 import PoamLifecycleActions from './PoamLifecycleActions';
@@ -23,6 +25,15 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
   const [showComponentPicker, setShowComponentPicker] = useState(false);
   const [pickerComponentIds, setPickerComponentIds] = useState<string[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [deviation, setDeviation] = useState<DeviationDetail | null>(null);
+
+  useEffect(() => {
+    if (detail?.deviationId) {
+      getDeviationDetail(detail.deviationId).then(setDeviation).catch(() => setDeviation(null));
+    } else {
+      setDeviation(null);
+    }
+  }, [detail?.deviationId]);
 
   if (loading && !detail) {
     return (
@@ -236,9 +247,42 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                 </div>
               )}
               {detail.deviationId && (
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Deviation</dt>
-                  <dd className="text-gray-900">{detail.deviationId}</dd>
+                <div>
+                  <dt className="mb-1 text-gray-500">Deviation</dt>
+                  <dd>
+                    {deviation ? (
+                      <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            deviation.deviationType === 'Waiver' ? 'bg-amber-100 text-amber-700' :
+                            deviation.deviationType === 'RiskAcceptance' ? 'bg-orange-100 text-orange-700' :
+                            'bg-blue-100 text-blue-700'
+                          }`}>
+                            {deviation.deviationType === 'RiskAcceptance' ? 'Risk Acceptance' : deviation.deviationType}
+                          </span>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            deviation.status === 'Approved' ? 'bg-green-100 text-green-700' :
+                            deviation.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                            deviation.status === 'Expired' ? 'bg-gray-100 text-gray-500' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {deviation.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-700 line-clamp-2">{deviation.justification}</p>
+                        <p className="text-xs text-gray-400">
+                          Expires: {new Date(deviation.expirationDate).toLocaleDateString()}
+                        </p>
+                        {deviation.compensatingControls && (
+                          <p className="text-xs text-gray-500">
+                            <span className="font-medium">Compensating:</span> {deviation.compensatingControls}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">{detail.deviationId.slice(0, 8)}...</span>
+                    )}
+                  </dd>
                 </div>
               )}
               {detail.externalTicketRef && (

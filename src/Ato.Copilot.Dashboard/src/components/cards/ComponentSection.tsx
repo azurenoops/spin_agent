@@ -20,6 +20,7 @@ interface ComponentSectionProps {
   count: number;
   onEdit: (comp: SystemComponentDto) => void;
   onDelete: (id: string) => void;
+  onRelink?: (comp: SystemComponentDto) => void;
   riskMap?: Record<string, { openCount: number; overdueCount: number; highestSeverity: string | null }>;
 }
 
@@ -29,7 +30,7 @@ const severityBadge: Record<string, string> = {
   III: 'bg-yellow-400 text-gray-900',
 };
 
-export function ComponentSection({ title, type, components, count, onEdit, onDelete, riskMap }: ComponentSectionProps) {
+export function ComponentSection({ title, type, components, count, onEdit, onDelete, onRelink, riskMap }: ComponentSectionProps) {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -77,6 +78,9 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                       {comp.subType && <span>{comp.subType}</span>}
                       {comp.owner && <span>Owner: {comp.owner}</span>}
+                      {comp.personName && <span>{comp.personName}</span>}
+                      {comp.email && <span className="text-blue-600">{comp.email}</span>}
+                      {comp.rmfRole && <span className="text-purple-600 font-medium">{comp.rmfRole}</span>}
                     </div>
                     {comp.linkedCapabilities.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
@@ -89,6 +93,9 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                     )}
                   </div>
                   <div className="flex gap-1 ml-3">
+                    {onRelink && comp.azureResourceId && (
+                      <button onClick={() => onRelink(comp)} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1">Re-link</button>
+                    )}
                     <button onClick={() => onEdit(comp)} className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1">Edit</button>
                     <button onClick={() => onDelete(comp.id)} className="text-xs text-red-500 hover:text-red-700 px-2 py-1">Delete</button>
                   </div>

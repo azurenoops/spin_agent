@@ -6,6 +6,14 @@ import { generateComponentDescription } from '../../api/components';
 
 const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing'];
 const STATUS_OPTIONS: ComponentStatus[] = ['Active', 'Planned', 'Decommissioned'];
+const RMF_ROLE_OPTIONS = [
+  { value: '', label: 'None' },
+  { value: 'AuthorizingOfficial', label: 'Authorizing Official (AO)' },
+  { value: 'Issm', label: 'Information System Security Manager (ISSM)' },
+  { value: 'Isso', label: 'Information System Security Officer (ISSO)' },
+  { value: 'Sca', label: 'Security Control Assessor (SCA)' },
+  { value: 'SystemOwner', label: 'System Owner' },
+];
 
 interface ComponentFormProps {
   initial?: SystemComponentDto;
@@ -30,6 +38,9 @@ export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitt
   const [capabilities, setCapabilities] = useState<SecurityCapabilityDto[]>([]);
   const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
   const [generatingDesc, setGeneratingDesc] = useState(false);
+  const [rmfRole, setRmfRole] = useState('');
+  const [personName, setPersonName] = useState(initial?.personName ?? '');
+  const [email, setEmail] = useState(initial?.email ?? '');
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +65,9 @@ export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitt
       setStatus(initial.status);
       setBoundaryDefinitionId(initial.boundaryDefinitionId ?? '');
       setSelectedCapIds(initial.linkedCapabilities.map((lc) => lc.capabilityId));
+      setPersonName(initial.personName ?? '');
+      setEmail(initial.email ?? '');
+      setRmfRole(initial.rmfRole ?? '');
     }
   }, [initial]);
 
@@ -65,8 +79,11 @@ export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitt
       subType: subType || undefined,
       description: description || undefined,
       owner: owner || undefined,
+      personName: componentType === 'Person' && personName ? personName : undefined,
+      email: componentType === 'Person' && email ? email : undefined,
       status,
       boundaryDefinitionId: boundaryDefinitionId || undefined,
+      rmfRole: componentType === 'Person' && rmfRole ? rmfRole : undefined,
       linkedCapabilityIds: selectedCapIds,
     });
   };
@@ -200,6 +217,33 @@ export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitt
         </div>
       </div>
 
+      {componentType === 'Person' && (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Person Name</label>
+            <input
+              type="text"
+              value={personName}
+              onChange={(e) => setPersonName(e.target.value)}
+              maxLength={200}
+              className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+              placeholder="e.g., Jane Smith"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              maxLength={200}
+              className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+              placeholder="e.g., jane.smith@agency.gov"
+            />
+          </div>
+        </div>
+      )}
+
       {boundaries.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Authorization Boundary</label>
@@ -215,6 +259,22 @@ export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitt
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {componentType === 'Person' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">RMF Role</label>
+          <select
+            value={rmfRole}
+            onChange={(e) => setRmfRole(e.target.value)}
+            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          >
+            {RMF_ROLE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">Assigns this person an RMF role on the system per DoDI 8510.01</p>
         </div>
       )}
 

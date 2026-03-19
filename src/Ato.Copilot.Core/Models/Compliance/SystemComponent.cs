@@ -46,6 +46,10 @@ public class SystemComponent
     [MaxLength(200)]
     public string? Email { get; set; }
 
+    /// <summary>RMF role assigned to this person (only when ComponentType == Person).</summary>
+    [MaxLength(50)]
+    public string? RmfRoleName { get; set; }
+
     /// <summary>Operational status.</summary>
     [Required]
     public ComponentStatus Status { get; set; } = ComponentStatus.Active;
@@ -61,6 +65,24 @@ public class SystemComponent
     /// <summary>Last modification timestamp (UTC).</summary>
     public DateTime? ModifiedAt { get; set; }
 
+    // ─── Azure Resource Fields (Feature 040) ────────────────────────────────────
+
+    /// <summary>Azure ARM resource ID (e.g., /subscriptions/.../resourceGroups/.../providers/...).</summary>
+    [MaxLength(500)]
+    public string? AzureResourceId { get; set; }
+
+    /// <summary>Azure resource type (e.g., "Microsoft.Compute/virtualMachines").</summary>
+    [MaxLength(200)]
+    public string? AzureResourceType { get; set; }
+
+    /// <summary>Azure resource group name.</summary>
+    [MaxLength(200)]
+    public string? AzureResourceGroup { get; set; }
+
+    /// <summary>Azure region (e.g., "usgovvirginia").</summary>
+    [MaxLength(100)]
+    public string? AzureLocation { get; set; }
+
     // ─── Navigation ──────────────────────────────────────────────────────────
 
     /// <summary>Parent registered system (nullable for org-wide components).</summary>
@@ -71,6 +93,9 @@ public class SystemComponent
 
     /// <summary>Org-wide system assignments (many-to-many via join entity).</summary>
     public ICollection<ComponentSystemAssignment> SystemAssignments { get; set; } = new List<ComponentSystemAssignment>();
+
+    /// <summary>Boundary assignments for this component (Feature 040).</summary>
+    public ICollection<BoundaryComponentAssignment> BoundaryAssignments { get; set; } = new List<BoundaryComponentAssignment>();
 
     // ─── Feature 033: Boundary-Scoped Model ──────────────────────────────────
 

@@ -177,6 +177,10 @@ After creating a component, link it to security capabilities to create traceabil
 
 Deleting a component flags linked capabilities for review. A confirmation dialog lists any capabilities that may be affected.
 
+### Risk Visibility
+
+The Components page focuses on asset inventory management. Per-component risk summaries (open finding count, severity, overdue remediations) are displayed on the **Assessment detail view** and **Remediation page**, where findings are automatically linked to components by matching Azure resource IDs.
+
 ---
 
 ## Gap Analysis

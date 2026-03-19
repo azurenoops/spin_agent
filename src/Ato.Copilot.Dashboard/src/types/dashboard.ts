@@ -285,9 +285,11 @@ export interface SystemComponentDto {
   owner: string | null;
   personName: string | null;
   email: string | null;
+  rmfRole: string | null;
   status: ComponentStatus;
   boundaryDefinitionId: string | null;
   boundaryDefinitionName: string | null;
+  azureResourceId: string | null;
   linkedCapabilities: { capabilityId: string; capabilityName: string }[];
   createdAt: string;
   modifiedAt: string | null;
@@ -303,6 +305,7 @@ export interface CreateComponentRequest {
   email?: string;
   status: ComponentStatus;
   boundaryDefinitionId?: string;
+  rmfRole?: string;
   linkedCapabilityIds?: string[];
 }
 
@@ -623,4 +626,98 @@ export interface RevokeDeviationRequest {
 export interface ExtendDeviationRequest {
   newExpirationDate: string;
   justification?: string;
+}
+
+// ─── Component-Centric Boundary (Feature 040) ──────────────────────────────
+
+export interface BoundaryComponentDto {
+  assignmentId: string;
+  componentId: string;
+  componentName: string;
+  componentType: ComponentType;
+  subType: string | null;
+  isInScope: boolean;
+  exclusionRationale: string | null;
+  inheritanceProvider: string | null;
+  azureResourceId: string | null;
+  azureResourceType: string | null;
+  azureResourceGroup: string | null;
+  azureLocation: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface AssignComponentRequest {
+  componentId: string;
+  isInScope: boolean;
+  exclusionRationale?: string | null;
+  inheritanceProvider?: string | null;
+}
+
+export interface UpdateAssignmentRequest {
+  isInScope: boolean;
+  exclusionRationale?: string | null;
+  inheritanceProvider?: string | null;
+}
+
+export interface BoundaryLockStatus {
+  locked: boolean;
+  lockedBy: string | null;
+  lockedAt: string | null;
+  expiresAt: string | null;
+  message?: string;
+}
+
+export interface DiscoverAzureRequest {
+  subscriptionId: string;
+  resourceGroupFilter?: string | null;
+  resourceTypeFilter?: string | null;
+  searchFilter?: string | null;
+  cursor?: string | null;
+}
+
+export interface DiscoveredResource {
+  resourceId: string;
+  name: string;
+  type: string;
+  resourceGroup: string;
+  location: string;
+  alreadyImported: boolean;
+  existsInOrgLibrary?: boolean;
+  orgLibraryComponentId?: string | null;
+}
+
+export interface DiscoveryResponse {
+  resources: DiscoveredResource[];
+  nextCursor: string | null;
+  totalCount: number;
+  failedResourceGroups: string[];
+}
+
+export interface ImportAzureRequest {
+  resources: Omit<DiscoveredResource, 'alreadyImported' | 'existsInOrgLibrary' | 'orgLibraryComponentId'>[];
+  assignExistingOrgComponents?: string[];
+}
+
+export interface ImportAzureResponse {
+  imported: number;
+  assignedFromOrg?: number;
+  skipped: number;
+  skippedDetails?: { resourceId: string; reason: string }[];
+  components: SystemComponentDto[];
+}
+
+export interface ComponentRiskSummary {
+  componentId: string;
+  componentName: string;
+  componentType: ComponentType;
+  openFindingCount: number;
+  highestSeverity: string;
+  overdueRemediationCount: number;
+}
+
+export interface AssessmentComponentRisks {
+  componentRisks: ComponentRiskSummary[];
+  unlinkedFindingCount: number;
+  totalFindingCount: number;
 }

@@ -2,8 +2,12 @@ using Azure;
 using Azure.ResourceManager;
 using Azure.ResourceManager.ResourceGraph;
 using Azure.ResourceManager.ResourceGraph.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Services;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
@@ -14,7 +18,9 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 public class AzureResourceDiscoveryService
 {
     private readonly ArmClient _armClient;
+    private readonly ArmClientFactory? _armClientFactory;
     private readonly ILogger<AzureResourceDiscoveryService> _logger;
+    private readonly IDbContextFactory<AtoCopilotContext>? _dbFactory;
 
     /// <summary>Safety cap: maximum pages to fetch (10 × 1000 = 10,000 resources max).</summary>
     internal const int MaxPages = 10;
@@ -23,6 +29,23 @@ public class AzureResourceDiscoveryService
     {
         _armClient = armClient;
         _logger = logger;
+    }
+
+    public AzureResourceDiscoveryService(
+        ArmClient armClient,
+        ILogger<AzureResourceDiscoveryService> logger,
+        IDbContextFactory<AtoCopilotContext> dbFactory) : this(armClient, logger)
+    {
+        _dbFactory = dbFactory;
+    }
+
+    public AzureResourceDiscoveryService(
+        ArmClient armClient,
+        ArmClientFactory armClientFactory,
+        ILogger<AzureResourceDiscoveryService> logger,
+        IDbContextFactory<AtoCopilotContext> dbFactory) : this(armClient, logger, dbFactory)
+    {
+        _armClientFactory = armClientFactory;
     }
 
     /// <summary>
@@ -55,7 +78,8 @@ public class AzureResourceDiscoveryService
 
         _logger.LogInformation("Executing Resource Graph query for subscription {SubscriptionId}", subscriptionId);
 
-        var tenant = _armClient.GetTenants().First();
+        var client = await ResolveArmClientAsync(cancellationToken);
+        var tenant = client.GetTenants().First();
         var pageCount = 0;
         var currentCursor = cursor;
 
@@ -130,6 +154,182 @@ public class AzureResourceDiscoveryService
             NextCursor = nextCursor,
             TotalResourceCount = resources.Count
         };
+    }
+
+    /// <summary>
+    /// Discovers Azure resources for component import (flat list, no boundary grouping).
+    /// Marks resources that are already imported as SystemComponents.
+    /// Tracks per-resource-group partial failures.
+    /// </summary>
+    public async Task<ComponentDiscoveryResult> DiscoverForComponentsAsync(
+        string subscriptionId,
+        string? systemId = null,
+        string? resourceGroupFilter = null,
+        string? resourceTypeFilter = null,
+        string? searchFilter = null,
+        string? cursor = null,
+        CancellationToken cancellationToken = default)
+    {
+        var resources = new List<ComponentDiscoveredResource>();
+        string? nextCursor = null;
+        var failedResourceGroups = new List<string>();
+
+        var query = BuildQuery(subscriptionId, resourceGroupFilter, resourceTypeFilter, searchFilter);
+
+        _logger.LogInformation("Discovering Azure resources for component import in subscription {SubscriptionId}", subscriptionId);
+
+        try
+        {
+            var client = await ResolveArmClientAsync(cancellationToken);
+            var tenant = client.GetTenants().First();
+            var pageCount = 0;
+            var currentCursor = cursor;
+
+            do
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var content = new ResourceQueryContent(query)
+                {
+                    Options = new ResourceQueryRequestOptions { ResultFormat = ResultFormat.ObjectArray }
+                };
+                if (!string.IsNullOrEmpty(currentCursor))
+                    content.Options.SkipToken = currentCursor;
+
+                var response = await tenant.GetResourcesAsync(content, cancellationToken);
+                var result = response.Value;
+
+                if (result.Data != null)
+                {
+                    var jsonData = result.Data.ToObjectFromJson<JsonElement>();
+                    if (jsonData.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var element in jsonData.EnumerateArray())
+                        {
+                            var parsed = ParseResource(element);
+                            if (parsed != null)
+                            {
+                                resources.Add(new ComponentDiscoveredResource
+                                {
+                                    ResourceId = parsed.ResourceId,
+                                    Name = parsed.Name,
+                                    Type = parsed.Type,
+                                    ResourceGroup = parsed.ResourceGroup,
+                                    Location = parsed.Location,
+                                });
+                            }
+                        }
+                    }
+                }
+
+                nextCursor = result.SkipToken;
+                currentCursor = nextCursor;
+                pageCount++;
+            } while (!string.IsNullOrEmpty(currentCursor) && pageCount < MaxPages);
+
+            _logger.LogInformation("Discovered {ResourceCount} resources for component import", resources.Count);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 429 || ex.Status >= 500)
+        {
+            _logger.LogWarning(ex, "Partial failure during resource discovery for subscription {SubscriptionId}", subscriptionId);
+            if (!string.IsNullOrEmpty(resourceGroupFilter))
+                failedResourceGroups.Add(resourceGroupFilter);
+        }
+
+        // Dedup by resource ID
+        resources = resources
+            .GroupBy(r => r.ResourceId, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        // Mark already-imported resources
+        if (_dbFactory != null)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+            var resourceIds = resources.Select(r => r.ResourceId).ToList();
+            var importedIds = await db.SystemComponents
+                .Where(c => c.AzureResourceId != null && resourceIds.Contains(c.AzureResourceId))
+                .Select(c => new { c.AzureResourceId, c.RegisteredSystemId, c.Id })
+                .ToListAsync(cancellationToken);
+
+            var orgImported = importedIds
+                .Where(c => c.RegisteredSystemId == null)
+                .ToDictionary(c => c.AzureResourceId!, c => c.Id, StringComparer.OrdinalIgnoreCase);
+
+            var systemImported = systemId != null
+                ? importedIds
+                    .Where(c => c.RegisteredSystemId == systemId)
+                    .Select(c => c.AzureResourceId!)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var r in resources)
+            {
+                r.AlreadyImported = systemId != null
+                    ? systemImported.Contains(r.ResourceId)
+                    : orgImported.ContainsKey(r.ResourceId);
+
+                if (systemId != null && orgImported.TryGetValue(r.ResourceId, out var orgCompId))
+                {
+                    r.ExistsInOrgLibrary = true;
+                    r.OrgLibraryComponentId = orgCompId;
+                }
+            }
+
+            // ─── FR-026: Stale resource detection ──────────────────────────
+            // Find previously imported components whose Azure resource was NOT returned by discovery.
+            var discoveredIds = resources.Select(r => r.ResourceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var importedComponents = systemId != null
+                ? await db.SystemComponents
+                    .Where(c => c.RegisteredSystemId == systemId && c.AzureResourceId != null && c.ComponentType == ComponentType.Thing)
+                    .Select(c => new { c.AzureResourceId, c.Name, c.AzureResourceType, c.AzureResourceGroup, c.AzureLocation })
+                    .ToListAsync(cancellationToken)
+                : await db.SystemComponents
+                    .Where(c => c.RegisteredSystemId == null && c.AzureResourceId != null && c.ComponentType == ComponentType.Thing)
+                    .Select(c => new { c.AzureResourceId, c.Name, c.AzureResourceType, c.AzureResourceGroup, c.AzureLocation })
+                    .ToListAsync(cancellationToken);
+
+            foreach (var comp in importedComponents)
+            {
+                if (comp.AzureResourceId != null && !discoveredIds.Contains(comp.AzureResourceId))
+                {
+                    resources.Add(new ComponentDiscoveredResource
+                    {
+                        ResourceId = comp.AzureResourceId,
+                        Name = comp.Name,
+                        Type = comp.AzureResourceType ?? "",
+                        ResourceGroup = comp.AzureResourceGroup ?? "",
+                        Location = comp.AzureLocation ?? "",
+                        AlreadyImported = true,
+                        NotFoundInAzure = true,
+                    });
+                }
+            }
+        }
+
+        return new ComponentDiscoveryResult
+        {
+            Resources = resources,
+            NextCursor = nextCursor,
+            TotalCount = resources.Count,
+            FailedResourceGroups = failedResourceGroups,
+        };
+    }
+
+    /// <summary>
+    /// Resolves the best ArmClient by trying the factory fallback (Gov → Commercial or vice-versa).
+    /// Falls back to the injected singleton if no factory is available.
+    /// </summary>
+    private async Task<ArmClient> ResolveArmClientAsync(CancellationToken ct)
+    {
+        if (_armClientFactory == null)
+            return _armClient;
+
+        var (client, cloud) = await _armClientFactory.GetClientWithFallbackAsync(ct);
+        _logger.LogInformation("Resolved ARM client for {Cloud}", cloud);
+        return client;
     }
 
     /// <summary>Builds a Resource Graph KQL query with optional filters.</summary>
@@ -245,4 +445,30 @@ public class ApplyDiscoveryResponse
     public int BoundariesCreated { get; set; }
     public int ComponentsCreated { get; set; }
     public int Skipped { get; set; }
+}
+
+// ─── Component Discovery DTOs (Feature 040) ─────────────────────────────────
+
+/// <summary>Result of component-oriented Azure resource discovery.</summary>
+public class ComponentDiscoveryResult
+{
+    public List<ComponentDiscoveredResource> Resources { get; set; } = [];
+    public string? NextCursor { get; set; }
+    public int TotalCount { get; set; }
+    public List<string> FailedResourceGroups { get; set; } = [];
+}
+
+/// <summary>An Azure resource discovered for potential component import.</summary>
+public class ComponentDiscoveredResource
+{
+    public string ResourceId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string ResourceGroup { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
+    public bool AlreadyImported { get; set; }
+    public bool ExistsInOrgLibrary { get; set; }
+    public string? OrgLibraryComponentId { get; set; }
+    /// <summary>True when a previously imported component's resource is no longer found in the subscription (FR-026).</summary>
+    public bool NotFoundInAzure { get; set; }
 }

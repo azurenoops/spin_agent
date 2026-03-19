@@ -13,6 +13,7 @@ public class SystemComponentDto
     public string? Owner { get; init; }
     public string? PersonName { get; init; }
     public string? Email { get; init; }
+    public string? RmfRole { get; init; }
     public required string Status { get; init; }
     public string? BoundaryDefinitionId { get; init; }
     public string? BoundaryDefinitionName { get; init; }
@@ -44,6 +45,8 @@ public class CreateComponentRequest
     public string? Email { get; init; }
     public required string Status { get; init; }
     public string? BoundaryDefinitionId { get; init; }
+    /// <summary>Optional RMF role to assign when creating a Person component.</summary>
+    public string? RmfRole { get; init; }
     public List<string> LinkedCapabilityIds { get; init; } = [];
 }
 
@@ -127,6 +130,7 @@ public class OrgComponentDto
     public string? Owner { get; init; }
     public string? PersonName { get; init; }
     public string? Email { get; init; }
+    public string? RmfRole { get; init; }
     public required string Status { get; init; }
     public DateTime CreatedAt { get; init; }
     public string? CreatedBy { get; init; }
@@ -188,4 +192,111 @@ public class SystemImpactDto
     public string? SystemName { get; init; }
     public int NarrativeCount { get; init; }
     public int CustomSkipped { get; init; }
+}
+
+// ─── Component Import DTOs (Feature 040) ─────────────────────────────────────
+
+/// <summary>Resource data for Azure component import.</summary>
+public class AzureImportResource
+{
+    public string ResourceId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string ResourceGroup { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
+}
+
+/// <summary>Result of bulk component import.</summary>
+public class ImportAzureComponentsResult
+{
+    public int Imported { get; set; }
+    public int AssignedFromOrg { get; set; }
+    public int Skipped { get; set; }
+    public List<SkippedResource> SkippedDetails { get; set; } = [];
+    public List<SystemComponentDto> Components { get; set; } = [];
+}
+
+/// <summary>A resource that was skipped during import.</summary>
+public class SkippedResource
+{
+    public string ResourceId { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+}
+
+// ─── Entra ID Import DTOs (Feature 040 — US9) ───────────────────────────
+
+/// <summary>A person selected for import from Entra ID discovery.</summary>
+public class EntraImportPerson
+{
+    public string EntraObjectId { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string Kind { get; set; } = "User";
+}
+
+/// <summary>Request body for the Entra ID people import endpoint.</summary>
+public class ImportEntraComponentsRequest
+{
+    public List<EntraImportPerson> People { get; set; } = [];
+}
+
+// ─── Boundary Component Assignment DTOs (Feature 040 — US3) ─────────────
+
+/// <summary>DTO for a component assigned to a boundary.</summary>
+public class BoundaryComponentDto
+{
+    public string AssignmentId { get; set; } = string.Empty;
+    public string ComponentId { get; set; } = string.Empty;
+    public string ComponentName { get; set; } = string.Empty;
+    public string ComponentType { get; set; } = string.Empty;
+    public string? SubType { get; set; }
+    public bool IsInScope { get; set; }
+    public string? ExclusionRationale { get; set; }
+    public string? InheritanceProvider { get; set; }
+    public string? AzureResourceId { get; set; }
+    public string? AzureResourceType { get; set; }
+    public string? AzureResourceGroup { get; set; }
+    public string? AzureLocation { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+}
+
+/// <summary>Query parameters for listing boundary components.</summary>
+public class BoundaryComponentQuery
+{
+    public string? Search { get; set; }
+    public string? TypeFilter { get; set; }
+    public string? ScopeFilter { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
+}
+
+/// <summary>Paginated response for boundary components.</summary>
+public class BoundaryComponentListResponse
+{
+    public List<BoundaryComponentDto> Items { get; set; } = [];
+    public int TotalCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+}
+
+// ─── Component Risk Summary (Feature 040 US6) ──────────────────────────────
+
+/// <summary>Per-component risk aggregation.</summary>
+public class ComponentRiskDto
+{
+    public required string ComponentId { get; init; }
+    public required string ComponentName { get; init; }
+    public required string ComponentType { get; init; }
+    public int OpenFindingCount { get; init; }
+    public required string HighestSeverity { get; init; }
+    public int OverdueRemediationCount { get; init; }
+}
+
+/// <summary>Response for component risk summary endpoint.</summary>
+public class ComponentRiskSummaryResponse
+{
+    public List<ComponentRiskDto> ComponentRisks { get; set; } = [];
+    public int UnlinkedFindingCount { get; set; }
+    public int TotalFindingCount { get; set; }
 }

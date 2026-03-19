@@ -92,6 +92,17 @@ This ensures that removing a component triggers a review of whether the correspo
 
 ---
 
+## Assessment & Remediation Linkage
+
+Azure-backed "Thing" components are automatically linked to compliance findings by matching `SystemComponent.AzureResourceId` to `ComplianceFinding.ResourceId`. Per-component risk summaries — including open finding count, highest severity, and overdue remediation count — appear on the **Assessment detail view** and **Remediation page**, not on the Components page.
+
+The Components page remains focused on asset inventory management (CRUD, capability linking, boundary assignment). To view risk posture per component, navigate to:
+
+- **Assessment detail view** — filter and group findings by component, with per-component risk summaries
+- **Remediation page** — remediation tasks and POA&M items display their associated component name
+
+---
+
 ## SSP Appendix A
 
 The component inventory feeds into SSP Appendix A generation via the `DocumentGenerationService`. When generating an SSP document, the Appendix A section is populated with:

@@ -864,6 +864,60 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("AutoRemediationRules");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.BoundaryComponentAssignment", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AuthorizationBoundaryDefinitionId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExclusionRationale")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InheritanceProvider")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsInScope")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SystemComponentId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizationBoundaryDefinitionId")
+                        .HasDatabaseName("IX_BCA_BoundaryId");
+
+                    b.HasIndex("SystemComponentId", "AuthorizationBoundaryDefinitionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_BCA_ComponentBoundary");
+
+                    b.ToTable("BoundaryComponentAssignments");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.CapabilityControlMapping", b =>
                 {
                     b.Property<string>("Id")
@@ -1349,6 +1403,10 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ComponentId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ControlDescription")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -1456,6 +1514,9 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AssessmentId");
+
+                    b.HasIndex("ComponentId")
+                        .HasDatabaseName("IX_ComplianceFinding_ComponentId");
 
                     b.HasIndex("ControlFamily");
 
@@ -4693,6 +4754,22 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AzureLocation")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AzureResourceGroup")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AzureResourceId")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AzureResourceType")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ComponentType")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -4746,6 +4823,9 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorizationBoundaryDefinitionId");
+
+                    b.HasIndex("AzureResourceId")
+                        .HasDatabaseName("IX_SystemComponent_AzureResourceId");
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_SystemComponent_Status");
@@ -5657,6 +5737,25 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("SupersededBy");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.BoundaryComponentAssignment", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", "AuthorizationBoundaryDefinition")
+                        .WithMany("ComponentAssignments")
+                        .HasForeignKey("AuthorizationBoundaryDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.SystemComponent", "SystemComponent")
+                        .WithMany("BoundaryAssignments")
+                        .HasForeignKey("SystemComponentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizationBoundaryDefinition");
+
+                    b.Navigation("SystemComponent");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.CapabilityControlMapping", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", "AuthorizationBoundaryDefinition")
@@ -5828,6 +5927,11 @@ namespace Ato.Copilot.Core.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.SystemComponent", "Component")
+                        .WithMany()
+                        .HasForeignKey("ComponentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.NistControl", null)
                         .WithMany()
                         .HasForeignKey("ControlId")
@@ -5837,6 +5941,8 @@ namespace Ato.Copilot.Core.Migrations
                         .WithMany()
                         .HasForeignKey("ImportRecordId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Component");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ComplianceTrendSnapshot", b =>
@@ -6684,6 +6790,8 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Navigation("CapabilityControlMappings");
 
+                    b.Navigation("ComponentAssignments");
+
                     b.Navigation("SystemComponents");
                 });
 
@@ -6796,6 +6904,8 @@ namespace Ato.Copilot.Core.Migrations
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SystemComponent", b =>
                 {
+                    b.Navigation("BoundaryAssignments");
+
                     b.Navigation("CapabilityLinks");
 
                     b.Navigation("SystemAssignments");

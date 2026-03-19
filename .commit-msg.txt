@@ -1,0 +1,38 @@
+feat: component-centric boundaries, deviation linkage, POAM-task sync, and agent enrichment
+
+Component-Centric Boundary Model (Feature 040)
+- Boundary component assignments with scope/exclusion tracking
+- Azure resource and EntraID person discovery services
+- ArmClientFactory with dual-cloud (Government + Commercial) fallback
+- Boundary lock service for immutable snapshots
+- Boundary migration service for legacy data
+- Component library with org-wide reusable components
+- RMF role auto-assignment on Person component creation
+- Dashboard pages: ComponentInventory, ComponentLibrary, BoundaryManagement
+
+Deviation Cross-Entity Linkage
+- Add Finding ID and POAM search picker to Add Deviation dialog
+- Rich deviation detail card on POAM detail drawer (type, status, justification, expiration)
+- Deviation badges (Risk Accepted/Waiver/False Positive) on Remediation Kanban cards and table
+- Gap Analysis waived control badges verified (no changes needed)
+
+Bidirectional POAM-Task Sync Fixes
+- Fix assessment endpoint to set both PoamItem.RemediationTaskId AND RemediationTask.PoamItemId
+- Fix Link to POAM picker: show errors, disable already-linked items with badge indicator
+- Backfilled 90 existing tasks with missing PoamItemId via SQL migration
+
+Agent Findings Enrichment
+- ShowFindingsTool now includes linked remediation task number/status and POAM control/status
+- Agent can now correctly identify existing remediation tasks for controls
+
+Component Update Persistence Fixes
+- Fix RMF role not saving on update (both UpdateComponentAsync and UpdateOrgComponentAsync)
+- Fix authorization boundary not saving on update (both code paths)
+- Add RmfRoleName to entity, DTOs, MapToDto, MapToOrgDto, and DB schema
+
+Playwright E2E Test Infrastructure
+- 135 tests across 18 spec files with 11 page objects
+- Playwright config, global setup, shared fixtures, npm scripts
+
+Documentation
+- Updated ISSM guide, component inventory guide, compliance dashboard guide

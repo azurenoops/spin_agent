@@ -104,6 +104,8 @@ export interface RemediationTask {
   validationCriteria: string | null;
   isOverdue: boolean;
   affectedResourceCount: number;
+  componentId: string | null;
+  componentName: string | null;
 }
 
 export interface RemediationTasksResponse {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createDeviation } from '../api/deviations';
+import { listPoamItems } from '../api/poam';
 import type { CreateDeviationRequest } from '../types/dashboard';
 
 interface Props {
@@ -40,10 +41,25 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated }: Pro
   const [compensatingControls, setCompensatingControls] = useState('');
   const [expirationDate, setExpirationDate] = useState(defaultExpiration());
   const [reviewCycle, setReviewCycle] = useState('90');
+  const [findingId, setFindingId] = useState('');
+  const [poamEntryId, setPoamEntryId] = useState('');
+  const [poamSearch, setPoamSearch] = useState('');
+  const [poamResults, setPoamResults] = useState<{ id: string; controlId: string; weakness: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isValid = deviationType && controlId.trim() && catSeverity && justification.trim() && expirationDate;
+
+  const handlePoamSearch = async (query: string) => {
+    setPoamSearch(query);
+    if (query.length < 2) { setPoamResults([]); return; }
+    try {
+      const resp = await listPoamItems(systemId, { search: query, pageSize: 8 });
+      setPoamResults(resp.items.map(p => ({ id: p.id, controlId: p.controlId, weakness: p.weakness })));
+    } catch {
+      setPoamResults([]);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -58,6 +74,8 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated }: Pro
         compensatingControls: compensatingControls.trim() || undefined,
         expirationDate,
         reviewCycle,
+        findingId: findingId.trim() || undefined,
+        poamEntryId: poamEntryId || undefined,
       };
       await createDeviation(systemId, request);
       onCreated();
@@ -196,6 +214,58 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated }: Pro
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Link to POA&M (optional) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Link to POA&M Entry</label>
+            {poamEntryId ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                  {poamResults.find(p => p.id === poamEntryId)?.controlId ?? poamEntryId.slice(0, 8)}
+                  <button type="button" onClick={() => { setPoamEntryId(''); setPoamSearch(''); setPoamResults([]); }} className="text-blue-400 hover:text-blue-600">&times;</button>
+                </span>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={poamSearch}
+                  onChange={(e) => void handlePoamSearch(e.target.value)}
+                  placeholder="Search POA&M by control or weakness..."
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+                {poamResults.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                    {poamResults.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => { setPoamEntryId(p.id); setPoamSearch(''); setPoamResults([]); }}
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-50"
+                      >
+                        <span className="font-mono font-medium text-blue-700">{p.controlId}</span>
+                        <span className="ml-2 text-gray-500 truncate">{p.weakness}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="mt-1 text-xs text-gray-400">Optional — link this deviation to an existing POA&M entry</p>
+          </div>
+
+          {/* Finding ID (optional) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Finding ID</label>
+            <input
+              type="text"
+              value={findingId}
+              onChange={(e) => setFindingId(e.target.value)}
+              placeholder="e.g. finding UUID or scan reference"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-gray-400">Optional — link to a specific scan finding</p>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { SystemComponentDto, CreateComponentRequest, DeleteComponentResponse } from '../types/dashboard';
+import type { SystemComponentDto, CreateComponentRequest, DeleteComponentResponse, DiscoverAzureRequest, DiscoveryResponse, ImportAzureResponse } from '../types/dashboard';
 
 interface ComponentParams {
   type?: string;
@@ -152,6 +152,80 @@ export interface ComponentImpactPreview {
 export async function getComponentImpactPreview(id: string) {
   const { data } = await apiClient.get<ComponentImpactPreview>(
     `/components/${id}/impact-preview`,
+  );
+  return data;
+}
+
+// ─── System-Level Azure Discovery (Feature 040 — US2) ───────────────────
+
+export interface ImportSystemAzureRequest {
+  resources: { resourceId: string; name: string; type: string; resourceGroup: string; location: string }[];
+  assignExistingOrgComponents?: string[];
+}
+
+export async function discoverSystemAzureResources(
+  systemId: string,
+  request: DiscoverAzureRequest,
+): Promise<DiscoveryResponse> {
+  const { data } = await apiClient.post<DiscoveryResponse>(
+    `/systems/${systemId}/components/discover-azure`,
+    request,
+  );
+  return data;
+}
+
+export async function importSystemAzureComponents(
+  systemId: string,
+  request: ImportSystemAzureRequest,
+): Promise<ImportAzureResponse> {
+  const { data } = await apiClient.post<ImportAzureResponse>(
+    `/systems/${systemId}/components/import-azure`,
+    request,
+  );
+  return data;
+}
+
+// ─── Component Risk Summary (Feature 040 US6) ──────────────────────────────
+
+export async function getAssessmentComponentRisks(
+  systemId: string,
+  assessmentId: string,
+): Promise<import('../types/dashboard').AssessmentComponentRisks> {
+  const { data } = await apiClient.get<import('../types/dashboard').AssessmentComponentRisks>(
+    `/systems/${systemId}/assessments/${assessmentId}/component-risks`,
+  );
+  return data;
+}
+
+export async function getAssessmentFindings(
+  systemId: string,
+  assessmentId: string,
+  componentId?: string,
+): Promise<{ items: unknown[]; totalCount: number }> {
+  const params: Record<string, string> = {};
+  if (componentId) params.componentId = componentId;
+  const { data } = await apiClient.get<{ items: unknown[]; totalCount: number }>(
+    `/systems/${systemId}/assessments/${assessmentId}/findings`,
+    { params },
+  );
+  return data;
+}
+
+export async function resolveFindingComponents(
+  systemId: string,
+): Promise<{ linkedCount: number }> {
+  const { data } = await apiClient.post<{ linkedCount: number }>(
+    `/systems/${systemId}/resolve-finding-components`,
+  );
+  return data;
+}
+
+export async function relinkComponentFindings(
+  systemId: string,
+  componentId: string,
+): Promise<{ linkedCount: number }> {
+  const { data } = await apiClient.post<{ linkedCount: number }>(
+    `/systems/${systemId}/components/${componentId}/relink-findings`,
   );
   return data;
 }

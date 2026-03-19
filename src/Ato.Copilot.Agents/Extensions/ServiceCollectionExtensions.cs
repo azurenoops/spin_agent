@@ -665,6 +665,22 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<RevokeDeviationTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ExtendDeviationTool>());
 
+        // Feature 040: Component-Centric Boundary tools
+        services.AddSingleton<DiscoverAzureComponentsTool>();
+        services.AddSingleton<ImportAzureComponentsTool>();
+        services.AddSingleton<AssignComponentToBoundaryTool>();
+        services.AddSingleton<ListBoundaryComponentsTool>();
+        services.AddSingleton<UpdateComponentScopeTool>();
+        services.AddSingleton<RemoveComponentFromBoundaryTool>();
+        services.AddSingleton<ComponentRiskSummaryTool>();
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<DiscoverAzureComponentsTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ImportAzureComponentsTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<AssignComponentToBoundaryTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ListBoundaryComponentsTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<UpdateComponentScopeTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<RemoveComponentFromBoundaryTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComponentRiskSummaryTool>());
+
         // Register the agent
         services.AddSingleton<ComplianceAgent>();
         services.AddSingleton<BaseAgent>(sp => sp.GetRequiredService<ComplianceAgent>());

@@ -9,14 +9,20 @@ import {
   deleteBoundaryDefinition,
   fetchBoundaryResources,
   addBoundaryResource,
-  deleteBoundaryResource,
   fetchBoundaryComponents,
   assignComponentToBoundary,
   removeComponentFromBoundary,
+  listBoundaryComponents,
+  assignComponent,
+  updateAssignment,
+  removeAssignment as removeBoundaryAssignment,
+  acquireLock,
+  releaseLock,
+  checkLockStatus,
 } from '../api/boundaries';
 import { listComponents } from '../api/components';
 import type { OrgComponentDto } from '../api/components';
-import type { BoundaryResourceDto, AddBoundaryResourceBody } from '../api/boundaries';
+import type { BoundaryResourceDto } from '../api/boundaries';
 import { discoverAzureResources } from '../api/azureDiscovery';
 import type {
   BoundaryDefinitionDto,
@@ -25,6 +31,8 @@ import type {
   DeleteBoundaryDefinitionResponse,
   AzureDiscoveryResponse,
   AzureSuggestedBoundaryDto,
+  BoundaryComponentDto,
+  BoundaryLockStatus,
 } from '../types/dashboard';
 
 const TYPE_FILTER_OPTIONS: BoundaryDefinitionType[] = ['Physical', 'Logical', 'Hybrid'];
@@ -61,20 +69,24 @@ export default function BoundaryManagement() {
 
   // Resource management state
   const [expandedBoundary, setExpandedBoundary] = useState<string | null>(null);
-  const [resources, setResources] = useState<BoundaryResourceDto[]>([]);
-  const [resourcesLoading, setResourcesLoading] = useState(false);
-  const [addResourceForm, setAddResourceForm] = useState<AddBoundaryResourceBody>({
-    resourceId: '',
-    resourceType: '',
-    resourceName: '',
-  });
-  const [addingResource, setAddingResource] = useState(false);
-  const [resourceDialogTab, setResourceDialogTab] = useState<'components' | 'resources' | 'manual' | 'discover'>('components');
+  const [, setResources] = useState<BoundaryResourceDto[]>([]);
+  const [, setResourcesLoading] = useState(false);
+  const [resourceDialogTab, setResourceDialogTab] = useState<'components' | 'discover'>('components');
   const [selectedDiscoveryResources, setSelectedDiscoveryResources] = useState<Set<string>>(new Set());
 
   // Component management state
   const [boundaryComponents, setBoundaryComponents] = useState<OrgComponentDto[]>([]);
   const [componentsLoading, setComponentsLoading] = useState(false);
+
+  // P-16/P-17 workflow guidance (Feature 040 US7)
+  const [systemComponentCount, setSystemComponentCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!systemId) return;
+    listComponents({ page: 1, pageSize: 1 })
+      .then(res => setSystemComponentCount(res.totalCount))
+      .catch(() => setSystemComponentCount(null));
+  }, [systemId]);
 
   const fetchData = useCallback(async () => {
     if (!systemId) return;
@@ -198,23 +210,6 @@ export default function BoundaryManagement() {
     }
   };
 
-  const handleAddResource = async () => {
-    if (!expandedBoundary || !addResourceForm.resourceId.trim() || !addResourceForm.resourceType.trim()) return;
-    setAddingResource(true);
-    try {
-      await addBoundaryResource(expandedBoundary, addResourceForm);
-      setAddResourceForm({ resourceId: '', resourceType: '', resourceName: '' });
-      setResourceDialogTab('resources');
-      const items = await fetchBoundaryResources(expandedBoundary);
-      setResources(items);
-      await fetchData();
-    } catch {
-      setError('Failed to add resource');
-    } finally {
-      setAddingResource(false);
-    }
-  };
-
   const handleAddDiscoveredResource = async (resourceId: string, resourceType: string, resourceName: string) => {
     if (!expandedBoundary) return;
     try {
@@ -225,18 +220,6 @@ export default function BoundaryManagement() {
       await fetchData();
     } catch {
       setError('Failed to add resource');
-    }
-  };
-
-  const handleDeleteResource = async (resourceEntryId: string) => {
-    if (!expandedBoundary) return;
-    try {
-      await deleteBoundaryResource(expandedBoundary, resourceEntryId);
-      const items = await fetchBoundaryResources(expandedBoundary);
-      setResources(items);
-      await fetchData();
-    } catch {
-      setError('Failed to remove resource');
     }
   };
 
@@ -262,6 +245,24 @@ export default function BoundaryManagement() {
             + Add Boundary
           </button>
         </div>
+
+        {/* P-16 Guidance: Component Library first (Feature 040 US7) */}
+        {systemComponentCount !== null && systemComponentCount === 0 && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-start gap-3">
+              <svg className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+              </svg>
+              <div>
+                <h3 className="text-sm font-semibold text-blue-800">NIST RMF Step P-16: Complete Asset Identification First</h3>
+                <p className="mt-1 text-sm text-blue-700">
+                  Before defining authorization boundaries (P-17), populate your Component Library with the system's assets.
+                  Navigate to <strong>Component Inventory</strong> to discover Azure resources and import them as components.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
@@ -455,26 +456,6 @@ export default function BoundaryManagement() {
                   Components ({boundaryComponents.length})
                 </button>
                 <button
-                  onClick={() => setResourceDialogTab('resources')}
-                  className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${
-                    resourceDialogTab === 'resources'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Resources ({resources.length})
-                </button>
-                <button
-                  onClick={() => setResourceDialogTab('manual')}
-                  className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${
-                    resourceDialogTab === 'manual'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  + Add Resource
-                </button>
-                <button
                   onClick={() => {
                     setResourceDialogTab('discover');
                     if (!discoveryData && !discoveryLoading) handleDiscover();
@@ -506,124 +487,6 @@ export default function BoundaryManagement() {
                       setBoundaryComponents(comps);
                     }}
                   />
-                )}
-
-                {/* Resources tab */}
-                {resourceDialogTab === 'resources' && (
-                  <>
-                    {resourcesLoading ? (
-                      <p className="text-sm text-gray-500">Loading resources...</p>
-                    ) : resources.length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-gray-500 mb-3">No resources in this boundary yet.</p>
-                        <div className="flex gap-2 justify-center">
-                          <button
-                            onClick={() => setResourceDialogTab('manual')}
-                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            Add Manually
-                          </button>
-                          <button
-                            onClick={() => {
-                              setResourceDialogTab('discover');
-                              if (!discoveryData && !discoveryLoading) handleDiscover();
-                            }}
-                            className="px-4 py-2 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                          >
-                            Discover from Azure
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase text-gray-500">
-                            <th className="py-2 pr-3">Name</th>
-                            <th className="py-2 pr-3">Resource ID</th>
-                            <th className="py-2 pr-3">Type</th>
-                            <th className="py-2 pr-3">Status</th>
-                            <th className="py-2"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {resources.map((r) => (
-                            <tr key={r.id}>
-                              <td className="py-2 pr-3 font-medium text-gray-800">{r.resourceName || '—'}</td>
-                              <td className="py-2 pr-3 text-gray-600 max-w-[200px] truncate" title={r.resourceId}>
-                                {r.resourceId}
-                              </td>
-                              <td className="py-2 pr-3 text-gray-600">{r.resourceType.split('/').pop()}</td>
-                              <td className="py-2 pr-3">
-                                {r.isInBoundary ? (
-                                  <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Active</span>
-                                ) : (
-                                  <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Excluded</span>
-                                )}
-                              </td>
-                              <td className="py-2 text-right">
-                                <button onClick={() => handleDeleteResource(r.id)} className="text-xs text-red-600 hover:underline">
-                                  Remove
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </>
-                )}
-
-                {/* Manual add tab */}
-                {resourceDialogTab === 'manual' && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Resource ID *</label>
-                      <input
-                        type="text"
-                        value={addResourceForm.resourceId}
-                        onChange={(e) => setAddResourceForm({ ...addResourceForm, resourceId: e.target.value })}
-                        placeholder="/subscriptions/xxx/resourceGroups/myRG/providers/Microsoft.Compute/virtualMachines/myVM"
-                        className="w-full text-sm border border-gray-300 rounded-md px-3 py-2"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Resource Type *</label>
-                        <input
-                          type="text"
-                          value={addResourceForm.resourceType}
-                          onChange={(e) => setAddResourceForm({ ...addResourceForm, resourceType: e.target.value })}
-                          placeholder="Microsoft.Compute/virtualMachines"
-                          className="w-full text-sm border border-gray-300 rounded-md px-3 py-2"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
-                        <input
-                          type="text"
-                          value={addResourceForm.resourceName ?? ''}
-                          onChange={(e) => setAddResourceForm({ ...addResourceForm, resourceName: e.target.value })}
-                          placeholder="e.g. My Web Server"
-                          className="w-full text-sm border border-gray-300 rounded-md px-3 py-2"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <button
-                        onClick={handleAddResource}
-                        disabled={addingResource || !addResourceForm.resourceId.trim() || !addResourceForm.resourceType.trim()}
-                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {addingResource ? 'Adding...' : 'Add Resource'}
-                      </button>
-                      <button
-                        onClick={() => setResourceDialogTab('resources')}
-                        className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
                 )}
 
                 {/* Discover tab */}
@@ -733,31 +596,118 @@ function BoundaryComponentsTab({
   const [search, setSearch] = useState('');
   const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
 
+  // Feature 040 — Boundary component assignment with scope management
+  const [bcAssignments, setBcAssignments] = useState<BoundaryComponentDto[]>([]);
+  const [bcLoading, setBcLoading] = useState(false);
+  const [lockStatus, setLockStatus] = useState<BoundaryLockStatus | null>(null);
+  const [hasLock, setHasLock] = useState(false);
+  const [editingScope, setEditingScope] = useState<string | null>(null);
+  const [editRationale, setEditRationale] = useState('');
+  const [editProvider, setEditProvider] = useState('');
+
+  // Fetch boundary-component assignments (Feature 040)
+  const fetchAssignments = useCallback(async () => {
+    setBcLoading(true);
+    try {
+      const result = await listBoundaryComponents(systemId, boundaryId);
+      setBcAssignments(result.items);
+    } catch {
+      // Fall back to legacy components
+    } finally {
+      setBcLoading(false);
+    }
+  }, [systemId, boundaryId]);
+
+  useEffect(() => { fetchAssignments(); }, [fetchAssignments]);
+
+  // Check lock status on mount
+  useEffect(() => {
+    checkLockStatus(systemId, boundaryId).then(setLockStatus).catch(() => {});
+  }, [systemId, boundaryId]);
+
   useEffect(() => {
     if (showAdd && allComponents.length === 0) {
       listComponents({ pageSize: 200 }).then((r) => setAllComponents(r.items)).catch(() => {});
     }
   }, [showAdd, allComponents.length]);
 
-  const assignedIds = new Set(components.map((c) => c.id));
+  const assignedIds = new Set([...components.map((c) => c.id), ...bcAssignments.map((a) => a.componentId)]);
   const available = allComponents.filter(
     (c) => !assignedIds.has(c.id) && (!search || c.name.toLowerCase().includes(search.toLowerCase())),
   );
 
+  const handleAcquireLock = async () => {
+    try {
+      const status = await acquireLock(systemId, boundaryId, 'current-user', 'Current User');
+      setLockStatus(status);
+      setHasLock(!status.message);
+    } catch {
+      // conflict
+    }
+  };
+
+  const handleReleaseLock = async () => {
+    try {
+      await releaseLock(systemId, boundaryId);
+      setLockStatus(null);
+      setHasLock(false);
+    } catch {
+      // ignore
+    }
+  };
+
   const handleAdd = async (comp: OrgComponentDto) => {
     setAddingIds((prev) => new Set([...prev, comp.id]));
     try {
-      await assignComponentToBoundary(comp.id, systemId, boundaryId);
+      await assignComponent(systemId, boundaryId, { componentId: comp.id, isInScope: true });
+      await fetchAssignments();
       onRefresh();
     } catch {
-      // ignore
+      // fall back to legacy assign
+      try {
+        await assignComponentToBoundary(comp.id, systemId, boundaryId);
+        onRefresh();
+      } catch { /* ignore */ }
     } finally {
       setAddingIds((prev) => { const next = new Set(prev); next.delete(comp.id); return next; });
     }
   };
 
+  const handleToggleScope = async (assignment: BoundaryComponentDto) => {
+    if (!hasLock) {
+      await handleAcquireLock();
+    }
+    setEditingScope(assignment.assignmentId);
+    setEditRationale(assignment.exclusionRationale ?? '');
+    setEditProvider(assignment.inheritanceProvider ?? '');
+  };
+
+  const handleSaveScope = async (assignmentId: string, isInScope: boolean) => {
+    if (!isInScope && !editRationale.trim()) return;
+    try {
+      await updateAssignment(systemId, boundaryId, assignmentId, {
+        isInScope,
+        exclusionRationale: isInScope ? null : editRationale,
+        inheritanceProvider: editProvider || null,
+      });
+      setEditingScope(null);
+      await fetchAssignments();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleRemoveNew = async (assignmentId: string) => {
+    try {
+      await removeBoundaryAssignment(systemId, boundaryId, assignmentId);
+      await fetchAssignments();
+      onRefresh();
+    } catch {
+      // ignore
+    }
+  };
+
   const handleRemove = async (comp: OrgComponentDto) => {
-    // Find the assignment that matches this boundary (explicit match or null-boundary fallback)
     const assignment = comp.systemAssignments.find(
       (a) => a.boundaryDefinitionId === boundaryId
         || (a.registeredSystemId === systemId && !a.boundaryDefinitionId),
@@ -771,20 +721,37 @@ function BoundaryComponentsTab({
     }
   };
 
-  if (loading) return <p className="text-sm text-gray-500">Loading components...</p>;
+  if (loading && bcLoading) return <p className="text-sm text-gray-500">Loading components...</p>;
+
+  // Use new boundary assignments if available, fall back to legacy
+  const useNewModel = bcAssignments.length > 0 || bcLoading;
 
   return (
     <div>
+      {/* Lock status banner */}
+      {lockStatus?.locked && !hasLock && (
+        <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+          🔒 {lockStatus.message ?? `Locked by ${lockStatus.lockedBy}`}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm text-gray-600">
-          {components.length} component{components.length !== 1 ? 's' : ''} in this boundary
+          {(useNewModel ? bcAssignments.length : components.length)} component{(useNewModel ? bcAssignments.length : components.length) !== 1 ? 's' : ''} in this boundary
         </p>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          {showAdd ? 'Done' : '+ Add Component'}
-        </button>
+        <div className="flex gap-2">
+          {hasLock && (
+            <button onClick={handleReleaseLock} className="px-3 py-1.5 text-xs text-gray-600 border rounded hover:bg-gray-50">
+              Release Lock
+            </button>
+          )}
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            {showAdd ? 'Done' : '+ Assign Component'}
+          </button>
+        </div>
       </div>
 
       {/* Add component picker */}
@@ -828,71 +795,162 @@ function BoundaryComponentsTab({
         </div>
       )}
 
-      {/* Current components list */}
-      {components.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-gray-500 mb-3">No components assigned to this boundary yet.</p>
-          {!showAdd && (
-            <button
-              onClick={() => setShowAdd(true)}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Add Components
-            </button>
-          )}
-        </div>
-      ) : (
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase text-gray-500">
-              <th className="py-2 pr-3">Name</th>
-              <th className="py-2 pr-3">Type</th>
-              <th className="py-2 pr-3">Sub-Type</th>
-              <th className="py-2 pr-3">Status</th>
-              <th className="py-2 pr-3">Capabilities</th>
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {components.map((c) => (
-              <tr key={c.id}>
-                <td className="py-2 pr-3 font-medium text-gray-800">{c.name}</td>
-                <td className="py-2 pr-3">
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${TYPE_COLORS[c.componentType] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {c.componentType}
-                  </span>
-                </td>
-                <td className="py-2 pr-3 text-gray-600">{c.subType ?? '—'}</td>
-                <td className="py-2 pr-3">
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${c.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {c.status}
-                  </span>
-                </td>
-                <td className="py-2 pr-3">
-                  {c.capabilityLinks.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {c.capabilityLinks.map((cl) => (
-                        <span key={cl.capabilityId} className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded truncate max-w-[150px]" title={cl.capabilityName}>
-                          {cl.capabilityName}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-gray-400">—</span>
-                  )}
-                </td>
-                <td className="py-2 text-right">
-                  <button
-                    onClick={() => handleRemove(c)}
-                    className="text-xs text-red-600 hover:underline"
-                  >
-                    Remove
-                  </button>
-                </td>
+      {/* Component assignments list (Feature 040 — scope-aware) */}
+      {useNewModel ? (
+        bcAssignments.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 mb-3">No components assigned to this boundary yet.</p>
+            {!showAdd && (
+              <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                Assign Components
+              </button>
+            )}
+          </div>
+        ) : (
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase text-gray-500">
+                <th className="py-2 pr-3">Name</th>
+                <th className="py-2 pr-3">Type</th>
+                <th className="py-2 pr-3">Scope</th>
+                <th className="py-2 pr-3">Rationale / Provider</th>
+                <th className="py-2"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {bcAssignments.map((a) => (
+                <tr key={a.assignmentId}>
+                  <td className="py-2 pr-3 font-medium text-gray-800">{a.componentName}</td>
+                  <td className="py-2 pr-3">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${TYPE_COLORS[a.componentType] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {a.componentType}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3">
+                    {editingScope === a.assignmentId ? (
+                      <div className="space-y-1">
+                        <select
+                          defaultValue={a.isInScope ? 'inScope' : 'excluded'}
+                          onChange={(e) => {
+                            const inScope = e.target.value === 'inScope';
+                            if (inScope) handleSaveScope(a.assignmentId, true);
+                          }}
+                          className="text-xs border rounded px-2 py-1"
+                        >
+                          <option value="inScope">In Scope</option>
+                          <option value="excluded">Excluded</option>
+                        </select>
+                        {!a.isInScope && (
+                          <>
+                            <input
+                              type="text"
+                              value={editRationale}
+                              onChange={(e) => setEditRationale(e.target.value)}
+                              placeholder="Exclusion rationale (required)"
+                              className="w-full text-xs border rounded px-2 py-1"
+                            />
+                            <input
+                              type="text"
+                              value={editProvider}
+                              onChange={(e) => setEditProvider(e.target.value)}
+                              placeholder="Inheritance provider (optional)"
+                              className="w-full text-xs border rounded px-2 py-1"
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleSaveScope(a.assignmentId, false)}
+                                disabled={!editRationale.trim()}
+                                className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded disabled:opacity-50"
+                              >
+                                Save
+                              </button>
+                              <button onClick={() => setEditingScope(null)} className="text-xs text-gray-500 px-2 py-0.5">
+                                Cancel
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleToggleScope(a)}
+                        className={`text-xs px-2 py-0.5 rounded cursor-pointer ${a.isInScope ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                      >
+                        {a.isInScope ? 'In Scope' : 'Excluded'}
+                      </button>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-xs text-gray-600">
+                    {a.exclusionRationale && <div title={a.exclusionRationale} className="truncate max-w-[200px]">{a.exclusionRationale}</div>}
+                    {a.inheritanceProvider && <div className="text-blue-600 text-xs">↳ {a.inheritanceProvider}</div>}
+                  </td>
+                  <td className="py-2 text-right">
+                    <button onClick={() => handleRemoveNew(a.assignmentId)} className="text-xs text-red-600 hover:underline">Remove</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      ) : (
+        /* Legacy components list (pre-Feature 040) */
+        components.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 mb-3">No components assigned to this boundary yet.</p>
+            {!showAdd && (
+              <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                Add Components
+              </button>
+            )}
+          </div>
+        ) : (
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase text-gray-500">
+                <th className="py-2 pr-3">Name</th>
+                <th className="py-2 pr-3">Type</th>
+                <th className="py-2 pr-3">Sub-Type</th>
+                <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">Capabilities</th>
+                <th className="py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {components.map((c) => (
+                <tr key={c.id}>
+                  <td className="py-2 pr-3 font-medium text-gray-800">{c.name}</td>
+                  <td className="py-2 pr-3">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${TYPE_COLORS[c.componentType] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {c.componentType}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3 text-gray-600">{c.subType ?? '—'}</td>
+                  <td className="py-2 pr-3">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${c.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {c.status}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3">
+                    {c.capabilityLinks.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {c.capabilityLinks.map((cl) => (
+                          <span key={cl.capabilityId} className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded truncate max-w-[150px]" title={cl.capabilityName}>
+                            {cl.capabilityName}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-2 text-right">
+                    <button onClick={() => handleRemove(c)} className="text-xs text-red-600 hover:underline">Remove</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
       )}
     </div>
   );

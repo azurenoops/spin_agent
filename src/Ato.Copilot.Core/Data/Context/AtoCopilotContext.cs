@@ -241,6 +241,11 @@ public class AtoCopilotContext : DbContext
     /// <summary>Named authorization boundary definitions within registered systems.</summary>
     public DbSet<AuthorizationBoundaryDefinition> AuthorizationBoundaryDefinitions => Set<AuthorizationBoundaryDefinition>();
 
+    // ─── Component-Centric Boundary (Feature 040) ────────────────────────────
+
+    /// <summary>Per-boundary component assignments with scope status (In Scope / Excluded).</summary>
+    public DbSet<BoundaryComponentAssignment> BoundaryComponentAssignments => Set<BoundaryComponentAssignment>();
+
     // ─── Deferred Prerequisites (Force-Advanced Gate Tracking) ───────────
 
     /// <summary>Prerequisites skipped during forced RMF phase advances.</summary>
@@ -412,6 +417,14 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => e.ImportRecordId).HasDatabaseName("IX_ComplianceFinding_ImportRecordId");
             entity.HasIndex(e => e.DeviationId).HasDatabaseName("IX_ComplianceFinding_DeviationId");
             entity.Property(e => e.DeviationId).HasMaxLength(36);
+
+            // Feature 040: Component linkage
+            entity.Property(e => e.ComponentId).HasMaxLength(36);
+            entity.HasIndex(e => e.ComponentId).HasDatabaseName("IX_ComplianceFinding_ComponentId");
+            entity.HasOne(e => e.Component)
+                .WithMany()
+                .HasForeignKey(e => e.ComponentId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ─── NistControl ────────────────────────────────────────────────────────
@@ -2056,6 +2069,39 @@ public class AtoCopilotContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.RegisteredSystemId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // Feature 040: Azure resource ID index for dedup + finding linkage
+            entity.HasIndex(e => e.AzureResourceId).HasDatabaseName("IX_SystemComponent_AzureResourceId");
+        });
+
+        // ─── BoundaryComponentAssignment (Feature 040) ───────────────────────────
+        modelBuilder.Entity<BoundaryComponentAssignment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SystemComponentId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.AuthorizationBoundaryDefinitionId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ExclusionRationale).HasMaxLength(1000);
+            entity.Property(e => e.InheritanceProvider).HasMaxLength(200);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ModifiedBy).HasMaxLength(200);
+
+            entity.HasIndex(e => new { e.SystemComponentId, e.AuthorizationBoundaryDefinitionId })
+                .IsUnique()
+                .HasDatabaseName("IX_BCA_ComponentBoundary");
+
+            entity.HasIndex(e => e.AuthorizationBoundaryDefinitionId)
+                .HasDatabaseName("IX_BCA_BoundaryId");
+
+            entity.HasOne(e => e.SystemComponent)
+                .WithMany(c => c.BoundaryAssignments)
+                .HasForeignKey(e => e.SystemComponentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.AuthorizationBoundaryDefinition)
+                .WithMany(b => b.ComponentAssignments)
+                .HasForeignKey(e => e.AuthorizationBoundaryDefinitionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ─── ComponentSystemAssignment (Feature 036) ─────────────────────────────

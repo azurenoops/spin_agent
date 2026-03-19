@@ -4,10 +4,10 @@ import { ComponentSection } from '../components/cards/ComponentSection';
 import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
 import { usePolling } from '../hooks/usePolling';
-import { getComponents, createComponent, updateComponent, deleteComponent } from '../api/components';
+import { getComponents, createComponent, updateComponent, deleteComponent, discoverSystemAzureResources, importSystemAzureComponents, relinkComponentFindings } from '../api/components';
 import { fetchBoundaryDefinitions } from '../api/boundaries';
 import apiClient from '../api/client';
-import type { SystemComponentDto, CreateComponentRequest, ComponentType, BoundaryDefinitionDto } from '../types/dashboard';
+import type { SystemComponentDto, CreateComponentRequest, ComponentType, BoundaryDefinitionDto, DiscoveredResource } from '../types/dashboard';
 
 const SECTIONS: { title: string; type: ComponentType }[] = [
   { title: 'People', type: 'Person' },
@@ -29,6 +29,16 @@ export default function ComponentInventory() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [riskMap, setRiskMap] = useState<Record<string, { openCount: number; overdueCount: number; highestSeverity: string | null }>>({});
+
+  // Azure discovery state (Feature 040 — US2)
+  const [showDiscover, setShowDiscover] = useState(false);
+  const [discoverSubscription, setDiscoverSubscription] = useState('');
+  const [discovered, setDiscovered] = useState<DiscoveredResource[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [selectedResources, setSelectedResources] = useState<Set<string>>(new Set());
+  const [importLoading, setImportLoading] = useState(false);
+  const [failedGroups, setFailedGroups] = useState<string[]>([]);
 
   const fetchData = useCallback(async () => {
     if (!systemId) return;
@@ -116,6 +126,76 @@ export default function ComponentInventory() {
     setFormError(null);
   };
 
+  // Re-link findings handler (Feature 040 — FR-027)
+  const handleRelink = async (comp: SystemComponentDto) => {
+    if (!systemId) return;
+    try {
+      const result = await relinkComponentFindings(systemId, comp.id);
+      alert(`Re-linked ${result.linkedCount} finding(s) for ${comp.name}`);
+      await fetchData();
+    } catch {
+      alert('Failed to re-link findings');
+    }
+  };
+
+  // Azure discovery handlers (Feature 040 — US2)
+  const handleDiscover = async () => {
+    if (!systemId || !discoverSubscription.trim()) return;
+    setDiscoverLoading(true);
+    setDiscoverError(null);
+    setFailedGroups([]);
+    try {
+      const result = await discoverSystemAzureResources(systemId, {
+        subscriptionId: discoverSubscription.trim(),
+      });
+      setDiscovered(result.resources);
+      setSelectedResources(new Set(
+        result.resources.filter((r) => !r.alreadyImported).map((r) => r.resourceId),
+      ));
+      if (result.failedResourceGroups?.length) {
+        setFailedGroups(result.failedResourceGroups);
+      }
+    } catch (err) {
+      setDiscoverError(err instanceof Error ? err.message : 'Discovery failed');
+    } finally {
+      setDiscoverLoading(false);
+    }
+  };
+
+  const handleImportSelected = async () => {
+    if (!systemId || selectedResources.size === 0) return;
+    setImportLoading(true);
+    try {
+      const toImport = discovered
+        .filter((r) => selectedResources.has(r.resourceId) && !r.alreadyImported)
+        .map((r) => ({
+          resourceId: r.resourceId,
+          name: r.name,
+          type: r.type,
+          resourceGroup: r.resourceGroup,
+          location: r.location,
+        }));
+
+      // Check for org-library resources to assign instead of re-create
+      const orgAssign = discovered
+        .filter((r) => selectedResources.has(r.resourceId) && r.existsInOrgLibrary && r.orgLibraryComponentId)
+        .map((r) => r.orgLibraryComponentId!);
+
+      await importSystemAzureComponents(systemId, {
+        resources: toImport,
+        assignExistingOrgComponents: orgAssign.length > 0 ? orgAssign : undefined,
+      });
+      setShowDiscover(false);
+      setDiscovered([]);
+      setSelectedResources(new Set());
+      await fetchData();
+    } catch (err) {
+      setDiscoverError(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   if (!systemId) return null;
 
   return (
@@ -123,9 +203,9 @@ export default function ComponentInventory() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Components</h2>
+          <h2 className="text-2xl font-bold text-gray-900">System Components</h2>
           <p className="mt-1 text-sm text-gray-500">
-            People, Places, and Things that make up your system
+            People, Places, and Things that make up your system.
           </p>
         </div>
       </div>
@@ -173,6 +253,12 @@ export default function ComponentInventory() {
         >
           + Add Component
         </button>
+        <button
+          onClick={() => { setShowDiscover(true); setDiscoverError(null); }}
+          className="px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Discover from Azure
+        </button>
       </div>
 
       {/* Form modal */}
@@ -204,6 +290,125 @@ export default function ComponentInventory() {
               <button onClick={() => setDeleteConfirm(null)} className="text-sm text-gray-600 hover:text-gray-800 px-3 py-1.5">Cancel</button>
               <button onClick={() => handleDelete(deleteConfirm)} className="text-sm bg-red-600 text-white rounded px-3 py-1.5 hover:bg-red-700">Delete</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Azure Discovery dialog (Feature 040 — US2) */}
+      {showDiscover && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Discover Azure Resources</h2>
+              <button onClick={() => { setShowDiscover(false); setDiscovered([]); }} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={discoverSubscription}
+                onChange={(e) => setDiscoverSubscription(e.target.value)}
+                placeholder="Azure Subscription ID"
+                className="border rounded px-3 py-1.5 text-sm flex-1 focus:ring-2 focus:ring-green-300 focus:outline-none"
+              />
+              <button
+                onClick={handleDiscover}
+                disabled={discoverLoading || !discoverSubscription.trim()}
+                className="px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {discoverLoading ? 'Scanning...' : 'Scan'}
+              </button>
+            </div>
+
+            {discoverError && (
+              <div className="bg-red-50 border border-red-200 rounded p-3 mb-3 text-sm text-red-700">{discoverError}</div>
+            )}
+
+            {failedGroups.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-3 text-sm text-yellow-800">
+                <strong>Partial failure:</strong> Could not scan resource groups: {failedGroups.join(', ')}
+                <button
+                  onClick={handleDiscover}
+                  className="ml-2 text-yellow-900 underline text-xs"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {discovered.length > 0 && (
+              <>
+                <div className="border rounded overflow-hidden mb-4">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left w-8">
+                          <input
+                            type="checkbox"
+                            checked={selectedResources.size === discovered.filter((r) => !r.alreadyImported).length && discovered.some((r) => !r.alreadyImported)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedResources(new Set(discovered.filter((r) => !r.alreadyImported).map((r) => r.resourceId)));
+                              } else {
+                                setSelectedResources(new Set());
+                              }
+                            }}
+                          />
+                        </th>
+                        <th className="px-3 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-left">Resource Group</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {discovered.map((r) => (
+                        <tr key={r.resourceId} className={r.alreadyImported ? 'bg-gray-50 text-gray-400' : ''}>
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              disabled={r.alreadyImported}
+                              checked={selectedResources.has(r.resourceId)}
+                              onChange={(e) => {
+                                const next = new Set(selectedResources);
+                                if (e.target.checked) next.add(r.resourceId);
+                                else next.delete(r.resourceId);
+                                setSelectedResources(next);
+                              }}
+                            />
+                          </td>
+                          <td className="px-3 py-2 font-medium">{r.name}</td>
+                          <td className="px-3 py-2 text-xs">{r.type}</td>
+                          <td className="px-3 py-2 text-xs">{r.resourceGroup}</td>
+                          <td className="px-3 py-2">
+                            {r.alreadyImported ? (
+                              <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">Already imported</span>
+                            ) : r.existsInOrgLibrary ? (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">In org library</span>
+                            ) : (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">New</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => { setShowDiscover(false); setDiscovered([]); }} className="text-sm text-gray-600 hover:text-gray-800 px-3 py-1.5">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleImportSelected}
+                    disabled={importLoading || selectedResources.size === 0}
+                    className="px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {importLoading ? 'Importing...' : `Import ${selectedResources.size} Selected`}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -251,6 +456,7 @@ export default function ComponentInventory() {
                         count={items.length}
                         onEdit={handleEdit}
                         onDelete={(id) => setDeleteConfirm(id)}
+                        onRelink={handleRelink}
                         riskMap={riskMap}
                       />
                     );

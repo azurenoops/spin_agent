@@ -28,8 +28,11 @@ RUN dotnet publish src/Ato.Copilot.Mcp/Ato.Copilot.Mcp.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# Install curl for health checks and Azure CLI for credential passthrough from host
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates gnupg lsb-release \
+    && curl -sL https://aka.ms/InstallAzureCLIDeb | bash \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd -r atocopilot && useradd -r -g atocopilot -m atocopilot

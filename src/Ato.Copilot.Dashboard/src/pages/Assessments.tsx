@@ -1,11 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { usePolling } from '../hooks/usePolling';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { getAssessments, runAssessment, getAssessmentDetail } from '../api/assessments';
+import { getAssessmentComponentRisks } from '../api/components';
 import type { AssessmentListItem, AssessmentDetail, AssessmentFinding } from '../api/assessments';
+import type { AssessmentComponentRisks, ComponentRiskSummary } from '../types/dashboard';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -67,9 +69,18 @@ export default function Assessments() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [findingFilter, setFindingFilter] = useState('');
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
+  const [componentRisks, setComponentRisks] = useState<AssessmentComponentRisks | null>(null);
 
   const fetchAssessments = useCallback(() => getAssessments(), []);
   const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
+
+  // Fetch component risk summary when assessment detail is loaded
+  useEffect(() => {
+    if (!detailData?.assessmentId || !systemId) { setComponentRisks(null); return; }
+    getAssessmentComponentRisks(systemId, detailData.assessmentId)
+      .then(setComponentRisks)
+      .catch(() => setComponentRisks(null));
+  }, [detailData?.assessmentId, systemId]);
 
   // Filter to current system
   const assessments = (allAssessments ?? []).filter(a => a.systemId === systemId);
@@ -394,6 +405,45 @@ export default function Assessments() {
                             </tbody>
                           </table>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Component Risk Summary (Feature 040 US6) */}
+                    {componentRisks && (componentRisks.componentRisks.length > 0 || componentRisks.unlinkedFindingCount > 0) && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Component Risk Summary</h4>
+                        {componentRisks.componentRisks.length > 0 && (
+                          <div className="overflow-hidden rounded-lg border border-gray-200 mb-3">
+                            <table className="min-w-full divide-y divide-gray-200 text-xs">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-medium text-gray-500">Component</th>
+                                  <th className="px-3 py-2 text-center font-medium text-gray-500">Type</th>
+                                  <th className="px-3 py-2 text-center font-medium text-gray-500">Open Findings</th>
+                                  <th className="px-3 py-2 text-center font-medium text-gray-500">Highest Severity</th>
+                                  <th className="px-3 py-2 text-center font-medium text-gray-500">Overdue</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 bg-white">
+                                {componentRisks.componentRisks.map((cr: ComponentRiskSummary) => (
+                                  <tr key={cr.componentId} className="hover:bg-gray-50">
+                                    <td className="px-3 py-2 font-medium text-gray-800">{cr.componentName}</td>
+                                    <td className="px-3 py-2 text-center text-gray-500">{cr.componentType}</td>
+                                    <td className="px-3 py-2 text-center">{cr.openFindingCount}</td>
+                                    <td className="px-3 py-2 text-center"><SeverityBadge severity={cr.highestSeverity} /></td>
+                                    <td className="px-3 py-2 text-center text-red-600">{cr.overdueRemediationCount}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {componentRisks.unlinkedFindingCount > 0 && (
+                          <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+                            <strong>{componentRisks.unlinkedFindingCount}</strong> finding{componentRisks.unlinkedFindingCount !== 1 ? 's' : ''} not linked to any component.
+                            Import the affected resources as components to enable per-component tracking.
+                          </div>
+                        )}
                       </div>
                     )}
 

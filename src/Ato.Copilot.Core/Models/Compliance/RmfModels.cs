@@ -375,7 +375,11 @@ public class InformationType
 
 /// <summary>
 /// Azure resource within the authorization boundary of a registered system.
+/// <para><b>DEPRECATED (Feature 040)</b>: No new rows should be written. Use
+/// <see cref="BoundaryComponentAssignment"/> for new boundary-component scope tracking.
+/// Retained read-only for backward compatibility and migration.</para>
 /// </summary>
+[Obsolete("Use BoundaryComponentAssignment for new boundary-component scope tracking (Feature 040).")]
 public class AuthorizationBoundary
 {
     /// <summary>Unique identifier (GUID).</summary>
@@ -873,6 +877,9 @@ public class AuthorizationBoundaryDefinition
 
     /// <summary>Components within this boundary.</summary>
     public ICollection<SystemComponent> SystemComponents { get; set; } = new List<SystemComponent>();
+
+    /// <summary>Component assignments within this boundary (Feature 040).</summary>
+    public ICollection<BoundaryComponentAssignment> ComponentAssignments { get; set; } = new List<BoundaryComponentAssignment>();
 
     /// <summary>Boundary-scoped capability-to-control mappings.</summary>
     public ICollection<CapabilityControlMapping> CapabilityControlMappings { get; set; } = new List<CapabilityControlMapping>();

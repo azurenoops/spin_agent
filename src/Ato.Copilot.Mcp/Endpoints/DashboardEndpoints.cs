@@ -1237,6 +1237,24 @@ public static class DashboardEndpoints
                         resourceGroup, resourceType, search, cursor, ct);
                     return Results.Ok(result);
                 }
+                catch (Azure.Identity.CredentialUnavailableException)
+                {
+                    return Results.Json(new ErrorResponse
+                    {
+                        Error = "Azure credentials not configured. Run 'az login' (use 'az cloud set --name AzureUSGovernment' for GovCloud) or configure service principal environment variables.",
+                        ErrorCode = "AZURE_AUTH_FAILED",
+                        Suggestion = "Run 'az login' on the Docker host so credentials are mounted into the container"
+                    }, statusCode: 502);
+                }
+                catch (Azure.Identity.AuthenticationFailedException)
+                {
+                    return Results.Json(new ErrorResponse
+                    {
+                        Error = "Azure authentication failed for both Government and Commercial clouds. Run 'az login' with the correct cloud.",
+                        ErrorCode = "AZURE_AUTH_FAILED",
+                        Suggestion = "For GovCloud: 'az cloud set --name AzureUSGovernment && az login'"
+                    }, statusCode: 502);
+                }
                 catch (Azure.RequestFailedException ex) when (ex.Status == 401)
                 {
                     return Results.Json(new ErrorResponse
@@ -2166,6 +2184,86 @@ public static class DashboardEndpoints
         })
         .WithName("GetAssessmentDetail");
 
+        // ─── Component Risk Summary (Feature 040 US6) ─────────────────────────
+
+        app.MapGet("/api/dashboard/systems/{systemId}/assessments/{assessmentId}/component-risks", async (
+            string systemId,
+            string assessmentId,
+            ComponentService componentService,
+            CancellationToken ct) =>
+        {
+            var result = await componentService.GetComponentRiskSummaryAsync(systemId, assessmentId, ct);
+            return Results.Ok(result);
+        })
+        .WithName("GetAssessmentComponentRisks");
+
+        // ─── Assessment Findings with optional componentId filter (Feature 040 US6) ──
+
+        app.MapGet("/api/dashboard/systems/{systemId}/assessments/{assessmentId}/findings", async (
+            string systemId,
+            string assessmentId,
+            string? componentId,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            var assessment = await context.Assessments
+                .Include(a => a.Findings)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == assessmentId && a.RegisteredSystemId == systemId, ct);
+            if (assessment is null)
+                return Results.NotFound(new { error = "Assessment not found" });
+
+            IEnumerable<ComplianceFinding> findings = assessment.Findings;
+
+            if (componentId == "unlinked")
+                findings = findings.Where(f => f.ComponentId == null);
+            else if (!string.IsNullOrEmpty(componentId))
+                findings = findings.Where(f => f.ComponentId == componentId);
+
+            var dtos = findings.OrderBy(f => f.ControlId).Select(f => new AssessmentFindingDto
+            {
+                FindingId = f.Id,
+                ControlId = f.ControlId,
+                ControlFamily = f.ControlId?.Split('-').FirstOrDefault() ?? "",
+                Title = f.Title,
+                Description = f.Description,
+                Severity = f.Severity.ToString(),
+                Status = f.Status.ToString(),
+                ResourceType = f.ResourceType,
+                ResourceId = f.ResourceId,
+                RemediationGuidance = f.RemediationGuidance,
+                DiscoveredAt = f.DiscoveredAt,
+                DeviationId = f.DeviationId,
+                DeviationType = null,
+            }).ToList();
+
+            return Results.Ok(new { items = dtos, totalCount = dtos.Count });
+        })
+        .WithName("GetAssessmentFindings");
+
+        // ─── Resolve Finding Components (Feature 040 US6) ─────────────────────
+
+        app.MapPost("/api/dashboard/systems/{systemId}/resolve-finding-components", async (
+            string systemId,
+            ComponentService componentService,
+            CancellationToken ct) =>
+        {
+            var linked = await componentService.ResolveFindingComponentsAsync(systemId, ct);
+            return Results.Ok(new { linkedCount = linked });
+        })
+        .WithName("ResolveFindingComponents");
+
+        app.MapPost("/api/dashboard/systems/{systemId}/components/{componentId}/relink-findings", async (
+            string systemId,
+            string componentId,
+            ComponentService componentService,
+            CancellationToken ct) =>
+        {
+            var linked = await componentService.RelinkComponentFindingsAsync(systemId, componentId, ct);
+            return Results.Ok(new { linkedCount = linked });
+        })
+        .WithName("RelinkComponentFindings");
+
         app.MapPost("/api/dashboard/systems/{systemId}/run-assessment", async (
             string systemId,
             IAtoComplianceEngine complianceEngine,
@@ -2525,12 +2623,15 @@ public static class DashboardEndpoints
                     .ToListAsync(ct);
                 var tasksByFinding = board.Tasks
                     .Where(t => t.FindingId != null)
-                    .ToDictionary(t => t.FindingId!, t => t.Id);
+                    .ToDictionary(t => t.FindingId!, t => t);
 
                 foreach (var poam in poamItems)
                 {
-                    if (poam.FindingId != null && tasksByFinding.TryGetValue(poam.FindingId, out var taskId))
-                        poam.RemediationTaskId = taskId;
+                    if (poam.FindingId != null && tasksByFinding.TryGetValue(poam.FindingId, out var task))
+                    {
+                        poam.RemediationTaskId = task.Id;
+                        task.PoamItemId = poam.Id;
+                    }
                 }
                 await context.SaveChangesAsync(ct);
             }
@@ -3258,33 +3359,69 @@ public static class DashboardEndpoints
                     .ToDictionaryAsync(p => p.Id, p => p.CatSeverity.ToString(), ct)
                 : new Dictionary<string, string>();
 
+            // Look up component names for findings linked to components (Feature 040 US6)
+            var findingIds = tasks
+                .Where(t => t.FindingId != null)
+                .Select(t => t.FindingId!)
+                .Distinct()
+                .ToList();
+            var findingComponentMap = new Dictionary<string, (string componentId, string componentName)>();
+            if (findingIds.Count > 0)
+            {
+                var linkedFindings = await context.Findings
+                    .Where(f => findingIds.Contains(f.Id) && f.ComponentId != null)
+                    .Select(f => new { f.Id, f.ComponentId })
+                    .AsNoTracking()
+                    .ToListAsync(ct);
+                if (linkedFindings.Count > 0)
+                {
+                    var compIds = linkedFindings.Select(f => f.ComponentId!).Distinct().ToList();
+                    var compNames = await context.SystemComponents
+                        .Where(c => compIds.Contains(c.Id))
+                        .Select(c => new { c.Id, c.Name })
+                        .AsNoTracking()
+                        .ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+                    foreach (var lf in linkedFindings)
+                    {
+                        if (compNames.TryGetValue(lf.ComponentId!, out var name))
+                            findingComponentMap[lf.Id] = (lf.ComponentId!, name);
+                    }
+                }
+            }
+
             return Results.Ok(new
             {
-                items = tasks.Select(t => new
+                items = tasks.Select(t =>
                 {
-                    t.Id,
-                    t.TaskNumber,
-                    t.BoardId,
-                    boardName = t.Board?.Name,
-                    t.Title,
-                    t.Description,
-                    t.ControlId,
-                    t.ControlFamily,
-                    severity = t.Severity.ToString(),
-                    catSeverity = t.PoamItemId != null && poamCatMap.TryGetValue(t.PoamItemId, out var cat) ? cat : (string?)null,
-                    status = t.Status.ToString(),
-                    t.AssigneeId,
-                    t.AssigneeName,
-                    t.DueDate,
-                    t.CreatedAt,
-                    t.UpdatedAt,
-                    t.FindingId,
-                    t.PoamItemId,
-                    t.RemediationScript,
-                    t.RemediationScriptType,
-                    t.ValidationCriteria,
-                    isOverdue = t.DueDate < DateTime.UtcNow && t.Status != KanbanTaskStatus.Done,
-                    affectedResourceCount = t.AffectedResources.Count,
+                    findingComponentMap.TryGetValue(t.FindingId ?? "", out var comp);
+                    return new
+                    {
+                        t.Id,
+                        t.TaskNumber,
+                        t.BoardId,
+                        boardName = t.Board?.Name,
+                        t.Title,
+                        t.Description,
+                        t.ControlId,
+                        t.ControlFamily,
+                        severity = t.Severity.ToString(),
+                        catSeverity = t.PoamItemId != null && poamCatMap.TryGetValue(t.PoamItemId, out var cat) ? cat : (string?)null,
+                        status = t.Status.ToString(),
+                        t.AssigneeId,
+                        t.AssigneeName,
+                        t.DueDate,
+                        t.CreatedAt,
+                        t.UpdatedAt,
+                        t.FindingId,
+                        t.PoamItemId,
+                        t.RemediationScript,
+                        t.RemediationScriptType,
+                        t.ValidationCriteria,
+                        isOverdue = t.DueDate < DateTime.UtcNow && t.Status != KanbanTaskStatus.Done,
+                        affectedResourceCount = t.AffectedResources.Count,
+                        componentId = comp.componentId,
+                        componentName = comp.componentName,
+                    };
                 }),
                 totalCount = tasks.Count,
             });
@@ -4974,6 +5111,331 @@ public static class DashboardEndpoints
             }
         }).WithName("ExportPoam");
 
+        // ─── Component-Centric Boundary: Azure Discovery (Feature 040) ───────
+
+        group.MapPost("/components/discover-azure", async (
+                DiscoverAzureComponentsRequest body,
+                AzureResourceDiscoveryService discoveryService,
+                CancellationToken ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(body.SubscriptionId))
+                    return Results.BadRequest(new ErrorResponse { Error = "subscriptionId is required", ErrorCode = "INVALID_INPUT" });
+
+                try
+                {
+                    var result = await discoveryService.DiscoverForComponentsAsync(
+                        body.SubscriptionId, systemId: null,
+                        body.ResourceGroupFilter, body.ResourceTypeFilter, body.SearchFilter, body.Cursor, ct);
+
+                    return Results.Ok(new
+                    {
+                        resources = result.Resources.Select(r => new
+                        {
+                            resourceId = r.ResourceId, name = r.Name, type = r.Type,
+                            resourceGroup = r.ResourceGroup, location = r.Location,
+                            alreadyImported = r.AlreadyImported,
+                        }),
+                        nextCursor = result.NextCursor,
+                        totalCount = result.TotalCount,
+                        failedResourceGroups = result.FailedResourceGroups,
+                    });
+                }
+                catch (Azure.Identity.CredentialUnavailableException)
+                {
+                    return Results.Json(new { error = "Azure credentials not configured. Run 'az login' (use 'az cloud set --name AzureUSGovernment' for GovCloud) or configure service principal environment variables.", errorCode = "AZURE_AUTH_FAILED" }, statusCode: 502);
+                }
+                catch (Azure.Identity.AuthenticationFailedException)
+                {
+                    return Results.Json(new { error = "Azure authentication failed for both Government and Commercial clouds. Run 'az login' with the correct cloud.", errorCode = "AZURE_AUTH_FAILED" }, statusCode: 502);
+                }
+                catch (Azure.RequestFailedException ex) when (ex.Status is 401 or 403)
+                {
+                    return Results.Json(new { error = $"Azure RBAC denied ({ex.ErrorCode}). Ensure Reader role is assigned on the subscription.", errorCode = "AZURE_RBAC_DENIED" }, statusCode: ex.Status);
+                }
+            })
+            .WithName("DiscoverAzureResourcesForComponents");
+
+        group.MapPost("/components/import-azure", async (
+                ImportAzureComponentsRequest body,
+                ComponentService componentService,
+                CancellationToken ct) =>
+            {
+                if (body.Resources == null || body.Resources.Count == 0)
+                    return Results.BadRequest(new ErrorResponse { Error = "resources is required", ErrorCode = "INVALID_INPUT" });
+
+                var resources = body.Resources.Select(r => new AzureImportResource
+                {
+                    ResourceId = r.ResourceId, Name = r.Name, Type = r.Type,
+                    ResourceGroup = r.ResourceGroup, Location = r.Location,
+                }).ToList();
+
+                var result = await componentService.ImportAzureComponentsAsync(resources, "dashboard-user", ct);
+
+                return Results.Ok(new
+                {
+                    imported = result.Imported,
+                    skipped = result.Skipped,
+                    skippedDetails = result.SkippedDetails.Select(s => new { resourceId = s.ResourceId, reason = s.Reason }),
+                    components = result.Components.Select(c => new { id = c.Id, name = c.Name, componentType = c.ComponentType, azureResourceId = c.BoundaryDefinitionId }),
+                });
+            })
+            .WithName("ImportAzureComponents");
+
+        group.MapPost("/systems/{systemId}/components/discover-azure", async (
+                string systemId,
+                DiscoverAzureComponentsRequest body,
+                AzureResourceDiscoveryService discoveryService,
+                CancellationToken ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(body.SubscriptionId))
+                    return Results.BadRequest(new ErrorResponse { Error = "subscriptionId is required", ErrorCode = "INVALID_INPUT" });
+
+                try
+                {
+                    var result = await discoveryService.DiscoverForComponentsAsync(
+                        body.SubscriptionId, systemId: systemId,
+                        body.ResourceGroupFilter, body.ResourceTypeFilter, body.SearchFilter, body.Cursor, ct);
+
+                    return Results.Ok(new
+                    {
+                        resources = result.Resources.Select(r => new
+                        {
+                            resourceId = r.ResourceId, name = r.Name, type = r.Type,
+                            resourceGroup = r.ResourceGroup, location = r.Location,
+                            alreadyImported = r.AlreadyImported,
+                            existsInOrgLibrary = r.ExistsInOrgLibrary,
+                            orgLibraryComponentId = r.OrgLibraryComponentId,
+                        }),
+                        nextCursor = result.NextCursor,
+                        totalCount = result.TotalCount,
+                        failedResourceGroups = result.FailedResourceGroups,
+                    });
+                }
+                catch (Azure.Identity.CredentialUnavailableException)
+                {
+                    return Results.Json(new { error = "Azure credentials not configured. Run 'az login' (use 'az cloud set --name AzureUSGovernment' for GovCloud) or configure service principal environment variables.", errorCode = "AZURE_AUTH_FAILED" }, statusCode: 502);
+                }
+                catch (Azure.Identity.AuthenticationFailedException)
+                {
+                    return Results.Json(new { error = "Azure authentication failed for both Government and Commercial clouds. Run 'az login' with the correct cloud.", errorCode = "AZURE_AUTH_FAILED" }, statusCode: 502);
+                }
+                catch (Azure.RequestFailedException ex) when (ex.Status is 401 or 403)
+                {
+                    return Results.Json(new { error = $"Azure RBAC denied ({ex.ErrorCode}). Ensure Reader role is assigned on the subscription.", errorCode = "AZURE_RBAC_DENIED" }, statusCode: ex.Status);
+                }
+            })
+            .WithName("DiscoverSystemAzureResources");
+
+        group.MapPost("/systems/{systemId}/components/import-azure", async (
+                string systemId,
+                ImportSystemAzureComponentsRequest body,
+                ComponentService componentService,
+                CancellationToken ct) =>
+            {
+                if (body.Resources == null || body.Resources.Count == 0)
+                    return Results.BadRequest(new ErrorResponse { Error = "resources is required", ErrorCode = "INVALID_INPUT" });
+
+                var resources = body.Resources.Select(r => new AzureImportResource
+                {
+                    ResourceId = r.ResourceId, Name = r.Name, Type = r.Type,
+                    ResourceGroup = r.ResourceGroup, Location = r.Location,
+                }).ToList();
+
+                var result = await componentService.ImportSystemAzureComponentsAsync(
+                    systemId, resources, body.AssignExistingOrgComponents, "dashboard-user", ct);
+
+                return Results.Ok(new
+                {
+                    imported = result.Imported,
+                    assignedFromOrg = result.AssignedFromOrg,
+                    skipped = result.Skipped,
+                    components = result.Components.Select(c => new { id = c.Id, name = c.Name, componentType = c.ComponentType }),
+                });
+            })
+            .WithName("ImportSystemAzureComponents");
+
+        // ─── Entra ID Discovery Endpoints (Feature 040 — US9) ───────────────
+
+        group.MapPost("/components/discover-entra", async (
+            Ato.Copilot.Agents.Compliance.Services.EntraIdDiscoveryService entraService,
+            Microsoft.Extensions.Options.IOptions<Ato.Copilot.Core.Configuration.FeatureOptions> featureOptions,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            if (!featureOptions.Value.EntraIdDiscoveryEnabled)
+                return Results.Json(new { error = "Entra ID discovery is disabled", errorCode = "FEATURE_DISABLED" }, statusCode: 403);
+
+            var result = await entraService.DiscoverUsersAndGroupsAsync(context, null, ct);
+            return Results.Ok(new
+            {
+                items = result.Items.Select(i => new
+                {
+                    entraObjectId = i.EntraObjectId,
+                    displayName = i.DisplayName,
+                    email = i.Email,
+                    kind = i.Kind,
+                    department = i.Department,
+                    jobTitle = i.JobTitle,
+                    alreadyImported = i.AlreadyImported,
+                }),
+                partialFailure = result.PartialFailure,
+                failureMessage = result.FailureMessage,
+            });
+        })
+        .WithName("DiscoverEntraIdUsers");
+
+        group.MapPost("/components/import-entra", async (
+            ImportEntraComponentsRequest body,
+            Microsoft.Extensions.Options.IOptions<Ato.Copilot.Core.Configuration.FeatureOptions> featureOptions,
+            ComponentService componentService,
+            CancellationToken ct) =>
+        {
+            if (!featureOptions.Value.EntraIdDiscoveryEnabled)
+                return Results.Json(new { error = "Entra ID discovery is disabled", errorCode = "FEATURE_DISABLED" }, statusCode: 403);
+
+            if (body.People == null || body.People.Count == 0)
+                return Results.BadRequest(new ErrorResponse { Error = "people is required", ErrorCode = "INVALID_INPUT" });
+
+            var result = await componentService.ImportEntraIdPeopleAsync(body.People, "dashboard-user", ct);
+            return Results.Ok(new { imported = result.Imported, skipped = result.Skipped });
+        })
+        .WithName("ImportEntraComponents");
+
+        // ─── Boundary Component Assignment Endpoints (Feature 040 — US3) ─────
+
+        group.MapGet("/systems/{systemId}/boundary-definitions/{boundaryId}/components", async (
+            string systemId,
+            string boundaryId,
+            string? search,
+            string? type,
+            string? scope,
+            int? page,
+            int? pageSize,
+            ComponentService componentService) =>
+            {
+                var query = new BoundaryComponentQuery
+                {
+                    Search = search,
+                    TypeFilter = type,
+                    ScopeFilter = scope,
+                    Page = page ?? 1,
+                    PageSize = pageSize ?? 50,
+                };
+                var result = await componentService.ListBoundaryComponentsAsync(boundaryId, query);
+                return Results.Ok(result);
+            })
+            .WithName("ListBoundaryComponents");
+
+        group.MapPost("/systems/{systemId}/boundary-definitions/{boundaryId}/components", async (
+            string systemId,
+            string boundaryId,
+            AssignComponentToBoundaryRequest request,
+            ComponentService componentService) =>
+            {
+                var (dto, error) = await componentService.AssignComponentToBoundaryAsync(
+                    boundaryId,
+                    request.ComponentId,
+                    request.IsInScope,
+                    request.ExclusionRationale,
+                    request.InheritanceProvider,
+                    request.CreatedBy ?? "dashboard");
+
+                if (error == "DUPLICATE_ASSIGNMENT")
+                    return Results.Conflict(new { error, message = "Component already assigned to this boundary." });
+                if (error == "RATIONALE_REQUIRED")
+                    return Results.BadRequest(new { error, message = "Exclusion rationale is required when component is excluded." });
+                if (error == "NOT_FOUND")
+                    return Results.NotFound(new { error, message = "Component not found." });
+
+                return Results.Created($"/systems/{systemId}/boundary-definitions/{boundaryId}/components/{dto!.AssignmentId}", dto);
+            })
+            .WithName("AssignComponentToBoundary");
+
+        group.MapPut("/systems/{systemId}/boundary-definitions/{boundaryId}/components/{assignmentId}", async (
+            string systemId,
+            string boundaryId,
+            string assignmentId,
+            UpdateBoundaryAssignmentRequest request,
+            ComponentService componentService) =>
+            {
+                var (dto, error) = await componentService.UpdateBoundaryAssignmentAsync(
+                    assignmentId,
+                    request.IsInScope,
+                    request.ExclusionRationale,
+                    request.InheritanceProvider,
+                    request.ModifiedBy ?? "dashboard");
+
+                if (error == "RATIONALE_REQUIRED")
+                    return Results.BadRequest(new { error, message = "Exclusion rationale is required when component is excluded." });
+                if (error == "NOT_FOUND")
+                    return Results.NotFound(new { error, message = "Assignment not found." });
+
+                return Results.Ok(dto);
+            })
+            .WithName("UpdateBoundaryAssignment");
+
+        group.MapDelete("/systems/{systemId}/boundary-definitions/{boundaryId}/components/{assignmentId}", async (
+            string systemId,
+            string boundaryId,
+            string assignmentId,
+            ComponentService componentService) =>
+            {
+                var removed = await componentService.RemoveComponentFromBoundaryAsync(assignmentId);
+                if (!removed)
+                    return Results.NotFound(new { error = "NOT_FOUND", message = "Assignment not found." });
+
+                return Results.Ok(new { deleted = true, componentRetained = true, message = "Assignment removed. Component remains in the library." });
+            })
+            .WithName("RemoveBoundaryComponent");
+
+        // ─── Boundary Lock Endpoints (Feature 040 — US3) ────────────────────
+
+        group.MapPost("/systems/{systemId}/boundary-definitions/{boundaryId}/lock", (
+            string systemId,
+            string boundaryId,
+            AcquireLockRequest request,
+            BoundaryLockService lockService) =>
+            {
+                var (acquired, entry) = lockService.AcquireLock(boundaryId, request.UserId, request.UserDisplayName);
+                var result = new
+                {
+                    locked = true,
+                    lockedBy = entry.DisplayName,
+                    lockedAt = entry.AcquiredAt.ToString("o"),
+                    expiresAt = entry.ExpiresAt.ToString("o"),
+                    message = acquired ? (string?)null : $"This boundary is currently being updated by {entry.DisplayName}.",
+                };
+
+                return acquired ? Results.Ok(result) : Results.Conflict(result);
+            })
+            .WithName("AcquireBoundaryLock");
+
+        group.MapDelete("/systems/{systemId}/boundary-definitions/{boundaryId}/lock", (
+            string systemId,
+            string boundaryId,
+            BoundaryLockService lockService) =>
+            {
+                lockService.ReleaseLock(boundaryId);
+                return Results.Ok(new { released = true });
+            })
+            .WithName("ReleaseBoundaryLock");
+
+        group.MapGet("/systems/{systemId}/boundary-definitions/{boundaryId}/lock", (
+            string systemId,
+            string boundaryId,
+            BoundaryLockService lockService) =>
+            {
+                var entry = lockService.GetLockStatus(boundaryId);
+                return Results.Ok(new
+                {
+                    locked = entry != null,
+                    lockedBy = entry?.DisplayName,
+                    lockedAt = entry?.AcquiredAt.ToString("o"),
+                    expiresAt = entry?.ExpiresAt.ToString("o"),
+                });
+            })
+            .WithName("GetBoundaryLockStatus");
+
         return app;
     }
 
@@ -5214,4 +5676,46 @@ public static class DashboardEndpoints
 
     private record SyncTicketRequest(
         string Direction = "push");
+
+    // ─── Feature 040: Component Discovery DTOs ──────────────────────────────
+
+    private record DiscoverAzureComponentsRequest(
+        string SubscriptionId,
+        string? ResourceGroupFilter = null,
+        string? ResourceTypeFilter = null,
+        string? SearchFilter = null,
+        string? Cursor = null);
+
+    private record ImportAzureResourceItem(
+        string ResourceId,
+        string Name,
+        string Type,
+        string ResourceGroup,
+        string Location);
+
+    private record ImportAzureComponentsRequest(
+        List<ImportAzureResourceItem> Resources);
+
+    private record ImportSystemAzureComponentsRequest(
+        List<ImportAzureResourceItem> Resources,
+        List<string>? AssignExistingOrgComponents = null);
+
+    // ─── Feature 040: Boundary Component Assignment DTOs ────────────────────
+
+    private record AssignComponentToBoundaryRequest(
+        string ComponentId,
+        bool IsInScope = true,
+        string? ExclusionRationale = null,
+        string? InheritanceProvider = null,
+        string? CreatedBy = null);
+
+    private record UpdateBoundaryAssignmentRequest(
+        bool IsInScope,
+        string? ExclusionRationale = null,
+        string? InheritanceProvider = null,
+        string? ModifiedBy = null);
+
+    private record AcquireLockRequest(
+        string UserId,
+        string UserDisplayName);
 }

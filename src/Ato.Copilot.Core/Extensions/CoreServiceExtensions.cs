@@ -242,42 +242,23 @@ public static class CoreServiceExtensions
     }
 
     /// <summary>
-    /// Registers <see cref="ArmClient"/> as a singleton with dual-cloud support
-    /// (AzureGovernment / AzureCloud). Uses <see cref="DefaultAzureCredential"/>
-    /// configured for the target cloud environment.
-    /// Thread-safe: ArmClient is designed for concurrent use.
+    /// Registers <see cref="ArmClientFactory"/> and a default <see cref="ArmClient"/>
+    /// singleton with dual-cloud support (AzureGovernment / AzureCloud).
+    /// The factory lazily creates clients for both clouds; the singleton resolves
+    /// to the configured default for backward compatibility with existing services.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">Application configuration.</param>
     private static void RegisterArmClient(IServiceCollection services, IConfiguration configuration)
     {
+        var cloudEnv = configuration.GetValue<string>("Gateway:Azure:CloudEnvironment")
+                       ?? "AzureGovernment";
+
+        // Factory: provides ArmClient instances for any cloud
         services.AddSingleton(sp =>
-        {
-            var cloudEnv = configuration.GetValue<string>("Gateway:Azure:CloudEnvironment")
-                           ?? "AzureGovernment";
+            new ArmClientFactory(cloudEnv, sp.GetRequiredService<ILogger<ArmClientFactory>>()));
 
-            var authorityHost = cloudEnv.Equals("AzureCloud", StringComparison.OrdinalIgnoreCase)
-                ? AzureAuthorityHosts.AzurePublicCloud
-                : AzureAuthorityHosts.AzureGovernment;
-
-            var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
-            {
-                AuthorityHost = authorityHost
-            });
-
-            var armEnvironment = cloudEnv.Equals("AzureCloud", StringComparison.OrdinalIgnoreCase)
-                ? ArmEnvironment.AzurePublicCloud
-                : ArmEnvironment.AzureGovernment;
-
-            var logger = sp.GetService<ILogger<ArmClient>>();
-            logger?.LogInformation(
-                "Initializing ArmClient for {CloudEnvironment} ({ArmEndpoint})",
-                cloudEnv, armEnvironment.Endpoint);
-
-            return new ArmClient(credential, default, new ArmClientOptions
-            {
-                Environment = armEnvironment
-            });
-        });
+        // Default singleton ArmClient: delegates to the factory's default for backward compat
+        services.AddSingleton(sp => sp.GetRequiredService<ArmClientFactory>().GetDefault());
     }
 }

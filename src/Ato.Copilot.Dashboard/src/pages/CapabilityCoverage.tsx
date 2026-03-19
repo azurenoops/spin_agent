@@ -36,7 +36,7 @@ export default function CapabilityCoverage() {
 
   if (!data) {
     return (
-      <div className="p-6 text-center text-gray-500">Loading capability coverage...</div>
+      <div className="p-6 text-center text-gray-500">Loading system capabilities...</div>
     );
   }
 
@@ -47,9 +47,9 @@ export default function CapabilityCoverage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Capability Coverage</h2>
+          <h2 className="text-2xl font-bold text-gray-900">System Capabilities</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Maps organizational capabilities to NIST SP 800-53 controls, showing which security requirements are addressed by each capability.
+            View and manage the org-wide capabilities mapped to this system, along with their narrative coverage and linked components.
           </p>
         </div>
         <button

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
 using Azure.Identity;
+using Azure.ResourceManager;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Extensions;
@@ -606,6 +607,9 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
 
         IF COL_LENGTH('SystemComponents', 'Email') IS NULL
             ALTER TABLE SystemComponents ADD Email NVARCHAR(200) NULL;
+
+        IF COL_LENGTH('SystemComponents', 'RmfRoleName') IS NULL
+            ALTER TABLE SystemComponents ADD RmfRoleName NVARCHAR(50) NULL;
         """;
 
     try
@@ -703,6 +707,57 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     {
         logger.LogWarning(ex, "Could not apply SSP Export schema — non-fatal");
     }
+
+    // Feature 040: Component-Centric Boundary Model — add Azure fields + ComponentId FK
+    const string feature040Sql = """
+        -- Azure resource fields on SystemComponents
+        IF COL_LENGTH('SystemComponents', 'AzureResourceId') IS NULL
+            ALTER TABLE SystemComponents ADD AzureResourceId NVARCHAR(500) NULL;
+        IF COL_LENGTH('SystemComponents', 'AzureResourceType') IS NULL
+            ALTER TABLE SystemComponents ADD AzureResourceType NVARCHAR(200) NULL;
+        IF COL_LENGTH('SystemComponents', 'AzureResourceGroup') IS NULL
+            ALTER TABLE SystemComponents ADD AzureResourceGroup NVARCHAR(200) NULL;
+        IF COL_LENGTH('SystemComponents', 'AzureLocation') IS NULL
+            ALTER TABLE SystemComponents ADD AzureLocation NVARCHAR(100) NULL;
+
+        -- Index for dedup/linkage on AzureResourceId
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_SystemComponent_AzureResourceId')
+            CREATE INDEX IX_SystemComponent_AzureResourceId ON SystemComponents (AzureResourceId);
+
+        -- ComponentId FK on Findings
+        IF COL_LENGTH('Findings', 'ComponentId') IS NULL
+            ALTER TABLE Findings ADD ComponentId NVARCHAR(450) NULL;
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ComplianceFinding_ComponentId')
+            CREATE INDEX IX_ComplianceFinding_ComponentId ON Findings (ComponentId);
+
+        -- BoundaryComponentAssignment table
+        IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'BoundaryComponentAssignments')
+        CREATE TABLE BoundaryComponentAssignments (
+            Id NVARCHAR(450) NOT NULL PRIMARY KEY,
+            SystemComponentId NVARCHAR(450) NOT NULL,
+            AuthorizationBoundaryDefinitionId NVARCHAR(450) NOT NULL,
+            IsInScope BIT NOT NULL DEFAULT 1,
+            ExclusionRationale NVARCHAR(1000) NULL,
+            InheritanceProvider NVARCHAR(500) NULL,
+            CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+            CreatedBy NVARCHAR(200) NULL
+        );
+
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_ComponentBoundary')
+            CREATE UNIQUE INDEX IX_BCA_ComponentBoundary ON BoundaryComponentAssignments (SystemComponentId, AuthorizationBoundaryDefinitionId);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_BoundaryId')
+            CREATE INDEX IX_BCA_BoundaryId ON BoundaryComponentAssignments (AuthorizationBoundaryDefinitionId);
+        """;
+
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(feature040Sql, ct);
+        logger.LogInformation("Verified Feature 040 schema (Component-Centric Boundary)");
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Could not apply Feature 040 schema — non-fatal");
+    }
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -733,6 +788,9 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     services.AddScoped<Ato.Copilot.Core.Services.TodoService>();
     services.AddScoped<Ato.Copilot.Core.Services.CapabilityService>();
     services.AddScoped<Ato.Copilot.Core.Services.ComponentService>();
+    services.AddSingleton<Ato.Copilot.Core.Services.BoundaryLockService>();
+    services.AddHostedService<Ato.Copilot.Core.Services.BoundaryMigrationService>();
+    services.AddScoped<Ato.Copilot.Agents.Compliance.Services.EntraIdDiscoveryService>();
     services.AddSingleton<Ato.Copilot.Core.Services.NarrativeTemplateService>(sp =>
     {
         var chatClient = sp.GetService<Microsoft.Extensions.AI.IChatClient>();
@@ -745,7 +803,12 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
 
     // Boundary services (Feature 033)
     services.AddScoped<Ato.Copilot.Core.Services.BoundaryDefinitionService>();
-    services.AddSingleton<Ato.Copilot.Agents.Compliance.Services.AzureResourceDiscoveryService>();
+    services.AddSingleton(sp =>
+        new Ato.Copilot.Agents.Compliance.Services.AzureResourceDiscoveryService(
+            sp.GetRequiredService<ArmClient>(),
+            sp.GetRequiredService<Ato.Copilot.Core.Services.ArmClientFactory>(),
+            sp.GetRequiredService<ILogger<Ato.Copilot.Agents.Compliance.Services.AzureResourceDiscoveryService>>(),
+            sp.GetRequiredService<IDbContextFactory<Ato.Copilot.Core.Data.Context.AtoCopilotContext>>()));
 
     // Roadmap services (Feature 031)
     services.AddScoped<Ato.Copilot.Core.Interfaces.Roadmap.IRoadmapService, Ato.Copilot.Core.Services.RoadmapService>();
@@ -757,6 +820,9 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     // SSP Export services (Feature 037)
     services.Configure<Ato.Copilot.Core.Configuration.ExportSettings>(
         configuration.GetSection(Ato.Copilot.Core.Configuration.ExportSettings.SectionName));
+    // Feature flags (Feature 040)
+    services.Configure<Ato.Copilot.Core.Configuration.FeatureOptions>(
+        configuration.GetSection("Features"));
     services.AddSingleton(System.Threading.Channels.Channel.CreateBounded<Ato.Copilot.Core.Dtos.Dashboard.SspExportJob>(
         new System.Threading.Channels.BoundedChannelOptions(100) { FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait }));
     services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.ISspExportService,

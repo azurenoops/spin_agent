@@ -83,7 +83,7 @@ services:
     volumes:
       - ato-logs:/app/logs
       # Mount Azure CLI creds for DefaultAzureCredential in local Docker
-      - ${HOME}/.azure:/home/atocopilot/.azure:ro
+      - ${HOME}/.azure:/home/atocopilot/.azure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s

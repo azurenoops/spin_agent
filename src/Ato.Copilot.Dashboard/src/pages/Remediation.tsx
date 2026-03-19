@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { useSettings } from '../hooks/useSettings';
@@ -6,7 +6,9 @@ import { useSystemContext } from '../components/layout/SystemLayout';
 import { getRemediationSummary, getRemediationTasks, moveTask } from '../api/remediation';
 import { linkTask as poamLinkTask } from '../api/poam';
 import { listPoamItems } from '../api/poam';
+import { getDeviations } from '../api/deviations';
 import type { RemediationSummary, RemediationTask } from '../api/remediation';
+import type { DeviationListItem } from '../types/dashboard';
 import SyncIndicator from '../components/poam/SyncIndicator';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -70,8 +72,23 @@ export default function Remediation() {
   const [selectedTask, setSelectedTask] = useState<RemediationTask | null>(null);
   const [linkPickerTask, setLinkPickerTask] = useState<RemediationTask | null>(null);
   const [linkPoamSearch, setLinkPoamSearch] = useState('');
-  const [linkPoamResults, setLinkPoamResults] = useState<{ id: string; controlId: string; weakness: string; status: string }[]>([]);
+  const [linkPoamResults, setLinkPoamResults] = useState<{ id: string; controlId: string; weakness: string; status: string; hasTask: boolean }[]>([]);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  // Deviation map: poamEntryId → deviation info for badge display
+  const [deviationsByPoam, setDeviationsByPoam] = useState<Map<string, DeviationListItem>>(new Map());
+  useEffect(() => {
+    getDeviations(systemId, { status: 'Approved', pageSize: 500 })
+      .then(resp => {
+        const map = new Map<string, DeviationListItem>();
+        for (const d of resp.items) {
+          if (d.poamEntryId) map.set(d.poamEntryId, d);
+        }
+        setDeviationsByPoam(map);
+      })
+      .catch(() => {});
+  }, [systemId]);
 
   // Main data — always scoped to current system
   const pollInterval = settings.autoRefreshInterval || undefined;
@@ -181,11 +198,13 @@ export default function Remediation() {
   // POA&M search for Link to POA&M picker
   const handleLinkPoamSearch = async (query: string) => {
     setLinkPoamSearch(query);
+    setLinkError(null);
     if (query.length < 2) { setLinkPoamResults([]); return; }
     try {
       const resp = await listPoamItems(systemId, { search: query, status: 'Ongoing', pageSize: 10 });
       setLinkPoamResults(resp.items.map(p => ({
         id: p.id, controlId: p.controlId, weakness: p.weakness, status: p.status,
+        hasTask: !!p.remediationTaskId,
       })));
     } catch {
       setLinkPoamResults([]);
@@ -194,14 +213,18 @@ export default function Remediation() {
 
   const handleLinkPoamToTask = async (poamId: string, taskId: string) => {
     setLinkLoading(true);
+    setLinkError(null);
     try {
       await poamLinkTask(poamId, { taskId });
       setLinkPickerTask(null);
       setSelectedTask(null);
       refreshTasks();
       refresh();
-    } catch {
-      // Silent — will refresh
+    } catch (err: unknown) {
+      const resp = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
+        : null;
+      setLinkError(resp || (err instanceof Error ? err.message : 'Failed to link POA&M'));
     } finally {
       setLinkLoading(false);
     }
@@ -360,6 +383,7 @@ export default function Remediation() {
                             ) : formatDate(t.dueDate)}
                           </td>
                           <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1">
                             {t.poamItemId ? (
                               <Link
                                 to={`/systems/${systemId}/poam?detail=${t.poamItemId}`}
@@ -371,6 +395,17 @@ export default function Remediation() {
                                 POA&M
                               </Link>
                             ) : <span className="text-xs text-gray-400">—</span>}
+                            {t.poamItemId && deviationsByPoam.has(t.poamItemId) && (() => {
+                              const dev = deviationsByPoam.get(t.poamItemId!)!;
+                              const label = dev.deviationType === 'RiskAcceptance' ? 'Risk Accepted' : dev.deviationType === 'Waiver' ? 'Waiver' : 'FP';
+                              const colors = dev.deviationType === 'Waiver' ? 'bg-amber-100 text-amber-700' : dev.deviationType === 'RiskAcceptance' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700';
+                              return (
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${colors}`}>
+                                  {label}
+                                </span>
+                              );
+                            })()}
+                            </div>
                           </td>
                           <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                             <button
@@ -437,8 +472,21 @@ export default function Remediation() {
                                   POA&M
                                 </span>
                               )}
+                              {t.poamItemId && deviationsByPoam.has(t.poamItemId) && (() => {
+                                const dev = deviationsByPoam.get(t.poamItemId!)!;
+                                const label = dev.deviationType === 'RiskAcceptance' ? 'Risk Accepted' : dev.deviationType === 'Waiver' ? 'Waiver' : 'False Positive';
+                                const colors = dev.deviationType === 'Waiver' ? 'bg-amber-100 text-amber-700' : dev.deviationType === 'RiskAcceptance' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700';
+                                return (
+                                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold ${colors}`} title={`Deviation: ${label}`}>
+                                    {label}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <p className="text-xs font-medium text-gray-800 line-clamp-2">{t.title}</p>
+                            {t.componentName && (
+                              <p className="text-[10px] text-blue-600 mt-0.5 truncate" title={`Component: ${t.componentName}`}>⬡ {t.componentName}</p>
+                            )}
                             <div className="mt-2 flex items-center justify-between text-[10px] text-gray-500">
                               <span className="font-mono">{t.controlId}</span>
                               {t.isOverdue && <span className="text-red-600 font-medium">Overdue</span>}
@@ -522,6 +570,12 @@ export default function Remediation() {
                     <p className="text-xs text-gray-500">Status</p>
                     <StatusBadge status={selectedTask.status} />
                   </div>
+                  {selectedTask.componentName && (
+                    <div className="rounded-md border border-blue-100 bg-blue-50 p-3 col-span-2">
+                      <p className="text-xs text-blue-500">Component</p>
+                      <p className="text-sm font-medium text-blue-800">⬡ {selectedTask.componentName}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* POA&M Sync Indicator (T065) */}
@@ -545,7 +599,7 @@ export default function Remediation() {
                     <div className="space-y-2">
                       <SyncIndicator linked={false} />
                       <button
-                        onClick={() => { setLinkPickerTask(selectedTask); setLinkPoamSearch(''); setLinkPoamResults([]); }}
+                        onClick={() => { setLinkPickerTask(selectedTask); setLinkPoamSearch(''); setLinkPoamResults([]); setLinkError(null); }}
                         className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
                       >
                         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -585,6 +639,11 @@ export default function Remediation() {
             <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
               <h3 className="mb-4 text-lg font-bold text-gray-900">Link to POA&M</h3>
               <p className="mb-3 text-sm text-gray-500">Search for an open POA&M item to link to task {linkPickerTask.taskNumber}.</p>
+              {linkError && (
+                <div className="mb-3 rounded-md bg-red-50 border border-red-200 p-2.5">
+                  <p className="text-xs text-red-700">{linkError}</p>
+                </div>
+              )}
               <input
                 type="text"
                 placeholder="Search by control ID or weakness..."
@@ -596,18 +655,32 @@ export default function Remediation() {
                 {linkPoamResults.length === 0 && linkPoamSearch.length >= 2 && (
                   <p className="text-sm text-gray-400 text-center py-4">No matching POA&M items found.</p>
                 )}
+                {linkPoamResults.filter(p => !p.hasTask).length === 0 && linkPoamResults.length > 0 && (
+                  <p className="text-sm text-amber-600 text-center py-2">All matching POA&M items are already linked to tasks.</p>
+                )}
                 {linkPoamResults.map(p => (
                   <button
                     key={p.id}
-                    onClick={() => void handleLinkPoamToTask(p.id, linkPickerTask.id)}
-                    disabled={linkLoading}
-                    className="w-full flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-blue-50 disabled:opacity-50"
+                    onClick={() => !p.hasTask && void handleLinkPoamToTask(p.id, linkPickerTask.id)}
+                    disabled={linkLoading || p.hasTask}
+                    className={`w-full flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
+                      p.hasTask
+                        ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                        : 'border-gray-200 hover:bg-blue-50 disabled:opacity-50'
+                    }`}
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs text-gray-600">{p.controlId}</span>
                       <span className="text-gray-700 truncate max-w-[200px]">{p.weakness}</span>
                     </div>
-                    <StatusBadge status={p.status} />
+                    <div className="flex items-center gap-1.5">
+                      <StatusBadge status={p.status} />
+                      {p.hasTask && (
+                        <span className="inline-flex items-center rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                          Linked
+                        </span>
+                      )}
+                    </div>
                   </button>
                 ))}
               </div>

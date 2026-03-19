@@ -47,13 +47,24 @@
 
 Expected result: System entity created with RMF phase = Prepare. You receive the system ID for all subsequent commands.
 
-### 2. Define the Authorization Boundary
+### 2. Identify System Components
+
+Navigate to the system's **Components** page in the dashboard and add your system assets using the People, Places, and Things model. For Azure-hosted systems, click **Discover from Azure** to auto-import cloud resources.
+
+> **"Show components for system {id}"**
+
+Expected result: Component inventory listing all People, Places, and Things for the system.
+
+!!! info "Why components first?"
+    Per NIST SP 800-37 Rev 2 (Tasks P-16 → P-17), asset identification precedes boundary definition. Inventory your components first, then define the boundary around them.
+
+### 3. Define the Authorization Boundary
 
 > **"Define the authorization boundary for system {id} — add the production VMs, SQL database, and Key Vault"**
 
 Expected result: Azure resource IDs added to the authorization boundary. ATO Copilot confirms the resource count.
 
-### 3. Assign RMF Roles
+### 4. Assign RMF Roles
 
 > **"Assign Jane Smith as ISSO and Bob Jones as SCA for system {id}"**
 

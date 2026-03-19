@@ -21,11 +21,15 @@ This guide walks an Information System Security Manager (ISSM) through the syste
 
 ```
 1. Register System
-2. Define Authorization Boundary
-3. Assign RMF Roles
-4. Advance to Categorize Phase
-5. (Continue through RMF lifecycle...)
+2. Identify System Components (People, Places, Things)
+3. Define Authorization Boundary
+4. Assign RMF Roles
+5. Advance to Categorize Phase
+6. (Continue through RMF lifecycle...)
 ```
+
+!!! info "NIST SP 800-37 Rev 2 Task Order"
+    Per Tasks P-16 and P-17, asset identification (Components) precedes authorization boundary definition. Populate your component inventory first, then define the boundary around those identified assets.
 
 ---
 
@@ -55,7 +59,22 @@ The system starts in the **Prepare** phase. Note the returned `id` — you'll ne
 
 ---
 
-## Step 2: Define the Authorization Boundary
+## Step 2: Identify System Components
+
+Before defining the authorization boundary, inventory the system's components using the **People, Places, and Things** model. Navigate to the system-level **Components** page in the dashboard or use MCP tools:
+
+- **People** — Security roles and personnel (ISSM, ISSO, SCA, System Admin)
+- **Places** — Locations where system components reside (Azure Gov East, Data Center)
+- **Things** — Technical assets and tools (Entra ID, Defender, Key Vault, SQL Database)
+
+Add components via the dashboard at `/systems/{systemId}/components` or use the MCP API. For Azure-hosted systems, use **Discover from Azure** to auto-import cloud resources as "Thing" components.
+
+!!! tip "Component-Assessment Linkage"
+    Azure-backed components automatically link to compliance findings by matching Azure resource IDs. Per-component risk summaries (open finding count, severity, overdue remediations) appear on the **Assessment detail view** and **Remediation page** — not on the Components page itself.
+
+---
+
+## Step 3: Define the Authorization Boundary
 
 Add Azure resources to the system's authorization boundary:
 
@@ -84,7 +103,7 @@ Parameters:
 
 ---
 
-## Step 3: Assign RMF Roles
+## Step 4: Assign RMF Roles
 
 Assign required personnel roles:
 
@@ -116,7 +135,7 @@ Parameters:
 
 ---
 
-## Step 4: Advance to Categorize
+## Step 5: Advance to Categorize
 
 Once the system has at least one role assigned and at least one boundary resource, you can advance to the Categorize phase:
 
@@ -170,7 +189,7 @@ Parameters:
 
 ---
 
-## Step 5: View System Status
+## Step 6: View System Status
 
 At any time, retrieve the full system status:
 

@@ -11,8 +11,15 @@ import {
   type OrgComponentListResponse,
   type ComponentImpactPreview,
 } from '../api/components';
+import {
+  discoverAzureResourcesForComponents,
+  importAzureComponents,
+  discoverEntraIdUsers,
+  importEntraIdPeople,
+} from '../api/azureDiscovery';
+import type { EntraDiscoveryItem } from '../api/azureDiscovery';
 import { getCapabilities } from '../api/capabilities';
-import type { CreateComponentRequest, ComponentType, ComponentStatus, SecurityCapabilityDto } from '../types/dashboard';
+import type { CreateComponentRequest, ComponentType, ComponentStatus, SecurityCapabilityDto, DiscoveredResource } from '../types/dashboard';
 
 const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing', 'Policy'];
 const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing'];
@@ -37,6 +44,110 @@ export default function ComponentLibrary() {
   const [impactPreview, setImpactPreview] = useState<ComponentImpactPreview | null>(null);
   const [pendingUpdate, setPendingUpdate] = useState<CreateComponentRequest | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  // ─── Azure Discovery State (Feature 040) ────────────────────────────────
+  const [showDiscovery, setShowDiscovery] = useState(false);
+  const [subscriptionId, setSubscriptionId] = useState('');
+  const [discoveredResources, setDiscoveredResources] = useState<DiscoveredResource[]>([]);
+  const [failedGroups, setFailedGroups] = useState<string[]>([]);
+  const [selectedForImport, setSelectedForImport] = useState<Set<string>>(new Set());
+  const [discovering, setDiscovering] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+
+  // ─── Entra ID Discovery State (Feature 040 — US9) ──────────────────────
+  const [showEntraDiscovery, setShowEntraDiscovery] = useState(false);
+  const [entraItems, setEntraItems] = useState<EntraDiscoveryItem[]>([]);
+  const [selectedEntra, setSelectedEntra] = useState<Set<string>>(new Set());
+  const [entraDiscovering, setEntraDiscovering] = useState(false);
+  const [entraImporting, setEntraImporting] = useState(false);
+  const [entraError, setEntraError] = useState<string | null>(null);
+
+  const handleDiscover = async () => {
+    if (!subscriptionId.trim()) return;
+    setDiscovering(true);
+    setDiscoveryError(null);
+    try {
+      const result = await discoverAzureResourcesForComponents({ subscriptionId: subscriptionId.trim() });
+      setDiscoveredResources(result.resources);
+      setFailedGroups(result.failedResourceGroups);
+      setSelectedForImport(new Set(
+        result.resources.filter(r => !r.alreadyImported).map(r => r.resourceId)
+      ));
+    } catch (err: any) {
+      setDiscoveryError(err?.response?.data?.error ?? 'Discovery failed');
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  const handleImportSelected = async () => {
+    const toImport = discoveredResources.filter(r => selectedForImport.has(r.resourceId) && !r.alreadyImported);
+    if (toImport.length === 0) return;
+    setImporting(true);
+    try {
+      await importAzureComponents({
+        resources: toImport.map(r => ({
+          resourceId: r.resourceId, name: r.name, type: r.type,
+          resourceGroup: r.resourceGroup, location: r.location,
+        })),
+      });
+      setShowDiscovery(false);
+      setDiscoveredResources([]);
+      refresh();
+    } catch (err: any) {
+      setDiscoveryError(err?.response?.data?.error ?? 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleEntraDiscover = async () => {
+    setEntraDiscovering(true);
+    setEntraError(null);
+    try {
+      const result = await discoverEntraIdUsers();
+      setEntraItems(result.items);
+      setSelectedEntra(new Set(
+        result.items.filter(i => !i.alreadyImported).map(i => i.entraObjectId)
+      ));
+      if (result.partialFailure) {
+        setEntraError(result.failureMessage ?? 'Some Entra ID data could not be fetched');
+      }
+    } catch (err: any) {
+      const code = err?.response?.data?.errorCode;
+      if (code === 'FEATURE_DISABLED') {
+        setEntraError('Entra ID discovery is disabled. Enable it in Features configuration.');
+      } else {
+        setEntraError(err?.response?.data?.error ?? 'Entra ID discovery failed');
+      }
+    } finally {
+      setEntraDiscovering(false);
+    }
+  };
+
+  const handleEntraImport = async () => {
+    const toImport = entraItems.filter(i => selectedEntra.has(i.entraObjectId) && !i.alreadyImported);
+    if (toImport.length === 0) return;
+    setEntraImporting(true);
+    try {
+      await importEntraIdPeople({
+        people: toImport.map(i => ({
+          entraObjectId: i.entraObjectId,
+          displayName: i.displayName,
+          email: i.email,
+          kind: i.kind,
+        })),
+      });
+      setShowEntraDiscovery(false);
+      setEntraItems([]);
+      refresh();
+    } catch (err: any) {
+      setEntraError(err?.response?.data?.error ?? 'Import failed');
+    } finally {
+      setEntraImporting(false);
+    }
+  };
 
   const fetcher = useCallback(
     () => listComponents({
@@ -143,13 +254,29 @@ export default function ComponentLibrary() {
               Org-wide People, Places, and Things — assign to systems with boundary scope
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => { setShowCreate(true); setFormError(null); }}
-            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            + New Component
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowEntraDiscovery(true); setEntraError(null); }}
+              className="inline-flex items-center rounded-md border border-indigo-600 px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+            >
+              Discover from Entra ID
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowDiscovery(true); setDiscoveryError(null); }}
+              className="inline-flex items-center rounded-md border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
+            >
+              Discover from Azure
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowCreate(true); setFormError(null); }}
+              className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              + New Component
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -333,6 +460,230 @@ export default function ComponentLibrary() {
                 >
                   {submitting ? 'Processing...' : (pendingDeleteId ? 'Confirm Delete' : 'Confirm & Save')}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Azure Discovery Dialog (Feature 040) */}
+        {showDiscovery && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="max-h-[80vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Discover from Azure</h3>
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={subscriptionId}
+                  onChange={(e) => setSubscriptionId(e.target.value)}
+                  placeholder="Azure Subscription ID"
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleDiscover}
+                  disabled={discovering || !subscriptionId.trim()}
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {discovering ? 'Scanning...' : 'Scan'}
+                </button>
+              </div>
+              {discoveryError && (
+                <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{discoveryError}</div>
+              )}
+              {failedGroups.length > 0 && (
+                <div className="mb-3 rounded-md bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-800">
+                  Discovery partially failed for: {failedGroups.join(', ')}.
+                  <button onClick={handleDiscover} className="ml-2 underline">Retry</button>
+                </div>
+              )}
+              {discoveredResources.length > 0 && (
+                <>
+                  <div className="mb-2 text-sm text-gray-600">
+                    {discoveredResources.length} resource{discoveredResources.length !== 1 ? 's' : ''} found
+                    ({selectedForImport.size} selected for import)
+                  </div>
+                  <div className="max-h-64 overflow-y-auto rounded-md border border-gray-200">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left w-8">
+                            <input
+                              type="checkbox"
+                              checked={selectedForImport.size === discoveredResources.filter(r => !r.alreadyImported).length}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedForImport(new Set(discoveredResources.filter(r => !r.alreadyImported).map(r => r.resourceId)));
+                                } else {
+                                  setSelectedForImport(new Set());
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                          </th>
+                          <th className="px-3 py-2 text-left">Name</th>
+                          <th className="px-3 py-2 text-left">Type</th>
+                          <th className="px-3 py-2 text-left">Resource Group</th>
+                          <th className="px-3 py-2 text-left">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {discoveredResources.map((r) => (
+                          <tr key={r.resourceId} className={r.alreadyImported ? 'bg-gray-50 text-gray-400' : ''}>
+                            <td className="px-3 py-2">
+                              {r.alreadyImported ? (
+                                <span className="text-xs text-green-600">Imported</span>
+                              ) : (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedForImport.has(r.resourceId)}
+                                  onChange={(e) => {
+                                    const next = new Set(selectedForImport);
+                                    e.target.checked ? next.add(r.resourceId) : next.delete(r.resourceId);
+                                    setSelectedForImport(next);
+                                  }}
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                              )}
+                            </td>
+                            <td className="px-3 py-2 font-medium">{r.name}</td>
+                            <td className="px-3 py-2 text-gray-500">{r.type}</td>
+                            <td className="px-3 py-2 text-gray-500">{r.resourceGroup}</td>
+                            <td className="px-3 py-2">
+                              {r.alreadyImported ? (
+                                <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 border border-green-200">Already imported</span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 border border-blue-200">New</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  onClick={() => { setShowDiscovery(false); setDiscoveredResources([]); }}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                {discoveredResources.length > 0 && (
+                  <button
+                    onClick={handleImportSelected}
+                    disabled={importing || selectedForImport.size === 0}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {importing ? 'Importing...' : `Import ${selectedForImport.size} Component${selectedForImport.size !== 1 ? 's' : ''}`}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Entra ID Discovery Dialog (Feature 040 — US9) */}
+        {showEntraDiscovery && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="max-h-[80vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Discover from Entra ID</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Discover users and security groups from Microsoft Entra ID to import as Person components.
+              </p>
+              {entraItems.length === 0 && !entraDiscovering && (
+                <button
+                  onClick={handleEntraDiscover}
+                  disabled={entraDiscovering}
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 mb-4"
+                >
+                  {entraDiscovering ? 'Discovering...' : 'Scan Entra ID'}
+                </button>
+              )}
+              {entraError && (
+                <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{entraError}</div>
+              )}
+              {entraItems.length > 0 && (
+                <>
+                  <div className="mb-2 text-sm text-gray-600">
+                    {entraItems.length} user/group{entraItems.length !== 1 ? 's' : ''} found
+                    ({selectedEntra.size} selected for import)
+                  </div>
+                  <div className="max-h-64 overflow-y-auto rounded-md border border-gray-200">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left w-8">
+                            <input
+                              type="checkbox"
+                              checked={selectedEntra.size === entraItems.filter(i => !i.alreadyImported).length && selectedEntra.size > 0}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedEntra(new Set(entraItems.filter(i => !i.alreadyImported).map(i => i.entraObjectId)));
+                                } else {
+                                  setSelectedEntra(new Set());
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                          </th>
+                          <th className="px-3 py-2 text-left">Name</th>
+                          <th className="px-3 py-2 text-left">Email</th>
+                          <th className="px-3 py-2 text-left">Kind</th>
+                          <th className="px-3 py-2 text-left">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {entraItems.map((i) => (
+                          <tr key={i.entraObjectId} className={i.alreadyImported ? 'bg-gray-50 text-gray-400' : ''}>
+                            <td className="px-3 py-2">
+                              {i.alreadyImported ? (
+                                <span className="text-xs text-green-600">Imported</span>
+                              ) : (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedEntra.has(i.entraObjectId)}
+                                  onChange={(e) => {
+                                    const next = new Set(selectedEntra);
+                                    e.target.checked ? next.add(i.entraObjectId) : next.delete(i.entraObjectId);
+                                    setSelectedEntra(next);
+                                  }}
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                              )}
+                            </td>
+                            <td className="px-3 py-2 font-medium">{i.displayName}</td>
+                            <td className="px-3 py-2 text-gray-500">{i.email ?? '—'}</td>
+                            <td className="px-3 py-2 text-gray-500">{i.kind}</td>
+                            <td className="px-3 py-2">
+                              {i.alreadyImported ? (
+                                <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 border border-green-200">Already imported</span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700 border border-indigo-200">New</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  onClick={() => { setShowEntraDiscovery(false); setEntraItems([]); }}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                {entraItems.length > 0 && (
+                  <button
+                    onClick={handleEntraImport}
+                    disabled={entraImporting || selectedEntra.size === 0}
+                    className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {entraImporting ? 'Importing...' : `Import ${selectedEntra.size} Person${selectedEntra.size !== 1 ? 's' : ''}`}
+                  </button>
+                )}
               </div>
             </div>
           </div>
