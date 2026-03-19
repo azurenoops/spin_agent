@@ -1232,3 +1232,79 @@ One new field added to support bi-directional Kanban sync:
 | ItemStatus | NotStarted, InProgress, Complete |
 | GapType | Unmapped, PartiallyImplemented, NotAssessed |
 | ItemSeverity | Critical, High, Medium |
+
+---
+
+## Evidence Repository (Feature 038)
+
+### EvidenceArtifact
+
+Stores metadata and storage references for user-uploaded and automated compliance evidence files.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID |
+| RegisteredSystemId | string (FK) | → RegisteredSystem (cascade delete) |
+| ControlImplementationId | string? (FK) | → ControlImplementation (set null on delete) |
+| SecurityCapabilityId | string? (FK) | → SecurityCapability (set null on delete) |
+| FileName | string (255) | Original file name |
+| ContentType | string (100) | MIME type |
+| FileSizeBytes | long | File size |
+| StoragePath | string (500) | Path in storage provider |
+| Description | string? (2000) | User description |
+| ArtifactCategory | ArtifactCategory | Category enum |
+| CollectionMethod | CollectionMethod | How evidence was collected |
+| ContentHash | string (64) | SHA-256 hex hash |
+| UploadedBy | string (200) | Identity of uploader |
+| UploadedAt | DateTime | UTC upload timestamp |
+| IsDeleted | bool | Soft-delete flag |
+| DeletedBy | string? | Identity of deleter |
+| DeletedAt | DateTime? | UTC deletion timestamp |
+
+### EvidenceVersion
+
+Preserves old file versions when evidence is replaced. Files are retained until `PurgeAfter`, then deleted by the background purge service.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Id | string (PK) | GUID |
+| EvidenceArtifactId | string (FK) | → EvidenceArtifact (cascade delete) |
+| FileName | string (255) | File name at time of replacement |
+| StoragePath | string (500) | Storage path of old file |
+| FileSizeBytes | long | File size |
+| ContentHash | string (64) | SHA-256 hex hash |
+| ReplacedBy | string (200) | Identity of replacer |
+| ReplacedAt | DateTime | UTC replacement timestamp |
+| PurgeAfter | DateTime | File retained until this date |
+| IsFilePurged | bool | True after file deleted from storage |
+
+### Enumerations
+
+| Enum | Values |
+|------|--------|
+| ArtifactCategory | Screenshot, ScanResult, ConfigurationExport, PolicyDocument, AuditLog, TestResult, Other |
+| CollectionMethod | Manual, Automated, Scripted, ApiCollection |
+
+### Relationships
+
+```
+RegisteredSystem ||--o{ EvidenceArtifact : "has"
+ControlImplementation |o--o{ EvidenceArtifact : "evidenced by"
+SecurityCapability |o--o{ EvidenceArtifact : "evidenced by"
+EvidenceArtifact ||--o{ EvidenceVersion : "has versions"
+```
+
+### Allowed File Types
+
+| Extension | MIME Types |
+|-----------|-----------|
+| .png | image/png |
+| .jpg, .jpeg | image/jpeg |
+| .pdf | application/pdf |
+| .csv | text/csv |
+| .xlsx | application/vnd.openxmlformats-officedocument.spreadsheetml.sheet |
+| .docx | application/vnd.openxmlformats-officedocument.wordprocessingml.document |
+| .json | application/json |
+| .xml | application/xml, text/xml |
+| .txt | text/plain |
+| .zip | application/zip |

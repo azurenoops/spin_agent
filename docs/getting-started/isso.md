@@ -76,6 +76,7 @@ Beyond narrative authoring and Watch monitoring, ISSOs can also:
 - **Track SSP completeness** — Monitor overall SSP readiness percentage (`compliance_ssp_completeness`)
 - **Manage narrative governance** — View version history, diff changes, roll back edits, and submit narratives for ISSM approval (`compliance_narrative_history`, `compliance_narrative_diff`, `compliance_rollback_narrative`, `compliance_submit_narrative`, `compliance_batch_submit_narratives`)
 - **Manage HW/SW inventory** — Register hardware and software, auto-seed from boundary, check completeness, and export to eMASS Excel (`inventory_add_item`, `inventory_auto_seed`, `inventory_completeness`, `inventory_export`)
+- **Upload compliance evidence** — Navigate to a control narrative in the dashboard and click **Attach Evidence** to upload screenshots, scan results, or configuration exports. Use the **Evidence** page to browse all evidence for a system, search and filter by category, and review file details with integrity hashes
 
 ---
 

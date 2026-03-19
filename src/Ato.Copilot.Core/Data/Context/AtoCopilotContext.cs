@@ -269,6 +269,14 @@ public class AtoCopilotContext : DbContext
     /// <summary>Custom DOCX templates for SSP document generation.</summary>
     public DbSet<SspTemplate> SspTemplates => Set<SspTemplate>();
 
+    // ─── Evidence Repository (Feature 038) ───────────────────────────────────
+
+    /// <summary>User-uploaded evidence files attached to control implementations or capabilities.</summary>
+    public DbSet<EvidenceArtifact> EvidenceArtifacts => Set<EvidenceArtifact>();
+
+    /// <summary>Immutable version snapshots created when evidence artifacts are replaced.</summary>
+    public DbSet<EvidenceVersion> EvidenceVersions => Set<EvidenceVersion>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -2248,6 +2256,48 @@ public class AtoCopilotContext : DbContext
 
             entity.HasIndex(d => new { d.RegisteredSystemId, d.IsResolved })
                 .HasDatabaseName("IX_DeferredPrerequisite_System_Resolved");
+        });
+
+        // ─── EvidenceArtifact (Feature 038) ───────────────────────────────────
+        modelBuilder.Entity<EvidenceArtifact>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => new { x.RegisteredSystemId, x.ControlImplementationId })
+                .HasDatabaseName("IX_EvidenceArtifact_System_Control");
+            entity.HasIndex(x => x.SecurityCapabilityId)
+                .HasDatabaseName("IX_EvidenceArtifact_Capability");
+            entity.HasIndex(x => new { x.RegisteredSystemId, x.IsDeleted })
+                .HasDatabaseName("IX_EvidenceArtifact_System_IsDeleted");
+
+            entity.HasOne(x => x.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(x => x.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.ControlImplementation)
+                .WithMany()
+                .HasForeignKey(x => x.ControlImplementationId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.SecurityCapability)
+                .WithMany()
+                .HasForeignKey(x => x.SecurityCapabilityId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ─── EvidenceVersion (Feature 038) ────────────────────────────────────
+        modelBuilder.Entity<EvidenceVersion>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => x.EvidenceArtifactId)
+                .HasDatabaseName("IX_EvidenceVersion_Artifact");
+            entity.HasIndex(x => new { x.PurgeAfter, x.IsFilePurged })
+                .HasDatabaseName("IX_EvidenceVersion_PurgeAfter");
+
+            entity.HasOne(x => x.EvidenceArtifact)
+                .WithMany(a => a.Versions)
+                .HasForeignKey(x => x.EvidenceArtifactId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

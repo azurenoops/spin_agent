@@ -14,6 +14,7 @@ import Remediation from './pages/Remediation';
 import Narratives from './pages/Narratives';
 import DeviationsPage from './pages/DeviationsPage';
 import CapabilityCoverage from './pages/CapabilityCoverage';
+import EvidenceRepository from './pages/EvidenceRepository';
 import LegalRegulatory from './pages/LegalRegulatory';
 import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
@@ -52,6 +53,7 @@ function AppContent() {
           <Route path="deviations" element={<DeviationsPage />} />
           <Route path="assessments" element={<Assessments />} />
           <Route path="remediation" element={<Remediation />} />
+          <Route path="evidence" element={<EvidenceRepository />} />
           <Route path="capability-coverage" element={<CapabilityCoverage />} />
         </Route>
         <Route path="/capabilities" element={<CapabilityLibrary />} />

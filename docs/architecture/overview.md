@@ -83,12 +83,14 @@ ATO Copilot is a compliance-focused MCP (Model Context Protocol) agent server bu
 │  │  Assessment │ Authorization │ ConMon │ eMASS        │          │
 │  │  AtoCompliance │ Remediation │ KanbanService        │          │
 │  │  NarrativeGovernance │ InventoryService               │          │
+│  │  EvidenceArtifactService │ FileStorageProvider          │          │
 │  └───────────────────────────────────────────────────────┘          │
 │                                                                     │
 │  ┌───────────────────────────────────────────────────────┐          │
 │  │  Hosted Services                                      │          │
 │  │  ComplianceWatch │ Escalation │ OverdueScan │          │          │
 │  │  SessionCleanup │ RetentionCleanup │ CacheWarmup      │          │
+│  │  EvidenceVersionPurge │ SspExportBackground            │          │
 │  └───────────────────────────────────────────────────────┘          │
 └──────────────────────────┬──────────────────────────────────────────┘
                            │

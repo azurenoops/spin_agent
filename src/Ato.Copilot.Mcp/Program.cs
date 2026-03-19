@@ -765,6 +765,32 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
         Ato.Copilot.Mcp.Services.SignalRSspExportNotifier>();
     services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportBackgroundService>();
     services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportRetentionService>();
+
+    // Evidence Repository services (Feature 038)
+    services.Configure<Ato.Copilot.Mcp.Configuration.EvidenceOptions>(
+        configuration.GetSection(Ato.Copilot.Mcp.Configuration.EvidenceOptions.SectionName));
+    var evidenceStorageProvider = configuration.GetValue<string>("Evidence:StorageProvider") ?? "Local";
+    if (evidenceStorageProvider.Equals("AzureBlob", StringComparison.OrdinalIgnoreCase))
+    {
+        var connectionString = configuration.GetValue<string>("Evidence:AzureBlobConnectionString")
+            ?? throw new InvalidOperationException("Evidence:AzureBlobConnectionString is required when StorageProvider is AzureBlob.");
+        var containerName = configuration.GetValue<string>("Evidence:AzureBlobContainerName") ?? "evidence";
+        services.AddSingleton<Ato.Copilot.Core.Interfaces.Storage.IFileStorageProvider>(sp =>
+            new Ato.Copilot.Mcp.Services.Storage.AzureBlobStorageProvider(
+                connectionString, containerName,
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Ato.Copilot.Mcp.Services.Storage.AzureBlobStorageProvider>>()));
+    }
+    else
+    {
+        var localPath = configuration.GetValue<string>("Evidence:LocalStoragePath") ?? "/data/evidence";
+        services.AddSingleton<Ato.Copilot.Core.Interfaces.Storage.IFileStorageProvider>(sp =>
+            new Ato.Copilot.Mcp.Services.Storage.LocalFileStorageProvider(
+                localPath,
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Ato.Copilot.Mcp.Services.Storage.LocalFileStorageProvider>>()));
+    }
+    services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IEvidenceArtifactService,
+        Ato.Copilot.Mcp.Services.EvidenceArtifactService>();
+    services.AddHostedService<Ato.Copilot.Mcp.Services.EvidenceVersionPurgeService>();
 }
 
 // ────────────────────────────────────────────────────────────────
