@@ -51,6 +51,14 @@ The `@ato` participant routes messages to the MCP server's ComplianceAgent and r
 | `show findings` | `compliance_status` | Compliance status |
 | `pim activate` | `pim_activate_role` | PIM elevation |
 | `show dashboard` | `compliance_multi_system_dashboard` | Portfolio dashboard |
+| `generate package` | `compliance_generate_package` | eMASS authorization package |
+| `package status` | `compliance_package_status` | Package generation status |
+| `validate package` | `compliance_validate_package` | Pre-submission readiness check |
+| `package history` | `compliance_list_packages` | List generated packages |
+| `validate oscal` | `compliance_validate_oscal_schema` | OSCAL schema validation |
+| `generate sar` | `compliance_generate_sar` | Security Assessment Report |
+| `edit sar` | `compliance_edit_sar_section` | Edit SAR section |
+| `review sar` | `compliance_review_sar` | SAR review/approval |
 
 ---
 

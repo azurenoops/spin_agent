@@ -297,6 +297,26 @@ public class AtoCopilotContext : DbContext
     /// <summary>Sync state tracking between POA&amp;M items and external tickets.</summary>
     public DbSet<PoamTicketSync> PoamTicketSyncs => Set<PoamTicketSync>();
 
+    // ─── eMASS Authorization Package (Feature 041) ───────────────────────────
+
+    /// <summary>Authorization package bundles with generation lifecycle and retention tracking.</summary>
+    public DbSet<AuthorizationPackage> AuthorizationPackages => Set<AuthorizationPackage>();
+
+    /// <summary>Individual artifacts within an authorization package (OSCAL, SAR, evidence).</summary>
+    public DbSet<PackageArtifact> PackageArtifacts => Set<PackageArtifact>();
+
+    /// <summary>Security Assessment Reports with four-state lifecycle (NotStarted→Draft→UnderReview→Approved).</summary>
+    public DbSet<SecurityAssessmentReport> SecurityAssessmentReports => Set<SecurityAssessmentReport>();
+
+    /// <summary>Narrative and auto-generated sections within Security Assessment Reports.</summary>
+    public DbSet<SarSection> SarSections => Set<SarSection>();
+
+    /// <summary>Pre-submission validation results for authorization packages.</summary>
+    public DbSet<PackageValidationResult> PackageValidationResults => Set<PackageValidationResult>();
+
+    /// <summary>Individual validation findings (errors/warnings) within package validation results.</summary>
+    public DbSet<ValidationFinding> ValidationFindings => Set<ValidationFinding>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -2480,6 +2500,142 @@ public class AtoCopilotContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.TicketingIntegrationId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── AuthorizationPackage (Feature 041) ─────────────────────────────────
+        modelBuilder.Entity<AuthorizationPackage>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(e => e.FailureReason).HasMaxLength(4000);
+            entity.Property(e => e.FailedArtifactType).HasMaxLength(50);
+            entity.Property(e => e.FilePath).HasMaxLength(500);
+            entity.Property(e => e.ContentHash).HasMaxLength(128);
+            entity.Property(e => e.EvidenceMode).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(e => e.GeneratedBy).HasMaxLength(200).IsRequired();
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(e => e.Artifacts)
+                .WithOne(a => a.AuthorizationPackage)
+                .HasForeignKey(a => a.AuthorizationPackageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.ValidationResult)
+                .WithOne(v => v.AuthorizationPackage)
+                .HasForeignKey<PackageValidationResult>(v => v.AuthorizationPackageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => e.RegisteredSystemId).HasDatabaseName("IX_AuthorizationPackage_SystemId");
+            entity.HasIndex(e => e.GeneratedAt).HasDatabaseName("IX_AuthorizationPackage_GeneratedAt");
+            entity.HasIndex(e => e.ExpiresAt).HasDatabaseName("IX_AuthorizationPackage_ExpiresAt");
+        });
+
+        // ─── PackageArtifact (Feature 041) ──────────────────────────────────────
+        modelBuilder.Entity<PackageArtifact>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.AuthorizationPackageId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ArtifactType).HasConversion<string>().HasMaxLength(30).IsRequired();
+            entity.Property(e => e.FileName).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Format).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ContentHash).HasMaxLength(128);
+            entity.Property(e => e.OscalVersion).HasMaxLength(20);
+            entity.Property(e => e.SchemaErrors).HasMaxLength(8000);
+
+            entity.HasIndex(e => e.AuthorizationPackageId).HasDatabaseName("IX_PackageArtifact_PackageId");
+            entity.HasIndex(e => new { e.AuthorizationPackageId, e.ArtifactType })
+                .IsUnique()
+                .HasDatabaseName("IX_PackageArtifact_Package_Type");
+        });
+
+        // ─── SecurityAssessmentReport (Feature 041) ─────────────────────────────
+        modelBuilder.Entity<SecurityAssessmentReport>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.SapId).HasMaxLength(36);
+            entity.Property(e => e.Title).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(e => e.FindingsBySeverity).HasMaxLength(4000);
+            entity.Property(e => e.FindingsByFamily).HasMaxLength(8000);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ModifiedBy).HasMaxLength(200);
+            entity.Property(e => e.ReviewedBy).HasMaxLength(200);
+            entity.Property(e => e.ApprovedBy).HasMaxLength(200);
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.SecurityAssessmentPlan)
+                .WithMany()
+                .HasForeignKey(e => e.SapId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasMany(e => e.Sections)
+                .WithOne(s => s.SecurityAssessmentReport)
+                .HasForeignKey(s => s.SecurityAssessmentReportId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => e.RegisteredSystemId).HasDatabaseName("IX_SAR_SystemId");
+            entity.HasIndex(e => e.Status).HasDatabaseName("IX_SAR_Status");
+        });
+
+        // ─── SarSection (Feature 041) ───────────────────────────────────────────
+        modelBuilder.Entity<SarSection>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SecurityAssessmentReportId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.SectionType).HasConversion<string>().HasMaxLength(30).IsRequired();
+            entity.Property(e => e.Title).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.ModifiedBy).HasMaxLength(200);
+
+            entity.HasIndex(e => new { e.SecurityAssessmentReportId, e.SectionType })
+                .IsUnique()
+                .HasDatabaseName("IX_SarSection_Report_Type");
+        });
+
+        // ─── PackageValidationResult (Feature 041) ──────────────────────────────
+        modelBuilder.Entity<PackageValidationResult>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.AuthorizationPackageId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ValidatedBy).HasMaxLength(200).IsRequired();
+
+            entity.HasMany(e => e.Findings)
+                .WithOne(f => f.PackageValidationResult)
+                .HasForeignKey(f => f.PackageValidationResultId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => e.AuthorizationPackageId)
+                .IsUnique()
+                .HasDatabaseName("IX_PackageValidationResult_PackageId");
+        });
+
+        // ─── ValidationFinding (Feature 041) ────────────────────────────────────
+        modelBuilder.Entity<ValidationFinding>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.PackageValidationResultId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Severity).HasConversion<string>().HasMaxLength(10).IsRequired();
+            entity.Property(e => e.Category).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ArtifactType).HasMaxLength(50);
+            entity.Property(e => e.Description).HasMaxLength(2000).IsRequired();
+            entity.Property(e => e.Remediation).HasMaxLength(2000);
+
+            entity.HasIndex(e => e.PackageValidationResultId).HasDatabaseName("IX_ValidationFinding_ResultId");
         });
     }
 

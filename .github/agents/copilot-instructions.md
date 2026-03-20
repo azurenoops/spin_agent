@@ -81,6 +81,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 - SQL Server (production) / SQLite (dev) via `AtoCopilotContext`; Key Vault for ticketing credentials (039-poam-management)
 - C# / .NET 8 + EF Core 8, Azure.ResourceManager, Azure.ResourceManager.ResourceGraph, ASP.NET Core Minimal APIs, React 18 + TypeScript (Vite dashboard) (040-component-centric-boundary)
 - SQLite (dev), SQL Server (prod) via EF Core (040-component-centric-boundary)
+- C# / .NET 8.0 + ASP.NET Core, Entity Framework Core, ClosedXML, System.Text.Json, System.IO.Compression (ZIP), SignalR, JsonSchema.Net (OSCAL JSON Schema validation), DocumentFormat.OpenXml (SAR Word generation) (041-emass-package)
+- SQLite (dev) / PostgreSQL (prod) via EF Core, local filesystem + Azure Blob (IFileStorageProvider) for exports and evidence (041-emass-package)
 
 - C# 13 / .NET 9.0 + Azure.Identity 1.13, Azure.ResourceManager 1.13, Microsoft.Extensions.AI 9.4-preview, Microsoft.EntityFrameworkCore 9.0, Serilog 4.2, xUnit 2.9, FluentAssertions 7.0, Moq 4.20 (001-core-compliance)
 
@@ -100,9 +102,9 @@ dotnet build Ato.Copilot.sln [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMAN
 C# .NET 9: Follow standard conventions
 
 ## Recent Changes
+- 041-emass-package: Added C# / .NET 8.0 + ASP.NET Core, Entity Framework Core, ClosedXML, System.Text.Json, System.IO.Compression (ZIP), SignalR, JsonSchema.Net (OSCAL JSON Schema validation), DocumentFormat.OpenXml (SAR Word generation)
 - 040-component-centric-boundary: Added C# / .NET 8 + EF Core 8, Azure.ResourceManager, Azure.ResourceManager.ResourceGraph, ASP.NET Core Minimal APIs, React 18 + TypeScript (Vite dashboard)
 - 038-evidence-repository: Added C# / .NET 9.0 (backend), TypeScript / React 18+ (frontend) + ASP.NET Core Minimal APIs, Entity Framework Core 9, Axios, React, Tailwind CSS, Heroicons
-- 037-ssp-document-export: Added C# 12 / .NET 9.0 (backend), TypeScript 5.x / React (frontend) + QuestPDF 2025.7.0 (PDF), DocumentFormat.OpenXml via ZipArchive (DOCX), ClosedXML 0.104.2 (Excel), System.Text.Json (OSCAL), SignalR (real-time), axios (frontend HTTP)
 
 
 <!-- MANUAL ADDITIONS START -->

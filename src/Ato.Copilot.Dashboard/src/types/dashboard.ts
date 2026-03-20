@@ -146,6 +146,8 @@ export interface HeatmapControl {
   hasNarrative: boolean;
   isManuallyCustomized: boolean;
   securityCapabilityName: string | null;
+  catSeverity: string | null;
+  poamStatus: string | null;
 }
 
 export interface HeatmapControlsResponse {

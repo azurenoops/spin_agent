@@ -307,11 +307,15 @@ async Task RunHttpModeAsync(string[] args)
     // Map Dashboard REST API endpoints (Feature 030)
     app.MapDashboardEndpoints();
 
+    // Map Authorization Package & SAR endpoints (Feature 041)
+    app.MapPackageEndpoints();
+
     // Map Notification REST API endpoints
     app.MapNotificationEndpoints();
 
     // Map SignalR notification hub
     app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications");
+    app.MapHub<Ato.Copilot.Mcp.Hubs.PackageHub>("/hubs/package");
 
     // Health check endpoint with custom JSON writer (per FR-045 / SC-015)
     app.MapHealthChecks("/health", new HealthCheckOptions
@@ -831,6 +835,13 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
         Ato.Copilot.Mcp.Services.SignalRSspExportNotifier>();
     services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportBackgroundService>();
     services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportRetentionService>();
+
+    // Feature 041: Authorization Package generation pipeline
+    services.AddSingleton(System.Threading.Channels.Channel.CreateBounded<Ato.Copilot.Core.Dtos.Dashboard.PackageExportJob>(
+        new System.Threading.Channels.BoundedChannelOptions(20) { FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait }));
+    services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.IPackageExportNotifier,
+        Ato.Copilot.Mcp.Services.SignalRPackageExportNotifier>();
+    services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.PackageBackgroundService>();
 
     // Evidence Repository services (Feature 038)
     services.Configure<Ato.Copilot.Mcp.Configuration.EvidenceOptions>(

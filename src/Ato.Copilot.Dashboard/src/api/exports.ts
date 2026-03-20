@@ -86,6 +86,20 @@ export function downloadExportUrl(systemId: string, exportId: string): string {
   return `${baseURL}/systems/${systemId}/exports/${exportId}/download`;
 }
 
+// ─── Standalone OSCAL Export URLs (Feature 041) ─────────────────────────────
+
+export function oscalPoamUrl(systemId: string): string {
+  return `/api/v1/systems/${systemId}/exports/oscal-poam`;
+}
+
+export function oscalAssessmentResultsUrl(systemId: string): string {
+  return `/api/v1/systems/${systemId}/exports/oscal-assessment-results`;
+}
+
+export function oscalSapUrl(systemId: string): string {
+  return `/api/v1/systems/${systemId}/exports/oscal-sap`;
+}
+
 // ─── Template API Functions ─────────────────────────────────────────────────
 
 export async function listTemplates(

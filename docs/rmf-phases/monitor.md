@@ -273,3 +273,11 @@ This is a continuous phase — there is no outbound transition gate. Reauthoriza
 ### POA&M Trend Monitoring (Feature 039)
 
 During continuous monitoring, use the POA&M Trends tab or `compliance_poam_trend` to track open-over-time trends, closure rates, aging breakdown, and time-to-close distributions. Export trend reports as PDF for ConMon reporting.
+
+### Package Re-generation for Continuous Authorization (Feature 041)
+
+When significant changes occur during monitoring, re-generate the authorization package:
+
+- `compliance_generate_package` — create an updated package reflecting current system state
+- View **package history** on the Documents page to compare current vs. previous packages
+- Expired packages (>90 days) retain metadata but ZIP files are automatically cleaned up

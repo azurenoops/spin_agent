@@ -1619,15 +1619,15 @@ conflict resolution (skip, overwrite, merge) and dry-run preview.
 
 ### `compliance_export_oscal`
 
-Export system data in OSCAL JSON format (v1.0.6). Supports SSP,
-assessment-results, and POA&M OSCAL models.
+Export system data in OSCAL JSON format (v1.1.2). Supports SSP,
+assessment-results, POA&M, and assessment-plan OSCAL models.
 
-> **Feature 022 Enhancement**: When `model=ssp`, SSP export now delegates to `OscalSspExportService` which produces OSCAL 1.1.2-compliant SSP JSON with full section content, component mappings, and back-matter resources. For dedicated SSP export with additional options (`include_back_matter`, `pretty_print`), use `compliance_export_oscal_ssp` instead.
+> **Feature 041 Enhancement**: Now supports `assessment-plan` model type via `OscalSapExportService`. OSCAL version updated to 1.1.2 for all models.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `system_id` | string | yes | RegisteredSystem ID |
-| `model` | string | yes | `ssp`, `assessment-results`, or `poam` |
+| `model` | string | yes | `ssp`, `assessment-results`, `poam`, or `assessment-plan` |
 
 ```json
 {
@@ -3585,3 +3585,97 @@ Bulk sync all active POA&Ms for a system.
 |-----------|------|----------|-------------|
 | `system_id` | string | Yes | System ID |
 | `direction` | string | No | push, pull, or bidirectional |
+
+---
+
+## eMASS Authorization Package Tools (Feature 041)
+
+### `compliance_generate_package`
+
+Generate a complete eMASS authorization package as a ZIP archive containing OSCAL SSP, POA&M, Assessment Results, Assessment Plan, SAR, and evidence. Runs readiness validation first. Returns immediately — generation runs in background.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System GUID, name, or acronym |
+| `evidence_mode` | string | No | `embedded` (default) or `manifest_only` |
+
+- **RBAC**: ISSM, AO
+- **RMF Step**: Authorize (Step 5)
+
+### `compliance_package_status`
+
+Get current status of an authorization package generation job, including artifacts generated, validation results, and download link.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `package_id` | string | Yes | Package ID from `compliance_generate_package` |
+
+- **RBAC**: ISSM, SCA, AO
+
+### `compliance_validate_package`
+
+Run pre-submission readiness check for an authorization package. Validates artifact presence, SSP completeness, SAR status, OSCAL schema conformance, cross-artifact consistency, and evidence coverage.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System GUID, name, or acronym |
+
+- **RBAC**: ISSM, SCA, AO
+
+### `compliance_list_packages`
+
+List authorization packages for a system with pagination, sorted by most recent first.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System GUID, name, or acronym |
+| `limit` | integer | No | Max results (default: 10) |
+| `include_failed` | boolean | No | Include failed packages (default: false) |
+
+- **RBAC**: ISSM, SCA, AO
+
+### `compliance_validate_oscal_schema`
+
+Validate an OSCAL JSON artifact against the NIST OSCAL 1.1.2 JSON schema. Generates the artifact for the given system, then validates.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System GUID, name, or acronym |
+| `model` | string | Yes | `ssp`, `poam`, `assessment-results`, or `assessment-plan` |
+
+- **RBAC**: ISSM, SCA, AO
+
+### `compliance_generate_sar`
+
+Generate a new Security Assessment Report auto-populated from assessment findings.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System GUID, name, or acronym |
+| `title` | string | Yes | SAR title |
+
+- **RBAC**: ISSM, SCA
+
+### `compliance_edit_sar_section`
+
+Edit a specific section of a Security Assessment Report.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sar_id` | string | Yes | SAR identifier |
+| `section_type` | string | Yes | Section: ExecutiveSummary, Methodology, Findings, Recommendations, ConclusionRiskAssessment |
+| `content` | string | Yes | New section content |
+
+- **RBAC**: ISSM, SCA
+
+### `compliance_review_sar`
+
+Submit, approve, or reject a Security Assessment Report.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sar_id` | string | Yes | SAR identifier |
+| `action` | string | Yes | `submit`, `approve`, or `reject` |
+| `comments` | string | No | Review comments |
+
+- **RBAC**: ISSM (submit), SCA (approve/reject), AO (approve)

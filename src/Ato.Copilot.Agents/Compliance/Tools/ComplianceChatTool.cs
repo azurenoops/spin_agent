@@ -108,9 +108,90 @@ public class ComplianceChatTool : BaseTool
                    "- **compliance_remediate** — Fix compliance findings\n" +
                    "- **compliance_collect_evidence** — Gather audit evidence\n" +
                    "- **compliance_generate_document** — Generate SSP/SAR/POA&M\n" +
+                   "- **compliance_generate_package** — Generate authorization package (ZIP)\n" +
+                   "- **compliance_package_status** — Check package generation status\n" +
+                   "- **compliance_validate_package** — Run readiness check before packaging\n" +
+                   "- **compliance_list_packages** — View package history\n" +
+                   "- **compliance_validate_oscal_schema** — Validate OSCAL artifact schemas\n" +
+                   "- **compliance_generate_sar** — Generate Security Assessment Report\n" +
+                   "- **compliance_edit_sar_section** — Edit SAR section\n" +
+                   "- **compliance_review_sar** — Submit/approve SAR\n" +
                    "- **compliance_monitoring** — Continuous monitoring status\n" +
                    "- **compliance_history** — View compliance trends\n" +
                    "- **compliance_audit_log** — View audit trail";
+        }
+
+        // Package-related intents (T049)
+        if (ContainsAny(lower, "generate authorization package", "generate package", "create package", "build package", "export package"))
+        {
+            return "## Generate Authorization Package\n\n" +
+                   "Use **compliance_generate_package** with parameters:\n" +
+                   "- `system_id` — System identifier (required)\n" +
+                   "- `evidence_mode` — `embedded` (default) or `manifest_only`\n\n" +
+                   "This runs a readiness check, then generates a ZIP containing:\n" +
+                   "OSCAL SSP, POA&M, Assessment Results, Assessment Plan, SAR, and evidence.\n\n" +
+                   "Use **compliance_package_status** with `package_id` to track progress.";
+        }
+
+        if (ContainsAny(lower, "package status", "package progress", "check package"))
+        {
+            return "## Check Package Status\n\n" +
+                   "Use **compliance_package_status** with the `package_id` returned from generation.\n\n" +
+                   "Returns: status, artifacts generated, validation results, and download link when complete.";
+        }
+
+        if (ContainsAny(lower, "validate package", "readiness check", "package readiness", "pre-submission"))
+        {
+            return "## Package Readiness Validation\n\n" +
+                   "Use **compliance_validate_package** with `system_id` to run pre-submission checks:\n\n" +
+                   "- Authorization boundary defined\n" +
+                   "- All SSP sections approved\n" +
+                   "- SAR exists and approved\n" +
+                   "- SAP exists and finalized\n" +
+                   "- POA&M items present\n" +
+                   "- Cross-artifact control consistency\n" +
+                   "- OSCAL schema compliance\n" +
+                   "- Evidence coverage";
+        }
+
+        if (ContainsAny(lower, "export oscal", "oscal export", "oscal poam", "oscal ssp", "oscal assessment"))
+        {
+            return "## OSCAL Exports\n\n" +
+                   "Use **compliance_export_oscal** with `system_id` and `model`:\n" +
+                   "- `ssp` — System Security Plan\n" +
+                   "- `poam` — Plan of Action & Milestones\n" +
+                   "- `assessment-results` — Assessment Results\n" +
+                   "- `assessment-plan` — Security Assessment Plan\n\n" +
+                   "Use **compliance_validate_oscal_schema** to verify schema conformance.";
+        }
+
+        if (ContainsAny(lower, "package history", "list packages", "previous packages", "past packages"))
+        {
+            return "## Package History\n\n" +
+                   "Use **compliance_list_packages** with `system_id` to view generated packages.\n" +
+                   "Optional: `limit` (default 10), `include_failed` (default false).\n\n" +
+                   "Packages are retained for 90 days. Expired packages show metadata but cannot be downloaded.";
+        }
+
+        // SAR-related intents (T050)
+        if (ContainsAny(lower, "generate sar", "create sar", "security assessment report"))
+        {
+            return "## Security Assessment Report (SAR)\n\n" +
+                   "Use **compliance_generate_sar** with `system_id` and `title` to create a new SAR.\n\n" +
+                   "SAR lifecycle:\n" +
+                   "1. Draft → auto-populated from assessment findings\n" +
+                   "2. Edit sections with **compliance_edit_sar_section**\n" +
+                   "3. Submit for review with **compliance_review_sar** (action: `submit`)\n" +
+                   "4. Approve with **compliance_review_sar** (action: `approve`)";
+        }
+
+        if (ContainsAny(lower, "sar status", "sar progress", "sar review"))
+        {
+            return "## SAR Management\n\n" +
+                   "- **compliance_review_sar** — Submit or approve a SAR\n" +
+                   "  - Actions: `submit`, `approve`, `reject`\n" +
+                   "- **compliance_edit_sar_section** — Edit SAR sections\n" +
+                   "  - Sections: ExecutiveSummary, Methodology, Findings, Recommendations, ConclusionRiskAssessment";
         }
 
         if (hasContext)

@@ -792,6 +792,92 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("AuthorizationDecisions");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationPackage", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EvidenceMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FailedArtifactType")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FilePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("FileSize")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("GeneratedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GeneratedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RegisteredSystemId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TotalArtifactCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalEvidenceCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("TotalEvidenceSize")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ValidationErrorCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("ValidationPassed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ValidationWarningCount")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("IX_AuthorizationPackage_ExpiresAt");
+
+                    b.HasIndex("GeneratedAt")
+                        .HasDatabaseName("IX_AuthorizationPackage_GeneratedAt");
+
+                    b.HasIndex("RegisteredSystemId")
+                        .HasDatabaseName("IX_AuthorizationPackage_SystemId");
+
+                    b.ToTable("AuthorizationPackages");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AutoRemediationRule", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3175,6 +3261,102 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("NotificationPreferences");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PackageArtifact", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArtifactType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AuthorizationPackageId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("FileSize")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("GeneratedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OscalVersion")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SchemaErrors")
+                        .HasMaxLength(8000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("SchemaValid")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizationPackageId")
+                        .HasDatabaseName("IX_PackageArtifact_PackageId");
+
+                    b.HasIndex("AuthorizationPackageId", "ArtifactType")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PackageArtifact_Package_Type");
+
+                    b.ToTable("PackageArtifacts");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PackageValidationResult", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AuthorizationPackageId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ErrorCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsValid")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("ValidatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ValidatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("WarningCount")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizationPackageId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PackageValidationResult_PackageId");
+
+                    b.ToTable("PackageValidationResults");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PoamItem", b =>
                 {
                     b.Property<string>("Id")
@@ -3899,6 +4081,50 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("SapTeamMembers");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SarSection", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Content")
+                        .HasMaxLength(32000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsAutoGenerated")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SectionType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecurityAssessmentReportId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SecurityAssessmentReportId", "SectionType")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SarSection_Report_Type");
+
+                    b.ToTable("SarSections");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ScanImportFinding", b =>
                 {
                     b.Property<string>("Id")
@@ -4335,6 +4561,99 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_SecurityAssessmentPlan_System_Status");
 
                     b.ToTable("SecurityAssessmentPlans");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityAssessmentReport", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AssessmentEndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AssessmentStartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FindingsByFamily")
+                        .HasMaxLength(8000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FindingsBySeverity")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("NotSatisfiedCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RegisteredSystemId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SapId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SatisfiedCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TotalControlsAssessed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalControlsPending")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegisteredSystemId")
+                        .HasDatabaseName("IX_SAR_SystemId");
+
+                    b.HasIndex("SapId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_SAR_Status");
+
+                    b.ToTable("SecurityAssessmentReports");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityCapability", b =>
@@ -4811,6 +5130,10 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("RmfRoleName")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -4930,6 +5253,52 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_Interconnection_System_Status");
 
                     b.ToTable("SystemInterconnections");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ValidationFinding", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArtifactType")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("JsonPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PackageValidationResultId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Remediation")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PackageValidationResultId")
+                        .HasDatabaseName("IX_ValidationFinding_ResultId");
+
+                    b.ToTable("ValidationFindings");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Kanban.RemediationBoard", b =>
@@ -5737,6 +6106,17 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("SupersededBy");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationPackage", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
+                        .WithMany()
+                        .HasForeignKey("RegisteredSystemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RegisteredSystem");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.BoundaryComponentAssignment", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", "AuthorizationBoundaryDefinition")
@@ -6291,6 +6671,28 @@ namespace Ato.Copilot.Core.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PackageArtifact", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationPackage", "AuthorizationPackage")
+                        .WithMany("Artifacts")
+                        .HasForeignKey("AuthorizationPackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizationPackage");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PackageValidationResult", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationPackage", "AuthorizationPackage")
+                        .WithOne("ValidationResult")
+                        .HasForeignKey("Ato.Copilot.Core.Models.Compliance.PackageValidationResult", "AuthorizationPackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizationPackage");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PoamItem", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.ComplianceFinding", "Finding")
@@ -6527,6 +6929,17 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("SecurityAssessmentPlan");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SarSection", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.SecurityAssessmentReport", "SecurityAssessmentReport")
+                        .WithMany("Sections")
+                        .HasForeignKey("SecurityAssessmentReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SecurityAssessmentReport");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ScanImportFinding", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.ComplianceFinding", null)
@@ -6572,6 +6985,24 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("ComplianceAssessment");
 
                     b.Navigation("RegisteredSystem");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityAssessmentReport", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
+                        .WithMany()
+                        .HasForeignKey("RegisteredSystemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.SecurityAssessmentPlan", "SecurityAssessmentPlan")
+                        .WithMany()
+                        .HasForeignKey("SapId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("RegisteredSystem");
+
+                    b.Navigation("SecurityAssessmentPlan");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityCategorization", b =>
@@ -6644,6 +7075,17 @@ namespace Ato.Copilot.Core.Migrations
                         .HasForeignKey("RegisteredSystemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ValidationFinding", b =>
+                {
+                    b.HasOne("Ato.Copilot.Core.Models.Compliance.PackageValidationResult", "PackageValidationResult")
+                        .WithMany("Findings")
+                        .HasForeignKey("PackageValidationResultId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PackageValidationResult");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Kanban.RemediationBoard", b =>
@@ -6800,6 +7242,13 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("RiskAcceptances");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationPackage", b =>
+                {
+                    b.Navigation("Artifacts");
+
+                    b.Navigation("ValidationResult");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ComplianceAlert", b =>
                 {
                     b.Navigation("ChildAlerts");
@@ -6851,6 +7300,11 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("ControlEnhancements");
                 });
 
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PackageValidationResult", b =>
+                {
+                    b.Navigation("Findings");
+                });
+
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PoamItem", b =>
                 {
                     b.Navigation("ComponentLinks");
@@ -6888,6 +7342,11 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("ControlEntries");
 
                     b.Navigation("TeamMembers");
+                });
+
+            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityAssessmentReport", b =>
+                {
+                    b.Navigation("Sections");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.SecurityCapability", b =>

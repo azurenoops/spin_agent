@@ -1799,6 +1799,13 @@ public static class DashboardEndpoints
                     .ThenByDescending(s => s.GeneratedAt)
                     .FirstOrDefaultAsync(ct);
 
+                // SAR (latest)
+                var sar = await context.SecurityAssessmentReports
+                    .Where(s => s.RegisteredSystemId == systemId)
+                    .OrderByDescending(s => s.Status == SarStatus.Approved ? 2 : s.Status == SarStatus.UnderReview ? 1 : 0)
+                    .ThenByDescending(s => s.CreatedAt)
+                    .FirstOrDefaultAsync(ct);
+
                 // Authorization decision (latest)
                 var authDecision = await context.AuthorizationDecisions
                     .Where(d => d.RegisteredSystemId == systemId)
@@ -1898,6 +1905,20 @@ public static class DashboardEndpoints
                         FinalizedAt = sap.Status == SapStatus.Finalized ? sap.GeneratedAt : null,
                         ScheduleStart = sap.ScheduleStart,
                         ScheduleEnd = sap.ScheduleEnd,
+                    },
+
+                    Sar = sar is null ? null : new SarDocumentInfo
+                    {
+                        SarId = sar.Id,
+                        Status = sar.Status.ToString(),
+                        Title = sar.Title,
+                        TotalControlsAssessed = sar.TotalControlsAssessed,
+                        SatisfiedCount = sar.SatisfiedCount,
+                        NotSatisfiedCount = sar.NotSatisfiedCount,
+                        CreatedBy = sar.CreatedBy,
+                        CreatedAt = sar.CreatedAt,
+                        ApprovedBy = sar.ApprovedBy,
+                        ApprovedAt = sar.ApprovedAt,
                     },
 
                     Authorization = authDecision is null ? null : new AuthDecisionInfo

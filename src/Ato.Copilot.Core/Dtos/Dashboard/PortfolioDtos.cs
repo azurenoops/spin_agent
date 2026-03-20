@@ -223,6 +223,7 @@ public class SystemDocumentsResponse
     // Authorization Package
     public required SspDocumentInfo Ssp { get; init; }
     public SapDocumentInfo? Sap { get; init; }
+    public SarDocumentInfo? Sar { get; init; }
     public AuthDecisionInfo? Authorization { get; init; }
     public int PoamCount { get; init; }
     public int PoamOverdueCount { get; init; }
@@ -272,6 +273,20 @@ public class SapDocumentInfo
     public DateTime? FinalizedAt { get; init; }
     public DateTime? ScheduleStart { get; init; }
     public DateTime? ScheduleEnd { get; init; }
+}
+
+public class SarDocumentInfo
+{
+    public required string SarId { get; init; }
+    public required string Status { get; init; }
+    public required string Title { get; init; }
+    public int TotalControlsAssessed { get; init; }
+    public int SatisfiedCount { get; init; }
+    public int NotSatisfiedCount { get; init; }
+    public required string CreatedBy { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public string? ApprovedBy { get; init; }
+    public DateTime? ApprovedAt { get; init; }
 }
 
 public class AuthDecisionInfo

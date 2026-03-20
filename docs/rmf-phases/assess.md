@@ -261,3 +261,11 @@ This is the primary stage for initial Prisma import. For ongoing monitoring, see
 ### Assessment-Driven POA&M Creation (Feature 039)
 
 After completing assessments, findings with CAT I/II/III severity can be automatically converted to POA&M items using `compliance_bulk_create_poam_from_findings`. The post-import prompt on the dashboard offers one-click bulk creation with deduplication.
+
+### SAR Generation from Findings (Feature 041)
+
+Generate a Security Assessment Report summarizing assessment findings:
+
+- `compliance_generate_sar` — creates a new SAR auto-populated from assessment data
+- `compliance_edit_sar_section` — edit individual SAR sections (Executive Summary, Methodology, Findings, Recommendations)
+- `compliance_review_sar` — submit for review and approve

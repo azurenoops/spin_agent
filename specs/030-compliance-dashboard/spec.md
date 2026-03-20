@@ -163,6 +163,16 @@ The backend exposes RESTful API endpoints that aggregate compliance data into da
 - **FR-008**: System MUST display key metric cards: compliance score (with trend indicator vs. prior period), total open POA&Ms (with overdue count), ATO days remaining, and open findings by CAT severity (I/II/III).
 - **FR-009**: System MUST display a recent activity feed showing the last 10 compliance events with event type, timestamp, actor, and summary.
 - **FR-010**: System MUST allow drill-down from the control family heatmap to a list of individual controls within the selected family, served by a dedicated API endpoint (`GET /api/dashboard/systems/{systemId}/heatmap/{familyCode}/controls`) returning control IDs, titles, and compliance status.
+- **FR-010a**: The control family drill-down dialog MUST display summary statistics (Satisfied, Failing, Not Assessed counts) as clickable filter cards that narrow the visible control list by status.
+- **FR-010b**: The control family drill-down MUST display CAT severity (I/II/III) for each failing control, sourced from `ControlEffectivenessRecord.CatSeverity`, with color-coded badges (CAT I = red, CAT II = amber, CAT III = blue).
+- **FR-010c**: The control family drill-down MUST display the POA&M status for each control that has an associated POA&M item, sourced by joining `PoamItems` on `SecurityControlNumber`, with color-coded status badges.
+- **FR-010d**: The control family drill-down MUST include an action banner when failing controls exist, with navigation links to the Remediation and POA&M pages.
+- **FR-010e**: The control family drill-down MUST include footer quick links to "Edit Narratives" and "Run Assessment" pages for the current system.
+
+**Navigation:**
+
+- **FR-036**: The system-level sidebar navigation MUST organize navigation items into logical groups: System Profile (Overview, Components, Boundaries, Capabilities), Compliance Posture (Narratives, Legal & Regulatory, Gap Analysis), Assessment & Remediation (Assessments, Remediation, POA&M, Evidence, Deviations), and Planning & Delivery (Implementation Roadmap, Documents).
+- **FR-037**: When the sidebar is expanded, group labels MUST be displayed above their items. When the sidebar is collapsed, a thin divider MUST separate groups visually.
 
 **Security Capabilities Library:**
 

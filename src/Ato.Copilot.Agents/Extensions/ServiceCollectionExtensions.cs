@@ -324,6 +324,14 @@ public static class ServiceCollectionExtensions
 
         // Authorization Decision service and tools (Feature 015 - US8)
         services.AddSingleton<IAuthorizationService, AuthorizationService>();
+
+        // Feature 041: SAR lifecycle and package services
+        services.AddSingleton<ISecurityAssessmentReportService, SecurityAssessmentReportService>();
+        services.AddSingleton<IOscalSapExportService, OscalSapExportService>();
+        services.AddSingleton<IOscalSchemaValidationService, OscalSchemaValidationService>();
+        services.AddSingleton<IAuthorizationPackageService, AuthorizationPackageService>();
+        services.AddSingleton<IPackageValidationService, PackageValidationService>();
+
         services.AddSingleton<IssueAuthorizationTool>();
         services.AddSingleton<AcceptRiskTool>();
         services.AddSingleton<ShowRiskRegisterTool>();
@@ -349,6 +357,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Ato.Copilot.Agents.Compliance.Tools.Poam.ExportPoamTool>();
         services.AddSingleton<GenerateRarTool>();
         services.AddSingleton<BundleAuthorizationPackageTool>();
+
+        // ─── Feature 041: SAR lifecycle tools ────────────────────────────────
+        services.AddSingleton<SarGenerateTool>();
+        services.AddSingleton<SarEditSectionTool>();
+        services.AddSingleton<SarReviewTool>();
+        services.AddSingleton<ValidateOscalSchemaTool>();
+        services.AddSingleton<ValidatePackageTool>();
+        services.AddSingleton<GeneratePackageTool>();
+        services.AddSingleton<PackageStatusTool>();
+        services.AddSingleton<ListPackagesTool>();
 
         // ─── US9: Continuous Monitoring tools ────────────────────────────────
         services.AddSingleton<IConMonService, ConMonService>();
@@ -576,6 +594,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<Ato.Copilot.Agents.Compliance.Tools.Poam.ExportPoamTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<GenerateRarTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<BundleAuthorizationPackageTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<SarGenerateTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<SarEditSectionTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<SarReviewTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ValidateOscalSchemaTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ValidatePackageTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<GeneratePackageTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<PackageStatusTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ListPackagesTool>());
 
         // US9: Continuous Monitoring BaseTool wrappers
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<CreateConMonPlanTool>());

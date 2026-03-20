@@ -33,7 +33,7 @@ public class EmassExportToolTests
         new(_mockService.Object, Mock.Of<ILogger<ImportEmassTool>>());
 
     private ExportOscalTool CreateOscalTool() =>
-        new(_mockService.Object, Mock.Of<ILogger<ExportOscalTool>>());
+        new(_mockService.Object, Mock.Of<IOscalSapExportService>(), Mock.Of<ILogger<ExportOscalTool>>());
 
     private static byte[] FakeExcelBytes() =>
         CreateMinimalXlsx();
@@ -467,11 +467,11 @@ public class EmassExportToolTests
         doc.RootElement.GetProperty("status").GetString().Should().Be("success");
         var data = doc.RootElement.GetProperty("data");
         data.GetProperty("model").GetString().Should().Be("ssp");
-        data.GetProperty("oscal_version").GetString().Should().Be("1.0.6");
+        data.GetProperty("oscal_version").GetString().Should().Be("1.1.2");
         data.GetProperty("oscal_document").ValueKind.Should().Be(JsonValueKind.Object);
 
         var meta = doc.RootElement.GetProperty("metadata");
-        meta.GetProperty("spec_version").GetString().Should().Be("OSCAL 1.0.6");
+        meta.GetProperty("spec_version").GetString().Should().Be("OSCAL 1.1.2");
     }
 
     [Fact]

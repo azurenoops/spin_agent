@@ -25,4 +25,7 @@ public class ExportSettings
 
     /// <summary>Computed path to the templates directory.</summary>
     public string TemplatesPath => Path.Combine(DataPath, "templates");
+
+    /// <summary>Computed path to the authorization packages directory.</summary>
+    public string PackagesPath => Path.Combine(DataPath, "packages");
 }

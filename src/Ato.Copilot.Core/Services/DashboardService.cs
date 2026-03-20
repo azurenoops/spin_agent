@@ -554,11 +554,22 @@ public class DashboardService
             .AsNoTracking()
             .ToDictionaryAsync(n => n.Id, cancellationToken);
 
+        // Get POA&M items for control-level status
+        var poamItems = await _db.PoamItems
+            .Where(p => p.RegisteredSystemId == systemId && controlIds.Contains(p.SecurityControlNumber))
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        var poamByControl = poamItems
+            .GroupBy(p => p.SecurityControlNumber)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.CreatedAt).First());
+
         var controls = controlIds.Select(controlId =>
         {
             var eff = latestEffectiveness.GetValueOrDefault(controlId);
             var impl = implByControl.GetValueOrDefault(controlId);
             var nist = nistControls.GetValueOrDefault(controlId);
+            var poam = poamByControl.GetValueOrDefault(controlId);
 
             var status = eff?.Determination == EffectivenessDetermination.Satisfied
                 ? "Satisfied"
@@ -572,6 +583,8 @@ public class DashboardService
                 HasNarrative = impl?.Narrative != null && impl.Narrative != "",
                 IsManuallyCustomized = impl?.IsManuallyCustomized ?? false,
                 SecurityCapabilityName = impl?.SecurityCapability?.Name,
+                CatSeverity = eff?.CatSeverity?.ToString(),
+                PoamStatus = poam?.Status.ToString(),
             };
         }).OrderBy(c => c.ControlId).ToList();
 

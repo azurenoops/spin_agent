@@ -105,3 +105,13 @@ ISSOs manage day-to-day POA&M operations:
 - **Component Linkage**: Link POA&M items to affected system components for traceability
 - **Remediation Sync**: Create or link remediation tasks and track bidirectional status
 - **Milestones**: Add and track milestones with target dates for each POA&M item
+
+---
+
+## SAR Contributions (Feature 041)
+
+As an ISSO, you contribute to the Security Assessment Report:
+
+- **Review findings**: SAR sections are auto-populated from assessment findings you manage
+- **Edit sections**: Use `compliance_edit_sar_section` to update findings and recommendations
+- **Evidence linkage**: Ensure evidence artifacts are linked to controls for inclusion in the authorization package

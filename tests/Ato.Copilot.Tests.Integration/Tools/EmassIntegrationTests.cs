@@ -61,7 +61,7 @@ public class EmassIntegrationTests : IDisposable
         _importTool = new ImportEmassTool(
             emassSvc, Mock.Of<ILogger<ImportEmassTool>>());
         _oscalTool = new ExportOscalTool(
-            emassSvc, Mock.Of<ILogger<ExportOscalTool>>());
+            emassSvc, Mock.Of<IOscalSapExportService>(), Mock.Of<ILogger<ExportOscalTool>>());
     }
 
     public void Dispose() => _serviceProvider.Dispose();

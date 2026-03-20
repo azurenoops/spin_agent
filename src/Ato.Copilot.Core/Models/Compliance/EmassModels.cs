@@ -157,5 +157,8 @@ public enum OscalModelType
     AssessmentResults,
 
     /// <summary>OSCAL Plan of Action and Milestones.</summary>
-    Poam
+    Poam,
+
+    /// <summary>OSCAL Assessment Plan (Security Assessment Plan).</summary>
+    AssessmentPlan
 }

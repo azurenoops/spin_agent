@@ -19,6 +19,19 @@ export interface SapDocumentInfo {
   scheduleEnd: string | null;
 }
 
+export interface SarDocumentInfo {
+  sarId: string;
+  status: string;
+  title: string;
+  totalControlsAssessed: number;
+  satisfiedCount: number;
+  notSatisfiedCount: number;
+  createdBy: string;
+  createdAt: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+}
+
 export interface AuthDecisionInfo {
   decisionId: string;
   decisionType: string;
@@ -103,6 +116,7 @@ export interface SystemDocumentsResponse {
 
   ssp: SspDocumentInfo;
   sap: SapDocumentInfo | null;
+  sar: SarDocumentInfo | null;
   authorization: AuthDecisionInfo | null;
   poamCount: number;
   poamOverdueCount: number;

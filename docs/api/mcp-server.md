@@ -697,12 +697,91 @@ Import from eMASS Excel.
 
 ### `compliance_export_oscal`
 
-Export as OSCAL JSON.
+Export as OSCAL 1.1.2 JSON.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `system_id` | string | ✓ | System GUID |
-| `model_type` | string | ✓ | `ssp`, `assessment_results`, `poam` |
+| `model` | string | ✓ | `ssp`, `assessment-results`, `poam`, `assessment-plan` |
+
+---
+
+## eMASS Authorization Package (Feature 041)
+
+**Service**: `IAuthorizationPackageService`, `IPackageValidationService`, `IOscalSchemaValidationService`
+
+### `compliance_generate_package`
+
+Generate eMASS authorization package as ZIP. Runs readiness validation first. Returns immediately — background generation.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID, name, or acronym |
+| `evidence_mode` | string | | `embedded` (default) or `manifest_only` |
+
+### `compliance_package_status`
+
+Get package generation status, artifacts, and download link.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `package_id` | string | ✓ | Package ID from `compliance_generate_package` |
+
+### `compliance_validate_package`
+
+Pre-submission readiness check (8 validation checks).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID, name, or acronym |
+
+### `compliance_list_packages`
+
+List package history with pagination.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID, name, or acronym |
+| `limit` | integer | | Max results (default: 10) |
+| `include_failed` | boolean | | Include failed packages (default: false) |
+
+### `compliance_validate_oscal_schema`
+
+Validate OSCAL artifact against NIST OSCAL 1.1.2 JSON schema.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID, name, or acronym |
+| `model` | string | ✓ | `ssp`, `poam`, `assessment-results`, `assessment-plan` |
+
+### `compliance_generate_sar`
+
+Generate Security Assessment Report auto-populated from findings.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | ✓ | System GUID, name, or acronym |
+| `title` | string | ✓ | SAR title |
+
+### `compliance_edit_sar_section`
+
+Edit a SAR section.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sar_id` | string | ✓ | SAR identifier |
+| `section_type` | string | ✓ | ExecutiveSummary, Methodology, Findings, Recommendations, ConclusionRiskAssessment |
+| `content` | string | ✓ | New section content |
+
+### `compliance_review_sar`
+
+Submit, approve, or reject SAR.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sar_id` | string | ✓ | SAR identifier |
+| `action` | string | ✓ | `submit`, `approve`, `reject` |
+| `comments` | string | | Review comments |
 
 ---
 

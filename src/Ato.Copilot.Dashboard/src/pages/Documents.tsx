@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { getSystemDocuments } from '../api/documents';
-import { listExports, downloadExportUrl } from '../api/exports';
+import { listExports, downloadExportUrl, oscalPoamUrl, oscalAssessmentResultsUrl, oscalSapUrl } from '../api/exports';
 import type { ExportSummary } from '../api/exports';
 import type {
   SystemDocumentsResponse,
@@ -12,6 +12,9 @@ import type {
 } from '../api/documents';
 import ExportSspDialog from '../components/ExportSspDialog';
 import TemplateManagementDialog from '../components/TemplateManagementDialog';
+import PackageGenerationDialog from '../components/PackageGenerationDialog';
+import { listPackages, downloadPackageUrl } from '../api/package';
+import type { PackageSummary } from '../api/package';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -118,6 +121,17 @@ function AuthPackageSection({ data }: { data: SystemDocumentsResponse }) {
           />
         ) : (
           <DocRow label="Security Assessment Plan (SAP)" missing />
+        )}
+        {data.sar ? (
+          <DocRow
+            label="Security Assessment Report (SAR)"
+            subtitle={data.sar.title}
+            status={data.sar.status === 'UnderReview' ? 'Under Review' : data.sar.status}
+            statusVariant={data.sar.status === 'Approved' ? 'green' : data.sar.status === 'UnderReview' ? 'blue' : 'amber'}
+            detail={`${data.sar.satisfiedCount}/${data.sar.totalControlsAssessed} satisfied`}
+          />
+        ) : (
+          <DocRow label="Security Assessment Report (SAR)" missing />
         )}
         {data.authorization ? (
           <DocRow
@@ -251,52 +265,6 @@ function SspSectionsSection({ sections, activeWaiverCount }: { sections: SspSect
             <StatusBadge status={s.status} variant={variantForStatus(s.status)} />
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function NarrativeGovernanceSection({ data }: { data: SystemDocumentsResponse }) {
-  const gov = data.narrativeGovernance;
-  if (!gov) return null;
-
-  const segments = [
-    { label: 'Approved', count: gov.approved, color: 'bg-green-500' },
-    { label: 'In Review', count: gov.inReview, color: 'bg-blue-500' },
-    { label: 'Needs Revision', count: gov.needsRevision, color: 'bg-amber-500' },
-    { label: 'Draft', count: gov.draft, color: 'bg-gray-300' },
-  ];
-
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-      <SectionHeader
-        icon="✅"
-        title="Narrative Governance"
-        action={<span className="text-xs text-gray-500">{gov.approvalPct}% approved</span>}
-      />
-      <div className="p-5">
-        {/* Stacked bar */}
-        <div className="flex h-3 rounded-full overflow-hidden mb-3">
-          {segments.map((seg) =>
-            seg.count > 0 ? (
-              <div
-                key={seg.label}
-                className={`${seg.color} transition-all`}
-                style={{ width: `${(seg.count / gov.totalNarratives) * 100}%` }}
-                title={`${seg.label}: ${seg.count}`}
-              />
-            ) : null,
-          )}
-        </div>
-        <div className="flex flex-wrap gap-4 text-xs">
-          {segments.map((seg) => (
-            <div key={seg.label} className="flex items-center gap-1.5">
-              <span className={`h-2.5 w-2.5 rounded-full ${seg.color}`} />
-              <span className="text-gray-600">{seg.label}:</span>
-              <span className="font-medium text-gray-900">{seg.count}</span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -441,6 +409,9 @@ function ExportsSection({ data, onExportClick, onManageTemplates }: { data: Syst
     { label: 'eMASS POA&M Export', format: '.xlsx', available: data.poamCount > 0 },
     { label: 'OSCAL SSP (JSON)', format: '.json', available: data.ssp.totalNarratives > 0 },
     { label: 'HW/SW Inventory', format: '.xlsx', available: data.inventoryItemCount > 0 },
+    { label: 'OSCAL POA&M (JSON)', format: '.json', available: data.poamCount > 0, href: oscalPoamUrl(data.systemId) },
+    { label: 'OSCAL Assessment Results (JSON)', format: '.json', available: data.hasBaseline, href: oscalAssessmentResultsUrl(data.systemId) },
+    { label: 'OSCAL Assessment Plan (JSON)', format: '.json', available: data.hasBaseline, href: oscalSapUrl(data.systemId) },
   ];
 
   const visible = showAll ? exportHistory : exportHistory.slice(0, 5);
@@ -489,15 +460,29 @@ function ExportsSection({ data, onExportClick, onManageTemplates }: { data: Syst
               <p className="text-sm text-gray-900">{exp.label}</p>
               <p className="text-xs text-gray-500">{exp.format}</p>
             </div>
-            <button
-              disabled={!exp.available}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
-              Download
-            </button>
+            {exp.href ? (
+              <a
+                href={exp.available ? exp.href : undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors ${!exp.available ? 'pointer-events-none opacity-50' : ''}`}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Download
+              </a>
+            ) : (
+              <button
+                disabled={!exp.available}
+                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Download
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -586,12 +571,135 @@ function InventoryRow({ count }: { count: number }) {
   );
 }
 
+function PackageHistorySection({
+  systemId,
+  refreshKey,
+  onGenerateClick,
+}: {
+  systemId: string;
+  refreshKey: number;
+  onGenerateClick: () => void;
+}) {
+  const [packages, setPackages] = useState<PackageSummary[]>([]);
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    listPackages(systemId, { limit: 10, includeFailed: true })
+      .then((res) => setPackages(Array.isArray(res?.items) ? res.items : []))
+      .catch(() => setPackages([]));
+  }, [systemId, refreshKey]);
+
+  const visible = showAll ? packages : packages.slice(0, 5);
+
+  function formatBytes(bytes: number | null | undefined): string {
+    if (!bytes) return '—';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <SectionHeader
+        icon="📦"
+        title="Authorization Package Generation"
+        action={
+          <button
+            onClick={onGenerateClick}
+            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Generate Package
+          </button>
+        }
+      />
+
+      {packages.length === 0 ? (
+        <div className="px-5 py-8 text-center">
+          <p className="text-sm text-gray-500">No authorization packages generated yet.</p>
+          <p className="text-xs text-gray-400 mt-1">Click "Generate Package" to create your first package.</p>
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+                  <th className="px-5 py-2 font-medium">Date</th>
+                  <th className="px-5 py-2 font-medium">Status</th>
+                  <th className="px-5 py-2 font-medium text-right">Artifacts</th>
+                  <th className="px-5 py-2 font-medium text-right">Size</th>
+                  <th className="px-5 py-2 font-medium">Validation</th>
+                  <th className="px-5 py-2 font-medium">Generated By</th>
+                  <th className="px-5 py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {visible.map((pkg) => (
+                  <tr key={pkg.packageId} className="hover:bg-gray-50">
+                    <td className="px-5 py-2.5 text-gray-700">{formatDate(pkg.generatedAt)}</td>
+                    <td className="px-5 py-2.5">
+                      <StatusBadge status={pkg.status} variant={variantForStatus(pkg.status)} />
+                    </td>
+                    <td className="px-5 py-2.5 text-right tabular-nums text-gray-700">{pkg.artifactCount}</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums text-gray-700">{formatBytes(pkg.fileSize)}</td>
+                    <td className="px-5 py-2.5">
+                      {pkg.validationPassed === true && (
+                        <StatusBadge status="Passed" variant="green" />
+                      )}
+                      {pkg.validationPassed === false && (
+                        <StatusBadge status={`${pkg.validationErrorCount} errors`} variant="red" />
+                      )}
+                      {pkg.validationPassed === null && (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-2.5 text-gray-500">{pkg.generatedBy}</td>
+                    <td className="px-5 py-2.5">
+                      {pkg.status === 'Completed' && (
+                        <a
+                          href={downloadPackageUrl(systemId, pkg.packageId)}
+                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                          download
+                        >
+                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                          </svg>
+                          Download
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {packages.length > 5 && (
+            <div className="border-t border-gray-100 px-5 py-2 text-center">
+              <button
+                onClick={() => setShowAll(!showAll)}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {showAll ? 'Show Less' : `View All ${packages.length} Packages`}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function Documents() {
   const { id } = useParams<{ id: string }>();
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [showPackageDialog, setShowPackageDialog] = useState(false);
+  const [packageRefreshKey, setPackageRefreshKey] = useState(0);
 
   const fetcher = useCallback(() => getSystemDocuments(id!), [id]);
   const { data, loading, error } = usePolling<SystemDocumentsResponse>(fetcher, 30000);
@@ -632,9 +740,6 @@ export default function Documents() {
         {/* SSP Sections */}
         <SspSectionsSection sections={data.sspSections} activeWaiverCount={data.activeWaiverCount} />
 
-        {/* Narrative Governance */}
-        <NarrativeGovernanceSection data={data} />
-
         {/* Privacy */}
         <PrivacySection data={data} />
 
@@ -649,6 +754,13 @@ export default function Documents() {
 
         {/* Exports */}
         <ExportsSection data={data} onExportClick={() => setShowExportDialog(true)} onManageTemplates={() => setShowTemplateDialog(true)} />
+
+        {/* Authorization Package Generation & History */}
+        <PackageHistorySection
+          systemId={data.systemId}
+          refreshKey={packageRefreshKey}
+          onGenerateClick={() => setShowPackageDialog(true)}
+        />
 
         {/* Inventory */}
         <InventoryRow count={data.inventoryItemCount} />
@@ -666,6 +778,15 @@ export default function Documents() {
       {showTemplateDialog && (
         <TemplateManagementDialog
           onClose={() => setShowTemplateDialog(false)}
+        />
+      )}
+
+      {/* Package Generation Dialog */}
+      {showPackageDialog && (
+        <PackageGenerationDialog
+          systemId={data.systemId}
+          onClose={() => setShowPackageDialog(false)}
+          onPackageComplete={() => setPackageRefreshKey((k) => k + 1)}
         />
       )}
     </>

@@ -446,7 +446,7 @@ public class AuthorizationToolTests
     [Fact]
     public async Task BundlePackage_ReturnsDocuments()
     {
-        var package = new AuthorizationPackage
+        var package = new AuthorizationPackageBundle
         {
             SystemId = "sys-1",
             GeneratedAt = DateTime.UtcNow,

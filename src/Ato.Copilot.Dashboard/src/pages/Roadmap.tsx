@@ -38,7 +38,7 @@ export default function Roadmap() {
 
   const header = (
     <div className="mb-6">
-      <h2 className="text-2xl font-bold text-gray-900">Roadmap</h2>
+      <h2 className="text-2xl font-bold text-gray-900">Implementation Roadmap</h2>
       <p className="mt-1 text-sm text-gray-500">
         Phased implementation timeline with effort estimates, risk reduction targets, and milestone tracking.
       </p>
@@ -46,7 +46,7 @@ export default function Roadmap() {
   );
 
   if (loading) {
-    return <>{header}<p className="text-gray-500">Loading roadmap...</p></>;
+    return <>{header}<p className="text-gray-500">Loading implementation roadmap...</p></>;
   }
 
   if (error || !roadmap) {
@@ -54,9 +54,9 @@ export default function Roadmap() {
       <>
         {header}
         <div>
-          <p className="text-red-500">{error ?? 'No active roadmap found'}</p>
+          <p className="text-red-500">{error ?? 'No active implementation roadmap found'}</p>
           <p className="mt-2 text-sm text-gray-500">
-            Generate a roadmap using the ISSM chat command: &quot;Generate an implementation roadmap for this system&quot;
+            Generate an implementation roadmap use the "Generate Roadmap" action on the Gap Analysis page.
           </p>
         </div>
       </>
