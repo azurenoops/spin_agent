@@ -1,14 +1,15 @@
 import { useState, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import {
+  getComponents,
   listComponents,
   createOrgComponent,
-  updateOrgComponent,
-  deleteOrgComponent,
+  assignToSystem,
+  removeAssignment,
   type OrgComponentDto,
-  type OrgComponentListResponse,
 } from '../api/components';
-import type { CreateComponentRequest } from '../types/dashboard';
+import type { CreateComponentRequest, SystemComponentDto } from '../types/dashboard';
 
 const COMMON_POLICIES = [
   { name: 'FISMA 2014', description: 'Federal Information Security Modernization Act — requires federal agencies to implement information security programs.' },
@@ -24,24 +25,33 @@ const COMMON_POLICIES = [
 ];
 
 export default function LegalRegulatory() {
+  const { id: systemId } = useParams<{ id: string }>();
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [editItem, setEditItem] = useState<OrgComponentDto | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showAssign, setShowAssign] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState<{ componentId: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
 
-  // Form fields
+  // Form fields for new items
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formSubType, setFormSubType] = useState('');
 
+  // Org library items for "Assign Existing"
+  const [orgItems, setOrgItems] = useState<OrgComponentDto[]>([]);
+  const [orgSearch, setOrgSearch] = useState('');
+  const [loadingOrg, setLoadingOrg] = useState(false);
+
+  // System-scoped: only policies assigned to THIS system
   const fetcher = useCallback(
-    () => listComponents({ type: 'Policy', search: search || undefined, pageSize: 200 }),
-    [search],
+    () => systemId
+      ? getComponents(systemId, { type: 'Policy', search: search || undefined, pageSize: 200 })
+      : Promise.reject('No systemId'),
+    [systemId, search],
   );
-  const { data, refresh } = usePolling<OrgComponentListResponse>(fetcher, 30000);
+  const { data, refresh } = usePolling<{ systemId: string; items: SystemComponentDto[]; totalCount: number }>(fetcher, 30000);
   const items = data?.items ?? [];
 
   const resetForm = () => {
@@ -53,22 +63,13 @@ export default function LegalRegulatory() {
 
   const openCreate = () => {
     resetForm();
-    setEditItem(null);
     setShowCreate(true);
   };
 
-  const openEdit = (item: OrgComponentDto) => {
-    setFormName(item.name);
-    setFormDescription(item.description ?? '');
-    setFormSubType(item.subType ?? '');
-    setFormError(null);
-    setEditItem(item);
-    setShowCreate(true);
-  };
-
+  // Create org-wide policy and assign to this system
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim()) { setFormError('Name is required'); return; }
+    if (!formName.trim() || !systemId) { setFormError('Name is required'); return; }
     setSubmitting(true);
     setFormError(null);
     const request: CreateComponentRequest = {
@@ -79,14 +80,10 @@ export default function LegalRegulatory() {
       status: 'Active',
     };
     try {
-      if (editItem) {
-        await updateOrgComponent(editItem.id, request);
-      } else {
-        await createOrgComponent(request);
-      }
+      const orgComp = await createOrgComponent(request);
+      await assignToSystem(orgComp.id, { registeredSystemId: systemId });
       setShowCreate(false);
       resetForm();
-      setEditItem(null);
       refresh();
     } catch (err: any) {
       setFormError(err?.response?.data?.error ?? 'Failed to save');
@@ -95,28 +92,73 @@ export default function LegalRegulatory() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  // Remove assignment from this system (not the org-wide component)
+  const handleRemoveAssignment = async (componentId: string) => {
+    if (!systemId) return;
     try {
-      await deleteOrgComponent(id);
-      setDeleteConfirm(null);
+      // Find the assignment for this system
+      const orgData = await listComponents({ type: 'Policy', pageSize: 200 });
+      const comp = orgData.items.find(c => c.id === componentId);
+      const assignment = comp?.systemAssignments?.find(a => a.registeredSystemId === systemId);
+      if (assignment) {
+        await removeAssignment(componentId, assignment.id);
+      }
+      setRemoveConfirm(null);
       refresh();
     } catch { /* ignore */ }
   };
 
+  // Quick Add: create org-wide (if not exists) and assign to system
   const handleQuickAdd = async (policy: typeof COMMON_POLICIES[number]) => {
+    if (!systemId) return;
     setSubmitting(true);
     try {
-      await createOrgComponent({
-        name: policy.name,
-        componentType: 'Policy',
-        description: policy.description,
-        status: 'Active',
-      });
+      // Check org-wide library first
+      const orgData = await listComponents({ type: 'Policy', search: policy.name, pageSize: 10 });
+      let orgComp = orgData.items.find(c => c.name === policy.name);
+      if (!orgComp) {
+        orgComp = await createOrgComponent({
+          name: policy.name,
+          componentType: 'Policy',
+          description: policy.description,
+          status: 'Active',
+        });
+      }
+      // Assign to this system (ignore 409 if already assigned)
+      try {
+        await assignToSystem(orgComp.id, { registeredSystemId: systemId });
+      } catch { /* already assigned */ }
       refresh();
     } catch { /* duplicate or error — ignore */ }
     finally { setSubmitting(false); }
   };
 
+  // Open assign-from-library dialog
+  const openAssignExisting = async () => {
+    setShowAssign(true);
+    setLoadingOrg(true);
+    setOrgSearch('');
+    try {
+      const orgData = await listComponents({ type: 'Policy', pageSize: 200 });
+      setOrgItems(orgData.items);
+    } catch { setOrgItems([]); }
+    finally { setLoadingOrg(false); }
+  };
+
+  const handleAssignExisting = async (comp: OrgComponentDto) => {
+    if (!systemId) return;
+    setSubmitting(true);
+    try {
+      await assignToSystem(comp.id, { registeredSystemId: systemId });
+      refresh();
+      // Refresh org list to update assignment state
+      const orgData = await listComponents({ type: 'Policy', pageSize: 200 });
+      setOrgItems(orgData.items);
+    } catch { /* already assigned or error */ }
+    finally { setSubmitting(false); }
+  };
+
+  const assignedIds = new Set(items.map((i) => i.id));
   const existingNames = new Set(items.map((i) => i.name));
 
   return (
@@ -136,6 +178,13 @@ export default function LegalRegulatory() {
             className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             Quick Add Common
+          </button>
+          <button
+            type="button"
+            onClick={openAssignExisting}
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Assign Existing
           </button>
           <button
             type="button"
@@ -215,14 +264,7 @@ export default function LegalRegulatory() {
                 <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                   <button
                     type="button"
-                    onClick={() => openEdit(item)}
-                    className="text-blue-600 hover:text-blue-800 mr-3"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteConfirm(item.id)}
+                    onClick={() => setRemoveConfirm({ componentId: item.id, name: item.name })}
                     className="text-red-600 hover:text-red-800"
                   >
                     Remove
@@ -246,7 +288,7 @@ export default function LegalRegulatory() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {editItem ? 'Edit' : 'Add'} Legal &amp; Regulatory Item
+              Add Legal &amp; Regulatory Item
             </h3>
             {formError && <p className="mb-3 text-sm text-red-600">{formError}</p>}
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -292,7 +334,7 @@ export default function LegalRegulatory() {
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => { setShowCreate(false); setEditItem(null); resetForm(); }}
+                  onClick={() => { setShowCreate(false); resetForm(); }}
                   className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
@@ -302,7 +344,7 @@ export default function LegalRegulatory() {
                   disabled={submitting}
                   className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : editItem ? 'Save Changes' : 'Add'}
+                  {submitting ? 'Saving...' : 'Add'}
                 </button>
               </div>
             </form>
@@ -310,17 +352,76 @@ export default function LegalRegulatory() {
         </div>
       )}
 
-      {/* Delete Confirmation */}
-      {deleteConfirm && (
+      {/* Remove Assignment Confirmation */}
+      {removeConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Remove Item?</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Remove from System?</h3>
             <p className="mb-4 text-sm text-gray-600">
-              This will remove the law/regulation from the component library.
+              This will remove <strong>{removeConfirm.name}</strong> from this system. The item will remain in the organization library.
             </p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setDeleteConfirm(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button type="button" onClick={() => handleDelete(deleteConfirm)} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Remove</button>
+              <button type="button" onClick={() => setRemoveConfirm(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={() => handleRemoveAssignment(removeConfirm.componentId)} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Remove</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Existing from Org Library */}
+      {showAssign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Assign from Organization Library</h3>
+            <input
+              type="text"
+              value={orgSearch}
+              onChange={(e) => setOrgSearch(e.target.value)}
+              placeholder="Search policies..."
+              className="mb-4 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            {loadingOrg ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : (
+              <div className="space-y-2">
+                {orgItems
+                  .filter(c => !orgSearch || c.name.toLowerCase().includes(orgSearch.toLowerCase()))
+                  .map((comp) => {
+                    const isAssigned = assignedIds.has(comp.id);
+                    return (
+                      <div key={comp.id} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">{comp.name}</span>
+                          {comp.description && <p className="text-xs text-gray-500 truncate max-w-xs">{comp.description}</p>}
+                        </div>
+                        {isAssigned ? (
+                          <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Assigned ✓</span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={submitting}
+                            onClick={() => handleAssignExisting(comp)}
+                            className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            Assign
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                {orgItems.filter(c => !orgSearch || c.name.toLowerCase().includes(orgSearch.toLowerCase())).length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">No policies found in the organization library.</p>
+                )}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowAssign(false)}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

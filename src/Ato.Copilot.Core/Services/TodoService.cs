@@ -123,8 +123,9 @@ public class TodoService
             });
         }
 
-        var hasBoundary = await _db.AuthorizationBoundaries
-            .AnyAsync(b => b.RegisteredSystemId == systemId, ct);
+        var hasBoundary = await _db.ComponentSystemAssignments
+            .AnyAsync(csa => csa.RegisteredSystemId == systemId
+                          && csa.AuthorizationBoundaryDefinitionId != null, ct);
 
         if (!hasBoundary)
         {
@@ -132,7 +133,7 @@ public class TodoService
             {
                 Id = "define-boundary",
                 Label = "Define Authorization Boundary",
-                Detail = "Identify all resources and interconnections in scope",
+                Detail = "Assign components to the authorization boundary",
                 Category = "phase-action",
                 Prompt = $"Define the authorization boundary for {SystemName(systemId)}",
             });

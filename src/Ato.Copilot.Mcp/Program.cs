@@ -792,6 +792,7 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     services.AddScoped<Ato.Copilot.Core.Services.TodoService>();
     services.AddScoped<Ato.Copilot.Core.Services.CapabilityService>();
     services.AddScoped<Ato.Copilot.Core.Services.ComponentService>();
+    services.AddScoped<Ato.Copilot.Core.Services.SystemCapabilityLinkService>();
     services.AddSingleton<Ato.Copilot.Core.Services.BoundaryLockService>();
     services.AddHostedService<Ato.Copilot.Core.Services.BoundaryMigrationService>();
     services.AddScoped<Ato.Copilot.Agents.Compliance.Services.EntraIdDiscoveryService>();
@@ -835,6 +836,12 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
         Ato.Copilot.Mcp.Services.SignalRSspExportNotifier>();
     services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportBackgroundService>();
     services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportRetentionService>();
+
+    // Feature 043: Control Inheritance CRM Export
+    services.AddSingleton<Ato.Copilot.Mcp.Services.CrmExportService>();
+
+    // Feature 043: CSP Profile Service
+    services.AddSingleton<Ato.Copilot.Mcp.Services.CspProfileService>();
 
     // Feature 041: Authorization Package generation pipeline
     services.AddSingleton(System.Threading.Channels.Channel.CreateBounded<Ato.Copilot.Core.Dtos.Dashboard.PackageExportJob>(

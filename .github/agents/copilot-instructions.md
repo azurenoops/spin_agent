@@ -83,6 +83,10 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 - SQLite (dev), SQL Server (prod) via EF Core (040-component-centric-boundary)
 - C# / .NET 8.0 + ASP.NET Core, Entity Framework Core, ClosedXML, System.Text.Json, System.IO.Compression (ZIP), SignalR, JsonSchema.Net (OSCAL JSON Schema validation), DocumentFormat.OpenXml (SAR Word generation) (041-emass-package)
 - SQLite (dev) / PostgreSQL (prod) via EF Core, local filesystem + Azure Blob (IFileStorageProvider) for exports and evidence (041-emass-package)
+- TypeScript 5.7 (frontend), C# .NET 8 (backend) + React 19, React Router 7, Vite 6, Tailwind CSS 3, Axios (frontend); EF Core, Serilog (backend) (042-system-intake-wizard)
+- SQL Server via Entity Framework Core (existing `AtoCopilotContext`) (042-system-intake-wizard)
+- C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (frontend) + EF Core 9.0, ASP.NET Core Minimal APIs, ClosedXML 0.104.2 (Excel I/O), Serilog (logging); React 19, Vite 6, Tailwind CSS 3, Axios, React Router 7 (frontend) (043-control-inheritance)
+- SQLite (dev) / SQL Server (prod) via EF Core — existing `AtoCopilotContext` (043-control-inheritance)
 
 - C# 13 / .NET 9.0 + Azure.Identity 1.13, Azure.ResourceManager 1.13, Microsoft.Extensions.AI 9.4-preview, Microsoft.EntityFrameworkCore 9.0, Serilog 4.2, xUnit 2.9, FluentAssertions 7.0, Moq 4.20 (001-core-compliance)
 
@@ -102,9 +106,9 @@ dotnet build Ato.Copilot.sln [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMAN
 C# .NET 9: Follow standard conventions
 
 ## Recent Changes
+- 043-control-inheritance: Added C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (frontend) + EF Core 9.0, ASP.NET Core Minimal APIs, ClosedXML 0.104.2 (Excel I/O), Serilog (logging); React 19, Vite 6, Tailwind CSS 3, Axios, React Router 7 (frontend)
+- 042-system-intake-wizard: Added TypeScript 5.7 (frontend), C# .NET 8 (backend) + React 19, React Router 7, Vite 6, Tailwind CSS 3, Axios (frontend); EF Core, Serilog (backend)
 - 041-emass-package: Added C# / .NET 8.0 + ASP.NET Core, Entity Framework Core, ClosedXML, System.Text.Json, System.IO.Compression (ZIP), SignalR, JsonSchema.Net (OSCAL JSON Schema validation), DocumentFormat.OpenXml (SAR Word generation)
-- 040-component-centric-boundary: Added C# / .NET 8 + EF Core 8, Azure.ResourceManager, Azure.ResourceManager.ResourceGraph, ASP.NET Core Minimal APIs, React 18 + TypeScript (Vite dashboard)
-- 038-evidence-repository: Added C# / .NET 9.0 (backend), TypeScript / React 18+ (frontend) + ASP.NET Core Minimal APIs, Entity Framework Core 9, Axios, React, Tailwind CSS, Heroicons
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -221,6 +221,7 @@ export default function Narratives() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const savedTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [regenError, setRegenError] = useState('');
 
   const fetchNarratives = useCallback(() => {
     if (!systemId) return Promise.resolve([]);
@@ -320,14 +321,23 @@ export default function Narratives() {
   const handleRegenerate = async (controlId: string) => {
     if (!systemId) return;
     setRegeneratingIds(prev => new Set([...prev, controlId]));
+    setRegenError('');
     try {
       const newNarrative = await regenerateNarrative(systemId, controlId);
       if (newNarrative) {
         setEditedNarratives(prev => ({ ...prev, [controlId]: newNarrative }));
       }
       refresh();
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      const resp = (err as { response?: { status?: number; data?: { error?: string; errorCode?: string } } })?.response;
+      if (resp?.status === 503) {
+        setRegenError(`Regeneration failed for ${controlId}: AI service is not configured.`);
+      } else if (resp?.data?.errorCode === 'NO_CAPABILITY') {
+        setRegenError(`Regeneration failed for ${controlId}: No security capability is linked to this control. Assign a capability first.`);
+      } else {
+        const msg = resp?.data?.error || (err instanceof Error ? err.message : 'Unknown error');
+        setRegenError(`Regeneration failed for ${controlId}: ${msg}`);
+      }
     } finally {
       setRegeneratingIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
     }
@@ -468,6 +478,12 @@ export default function Narratives() {
         )}
         {error && (
           <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">{String(error)}</div>
+        )}
+        {regenError && (
+          <div className="flex items-center justify-between rounded-md bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
+            <span>{regenError}</span>
+            <button onClick={() => setRegenError('')} className="text-amber-500 hover:text-amber-700 text-xs font-medium ml-4">Dismiss</button>
+          </div>
         )}
 
         {/* Table */}

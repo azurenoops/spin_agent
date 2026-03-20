@@ -1718,3 +1718,21 @@ Query parameters for discovery GET: `resourceGroup`, `resourceType`, `search`, `
 | `compliance_delete_boundary_definition` | Delete a boundary (reassigns resources to Primary) |
 | `compliance_boundary_gap_analysis` | Run boundary-scoped gap analysis with optional boundary filter |
 | `compliance_define_boundary` (modified) | Optionally assigns resources to a named boundary definition |
+
+#### Control Inheritance & CRM (Feature 043)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/systems/{systemId}/inheritance` | List inheritance designations with filter/search/pagination |
+| PUT | `/api/dashboard/systems/{systemId}/inheritance` | Set inheritance designations (single or bulk) |
+| GET | `/api/dashboard/systems/{systemId}/inheritance/{controlId}/audit` | Get audit trail for a control |
+| GET | `/api/dashboard/systems/{systemId}/inheritance/crm` | Generate CRM data |
+| GET | `/api/dashboard/systems/{systemId}/inheritance/crm/export` | Export CRM as CSV or Excel |
+| GET | `/api/dashboard/systems/{systemId}/inheritance/csp-profiles` | List available CSP profiles |
+| POST | `/api/dashboard/systems/{systemId}/inheritance/apply-profile` | Apply a CSP profile (preview or commit) |
+| POST | `/api/dashboard/systems/{systemId}/inheritance/import/preview` | Parse uploaded CRM file, return column mapping |
+| POST | `/api/dashboard/systems/{systemId}/inheritance/import/apply` | Apply imported CRM with column mapping |
+
+Query parameters for inheritance GET: `family`, `inheritanceType`, `search`, `page`, `pageSize`, `sortBy`, `sortDirection`
+
+Query parameters for CRM export GET: `format` (csv/excel), `layout` (custom/fedramp/emass)

@@ -10,6 +10,7 @@ import { useNotifications } from '../../hooks/useNotifications';
 const navItems = [
   { to: '/', label: 'Portfolio' },
   { to: '/systems', label: 'Systems' },
+  { to: '/controls', label: 'Controls' },
   { to: '/capabilities', label: 'Capabilities' },
   { to: '/components', label: 'Components' },
 ];
@@ -115,7 +116,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
       {/* Content area */}
       <div className="flex flex-1 overflow-hidden">
         {leftPanel}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 min-w-0 overflow-y-auto p-6">{children}</main>
         {(sidePanel || helpPanelOpen) && (
           <div className="hidden xl:flex flex-shrink-0">
             {/* Toggle tab on the edge */}

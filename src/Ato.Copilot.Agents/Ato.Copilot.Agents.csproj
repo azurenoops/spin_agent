@@ -37,6 +37,7 @@
     <EmbeddedResource Include="Compliance\Resources\nist-800-53-baselines.json" />
     <EmbeddedResource Include="Compliance\Resources\sp800-60-information-types.json" />
     <EmbeddedResource Include="Compliance\Resources\cnssi-1253-overlays.json" />
+    <EmbeddedResource Include="Compliance\Resources\fedramp-baselines.json" />
     <EmbeddedResource Include="Compliance\Resources\cci-nist-mapping.json" />
     <EmbeddedResource Include="Compliance\Resources\plugin-family-mappings.json" />
     <EmbeddedResource Include="Compliance\Resources\oscal-schemas\oscal_ssp_schema.json" />

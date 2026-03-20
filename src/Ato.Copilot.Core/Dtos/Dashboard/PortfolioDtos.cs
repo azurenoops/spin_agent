@@ -64,6 +64,18 @@ public class PortfolioSystemSummaryDto
 
     /// <summary>Open CAT III findings count.</summary>
     public int CatIIICounts { get; init; }
+
+    /// <summary>Whether the system has at least one authorization boundary definition.</summary>
+    public bool HasBoundary { get; init; }
+
+    /// <summary>Whether the system has at least one active RMF role assignment.</summary>
+    public bool HasRoles { get; init; }
+
+    /// <summary>Whether the system has a security categorization record.</summary>
+    public bool HasCategorization { get; init; }
+
+    /// <summary>Composite: HasBoundary AND HasRoles AND HasCategorization.</summary>
+    public bool IsSetupComplete { get; init; }
 }
 
 /// <summary>

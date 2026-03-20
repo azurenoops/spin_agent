@@ -32,6 +32,8 @@
 
 3. **Start your primary workflow**
 
+    > **Tip:** If you need to register a new system, use the **System Intake Wizard** in the Compliance Dashboard (Systems → "+ Add System") for a guided 7-step setup process. See the [System Intake Wizard Guide](../guides/system-intake-wizard.md) for details.
+
     If your system is in the **Implement** phase:
     ```
     @ato "Show narrative progress for system {id}"

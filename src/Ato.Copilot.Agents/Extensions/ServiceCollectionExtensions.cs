@@ -177,6 +177,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IReferenceDataService, ReferenceDataService>();
         services.AddSingleton<IBaselineService, BaselineService>();
 
+        // ─── Multi-Framework Catalog Import Service (Feature 044) ────────────
+        services.AddSingleton<IFrameworkImportService>(sp =>
+        {
+            var factory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = factory.CreateClient("FrameworkImport");
+            return new FrameworkImportService(
+                sp.GetRequiredService<IServiceScopeFactory>(),
+                httpClient,
+                sp.GetRequiredService<ILogger<FrameworkImportService>>());
+        });
+
         // Register compliance tools
         services.AddSingleton<ComplianceAssessmentTool>();
         services.AddSingleton<ControlFamilyTool>();

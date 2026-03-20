@@ -27,6 +27,11 @@ export default function SystemSummaryRow({ system, onEdit }: SystemSummaryRowPro
     >
       <td className="py-3 pl-4 pr-3">
         <span className="font-medium text-gray-900">{system.name}</span>
+        {system.isSetupComplete === false && (
+          <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+            Setup Incomplete
+          </span>
+        )}
       </td>
       <td className="px-3 py-3 text-sm text-gray-500">{system.impactLevel}</td>
       <td className="px-3 py-3">

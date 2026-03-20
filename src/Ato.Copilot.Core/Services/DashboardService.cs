@@ -95,6 +95,28 @@ public class DashboardService
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
+        // Setup completion queries for intake wizard badge
+        var boundaryCountsBySystem = await _db.AuthorizationBoundaryDefinitions
+            .Where(b => systemIds.Contains(b.RegisteredSystemId))
+            .GroupBy(b => b.RegisteredSystemId)
+            .Select(g => new { SystemId = g.Key, Count = g.Count() })
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        var roleCountsBySystem = await _db.RmfRoleAssignments
+            .Where(r => systemIds.Contains(r.RegisteredSystemId) && r.IsActive)
+            .GroupBy(r => r.RegisteredSystemId)
+            .Select(g => new { SystemId = g.Key, Count = g.Count() })
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        var systemsWithCategorization = await _db.SecurityCategorizations
+            .Where(sc => systemIds.Contains(sc.RegisteredSystemId))
+            .Select(sc => sc.RegisteredSystemId)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+        var categorizationSet = new HashSet<string>(systemsWithCategorization);
+
         // Build DTOs
         var summaries = systems.Select(system =>
         {
@@ -145,6 +167,12 @@ public class DashboardService
                 CatIIICounts = findingCounts
                     .Where(f => f.AssessmentId == assessmentId && f.CatSeverity == CatSeverity.CatIII)
                     .Sum(f => f.Count),
+                HasBoundary = boundaryCountsBySystem.Any(b => b.SystemId == system.Id && b.Count > 0),
+                HasRoles = roleCountsBySystem.Any(r => r.SystemId == system.Id && r.Count > 0),
+                HasCategorization = categorizationSet.Contains(system.Id),
+                IsSetupComplete = boundaryCountsBySystem.Any(b => b.SystemId == system.Id && b.Count > 0)
+                    && roleCountsBySystem.Any(r => r.SystemId == system.Id && r.Count > 0)
+                    && categorizationSet.Contains(system.Id),
             };
         })
         .Where(s => s != null)

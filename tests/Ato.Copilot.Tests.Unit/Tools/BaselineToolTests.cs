@@ -444,7 +444,7 @@ public class BaselineToolTests
         };
 
         _baselineMock
-            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<CancellationToken>()))
+            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<InheritanceChangeSource>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(inheritanceResult);
 
         var tool = CreateSetInheritanceTool();
@@ -476,7 +476,7 @@ public class BaselineToolTests
         };
 
         _baselineMock
-            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<CancellationToken>()))
+            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<InheritanceChangeSource>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(inheritanceResult);
 
         var tool = CreateSetInheritanceTool();
@@ -511,7 +511,7 @@ public class BaselineToolTests
         };
 
         _baselineMock
-            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<CancellationToken>()))
+            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<InheritanceChangeSource>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(inheritanceResult);
 
         var tool = CreateSetInheritanceTool();
@@ -539,7 +539,7 @@ public class BaselineToolTests
         };
 
         _baselineMock
-            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<CancellationToken>()))
+            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<InheritanceChangeSource>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(inheritanceResult);
 
         var tool = CreateSetInheritanceTool();
@@ -597,7 +597,7 @@ public class BaselineToolTests
         };
 
         _baselineMock
-            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<CancellationToken>()))
+            .Setup(s => s.SetInheritanceAsync("sys-1", It.IsAny<IEnumerable<InheritanceInput>>(), "mcp-user", It.IsAny<InheritanceChangeSource>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(inheritanceResult);
 
         var tool = CreateSetInheritanceTool();

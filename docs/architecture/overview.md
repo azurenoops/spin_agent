@@ -431,6 +431,20 @@ Feature 033 introduces authorization boundary definitions as first-class entitie
 
 ---
 
+## Control Inheritance & CRM (Feature 043)
+
+Feature 043 adds a dedicated Control Inheritance management page to the dashboard:
+
+- **Inheritance Designations**: Every baseline control can be classified as Inherited, Shared, Customer, or Undesignated
+- **InheritanceAuditEntry**: Immutable, append-only audit log tracks every change with previous/new values and change source
+- **CRM Generation & Export**: Customer Responsibility Matrix in Custom, FedRAMP, and eMASS layouts (CSV and Excel)
+- **CSP Profiles**: Pre-built JSON profiles (e.g., Azure Government FedRAMP High) auto-designate controls with conflict resolution
+- **CRM Import**: Upload existing CRM spreadsheets with column mapping, preview, and conflict resolution
+- **Services**: `CrmExportService` (export/import), `CspProfileService` (profile loading/matching)
+- **Data Model**: `InheritanceAuditEntry` entity linked to `ControlInheritance` via `ControlInheritanceId`
+
+---
+
 ## Related Documentation
 
 - [Data Model](data-model.md) — Entity relationships and ER diagram
@@ -440,6 +454,7 @@ Feature 033 introduces authorization boundary definitions as first-class entitie
 - [MCP Server API](../api/mcp-server.md) — MCP tool API reference
 - [Deployment Guide](../deployment.md) — Production deployment instructions
 - [Dashboard Guide](../guides/compliance-dashboard.md) — Dashboard user guide
+- [Control Inheritance Guide](../guides/control-inheritance.md) — Inheritance & CRM management
 - [Capabilities Guide](../guides/security-capabilities.md) — Security Capabilities Library
 - [Components Guide](../guides/component-inventory.md) — Component Inventory
 - [Gap Analysis Guide](../guides/gap-analysis.md) — Gap Analysis

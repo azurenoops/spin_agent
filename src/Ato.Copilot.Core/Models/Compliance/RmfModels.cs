@@ -647,6 +647,86 @@ public class ControlInheritance
     public ControlBaseline ControlBaseline { get; set; } = null!;
 }
 
+// ──────────────────────── Inheritance Audit (Feature 043) ────────────────────────
+
+/// <summary>How an inheritance designation change was made.</summary>
+public enum InheritanceChangeSource
+{
+    /// <summary>Single control edit via dashboard UI.</summary>
+    Manual,
+    /// <summary>Multi-select bulk update.</summary>
+    BulkUpdate,
+    /// <summary>CSP profile application.</summary>
+    ProfileApply,
+    /// <summary>CRM spreadsheet import.</summary>
+    CrmImport
+}
+
+/// <summary>
+/// Immutable, append-only audit log entry for every change to a
+/// <see cref="ControlInheritance"/> record.
+/// </summary>
+public class InheritanceAuditEntry
+{
+    /// <summary>Unique identifier (GUID).</summary>
+    [Key]
+    [MaxLength(36)]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Logical FK to the ControlInheritance record (no cascade).</summary>
+    [Required]
+    [MaxLength(36)]
+    public string ControlInheritanceId { get; set; } = string.Empty;
+
+    /// <summary>Denormalized control ID for query convenience.</summary>
+    [Required]
+    [MaxLength(20)]
+    public string ControlId { get; set; } = string.Empty;
+
+    /// <summary>Denormalized baseline ID for system-wide audit queries.</summary>
+    [Required]
+    [MaxLength(36)]
+    public string ControlBaselineId { get; set; } = string.Empty;
+
+    /// <summary>User or service that made the change.</summary>
+    [Required]
+    [MaxLength(200)]
+    public string Actor { get; set; } = string.Empty;
+
+    /// <summary>Previous inheritance type (null if first designation).</summary>
+    [MaxLength(20)]
+    public string? PreviousInheritanceType { get; set; }
+
+    /// <summary>New inheritance type after the change.</summary>
+    [Required]
+    [MaxLength(20)]
+    public string NewInheritanceType { get; set; } = string.Empty;
+
+    /// <summary>Previous provider value.</summary>
+    [MaxLength(200)]
+    public string? PreviousProvider { get; set; }
+
+    /// <summary>New provider value.</summary>
+    [MaxLength(200)]
+    public string? NewProvider { get; set; }
+
+    /// <summary>Previous customer responsibility description.</summary>
+    [MaxLength(2000)]
+    public string? PreviousCustomerResponsibility { get; set; }
+
+    /// <summary>New customer responsibility description.</summary>
+    [MaxLength(2000)]
+    public string? NewCustomerResponsibility { get; set; }
+
+    /// <summary>How the change was made.</summary>
+    [Required]
+    public InheritanceChangeSource ChangeSource { get; set; }
+
+    /// <summary>UTC timestamp of the change.</summary>
+    [Required]
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+}
+
 // ───────────────────────────── SSP Section Entities (Feature 022) ─────────────────────────────
 
 /// <summary>SSP section lifecycle status.</summary>

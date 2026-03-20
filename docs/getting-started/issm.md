@@ -24,6 +24,14 @@
 
 2. **Register your first system**
 
+    Use the **System Intake Wizard** in the Compliance Dashboard for guided setup:
+
+    1. Navigate to **Systems** and click **"+ Add System"**
+    2. Complete the 7-step wizard (system details, capabilities, components, boundaries, roles, verification, categorization)
+    3. See the [System Intake Wizard Guide](../guides/system-intake-wizard.md) for detailed instructions
+
+    Alternatively, register via chat:
+
     ```
     "Register a new system called 'My System' as a Major Application
      in Azure Government"

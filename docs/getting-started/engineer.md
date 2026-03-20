@@ -38,6 +38,8 @@
 
     Expected result: Plain-language explanation of the NIST control tailored to your Azure environment, with implementation guidance.
 
+> **Tip:** System Owners can register new systems using the **System Intake Wizard** in the Compliance Dashboard (Systems → "+ Add System"). The wizard walks through 7 steps including component inventory, boundary definition, and role assignment. See the [System Intake Wizard Guide](../guides/system-intake-wizard.md).
+
 ## Your First 3 Commands
 
 ### 1. Explain a Control

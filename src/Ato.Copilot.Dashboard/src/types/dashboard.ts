@@ -49,6 +49,10 @@ export interface PortfolioSystemSummary {
   catICounts: number;
   catIICounts: number;
   catIIICounts: number;
+  isSetupComplete: boolean;
+  hasBoundary: boolean;
+  hasRoles: boolean;
+  hasCategorization: boolean;
 }
 
 // ─── System Detail (US2) ──────────────────────────────────────────────────────
@@ -438,6 +442,7 @@ export interface CreateBoundaryDefinitionRequest {
   name: string;
   boundaryType: string;
   description?: string | null;
+  isPrimary?: boolean;
 }
 
 export interface DeleteBoundaryDefinitionResponse {
@@ -722,4 +727,75 @@ export interface AssessmentComponentRisks {
   componentRisks: ComponentRiskSummary[];
   unlinkedFindingCount: number;
   totalFindingCount: number;
+}
+
+// ─── System Intake Wizard (042) ────────────────────────────────────────────────
+
+export enum WizardStep {
+  Registration = 1,
+  SecurityCapabilities = 2,
+  SystemComponents = 3,
+  AuthorizationBoundaries = 4,
+  AssignRoles = 5,
+  VerifyRoles = 6,
+  Categorization = 7,
+  PrivacyAnalysis = 8,
+}
+
+export interface WizardStepData {
+  registration: {
+    name: string;
+    acronym: string;
+    systemType: string;
+    missionCriticality: string;
+    hostingEnvironment: string;
+    description: string;
+  };
+  capabilities: { capabilityIds: string[] };
+  components: { componentIds: string[] };
+  boundaries: { boundaryIds: string[] };
+  roles: { roleAssignments: { role: string; userId: string }[] };
+  verifyRoles: Record<string, never>;
+  privacy: {
+    collectsPii: boolean;
+    maintainsPii: boolean;
+    disseminatesPii: boolean;
+    piiCategories: string[];
+    estimatedRecordCount: number | null;
+    purpose: string;
+  };
+  categorization: {
+    informationTypes: { sp80060Id: string; name: string; category: string; confidentialityImpact: string; integrityImpact: string; availabilityImpact: string; usesProvisional: boolean }[];
+    isNationalSecuritySystem: boolean;
+    justification: string;
+  };
+}
+
+export interface WizardState {
+  currentStep: WizardStep;
+  systemId: string | null;
+  stepData: WizardStepData;
+  validationErrors: Record<string, string[]>;
+  completedSteps: boolean[];
+  isOpen: boolean;
+}
+
+export interface SystemCapabilityLink {
+  id: string;
+  systemId: string;
+  capabilityId: string;
+  capabilityName: string;
+  provider?: string;
+  category?: string;
+  implementationStatus?: string;
+  linkedAt: string;
+}
+
+export interface Sp80060InfoType {
+  id: string;
+  name: string;
+  category: string;
+  confidentiality: string;
+  integrity: string;
+  availability: string;
 }

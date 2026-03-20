@@ -18,6 +18,9 @@ import EvidenceRepository from './pages/EvidenceRepository';
 import LegalRegulatory from './pages/LegalRegulatory';
 import ComponentInventory from './pages/ComponentInventory';
 import PoamManagement from './pages/PoamManagement';
+import ControlInheritance from './pages/ControlInheritance';
+import BaselineManagement from './pages/BaselineManagement';
+import ControlCatalog from './pages/ControlCatalog';
 import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
@@ -59,9 +62,12 @@ function AppContent() {
           <Route path="components" element={<ComponentInventory />} />
           <Route path="poam" element={<PoamManagement />} />
           <Route path="capability-coverage" element={<CapabilityCoverage />} />
+          <Route path="inheritance" element={<ControlInheritance />} />
+          <Route path="baseline" element={<BaselineManagement />} />
         </Route>
         <Route path="/capabilities" element={<CapabilityLibrary />} />
         <Route path="/components" element={<ComponentLibrary />} />
+        <Route path="/controls" element={<ControlCatalog />} />
       </Routes>
       <ChatPanel
         isOpen={panelState.isOpen}
