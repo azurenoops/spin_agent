@@ -182,6 +182,9 @@ export interface SetCategorizationResponse {
   dodImpactLevel: string;
   nistBaseline: string;
   informationTypeCount: number;
+  baselineReselected: string | null;
+  baselineControls: number | null;
+  inheritancesReapplied: number | null;
 }
 
 export async function setCategorization(
@@ -216,6 +219,43 @@ export async function selectBaseline(
   const { data } = await apiClient.post<SelectBaselineResponse>(
     `/systems/${systemId}/baseline`,
     body,
+  );
+  return data;
+}
+
+// ─── Get Baseline Detail ────────────────────────────────────────────────────
+
+export interface BaselineDetailResponse {
+  baselineId: string;
+  baselineLevel: string;
+  totalControls: number;
+  overlayApplied: string | null;
+  inheritedControls: number;
+  sharedControls: number;
+  customerControls: number;
+  tailoredInControls: number;
+  tailoredOutControls: number;
+  createdAt: string;
+  createdBy: string;
+  modifiedAt: string | null;
+  familyBreakdown: { family: string; count: number }[];
+  tailorings: {
+    id: string;
+    controlId: string;
+    action: string;
+    rationale: string;
+    isOverlayRequired: boolean;
+    tailoredBy: string;
+    tailoredAt: string;
+  }[];
+  controlIds: string[];
+}
+
+export async function getBaselineDetail(
+  systemId: string,
+): Promise<BaselineDetailResponse> {
+  const { data } = await apiClient.get<BaselineDetailResponse>(
+    `/systems/${systemId}/baseline`,
   );
   return data;
 }

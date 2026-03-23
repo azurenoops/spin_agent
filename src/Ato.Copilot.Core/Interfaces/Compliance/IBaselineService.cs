@@ -53,6 +53,7 @@ public interface IBaselineService
         string systemId,
         IEnumerable<InheritanceInput> inheritanceMappings,
         string setBy = "mcp-user",
+        InheritanceChangeSource changeSource = InheritanceChangeSource.Manual,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -177,6 +178,9 @@ public class InheritanceResult
 
     /// <summary>Controls that were skipped (not in baseline).</summary>
     public List<string> SkippedControls { get; set; } = new();
+
+    /// <summary>Number of narratives whose implementation status was auto-updated based on inheritance type.</summary>
+    public int NarrativesAutoUpdated { get; set; }
 }
 
 /// <summary>
@@ -246,4 +250,7 @@ public class CrmEntry
 
     /// <summary>Customer responsibility if shared.</summary>
     public string? CustomerResponsibility { get; set; }
+
+    /// <summary>Source of the designation (Org Default, System Override, CSP Profile, CRM Import, etc.).</summary>
+    public string? DesignationSource { get; set; }
 }

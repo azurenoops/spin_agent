@@ -92,7 +92,7 @@ public class ScanImportIntegrationTests : IDisposable
         var lifecycleSvc = new RmfLifecycleService(scopeFactory, Mock.Of<ILogger<RmfLifecycleService>>());
         var categorizationSvc = new CategorizationService(scopeFactory, Mock.Of<ILogger<CategorizationService>>(), Mock.Of<IPrivacyService>());
         var referenceDataSvc = new ReferenceDataService(Mock.Of<ILogger<ReferenceDataService>>());
-        var baselineSvc = new BaselineService(scopeFactory, referenceDataSvc, Mock.Of<ILogger<BaselineService>>());
+        var baselineSvc = new BaselineService(scopeFactory, referenceDataSvc, Mock.Of<ILogger<BaselineService>>(), Mock.Of<IOrgInheritanceService>());
         var artifactSvc = new AssessmentArtifactService(scopeFactory, Mock.Of<ILogger<AssessmentArtifactService>>());
 
         // Mock STIG knowledge service

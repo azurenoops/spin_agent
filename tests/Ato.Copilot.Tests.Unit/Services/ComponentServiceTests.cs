@@ -27,7 +27,7 @@ public class ComponentServiceTests : IDisposable
             .Options;
         _db = new AtoCopilotContext(_dbOptions);
         var logger = Mock.Of<ILogger<ComponentService>>();
-        _sut = new ComponentService(_db, logger, new NarrativeTemplateService());
+        _sut = new ComponentService(_db, logger, new NarrativeTemplateService(), new SystemCapabilityLinkService(_db, Mock.Of<ILogger<SystemCapabilityLinkService>>()));
 
         SeedData();
     }

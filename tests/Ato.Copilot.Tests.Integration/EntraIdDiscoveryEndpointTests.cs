@@ -28,7 +28,8 @@ public class EntraIdDiscoveryEndpointTests : IDisposable
             .Options;
         _db = new AtoCopilotContext(options);
         _componentService = new ComponentService(
-            _db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService());
+            _db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(),
+            new SystemCapabilityLinkService(_db, NullLogger<SystemCapabilityLinkService>.Instance));
     }
 
     public void Dispose()

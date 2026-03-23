@@ -29,7 +29,7 @@ public class BoundaryComponentAssignmentTests : IDisposable
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AtoCopilotContext(options);
-        _service = new ComponentService(_db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService());
+        _service = new ComponentService(_db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(), new SystemCapabilityLinkService(_db, NullLogger<SystemCapabilityLinkService>.Instance));
         _lockService = new BoundaryLockService();
         SeedData();
     }

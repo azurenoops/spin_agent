@@ -82,4 +82,10 @@ public class HeatmapControlDto
 
     /// <summary>Name of linked security capability (null if none).</summary>
     public string? SecurityCapabilityName { get; init; }
+
+    /// <summary>DoD CAT severity when OtherThanSatisfied (null otherwise).</summary>
+    public string? CatSeverity { get; init; }
+
+    /// <summary>POA&M status for this control (null if no POA&M exists).</summary>
+    public string? PoamStatus { get; init; }
 }

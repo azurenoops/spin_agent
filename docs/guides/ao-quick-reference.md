@@ -234,3 +234,31 @@ As an Authorizing Official, POA&M data informs your authorization decisions:
 - **Risk Posture**: Use `compliance_poam_metrics` to see total open, overdue, and severity breakdown
 - **eMASS Export**: Request POA&M exports in eMASS format for inclusion in authorization packages
 - **Dashboard**: Navigate to the POA&M Trends tab for visual analytics on closure rates and aging
+
+---
+
+## Authorization Package Review (Feature 041)
+
+As the AO, you review and authorize the submission of authorization packages to eMASS:
+
+- **Readiness check**: `compliance_validate_package` — verify all artifacts pass pre-submission validation
+- **Generate package**: `compliance_generate_package` — bundle all artifacts into a ZIP for eMASS upload
+- **Review SAR findings**: `compliance_package_status` — inspect artifacts, validation results, and SAR content
+- **Package history**: `compliance_list_packages` — view previous packages and their validation status
+- **Download**: Download completed packages from the Documents page for eMASS submission
+
+> "Validate package readiness for [system name]"
+
+> "Generate authorization package for [system name]"
+
+---
+
+## Capabilities Coverage KPI (Feature 045)
+
+The Security Capabilities Hub provides a **Coverage %** KPI that tracks how many baseline controls are mapped to at least one security capability. This metric feeds into your Portfolio Risk Profile:
+
+- **Coverage %**: Percentage of NIST controls with at least one capability mapping
+- **Gap Controls**: Controls not yet mapped to any capability (higher risk for authorization decisions)
+- **Provider Cards**: Per-CSP breakdown of controlled vs. total controls
+
+Navigate to the [Capabilities Hub](/capabilities) dashboard to review coverage and identify gaps before authorization decisions.

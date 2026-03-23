@@ -4,6 +4,96 @@ All notable changes to ATO Copilot are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-03-29
+
+### Added
+
+#### Feature 045: Unified Security Capabilities Hub
+
+- **3-Layer Import Model** — Unified CSP profile and CRM import pipeline that creates Components (provider grouping) → Capabilities (security solutions) → Control Mappings (NIST control links) through a single service (`CapabilityImportService`).
+- **CSP Profile Import** — Import pre-built Cloud Service Provider profiles (e.g., Azure Government — FedRAMP High) via the Capabilities Hub. Profiles create `SystemComponent` (Thing) entries per service, `SecurityCapability` entries, and `CapabilityControlMapping` records. Preview mode (`dryRun=true`) shows change summary before committing.
+- **CRM Spreadsheet Import** — Upload CSV or Excel CRM files with automatic column detection and configurable field mapping. Auto-suggest maps source columns to Control ID, Inheritance Type, Provider, and Customer Responsibility. 4-step dialog: upload → column mapping → preview → apply.
+- **Coverage Dashboard** — Per-provider coverage cards showing controlled/total controls, unique capabilities, and components. KPI bar with overall coverage percentage, total capabilities, and gap control count. Expandable gap controls table with family grouping.
+- **Component Linking** — Multi-select `ComponentPickerModal` for linking/unlinking capabilities to components. Search and type filter with pre-selected indicators. "Link Components" button on capability cards with component badges.
+- **Guided Empty State** — Three color-coded action cards (Create Manually, Import CSP Profile, Import CRM) for first-time users on the Capabilities page.
+- **Inheritance Page Simplification** — Removed CSP Profile and CRM Import buttons from Control Inheritance toolbar. Added cross-link banner ("Designations derived from Security Capabilities. [Manage Capabilities →]") and source capability hover tooltips showing capability names and component links.
+- **Component-to-Capability Shortcut** — "+ Capability" button on Thing-type components without capabilities. Navigates to Capabilities page with prefilled name and provider via query params.
+- **REST API Endpoints**:
+  - `GET /api/dashboard/capabilities/coverage` — Compute coverage dashboard (provider cards, KPI, gaps)
+  - `GET /api/dashboard/capabilities/csp-profiles` — List CSP profiles with service counts
+  - `POST /api/dashboard/capabilities/import/csp-profile` — Import CSP profile (preview or apply)
+  - `POST /api/dashboard/capabilities/import/crm` — Import CRM spreadsheet (preview or apply)
+  - `POST /api/dashboard/components/{componentId}/capabilities` — Bulk link capabilities
+  - `DELETE /api/dashboard/components/{componentId}/capabilities/{capabilityId}` — Unlink capability
+- **39 Tests** — 15 unit tests (CapabilityImportService), 5 unit tests (CoverageComputation), 6 unit tests (CspProfileServiceExt), 13 integration tests (CSP import, CRM import, component linking, performance benchmarks).
+
+### Changed
+
+- **ControlInheritance.tsx** — Removed 6 state variables, 5 handler functions, 2 dialog imports; replaced with cross-link banner and source capability tooltips.
+- **CapabilityLibrary.tsx** — Added CRM import dialog, component picker modal, guided empty state, and search params handling for createFrom prefill.
+- **CapabilityCard.tsx** — Added component badges and "Link Components" button.
+- **ComponentSection.tsx** — Added capability count badge and "+ Capability" button for Thing-type components.
+- **ComponentInventory.tsx** — Added `handleCreateCapability` navigation with query params.
+
+### Documentation
+
+- **Security Capabilities Hub Guide** — New comprehensive guide covering 3-layer model, CSP import, CRM import, coverage dashboard, component linking, control inheritance integration, and all API endpoints.
+- **Control Inheritance Guide** — Removed CSP/CRM import sections, added cross-link banner docs, updated source badges and designation sources.
+- **Architecture Overview** — Added Security Capabilities Hub section with architecture diagram and 3-layer model.
+- **Data Model** — Added CspProfile/CspService JSON schemas and import pipeline data flow diagram.
+- **MCP Server API** — Added Feature 045 endpoint table, removed deprecated inheritance import endpoints.
+- **Agent Tool Catalog** — Added Capabilities Hub REST endpoints with request/response examples.
+- **Tool Inventory** — Added 4 new endpoint rows (16d–16g).
+- **Glossary** — Added 3-Layer Model, Capabilities Hub, Coverage %, Gap Controls terms.
+- **ISSM Guide** — Updated Step 7 to reference Capabilities Hub for CSP/CRM import.
+- **AO Quick Reference** — Added Capabilities Coverage KPI section for portfolio risk assessment.
+
+---
+
+## [1.28.0] - 2026-03-22
+
+### Added
+
+#### Feature 044: Org-Level Control Inheritance
+
+- **Org Inheritance Defaults** — Derive org-wide inheritance designations from the Security Capabilities Library. Scans org-wide capability-control mappings to produce `OrgInheritanceDefault` records with correct inheritance type, provider, and source capability references.
+- **Cascade Propagation** — Derived org defaults automatically cascade to every registered system baseline, creating `OrgDerived` designations for unmapped controls. Includes `OrgPropagation` audit entries per affected system.
+- **Automatic Re-derivation Hooks** — Org defaults are re-derived and cascaded when capability-control mappings are created/deleted, capability status changes, or capabilities are removed.
+- **Revert to Org Defaults** — Per-system bulk revert action restores overridden controls to their org-level default designation.
+- **Designation Source Tracking** — Every `ControlInheritance` record tracks how it was set: OrgDerived, OrgPropagation, Manual, BulkUpdate, ProfileApply, or CrmImport.
+- **CRM Designation Source Column** — "Designation Source" column added to all three CRM export layouts (Custom, FedRAMP, eMASS).
+- **Dashboard UI Enhancements**:
+  - Org Defaults and Overrides summary cards in the summary bar
+  - Source filter dropdown (All Sources, Org Defaults, System Overrides, Undesignated)
+  - Source badges on table rows (teal=Org Default, purple=CSP Profile, sky=CRM Import)
+  - Org default tooltip on designated rows (teal checkmark for org-derived, amber warning for overrides)
+  - Org-default coverage banner showing N of M controls with org-level defaults
+  - View Org Defaults modal with search and pagination
+  - "More Actions" dropdown reorganization when org defaults are active
+- **REST API Endpoints**:
+  - `GET /api/dashboard/inheritance/org-defaults` — List org-level defaults (paginated, filterable)
+  - `POST /api/dashboard/inheritance/org-defaults/derive` — Derive and cascade org defaults
+  - `POST /api/dashboard/systems/{systemId}/inheritance/revert-to-org-defaults` — Revert controls to org defaults
+  - Enhanced `GET /systems/{systemId}/inheritance` with `source` filter parameter and `designationSource`/`orgDefault` fields
+  - Enhanced audit trail endpoint with `changeSourceLabel` human-readable labels
+- **Entity Model** — `OrgInheritanceDefault` entity, extended `ControlInheritance` with `DesignationSource` and `OrgInheritanceDefaultId` FK, `OrgDerived`/`OrgPropagation` enum values.
+- **44 Tests** — 17 unit tests (OrgInheritanceService), 19 CRM export tests (including designation source), 10 integration tests (endpoints, audit, performance).
+
+### Documentation
+
+- **Control Inheritance Guide** — Full org-level inheritance defaults section with derive, view, filter, badge, coverage banner, and revert documentation.
+- **Architecture Overview** — Org-Level Control Inheritance section with cascade diagram, key components, and hook descriptions.
+- **Data Model** — `OrgInheritanceDefault` entity and extended `ControlInheritance` fields.
+- **MCP Server API** — Feature 044 endpoint table with request/response examples.
+- **Agent Tool Catalog** — Org-Level Inheritance Defaults section with endpoint reference.
+- **RMF Step Map** — Derive Org Defaults and Revert to Org Defaults in Phase 3 Select.
+- **Tool Inventory** — Three new dashboard REST endpoints listed.
+- **Glossary** — Feature 044 terms: Org Default, Org Propagation, Designation Source, Cascade Propagation, System Override.
+- **ISSM Guide** — Option A (Org Defaults) added to Step 7 as recommended approach.
+- **Select Phase** — Org-Level Inheritance Defaults subsection added.
+
+---
+
 ## [1.25.0] - 2026-03-15
 
 ### Added

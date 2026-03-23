@@ -33,10 +33,9 @@ public class CascadeRegenerationTests : IDisposable
         _db = new AtoCopilotContext(options);
         var narrativeService = new NarrativeTemplateService();
         _componentService = new ComponentService(
-            _db, Mock.Of<ILogger<ComponentService>>(), narrativeService);
-        _capabilityService = new CapabilityService(
-            _db, Mock.Of<ILogger<CapabilityService>>(), narrativeService, Mock.Of<IDeviationService>());
-
+    _db, Mock.Of<ILogger<ComponentService>>(), narrativeService, new SystemCapabilityLinkService(_db, Mock.Of<ILogger<SystemCapabilityLinkService>>()));
+_capabilityService = new CapabilityService(
+    _db, Mock.Of<ILogger<CapabilityService>>(), narrativeService, Mock.Of<IDeviationService>(), Mock.Of<IOrgInheritanceService>());
         SeedData();
     }
 

@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { CreateComponentRequest, SystemComponentDto, ComponentType, ComponentStatus, SecurityCapabilityDto, BoundaryDefinitionDto } from '../../types/dashboard';
-import { getCapabilities } from '../../api/capabilities';
-import { fetchBoundaryDefinitions } from '../../api/boundaries';
+import type { CreateComponentRequest, SystemComponentDto, ComponentType, ComponentStatus } from '../../types/dashboard';
 import { generateComponentDescription } from '../../api/components';
 
 const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing'];
@@ -24,36 +22,17 @@ interface ComponentFormProps {
   error?: string | null;
 }
 
-export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitting, error }: ComponentFormProps) {
+export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel, isSubmitting, error }: ComponentFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [componentType, setComponentType] = useState<ComponentType>(initial?.componentType ?? 'Thing');
   const [subType, setSubType] = useState(initial?.subType ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [owner, setOwner] = useState(initial?.owner ?? '');
   const [status, setStatus] = useState<ComponentStatus>(initial?.status ?? 'Active');
-  const [boundaryDefinitionId, setBoundaryDefinitionId] = useState(initial?.boundaryDefinitionId ?? '');
-  const [selectedCapIds, setSelectedCapIds] = useState<string[]>(
-    initial?.linkedCapabilities.map((lc) => lc.capabilityId) ?? [],
-  );
-  const [capabilities, setCapabilities] = useState<SecurityCapabilityDto[]>([]);
-  const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
   const [generatingDesc, setGeneratingDesc] = useState(false);
   const [rmfRole, setRmfRole] = useState('');
   const [personName, setPersonName] = useState(initial?.personName ?? '');
   const [email, setEmail] = useState(initial?.email ?? '');
-
-  useEffect(() => {
-    let cancelled = false;
-    getCapabilities({ pageSize: 200 }).then((res) => {
-      if (!cancelled) setCapabilities(res.items);
-    });
-    if (systemId) {
-      fetchBoundaryDefinitions(systemId).then((items) => {
-        if (!cancelled) setBoundaries(items);
-      });
-    }
-    return () => { cancelled = true; };
-  }, [systemId]);
 
   useEffect(() => {
     if (initial) {
@@ -63,8 +42,6 @@ export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitt
       setDescription(initial.description ?? '');
       setOwner(initial.owner ?? '');
       setStatus(initial.status);
-      setBoundaryDefinitionId(initial.boundaryDefinitionId ?? '');
-      setSelectedCapIds(initial.linkedCapabilities.map((lc) => lc.capabilityId));
       setPersonName(initial.personName ?? '');
       setEmail(initial.email ?? '');
       setRmfRole(initial.rmfRole ?? '');
@@ -82,14 +59,8 @@ export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitt
       personName: componentType === 'Person' && personName ? personName : undefined,
       email: componentType === 'Person' && email ? email : undefined,
       status,
-      boundaryDefinitionId: boundaryDefinitionId || undefined,
       rmfRole: componentType === 'Person' && rmfRole ? rmfRole : undefined,
-      linkedCapabilityIds: selectedCapIds,
     });
-  };
-
-  const toggleCap = (id: string) => {
-    setSelectedCapIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const handleGenerateDescription = async () => {
@@ -244,24 +215,6 @@ export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitt
         </div>
       )}
 
-      {boundaries.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Authorization Boundary</label>
-          <select
-            value={boundaryDefinitionId}
-            onChange={(e) => setBoundaryDefinitionId(e.target.value)}
-            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
-          >
-            <option value="">Default (Primary)</option>
-            {boundaries.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}{b.isPrimary ? ' (Primary)' : ''} — {b.boundaryType}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
       {componentType === 'Person' && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">RMF Role</label>
@@ -275,26 +228,6 @@ export function ComponentForm({ initial, systemId, onSubmit, onCancel, isSubmitt
             ))}
           </select>
           <p className="text-xs text-gray-500 mt-1">Assigns this person an RMF role on the system per DoDI 8510.01</p>
-        </div>
-      )}
-
-      {capabilities.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Linked Capabilities</label>
-          <div className="border rounded max-h-40 overflow-y-auto p-2 space-y-1">
-            {capabilities.map((cap) => (
-              <label key={cap.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
-                <input
-                  type="checkbox"
-                  checked={selectedCapIds.includes(cap.id)}
-                  onChange={() => toggleCap(cap.id)}
-                  className="text-blue-600"
-                />
-                <span>{cap.name}</span>
-                <span className="text-xs text-gray-400">({cap.provider})</span>
-              </label>
-            ))}
-          </div>
         </div>
       )}
 

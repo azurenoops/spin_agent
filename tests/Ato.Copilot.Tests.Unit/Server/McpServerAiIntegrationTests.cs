@@ -472,7 +472,7 @@ public class McpServerAiIntegrationTests
             // US10: eMASS & OSCAL tools
             new ExportEmassTool(Mock.Of<IEmassExportService>(), Mock.Of<ILogger<ExportEmassTool>>()),
             new ImportEmassTool(Mock.Of<IEmassExportService>(), Mock.Of<ILogger<ImportEmassTool>>()),
-            new ExportOscalTool(Mock.Of<IEmassExportService>(), Mock.Of<ILogger<ExportOscalTool>>()),
+            new ExportOscalTool(Mock.Of<IEmassExportService>(), Mock.Of<IOscalSapExportService>(), Mock.Of<ILogger<ExportOscalTool>>()),
             // US11: Document Templates & PDF Export tools
             new UploadTemplateTool(Mock.Of<IDocumentTemplateService>(), Mock.Of<ILogger<UploadTemplateTool>>()),
             new ListTemplatesTool(Mock.Of<IDocumentTemplateService>(), Mock.Of<ILogger<ListTemplatesTool>>()),

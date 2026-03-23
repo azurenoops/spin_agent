@@ -17,18 +17,21 @@ public class CapabilityService
     private readonly ILogger<CapabilityService> _logger;
     private readonly NarrativeTemplateService _narrativeService;
     private readonly IDeviationService _deviationService;
+    private readonly IOrgInheritanceService _orgInheritanceService;
 
     /// <summary>Initializes a new instance of <see cref="CapabilityService"/>.</summary>
     public CapabilityService(
         AtoCopilotContext db,
         ILogger<CapabilityService> logger,
         NarrativeTemplateService narrativeService,
-        IDeviationService deviationService)
+        IDeviationService deviationService,
+        IOrgInheritanceService orgInheritanceService)
     {
         _db = db;
         _logger = logger;
         _narrativeService = narrativeService;
         _deviationService = deviationService;
+        _orgInheritanceService = orgInheritanceService;
     }
 
     // ─── List / Search ───────────────────────────────────────────────────────
@@ -86,10 +89,32 @@ public class CapabilityService
             .Select(g => new { CapId = g.Key, Count = g.Select(ci => ci.RegisteredSystemId).Distinct().Count() })
             .ToListAsync(cancellationToken);
 
+        // Feature 045: Load linked components for badge display
+        var componentLinks = await _db.ComponentCapabilityLinks
+            .Where(l => capIds.Contains(l.SecurityCapabilityId))
+            .Select(l => new
+            {
+                l.SecurityCapabilityId,
+                l.SystemComponent.Id,
+                l.SystemComponent.Name,
+                ComponentType = l.SystemComponent.ComponentType.ToString(),
+            })
+            .ToListAsync(cancellationToken);
+
+        var componentLinksByCapId = componentLinks
+            .GroupBy(l => l.SecurityCapabilityId)
+            .ToDictionary(g => g.Key, g => g.Select(l => new LinkedComponentDto
+            {
+                Id = l.Id,
+                Name = l.Name,
+                ComponentType = l.ComponentType,
+            }).ToList());
+
         var items = capabilities.Select(c => MapToDto(
             c,
             mappingCounts.FirstOrDefault(m => m.CapId == c.Id)?.Count ?? 0,
-            systemCounts.FirstOrDefault(s => s.CapId == c.Id)?.Count ?? 0
+            systemCounts.FirstOrDefault(s => s.CapId == c.Id)?.Count ?? 0,
+            componentLinksByCapId.GetValueOrDefault(c.Id)
         )).ToList();
 
         var nextCursor = startIndex + pageSize < totalCount
@@ -191,6 +216,7 @@ public class CapabilityService
 
         var descriptionChanged = entity.Description != request.Description ||
                                  entity.Provider != request.Provider;
+        var previousStatus = entity.ImplementationStatus;
 
         entity.Name = request.Name;
         entity.Provider = request.Provider;
@@ -346,6 +372,12 @@ public class CapabilityService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Feature 044: Re-derive org defaults when ImplementationStatus changes
+        if (entity.ImplementationStatus != previousStatus)
+        {
+            await _orgInheritanceService.DeriveOrgDefaultsAsync(modifiedBy, cancellationToken);
+        }
+
         _logger.LogInformation(
             "Updated capability {CapabilityId} '{Name}': {Updated} narratives regenerated, {Skipped} customized skipped",
             id, entity.Name, narrativesUpdated, narrativesSkipped);
@@ -447,7 +479,24 @@ public class CapabilityService
         // Group by capability
         var capabilityGroups = mappings
             .GroupBy(m => m.SecurityCapabilityId)
-            .ToList();
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // Also include capabilities linked via SystemCapabilityLink that have no mappings yet
+        var linkedCapIds = await _db.SystemCapabilityLinks
+            .Where(l => l.RegisteredSystemId == systemId)
+            .Select(l => l.SecurityCapabilityId)
+            .ToListAsync(cancellationToken);
+
+        var missingCapIds = linkedCapIds.Except(capabilityGroups.Keys).ToList();
+        if (missingCapIds.Count > 0)
+        {
+            var linkedCaps = await _db.SecurityCapabilities
+                .Where(c => missingCapIds.Contains(c.Id))
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+            foreach (var lc in linkedCaps)
+                capabilityGroups[lc.Id] = new List<CapabilityControlMapping>();
+        }
 
         // Get all control implementations for this system
         var implementations = await _db.ControlImplementations
@@ -458,11 +507,29 @@ public class CapabilityService
 
         var capabilities = new List<CapabilityCoverageDto>();
 
-        foreach (var group in capabilityGroups)
+        foreach (var kvp in capabilityGroups)
         {
-            var cap = group.First().SecurityCapability;
-            var controlIds = group.Select(m => m.ControlId).Distinct().ToList();
-            var primaryRole = group.OrderByDescending(m => m.Role).First().Role;
+            var capId = kvp.Key;
+            var groupMappings = kvp.Value;
+
+            // Resolve the capability entity
+            SecurityCapability? cap;
+            if (groupMappings.Count > 0 && groupMappings[0].SecurityCapability is not null)
+            {
+                cap = groupMappings[0].SecurityCapability;
+            }
+            else
+            {
+                cap = await _db.SecurityCapabilities
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == capId, cancellationToken);
+                if (cap is null) continue;
+            }
+
+            var controlIds = groupMappings.Select(m => m.ControlId).Distinct().ToList();
+            var primaryRole = groupMappings.Count > 0
+                ? groupMappings.OrderByDescending(m => m.Role).First().Role
+                : CapabilityMappingRole.Shared;
 
             // Narrative status
             int populated = 0, custom = 0, empty = 0, aiGenerated = 0;
@@ -485,8 +552,8 @@ public class CapabilityService
                 }
             }
 
-            // Linked components for this system
-            var components = await _db.ComponentCapabilityLinks
+            // Linked components for this system (deduplicate when a component has multiple boundary assignments)
+            var components = (await _db.ComponentCapabilityLinks
                 .Where(cl => cl.SecurityCapabilityId == cap.Id)
                 .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == systemId),
                     cl => cl.SystemComponentId,
@@ -502,7 +569,10 @@ public class CapabilityService
                     BoundaryName = x.AuthorizationBoundaryDefinition != null ? x.AuthorizationBoundaryDefinition.Name : null,
                     BoundaryDefinitionId = x.AuthorizationBoundaryDefinitionId,
                 })
-                .ToListAsync(cancellationToken);
+                .ToListAsync(cancellationToken))
+                .GroupBy(c => c.ComponentId)
+                .Select(g => g.First())
+                .ToList();
 
             capabilities.Add(new CapabilityCoverageDto
             {
@@ -600,6 +670,9 @@ public class CapabilityService
         _db.SecurityCapabilities.Remove(entity);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Feature 044: Re-derive org defaults after capability deletion
+        await _orgInheritanceService.DeriveOrgDefaultsAsync(deletedBy, cancellationToken);
+
         _logger.LogInformation(
             "Deleted capability {CapabilityId} '{Name}': {Count} narratives flagged for review",
             id, entity.Name, affectedImpls.Count);
@@ -631,52 +704,92 @@ public class CapabilityService
         if (impl is null) return (null, "NOT_FOUND");
 
         var capId = impl.SecurityCapabilityId;
-        if (capId is null) return (null, "NO_CAPABILITY");
+        var cap = capId is not null
+            ? await _db.SecurityCapabilities
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == capId, cancellationToken)
+            : null;
 
-        var cap = await _db.SecurityCapabilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == capId, cancellationToken);
-        if (cap is null) return (null, "NO_CAPABILITY");
+        string? narrative;
+        bool aiGenerated;
 
-        var nist = await _db.NistControls
-            .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == controlId, cancellationToken);
-        var controlTitle = nist?.Title ?? controlId;
+        if (cap is not null)
+        {
+            // Capability-based regeneration path
+            var nist = await _db.NistControls
+                .AsNoTracking()
+                .FirstOrDefaultAsync(n => n.Id == controlId, cancellationToken);
+            var controlTitle = nist?.Title ?? controlId;
 
-        // Query component context
-        var componentContexts = await _db.ComponentCapabilityLinks
-            .Where(cl => cl.SecurityCapabilityId == capId)
-            .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == systemId),
-                cl => cl.SystemComponentId,
-                a => a.SystemComponentId,
-                (cl, a) => new { cl.SystemComponent, a.AuthorizationBoundaryDefinition })
-            .Select(x => new ComponentContext(
-                x.SystemComponent.Name,
-                x.SystemComponent.ComponentType.ToString(),
-                x.SystemComponent.Owner,
-                x.SystemComponent.PersonName))
-            .ToListAsync(cancellationToken);
+            // Query component context
+            var componentContexts = await _db.ComponentCapabilityLinks
+                .Where(cl => cl.SecurityCapabilityId == capId)
+                .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == systemId),
+                    cl => cl.SystemComponentId,
+                    a => a.SystemComponentId,
+                    (cl, a) => new { cl.SystemComponent, a.AuthorizationBoundaryDefinition })
+                .Select(x => new ComponentContext(
+                    x.SystemComponent.Name,
+                    x.SystemComponent.ComponentType.ToString(),
+                    x.SystemComponent.Owner,
+                    x.SystemComponent.PersonName))
+                .ToListAsync(cancellationToken);
 
-        var boundaryName = await _db.ComponentSystemAssignments
-            .Where(a => a.RegisteredSystemId == systemId && a.AuthorizationBoundaryDefinition != null)
-            .Select(a => a.AuthorizationBoundaryDefinition!.Name)
-            .FirstOrDefaultAsync(cancellationToken);
+            var boundaryName = await _db.ComponentSystemAssignments
+                .Where(a => a.RegisteredSystemId == systemId && a.AuthorizationBoundaryDefinition != null)
+                .Select(a => a.AuthorizationBoundaryDefinition!.Name)
+                .FirstOrDefaultAsync(cancellationToken);
 
-        // Fall back to system's first boundary definition if no assignment-level boundary
-        boundaryName ??= await _db.AuthorizationBoundaryDefinitions
-            .Where(b => b.RegisteredSystemId == systemId)
-            .OrderByDescending(b => b.IsPrimary)
-            .Select(b => b.Name)
-            .FirstOrDefaultAsync(cancellationToken);
+            // Fall back to system's first boundary definition if no assignment-level boundary
+            boundaryName ??= await _db.AuthorizationBoundaryDefinitions
+                .Where(b => b.RegisteredSystemId == systemId)
+                .OrderByDescending(b => b.IsPrimary)
+                .Select(b => b.Name)
+                .FirstOrDefaultAsync(cancellationToken);
 
-        var narrative = await _narrativeService.GenerateNarrativeWithAiAsync(
-            cap.Name, cap.Provider, cap.Description,
-            controlId, controlTitle,
-            componentContexts.Count > 0 ? componentContexts : null,
-            boundaryName,
-            cancellationToken);
+            narrative = await _narrativeService.GenerateNarrativeWithAiAsync(
+                cap.Name, cap.Provider, cap.Description,
+                controlId, controlTitle,
+                componentContexts.Count > 0 ? componentContexts : null,
+                boundaryName,
+                cancellationToken);
 
-        if (narrative is null) return (null, "AI_NOT_ENABLED");
+            // Fall back to deterministic enriched narrative when AI is not enabled
+            narrative ??= _narrativeService.GenerateEnrichedNarrative(
+                cap.Name, cap.Provider, cap.Description,
+                controlId, controlTitle,
+                componentContexts.Count > 0 ? componentContexts : null,
+                boundaryName);
+
+            aiGenerated = narrative != _narrativeService.GenerateEnrichedNarrative(
+                cap.Name, cap.Provider, cap.Description,
+                controlId, controlTitle,
+                componentContexts.Count > 0 ? componentContexts : null,
+                boundaryName);
+        }
+        else
+        {
+            // No capability linked — use generic template regeneration
+            var system = await _db.RegisteredSystems
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken);
+            if (system is null) return (null, "NOT_FOUND");
+
+            var family = controlId.Contains('-')
+                ? controlId[..controlId.IndexOf('-')]
+                : controlId.Length >= 2 ? controlId[..2] : controlId;
+
+            var nist = await _db.NistControls
+                .AsNoTracking()
+                .FirstOrDefaultAsync(n => n.Id == controlId, cancellationToken);
+            var controlTitle = nist?.Title ?? controlId;
+
+            narrative = $"The {system.Name} system implements {controlTitle} ({controlId}) " +
+                $"within the {system.HostingEnvironment ?? "designated"} environment. " +
+                "[No security capability is currently linked to this control. " +
+                "Assign a capability on the Capabilities page to generate an enriched narrative.]";
+            aiGenerated = false;
+        }
 
         // Save old narrative as NarrativeVersion
         var previousNarrative = impl.Narrative;
@@ -688,19 +801,22 @@ public class CapabilityService
                 VersionNumber = impl.CurrentVersion,
                 Content = previousNarrative,
                 AuthoredBy = modifiedBy,
-                ChangeReason = "AI regeneration requested by user",
+                ChangeReason = aiGenerated
+                    ? "AI regeneration requested by user"
+                    : "Deterministic regeneration requested by user",
             });
             impl.CurrentVersion++;
         }
 
         impl.Narrative = narrative;
-        impl.AiSuggested = true;
+        impl.AiSuggested = aiGenerated;
         impl.ModifiedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "AI-regenerated narrative for system {SystemId} control {ControlId}",
+            "{Mode} narrative for system {SystemId} control {ControlId}",
+            aiGenerated ? "AI-regenerated" : "Deterministic-regenerated",
             systemId, controlId);
 
         return (narrative, null);
@@ -1003,7 +1119,7 @@ public class CapabilityService
                     impl = new ControlImplementation
                     {
                         RegisteredSystemId = sysId,
-                        ControlId = item.ControlId,
+                        ControlId = item.ControlId.ToUpperInvariant(),
                         SecurityCapabilityId = capabilityId,
                         AuthoredBy = createdBy,
                     };
@@ -1085,6 +1201,9 @@ public class CapabilityService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Feature 044: Re-derive org-level inheritance defaults after mapping changes
+        await _orgInheritanceService.DeriveOrgDefaultsAsync("system", cancellationToken);
 
         _logger.LogInformation(
             "Created {Created} mappings for capability {CapabilityId}, generated {Narratives} narratives, {Warnings} warnings",
@@ -1269,7 +1388,8 @@ public class CapabilityService
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private static SecurityCapabilityDto MapToDto(
-        SecurityCapability entity, int mappedControlCount, int systemsUsingCount)
+        SecurityCapability entity, int mappedControlCount, int systemsUsingCount,
+        List<LinkedComponentDto>? linkedComponents = null)
     {
         return new SecurityCapabilityDto
         {
@@ -1285,6 +1405,8 @@ public class CapabilityService
             SystemsUsingCount = systemsUsingCount,
             CreatedAt = entity.CreatedAt,
             ModifiedAt = entity.ModifiedAt,
+            LinkedComponents = linkedComponents,
+            SystemCount = systemsUsingCount,
         };
     }
 }

@@ -4,6 +4,12 @@
 
 ---
 
+## #
+
+| Term | Definition |
+|------|-----------|
+| **3-Layer Model** | The Capabilities Hub architecture: Components (provider grouping) → Capabilities (security solutions) → Control Mappings (NIST control links with roles). Introduced in Feature 045 |
+
 ## A
 
 | Term | Definition |
@@ -25,6 +31,7 @@
 | Term | Definition |
 |------|-----------|
 | **CAC** | Common Access Card — DoD smart card used for PKI-based authentication |
+| **Capabilities Hub** | The unified Security Capabilities Hub page in the Dashboard. Manages CSP profile imports, CRM imports, capability-control mappings, coverage metrics, and component linking (Feature 045) |
 | **CAT** | Category (STIG severity) — CAT I (Critical), CAT II (Significant), CAT III (Low) |
 | **CCI** | Control Correlation Identifier — Maps NIST 800-53 controls to STIG rules |
 | **CKL** | Checklist (DISA STIG Viewer format) — XML file containing STIG assessment results for a specific benchmark |
@@ -35,6 +42,7 @@
 | **ConMon** | Continuous Monitoring — See CM |
 | **CRM** | Customer Responsibility Matrix — Documents shared/inherited control responsibilities between provider and tenant |
 | **CSP** | Cloud Service Provider |
+| **Coverage %** | The percentage of NIST baseline controls mapped to at least one security capability. Displayed on the Capabilities Hub KPI bar |
 | **CUI** | Controlled Unclassified Information — Sensitive but unclassified information requiring safeguarding |
 
 ## D
@@ -66,6 +74,7 @@
 
 | Term | Definition |
 |------|-----------|
+| **Gap Controls** | NIST baseline controls that are not yet mapped to any security capability. Displayed on the Capabilities Hub coverage dashboard |
 | **GRC** | Governance, Risk, and Compliance |
 | **Hardware Inventory** | Catalog of physical and virtual computing resources (servers, workstations, network devices, storage) within a system's authorization boundary |
 
@@ -121,6 +130,8 @@
 | Term | Definition |
 |------|-----------|
 | **ODP** | Organization-Defined Parameter — Customizable values within NIST 800-53 controls |
+| **Org Default** | An org-level inheritance default derived from capability-control mappings in the Security Capabilities Library. Cascades to all system baselines automatically |
+| **Org Propagation** | The automatic cascade of org-level inheritance defaults to individual system baselines when defaults are derived or capabilities change |
 | **OSCAL** | Open Security Controls Assessment Language — NIST standard for machine-readable compliance data (v1.0.6 supported) |
 
 ## P
@@ -196,7 +207,7 @@
 | **BaseTool** | Abstract base class for all MCP tools; provides parameter validation, authorization, and execution framework |
 | **Compliance Gate** | CI/CD action that blocks deployments when CAT I/II STIG findings or unmitigated risks exist |
 | **Control Effectiveness** | Assessment record tracking whether a control is Satisfied, Other Than Satisfied, or Not Applicable |
-| **Control Inheritance** | Mechanism where a system inherits controls from an underlying provider (e.g., cloud platform) |
+| **Control Inheritance** | Mechanism where a system inherits controls from an underlying provider (e.g., cloud platform). Supports manual, CSP profile, CRM import, and org-level default sources |
 | **Control Tailoring** | Process of customizing a baseline by scoping, compensating, or adding controls |
 | **Gate Condition** | Prerequisite that must be met before an RMF phase transition can occur |
 | **High-Water Mark** | FIPS 199 method of determining system impact level from the highest CIA impact among all information types |
@@ -226,6 +237,16 @@
 | **Primary Boundary** | The default boundary definition auto-created for each system during migration; cannot be deleted |
 | **Boundary Comparison Table** | A dashboard visualization showing per-boundary compliance coverage percentages with color coding |
 | **Azure Resource Discovery** | Automated discovery of Azure resources via Resource Graph API, grouped by resource group as suggested boundaries |
+
+## Feature 044 Terms
+
+| Term | Definition |
+|------|------------|
+| **Org-Level Inheritance Default** | A centralized inheritance designation derived from org-wide security capability-to-control mappings, automatically cascaded to all registered system baselines |
+| **Designation Source** | Tracks how an inheritance designation was set: OrgDerived, OrgPropagation, Manual, BulkUpdate, ProfileApply, or CrmImport |
+| **Cascade Propagation** | Automatic distribution of org-level inheritance defaults to all system baselines, creating OrgDerived designations and OrgPropagation audit entries |
+| **System Override** | A per-system inheritance designation that differs from the org-level default — tracked as Manual, ProfileApply, CrmImport, or BulkUpdate source |
+| **Revert to Org Default** | Action to reset overridden controls back to the org-level inheritance default designation |
 
 ## Feature 039 Terms
 

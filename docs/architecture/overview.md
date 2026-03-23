@@ -336,6 +336,7 @@ The dashboard is a **standalone React SPA** that communicates with the MCP serve
 │  • Capabilities Library  │                     │  • ComponentService      │
 │  • Component Inventory   │                     │  • NarrativeTemplate     │
 │  • Gap Analysis          │                     │  • TrendSnapshotService  │
+│  • Control Inheritance   │                     │  • OrgInheritanceService │
 │  • Compliance Trends     │                     │    (BackgroundService)   │
 └─────────────────────────┘                     └──────────────────────────┘
                                                          │
@@ -362,6 +363,132 @@ The dashboard is a **standalone React SPA** that communicates with the MCP serve
 - `ComponentCapabilityLink` — Component-to-capability join table
 - `ComplianceTrendSnapshot` — Point-in-time compliance metrics
 - `DashboardActivity` — Dashboard-specific audit trail
+- `OrgInheritanceDefault` — Org-level inheritance defaults derived from capability mappings (Feature 044)
+
+---
+
+## Org-Level Control Inheritance (Feature 044)
+
+### Architecture
+
+Centralizes inheritance designations at the organization level by deriving them from the Security Capabilities Library. Org defaults propagate to all system baselines via cascade, reducing per-system configuration effort.
+
+```
+┌──────────────────────────┐     Derive     ┌─────────────────────────────┐
+│  SecurityCapabilities    │ ─────────────► │  OrgInheritanceDefaults     │
+│  + CapabilityControl     │                │  (one per NIST control)     │
+│    Mappings (org-wide)   │                └──────────────┬──────────────┘
+└──────────────────────────┘                               │
+                                                    Cascade │
+                                                    Propagation
+                                                           │
+             ┌─────────────┬───────────────┬───────────────┼───────────────┐
+             ▼             ▼               ▼               ▼               ▼
+      ┌─────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+      │ System 1    │ │ System 2 │ │ System 3 │ │ System 4 │ │ System N │
+      │ Baseline    │ │ Baseline │ │ Baseline │ │ Baseline │ │ Baseline │
+      │ OrgDerived  │ │ OrgDerived│ │ OrgDerived│ │ OrgDerived│ │ OrgDerived│
+      └─────────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘
+```
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| `OrgInheritanceService` | Core service: derive, cascade propagate, revert |
+| `OrgInheritanceDefault` | Entity storing org-level defaults per control |
+| `DesignationSource` | Tracks origin: OrgDerived, Manual, ProfileApply, CrmImport, BulkUpdate |
+| `InheritanceChangeSource` | Enum for audit entries: OrgDerived, OrgPropagation, Manual, etc. |
+
+### Cascade Hooks
+
+Org defaults are automatically re-derived and propagated when:
+- Capability-control mappings are created or deleted (`CapabilityService.CreateMappingsAsync`)
+- A capability status changes (e.g., Active → Deprecated) (`CapabilityService.UpdateCapabilityAsync`)
+- A capability is deleted (`CapabilityService.DeleteCapabilityAsync`)
+
+### Dashboard UI
+
+- **Summary bar**: Org Defaults / Overrides cards shown when org defaults exist
+- **Source badges**: Teal (Org Default), Indigo (Capability), Gray (Manual)
+- **Source filter**: All Sources, Org Defaults, System Overrides, Undesignated
+- **Coverage banner**: Shows N of M controls with org-level defaults + link to Capabilities Hub
+- **Org defaults modal**: View all derived defaults with search/pagination
+- **CRM export**: Designation Source column added to all layouts
+- **Cross-link banner**: Links to Security Capabilities Hub for CSP/CRM import management
+
+---
+
+## Security Capabilities Hub (Feature 045)
+
+### Architecture
+
+Unifies CSP profile import, CRM spreadsheet import, and capability management into a single Capabilities Hub page. Introduces a 3-layer model: **Components → Capabilities → Control Mappings**. CSP and CRM import flows have been moved from the Control Inheritance page to the Capabilities Hub to provide a single source of truth for security capability management.
+
+```
+                    ┌─────────────────────────────────────────────┐
+                    │         Capabilities Hub (React SPA)        │
+                    │                                             │
+                    │  ┌────────────┐ ┌──────────┐ ┌───────────┐ │
+                    │  │Import CSP  │ │Import CRM│ │ Create    │ │
+                    │  │  Profile   │ │  Export  │ │ Manual    │ │
+                    │  └──────┬─────┘ └─────┬────┘ └─────┬─────┘ │
+                    │         │             │            │        │
+                    │         ▼             ▼            ▼        │
+                    │  ┌──────────────────────────────────────┐   │
+                    │  │   CapabilityImportService             │   │
+                    │  │   (3-Layer Pipeline)                  │   │
+                    │  │                                       │   │
+                    │  │   Layer 1: SystemComponent (Thing)    │   │
+                    │  │   Layer 2: SecurityCapability         │   │
+                    │  │   Layer 3: CapabilityControlMapping   │   │
+                    │  └──────────────────┬───────────────────┘   │
+                    │                     │                        │
+                    │  ┌──────────────────▼───────────────────┐   │
+                    │  │   Coverage Dashboard                  │   │
+                    │  │   Cards • KPI • Gap Controls          │   │
+                    │  └──────────────────────────────────────┘   │
+                    └─────────────────────┬───────────────────────┘
+                                          │
+                              Derive Org  │  Defaults
+                                          ▼
+                    ┌─────────────────────────────────────────────┐
+                    │  OrgInheritanceService                      │
+                    │  → OrgInheritanceDefault per control        │
+                    │  → Cascade to all system baselines          │
+                    └─────────────────────────────────────────────┘
+```
+
+### 3-Layer Model
+
+| Layer | Entity | Purpose |
+|-------|--------|---------|
+| Component | `SystemComponent` (Thing) | Provider/technology grouping (e.g., "Azure Government") |
+| Capability | `SecurityCapability` | Reusable security solution (e.g., "Azure AD MFA") |
+| Mapping | `CapabilityControlMapping` | Links capability to NIST control with a role |
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| `CapabilityImportService` | CSP profile and CRM import pipeline (preview + apply) |
+| `CspProfileService` | Loads and validates pre-built CSP profiles from embedded JSON |
+| `CrmExportService` | Parses CSV/Excel files with auto-detected column mapping |
+| `CapabilityLibrary` page | React page: cards, import dialogs, coverage dashboard |
+| `GuidedEmptyState` | Onboarding component with 3 action paths |
+| `ComponentPickerModal` | Multi-select component linking from capability cards |
+
+### Import Flows
+
+- **CSP Profile**: Select profile → Preview changes → Apply → creates Components + Capabilities + Mappings
+- **CRM Spreadsheet**: Upload CSV/Excel → Auto-detect columns → Map fields → Preview → Apply
+- **Both flows**: Reuse existing components/capabilities by name match (idempotent)
+
+### Coverage Dashboard
+
+- **Provider cards**: Per-provider counts (controlled/total controls, unique capabilities, components)
+- **KPI bar**: Overall coverage %, total capabilities, gap controls
+- **Gap controls table**: Unmapped controls with family grouping
 
 ---
 
@@ -431,6 +558,20 @@ Feature 033 introduces authorization boundary definitions as first-class entitie
 
 ---
 
+## Control Inheritance & CRM (Feature 043)
+
+Feature 043 adds a dedicated Control Inheritance management page to the dashboard:
+
+- **Inheritance Designations**: Every baseline control can be classified as Inherited, Shared, Customer, or Undesignated
+- **InheritanceAuditEntry**: Immutable, append-only audit log tracks every change with previous/new values and change source
+- **CRM Generation & Export**: Customer Responsibility Matrix in Custom, FedRAMP, and eMASS layouts (CSV and Excel)
+- **CSP Profiles**: Pre-built JSON profiles (e.g., Azure Government FedRAMP High) auto-designate controls with conflict resolution
+- **CRM Import**: Upload existing CRM spreadsheets with column mapping, preview, and conflict resolution
+- **Services**: `CrmExportService` (export/import), `CspProfileService` (profile loading/matching)
+- **Data Model**: `InheritanceAuditEntry` entity linked to `ControlInheritance` via `ControlInheritanceId`
+
+---
+
 ## Related Documentation
 
 - [Data Model](data-model.md) — Entity relationships and ER diagram
@@ -440,6 +581,7 @@ Feature 033 introduces authorization boundary definitions as first-class entitie
 - [MCP Server API](../api/mcp-server.md) — MCP tool API reference
 - [Deployment Guide](../deployment.md) — Production deployment instructions
 - [Dashboard Guide](../guides/compliance-dashboard.md) — Dashboard user guide
+- [Control Inheritance Guide](../guides/control-inheritance.md) — Inheritance & CRM management
 - [Capabilities Guide](../guides/security-capabilities.md) — Security Capabilities Library
 - [Components Guide](../guides/component-inventory.md) — Component Inventory
 - [Gap Analysis Guide](../guides/gap-analysis.md) — Gap Analysis

@@ -46,7 +46,7 @@ public class SspToolsIntegrationTests : IDisposable
         var lifecycleSvc = new RmfLifecycleService(scopeFactory, Mock.Of<ILogger<RmfLifecycleService>>());
         var categorizationSvc = new CategorizationService(scopeFactory, Mock.Of<ILogger<CategorizationService>>(), Mock.Of<IPrivacyService>());
         var referenceDataSvc = new ReferenceDataService(Mock.Of<ILogger<ReferenceDataService>>());
-        var baselineSvc = new BaselineService(scopeFactory, referenceDataSvc, Mock.Of<ILogger<BaselineService>>());
+        var baselineSvc = new BaselineService(scopeFactory, referenceDataSvc, Mock.Of<ILogger<BaselineService>>(), Mock.Of<IOrgInheritanceService>());
         var sspSvc = new SspService(scopeFactory, Mock.Of<ILogger<SspService>>());
         var oscalExportSvc = new OscalSspExportService(scopeFactory, Mock.Of<ILogger<OscalSspExportService>>());
         var oscalValidationSvc = new OscalValidationService();

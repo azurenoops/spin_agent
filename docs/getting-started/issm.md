@@ -24,6 +24,14 @@
 
 2. **Register your first system**
 
+    Use the **System Intake Wizard** in the Compliance Dashboard for guided setup:
+
+    1. Navigate to **Systems** and click **"+ Add System"**
+    2. Complete the 7-step wizard (system details, capabilities, components, boundaries, roles, verification, categorization)
+    3. See the [System Intake Wizard Guide](../guides/system-intake-wizard.md) for detailed instructions
+
+    Alternatively, register via chat:
+
     ```
     "Register a new system called 'My System' as a Major Application
      in Azure Government"
@@ -83,3 +91,17 @@ Expected result: RMF roles assigned. You can verify with "What roles are assigne
 | "Role not recognized" | CAC certificate not mapped to any RBAC role | Contact Administrator to map your CAC thumbprint, or verify Azure AD group membership |
 | "Cannot register system" | Missing `Compliance.SecurityLead` role | Verify your role with "What role am I logged in as?" — only SecurityLead can register systems |
 | "Subscription not found" | Azure subscription not linked to ATO Copilot | Verify the subscription ID and ensure the ATO Copilot service principal has Reader access |
+
+---
+
+## eMASS Authorization Package (Feature 041)
+
+As the ISSM, you are responsible for generating and submitting authorization packages:
+
+1. **Validate readiness**: `compliance_validate_package` — ensure all artifacts pass pre-submission checks
+2. **Generate package**: `compliance_generate_package` — creates a ZIP with SSP, POA&M, SAR, SAP, assessment results, and evidence
+3. **Track progress**: `compliance_package_status` — monitor artifact-by-artifact generation in real time
+4. **Download**: Download the completed ZIP from the Documents page
+5. **Submit to eMASS**: Upload the package via eMASS portal
+
+> "Generate an authorization package for [system name]"

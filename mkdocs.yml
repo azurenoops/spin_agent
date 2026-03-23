@@ -86,6 +86,7 @@ nav:
     - Teams Bot: guides/teams-bot-guide.md
     - Chat App: guides/chat-app.md
     - Knowledge Base: guides/knowledgebase.md
+    - eMASS Authorization Package: guides/emass-package.md
   - Reference:
     - Glossary: reference/glossary.md
     - Tool Inventory: reference/tool-inventory.md

@@ -604,7 +604,7 @@ public class AuthorizationService : IAuthorizationService
     }
 
     /// <inheritdoc />
-    public async Task<AuthorizationPackage> BundlePackageAsync(
+    public async Task<AuthorizationPackageBundle> BundlePackageAsync(
         string systemId,
         string? format = null,
         bool includeEvidence = false,
@@ -619,7 +619,7 @@ public class AuthorizationService : IAuthorizationService
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
 
         var docFormat = format ?? "markdown";
-        var package = new AuthorizationPackage
+        var package = new AuthorizationPackageBundle
         {
             SystemId = systemId,
             GeneratedAt = DateTime.UtcNow,

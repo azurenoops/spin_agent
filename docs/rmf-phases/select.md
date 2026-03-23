@@ -76,6 +76,17 @@
 | **Shared** | Partially CSP, partially customer | Requires customer responsibility documentation |
 | **Customer** | Entirely the customer's responsibility | Requires full human-authored narrative |
 
+### Org-Level Inheritance Defaults
+
+Organizations can define org-wide inheritance defaults derived from the **Security Capabilities Library**. When org defaults are active:
+
+- Controls mapped to org-wide capabilities are automatically designated as Inherited or Shared with tracked `OrgDerived` source
+- New systems inheriting a baseline receive org defaults via **cascade propagation**
+- ISSMs can override org defaults per-system; overrides are tracked separately
+- The **Revert to Org Defaults** action restores org-derived designations for overridden controls
+
+Org defaults reduce repetitive work across systems sharing the same CSP and accelerate the Select phase. See the [Control Inheritance Guide](../guides/control-inheritance.md#org-level-inheritance-defaults) for detailed usage.
+
 ---
 
 ## Documents Produced

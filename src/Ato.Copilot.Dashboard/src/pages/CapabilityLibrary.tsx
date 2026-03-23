@@ -1,8 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
 import { CapabilityCard } from '../components/cards/CapabilityCard';
 import { CapabilityForm } from '../components/forms/CapabilityForm';
 import { MappingPanel } from '../components/cards/MappingPanel';
+import CspImportDialog from '../components/capabilities/CspImportDialog';
+import CrmImportDialog from '../components/capabilities/CrmImportDialog';
+import CoverageCards from '../components/capabilities/CoverageCards';
+import ComponentPickerModal from '../components/capabilities/ComponentPickerModal';
+import GuidedEmptyState from '../components/capabilities/GuidedEmptyState';
 import { usePolling } from '../hooks/usePolling';
 import {
   getCapabilities,
@@ -10,6 +16,7 @@ import {
   updateCapability,
   deleteCapability,
   getCapabilityImpactPreview,
+  getCoverage,
 } from '../api/capabilities';
 import type { CapabilityImpactPreview } from '../api/capabilities';
 import type {
@@ -17,6 +24,7 @@ import type {
   CreateCapabilityRequest,
   PaginatedResponse,
 } from '../types/dashboard';
+import type { OrgWideCoverage } from '../types/capabilities';
 
 const NIST_FAMILIES: Record<string, string> = {
   AC: 'Access Control', AT: 'Awareness and Training', AU: 'Audit and Accountability',
@@ -33,17 +41,25 @@ const NIST_FAMILIES: Record<string, string> = {
 const STATUS_OPTIONS = ['Planned', 'InProgress', 'Implemented', 'Deprecated'];
 
 export default function CapabilityLibrary() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [prefillName, setPrefillName] = useState('');
+  const [prefillProvider, setPrefillProvider] = useState('');
   const [editingCap, setEditingCap] = useState<SecurityCapabilityDto | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [impactPreview, setImpactPreview] = useState<CapabilityImpactPreview | null>(null);
   const [pendingUpdate, setPendingUpdate] = useState<CreateCapabilityRequest | null>(null);
+  const [showCspImport, setShowCspImport] = useState(false);
+  const [showCrmImport, setShowCrmImport] = useState(false);
+  const [linkingCap, setLinkingCap] = useState<SecurityCapabilityDto | null>(null);
+  const [coverage, setCoverage] = useState<OrgWideCoverage | null>(null);
+  const [coverageLoading, setCoverageLoading] = useState(true);
 
   const fetcher = useCallback(
     () => getCapabilities({ search: search || undefined, category: categoryFilter || undefined, status: statusFilter || undefined }),
@@ -51,6 +67,33 @@ export default function CapabilityLibrary() {
   );
   const { data, refresh } = usePolling<PaginatedResponse<SecurityCapabilityDto>>(fetcher, 30000);
   const capabilities = data?.items ?? [];
+
+  const loadCoverage = useCallback(async () => {
+    setCoverageLoading(true);
+    try {
+      const res = await getCoverage(false, true);
+      setCoverage(res.orgWide);
+    } catch {
+      setCoverage(null);
+    } finally {
+      setCoverageLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadCoverage(); }, [loadCoverage]);
+
+  // Handle "Create from Component" query param
+  useEffect(() => {
+    const createFrom = searchParams.get('createFrom');
+    const provider = searchParams.get('provider');
+    if (createFrom) {
+      setPrefillName(createFrom);
+      setPrefillProvider(provider ?? '');
+      setShowCreate(true);
+      setFormError(null);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleCreate = async (req: CreateCapabilityRequest) => {
     setSubmitting(true);
@@ -122,7 +165,14 @@ export default function CapabilityLibrary() {
     <PageLayout title="Security Capabilities">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Security Capabilities</h1>
-        <p className="text-sm text-gray-500 mt-1">Define and manage organizational security capabilities mapped to controls</p>
+        <p className="text-sm text-gray-500 mt-1">
+          Components → Capabilities → Control Inheritance — manage the full security capability pipeline
+        </p>
+      </div>
+
+      {/* Coverage summary cards */}
+      <div className="mb-6">
+        <CoverageCards coverage={coverage} loading={coverageLoading} />
       </div>
 
       {/* Filters */}
@@ -156,6 +206,18 @@ export default function CapabilityLibrary() {
         </select>
         <div className="flex-1" />
         <button
+          onClick={() => setShowCspImport(true)}
+          className="px-4 py-2 text-sm border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
+        >
+          Import CSP Profile
+        </button>
+        <button
+          onClick={() => setShowCrmImport(true)}
+          className="px-4 py-2 text-sm border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
+        >
+          Import CRM
+        </button>
+        <button
           onClick={() => { setShowCreate(true); setFormError(null); }}
           className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
         >
@@ -163,14 +225,41 @@ export default function CapabilityLibrary() {
         </button>
       </div>
 
+      {/* CSP Import dialog */}
+      <CspImportDialog
+        open={showCspImport}
+        onClose={() => setShowCspImport(false)}
+        onSuccess={() => { refresh(); loadCoverage(); }}
+      />
+
+      {/* CRM Import dialog */}
+      <CrmImportDialog
+        open={showCrmImport}
+        onClose={() => setShowCrmImport(false)}
+        onSuccess={() => { refresh(); loadCoverage(); }}
+      />
+
+      {/* Component Picker modal */}
+      {linkingCap && (
+        <ComponentPickerModal
+          open={!!linkingCap}
+          capabilityId={linkingCap.id}
+          capabilityName={linkingCap.name}
+          linkedComponentIds={linkingCap.linkedComponents?.map(c => c.id) ?? []}
+          onClose={() => setLinkingCap(null)}
+          onSave={() => refresh()}
+        />
+      )}
+
       {/* Create modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
             <h2 className="text-lg font-semibold mb-4">Create Security Capability</h2>
             <CapabilityForm
+              initial={prefillName ? { name: prefillName, provider: prefillProvider } as SecurityCapabilityDto : undefined}
               onSubmit={handleCreate}
-              onCancel={() => setShowCreate(false)}
+              onCancel={() => { setShowCreate(false); setPrefillName(''); setPrefillProvider(''); }}
               isSubmitting={submitting}
               error={formError}
             />
@@ -273,12 +362,11 @@ export default function CapabilityLibrary() {
 
       {/* Capability list */}
       {capabilities.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-lg text-gray-400 mb-2">No security capabilities found</p>
-          <p className="text-sm text-gray-400">
-            Create your first Security Capability to start mapping controls.
-          </p>
-        </div>
+        <GuidedEmptyState
+          onCreateManually={() => { setShowCreate(true); setFormError(null); }}
+          onImportCsp={() => setShowCspImport(true)}
+          onImportCrm={() => setShowCrmImport(true)}
+        />
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-gray-500 mb-2">{data?.totalCount ?? 0} capabilities</p>
@@ -290,6 +378,7 @@ export default function CapabilityLibrary() {
                 onToggle={() => setExpandedId(expandedId === cap.id ? null : cap.id)}
                 onEdit={() => { setEditingCap(cap); setFormError(null); }}
                 onDelete={() => setDeleteConfirm(cap.id)}
+                onLinkComponents={() => setLinkingCap(cap)}
               />
               {expandedId === cap.id && (
                 <div className="ml-4 mt-2 pl-4 border-l-2 border-indigo-200">

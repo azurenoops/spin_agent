@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ComponentSection } from '../components/cards/ComponentSection';
 import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
@@ -17,6 +17,7 @@ const SECTIONS: { title: string; type: ComponentType }[] = [
 
 export default function ComponentInventory() {
   const { id: systemId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [components, setComponents] = useState<SystemComponentDto[]>([]);
   const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
   const [summary, setSummary] = useState({ personCount: 0, placeCount: 0, thingCount: 0, totalCount: 0 });
@@ -101,6 +102,10 @@ export default function ComponentInventory() {
     setEditing(comp);
     setShowForm(true);
     setFormError(null);
+  };
+
+  const handleCreateCapability = (comp: SystemComponentDto) => {
+    navigate(`/capabilities?createFrom=${encodeURIComponent(comp.name)}&provider=${encodeURIComponent(comp.name)}`);
   };
 
   const handleDelete = async (id: string) => {
@@ -457,6 +462,7 @@ export default function ComponentInventory() {
                         onEdit={handleEdit}
                         onDelete={(id) => setDeleteConfirm(id)}
                         onRelink={handleRelink}
+                        onCreateCapability={handleCreateCapability}
                         riskMap={riskMap}
                       />
                     );
@@ -488,7 +494,8 @@ export default function ComponentInventory() {
                       count={items.length}
                       onEdit={handleEdit}
                       onDelete={(id) => setDeleteConfirm(id)}
-                        riskMap={riskMap}
+                      onCreateCapability={handleCreateCapability}
+                      riskMap={riskMap}
                     />
                   );
                 })}
@@ -511,7 +518,8 @@ export default function ComponentInventory() {
                 count={count}
                 onEdit={handleEdit}
                 onDelete={(id) => setDeleteConfirm(id)}
-                        riskMap={riskMap}
+                onCreateCapability={handleCreateCapability}
+                riskMap={riskMap}
               />
             );
           })}

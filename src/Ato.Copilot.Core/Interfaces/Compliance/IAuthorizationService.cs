@@ -140,7 +140,7 @@ public interface IAuthorizationService
     /// <param name="includeEvidence">Whether to include evidence attachments.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Package result with document list and metadata.</returns>
-    Task<AuthorizationPackage> BundlePackageAsync(
+    Task<AuthorizationPackageBundle> BundlePackageAsync(
         string systemId,
         string? format = null,
         bool includeEvidence = false,
@@ -325,7 +325,7 @@ public class CatBreakdown
 /// <summary>
 /// Authorization package containing bundled compliance documents.
 /// </summary>
-public class AuthorizationPackage
+public class AuthorizationPackageBundle
 {
     /// <summary>RegisteredSystem ID.</summary>
     public string SystemId { get; set; } = string.Empty;

@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
 import { usePolling } from '../hooks/usePolling';
 import { getPortfolio } from '../api/portfolio';
+import { getCoverage } from '../api/capabilities';
 import type { PortfolioSystemSummary, AtoSeverity } from '../types/dashboard';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ function complianceBadge(score: number) {
 export default function PortfolioRiskProfile() {
   const [systems, setSystems] = useState<PortfolioSystemSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [coveragePct, setCoveragePct] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -45,6 +47,10 @@ export default function PortfolioRiskProfile() {
   }, []);
 
   usePolling(fetchData);
+
+  useEffect(() => {
+    getCoverage(false, false).then(res => setCoveragePct(res.orgWide.coveragePercent)).catch(() => {});
+  }, []);
 
   // ─── Aggregations ───────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -75,7 +81,7 @@ export default function PortfolioRiskProfile() {
       {!loading && stats && (
         <div className="space-y-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
             <KpiCard label="Total Systems" value={stats.totalSystems} />
             <KpiCard label="Avg Compliance" value={`${stats.avgCompliance}%`} valueColor={stats.avgCompliance >= 90 ? 'text-green-600' : stats.avgCompliance >= 70 ? 'text-amber-600' : 'text-red-600'} />
             <KpiCard label="Open POA&Ms" value={stats.totalPoams} />
@@ -83,6 +89,7 @@ export default function PortfolioRiskProfile() {
             <KpiCard label="CAT I Findings" value={stats.totalCatI} valueColor={stats.totalCatI > 0 ? 'text-red-600' : undefined} />
             <KpiCard label="CAT II Findings" value={stats.totalCatII} valueColor={stats.totalCatII > 0 ? 'text-amber-600' : undefined} />
             <KpiCard label="ATO At Risk" value={stats.expiredOrExpiring} valueColor={stats.expiredOrExpiring > 0 ? 'text-red-600' : undefined} />
+            <KpiCard label="Coverage %" value={coveragePct != null ? `${coveragePct.toFixed(1)}%` : 'N/A'} valueColor={coveragePct != null && coveragePct >= 80 ? 'text-green-600' : coveragePct != null ? 'text-amber-600' : 'text-gray-400'} />
           </div>
 
           {/* Compliance by System */}

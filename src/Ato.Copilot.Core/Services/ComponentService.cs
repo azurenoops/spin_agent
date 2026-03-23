@@ -14,13 +14,15 @@ public class ComponentService
     private readonly AtoCopilotContext _db;
     private readonly ILogger<ComponentService> _logger;
     private readonly NarrativeTemplateService _narrativeService;
+    private readonly SystemCapabilityLinkService _linkService;
 
     /// <summary>Initializes a new instance of <see cref="ComponentService"/>.</summary>
-    public ComponentService(AtoCopilotContext db, ILogger<ComponentService> logger, NarrativeTemplateService narrativeService)
+    public ComponentService(AtoCopilotContext db, ILogger<ComponentService> logger, NarrativeTemplateService narrativeService, SystemCapabilityLinkService linkService)
     {
         _db = db;
         _logger = logger;
         _narrativeService = narrativeService;
+        _linkService = linkService;
     }
 
     /// <summary>
@@ -1162,6 +1164,18 @@ public class ComponentService
 
         _db.ComponentSystemAssignments.Add(assignment);
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Auto-link capabilities that this component provides
+        var capabilityIds = await _db.ComponentCapabilityLinks
+            .Where(cl => cl.SystemComponentId == componentId)
+            .Select(cl => cl.SecurityCapabilityId)
+            .ToListAsync(cancellationToken);
+
+        if (capabilityIds.Count > 0)
+        {
+            await _linkService.LinkCapabilitiesAsync(
+                request.RegisteredSystemId, capabilityIds, createdBy, cancellationToken);
+        }
 
         // Cascade narrative regeneration for new system assignment
         await CascadeNarrativeRegenerationForComponentAsync(componentId, createdBy, cancellationToken);

@@ -272,6 +272,25 @@
 
 ---
 
+## Phase 10: Dashboard UX Enhancements (Post-MVP)
+
+**Goal**: Improve navigation ergonomics and enrich the control family drill-down with severity, POA&M, and actionable links.
+
+### Grouped Navigation Sidebar (FR-036, FR-037)
+
+- [x] T081 [US2] Refactor SystemLayout.tsx sidebar navigation from flat `navItems` array to grouped `navGroups` structure with 4 groups: System Profile (Overview, Components, Boundaries, Capabilities), Compliance Posture (Narratives, Legal & Regulatory, Gap Analysis), Assessment & Remediation (Assessments, Remediation, POA&M, Evidence, Deviations), Planning & Delivery (Implementation Roadmap, Documents) — add `NavItem` and `NavGroup` TypeScript interfaces, render group labels when expanded and thin dividers when collapsed in src/Ato.Copilot.Dashboard/src/components/layout/SystemLayout.tsx
+
+### Enhanced Control Family Drill-Down (FR-010a–FR-010e)
+
+- [x] T082a [US2] Add `CatSeverity` (string?) and `PoamStatus` (string?) fields to `HeatmapControlDto` in src/Ato.Copilot.Core/Dtos/Dashboard/HeatmapDtos.cs
+- [x] T082b [US2] Extend `GetHeatmapControlsAsync` in DashboardService.cs to join `PoamItems` by SecurityControlNumber and map `CatSeverity` from ControlEffectivenessRecord and `PoamStatus` from the latest matching POA&M item into HeatmapControlDto in src/Ato.Copilot.Mcp/Services/DashboardService.cs
+- [x] T082c [US2] Add `catSeverity` and `poamStatus` fields to `HeatmapControl` TypeScript interface in src/Ato.Copilot.Dashboard/src/types/dashboard.ts
+- [x] T082d [US2] Rewrite ControlDrillDown.tsx with: clickable summary stat cards (Satisfied/Failing/Not Assessed) as filter controls, CAT severity breakdown badges on Failing card, severity color map (CAT I=red, CAT II=amber, CAT III=blue), POA&M status badges with color coding, action banner with "Go to Remediation" and "View POA&Ms" navigation links when failing controls exist, filter indicator with reset, enhanced table columns (Control, Title with inline capability name, Status, Severity, Narrative, POA&M), failing row red tint, footer quick links to Edit Narratives and Run Assessment pages in src/Ato.Copilot.Dashboard/src/components/charts/ControlDrillDown.tsx
+
+**Checkpoint**: Clicking a heatmap tile opens the enhanced drill-down showing severity badges, POA&M status, summary filters, and action links. Grouped sidebar renders correct groups in both expanded and collapsed states.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -285,6 +304,7 @@
 - **US5: Component Inventory (Phase 7)**: Depends on Foundational — can run in parallel with Phases 3-5
 - **US6: Compliance Trends (Phase 8)**: Depends on Foundational — can run in parallel with Phases 3-7
 - **Polish (Phase 9)**: Depends on all story phases being complete
+- **UX Enhancements (Phase 10)**: Can run after Phase 4 (System Detail) — enriches existing drill-down and navigation
 
 ### User Story Dependencies
 

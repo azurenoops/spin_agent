@@ -8,7 +8,6 @@ import {
   updateBoundaryDefinition,
   deleteBoundaryDefinition,
   fetchBoundaryResources,
-  addBoundaryResource,
   fetchBoundaryComponents,
   assignComponentToBoundary,
   removeComponentFromBoundary,
@@ -23,14 +22,11 @@ import {
 import { listComponents } from '../api/components';
 import type { OrgComponentDto } from '../api/components';
 import type { BoundaryResourceDto } from '../api/boundaries';
-import { discoverAzureResources } from '../api/azureDiscovery';
 import type {
   BoundaryDefinitionDto,
   BoundaryDefinitionType,
   CreateBoundaryDefinitionRequest,
   DeleteBoundaryDefinitionResponse,
-  AzureDiscoveryResponse,
-  AzureSuggestedBoundaryDto,
   BoundaryComponentDto,
   BoundaryLockStatus,
 } from '../types/dashboard';
@@ -60,19 +56,10 @@ export default function BoundaryManagement() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
 
-  // Azure discovery state
-  const [discoveryLoading, setDiscoveryLoading] = useState(false);
-  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
-  const [discoveryData, setDiscoveryData] = useState<AzureDiscoveryResponse | null>(null);
-  const [discoverySearch, setDiscoverySearch] = useState('');
-  const [applyResult, setApplyResult] = useState<string | null>(null);
-
   // Resource management state
   const [expandedBoundary, setExpandedBoundary] = useState<string | null>(null);
   const [, setResources] = useState<BoundaryResourceDto[]>([]);
   const [, setResourcesLoading] = useState(false);
-  const [resourceDialogTab, setResourceDialogTab] = useState<'components' | 'discover'>('components');
-  const [selectedDiscoveryResources, setSelectedDiscoveryResources] = useState<Set<string>>(new Set());
 
   // Component management state
   const [boundaryComponents, setBoundaryComponents] = useState<OrgComponentDto[]>([]);
@@ -163,37 +150,14 @@ export default function BoundaryManagement() {
     }
   };
 
-  const handleDiscover = async () => {
-    if (!systemId) return;
-    setDiscoveryLoading(true);
-    setDiscoveryError(null);
-    try {
-      const result = await discoverAzureResources(systemId, {
-        search: discoverySearch || undefined,
-      });
-      setDiscoveryData(result);
-    } catch (err: unknown) {
-      const detail = err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
-        : undefined;
-      setDiscoveryError(detail ?? 'Failed to discover Azure resources. Check Azure credentials and RBAC configuration.');
-    } finally {
-      setDiscoveryLoading(false);
-    }
-  };
-
   const handleExpandBoundary = async (boundaryId: string) => {
     if (expandedBoundary === boundaryId) {
       setExpandedBoundary(null);
       return;
     }
     setExpandedBoundary(boundaryId);
-    setResourceDialogTab('components');
     setResourcesLoading(true);
     setComponentsLoading(true);
-    setDiscoveryData(null);
-    setDiscoveryError(null);
-    setSelectedDiscoveryResources(new Set());
     try {
       const [res, comps] = await Promise.all([
         fetchBoundaryResources(boundaryId),
@@ -210,19 +174,6 @@ export default function BoundaryManagement() {
     }
   };
 
-  const handleAddDiscoveredResource = async (resourceId: string, resourceType: string, resourceName: string) => {
-    if (!expandedBoundary) return;
-    try {
-      await addBoundaryResource(expandedBoundary, { resourceId, resourceType, resourceName });
-      setSelectedDiscoveryResources((prev) => new Set([...prev, resourceId]));
-      const items = await fetchBoundaryResources(expandedBoundary);
-      setResources(items);
-      await fetchData();
-    } catch {
-      setError('Failed to add resource');
-    }
-  };
-
   if (loading) {
     return <p className="text-gray-500">Loading boundaries...</p>;
   }
@@ -234,7 +185,7 @@ export default function BoundaryManagement() {
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Authorization Boundaries</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Define and manage system boundaries — assign components, resources, and track coverage
+              Define and manage system boundaries — assign components and track coverage
             </p>
           </div>
           <button
@@ -292,16 +243,9 @@ export default function BoundaryManagement() {
         )}
         {deleteResult && (
           <div className="bg-green-50 text-green-800 p-3 rounded text-sm">
-            Boundary deleted. Reassigned {deleteResult.reassignedResources} resources,{' '}
-            {deleteResult.reassignedComponents} components, and {deleteResult.reassignedMappings} mappings
+            Boundary deleted. Reassigned {deleteResult.reassignedComponents} components and {deleteResult.reassignedMappings} mappings
             to Primary boundary.
             <button onClick={() => setDeleteResult(null)} className="ml-2 text-green-600 hover:underline text-xs">Dismiss</button>
-          </div>
-        )}
-        {applyResult && (
-          <div className="bg-green-50 text-green-800 p-3 rounded text-sm">
-            {applyResult}
-            <button onClick={() => setApplyResult(null)} className="ml-2 text-green-600 hover:underline text-xs">Dismiss</button>
           </div>
         )}
 
@@ -321,7 +265,6 @@ export default function BoundaryManagement() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Type</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500">Resources</th>
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500">Components</th>
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500">Coverage</th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Actions</th>
@@ -350,7 +293,6 @@ export default function BoundaryManagement() {
                         {b.boundaryType}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-700">{b.resourceCount}</td>
                     <td className="px-4 py-3 text-center text-sm text-gray-700">{b.componentCount}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`text-sm font-medium ${b.coveragePercent >= 80 ? 'text-green-700' : b.coveragePercent >= 50 ? 'text-yellow-700' : 'text-gray-700'}`}>
@@ -415,8 +357,7 @@ export default function BoundaryManagement() {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Boundary</h3>
               <p className="text-sm text-gray-600 mb-4">
                 Are you sure you want to delete <strong>{deleteConfirm.name}</strong>?
-                All resources ({deleteConfirm.resourceCount}), components ({deleteConfirm.componentCount}),
-                and mappings will be reassigned to the Primary boundary.
+                All components ({deleteConfirm.componentCount}) and mappings will be reassigned to the Primary boundary.
               </p>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setDeleteConfirm(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
@@ -443,125 +384,28 @@ export default function BoundaryManagement() {
                 </button>
               </div>
 
-              {/* Tabs */}
+              {/* Tab header */}
               <div className="flex border-b border-gray-200 px-6">
-                <button
-                  onClick={() => setResourceDialogTab('components')}
-                  className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${
-                    resourceDialogTab === 'components'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
+                <div className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px border-blue-600 text-blue-600">
                   Components ({boundaryComponents.length})
-                </button>
-                <button
-                  onClick={() => {
-                    setResourceDialogTab('discover');
-                    if (!discoveryData && !discoveryLoading) handleDiscover();
-                  }}
-                  className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${
-                    resourceDialogTab === 'discover'
-                      ? 'border-emerald-600 text-emerald-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Discover from Azure
-                </button>
+                </div>
               </div>
 
               {/* Tab content */}
               <div className="flex-1 overflow-y-auto px-6 py-4">
-                {/* Components tab */}
-                {resourceDialogTab === 'components' && (
-                  <BoundaryComponentsTab
-                    boundaryId={expandedBoundary}
-                    systemId={systemId!}
-                    components={boundaryComponents}
-                    loading={componentsLoading}
-                    onRefresh={async () => {
-                      const [comps] = await Promise.all([
-                        fetchBoundaryComponents(expandedBoundary),
-                        fetchData(),
-                      ]);
-                      setBoundaryComponents(comps);
-                    }}
-                  />
-                )}
-
-                {/* Discover tab */}
-                {resourceDialogTab === 'discover' && (
-                  <div>
-                    <div className="mb-4 flex gap-2">
-                      <input
-                        type="text"
-                        value={discoverySearch}
-                        onChange={(e) => setDiscoverySearch(e.target.value)}
-                        placeholder="Filter by resource name..."
-                        className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-2"
-                      />
-                      <button
-                        onClick={handleDiscover}
-                        disabled={discoveryLoading}
-                        className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        {discoveryLoading ? 'Searching...' : 'Search'}
-                      </button>
-                    </div>
-
-                    {discoveryError && (
-                      <div className="mb-3 rounded bg-amber-50 p-3 text-sm text-amber-800">{discoveryError}</div>
-                    )}
-
-                    {discoveryLoading && !discoveryData && (
-                      <p className="text-sm text-gray-500 text-center py-8">Discovering Azure resources...</p>
-                    )}
-
-                    {discoveryData && (
-                      <>
-                        <p className="text-xs text-gray-500 mb-3">
-                          {discoveryData.totalResourceCount} resources found. Click "Add" to add individual resources.
-                        </p>
-                        <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                          {discoveryData.suggestedBoundaries.flatMap((sb: AzureSuggestedBoundaryDto) =>
-                            sb.resources.map((r) => {
-                              const alreadyAdded = r.alreadyInBoundary || selectedDiscoveryResources.has(r.resourceId);
-                              return (
-                                <div
-                                  key={r.resourceId}
-                                  className={`flex items-center justify-between border rounded-md p-3 ${
-                                    alreadyAdded ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200 hover:border-emerald-300'
-                                  }`}
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm font-medium text-gray-800 truncate">{r.name}</span>
-                                      <span className="text-xs text-gray-400">({r.type.split('/').pop()})</span>
-                                    </div>
-                                    <p className="text-xs text-gray-500 truncate mt-0.5" title={r.resourceId}>{r.resourceId}</p>
-                                    <p className="text-xs text-gray-400 mt-0.5">{sb.resourceGroupName} &middot; {r.location}</p>
-                                  </div>
-                                  <div className="ml-3 flex-shrink-0">
-                                    {alreadyAdded ? (
-                                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Added</span>
-                                    ) : (
-                                      <button
-                                        onClick={() => handleAddDiscoveredResource(r.resourceId, r.type, r.name)}
-                                        className="px-3 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                                      >
-                                        Add
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            }),
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
+                <BoundaryComponentsTab
+                  boundaryId={expandedBoundary}
+                  systemId={systemId!}
+                  components={boundaryComponents}
+                  loading={componentsLoading}
+                  onRefresh={async () => {
+                    const [comps] = await Promise.all([
+                      fetchBoundaryComponents(expandedBoundary),
+                      fetchData(),
+                    ]);
+                    setBoundaryComponents(comps);
+                  }}
+                />
               </div>
             </div>
           </div>

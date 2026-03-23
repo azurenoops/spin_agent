@@ -23,7 +23,7 @@ public class ComponentFindingLinkageTests : IDisposable
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         _db = new AtoCopilotContext(options);
-        _service = new ComponentService(_db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService());
+        _service = new ComponentService(_db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(), new SystemCapabilityLinkService(_db, NullLogger<SystemCapabilityLinkService>.Instance));
     }
 
     public void Dispose() => _db.Dispose();

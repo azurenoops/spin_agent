@@ -241,17 +241,11 @@ function ComplianceSection({ settings, update }: { settings: DashboardSettings; 
   return (
     <div className="space-y-1">
       <SectionDivider title="Framework" />
-      <SelectField label="Active Framework" value={settings.activeFramework} onChange={(v) => update({ activeFramework: v })} options={[
-        { label: 'NIST 800-53', value: 'NIST 800-53' },
-        { label: 'NIST CSF', value: 'NIST CSF' },
-        { label: 'CMMC', value: 'CMMC' },
-        { label: 'FedRAMP', value: 'FedRAMP' },
-      ]} />
-      <SelectField label="Baseline Override" value={settings.baselineOverride} onChange={(v) => update({ baselineOverride: v })} options={[
-        { label: 'Auto-detect', value: '' },
-        { label: 'Low', value: 'Low' },
-        { label: 'Moderate', value: 'Moderate' },
-        { label: 'High', value: 'High' },
+      <SelectField label="Organization Framework" value={settings.activeFramework} onChange={(v) => update({ activeFramework: v })} options={[
+        { label: 'NIST 800-53 Rev. 5', value: 'NIST 800-53 Rev. 5' },
+        { label: 'NIST 800-53 Rev. 4', value: 'NIST 800-53 Rev. 4' },
+        { label: 'FedRAMP Rev. 5', value: 'FedRAMP Rev. 5' },
+        { label: 'CNSSI 1253', value: 'CNSSI 1253' },
       ]} />
       <SectionDivider title="POA&M Thresholds" />
       <NumberField label="Overdue Threshold" value={settings.poamOverdueThreshold} onChange={(v) => update({ poamOverdueThreshold: v })} min={1} max={365} suffix="days" />

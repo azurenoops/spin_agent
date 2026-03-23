@@ -31,7 +31,7 @@ public class CapabilityServiceCascadeTests : IDisposable
         _db = new AtoCopilotContext(options);
         var logger = Mock.Of<ILogger<CapabilityService>>();
         var narrativeService = new NarrativeTemplateService();
-        _sut = new CapabilityService(_db, logger, narrativeService, Mock.Of<IDeviationService>());
+        _sut = new CapabilityService(_db, logger, narrativeService, Mock.Of<IDeviationService>(), Mock.Of<IOrgInheritanceService>());
 
         SeedData();
     }

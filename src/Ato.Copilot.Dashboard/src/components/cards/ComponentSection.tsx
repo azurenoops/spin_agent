@@ -21,6 +21,7 @@ interface ComponentSectionProps {
   onEdit: (comp: SystemComponentDto) => void;
   onDelete: (id: string) => void;
   onRelink?: (comp: SystemComponentDto) => void;
+  onCreateCapability?: (comp: SystemComponentDto) => void;
   riskMap?: Record<string, { openCount: number; overdueCount: number; highestSeverity: string | null }>;
 }
 
@@ -30,7 +31,7 @@ const severityBadge: Record<string, string> = {
   III: 'bg-yellow-400 text-gray-900',
 };
 
-export function ComponentSection({ title, type, components, count, onEdit, onDelete, onRelink, riskMap }: ComponentSectionProps) {
+export function ComponentSection({ title, type, components, count, onEdit, onDelete, onRelink, onCreateCapability, riskMap }: ComponentSectionProps) {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -84,6 +85,7 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                     </div>
                     {comp.linkedCapabilities.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
+                        <span className="text-xs text-gray-500 mr-1">{comp.linkedCapabilities.length} cap{comp.linkedCapabilities.length !== 1 ? 's' : ''}</span>
                         {comp.linkedCapabilities.map((lc) => (
                           <span key={lc.capabilityId} className="text-xs bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">
                             {lc.capabilityName}
@@ -93,6 +95,9 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                     )}
                   </div>
                   <div className="flex gap-1 ml-3">
+                    {onCreateCapability && comp.componentType === 'Thing' && comp.linkedCapabilities.length === 0 && (
+                      <button onClick={() => onCreateCapability(comp)} className="text-xs text-green-600 hover:text-green-800 px-2 py-1">+ Capability</button>
+                    )}
                     {onRelink && comp.azureResourceId && (
                       <button onClick={() => onRelink(comp)} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1">Re-link</button>
                     )}

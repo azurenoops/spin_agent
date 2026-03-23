@@ -47,8 +47,10 @@
 | `compliance_select_baseline` | ISSM | Select NIST 800-53 baseline | ControlBaseline entity |
 | `compliance_tailor_baseline` | ISSM | Add/remove controls with rationale | ControlTailoring records |
 | `compliance_set_inheritance` | ISSM / Engineer | Designate inherited/shared/customer controls | ControlInheritance records |
+| Dashboard: Derive Org Defaults | ISSM | Derive org-wide defaults from capabilities, cascade to systems | OrgInheritanceDefault + OrgDerived records |
+| Dashboard: Revert to Org Defaults | ISSM | Revert overridden controls to org-level defaults | ControlInheritance updated |
 | `compliance_get_baseline` | Any | View baseline with tailoring summary | Baseline details |
-| `compliance_generate_crm` | ISSM | Generate Customer Responsibility Matrix | CRM document |
+| `compliance_generate_crm` | ISSM | Generate Customer Responsibility Matrix (incl. Designation Source) | CRM document |
 | `compliance_show_stig_mapping` | Engineer | View STIG-to-NIST mappings for controls | STIG cross-references |
 
 **Gate Conditions (Select → Implement):** ControlBaseline exists
@@ -166,6 +168,7 @@ These tools operate across all RMF phases:
 | ControlBaseline | Select | `compliance_select_baseline` | EF Core entity |
 | ControlTailoring | Select | `compliance_tailor_baseline` | EF Core entity |
 | ControlInheritance | Select | `compliance_set_inheritance` | EF Core entity |
+| OrgInheritanceDefault | Select | Dashboard: Derive Org Defaults | EF Core entity |
 | CRM | Select | `compliance_generate_crm` | ComplianceDocument |
 | ControlImplementation | Implement | `compliance_write_narrative` | EF Core entity |
 | SSP | Implement | `compliance_generate_ssp` | ComplianceDocument |

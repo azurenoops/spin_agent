@@ -200,26 +200,43 @@ export default function SystemLayout() {
           </svg>
         </button>
       </div>
-      <nav className="flex-1 py-2 space-y-0.5 px-2">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={`${basePath}${item.path ? `/${item.path}` : ''}`}
-            end={item.end}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                isActive
-                  ? 'bg-blue-50 text-blue-700 font-medium'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              } ${navCollapsed ? 'justify-center' : ''}`
-            }
-            title={navCollapsed ? item.label : undefined}
-          >
-            <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d={item.d} />
-            </svg>
-            {!navCollapsed && <span className="truncate">{item.label}</span>}
-          </NavLink>
+      <nav className="flex-1 py-2 px-2 overflow-y-auto">
+        {navGroups.map((group, gi) => (
+          <div key={group.label}>
+            {/* Group divider — thin line when collapsed, label when expanded */}
+            {gi > 0 && navCollapsed && (
+              <div className="my-2 border-t border-gray-200" />
+            )}
+            {!navCollapsed && (
+              <div className={`px-3 ${gi === 0 ? 'pt-1' : 'pt-4'} pb-1`}>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                  {group.label}
+                </span>
+              </div>
+            )}
+            <div className="space-y-0.5">
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={`${basePath}${item.path ? `/${item.path}` : ''}`}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    } ${navCollapsed ? 'justify-center' : ''}`
+                  }
+                  title={navCollapsed ? item.label : undefined}
+                >
+                  <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d={item.d} />
+                  </svg>
+                  {!navCollapsed && <span className="truncate">{item.label}</span>}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
     </aside>

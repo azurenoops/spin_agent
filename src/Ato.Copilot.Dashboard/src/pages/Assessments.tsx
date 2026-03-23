@@ -1,13 +1,17 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { usePolling } from '../hooks/usePolling';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { getAssessments, runAssessment, getAssessmentDetail } from '../api/assessments';
 import { getAssessmentComponentRisks } from '../api/components';
+import { generateSap, getLatestSap, finalizeSap } from '../api/sap';
+import { createSar, getLatestSar } from '../api/sar';
 import type { AssessmentListItem, AssessmentDetail, AssessmentFinding } from '../api/assessments';
 import type { AssessmentComponentRisks, ComponentRiskSummary } from '../types/dashboard';
+import type { SapResponse } from '../api/sap';
+import type { SarResponse } from '../api/sar';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -60,6 +64,7 @@ function SeverityBadge({ severity }: { severity: string }) {
 export default function Assessments() {
   const { detail } = useSystemContext();
   const systemId = detail.systemId;
+  const navigate = useNavigate();
   const [filter, setFilter] = useState('');
   const [showRunDialog, setShowRunDialog] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
@@ -71,6 +76,22 @@ export default function Assessments() {
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
   const [componentRisks, setComponentRisks] = useState<AssessmentComponentRisks | null>(null);
 
+  // SAP state
+  const [showSapDialog, setShowSapDialog] = useState(false);
+  const [sapLoading, setSapLoading] = useState(false);
+  const [sapError, setSapError] = useState<string | null>(null);
+  const [sapData, setSapData] = useState<SapResponse | null>(null);
+
+  // SAR state
+  const [showSarDialog, setShowSarDialog] = useState(false);
+  const [sarLoading, setSarLoading] = useState(false);
+  const [sarError, setSarError] = useState<string | null>(null);
+  const [sarData, setSarData] = useState<SarResponse | null>(null);
+
+  // View detail modals
+  const [showSapView, setShowSapView] = useState(false);
+  const [showSarView, setShowSarView] = useState(false);
+
   const fetchAssessments = useCallback(() => getAssessments(), []);
   const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
 
@@ -81,6 +102,13 @@ export default function Assessments() {
       .then(setComponentRisks)
       .catch(() => setComponentRisks(null));
   }, [detailData?.assessmentId, systemId]);
+
+  // Fetch latest SAP & SAR status on mount
+  useEffect(() => {
+    if (!systemId) return;
+    getLatestSap(systemId).then(setSapData).catch(() => setSapData(null));
+    getLatestSar(systemId).then(setSarData).catch(() => setSarData(null));
+  }, [systemId]);
 
   // Filter to current system
   const assessments = (allAssessments ?? []).filter(a => a.systemId === systemId);
@@ -101,6 +129,63 @@ export default function Assessments() {
       }
     } finally {
       setRunLoading(false);
+    }
+  };
+
+  const handleGenerateSap = async () => {
+    setSapLoading(true);
+    setSapError(null);
+    try {
+      const sap = await generateSap(systemId);
+      setSapData(sap);
+      setShowSapDialog(false);
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: string } } };
+        setSapError(axiosErr.response?.data?.error ?? 'SAP generation failed');
+      } else {
+        setSapError(err instanceof Error ? err.message : 'SAP generation failed');
+      }
+    } finally {
+      setSapLoading(false);
+    }
+  };
+
+  const handleFinalizeSap = async () => {
+    if (!sapData) return;
+    setSapLoading(true);
+    setSapError(null);
+    try {
+      const sap = await finalizeSap(systemId, sapData.sapId);
+      setSapData(sap);
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: string } } };
+        setSapError(axiosErr.response?.data?.error ?? 'SAP finalization failed');
+      } else {
+        setSapError(err instanceof Error ? err.message : 'SAP finalization failed');
+      }
+    } finally {
+      setSapLoading(false);
+    }
+  };
+
+  const handleGenerateSar = async () => {
+    setSarLoading(true);
+    setSarError(null);
+    try {
+      const sar = await createSar(systemId, { title: `Security Assessment Report — ${detail.name}` });
+      setSarData(sar);
+      setShowSarDialog(false);
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: string } } };
+        setSarError(axiosErr.response?.data?.error ?? 'SAR generation failed');
+      } else {
+        setSarError(err instanceof Error ? err.message : 'SAR generation failed');
+      }
+    } finally {
+      setSarLoading(false);
     }
   };
 
@@ -156,6 +241,26 @@ export default function Assessments() {
               className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <button
+              onClick={() => { setShowSapDialog(true); setSapError(null); }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Generate SAP
+            </button>
+            <button
+              onClick={() => { setShowSarDialog(true); setSarError(null); }}
+              disabled={assessments.filter(a => a.status === 'Completed').length === 0}
+              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title={assessments.filter(a => a.status === 'Completed').length === 0 ? 'Run at least one assessment first' : 'Generate Security Assessment Report'}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Generate SAR
+            </button>
+            <button
               onClick={() => { setShowRunDialog(true); setRunError(null); }}
               className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
             >
@@ -189,6 +294,88 @@ export default function Assessments() {
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Findings</p>
               <p className="mt-1 text-2xl font-bold text-amber-600">{assessments.reduce((sum, a) => sum + a.totalFindings, 0)}</p>
             </div>
+          </div>
+        )}
+
+        {/* SAP / SAR Status */}
+        {(sapData || sarData) && (
+          <div className="grid grid-cols-2 gap-4">
+            {sapData && (
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-indigo-500 uppercase tracking-wider">Security Assessment Plan</p>
+                    <p className="mt-1 text-sm font-semibold text-indigo-900">{sapData.title}</p>
+                  </div>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${sapData.status === 'Finalized' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {sapData.status}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-4 text-xs text-indigo-600">
+                  <span>{sapData.totalControls} controls</span>
+                  <span>{sapData.baselineLevel} baseline</span>
+                  <span>{new Date(sapData.generatedAt).toLocaleDateString()}</span>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    onClick={() => setShowSapView(true)}
+                    className="inline-flex items-center gap-1 rounded-md bg-white border border-indigo-300 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    View
+                  </button>
+                  {sapData.status === 'Draft' && (
+                  <button
+                    onClick={() => void handleFinalizeSap()}
+                    disabled={sapLoading}
+                    className="inline-flex items-center rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  >
+                    {sapLoading ? 'Finalizing...' : 'Finalize SAP'}
+                  </button>
+                  )}
+                </div>
+                {sapError && (
+                  <p className="mt-2 text-xs text-red-600">{sapError}</p>
+                )}
+              </div>
+            )}
+            {sarData && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-emerald-500 uppercase tracking-wider">Security Assessment Report</p>
+                    <p className="mt-1 text-sm font-semibold text-emerald-900">{sarData.title}</p>
+                  </div>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    sarData.status === 'Approved' ? 'bg-green-100 text-green-700' :
+                    sarData.status === 'UnderReview' ? 'bg-blue-100 text-blue-700' :
+                    'bg-amber-100 text-amber-700'
+                  }`}>
+                    {sarData.status === 'UnderReview' ? 'Under Review' : sarData.status}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-4 text-xs text-emerald-600">
+                  <span>{sarData.satisfiedCount} satisfied</span>
+                  <span>{sarData.notSatisfiedCount} not satisfied</span>
+                  <span>{sarData.totalControlsAssessed} assessed</span>
+                </div>
+                <div className="mt-2">
+                  <button
+                    onClick={() => setShowSarView(true)}
+                    className="inline-flex items-center gap-1 rounded-md bg-white border border-emerald-300 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    View
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -646,6 +833,604 @@ export default function Assessments() {
             </div>
           </div>
         )}
+
+        {/* Generate SAP Dialog */}
+        {showSapDialog && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowSapDialog(false); }}
+          >
+            <div className="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between px-6 pt-5 pb-3">
+                <h3 className="text-lg font-semibold text-gray-900">Generate Security Assessment Plan</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowSapDialog(false)}
+                  className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                  aria-label="Close"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm text-gray-600">
+                  Generate a Security Assessment Plan (SAP) for <strong>{detail.name}</strong>.
+                  The SAP documents the assessment scope, methodology, and team for RMF Step 4.
+                </p>
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">System</span>
+                    <span className="font-medium text-gray-800">{detail.name}{detail.acronym ? ` (${detail.acronym})` : ''}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Impact Level</span>
+                    <span className="font-medium text-gray-800">{detail.categorization?.overall ?? '—'}</span>
+                  </div>
+                  {sapData && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Existing SAP</span>
+                      <span className="font-medium text-amber-600">{sapData.status} — will be replaced</span>
+                    </div>
+                  )}
+                </div>
+                {sapError && (
+                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{sapError}</div>
+                )}
+              </div>
+              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowSapDialog(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>
+                <button type="button" onClick={() => void handleGenerateSap()} disabled={sapLoading} className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                  {sapLoading ? 'Generating...' : 'Generate SAP'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Generate SAR Dialog */}
+        {showSarDialog && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowSarDialog(false); }}
+          >
+            <div className="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between px-6 pt-5 pb-3">
+                <h3 className="text-lg font-semibold text-gray-900">Generate Security Assessment Report</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowSarDialog(false)}
+                  className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                  aria-label="Close"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm text-gray-600">
+                  Generate a Security Assessment Report (SAR) for <strong>{detail.name}</strong>.
+                  The SAR aggregates findings from <strong>all</strong> completed assessments into an RMF Step 4 deliverable.
+                </p>
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">System</span>
+                    <span className="font-medium text-gray-800">{detail.name}{detail.acronym ? ` (${detail.acronym})` : ''}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Completed Assessments</span>
+                    <span className="font-medium text-gray-800">{assessments.filter(a => a.status === 'Completed').length}</span>
+                  </div>
+                  {sapData && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Linked SAP</span>
+                      <span className="font-medium text-gray-800">{sapData.sapId.substring(0, 8)}... ({sapData.status})</span>
+                    </div>
+                  )}
+                </div>
+                {sarError && (
+                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{sarError}</div>
+                )}
+              </div>
+              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowSarDialog(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>
+                <button type="button" onClick={() => void handleGenerateSar()} disabled={sarLoading} className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                  {sarLoading ? 'Generating...' : 'Generate SAR'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SAP Detail View Modal */}
+        {showSapView && sapData && (() => {
+          const fams = sapData.familySummaries ?? [];
+          const firstFam = fams[0];
+          const allMethodsSame = firstFam != null &&
+            fams.every(f => JSON.stringify(f.methods) === JSON.stringify(firstFam.methods));
+          const commonMethods = allMethodsSame ? firstFam.methods : null;
+
+          return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowSapView(false); }}
+          >
+            <div className="w-full max-w-3xl max-h-[90vh] rounded-xl bg-white shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-5 pb-3 flex-shrink-0">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Security Assessment Plan</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{sapData.title}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${sapData.status === 'Finalized' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {sapData.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSapView(false)}
+                    className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                    aria-label="Close"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="border-t border-gray-100" />
+
+              {/* Body */}
+              <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
+                {/* Explainer */}
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+                  <p className="text-xs text-blue-800">
+                    The <strong>Security Assessment Plan (SAP)</strong> defines the scope, methodology, and schedule for your system&apos;s security assessment (RMF Step 4).
+                    It documents which controls will be assessed, how they&apos;ll be tested, and who is on the assessment team.
+                  </p>
+                </div>
+
+                {/* Next Steps */}
+                <div className={`rounded-md border p-3 ${sapData.status === 'Draft' ? 'border-indigo-200 bg-indigo-50' : 'border-green-200 bg-green-50'}`}>
+                  <p className="text-xs font-semibold text-gray-700 mb-1.5">Next Steps</p>
+                  {sapData.status === 'Draft' ? (
+                    <ul className="text-xs text-gray-600 space-y-1.5">
+                      {sapData.evidenceGaps > 0 && (
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-amber-500 mt-0.5">⚠</span>
+                          <span>
+                            <strong>{sapData.evidenceGaps} controls</strong> have evidence gaps.
+                            <button onClick={() => { setShowSapView(false); navigate(`/systems/${systemId}/evidence`); }} className="text-blue-600 hover:underline ml-1 font-medium">Go to Evidence →</button>
+                          </span>
+                        </li>
+                      )}
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-indigo-500 mt-0.5">1</span>
+                        <span>Review the assessment scope and control family breakdown below.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-indigo-500 mt-0.5">2</span>
+                        <span>
+                          When ready, click <strong>Finalize SAP</strong> on the status card to lock the plan.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-indigo-500 mt-0.5">3</span>
+                        <span>
+                          After finalizing, run an assessment and then generate a <strong>SAR</strong> to document results.
+                        </span>
+                      </li>
+                    </ul>
+                  ) : (
+                    <ul className="text-xs text-gray-600 space-y-1.5">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-green-500 mt-0.5">✓</span>
+                        <span>SAP is finalized and locked. Assessment scope is set.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-green-500 mt-0.5">→</span>
+                        <span>
+                          Run an assessment, then generate a <strong>SAR</strong> above. Both are required for the authorization package.
+                          <button onClick={() => { setShowSapView(false); navigate(`/systems/${systemId}/documents`); }} className="text-blue-600 hover:underline ml-1 font-medium">View Documents →</button>
+                        </span>
+                      </li>
+                    </ul>
+                  )}
+                </div>
+
+                {/* Metrics cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Controls</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">{sapData.totalControls}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</p>
+                    <p className="mt-1 text-2xl font-bold text-blue-600">{sapData.customerControls}</p>
+                    <p className="text-[10px] text-gray-400">Your responsibility</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Inherited</p>
+                    <p className="mt-1 text-2xl font-bold text-green-600">{sapData.inheritedControls}</p>
+                    <p className="text-[10px] text-gray-400">Provider-assessed</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Shared</p>
+                    <p className="mt-1 text-2xl font-bold text-purple-600">{sapData.sharedControls}</p>
+                    <p className="text-[10px] text-gray-400">Split responsibility</p>
+                  </div>
+                </div>
+
+                {/* Assessment scope details */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">STIG Benchmarks</p>
+                    <p className="mt-1 text-xl font-bold text-gray-800">{sapData.stigBenchmarkCount}</p>
+                    <p className="text-[10px] text-gray-400">Imported checklists</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">OSCAL Objectives</p>
+                    <p className="mt-1 text-xl font-bold text-gray-800">{sapData.controlsWithObjectives}</p>
+                    <p className="text-[10px] text-gray-400">Controls with test criteria</p>
+                  </div>
+                  <div className={`rounded-lg border p-3 text-center ${sapData.evidenceGaps > 0 ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Evidence Gaps</p>
+                    <p className={`mt-1 text-xl font-bold ${sapData.evidenceGaps > 0 ? 'text-amber-600' : 'text-green-600'}`}>{sapData.evidenceGaps}</p>
+                    {sapData.evidenceGaps > 0 ? (
+                      <button onClick={() => { setShowSapView(false); navigate(`/systems/${systemId}/evidence`); }} className="text-[10px] text-blue-600 hover:underline">Upload evidence →</button>
+                    ) : (
+                      <p className="text-[10px] text-gray-400">All controls covered</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Warnings */}
+                {sapData.warnings && sapData.warnings.length > 0 && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-1">
+                    <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider">Warnings</p>
+                    {sapData.warnings.map((w, i) => (
+                      <p key={i} className="text-xs text-amber-700">• {w}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Assessment Methods summary (if all families use same methods) */}
+                {commonMethods && (
+                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs font-semibold text-gray-700 mb-1">Assessment Methods</p>
+                    <p className="text-xs text-gray-500 mb-2">All {fams.length} control families use the same assessment methodology:</p>
+                    <div className="flex gap-2">
+                      {commonMethods.map(m => (
+                        <span key={m} className="inline-flex items-center rounded-md bg-white border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700">{m}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Family Breakdown */}
+                {fams.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Control Family Breakdown ({fams.length} families)</h4>
+                    <div className="overflow-hidden rounded-lg border border-gray-200">
+                      <table className="min-w-full divide-y divide-gray-200 text-xs">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium text-gray-500">Family</th>
+                            <th className="px-3 py-2 text-center font-medium text-gray-500">Controls</th>
+                            <th className="px-3 py-2 text-center font-medium text-gray-500">Customer</th>
+                            <th className="px-3 py-2 text-center font-medium text-gray-500">Inherited</th>
+                            {!commonMethods && (
+                              <th className="px-3 py-2 text-left font-medium text-gray-500">Methods</th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 bg-white">
+                          {fams.map(f => (
+                            <tr key={f.family} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 font-medium text-gray-800">{f.family}</td>
+                              <td className="px-3 py-2 text-center text-gray-600">{f.controlCount}</td>
+                              <td className="px-3 py-2 text-center text-blue-600">{f.customerCount}</td>
+                              <td className="px-3 py-2 text-center text-green-600">{f.inheritedCount}</td>
+                              {!commonMethods && (
+                                <td className="px-3 py-2 text-gray-500">
+                                  {f.methods.map(m => (
+                                    <span key={m} className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 mr-1">{m}</span>
+                                  ))}
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">SAP ID</span>
+                    <span className="font-mono text-gray-600">{sapData.sapId.substring(0, 8)}...</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Baseline</span>
+                    <span className="font-medium text-gray-800">{sapData.baselineLevel}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Generated</span>
+                    <span className="font-medium text-gray-800">{formatDate(sapData.generatedAt)}</span>
+                  </div>
+                  {sapData.finalizedAt && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Finalized</span>
+                      <span className="font-medium text-gray-800">{formatDate(sapData.finalizedAt)}</span>
+                    </div>
+                  )}
+                  {sapData.contentHash && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Content Hash</span>
+                      <span className="font-mono text-gray-600 text-[10px]">{sapData.contentHash.substring(0, 16)}...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowSapView(false)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
+
+        {/* SAR Detail View Modal */}
+        {showSarView && sarData && (() => {
+          const complianceRate = sarData.totalControlsAssessed > 0 ? Math.round((sarData.satisfiedCount / sarData.totalControlsAssessed) * 100) : 0;
+          const emptySections = sarData.sections?.filter(s => !s.hasContent) ?? [];
+
+          return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowSarView(false); }}
+          >
+            <div className="w-full max-w-3xl max-h-[90vh] rounded-xl bg-white shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-5 pb-3 flex-shrink-0">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Security Assessment Report</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{sarData.title}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    sarData.status === 'Approved' ? 'bg-green-100 text-green-700' :
+                    sarData.status === 'UnderReview' ? 'bg-blue-100 text-blue-700' :
+                    'bg-amber-100 text-amber-700'
+                  }`}>
+                    {sarData.status === 'UnderReview' ? 'Under Review' : sarData.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSarView(false)}
+                    className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                    aria-label="Close"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="border-t border-gray-100" />
+
+              {/* Body */}
+              <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
+                {/* Explainer */}
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+                  <p className="text-xs text-blue-800">
+                    The <strong>Security Assessment Report (SAR)</strong> documents the results of your security assessment (RMF Step 4).
+                    It aggregates findings from all completed assessments, showing which controls are satisfied and which have gaps that need remediation.
+                  </p>
+                </div>
+
+                {/* Next Steps */}
+                <div className={`rounded-md border p-3 ${sarData.status === 'Approved' ? 'border-green-200 bg-green-50' : 'border-emerald-200 bg-emerald-50'}`}>
+                  <p className="text-xs font-semibold text-gray-700 mb-1.5">Next Steps</p>
+                  {sarData.status === 'Draft' ? (
+                    <ul className="text-xs text-gray-600 space-y-1.5">
+                      {sarData.notSatisfiedCount > 0 && (
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-red-500 mt-0.5">⚠</span>
+                          <span>
+                            <strong>{sarData.notSatisfiedCount} controls</strong> are not satisfied.
+                            <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/remediation`); }} className="text-blue-600 hover:underline ml-1 font-medium">Go to Remediation →</button>
+                          </span>
+                        </li>
+                      )}
+                      {emptySections.length > 0 && (
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-amber-500 mt-0.5">✎</span>
+                          <span>
+                            <strong>{emptySections.length} section{emptySections.length !== 1 ? 's' : ''}</strong> need content ({emptySections.map(s => s.title).join(', ')}).
+                            Use the chat to author them with the <code className="text-[10px] bg-gray-100 rounded px-1">compliance_edit_sar_section</code> tool.
+                          </span>
+                        </li>
+                      )}
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-500 mt-0.5">1</span>
+                        <span>Review the findings summary and complete any manual sections above.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-500 mt-0.5">2</span>
+                        <span>Submit the SAR for review via the chat tool <code className="text-[10px] bg-gray-100 rounded px-1">compliance_submit_sar</code>.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-500 mt-0.5">3</span>
+                        <span>
+                          Once approved, the SAR will be included when you
+                          <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/documents`); }} className="text-blue-600 hover:underline ml-1 font-medium">generate the authorization package →</button>
+                        </span>
+                      </li>
+                    </ul>
+                  ) : sarData.status === 'UnderReview' ? (
+                    <ul className="text-xs text-gray-600 space-y-1.5">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-blue-500 mt-0.5">⏳</span>
+                        <span>SAR is under review. The AO or ISSO will approve or request revisions.</span>
+                      </li>
+                    </ul>
+                  ) : (
+                    <ul className="text-xs text-gray-600 space-y-1.5">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-green-500 mt-0.5">✓</span>
+                        <span>SAR is approved. It will be included in the authorization package.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-green-500 mt-0.5">→</span>
+                        <span>
+                          <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/documents`); }} className="text-blue-600 hover:underline font-medium">Go to Documents →</button>
+                          {' '}to generate and export the full authorization package.
+                        </span>
+                      </li>
+                    </ul>
+                  )}
+                </div>
+
+                {/* Metrics cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Assessed</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">{sarData.totalControlsAssessed}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Satisfied</p>
+                    <p className="mt-1 text-2xl font-bold text-green-600">{sarData.satisfiedCount}</p>
+                    <p className="text-[10px] text-gray-400">Controls passing</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Not Satisfied</p>
+                    <p className="mt-1 text-2xl font-bold text-red-600">{sarData.notSatisfiedCount}</p>
+                    <p className="text-[10px] text-gray-400">
+                      {sarData.notSatisfiedCount > 0 ? (
+                        <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/poam`); }} className="text-blue-600 hover:underline">View POA&Ms →</button>
+                      ) : 'None'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Compliance Rate</p>
+                    <p className={`mt-1 text-2xl font-bold ${complianceRate >= 80 ? 'text-green-600' : complianceRate >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                      {complianceRate}%
+                    </p>
+                    <p className="text-[10px] text-gray-400">{complianceRate >= 80 ? 'Strong' : complianceRate >= 60 ? 'Needs work' : 'At risk'}</p>
+                  </div>
+                </div>
+
+                {/* Pending controls */}
+                {sarData.totalControlsPending > 0 && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    <strong>{sarData.totalControlsPending}</strong> control{sarData.totalControlsPending !== 1 ? 's' : ''} pending assessment.
+                    Run another assessment to include them.
+                  </div>
+                )}
+
+                {/* Sections */}
+                {sarData.sections && sarData.sections.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Report Sections</h4>
+                    <div className="overflow-hidden rounded-lg border border-gray-200">
+                      <table className="min-w-full divide-y divide-gray-200 text-xs">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium text-gray-500">Section</th>
+                            <th className="px-3 py-2 text-center font-medium text-gray-500">Source</th>
+                            <th className="px-3 py-2 text-center font-medium text-gray-500">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 bg-white">
+                          {sarData.sections.map(s => (
+                            <tr key={s.sectionType} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 font-medium text-gray-800">{s.title}</td>
+                              <td className="px-3 py-2 text-center">
+                                {s.isAutoGenerated ? (
+                                  <span className="inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">Auto-generated</span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">Manual entry</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {s.hasContent ? (
+                                  <span className="inline-flex items-center rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Complete</span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Needs content</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lifecycle / Metadata */}
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">SAR ID</span>
+                    <span className="font-mono text-gray-600">{sarData.sarId.substring(0, 8)}...</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Created By</span>
+                    <span className="font-medium text-gray-800">{sarData.createdBy}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Created</span>
+                    <span className="font-medium text-gray-800">{formatDate(sarData.createdAt)}</span>
+                  </div>
+                  {sarData.modifiedBy && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Last Modified</span>
+                      <span className="font-medium text-gray-800">{sarData.modifiedBy} — {formatDate(sarData.modifiedAt)}</span>
+                    </div>
+                  )}
+                  {sarData.reviewedBy && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Reviewed By</span>
+                      <span className="font-medium text-gray-800">{sarData.reviewedBy} — {formatDate(sarData.reviewedAt)}</span>
+                    </div>
+                  )}
+                  {sarData.approvedBy && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Approved By</span>
+                      <span className="font-medium text-gray-800">{sarData.approvedBy} — {formatDate(sarData.approvedAt)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowSarView(false)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
     </div>
   );
 }

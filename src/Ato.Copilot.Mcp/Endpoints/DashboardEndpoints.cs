@@ -14,6 +14,7 @@ using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Mcp.Services;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
 
@@ -447,6 +448,62 @@ public static class DashboardEndpoints
             })
             .WithName("RemoveComponentAssignment");
 
+        group.MapPost("/components/{componentId}/capabilities", async (
+                string componentId,
+                LinkComponentCapabilitiesRequest request,
+                AtoCopilotContext db,
+                CancellationToken ct) =>
+            {
+                var component = await db.SystemComponents.FindAsync(new object[] { componentId }, ct);
+                if (component is null)
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = "Component not found",
+                        ErrorCode = "COMPONENT_NOT_FOUND",
+                    });
+
+                var linksCreated = 0;
+                var linksAlreadyExist = 0;
+                foreach (var capId in request.CapabilityIds)
+                {
+                    var exists = await db.ComponentCapabilityLinks
+                        .AnyAsync(l => l.SystemComponentId == componentId && l.SecurityCapabilityId == capId, ct);
+                    if (exists)
+                    {
+                        linksAlreadyExist++;
+                        continue;
+                    }
+                    // Verify capability exists
+                    var cap = await db.SecurityCapabilities.FindAsync(new object[] { capId }, ct);
+                    if (cap is null) continue;
+
+                    db.ComponentCapabilityLinks.Add(new ComponentCapabilityLink
+                    {
+                        SystemComponentId = componentId,
+                        SecurityCapabilityId = capId,
+                    });
+                    linksCreated++;
+                }
+                await db.SaveChangesAsync(ct);
+                return Results.Ok(new { componentId, linksCreated, linksAlreadyExist });
+            })
+            .WithName("LinkComponentCapabilities");
+
+        group.MapDelete("/components/{componentId}/capabilities/{capabilityId}", async (
+                string componentId,
+                string capabilityId,
+                AtoCopilotContext db,
+                CancellationToken ct) =>
+            {
+                var link = await db.ComponentCapabilityLinks
+                    .FirstOrDefaultAsync(l => l.SystemComponentId == componentId && l.SecurityCapabilityId == capabilityId, ct);
+                if (link is null) return Results.NoContent(); // idempotent
+                db.ComponentCapabilityLinks.Remove(link);
+                await db.SaveChangesAsync(ct);
+                return Results.NoContent();
+            })
+            .WithName("UnlinkComponentCapability");
+
         group.MapGet("/components/{componentId}/impact-preview", async (
                 string componentId,
                 ComponentService compService,
@@ -480,12 +537,6 @@ public static class DashboardEndpoints
                         Error = "Control implementation not found",
                         ErrorCode = "CONTROL_NOT_FOUND",
                     }),
-                    "NO_CAPABILITY" => Results.BadRequest(new ErrorResponse
-                    {
-                        Error = "No capability linked to this control implementation",
-                        ErrorCode = "NO_CAPABILITY",
-                    }),
-                    "AI_NOT_ENABLED" => Results.StatusCode(503),
                     _ => Results.Ok(new { narrative }),
                 };
             })
@@ -527,6 +578,95 @@ public static class DashboardEndpoints
                     });
             })
             .WithName("GetCapabilityCoverage");
+
+        // ─── Capability Links (Feature 042 — System Intake Wizard) ───────────
+        group.MapPost("/systems/{systemId}/capability-links", async (
+                string systemId,
+                LinkCapabilitiesRequest body,
+                SystemCapabilityLinkService linkService,
+                CancellationToken ct) =>
+            {
+                if (body.CapabilityIds is null || body.CapabilityIds.Count == 0)
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "At least one capability ID is required",
+                        ErrorCode = "INVALID_INPUT",
+                    });
+                try
+                {
+                    var (linkedCount, items) = await linkService.LinkCapabilitiesAsync(
+                        systemId, body.CapabilityIds, "dashboard-user", ct);
+                    return Results.Ok(new
+                    {
+                        linkedCount,
+                        items = items.Select(l => new
+                        {
+                            id = l.Id,
+                            systemId = l.RegisteredSystemId,
+                            capabilityId = l.SecurityCapabilityId,
+                            capabilityName = l.SecurityCapability?.Name,
+                            linkedAt = l.LinkedAt,
+                        }),
+                    });
+                }
+                catch (KeyNotFoundException)
+                {
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = "System not found",
+                        ErrorCode = "SYSTEM_NOT_FOUND",
+                    });
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = ex.Message,
+                        ErrorCode = "INVALID_CAPABILITY_IDS",
+                    });
+                }
+            })
+            .WithName("LinkCapabilities");
+
+        group.MapGet("/systems/{systemId}/capability-links", async (
+                string systemId,
+                SystemCapabilityLinkService linkService,
+                CancellationToken ct) =>
+            {
+                var links = await linkService.GetLinksForSystemAsync(systemId, ct);
+                return Results.Ok(new
+                {
+                    items = links.Select(l => new
+                    {
+                        id = l.Id,
+                        capabilityId = l.SecurityCapabilityId,
+                        capabilityName = l.SecurityCapability?.Name,
+                        provider = l.SecurityCapability?.Provider,
+                        category = l.SecurityCapability?.Category,
+                        implementationStatus = l.SecurityCapability?.ImplementationStatus.ToString(),
+                        linkedAt = l.LinkedAt,
+                    }),
+                    totalCount = links.Count,
+                });
+            })
+            .WithName("GetCapabilityLinks");
+
+        group.MapDelete("/systems/{systemId}/capability-links/{linkId}", async (
+                string systemId,
+                string linkId,
+                SystemCapabilityLinkService linkService,
+                CancellationToken ct) =>
+            {
+                var removed = await linkService.RemoveLinkAsync(systemId, linkId, ct);
+                return removed
+                    ? Results.Ok(new { deletedId = linkId, message = "Capability link removed" })
+                    : Results.NotFound(new ErrorResponse
+                    {
+                        Error = "Capability link not found",
+                        ErrorCode = "LINK_NOT_FOUND",
+                    });
+            })
+            .WithName("RemoveCapabilityLink");
 
         // ─── Components — System-Scoped (US5, modified by Feature 036) ───────
         group.MapGet("/systems/{systemId}/components", async (
@@ -766,6 +906,146 @@ public static class DashboardEndpoints
                     });
             })
             .WithName("CreateCapabilityMappings");
+
+        // ─── Feature 045: Capabilities Hub Import/Coverage Endpoints ────────
+        group.MapPost("/capabilities/import/csp-profile", async (
+                CspProfileImportRequest request,
+                CapabilityImportService importService,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    if (request.DryRun == true)
+                    {
+                        var preview = await importService.ImportCspProfilePreviewAsync(
+                            request.ProfileId, request.ConflictResolution ?? "skip", ct);
+                        return Results.Ok(preview);
+                    }
+
+                    var result = await importService.ImportCspProfileAsync(
+                        request.ProfileId, request.ConflictResolution ?? "skip", ct);
+                    return Results.Ok(result);
+                }
+                catch (KeyNotFoundException)
+                {
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = $"CSP profile '{request.ProfileId}' not found",
+                        ErrorCode = "PROFILE_NOT_FOUND",
+                        Suggestion = "Check the profile ID and try again",
+                    });
+                }
+            })
+            .WithName("ImportCspProfile");
+
+        group.MapGet("/capabilities/coverage", async (
+                bool? includePerSystem,
+                bool? includePerFamily,
+                CapabilityImportService importService,
+                CancellationToken ct) =>
+            {
+                var result = await importService.ComputeCoverageAsync(
+                    includePerSystem ?? false, includePerFamily ?? true, ct);
+                return Results.Ok(result);
+            })
+            .WithName("GetOrgWideCoverage");
+
+        group.MapGet("/capabilities/csp-profiles", (
+                Ato.Copilot.Mcp.Services.CspProfileService cspProfileService) =>
+            {
+                var profiles = cspProfileService.GetProfiles();
+                return Results.Ok(new
+                {
+                    profiles = profiles.Select(p => new
+                    {
+                        profileId = p.ProfileId,
+                        name = p.Name,
+                        provider = p.Provider,
+                        baselineLevel = p.BaselineLevel,
+                        description = p.Description,
+                        controlCount = p.Controls.Count,
+                        serviceCount = p.Services?.Count ?? 0,
+                        version = p.Version
+                    })
+                });
+            })
+            .WithName("ListCapabilityCspProfiles");
+
+        group.MapPost("/capabilities/import/crm", async (
+                HttpRequest httpRequest,
+                CapabilityImportService importService,
+                CrmExportService crmExportService,
+                CancellationToken ct) =>
+            {
+                var form = await httpRequest.ReadFormAsync(ct);
+                var file = form.Files.GetFile("file");
+                if (file is null || file.Length == 0)
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "No file uploaded",
+                        ErrorCode = "FILE_REQUIRED",
+                        Suggestion = "Upload a CSV or Excel file",
+                    });
+
+                var columnMappingJson = form["columnMapping"].ToString();
+                var conflictResolution = form["conflictResolution"].ToString();
+                var dryRunStr = form["dryRun"].ToString();
+                var dryRun = dryRunStr.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+                if (string.IsNullOrEmpty(conflictResolution)) conflictResolution = "skip";
+
+                // Parse file
+                CrmExportService.ImportParseResult parsed;
+                var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                using var stream = file.OpenReadStream();
+                if (ext is ".xlsx" or ".xls")
+                    parsed = crmExportService.ParseExcel(stream);
+                else
+                    parsed = crmExportService.ParseCsv(stream);
+
+                // Determine column mapping
+                Dictionary<string, string> mapping;
+                if (!string.IsNullOrEmpty(columnMappingJson))
+                {
+                    mapping = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(columnMappingJson)
+                        ?? new Dictionary<string, string>();
+                }
+                else
+                {
+                    // Auto-detect: use exact column names
+                    mapping = new Dictionary<string, string>
+                    {
+                        ["controlId"] = parsed.Columns.FirstOrDefault(c => c.Contains("control", StringComparison.OrdinalIgnoreCase)) ?? "controlId",
+                        ["inheritanceType"] = parsed.Columns.FirstOrDefault(c => c.Contains("inheritance", StringComparison.OrdinalIgnoreCase)) ?? "inheritanceType",
+                        ["provider"] = parsed.Columns.FirstOrDefault(c => c.Contains("provider", StringComparison.OrdinalIgnoreCase)) ?? "provider",
+                        ["customerResponsibility"] = parsed.Columns.FirstOrDefault(c => c.Contains("responsibility", StringComparison.OrdinalIgnoreCase)) ?? "customerResponsibility",
+                    };
+                }
+
+                // Map parsed rows to CrmImportRow using column mapping
+                var rows = parsed.Rows.Select(row => new CrmImportRow
+                {
+                    ControlId = mapping.TryGetValue("controlId", out var cidCol) && row.TryGetValue(cidCol, out var cid) ? cid : "",
+                    InheritanceType = mapping.TryGetValue("inheritanceType", out var itCol) && row.TryGetValue(itCol, out var it) ? it : "",
+                    Provider = mapping.TryGetValue("provider", out var pCol) && row.TryGetValue(pCol, out var p) ? p : null,
+                    CustomerResponsibility = mapping.TryGetValue("customerResponsibility", out var crCol) && row.TryGetValue(crCol, out var cr) ? cr : null,
+                }).Where(r => !string.IsNullOrWhiteSpace(r.ControlId)).ToList();
+
+                if (dryRun)
+                {
+                    var preview = await importService.ImportCrmPreviewAsync(
+                        file.FileName, rows, conflictResolution, ct);
+                    preview.DetectedColumns = parsed.Columns;
+                    preview.SampleRows = parsed.SampleRows;
+                    return Results.Ok(preview);
+                }
+
+                var result = await importService.ImportCrmAsync(
+                    file.FileName, rows, conflictResolution, ct);
+                return Results.Ok(result);
+            })
+            .DisableAntiforgery()
+            .WithName("ImportCrm");
 
         // ─── Trends (US6) ───────────────────────────────────────────────────
         group.MapGet("/systems/{systemId}/trends", async (
@@ -1362,6 +1642,7 @@ public static class DashboardEndpoints
                 string systemId,
                 SetCategorizationRequest body,
                 ICategorizationService categorizationService,
+                IBaselineService baselineService,
                 ComplianceTrendSnapshotService trendSnapshotService,
                 AtoCopilotContext context,
                 CancellationToken ct) =>
@@ -1375,6 +1656,11 @@ public static class DashboardEndpoints
 
                 try
                 {
+                    // Check current baseline level before categorization change
+                    var existingBaseline = await context.ControlBaselines
+                        .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, ct);
+                    var previousBaselineLevel = existingBaseline?.BaselineLevel;
+
                     var infoTypes = body.InformationTypes.Select(it => new InformationTypeInput
                     {
                         Sp80060Id = it.Sp80060Id,
@@ -1406,6 +1692,37 @@ public static class DashboardEndpoints
                     });
                     await context.SaveChangesAsync(ct);
 
+                    // Auto-reselect baseline if the derived level changed
+                    string? baselineReselected = null;
+                    int? baselineControls = null;
+                    int? inheritancesReapplied = null;
+                    var newBaselineLevel = result.NistBaseline;
+
+                    if (previousBaselineLevel != null &&
+                        !string.Equals(previousBaselineLevel, newBaselineLevel, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var newBaseline = await baselineService.SelectBaselineAsync(
+                            systemId,
+                            applyOverlay: true,
+                            selectedBy: "dashboard-user",
+                            cancellationToken: ct);
+
+                        baselineReselected = newBaseline.BaselineLevel;
+                        baselineControls = newBaseline.TotalControls;
+                        inheritancesReapplied = newBaseline.InheritedControls + newBaseline.SharedControls + newBaseline.CustomerControls;
+
+                        context.DashboardActivities.Add(new DashboardActivity
+                        {
+                            RegisteredSystemId = systemId,
+                            EventType = "BaselineAutoReselected",
+                            Actor = "dashboard-user",
+                            Summary = $"Baseline auto-reselected from {previousBaselineLevel} to {newBaseline.BaselineLevel} ({newBaseline.TotalControls} controls) due to categorization change",
+                            RelatedEntityType = "ControlBaseline",
+                            RelatedEntityId = newBaseline.Id,
+                        });
+                        await context.SaveChangesAsync(ct);
+                    }
+
                     try { await trendSnapshotService.CaptureSnapshotAsync(systemId, ct); }
                     catch { /* non-fatal */ }
 
@@ -1419,6 +1736,9 @@ public static class DashboardEndpoints
                         dodImpactLevel = result.DoDImpactLevel,
                         nistBaseline = result.NistBaseline,
                         informationTypeCount = result.InformationTypes.Count,
+                        baselineReselected,
+                        baselineControls,
+                        inheritancesReapplied,
                     });
                 }
                 catch (InvalidOperationException ex)
@@ -1474,6 +1794,59 @@ public static class DashboardEndpoints
                 }
             })
             .WithName("SelectBaseline");
+
+        // ─── GET Baseline Detail ─────────────────────────────────────────────
+        group.MapGet("/systems/{systemId}/baseline", async (
+                string systemId,
+                IBaselineService baselineService,
+                CancellationToken ct) =>
+            {
+                var baseline = await baselineService.GetBaselineAsync(systemId, includeDetails: true, cancellationToken: ct);
+                if (baseline == null)
+                    return Results.NotFound(new ErrorResponse { Error = "No baseline configured for this system", ErrorCode = "BASELINE_NOT_FOUND" });
+
+                // Build family breakdown from ControlIds
+                var familyBreakdown = baseline.ControlIds
+                    .GroupBy(c => ComplianceFrameworks.ExtractControlFamily(c))
+                    .OrderBy(g => g.Key)
+                    .Select(g => new { family = g.Key, count = g.Count() })
+                    .ToList();
+
+                // Tailoring records
+                var tailorings = baseline.Tailorings
+                    .OrderByDescending(t => t.TailoredAt)
+                    .Select(t => new
+                    {
+                        id = t.Id,
+                        controlId = t.ControlId,
+                        action = t.Action.ToString(),
+                        rationale = t.Rationale,
+                        isOverlayRequired = t.IsOverlayRequired,
+                        tailoredBy = t.TailoredBy,
+                        tailoredAt = t.TailoredAt,
+                    })
+                    .ToList();
+
+                return Results.Ok(new
+                {
+                    baselineId = baseline.Id,
+                    baselineLevel = baseline.BaselineLevel,
+                    totalControls = baseline.TotalControls,
+                    overlayApplied = baseline.OverlayApplied,
+                    inheritedControls = baseline.InheritedControls,
+                    sharedControls = baseline.SharedControls,
+                    customerControls = baseline.CustomerControls,
+                    tailoredInControls = baseline.TailoredInControls,
+                    tailoredOutControls = baseline.TailoredOutControls,
+                    createdAt = baseline.CreatedAt,
+                    createdBy = baseline.CreatedBy,
+                    modifiedAt = baseline.ModifiedAt,
+                    familyBreakdown,
+                    tailorings,
+                    controlIds = baseline.ControlIds,
+                });
+            })
+            .WithName("GetBaselineDetail");
 
         // ─── Advance RMF Step ────────────────────────────────────────────────
         group.MapPost("/systems/{systemId}/advance-rmf-step", async (
@@ -1799,6 +2172,13 @@ public static class DashboardEndpoints
                     .ThenByDescending(s => s.GeneratedAt)
                     .FirstOrDefaultAsync(ct);
 
+                // SAR (latest)
+                var sar = await context.SecurityAssessmentReports
+                    .Where(s => s.RegisteredSystemId == systemId)
+                    .OrderByDescending(s => s.Status == SarStatus.Approved ? 2 : s.Status == SarStatus.UnderReview ? 1 : 0)
+                    .ThenByDescending(s => s.CreatedAt)
+                    .FirstOrDefaultAsync(ct);
+
                 // Authorization decision (latest)
                 var authDecision = await context.AuthorizationDecisions
                     .Where(d => d.RegisteredSystemId == systemId)
@@ -1898,6 +2278,20 @@ public static class DashboardEndpoints
                         FinalizedAt = sap.Status == SapStatus.Finalized ? sap.GeneratedAt : null,
                         ScheduleStart = sap.ScheduleStart,
                         ScheduleEnd = sap.ScheduleEnd,
+                    },
+
+                    Sar = sar is null ? null : new SarDocumentInfo
+                    {
+                        SarId = sar.Id,
+                        Status = sar.Status.ToString(),
+                        Title = sar.Title,
+                        TotalControlsAssessed = sar.TotalControlsAssessed,
+                        SatisfiedCount = sar.SatisfiedCount,
+                        NotSatisfiedCount = sar.NotSatisfiedCount,
+                        CreatedBy = sar.CreatedBy,
+                        CreatedAt = sar.CreatedAt,
+                        ApprovedBy = sar.ApprovedBy,
+                        ApprovedAt = sar.ApprovedAt,
                     },
 
                     Authorization = authDecision is null ? null : new AuthDecisionInfo
@@ -5436,7 +5830,842 @@ public static class DashboardEndpoints
             })
             .WithName("GetBoundaryLockStatus");
 
+        // ─── Feature 043: Control Inheritance Endpoints ──────────────────────────
+
+        // ── GET /systems/{systemId}/inheritance — list designations with filters & pagination
+        group.MapGet("/systems/{systemId}/inheritance", async (
+            string systemId,
+            [FromQuery] string? family,
+            [FromQuery] string? inheritanceType,
+            [FromQuery] string? search,
+            [FromQuery] string? source,
+            [FromQuery] int page,
+            [FromQuery] int pageSize,
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDirection,
+            IBaselineService baselineService,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 50;
+            if (pageSize > 200) pageSize = 200;
+
+            var baseline = await baselineService.GetBaselineAsync(systemId, includeDetails: true, cancellationToken: ct);
+            if (baseline == null)
+                return Results.NotFound(new ErrorResponse
+                {
+                    Error = "System or baseline not found",
+                    ErrorCode = "BASELINE_NOT_FOUND",
+                    Suggestion = "Ensure the system has a control baseline configured"
+                });
+
+            // Load org defaults for LEFT JOIN
+            var orgDefaultLookup = await context.OrgInheritanceDefaults
+                .AsNoTracking()
+                .ToDictionaryAsync(d => d.ControlId, d => d, StringComparer.OrdinalIgnoreCase, ct);
+
+            // Build designation list from all control IDs + inheritance records
+            var inheritanceLookup = baseline.Inheritances.ToDictionary(i => i.ControlId, i => i, StringComparer.OrdinalIgnoreCase);
+            var allDesignations = baseline.ControlIds.Select(cid =>
+            {
+                inheritanceLookup.TryGetValue(cid, out var inh);
+                orgDefaultLookup.TryGetValue(cid, out var orgDefault);
+                return new
+                {
+                    id = inh?.Id ?? string.Empty,
+                    controlId = cid,
+                    family = ComplianceFrameworks.ExtractControlFamily(cid),
+                    inheritanceType = inh?.InheritanceType.ToString() ?? "Undesignated",
+                    provider = inh?.Provider,
+                    customerResponsibility = inh?.CustomerResponsibility,
+                    designationSource = inh?.DesignationSource,
+                    orgDefault = orgDefault == null ? null : new
+                    {
+                        id = orgDefault.Id,
+                        inheritanceType = orgDefault.InheritanceType.ToString(),
+                        provider = orgDefault.Provider,
+                        sourceCapabilities = orgDefault.SourceCapabilityNames,
+                        mappingRole = orgDefault.MappingRole.ToString(),
+                    },
+                    setBy = inh?.SetBy,
+                    setAt = inh?.SetAt
+                };
+            }).ToList();
+
+            // Apply filters
+            var filtered = allDesignations.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(family))
+                filtered = filtered.Where(d => d.family.Equals(family, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(inheritanceType))
+                filtered = filtered.Where(d => d.inheritanceType.Equals(inheritanceType, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(search))
+                filtered = filtered.Where(d =>
+                    d.controlId.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    (d.provider != null && d.provider.Contains(search, StringComparison.OrdinalIgnoreCase)));
+            if (!string.IsNullOrWhiteSpace(source))
+            {
+                filtered = source.ToLowerInvariant() switch
+                {
+                    "org" or "orgdefault" or "orgderived" => filtered.Where(d => d.designationSource == "OrgDerived"),
+                    "override" or "manual" => filtered.Where(d => d.designationSource is "Manual" or "ProfileApply" or "CrmImport" or "BulkUpdate"),
+                    "undesignated" => filtered.Where(d => d.designationSource == null && d.inheritanceType == "Undesignated"),
+                    _ => filtered,
+                };
+            }
+
+            // Sort
+            var sortField = sortBy?.ToLowerInvariant() ?? "controlid";
+            var desc = sortDirection?.Equals("desc", StringComparison.OrdinalIgnoreCase) == true;
+            filtered = sortField switch
+            {
+                "family" => desc ? filtered.OrderByDescending(d => d.family) : filtered.OrderBy(d => d.family),
+                "inheritancetype" => desc ? filtered.OrderByDescending(d => d.inheritanceType) : filtered.OrderBy(d => d.inheritanceType),
+                "setat" => desc ? filtered.OrderByDescending(d => d.setAt) : filtered.OrderBy(d => d.setAt),
+                _ => desc ? filtered.OrderByDescending(d => d.controlId) : filtered.OrderBy(d => d.controlId),
+            };
+
+            var total = filtered.Count();
+            var items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            // Summary
+            var totalControls = baseline.ControlIds.Count;
+            var inheritedCount = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Inherited);
+            var sharedCount = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Shared);
+            var customerCount = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Customer);
+            var undesignatedCount = totalControls - inheritedCount - sharedCount - customerCount;
+            var pct = totalControls > 0 ? Math.Round((double)(inheritedCount + sharedCount + customerCount) / totalControls * 100, 1) : 0;
+
+            // Source breakdown
+            var orgDefaultCount = baseline.Inheritances.Count(i => i.DesignationSource == "OrgDerived");
+            var systemOverrideCount = baseline.Inheritances.Count(i => i.DesignationSource is "Manual" or "ProfileApply" or "CrmImport" or "BulkUpdate");
+
+            return Results.Ok(new
+            {
+                items,
+                totalItems = total,
+                page,
+                pageSize,
+                summary = new
+                {
+                    totalControls,
+                    inheritedCount,
+                    sharedCount,
+                    customerCount,
+                    undesignatedCount,
+                    inheritancePercentage = pct,
+                    orgDefaultCount,
+                    systemOverrideCount,
+                    sourceBreakdown = new
+                    {
+                        orgDerived = orgDefaultCount,
+                        manual = baseline.Inheritances.Count(i => i.DesignationSource == "Manual"),
+                        profileApply = baseline.Inheritances.Count(i => i.DesignationSource == "ProfileApply"),
+                        crmImport = baseline.Inheritances.Count(i => i.DesignationSource == "CrmImport"),
+                        bulkUpdate = baseline.Inheritances.Count(i => i.DesignationSource == "BulkUpdate"),
+                        undesignated = undesignatedCount,
+                    }
+                }
+            });
+        }).WithName("ListInheritanceDesignations");
+
+        // ── PUT /systems/{systemId}/inheritance — set designations (single + bulk)
+        // TODO(FR-026): Add role validation — restrict writes to AO and Security Engineer roles
+        //   when auth context is available. Return 403 Forbidden for unauthorized users.
+        group.MapPut("/systems/{systemId}/inheritance", async (
+            string systemId,
+            Feature043SetInheritanceRequest req,
+            IBaselineService baselineService,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            if (req.Designations == null || req.Designations.Count == 0)
+                return Results.BadRequest(new ErrorResponse { Error = "At least one designation is required.", ErrorCode = "INVALID_INPUT" });
+
+            // Validate inheritance types
+            foreach (var d in req.Designations)
+            {
+                if (!Enum.TryParse<InheritanceType>(d.InheritanceType, true, out var iType))
+                    return Results.BadRequest(new ErrorResponse { Error = $"Invalid inheritance type '{d.InheritanceType}'", ErrorCode = "INVALID_INPUT" });
+
+                if ((iType == InheritanceType.Inherited || iType == InheritanceType.Shared) && string.IsNullOrWhiteSpace(d.Provider))
+                    return Results.BadRequest(new ErrorResponse { Error = $"Provider is required for '{d.InheritanceType}' on control {d.ControlId}", ErrorCode = "INVALID_INPUT" });
+
+                if (iType == InheritanceType.Customer && string.IsNullOrWhiteSpace(d.CustomerResponsibility))
+                    return Results.BadRequest(new ErrorResponse { Error = $"Customer responsibility is required for 'Customer' on control {d.ControlId}", ErrorCode = "INVALID_INPUT" });
+            }
+
+            var changeSource = InheritanceChangeSource.Manual;
+            if (!string.IsNullOrWhiteSpace(req.ChangeSource))
+                Enum.TryParse(req.ChangeSource, true, out changeSource);
+
+            var mappings = req.Designations.Select(d => new InheritanceInput
+            {
+                ControlId = d.ControlId,
+                InheritanceType = d.InheritanceType,
+                Provider = d.Provider,
+                CustomerResponsibility = d.CustomerResponsibility
+            });
+
+            var result = await baselineService.SetInheritanceAsync(systemId, mappings, "dashboard-user", changeSource, ct);
+
+            var totalControls = result.Baseline.ControlIds.Count;
+            var undesignated = totalControls - result.InheritedCount - result.SharedCount - result.CustomerCount;
+            var pct = totalControls > 0 ? Math.Round((double)(result.InheritedCount + result.SharedCount + result.CustomerCount) / totalControls * 100, 1) : 0;
+
+            context.DashboardActivities.Add(new DashboardActivity
+            {
+                RegisteredSystemId = systemId,
+                EventType = "InheritanceUpdated",
+                Actor = "dashboard-user",
+                Summary = $"Updated {result.ControlsUpdated} control inheritance designations (source: {changeSource})",
+                RelatedEntityType = "ControlBaseline",
+                RelatedEntityId = result.Baseline.Id,
+            });
+            await context.SaveChangesAsync(ct);
+
+            return Results.Ok(new
+            {
+                controlsUpdated = result.ControlsUpdated,
+                inheritedCount = result.InheritedCount,
+                sharedCount = result.SharedCount,
+                customerCount = result.CustomerCount,
+                skippedControls = result.SkippedControls,
+                narrativesAutoUpdated = result.NarrativesAutoUpdated,
+                summary = new
+                {
+                    totalControls,
+                    inheritedCount = result.InheritedCount,
+                    sharedCount = result.SharedCount,
+                    customerCount = result.CustomerCount,
+                    undesignatedCount = undesignated,
+                    inheritancePercentage = pct
+                }
+            });
+        }).WithName("SetInheritanceDesignations");
+
+        // ── POST /systems/{systemId}/inheritance/revert-to-org-defaults — revert selected controls
+        group.MapPost("/systems/{systemId}/inheritance/revert-to-org-defaults", async (
+            string systemId,
+            Feature044RevertRequest req,
+            IOrgInheritanceService orgService,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            if (req.ControlIds == null || req.ControlIds.Count == 0)
+                return Results.BadRequest(new ErrorResponse { Error = "At least one control ID is required.", ErrorCode = "INVALID_INPUT" });
+
+            var revertedBy = req.RevertedBy ?? "dashboard-user";
+            var result = await orgService.RevertToOrgDefaultsAsync(systemId, req.ControlIds, revertedBy, ct);
+
+            context.DashboardActivities.Add(new DashboardActivity
+            {
+                RegisteredSystemId = systemId,
+                EventType = "InheritanceReverted",
+                Actor = revertedBy,
+                Summary = $"Reverted {result.RevertedCount} controls to org defaults, {result.Skipped.Count} skipped",
+                RelatedEntityType = "ControlInheritance",
+            });
+            await context.SaveChangesAsync(ct);
+
+            return Results.Ok(new
+            {
+                revertedCount = result.RevertedCount,
+                skipped = result.Skipped.Select(s => new { s.ControlId, s.Reason }),
+            });
+        }).WithName("RevertToOrgDefaults");
+
+        // ── GET /systems/{systemId}/inheritance/{controlId}/audit — per-control audit trail
+        group.MapGet("/systems/{systemId}/inheritance/{controlId}/audit", async (
+            string systemId,
+            string controlId,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            // Verify system + baseline exists
+            var baseline = await context.ControlBaselines
+                .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, ct);
+            if (baseline == null)
+                return Results.NotFound(new ErrorResponse
+                {
+                    Error = "System or baseline not found",
+                    ErrorCode = "BASELINE_NOT_FOUND"
+                });
+
+            var entries = await context.InheritanceAuditEntries
+                .Where(e => e.ControlBaselineId == baseline.Id && e.ControlId == controlId)
+                .OrderBy(e => e.Timestamp)
+                .Select(e => new
+                {
+                    id = e.Id,
+                    actor = e.Actor,
+                    previousInheritanceType = e.PreviousInheritanceType,
+                    newInheritanceType = e.NewInheritanceType,
+                    previousProvider = e.PreviousProvider,
+                    newProvider = e.NewProvider,
+                    previousCustomerResponsibility = e.PreviousCustomerResponsibility,
+                    newCustomerResponsibility = e.NewCustomerResponsibility,
+                    changeSource = e.ChangeSource.ToString(),
+                    changeSourceLabel = e.ChangeSource == InheritanceChangeSource.OrgDerived ? "Org Default"
+                        : e.ChangeSource == InheritanceChangeSource.OrgPropagation ? "Org Propagation"
+                        : e.ChangeSource == InheritanceChangeSource.ProfileApply ? "CSP Profile"
+                        : e.ChangeSource == InheritanceChangeSource.CrmImport ? "CRM Import"
+                        : e.ChangeSource == InheritanceChangeSource.BulkUpdate ? "Bulk Update"
+                        : "Manual",
+                    timestamp = e.Timestamp
+                })
+                .ToListAsync(ct);
+
+            return Results.Ok(new
+            {
+                controlId,
+                entries
+            });
+        }).WithName("GetInheritanceAudit");
+
+        // ── GET /systems/{systemId}/inheritance/crm — generate CRM
+        group.MapGet("/systems/{systemId}/inheritance/crm", async (
+            string systemId,
+            IBaselineService baselineService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var crm = await baselineService.GenerateCrmAsync(systemId, ct);
+                return Results.Ok(crm);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.NotFound(new ErrorResponse
+                {
+                    Error = ex.Message,
+                    ErrorCode = "BASELINE_NOT_FOUND",
+                    Suggestion = "Ensure the system has a control baseline configured"
+                });
+            }
+        }).WithName("GetCrm");
+
+        // ── GET /systems/{systemId}/inheritance/crm/export — export CRM as CSV or Excel
+        group.MapGet("/systems/{systemId}/inheritance/crm/export", async (
+            string systemId,
+            [FromQuery] string format,
+            [FromQuery] string? layout,
+            IBaselineService baselineService,
+            Ato.Copilot.Mcp.Services.CrmExportService crmExportService,
+            CancellationToken ct) =>
+        {
+            var fmt = format?.ToLowerInvariant();
+            if (fmt != "csv" && fmt != "excel")
+                return Results.BadRequest(new ErrorResponse { Error = $"Unsupported export format: {format}", ErrorCode = "EXPORT_FORMAT_INVALID" });
+
+            var exportLayout = layout ?? "custom";
+
+            CrmResult crm;
+            try
+            {
+                crm = await baselineService.GenerateCrmAsync(systemId, ct);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.NotFound(new ErrorResponse { Error = ex.Message, ErrorCode = "BASELINE_NOT_FOUND" });
+            }
+
+            var date = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            if (fmt == "csv")
+            {
+                var bytes = crmExportService.GenerateCsv(crm, exportLayout);
+                return Results.File(bytes, "text/csv", $"crm-{systemId}-{date}.csv");
+            }
+            else
+            {
+                var bytes = crmExportService.GenerateExcel(crm, exportLayout);
+                return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"crm-{systemId}-{date}.xlsx");
+            }
+        }).WithName("ExportCrm");
+
+        // ── GET /systems/{systemId}/inheritance/csp-profiles — list available profiles
+        group.MapGet("/systems/{systemId}/inheritance/csp-profiles", (
+            string systemId,
+            Ato.Copilot.Mcp.Services.CspProfileService cspProfileService) =>
+        {
+            var profiles = cspProfileService.GetProfiles();
+            return Results.Ok(new
+            {
+                profiles = profiles.Select(p => new
+                {
+                    profileId = p.ProfileId,
+                    name = p.Name,
+                    provider = p.Provider,
+                    baselineLevel = p.BaselineLevel,
+                    description = p.Description,
+                    controlCount = p.Controls.Count,
+                    version = p.Version
+                })
+            });
+        }).WithName("ListCspProfiles");
+
+        // Feature 045: Old CSP/CRM import endpoints removed — replaced by
+        // POST /capabilities/import/csp-profile and POST /capabilities/import/crm
+
+        // ─── Feature 044: Org-Level Inheritance Endpoints ──────────────────────
+
+        // ── GET /inheritance/org-defaults — list org-level inheritance defaults with filters & pagination
+        group.MapGet("/inheritance/org-defaults", async (
+            [FromQuery] string? family,
+            [FromQuery] string? inheritanceType,
+            [FromQuery] string? search,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 50,
+            IOrgInheritanceService orgService = default!,
+            CancellationToken ct = default) =>
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 50;
+            if (pageSize > 200) pageSize = 200;
+
+            var result = await orgService.GetOrgDefaultsAsync(family, inheritanceType, search, page, pageSize, ct);
+            return Results.Ok(result);
+        }).WithName("GetOrgInheritanceDefaults");
+
+        // ── POST /inheritance/org-defaults/derive — trigger org-level inheritance derivation
+        group.MapPost("/inheritance/org-defaults/derive", async (
+            IOrgInheritanceService orgService,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            var result = await orgService.DeriveOrgDefaultsAsync("dashboard-user", ct);
+
+            return Results.Ok(result);
+        }).WithName("DeriveOrgInheritanceDefaults");
+
+        // ─── Control Catalog (top-level, not system-scoped) ────────────────────
+        group.MapGet("/controls", async (
+                INistControlsService nistService,
+                IReferenceDataService refData,
+                string? search,
+                string? family,
+                string? type,
+                int page = 1,
+                int pageSize = 50,
+                CancellationToken ct = default) =>
+            {
+                var allControls = await nistService.GetAllControlsAsync(ct);
+                if (allControls.Count == 0)
+                    return Results.Ok(new { items = Array.Empty<object>(), total = 0, page, pageSize });
+
+                // NIST 800-53B baselines
+                var nistLowSet = new HashSet<string>(refData.GetBaselineControlIds("Low"), StringComparer.OrdinalIgnoreCase);
+                var nistModSet = new HashSet<string>(refData.GetBaselineControlIds("Moderate"), StringComparer.OrdinalIgnoreCase);
+                var nistHighSet = new HashSet<string>(refData.GetBaselineControlIds("High"), StringComparer.OrdinalIgnoreCase);
+
+                // FedRAMP Rev 5 baselines (distinct from NIST 800-53B)
+                var fedrampLiSaasSet = new HashSet<string>(refData.GetFedRampBaselineControlIds("li-saas"), StringComparer.OrdinalIgnoreCase);
+                var fedrampLowSet = new HashSet<string>(refData.GetFedRampBaselineControlIds("low"), StringComparer.OrdinalIgnoreCase);
+                var fedrampModSet = new HashSet<string>(refData.GetFedRampBaselineControlIds("moderate"), StringComparer.OrdinalIgnoreCase);
+                var fedrampHighSet = new HashSet<string>(refData.GetFedRampBaselineControlIds("high"), StringComparer.OrdinalIgnoreCase);
+
+                // DoD CNSSI 1253 overlay lookup sets
+                var il2Controls = new HashSet<string>(
+                    refData.GetOverlayEntries("IL2").Select(o => o.ControlId),
+                    StringComparer.OrdinalIgnoreCase);
+                var il4Controls = new HashSet<string>(
+                    refData.GetOverlayEntries("IL4").Select(o => o.ControlId),
+                    StringComparer.OrdinalIgnoreCase);
+                var il5Controls = new HashSet<string>(
+                    refData.GetOverlayEntries("IL5").Select(o => o.ControlId),
+                    StringComparer.OrdinalIgnoreCase);
+                var il6Controls = new HashSet<string>(
+                    refData.GetOverlayEntries("IL6").Select(o => o.ControlId),
+                    StringComparer.OrdinalIgnoreCase);
+
+                // Filter
+                IEnumerable<NistControl> filtered = allControls;
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var q = search.Trim();
+                    filtered = filtered.Where(c =>
+                        c.Id.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                        c.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                        c.Family.Contains(q, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (!string.IsNullOrWhiteSpace(family))
+                    filtered = filtered.Where(c => c.Family.Equals(family, StringComparison.OrdinalIgnoreCase));
+
+                if (!string.IsNullOrWhiteSpace(type))
+                {
+                    if (type.Equals("control", StringComparison.OrdinalIgnoreCase))
+                        filtered = filtered.Where(c => !c.IsEnhancement);
+                    else if (type.Equals("enhancement", StringComparison.OrdinalIgnoreCase))
+                        filtered = filtered.Where(c => c.IsEnhancement);
+                }
+
+                var sortedList = filtered
+                    .OrderBy(c => c.Family)
+                    .ThenBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var total = sortedList.Count;
+                var paged = sortedList
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(c =>
+                    {
+                        var upperId = c.Id.ToUpperInvariant();
+                        return new
+                        {
+                            id = upperId,
+                            family = c.Family.ToUpperInvariant(),
+                            familyName = NistFamilyNames.GetValueOrDefault(c.Family.ToUpperInvariant(), c.Family),
+                            title = c.Title,
+                            type = c.IsEnhancement ? "Enhancement" : "Control",
+                            baselines = new
+                            {
+                                nistLow = nistLowSet.Contains(upperId) || nistLowSet.Contains(c.Id),
+                                nistModerate = nistModSet.Contains(upperId) || nistModSet.Contains(c.Id),
+                                nistHigh = nistHighSet.Contains(upperId) || nistHighSet.Contains(c.Id),
+                                fedrampLiSaas = fedrampLiSaasSet.Contains(upperId) || fedrampLiSaasSet.Contains(c.Id),
+                                fedrampLow = fedrampLowSet.Contains(upperId) || fedrampLowSet.Contains(c.Id),
+                                fedrampModerate = fedrampModSet.Contains(upperId) || fedrampModSet.Contains(c.Id),
+                                fedrampHigh = fedrampHighSet.Contains(upperId) || fedrampHighSet.Contains(c.Id),
+                                il2 = il2Controls.Contains(upperId) || il2Controls.Contains(c.Id),
+                                il4 = il4Controls.Contains(upperId) || il4Controls.Contains(c.Id),
+                                il5 = il5Controls.Contains(upperId) || il5Controls.Contains(c.Id),
+                                il6 = il6Controls.Contains(upperId) || il6Controls.Contains(c.Id),
+                            },
+                        };
+                    })
+                    .ToList();
+
+                return Results.Ok(new { items = paged, total, page, pageSize });
+            })
+            .WithName("GetControlCatalog");
+
+        // ─── Control Detail ─────────────────────────────────────────────────
+        group.MapGet("/controls/{controlId}", async (
+                string controlId,
+                INistControlsService nistService,
+                IReferenceDataService refData,
+                CancellationToken ct) =>
+            {
+                var allControls = await nistService.GetAllControlsAsync(ct);
+                var control = allControls.FirstOrDefault(c =>
+                    c.Id.Equals(controlId, StringComparison.OrdinalIgnoreCase));
+
+                if (control == null)
+                    return Results.NotFound(new { error = $"Control '{controlId}' not found." });
+
+                var upperId = control.Id.ToUpperInvariant();
+
+                // Gather baseline membership
+                var nistLow = refData.GetBaselineControlIds("Low");
+                var nistMod = refData.GetBaselineControlIds("Moderate");
+                var nistHigh = refData.GetBaselineControlIds("High");
+                var frLiSaas = refData.GetFedRampBaselineControlIds("li-saas");
+                var frLow = refData.GetFedRampBaselineControlIds("low");
+                var frMod = refData.GetFedRampBaselineControlIds("moderate");
+                var frHigh = refData.GetFedRampBaselineControlIds("high");
+
+                // Gather overlay parameters per IL
+                var overlayDetails = new[] { "IL2", "IL4", "IL5", "IL6" }
+                    .Select(il =>
+                    {
+                        var entry = refData.GetOverlayEntries(il)
+                            .FirstOrDefault(o => o.ControlId.Equals(control.Id, StringComparison.OrdinalIgnoreCase)
+                                              || o.ControlId.Equals(upperId, StringComparison.OrdinalIgnoreCase));
+                        return new
+                        {
+                            level = il,
+                            applicable = entry != null,
+                            parameters = entry?.Parameters ?? new Dictionary<string, string>(),
+                            enhancements = entry?.Enhancements ?? new List<string>(),
+                            notes = entry?.Notes,
+                        };
+                    })
+                    .ToList();
+
+                // Gather child enhancements
+                var enhancements = allControls
+                    .Where(c => c.ParentControlId != null &&
+                                c.ParentControlId.Equals(control.Id, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
+                    .Select(c => new
+                    {
+                        id = c.Id.ToUpperInvariant(),
+                        title = c.Title,
+                    })
+                    .ToList();
+
+                bool ContainsAny(IReadOnlyList<string> list, string id1, string id2)
+                    => list.Any(x => x.Equals(id1, StringComparison.OrdinalIgnoreCase)
+                                  || x.Equals(id2, StringComparison.OrdinalIgnoreCase));
+
+                return Results.Ok(new
+                {
+                    id = upperId,
+                    family = control.Family.ToUpperInvariant(),
+                    familyName = NistFamilyNames.GetValueOrDefault(control.Family.ToUpperInvariant(), control.Family),
+                    title = control.Title,
+                    description = control.Description,
+                    type = control.IsEnhancement ? "Enhancement" : "Control",
+                    parentControlId = control.ParentControlId?.ToUpperInvariant(),
+                    azureImplementation = control.AzureImplementation,
+                    fedRampParameters = control.FedRampParameters,
+                    baselines = new
+                    {
+                        nistLow = ContainsAny(nistLow, upperId, control.Id),
+                        nistModerate = ContainsAny(nistMod, upperId, control.Id),
+                        nistHigh = ContainsAny(nistHigh, upperId, control.Id),
+                        fedrampLiSaas = ContainsAny(frLiSaas, upperId, control.Id),
+                        fedrampLow = ContainsAny(frLow, upperId, control.Id),
+                        fedrampModerate = ContainsAny(frMod, upperId, control.Id),
+                        fedrampHigh = ContainsAny(frHigh, upperId, control.Id),
+                    },
+                    dodOverlays = overlayDetails,
+                    enhancements,
+                });
+            })
+            .WithName("GetControlDetail");
+
+        // ─── Multi-Framework Catalog Endpoints (Feature 044) ────────────────
+
+        group.MapGet("/frameworks", async (
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            var frameworks = await context.ComplianceFrameworks
+                .Where(f => f.IsActive)
+                .OrderBy(f => f.Name)
+                .Select(f => new
+                {
+                    f.Id,
+                    f.Identifier,
+                    f.Name,
+                    f.Version,
+                    f.Publisher,
+                    f.ControlCount,
+                    f.ImportedAt,
+                    f.IsActive,
+                    baselines = f.Baselines
+                        .OrderBy(b => b.Level)
+                        .Select(b => new { b.Id, b.Level, b.ControlCount, b.ImportedAt })
+                        .ToList(),
+                })
+                .ToListAsync(ct);
+
+            return Results.Ok(frameworks);
+        })
+        .WithName("ListFrameworks");
+
+        group.MapGet("/frameworks/{frameworkId}/controls", async (
+            string frameworkId,
+            AtoCopilotContext context,
+            string? search,
+            string? family,
+            int page = 1,
+            int pageSize = 50,
+            CancellationToken ct = default) =>
+        {
+            // Resolve by ID or Identifier
+            var framework = await context.ComplianceFrameworks
+                .FirstOrDefaultAsync(f => f.Id == frameworkId || f.Identifier == frameworkId, ct);
+
+            if (framework is null)
+                return Results.NotFound(new { error = "Framework not found" });
+
+            IQueryable<FrameworkControl> query = context.FrameworkControls
+                .Where(c => c.FrameworkId == framework.Id && !c.Withdrawn);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var q = search.Trim();
+                query = query.Where(c =>
+                    c.ControlId.Contains(q) ||
+                    c.Title.Contains(q) ||
+                    c.Family.Contains(q));
+            }
+
+            if (!string.IsNullOrWhiteSpace(family))
+                query = query.Where(c => c.Family == family.ToUpperInvariant());
+
+            var total = await query.CountAsync(ct);
+
+            var items = await query
+                .OrderBy(c => c.SortOrder)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(c => new
+                {
+                    c.ControlId,
+                    c.Family,
+                    c.Title,
+                    c.IsEnhancement,
+                    c.ParentControlId,
+                    type = c.IsEnhancement ? "Enhancement" : "Control",
+                })
+                .ToListAsync(ct);
+
+            // Look up baseline membership for returned controls
+            var controlIds = items.Select(i => i.ControlId).ToList();
+            var baselineIds = await context.FrameworkBaselines
+                .Where(b => b.FrameworkId == framework.Id)
+                .Select(b => new { b.Id, b.Level })
+                .ToListAsync(ct);
+
+            var baselineMembership = new Dictionary<string, Dictionary<string, bool>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var bl in baselineIds)
+            {
+                var memberIds = await context.BaselineControlEntries
+                    .Where(e => e.BaselineId == bl.Id && controlIds.Contains(e.ControlId))
+                    .Select(e => e.ControlId)
+                    .ToListAsync(ct);
+
+                var memberSet = new HashSet<string>(memberIds, StringComparer.OrdinalIgnoreCase);
+                foreach (var cid in controlIds)
+                {
+                    if (!baselineMembership.ContainsKey(cid))
+                        baselineMembership[cid] = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                    baselineMembership[cid][bl.Level] = memberSet.Contains(cid);
+                }
+            }
+
+            var result = items.Select(i => new
+            {
+                id = i.ControlId,
+                family = i.Family,
+                familyName = NistFamilyNames.GetValueOrDefault(i.Family, i.Family),
+                title = i.Title,
+                type = i.type,
+                baselines = baselineMembership.GetValueOrDefault(i.ControlId) ?? new Dictionary<string, bool>(),
+            });
+
+            return Results.Ok(new { items = result, total, page, pageSize, frameworkId = framework.Identifier });
+        })
+        .WithName("GetFrameworkControls");
+
+        group.MapGet("/frameworks/{frameworkId}/controls/{controlId}", async (
+            string frameworkId,
+            string controlId,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            var framework = await context.ComplianceFrameworks
+                .FirstOrDefaultAsync(f => f.Id == frameworkId || f.Identifier == frameworkId, ct);
+            if (framework is null)
+                return Results.NotFound(new { error = "Framework not found" });
+
+            var control = await context.FrameworkControls
+                .FirstOrDefaultAsync(c => c.FrameworkId == framework.Id && c.ControlId == controlId, ct);
+            if (control is null)
+                return Results.NotFound(new { error = "Control not found" });
+
+            // Child enhancements
+            var enhancements = await context.FrameworkControls
+                .Where(c => c.FrameworkId == framework.Id && c.ParentControlId == control.ControlId && !c.Withdrawn)
+                .OrderBy(c => c.SortOrder)
+                .Select(c => new { c.ControlId, c.Title })
+                .ToListAsync(ct);
+
+            // Baseline membership
+            var baselines = await context.FrameworkBaselines
+                .Where(b => b.FrameworkId == framework.Id)
+                .ToListAsync(ct);
+
+            var baselineMap = new Dictionary<string, bool>();
+            foreach (var bl in baselines)
+            {
+                var isMember = await context.BaselineControlEntries
+                    .AnyAsync(e => e.BaselineId == bl.Id && e.ControlId == controlId, ct);
+                baselineMap[bl.Level] = isMember;
+            }
+
+            return Results.Ok(new
+            {
+                id = control.ControlId,
+                family = control.Family,
+                familyName = NistFamilyNames.GetValueOrDefault(control.Family, control.Family),
+                title = control.Title,
+                description = control.Description,
+                type = control.IsEnhancement ? "Enhancement" : "Control",
+                parentControlId = control.ParentControlId,
+                withdrawn = control.Withdrawn,
+                withdrawnTo = control.WithdrawnTo,
+                baselines = baselineMap,
+                enhancements,
+                framework = new { framework.Identifier, framework.Name, framework.Version },
+            });
+        })
+        .WithName("GetFrameworkControlDetail");
+
+        group.MapPost("/frameworks/import", async (
+            IFrameworkImportService importService,
+            CancellationToken ct) =>
+        {
+            var result = await importService.ImportAllAsync(ct);
+            return Results.Ok(new
+            {
+                frameworksImported = result.FrameworksImported,
+                totalControls = result.TotalControls,
+                totalBaselines = result.TotalBaselines,
+                errors = result.Errors,
+            });
+        })
+        .WithName("ImportAllFrameworks");
+
+        group.MapPost("/frameworks/{identifier}/import", async (
+            string identifier,
+            IFrameworkImportService importService,
+            CancellationToken ct) =>
+        {
+            var count = await importService.ImportFrameworkAsync(identifier, ct);
+            return Results.Ok(new { identifier, controlsImported = count });
+        })
+        .WithName("ImportSingleFramework");
+
         return app;
+    }
+
+    // ─── NIST Family Name Lookup ────────────────────────────────────────────
+    private static readonly Dictionary<string, string> NistFamilyNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["AC"] = "Access Control",
+        ["AT"] = "Awareness and Training",
+        ["AU"] = "Audit and Accountability",
+        ["CA"] = "Assessment, Authorization, and Monitoring",
+        ["CM"] = "Configuration Management",
+        ["CP"] = "Contingency Planning",
+        ["IA"] = "Identification and Authentication",
+        ["IR"] = "Incident Response",
+        ["MA"] = "Maintenance",
+        ["MP"] = "Media Protection",
+        ["PE"] = "Physical and Environmental Protection",
+        ["PL"] = "Planning",
+        ["PM"] = "Program Management",
+        ["PS"] = "Personnel Security",
+        ["PT"] = "PII Processing and Transparency",
+        ["RA"] = "Risk Assessment",
+        ["SA"] = "System and Services Acquisition",
+        ["SC"] = "System and Communications Protection",
+        ["SI"] = "System and Information Integrity",
+        ["SR"] = "Supply Chain Risk Management",
+    };
+
+    // ─── Feature 043: Import helpers ────────────────────────────────────────
+
+    private static readonly Dictionary<string, Ato.Copilot.Mcp.Services.CrmExportService.ImportParseResult> ImportPreviewCache = new();
+
+    private static string MapImportType(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "Customer";
+        var lower = raw.ToLowerInvariant().Trim();
+        return lower switch
+        {
+            "inherited" or "system" or "csp" => "Inherited",
+            "shared" or "hybrid" => "Shared",
+            "customer" or "system-specific" or "not implemented" => "Customer",
+            _ => "Customer"
+        };
     }
 
     // ─── Feature 039: POA&M mapping helpers ──────────────────────────────────
@@ -5718,4 +6947,42 @@ public static class DashboardEndpoints
     private record AcquireLockRequest(
         string UserId,
         string UserDisplayName);
+
+    // ─── Feature 042: System Capability Link DTOs ───────────────────────────
+
+    private record LinkCapabilitiesRequest(
+        List<string> CapabilityIds);
+
+    // ─── Feature 043: Control Inheritance DTOs ──────────────────────────────
+
+    private record Feature043DesignationInput(
+        string ControlId,
+        string InheritanceType,
+        string? Provider = null,
+        string? CustomerResponsibility = null);
+
+    private record Feature043SetInheritanceRequest(
+        List<Feature043DesignationInput> Designations,
+        string? ChangeSource = "Manual");
+
+    private record Feature043ApplyProfileRequest(
+        string ProfileId,
+        string? ConflictResolution = "skip",
+        bool Preview = false);
+
+    private record Feature043ImportApplyRequest(
+        string PreviewToken,
+        Feature043ColumnMapping ColumnMapping,
+        string? ConflictResolution = "overwrite");
+
+    private record Feature043ColumnMapping(
+        string ControlId,
+        string InheritanceType,
+        string Provider,
+        string CustomerResponsibility);
+
+    // Feature 044 request types
+    private record Feature044RevertRequest(
+        List<string> ControlIds,
+        string? RevertedBy = null);
 }

@@ -79,3 +79,6 @@ export async function generateSystemDescription(
   });
   return data.description;
 }
+
+// Feature 045: Re-export coverage KPI for Portfolio Risk Profile page
+export { getCoverage } from './capabilities';

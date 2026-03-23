@@ -33,8 +33,8 @@ export interface DashboardSettings {
   timezone: string;
 
   // Compliance Framework
-  activeFramework: 'NIST 800-53' | 'NIST CSF' | 'CMMC' | 'FedRAMP';
-  baselineOverride: 'Low' | 'Moderate' | 'High' | '';
+  activeFramework: 'NIST 800-53 Rev. 5' | 'NIST 800-53 Rev. 4' | 'FedRAMP Rev. 5' | 'CNSSI 1253';
+  baselineOverride: 'Low' | 'Moderate' | 'High' | ''; // per-view filter only
   poamOverdueThreshold: number; // days
 
   // Integrations
@@ -79,7 +79,7 @@ export const DEFAULT_SETTINGS: DashboardSettings = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 
   // Compliance Framework
-  activeFramework: 'NIST 800-53',
+  activeFramework: 'NIST 800-53 Rev. 5',
   baselineOverride: '',
   poamOverdueThreshold: 30,
 

@@ -458,7 +458,7 @@ public class SetInheritanceTool : BaseTool
         try
         {
             var result = await _baselineService.SetInheritanceAsync(
-                systemId, mappings, "mcp-user", cancellationToken);
+                systemId, mappings, "mcp-user", cancellationToken: cancellationToken);
 
             sw.Stop();
             return JsonSerializer.Serialize(new

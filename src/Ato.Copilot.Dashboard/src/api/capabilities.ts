@@ -155,3 +155,78 @@ export async function bulkRegenerateNarratives(systemId: string, capabilityId: s
   );
   return data;
 }
+
+// ─── Feature 045: Capabilities Hub Import/Coverage/Linking ──────────────────
+
+import type {
+  CspImportRequest,
+  CspImportResult,
+  CspImportPreview,
+  CrmImportResult,
+  CrmImportPreview,
+  CrmColumnMapping,
+  CoverageResponse,
+  LinkComponentCapabilitiesRequest,
+  LinkComponentCapabilitiesResponse,
+} from '../types/capabilities';
+import type { CspProfile, CspProfilesResponse } from '../types/inheritance';
+
+export async function getCspProfiles(): Promise<CspProfile[]> {
+  const { data } = await apiClient.get<CspProfilesResponse>('/capabilities/csp-profiles');
+  return data.profiles;
+}
+
+export async function importCspProfile(request: CspImportRequest): Promise<CspImportResult | CspImportPreview> {
+  const { data } = await apiClient.post<CspImportResult | CspImportPreview>(
+    '/capabilities/import/csp-profile',
+    request,
+  );
+  return data;
+}
+
+export async function importCrm(
+  file: File,
+  columnMapping: CrmColumnMapping,
+  conflictResolution: string = 'skip',
+  dryRun: boolean = false,
+): Promise<CrmImportResult | CrmImportPreview> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('columnMapping', JSON.stringify(columnMapping));
+  formData.append('conflictResolution', conflictResolution);
+  formData.append('dryRun', String(dryRun));
+  const { data } = await apiClient.post<CrmImportResult | CrmImportPreview>(
+    '/capabilities/import/crm',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+}
+
+export async function getCoverage(
+  includePerSystem: boolean = false,
+  includePerFamily: boolean = true,
+): Promise<CoverageResponse> {
+  const { data } = await apiClient.get<CoverageResponse>('/capabilities/coverage', {
+    params: { includePerSystem, includePerFamily },
+  });
+  return data;
+}
+
+export async function linkComponentCapabilities(
+  componentId: string,
+  request: LinkComponentCapabilitiesRequest,
+): Promise<LinkComponentCapabilitiesResponse> {
+  const { data } = await apiClient.post<LinkComponentCapabilitiesResponse>(
+    `/components/${componentId}/capabilities`,
+    request,
+  );
+  return data;
+}
+
+export async function unlinkComponentCapability(
+  componentId: string,
+  capabilityId: string,
+): Promise<void> {
+  await apiClient.delete(`/components/${componentId}/capabilities/${capabilityId}`);
+}

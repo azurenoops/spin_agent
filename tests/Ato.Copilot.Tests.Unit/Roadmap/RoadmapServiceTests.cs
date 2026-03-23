@@ -34,7 +34,8 @@ public class RoadmapServiceTests : IDisposable
                 _context,
                 Mock.Of<ILogger<CapabilityService>>(),
                 new NarrativeTemplateService(),
-                Mock.Of<IDeviationService>()),
+                Mock.Of<IDeviationService>(),
+                Mock.Of<IOrgInheritanceService>()),
             Mock.Of<ILogger<RoadmapService>>());
     }
 

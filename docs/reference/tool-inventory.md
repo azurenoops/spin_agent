@@ -43,6 +43,13 @@ Tools that drive the seven-phase RMF lifecycle from Prepare through Authorize.
 | 14 | `compliance_set_inheritance` | Set control inheritance | Select | ISSM |
 | 15 | `compliance_get_baseline` | View baseline details | Select | All |
 | 16 | `compliance_generate_crm` | Generate CRM | Select | ISSM |
+| 16a | `GET /inheritance/org-defaults` | List org-level inheritance defaults | Select | ISSM |
+| 16b | `POST /inheritance/org-defaults/derive` | Derive org defaults from capabilities, cascade to systems | Select | ISSM |
+| 16c | `POST /systems/{id}/inheritance/revert-to-org-defaults` | Revert controls to org defaults | Select | ISSM |
+| 16d | `GET /capabilities/coverage` | Capabilities coverage dashboard (providers, KPI, gaps) | Select | ISSM, ISSO |
+| 16e | `POST /capabilities/import/csp-profile` | Import CSP profile → components + capabilities + mappings | Select | ISSM |
+| 16f | `POST /capabilities/import/crm` | Import CRM spreadsheet → capabilities + mappings | Select | ISSM |
+| 16g | `POST /components/{id}/capabilities` | Bulk link capabilities to a component | Select | ISSM |
 | 17 | `compliance_write_narrative` | Write control narrative | Implement | ISSO, Eng |
 | 18 | `compliance_suggest_narrative` | AI-suggest narrative | Implement | ISSO, Eng |
 | 19 | `compliance_batch_populate_narratives` | Auto-fill inherited narratives | Implement | ISSO |

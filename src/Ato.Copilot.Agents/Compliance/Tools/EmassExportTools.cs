@@ -228,24 +228,27 @@ public class ImportEmassTool : BaseTool
 public class ExportOscalTool : BaseTool
 {
     private readonly IEmassExportService _service;
+    private readonly IOscalSapExportService _sapExportService;
 
     public ExportOscalTool(
         IEmassExportService service,
+        IOscalSapExportService sapExportService,
         ILogger<ExportOscalTool> logger) : base(logger)
     {
         _service = service;
+        _sapExportService = sapExportService;
     }
 
     public override string Name => "compliance_export_oscal";
 
     public override string Description =>
-        "Export system data in OSCAL JSON format (v1.0.6). " +
-        "Supports SSP, assessment-results, and POA&M models.";
+        "Export system data in OSCAL JSON format (v1.1.2). " +
+        "Supports SSP, assessment-results, POA&M, and assessment-plan models.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {
         ["system_id"] = new() { Name = "system_id", Description = "System GUID, name, or acronym", Type = "string", Required = true },
-        ["model"] = new() { Name = "model", Description = "OSCAL model: 'ssp', 'assessment-results', or 'poam'", Type = "string", Required = true }
+        ["model"] = new() { Name = "model", Description = "OSCAL model: 'ssp', 'assessment-results', 'poam', or 'assessment-plan'", Type = "string", Required = true }
     };
 
     public override async Task<string> ExecuteCoreAsync(
@@ -261,12 +264,22 @@ public class ExportOscalTool : BaseTool
             "ssp" => OscalModelType.Ssp,
             "assessment-results" => OscalModelType.AssessmentResults,
             "poam" => OscalModelType.Poam,
+            "assessment-plan" => OscalModelType.AssessmentPlan,
             _ => throw new ArgumentException(
-                $"Invalid OSCAL model '{modelStr}'. Must be 'ssp', 'assessment-results', or 'poam'.")
+                $"Invalid OSCAL model '{modelStr}'. Must be 'ssp', 'assessment-results', 'poam', or 'assessment-plan'.")
         };
 
-        var oscalJson = await _service.ExportOscalAsync(
-            systemId, model, cancellationToken);
+        string oscalJson;
+        if (model == OscalModelType.AssessmentPlan)
+        {
+            oscalJson = await _sapExportService.ExportAsync(
+                systemId, cancellationToken);
+        }
+        else
+        {
+            oscalJson = await _service.ExportOscalAsync(
+                systemId, model, cancellationToken);
+        }
 
         sw.Stop();
 
@@ -280,14 +293,14 @@ public class ExportOscalTool : BaseTool
             {
                 system_id = systemId,
                 model = modelStr,
-                oscal_version = "1.0.6",
+                oscal_version = "1.1.2",
                 oscal_document = oscalDoc
             },
             metadata = new
             {
                 duration_ms = sw.ElapsedMilliseconds,
                 format = "json",
-                spec_version = "OSCAL 1.0.6"
+                spec_version = "OSCAL 1.1.2"
             }
         };
 

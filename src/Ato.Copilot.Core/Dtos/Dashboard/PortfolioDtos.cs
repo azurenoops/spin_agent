@@ -64,6 +64,18 @@ public class PortfolioSystemSummaryDto
 
     /// <summary>Open CAT III findings count.</summary>
     public int CatIIICounts { get; init; }
+
+    /// <summary>Whether the system has at least one authorization boundary definition.</summary>
+    public bool HasBoundary { get; init; }
+
+    /// <summary>Whether the system has at least one active RMF role assignment.</summary>
+    public bool HasRoles { get; init; }
+
+    /// <summary>Whether the system has a security categorization record.</summary>
+    public bool HasCategorization { get; init; }
+
+    /// <summary>Composite: HasBoundary AND HasRoles AND HasCategorization.</summary>
+    public bool IsSetupComplete { get; init; }
 }
 
 /// <summary>
@@ -223,6 +235,7 @@ public class SystemDocumentsResponse
     // Authorization Package
     public required SspDocumentInfo Ssp { get; init; }
     public SapDocumentInfo? Sap { get; init; }
+    public SarDocumentInfo? Sar { get; init; }
     public AuthDecisionInfo? Authorization { get; init; }
     public int PoamCount { get; init; }
     public int PoamOverdueCount { get; init; }
@@ -272,6 +285,20 @@ public class SapDocumentInfo
     public DateTime? FinalizedAt { get; init; }
     public DateTime? ScheduleStart { get; init; }
     public DateTime? ScheduleEnd { get; init; }
+}
+
+public class SarDocumentInfo
+{
+    public required string SarId { get; init; }
+    public required string Status { get; init; }
+    public required string Title { get; init; }
+    public int TotalControlsAssessed { get; init; }
+    public int SatisfiedCount { get; init; }
+    public int NotSatisfiedCount { get; init; }
+    public required string CreatedBy { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public string? ApprovedBy { get; init; }
+    public DateTime? ApprovedAt { get; init; }
 }
 
 public class AuthDecisionInfo

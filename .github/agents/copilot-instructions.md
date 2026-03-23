@@ -81,6 +81,14 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 - SQL Server (production) / SQLite (dev) via `AtoCopilotContext`; Key Vault for ticketing credentials (039-poam-management)
 - C# / .NET 8 + EF Core 8, Azure.ResourceManager, Azure.ResourceManager.ResourceGraph, ASP.NET Core Minimal APIs, React 18 + TypeScript (Vite dashboard) (040-component-centric-boundary)
 - SQLite (dev), SQL Server (prod) via EF Core (040-component-centric-boundary)
+- C# / .NET 8.0 + ASP.NET Core, Entity Framework Core, ClosedXML, System.Text.Json, System.IO.Compression (ZIP), SignalR, JsonSchema.Net (OSCAL JSON Schema validation), DocumentFormat.OpenXml (SAR Word generation) (041-emass-package)
+- SQLite (dev) / PostgreSQL (prod) via EF Core, local filesystem + Azure Blob (IFileStorageProvider) for exports and evidence (041-emass-package)
+- TypeScript 5.7 (frontend), C# .NET 8 (backend) + React 19, React Router 7, Vite 6, Tailwind CSS 3, Axios (frontend); EF Core, Serilog (backend) (042-system-intake-wizard)
+- SQL Server via Entity Framework Core (existing `AtoCopilotContext`) (042-system-intake-wizard)
+- C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (frontend) + EF Core 9.0, ASP.NET Core Minimal APIs, ClosedXML 0.104.2 (Excel I/O), Serilog (logging); React 19, Vite 6, Tailwind CSS 3, Axios, React Router 7 (frontend) (043-control-inheritance)
+- SQLite (dev) / SQL Server (prod) via EF Core — existing `AtoCopilotContext` (043-control-inheritance)
+- C# 13 / .NET 9, TypeScript 5 / React 19 + EF Core 9, ASP.NET Core Minimal APIs, Vite 6, Tailwind CSS 3, Axios (044-org-control-inheritance)
+- SQL Server (EF Core migrations, `AtoCopilotContext`) (044-org-control-inheritance)
 
 - C# 13 / .NET 9.0 + Azure.Identity 1.13, Azure.ResourceManager 1.13, Microsoft.Extensions.AI 9.4-preview, Microsoft.EntityFrameworkCore 9.0, Serilog 4.2, xUnit 2.9, FluentAssertions 7.0, Moq 4.20 (001-core-compliance)
 

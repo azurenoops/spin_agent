@@ -80,7 +80,8 @@ public class RmfLifecycleService : IRmfLifecycleService
             .Include(s => s.SecurityCategorization)
                 .ThenInclude(sc => sc!.InformationTypes)
             .Include(s => s.ControlBaseline)
-            .Include(s => s.AuthorizationBoundaries)
+            .Include(s => s.AuthorizationBoundaryDefinitions)
+                .ThenInclude(d => d.ComponentAssignments)
             .Include(s => s.RmfRoleAssignments)
             .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken);
@@ -132,7 +133,8 @@ public class RmfLifecycleService : IRmfLifecycleService
             .Include(s => s.SecurityCategorization)
                 .ThenInclude(sc => sc!.InformationTypes)
             .Include(s => s.ControlBaseline)
-            .Include(s => s.AuthorizationBoundaries)
+            .Include(s => s.AuthorizationBoundaryDefinitions)
+                .ThenInclude(d => d.ComponentAssignments)
             .Include(s => s.RmfRoleAssignments)
             .Include(s => s.PrivacyThresholdAnalysis)
             .Include(s => s.PrivacyImpactAssessment)
@@ -249,7 +251,8 @@ public class RmfLifecycleService : IRmfLifecycleService
             .Include(s => s.SecurityCategorization)
                 .ThenInclude(sc => sc!.InformationTypes)
             .Include(s => s.ControlBaseline)
-            .Include(s => s.AuthorizationBoundaries)
+            .Include(s => s.AuthorizationBoundaryDefinitions)
+                .ThenInclude(d => d.ComponentAssignments)
             .Include(s => s.RmfRoleAssignments)
             .Include(s => s.PrivacyThresholdAnalysis)
             .Include(s => s.PrivacyImpactAssessment)
@@ -311,7 +314,7 @@ public class RmfLifecycleService : IRmfLifecycleService
     {
         return (fromStep, toStep) switch
         {
-            (RmfPhase.Prepare, RmfPhase.Categorize) => CheckPrepareToCategorize(system),
+            (RmfPhase.Prepare, RmfPhase.Categorize) => await CheckPrepareToCategorizeAsync(system, context, cancellationToken),
             (RmfPhase.Categorize, RmfPhase.Select) => CheckCategorizeToSelect(system),
             (RmfPhase.Select, RmfPhase.Implement) => CheckSelectToImplement(system),
             (RmfPhase.Implement, RmfPhase.Assess) => await CheckImplementToAssessAsync(system, context, cancellationToken),
@@ -321,10 +324,15 @@ public class RmfLifecycleService : IRmfLifecycleService
         };
     }
 
-    /// <summary>Prepare → Categorize: Must have ≥1 role and ≥1 boundary resource.</summary>
-    private static IEnumerable<GateCheckResult> CheckPrepareToCategorize(RegisteredSystem system)
+    /// <summary>Prepare → Categorize: Must have ≥1 role and ≥1 component in a boundary.</summary>
+    private static async Task<IEnumerable<GateCheckResult>> CheckPrepareToCategorizeAsync(
+        RegisteredSystem system,
+        AtoCopilotContext context,
+        CancellationToken cancellationToken)
     {
-        yield return new GateCheckResult
+        var results = new List<GateCheckResult>();
+
+        results.Add(new GateCheckResult
         {
             GateName = "RMF Roles Assigned",
             Passed = system.RmfRoleAssignments.Any(r => r.IsActive),
@@ -332,17 +340,22 @@ public class RmfLifecycleService : IRmfLifecycleService
                 ? $"{system.RmfRoleAssignments.Count(r => r.IsActive)} role(s) assigned."
                 : "At least 1 RMF role must be assigned before categorization.",
             Severity = "Error"
-        };
+        });
 
-        yield return new GateCheckResult
+        var inScopeComponents = await context.ComponentSystemAssignments
+            .CountAsync(csa => csa.RegisteredSystemId == system.Id
+                            && csa.AuthorizationBoundaryDefinitionId != null,
+                        cancellationToken);
+
+        results.Add(new GateCheckResult
         {
             GateName = "Authorization Boundary Defined",
-            Passed = system.AuthorizationBoundaries.Any(b => b.IsInBoundary),
-            Message = system.AuthorizationBoundaries.Any(b => b.IsInBoundary)
-                ? $"{system.AuthorizationBoundaries.Count(b => b.IsInBoundary)} resource(s) in boundary."
-                : "At least 1 resource must be in the authorization boundary.",
+            Passed = inScopeComponents > 0,
+            Message = inScopeComponents > 0
+                ? $"{inScopeComponents} component(s) in boundary."
+                : "At least 1 component must be assigned to the authorization boundary.",
             Severity = "Error"
-        };
+        });
 
         // ─── Gate 3: Privacy Readiness (Feature 021) ─────────────────────
         var pta = system.PrivacyThresholdAnalysis;
@@ -355,7 +368,7 @@ public class RmfLifecycleService : IRmfLifecycleService
             _ => false // PendingConfirmation or no PTA
         };
 
-        yield return new GateCheckResult
+        results.Add(new GateCheckResult
         {
             GateName = "Privacy Readiness",
             Passed = privacyPassed,
@@ -369,7 +382,7 @@ public class RmfLifecycleService : IRmfLifecycleService
                         ? "PTA determination is pending confirmation. Resolve ambiguous PII info types."
                         : "PTA indicates PIA required, but PIA is not yet approved.",
             Severity = "Error"
-        };
+        });
 
         // ─── Gate 4: Interconnection Documentation (Feature 021) ─────────
         var activeInterconnections = system.SystemInterconnections
@@ -404,13 +417,15 @@ public class RmfLifecycleService : IRmfLifecycleService
                 "Register interconnections or certify no external interconnections.";
         }
 
-        yield return new GateCheckResult
+        results.Add(new GateCheckResult
         {
             GateName = "Interconnection Documentation",
             Passed = interconnectionPassed,
             Message = interconnectionMessage,
             Severity = "Error"
-        };
+        });
+
+        return results;
     }
 
     /// <summary>Categorize → Select: SecurityCategorization must exist with ≥1 info type.</summary>

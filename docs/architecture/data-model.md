@@ -56,6 +56,7 @@ erDiagram
 
     ControlBaseline ||--o{ ControlTailoring : has
     ControlBaseline ||--o{ ControlInheritance : has
+    ControlInheritance }o--o| OrgInheritanceDefault : "derived from"
 
     AssessmentRecord ||--o{ ControlEffectiveness : has
 
@@ -273,7 +274,26 @@ Inheritance designation for controls in a baseline.
 | `InheritanceType` | `InheritanceType` | Inherited, Shared, Customer |
 | `Provider` | `string?` | CSP or provider name |
 | `CustomerResponsibility` | `string?` | Customer-specific responsibility |
+| `DesignationSource` | `string?` (20) | Source of designation: OrgDerived, Manual, ProfileApply, CrmImport, BulkUpdate (Feature 044) |
+| `OrgInheritanceDefaultId` | `string?` (36) | FK → OrgInheritanceDefault — tracks which org default this was derived from (Feature 044) |
 | `DesignatedAt` | `DateTime` | Timestamp |
+
+### OrgInheritanceDefault (Feature 044)
+
+Org-level inheritance defaults derived from capability control mappings. One per control ID.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id` | `Guid` | Primary key |
+| `ControlId` | `string` (20) | NIST control ID (unique index) |
+| `InheritanceType` | `InheritanceType` | Inherited or Shared |
+| `Provider` | `string` (500) | Merged provider names from capabilities |
+| `SourceCapabilityIds` | `string` (2000) | Comma-separated capability IDs |
+| `SourceCapabilityNames` | `string` (2000) | Comma-separated capability names |
+| `MappingRole` | `CapabilityMappingRole` | Winning role: Primary, Supporting, or Shared |
+| `DerivedAt` | `DateTime` | When the default was last derived |
+
+**Relationships:** Referenced by `ControlInheritance.OrgInheritanceDefaultId`
 
 ---
 
@@ -1026,6 +1046,57 @@ EF Core migrations run automatically at startup (`MigrateDatabaseAsync`) with a 
 
 ## Dashboard Entities (Feature 030)
 
+### CspProfile (JSON — in-memory)
+
+Pre-built Cloud Service Provider profile loaded from embedded JSON. Not persisted in the database.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| ProfileId | string | Unique profile identifier |
+| Name | string | Display name (e.g., "Azure Government — FedRAMP High") |
+| Provider | string | CSP provider name |
+| BaselineLevel | string | NIST baseline (Low / Moderate / High) |
+| Description | string | Profile description |
+| Version | string | Profile version |
+| Controls | List&lt;ProfileControlMapping&gt; | Top-level control mappings |
+| Services | List&lt;CspService&gt; | Grouped capabilities by service |
+
+### CspService (JSON — in-memory)
+
+A service grouping within a CSP profile that maps to one or more capabilities.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Name | string | Service name (e.g., "Azure Active Directory") |
+| Category | string | NIST control family code |
+| Description | string | Service description |
+| Controls | List&lt;ProfileControlMapping&gt; | Controls covered by this service |
+
+### Import Pipeline Data Flow (Feature 045)
+
+The Capabilities Hub import pipeline transforms CSP profile and CRM data into the entity graph:
+
+```
+CSP Profile JSON / CRM Spreadsheet
+        │
+        ▼
+  CapabilityImportService
+        │
+        ├─► SystemComponent (Thing — one per provider/service)
+        │       └─► ComponentCapabilityLink
+        │
+        ├─► SecurityCapability (one per service or CRM grouping)
+        │       └─► CapabilityControlMapping (per control ID)
+        │
+        ▼
+  OrgInheritanceService.DeriveOrgDefaultsAsync()
+        │
+        ├─► OrgInheritanceDefault (per control)
+        │
+        └─► ControlBaseline (OrgDerived designations per system)
+                └─► NarrativeSection (auto-generated if template matches)
+```
+
 ### SecurityCapability
 
 Catalog entry for a reusable security solution mapped to NIST 800-53 controls.
@@ -1387,4 +1458,113 @@ PoamItem ||--o{ PoamTicketSync : "syncs"
 SystemComponent ||--o{ PoamComponentLink : "linked from"
 RegisteredSystem ||--o{ TicketingIntegration : "configured"
 TicketingIntegration ||--o{ PoamTicketSync : "records"
+```
+
+---
+
+## Authorization Package Entities (Feature 041)
+
+### AuthorizationPackage
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier (GUID) |
+| RegisteredSystemId | string | FK → RegisteredSystem |
+| Status | PackageStatus | Pending, Generating, Validating, Completed, Failed |
+| EvidenceMode | EvidenceMode | Embedded, ManifestOnly |
+| TotalArtifactCount | int | Number of artifacts in the package |
+| TotalEvidenceCount | int | Number of evidence files bundled |
+| TotalEvidenceSize | long | Total evidence size in bytes |
+| ValidationPassed | bool? | Whether schema validation passed |
+| FilePath | string? | Path to the generated ZIP file |
+| FileSize | long? | ZIP file size in bytes |
+| ContentHash | string? | SHA-256 hash of the ZIP file |
+| FailureReason | string? | Error message if generation failed |
+| FailedArtifactType | string? | Which artifact caused failure |
+| GeneratedBy | string | User who initiated generation |
+| GeneratedAt | DateTimeOffset | When generation was queued |
+| CompletedAt | DateTimeOffset? | When generation finished |
+| ExpiresAt | DateTimeOffset | Retention expiry (90 days) |
+
+### PackageArtifact
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier |
+| AuthorizationPackageId | string | FK → AuthorizationPackage |
+| ArtifactType | PackageArtifactType | OscalSsp, OscalPoam, OscalAssessmentResults, OscalAssessmentPlan, Sar, EvidenceManifest |
+| Format | string | json, docx |
+| FileName | string | Name within the ZIP archive |
+| FileSize | long? | Artifact size in bytes |
+| OscalVersion | string? | OSCAL version (1.1.2 for JSON artifacts) |
+| SchemaValid | bool? | Whether OSCAL schema validation passed |
+| GeneratedAt | DateTimeOffset | When the artifact was generated |
+
+### SecurityAssessmentReport
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier |
+| RegisteredSystemId | string | FK → RegisteredSystem |
+| Title | string | SAR title |
+| Status | SarStatus | Draft, InReview, Approved, Rejected |
+| TotalControlsAssessed | int | Number of controls assessed |
+| TotalControlsPending | int | Number of controls pending assessment |
+| SatisfiedCount | int | Controls meeting requirements |
+| NotSatisfiedCount | int | Controls not meeting requirements |
+| CreatedBy | string | Author |
+| CreatedAt | DateTimeOffset | Creation timestamp |
+| ModifiedBy | string? | Last editor |
+| ModifiedAt | DateTimeOffset? | Last edit timestamp |
+| ReviewedBy | string? | Reviewer |
+| ReviewedAt | DateTimeOffset? | Review timestamp |
+| ApprovedBy | string? | Approver |
+| ApprovedAt | DateTimeOffset? | Approval timestamp |
+
+### SarSection
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier |
+| SecurityAssessmentReportId | string | FK → SecurityAssessmentReport |
+| SectionType | SarSectionType | ExecutiveSummary, Methodology, Findings, Recommendations, ConclusionRiskAssessment |
+| Title | string | Section title |
+| Content | string? | Section content (markdown) |
+| IsAutoGenerated | bool | Whether content was auto-generated |
+| ModifiedBy | string? | Last editor |
+| ModifiedAt | DateTimeOffset? | Last edit timestamp |
+
+### PackageValidationResult
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier |
+| AuthorizationPackageId | string? | FK → AuthorizationPackage (nullable for standalone validation) |
+| IsValid | bool | Whether all checks passed |
+| ErrorCount | int | Number of blocking errors |
+| WarningCount | int | Number of non-blocking warnings |
+| ValidatedAt | DateTimeOffset | When validation was run |
+| ValidatedBy | string | User who triggered validation |
+
+### ValidationFinding
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Id | string | Unique identifier |
+| PackageValidationResultId | string | FK → PackageValidationResult |
+| Severity | ValidationSeverity | Error, Warning |
+| Category | string | Check category (e.g., "Boundary", "SSP", "SAR") |
+| ArtifactType | string? | Related artifact type |
+| Description | string | Finding description |
+| Remediation | string? | Suggested remediation steps |
+
+### Entity Relationships
+
+```
+RegisteredSystem ||--o{ AuthorizationPackage : "generates"
+AuthorizationPackage ||--o{ PackageArtifact : "contains"
+AuthorizationPackage ||--o| PackageValidationResult : "validated by"
+PackageValidationResult ||--o{ ValidationFinding : "has findings"
+RegisteredSystem ||--o{ SecurityAssessmentReport : "assessed by"
+SecurityAssessmentReport ||--o{ SarSection : "contains"
 ```

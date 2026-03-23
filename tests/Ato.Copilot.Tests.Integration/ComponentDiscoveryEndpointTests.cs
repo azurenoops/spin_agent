@@ -26,7 +26,8 @@ public class ComponentDiscoveryEndpointTests : IDisposable
             .Options;
         _db = new AtoCopilotContext(options);
         _service = new ComponentService(
-            _db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService());
+            _db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(),
+            new SystemCapabilityLinkService(_db, NullLogger<SystemCapabilityLinkService>.Instance));
     }
 
     public void Dispose()

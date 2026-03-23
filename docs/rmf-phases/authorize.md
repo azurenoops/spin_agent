@@ -170,3 +170,14 @@
 ### POA&M Exports for Authorization (Feature 039)
 
 During authorization, export POA&M data in eMASS Excel format for inclusion in the authorization package. Use `compliance_export_poam` with format `emass_excel` or the Export button on the POA&M dashboard.
+
+### eMASS Authorization Package (Feature 041)
+
+Generate a complete authorization package for eMASS submission:
+
+1. **Validate readiness**: `compliance_validate_package` — ensures all artifacts exist and pass quality checks
+2. **Generate package**: `compliance_generate_package` — creates a ZIP with all six required artifacts
+3. **Track progress**: `compliance_package_status` — monitor generation in real time
+4. **Download and submit**: Download the ZIP from the Documents page for eMASS upload
+
+The package contains: OSCAL SSP, OSCAL POA&M, OSCAL Assessment Results, OSCAL Assessment Plan (SAP), SAR (Word), and evidence bundle.
