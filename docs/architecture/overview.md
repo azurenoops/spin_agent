@@ -410,11 +410,85 @@ Org defaults are automatically re-derived and propagated when:
 ### Dashboard UI
 
 - **Summary bar**: Org Defaults / Overrides cards shown when org defaults exist
-- **Source badges**: Teal (Org Default), Purple (CSP Profile), Sky (CRM Import)
+- **Source badges**: Teal (Org Default), Indigo (Capability), Gray (Manual)
 - **Source filter**: All Sources, Org Defaults, System Overrides, Undesignated
-- **Coverage banner**: Shows N of M controls with org-level defaults
+- **Coverage banner**: Shows N of M controls with org-level defaults + link to Capabilities Hub
 - **Org defaults modal**: View all derived defaults with search/pagination
 - **CRM export**: Designation Source column added to all layouts
+- **Cross-link banner**: Links to Security Capabilities Hub for CSP/CRM import management
+
+---
+
+## Security Capabilities Hub (Feature 045)
+
+### Architecture
+
+Unifies CSP profile import, CRM spreadsheet import, and capability management into a single Capabilities Hub page. Introduces a 3-layer model: **Components → Capabilities → Control Mappings**. CSP and CRM import flows have been moved from the Control Inheritance page to the Capabilities Hub to provide a single source of truth for security capability management.
+
+```
+                    ┌─────────────────────────────────────────────┐
+                    │         Capabilities Hub (React SPA)        │
+                    │                                             │
+                    │  ┌────────────┐ ┌──────────┐ ┌───────────┐ │
+                    │  │Import CSP  │ │Import CRM│ │ Create    │ │
+                    │  │  Profile   │ │  Export  │ │ Manual    │ │
+                    │  └──────┬─────┘ └─────┬────┘ └─────┬─────┘ │
+                    │         │             │            │        │
+                    │         ▼             ▼            ▼        │
+                    │  ┌──────────────────────────────────────┐   │
+                    │  │   CapabilityImportService             │   │
+                    │  │   (3-Layer Pipeline)                  │   │
+                    │  │                                       │   │
+                    │  │   Layer 1: SystemComponent (Thing)    │   │
+                    │  │   Layer 2: SecurityCapability         │   │
+                    │  │   Layer 3: CapabilityControlMapping   │   │
+                    │  └──────────────────┬───────────────────┘   │
+                    │                     │                        │
+                    │  ┌──────────────────▼───────────────────┐   │
+                    │  │   Coverage Dashboard                  │   │
+                    │  │   Cards • KPI • Gap Controls          │   │
+                    │  └──────────────────────────────────────┘   │
+                    └─────────────────────┬───────────────────────┘
+                                          │
+                              Derive Org  │  Defaults
+                                          ▼
+                    ┌─────────────────────────────────────────────┐
+                    │  OrgInheritanceService                      │
+                    │  → OrgInheritanceDefault per control        │
+                    │  → Cascade to all system baselines          │
+                    └─────────────────────────────────────────────┘
+```
+
+### 3-Layer Model
+
+| Layer | Entity | Purpose |
+|-------|--------|---------|
+| Component | `SystemComponent` (Thing) | Provider/technology grouping (e.g., "Azure Government") |
+| Capability | `SecurityCapability` | Reusable security solution (e.g., "Azure AD MFA") |
+| Mapping | `CapabilityControlMapping` | Links capability to NIST control with a role |
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| `CapabilityImportService` | CSP profile and CRM import pipeline (preview + apply) |
+| `CspProfileService` | Loads and validates pre-built CSP profiles from embedded JSON |
+| `CrmExportService` | Parses CSV/Excel files with auto-detected column mapping |
+| `CapabilityLibrary` page | React page: cards, import dialogs, coverage dashboard |
+| `GuidedEmptyState` | Onboarding component with 3 action paths |
+| `ComponentPickerModal` | Multi-select component linking from capability cards |
+
+### Import Flows
+
+- **CSP Profile**: Select profile → Preview changes → Apply → creates Components + Capabilities + Mappings
+- **CRM Spreadsheet**: Upload CSV/Excel → Auto-detect columns → Map fields → Preview → Apply
+- **Both flows**: Reuse existing components/capabilities by name match (idempotent)
+
+### Coverage Dashboard
+
+- **Provider cards**: Per-provider counts (controlled/total controls, unique capabilities, components)
+- **KPI bar**: Overall coverage %, total capabilities, gap controls
+- **Gap controls table**: Unmapped controls with family grouping
 
 ---
 

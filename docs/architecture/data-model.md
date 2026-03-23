@@ -1046,6 +1046,57 @@ EF Core migrations run automatically at startup (`MigrateDatabaseAsync`) with a 
 
 ## Dashboard Entities (Feature 030)
 
+### CspProfile (JSON — in-memory)
+
+Pre-built Cloud Service Provider profile loaded from embedded JSON. Not persisted in the database.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| ProfileId | string | Unique profile identifier |
+| Name | string | Display name (e.g., "Azure Government — FedRAMP High") |
+| Provider | string | CSP provider name |
+| BaselineLevel | string | NIST baseline (Low / Moderate / High) |
+| Description | string | Profile description |
+| Version | string | Profile version |
+| Controls | List&lt;ProfileControlMapping&gt; | Top-level control mappings |
+| Services | List&lt;CspService&gt; | Grouped capabilities by service |
+
+### CspService (JSON — in-memory)
+
+A service grouping within a CSP profile that maps to one or more capabilities.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Name | string | Service name (e.g., "Azure Active Directory") |
+| Category | string | NIST control family code |
+| Description | string | Service description |
+| Controls | List&lt;ProfileControlMapping&gt; | Controls covered by this service |
+
+### Import Pipeline Data Flow (Feature 045)
+
+The Capabilities Hub import pipeline transforms CSP profile and CRM data into the entity graph:
+
+```
+CSP Profile JSON / CRM Spreadsheet
+        │
+        ▼
+  CapabilityImportService
+        │
+        ├─► SystemComponent (Thing — one per provider/service)
+        │       └─► ComponentCapabilityLink
+        │
+        ├─► SecurityCapability (one per service or CRM grouping)
+        │       └─► CapabilityControlMapping (per control ID)
+        │
+        ▼
+  OrgInheritanceService.DeriveOrgDefaultsAsync()
+        │
+        ├─► OrgInheritanceDefault (per control)
+        │
+        └─► ControlBaseline (OrgDerived designations per system)
+                └─► NarrativeSection (auto-generated if template matches)
+```
+
 ### SecurityCapability
 
 Catalog entry for a reusable security solution mapped to NIST 800-53 controls.

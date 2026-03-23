@@ -10,9 +10,9 @@ import { useNotifications } from '../../hooks/useNotifications';
 const navItems = [
   { to: '/', label: 'Portfolio' },
   { to: '/systems', label: 'Systems' },
-  { to: '/controls', label: 'Controls' },
-  { to: '/capabilities', label: 'Capabilities' },
   { to: '/components', label: 'Components' },
+  { to: '/capabilities', label: 'Capabilities' },
+  { to: '/controls', label: 'Controls' },
 ];
 
 interface PageLayoutProps {

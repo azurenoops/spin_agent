@@ -17,6 +17,18 @@ public class SecurityCapabilityDto
     public int SystemsUsingCount { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? ModifiedAt { get; init; }
+    public List<LinkedComponentDto>? LinkedComponents { get; init; }
+    public int? SystemCount { get; init; }
+}
+
+/// <summary>
+/// Component linked to a capability (badge display).
+/// </summary>
+public class LinkedComponentDto
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required string ComponentType { get; init; }
 }
 
 /// <summary>

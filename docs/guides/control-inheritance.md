@@ -1,6 +1,6 @@
 # Control Inheritance & CRM Guide
 
-This guide explains how to use the **Control Inheritance** page in the ATO Copilot Dashboard to manage inheritance designations, generate Customer Responsibility Matrices, apply CSP profiles, and import CRM spreadsheets.
+This guide explains how to use the **Control Inheritance** page in the ATO Copilot Dashboard to manage inheritance designations, generate Customer Responsibility Matrices, and leverage org-level defaults derived from the [Security Capabilities Hub](security-capabilities.md).
 
 ## Overview
 
@@ -13,7 +13,15 @@ Every control in your selected NIST 800-53 baseline must be designated as one of
 | **Customer** | Fully the customer's responsibility |
 | **Undesignated** | Not yet classified (default) |
 
-The Control Inheritance page surfaces summary metrics, inline editing, bulk operations, audit trails, CRM export/import, pre-built CSP profiles, and org-level inheritance defaults.
+The Control Inheritance page surfaces summary metrics, inline editing, bulk operations, audit trails, CRM export, and org-level inheritance defaults.
+
+## Capabilities Hub Cross-Link
+
+A teal banner appears at the top of the page:
+
+> **Designations derived from Security Capabilities.** [Manage Capabilities →](/capabilities)
+
+This links directly to the [Security Capabilities Hub](security-capabilities.md), where CSP profiles and CRM spreadsheets are imported and mapped to controls. The inheritance page focuses on per-system designation management and CRM export.
 
 ## Navigation
 
@@ -29,11 +37,6 @@ The header area contains action buttons that adapt based on context:
 | **View Org Defaults** | Always | Opens modal showing org-level inheritance defaults |
 | **Derive Org Defaults** | Always | Derives defaults from capability mappings and cascades to all systems |
 | **Generate CRM** | Always | Generates and exports the Customer Responsibility Matrix |
-| **⋯ More Actions** | When org defaults exist | Dropdown with Apply CSP Profile and Import CRM |
-| **Apply CSP Profile** | When no org defaults | Apply a pre-built CSP inheritance profile |
-| **Import CRM** | When no org defaults | Import inheritance designations from a CRM spreadsheet |
-
-When org defaults are active, CSP Profile and CRM Import move into the "More Actions" (⋯) dropdown to reduce clutter.
 
 ## Managing Designations
 
@@ -79,29 +82,15 @@ Click any table row to open the **Audit History Panel** on the right side. It sh
    - **eMASS** — Aligned with eMASS import format plus Designation Source
 4. Click **Export** to download the file.
 
-## Applying a CSP Profile
+## CSP Profiles & CRM Import
 
-Pre-built CSP profiles automatically set inheritance designations for known CSP-provided controls.
+CSP profile application and CRM spreadsheet import have moved to the **[Security Capabilities Hub](security-capabilities.md)**. From there, imported capabilities are mapped to NIST controls and automatically flow into inheritance designations via org defaults.
 
-1. Click **Apply CSP Profile** in the header.
-2. Select a profile (e.g., "Azure Government — FedRAMP High").
-3. Choose conflict resolution:
-   - **Skip** — Do not overwrite controls that already have a designation.
-   - **Overwrite** — Replace existing designations with profile values.
-4. Click **Preview Changes** to see how many controls will be set.
-5. Click **Apply Profile** to commit the changes.
+See the [Capabilities Hub guide](security-capabilities.md) for instructions on:
 
-## Importing a CRM
-
-If you have an existing CRM spreadsheet, you can import it to set designations in bulk.
-
-1. Click **Import CRM** in the header.
-2. Drag and drop a CSV or Excel file (or click Browse).
-3. Review the detected columns and adjust the **column mapping**:
-   - Map source columns to: Control ID (required), Inheritance Type (required), Provider, Customer Responsibility.
-4. Review the sample data preview.
-5. Choose conflict resolution (Overwrite or Skip).
-6. Click **Apply Import** — controls not found in the baseline are flagged.
+- Importing a CSP profile (e.g., Azure Government — FedRAMP High)
+- Importing a CRM spreadsheet with column mapping
+- Viewing the coverage dashboard
 
 ## Org-Level Inheritance Defaults
 
@@ -135,7 +124,7 @@ The **All Sources** dropdown in the filter bar lets you filter the grid by desig
 |--------|-------|
 | All Sources | All controls (default) |
 | Org Defaults | Controls with `OrgDerived` designation source |
-| System Overrides | Controls manually set via Manual, CSP Profile, CRM Import, or Bulk Update |
+| System Overrides | Controls manually set via Manual, Capability-Derived, or Bulk Update |
 | Undesignated | Controls with no designation |
 
 ### Source Badges
@@ -145,17 +134,16 @@ Each designated control in the table displays a colored badge indicating its sou
 | Badge | Color | Meaning |
 |-------|-------|---------|
 | Org Default | Teal | Derived from an org-level default |
-| CSP Profile | Purple | Applied from a CSP profile |
-| CRM Import | Sky | Imported from a CRM spreadsheet |
+| Capability | Indigo | Derived from a security capability mapping |
 | Manual | Gray | Set manually or via bulk update |
 
-Controls derived from org defaults also show a teal checkmark tooltip. Controls that override an existing org default show an amber warning tooltip with the org default details.
+Controls derived from org defaults also show a teal checkmark tooltip. Controls that override an existing org default show an amber warning tooltip with the org default details. Hovering over a **Source Capability** column shows the linked capability names and a "View components →" link to the Capabilities Hub.
 
 ### Org Default Coverage Banner
 
 When org defaults exist, a teal banner appears below the page header:
 
-> **24 of 339** controls have org-level defaults. Apply a CSP profile to fill remaining gaps (optional).
+> **24 of 339** controls have org-level defaults. [Manage Capabilities →](/capabilities) to fill remaining gaps.
 
 ### Reverting to Org Defaults
 
@@ -175,8 +163,7 @@ Every inheritance designation tracks how it was set:
 | `OrgPropagation` | Cascaded to a system during org default derivation |
 | `Manual` | Set directly by a user via inline editing |
 | `BulkUpdate` | Applied via multi-select bulk update |
-| `ProfileApply` | Applied from a CSP profile |
-| `CrmImport` | Imported from a CRM spreadsheet |
+| `CapabilityDerived` | Derived from security capability mappings via the Capabilities Hub |
 
 The designation source is included in the CRM export as a "Designation Source" column across all three layout formats (Custom, FedRAMP, eMASS).
 

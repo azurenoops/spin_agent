@@ -1729,9 +1729,6 @@ Query parameters for discovery GET: `resourceGroup`, `resourceType`, `search`, `
 | GET | `/api/dashboard/systems/{systemId}/inheritance/crm` | Generate CRM data |
 | GET | `/api/dashboard/systems/{systemId}/inheritance/crm/export` | Export CRM as CSV or Excel |
 | GET | `/api/dashboard/systems/{systemId}/inheritance/csp-profiles` | List available CSP profiles |
-| POST | `/api/dashboard/systems/{systemId}/inheritance/apply-profile` | Apply a CSP profile (preview or commit) |
-| POST | `/api/dashboard/systems/{systemId}/inheritance/import/preview` | Parse uploaded CRM file, return column mapping |
-| POST | `/api/dashboard/systems/{systemId}/inheritance/import/apply` | Apply imported CRM with column mapping |
 
 Query parameters for inheritance GET: `family`, `inheritanceType`, `search`, `source`, `page`, `pageSize`, `sortBy`, `sortDirection`
 
@@ -1750,3 +1747,22 @@ Query parameters for CRM export GET: `format` (csv/excel), `layout` (custom/fedr
 Query parameters for org-defaults GET: `family`, `inheritanceType`, `search`, `page`, `pageSize`
 
 The list inheritance response now includes `designationSource` and `orgDefault` fields per item, plus `orgDefaultCount`, `systemOverrideCount`, and `sourceBreakdown` in the summary. CRM export includes a "Designation Source" column.
+
+#### Security Capabilities Hub (Feature 045)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/dashboard/capabilities` | List security capabilities (paginated, filterable) |
+| POST | `/api/dashboard/capabilities` | Create a new security capability |
+| PUT | `/api/dashboard/capabilities/{id}` | Update a security capability |
+| DELETE | `/api/dashboard/capabilities/{id}` | Delete a security capability |
+| GET | `/api/dashboard/capabilities/coverage` | Compute coverage dashboard (provider cards, KPI, gap controls) |
+| GET | `/api/dashboard/capabilities/csp-profiles` | List available CSP profiles with service counts |
+| POST | `/api/dashboard/capabilities/import/csp-profile` | Import CSP profile (preview with `?dryRun=true` or apply) |
+| POST | `/api/dashboard/capabilities/import/crm` | Import CRM spreadsheet (preview with `?dryRun=true` or apply) |
+| POST | `/api/dashboard/components/{componentId}/capabilities` | Bulk link capabilities to a component |
+| DELETE | `/api/dashboard/components/{componentId}/capabilities/{capabilityId}` | Unlink a capability from a component |
+
+Query parameters for capabilities GET: `search`, `category`, `provider`, `status`, `page`, `pageSize`
+
+The CSP profile import accepts JSON body with `profileId` and `conflictResolution` (Skip/Overwrite). The CRM import accepts `multipart/form-data` with a file and optional `columnMapping` JSON field. Both endpoints support `?dryRun=true` to return a preview without committing changes.

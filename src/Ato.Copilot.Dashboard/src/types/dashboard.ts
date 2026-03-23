@@ -194,6 +194,7 @@ export interface SecurityCapabilityDto {
   owner: string;
   mappedControlCount: number;
   systemsUsingCount: number;
+  linkedComponents?: { id: string; name: string }[];
   createdAt: string;
   modifiedAt: string | null;
 }

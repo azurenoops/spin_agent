@@ -108,9 +108,9 @@ dotnet build Ato.Copilot.sln [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMAN
 C# .NET 9: Follow standard conventions
 
 ## Recent Changes
+- 045-capabilities-hub: Added C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (frontend) + EF Core 9.0, ASP.NET Core Minimal APIs, ClosedXML 0.104.2 (Excel I/O), Serilog (logging); React 19, Vite 6, Tailwind CSS 3, Axios, React Router 7 (frontend)
 - 044-org-control-inheritance: Added C# 13 / .NET 9, TypeScript 5 / React 19 + EF Core 9, ASP.NET Core Minimal APIs, Vite 6, Tailwind CSS 3, Axios
 - 043-control-inheritance: Added C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (frontend) + EF Core 9.0, ASP.NET Core Minimal APIs, ClosedXML 0.104.2 (Excel I/O), Serilog (logging); React 19, Vite 6, Tailwind CSS 3, Axios, React Router 7 (frontend)
-- 042-system-intake-wizard: Added TypeScript 5.7 (frontend), C# .NET 8 (backend) + React 19, React Router 7, Vite 6, Tailwind CSS 3, Axios (frontend); EF Core, Serilog (backend)
 
 
 <!-- MANUAL ADDITIONS START -->

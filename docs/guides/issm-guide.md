@@ -351,12 +351,13 @@ Parameters:
 
 If your organization has defined security capabilities with NIST control mappings, use **Derive Org Defaults** to automatically set inheritance designations across all systems:
 
-1. Navigate to the **Control Inheritance** page for any system.
-2. Click **Derive Org Defaults** — this scans org-wide capability-control mappings and creates inheritance defaults.
-3. All systems receive `OrgDerived` designations for mapped controls.
-4. Review the results: the summary bar shows Org Defaults and Overrides counts.
+1. Navigate to the **[Security Capabilities Hub](/capabilities)** and import a CSP profile or CRM spreadsheet (see the [Capabilities Hub guide](security-capabilities.md)).
+2. Navigate to the **Control Inheritance** page for any system.
+3. Click **Derive Org Defaults** — this scans org-wide capability-control mappings and creates inheritance defaults.
+4. All systems receive `OrgDerived` designations for mapped controls.
+5. Review the results: the summary bar shows Org Defaults and Overrides counts.
 
-Org defaults cascade automatically — when you add or update capabilities in the Security Capabilities Library, defaults are re-derived and propagated to all system baselines.
+Org defaults cascade automatically — when you add or update capabilities in the Security Capabilities Hub, defaults are re-derived and propagated to all system baselines.
 
 To override an org default for a specific system, use the inline editor or bulk update — the designation source changes to Manual.
 

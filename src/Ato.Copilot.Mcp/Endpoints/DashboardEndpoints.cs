@@ -14,6 +14,7 @@ using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Mcp.Services;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
 
@@ -447,6 +448,62 @@ public static class DashboardEndpoints
             })
             .WithName("RemoveComponentAssignment");
 
+        group.MapPost("/components/{componentId}/capabilities", async (
+                string componentId,
+                LinkComponentCapabilitiesRequest request,
+                AtoCopilotContext db,
+                CancellationToken ct) =>
+            {
+                var component = await db.SystemComponents.FindAsync(new object[] { componentId }, ct);
+                if (component is null)
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = "Component not found",
+                        ErrorCode = "COMPONENT_NOT_FOUND",
+                    });
+
+                var linksCreated = 0;
+                var linksAlreadyExist = 0;
+                foreach (var capId in request.CapabilityIds)
+                {
+                    var exists = await db.ComponentCapabilityLinks
+                        .AnyAsync(l => l.SystemComponentId == componentId && l.SecurityCapabilityId == capId, ct);
+                    if (exists)
+                    {
+                        linksAlreadyExist++;
+                        continue;
+                    }
+                    // Verify capability exists
+                    var cap = await db.SecurityCapabilities.FindAsync(new object[] { capId }, ct);
+                    if (cap is null) continue;
+
+                    db.ComponentCapabilityLinks.Add(new ComponentCapabilityLink
+                    {
+                        SystemComponentId = componentId,
+                        SecurityCapabilityId = capId,
+                    });
+                    linksCreated++;
+                }
+                await db.SaveChangesAsync(ct);
+                return Results.Ok(new { componentId, linksCreated, linksAlreadyExist });
+            })
+            .WithName("LinkComponentCapabilities");
+
+        group.MapDelete("/components/{componentId}/capabilities/{capabilityId}", async (
+                string componentId,
+                string capabilityId,
+                AtoCopilotContext db,
+                CancellationToken ct) =>
+            {
+                var link = await db.ComponentCapabilityLinks
+                    .FirstOrDefaultAsync(l => l.SystemComponentId == componentId && l.SecurityCapabilityId == capabilityId, ct);
+                if (link is null) return Results.NoContent(); // idempotent
+                db.ComponentCapabilityLinks.Remove(link);
+                await db.SaveChangesAsync(ct);
+                return Results.NoContent();
+            })
+            .WithName("UnlinkComponentCapability");
+
         group.MapGet("/components/{componentId}/impact-preview", async (
                 string componentId,
                 ComponentService compService,
@@ -849,6 +906,146 @@ public static class DashboardEndpoints
                     });
             })
             .WithName("CreateCapabilityMappings");
+
+        // ─── Feature 045: Capabilities Hub Import/Coverage Endpoints ────────
+        group.MapPost("/capabilities/import/csp-profile", async (
+                CspProfileImportRequest request,
+                CapabilityImportService importService,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    if (request.DryRun == true)
+                    {
+                        var preview = await importService.ImportCspProfilePreviewAsync(
+                            request.ProfileId, request.ConflictResolution ?? "skip", ct);
+                        return Results.Ok(preview);
+                    }
+
+                    var result = await importService.ImportCspProfileAsync(
+                        request.ProfileId, request.ConflictResolution ?? "skip", ct);
+                    return Results.Ok(result);
+                }
+                catch (KeyNotFoundException)
+                {
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = $"CSP profile '{request.ProfileId}' not found",
+                        ErrorCode = "PROFILE_NOT_FOUND",
+                        Suggestion = "Check the profile ID and try again",
+                    });
+                }
+            })
+            .WithName("ImportCspProfile");
+
+        group.MapGet("/capabilities/coverage", async (
+                bool? includePerSystem,
+                bool? includePerFamily,
+                CapabilityImportService importService,
+                CancellationToken ct) =>
+            {
+                var result = await importService.ComputeCoverageAsync(
+                    includePerSystem ?? false, includePerFamily ?? true, ct);
+                return Results.Ok(result);
+            })
+            .WithName("GetOrgWideCoverage");
+
+        group.MapGet("/capabilities/csp-profiles", (
+                Ato.Copilot.Mcp.Services.CspProfileService cspProfileService) =>
+            {
+                var profiles = cspProfileService.GetProfiles();
+                return Results.Ok(new
+                {
+                    profiles = profiles.Select(p => new
+                    {
+                        profileId = p.ProfileId,
+                        name = p.Name,
+                        provider = p.Provider,
+                        baselineLevel = p.BaselineLevel,
+                        description = p.Description,
+                        controlCount = p.Controls.Count,
+                        serviceCount = p.Services?.Count ?? 0,
+                        version = p.Version
+                    })
+                });
+            })
+            .WithName("ListCapabilityCspProfiles");
+
+        group.MapPost("/capabilities/import/crm", async (
+                HttpRequest httpRequest,
+                CapabilityImportService importService,
+                CrmExportService crmExportService,
+                CancellationToken ct) =>
+            {
+                var form = await httpRequest.ReadFormAsync(ct);
+                var file = form.Files.GetFile("file");
+                if (file is null || file.Length == 0)
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "No file uploaded",
+                        ErrorCode = "FILE_REQUIRED",
+                        Suggestion = "Upload a CSV or Excel file",
+                    });
+
+                var columnMappingJson = form["columnMapping"].ToString();
+                var conflictResolution = form["conflictResolution"].ToString();
+                var dryRunStr = form["dryRun"].ToString();
+                var dryRun = dryRunStr.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+                if (string.IsNullOrEmpty(conflictResolution)) conflictResolution = "skip";
+
+                // Parse file
+                CrmExportService.ImportParseResult parsed;
+                var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                using var stream = file.OpenReadStream();
+                if (ext is ".xlsx" or ".xls")
+                    parsed = crmExportService.ParseExcel(stream);
+                else
+                    parsed = crmExportService.ParseCsv(stream);
+
+                // Determine column mapping
+                Dictionary<string, string> mapping;
+                if (!string.IsNullOrEmpty(columnMappingJson))
+                {
+                    mapping = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(columnMappingJson)
+                        ?? new Dictionary<string, string>();
+                }
+                else
+                {
+                    // Auto-detect: use exact column names
+                    mapping = new Dictionary<string, string>
+                    {
+                        ["controlId"] = parsed.Columns.FirstOrDefault(c => c.Contains("control", StringComparison.OrdinalIgnoreCase)) ?? "controlId",
+                        ["inheritanceType"] = parsed.Columns.FirstOrDefault(c => c.Contains("inheritance", StringComparison.OrdinalIgnoreCase)) ?? "inheritanceType",
+                        ["provider"] = parsed.Columns.FirstOrDefault(c => c.Contains("provider", StringComparison.OrdinalIgnoreCase)) ?? "provider",
+                        ["customerResponsibility"] = parsed.Columns.FirstOrDefault(c => c.Contains("responsibility", StringComparison.OrdinalIgnoreCase)) ?? "customerResponsibility",
+                    };
+                }
+
+                // Map parsed rows to CrmImportRow using column mapping
+                var rows = parsed.Rows.Select(row => new CrmImportRow
+                {
+                    ControlId = mapping.TryGetValue("controlId", out var cidCol) && row.TryGetValue(cidCol, out var cid) ? cid : "",
+                    InheritanceType = mapping.TryGetValue("inheritanceType", out var itCol) && row.TryGetValue(itCol, out var it) ? it : "",
+                    Provider = mapping.TryGetValue("provider", out var pCol) && row.TryGetValue(pCol, out var p) ? p : null,
+                    CustomerResponsibility = mapping.TryGetValue("customerResponsibility", out var crCol) && row.TryGetValue(crCol, out var cr) ? cr : null,
+                }).Where(r => !string.IsNullOrWhiteSpace(r.ControlId)).ToList();
+
+                if (dryRun)
+                {
+                    var preview = await importService.ImportCrmPreviewAsync(
+                        file.FileName, rows, conflictResolution, ct);
+                    preview.DetectedColumns = parsed.Columns;
+                    preview.SampleRows = parsed.SampleRows;
+                    return Results.Ok(preview);
+                }
+
+                var result = await importService.ImportCrmAsync(
+                    file.FileName, rows, conflictResolution, ct);
+                return Results.Ok(result);
+            })
+            .DisableAntiforgery()
+            .WithName("ImportCrm");
 
         // ─── Trends (US6) ───────────────────────────────────────────────────
         group.MapGet("/systems/{systemId}/trends", async (
@@ -6007,235 +6204,8 @@ public static class DashboardEndpoints
             });
         }).WithName("ListCspProfiles");
 
-        // ── POST /systems/{systemId}/inheritance/apply-profile — preview or apply CSP profile
-        // TODO(FR-026): Add role validation for this write endpoint
-        group.MapPost("/systems/{systemId}/inheritance/apply-profile", async (
-            string systemId,
-            Feature043ApplyProfileRequest req,
-            Ato.Copilot.Mcp.Services.CspProfileService cspProfileService,
-            IBaselineService baselineService,
-            AtoCopilotContext context,
-            CancellationToken ct) =>
-        {
-            var profile = cspProfileService.GetProfile(req.ProfileId);
-            if (profile == null)
-                return Results.NotFound(new ErrorResponse { Error = $"Profile '{req.ProfileId}' not found", ErrorCode = "PROFILE_NOT_FOUND" });
-
-            var baseline = await baselineService.GetBaselineAsync(systemId, includeDetails: true, cancellationToken: ct);
-            if (baseline == null)
-                return Results.NotFound(new ErrorResponse { Error = "System or baseline not found", ErrorCode = "BASELINE_NOT_FOUND" });
-
-            // Build existing designations map
-            var existing = baseline.Inheritances.ToDictionary(
-                i => i.ControlId,
-                i => i.InheritanceType.ToString(),
-                StringComparer.OrdinalIgnoreCase);
-
-            var conflict = req.ConflictResolution ?? "skip";
-            var matchResult = cspProfileService.MatchProfile(profile, baseline.ControlIds, existing, conflict);
-
-            if (req.Preview)
-            {
-                return Results.Ok(new
-                {
-                    preview = true,
-                    profileName = matchResult.ProfileName,
-                    matchedControls = matchResult.MatchedControls,
-                    unmatchedControls = matchResult.UnmatchedControls,
-                    willSetInherited = matchResult.WillSetInherited,
-                    willSetShared = matchResult.WillSetShared,
-                    willSetCustomer = matchResult.WillSetCustomer,
-                    willSkipExisting = matchResult.WillSkipExisting,
-                    conflicts = matchResult.Conflicts
-                });
-            }
-
-            // Apply the profile
-            var mappings = matchResult.MappingsToApply.Select(m => new InheritanceInput
-            {
-                ControlId = m.ControlId,
-                InheritanceType = m.InheritanceType,
-                Provider = m.Provider ?? profile.Provider,
-                CustomerResponsibility = m.CustomerResponsibility
-            });
-
-            var result = await baselineService.SetInheritanceAsync(
-                systemId, mappings, "dashboard-user",
-                InheritanceChangeSource.ProfileApply, ct);
-
-            var totalControls = result.Baseline.ControlIds.Count;
-            var undesignated = totalControls - result.InheritedCount - result.SharedCount - result.CustomerCount;
-            var pct = totalControls > 0 ? Math.Round((double)(result.InheritedCount + result.SharedCount + result.CustomerCount) / totalControls * 100, 1) : 0;
-
-            context.DashboardActivities.Add(new DashboardActivity
-            {
-                RegisteredSystemId = systemId,
-                EventType = "CspProfileApplied",
-                Actor = "dashboard-user",
-                Summary = $"Applied CSP profile '{profile.Name}': {result.ControlsUpdated} controls updated",
-                RelatedEntityType = "ControlBaseline",
-                RelatedEntityId = result.Baseline.Id,
-            });
-            await context.SaveChangesAsync(ct);
-
-            return Results.Ok(new
-            {
-                applied = true,
-                controlsUpdated = result.ControlsUpdated,
-                controlsSkipped = matchResult.WillSkipExisting,
-                narrativesAutoUpdated = result.NarrativesAutoUpdated,
-                summary = new
-                {
-                    totalControls,
-                    inheritedCount = result.InheritedCount,
-                    sharedCount = result.SharedCount,
-                    customerCount = result.CustomerCount,
-                    undesignatedCount = undesignated,
-                    inheritancePercentage = pct
-                }
-            });
-        }).WithName("ApplyCspProfile");
-
-        // ── POST /systems/{systemId}/inheritance/import/preview — parse CRM file
-        // TODO(FR-026): Add role validation for this write endpoint
-        group.MapPost("/systems/{systemId}/inheritance/import/preview", async (
-            string systemId,
-            IFormFile file,
-            Ato.Copilot.Mcp.Services.CrmExportService crmExportService,
-            IBaselineService baselineService,
-            CancellationToken ct) =>
-        {
-            var baseline = await baselineService.GetBaselineAsync(systemId, cancellationToken: ct);
-            if (baseline == null)
-                return Results.NotFound(new ErrorResponse { Error = "System or baseline not found", ErrorCode = "BASELINE_NOT_FOUND" });
-
-            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-            Ato.Copilot.Mcp.Services.CrmExportService.ImportParseResult parsed;
-
-            using var stream = file.OpenReadStream();
-            if (ext == ".csv")
-                parsed = crmExportService.ParseCsv(stream);
-            else if (ext is ".xlsx" or ".xls")
-                parsed = crmExportService.ParseExcel(stream);
-            else
-                return Results.BadRequest(new ErrorResponse { Error = $"Unsupported file type: {ext}", ErrorCode = "IMPORT_FORMAT_INVALID" });
-
-            var mapping = crmExportService.SuggestColumnMapping(parsed.Columns);
-
-            // Store rows in memory cache with a preview token
-            var token = Guid.NewGuid().ToString();
-            ImportPreviewCache[token] = parsed;
-
-            return Results.Ok(new
-            {
-                fileName = file.FileName,
-                fileType = ext.TrimStart('.'),
-                totalRows = parsed.Rows.Count,
-                detectedColumns = parsed.Columns,
-                suggestedMapping = mapping,
-                sampleRows = parsed.SampleRows,
-                previewToken = token
-            });
-        }).WithName("ImportCrmPreview").DisableAntiforgery();
-
-        // ── POST /systems/{systemId}/inheritance/import/apply — apply mapped import
-        // TODO(FR-026): Add role validation for this write endpoint
-        group.MapPost("/systems/{systemId}/inheritance/import/apply", async (
-            string systemId,
-            Feature043ImportApplyRequest req,
-            IBaselineService baselineService,
-            AtoCopilotContext context,
-            CancellationToken ct) =>
-        {
-            if (!ImportPreviewCache.TryGetValue(req.PreviewToken, out var parsed))
-                return Results.BadRequest(new ErrorResponse { Error = "Preview token expired or invalid", ErrorCode = "PREVIEW_TOKEN_INVALID" });
-
-            ImportPreviewCache.Remove(req.PreviewToken);
-
-            var baseline = await baselineService.GetBaselineAsync(systemId, includeDetails: true, cancellationToken: ct);
-            if (baseline == null)
-                return Results.NotFound(new ErrorResponse { Error = "System or baseline not found", ErrorCode = "BASELINE_NOT_FOUND" });
-
-            var baselineSet = new HashSet<string>(baseline.ControlIds, StringComparer.OrdinalIgnoreCase);
-            var existingDesignations = baseline.Inheritances.ToDictionary(i => i.ControlId, i => true, StringComparer.OrdinalIgnoreCase);
-
-            var mappings = new List<InheritanceInput>();
-            var notFound = new List<string>();
-            var skipped = 0;
-
-            foreach (var row in parsed.Rows)
-            {
-                row.TryGetValue(req.ColumnMapping.ControlId, out var controlId);
-                row.TryGetValue(req.ColumnMapping.InheritanceType, out var rawType);
-                row.TryGetValue(req.ColumnMapping.Provider, out var provider);
-                row.TryGetValue(req.ColumnMapping.CustomerResponsibility, out var responsibility);
-
-                if (string.IsNullOrWhiteSpace(controlId)) continue;
-                controlId = controlId.Trim();
-
-                if (!baselineSet.Contains(controlId))
-                {
-                    notFound.Add(controlId);
-                    continue;
-                }
-
-                if (req.ConflictResolution == "skip" && existingDesignations.ContainsKey(controlId))
-                {
-                    skipped++;
-                    continue;
-                }
-
-                // Map import values to our enum
-                var inheritanceType = MapImportType(rawType?.Trim());
-
-                mappings.Add(new InheritanceInput
-                {
-                    ControlId = controlId,
-                    InheritanceType = inheritanceType,
-                    Provider = provider?.Trim(),
-                    CustomerResponsibility = responsibility?.Trim()
-                });
-            }
-
-            var result = await baselineService.SetInheritanceAsync(
-                systemId, mappings, "dashboard-user",
-                InheritanceChangeSource.CrmImport, ct);
-
-            var totalControls = result.Baseline.ControlIds.Count;
-            var undesignated = totalControls - result.InheritedCount - result.SharedCount - result.CustomerCount;
-            var pct = totalControls > 0 ? Math.Round((double)(result.InheritedCount + result.SharedCount + result.CustomerCount) / totalControls * 100, 1) : 0;
-
-            context.DashboardActivities.Add(new DashboardActivity
-            {
-                RegisteredSystemId = systemId,
-                EventType = "CrmImported",
-                Actor = "dashboard-user",
-                Summary = $"Imported CRM: {result.ControlsUpdated} controls updated, {notFound.Count} not found",
-                RelatedEntityType = "ControlBaseline",
-                RelatedEntityId = result.Baseline.Id,
-            });
-            await context.SaveChangesAsync(ct);
-
-            return Results.Ok(new
-            {
-                applied = true,
-                controlsImported = result.ControlsUpdated,
-                controlsSkipped = skipped,
-                controlsNotFound = notFound.Count,
-                notFoundControlIds = notFound,
-                duplicatesOverwritten = req.ConflictResolution == "overwrite" ? result.ControlsUpdated : 0,
-                narrativesAutoUpdated = result.NarrativesAutoUpdated,
-                summary = new
-                {
-                    totalControls,
-                    inheritedCount = result.InheritedCount,
-                    sharedCount = result.SharedCount,
-                    customerCount = result.CustomerCount,
-                    undesignatedCount = undesignated,
-                    inheritancePercentage = pct
-                }
-            });
-        }).WithName("ImportCrmApply");
+        // Feature 045: Old CSP/CRM import endpoints removed — replaced by
+        // POST /capabilities/import/csp-profile and POST /capabilities/import/crm
 
         // ─── Feature 044: Org-Level Inheritance Endpoints ──────────────────────
 

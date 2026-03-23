@@ -89,10 +89,32 @@ public class CapabilityService
             .Select(g => new { CapId = g.Key, Count = g.Select(ci => ci.RegisteredSystemId).Distinct().Count() })
             .ToListAsync(cancellationToken);
 
+        // Feature 045: Load linked components for badge display
+        var componentLinks = await _db.ComponentCapabilityLinks
+            .Where(l => capIds.Contains(l.SecurityCapabilityId))
+            .Select(l => new
+            {
+                l.SecurityCapabilityId,
+                l.SystemComponent.Id,
+                l.SystemComponent.Name,
+                ComponentType = l.SystemComponent.ComponentType.ToString(),
+            })
+            .ToListAsync(cancellationToken);
+
+        var componentLinksByCapId = componentLinks
+            .GroupBy(l => l.SecurityCapabilityId)
+            .ToDictionary(g => g.Key, g => g.Select(l => new LinkedComponentDto
+            {
+                Id = l.Id,
+                Name = l.Name,
+                ComponentType = l.ComponentType,
+            }).ToList());
+
         var items = capabilities.Select(c => MapToDto(
             c,
             mappingCounts.FirstOrDefault(m => m.CapId == c.Id)?.Count ?? 0,
-            systemCounts.FirstOrDefault(s => s.CapId == c.Id)?.Count ?? 0
+            systemCounts.FirstOrDefault(s => s.CapId == c.Id)?.Count ?? 0,
+            componentLinksByCapId.GetValueOrDefault(c.Id)
         )).ToList();
 
         var nextCursor = startIndex + pageSize < totalCount
@@ -1366,7 +1388,8 @@ public class CapabilityService
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private static SecurityCapabilityDto MapToDto(
-        SecurityCapability entity, int mappedControlCount, int systemsUsingCount)
+        SecurityCapability entity, int mappedControlCount, int systemsUsingCount,
+        List<LinkedComponentDto>? linkedComponents = null)
     {
         return new SecurityCapabilityDto
         {
@@ -1382,6 +1405,8 @@ public class CapabilityService
             SystemsUsingCount = systemsUsingCount,
             CreatedAt = entity.CreatedAt,
             ModifiedAt = entity.ModifiedAt,
+            LinkedComponents = linkedComponents,
+            SystemCount = systemsUsingCount,
         };
     }
 }

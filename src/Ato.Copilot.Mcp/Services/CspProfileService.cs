@@ -37,9 +37,18 @@ public class CspProfileService
                     });
                     if (profile != null)
                     {
+                        // If services[] is populated, flatten into Controls for backward compat
+                        if (profile.Services.Count > 0)
+                        {
+                            profile.Controls = profile.Services
+                                .SelectMany(s => s.Controls)
+                                .ToList();
+                        }
+
                         _profiles.Add(profile);
-                        _logger.LogInformation("Loaded CSP profile: {Name} ({Count} controls)",
-                            profile.Name, profile.Controls.Count);
+                        _logger.LogInformation(
+                            "Loaded CSP profile: {Name} ({ServiceCount} services, {Count} controls)",
+                            profile.Name, profile.Services.Count, profile.Controls.Count);
                     }
                 }
                 catch (Exception ex)
@@ -138,6 +147,24 @@ public class CspProfileService
 
         [JsonPropertyName("version")]
         public string Version { get; set; } = string.Empty;
+
+        [JsonPropertyName("controls")]
+        public List<ProfileControlMapping> Controls { get; set; } = new();
+
+        [JsonPropertyName("services")]
+        public List<CspService> Services { get; set; } = new();
+    }
+
+    public class CspService
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("category")]
+        public string Category { get; set; } = string.Empty;
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = string.Empty;
 
         [JsonPropertyName("controls")]
         public List<ProfileControlMapping> Controls { get; set; } = new();

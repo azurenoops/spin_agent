@@ -13,9 +13,10 @@ interface CapabilityCardProps {
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onLinkComponents: () => void;
 }
 
-export function CapabilityCard({ capability, isExpanded, onToggle, onEdit, onDelete }: CapabilityCardProps) {
+export function CapabilityCard({ capability, isExpanded, onToggle, onEdit, onDelete, onLinkComponents }: CapabilityCardProps) {
   return (
     <div className="border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
       <button
@@ -54,12 +55,27 @@ export function CapabilityCard({ capability, isExpanded, onToggle, onEdit, onDel
             <span>Owner: {capability.owner}</span>
             <span>{capability.systemsUsingCount} system(s) using</span>
           </div>
+          {capability.linkedComponents && capability.linkedComponents.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {capability.linkedComponents.map(c => (
+                <span key={c.id} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                  {c.name}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2 pt-1">
             <button
               onClick={onEdit}
               className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               Edit
+            </button>
+            <button
+              onClick={onLinkComponents}
+              className="px-3 py-1.5 text-xs border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
+            >
+              Link Components
             </button>
             <button
               onClick={onDelete}

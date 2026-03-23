@@ -4,6 +4,52 @@ All notable changes to ATO Copilot are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-03-29
+
+### Added
+
+#### Feature 045: Unified Security Capabilities Hub
+
+- **3-Layer Import Model** — Unified CSP profile and CRM import pipeline that creates Components (provider grouping) → Capabilities (security solutions) → Control Mappings (NIST control links) through a single service (`CapabilityImportService`).
+- **CSP Profile Import** — Import pre-built Cloud Service Provider profiles (e.g., Azure Government — FedRAMP High) via the Capabilities Hub. Profiles create `SystemComponent` (Thing) entries per service, `SecurityCapability` entries, and `CapabilityControlMapping` records. Preview mode (`dryRun=true`) shows change summary before committing.
+- **CRM Spreadsheet Import** — Upload CSV or Excel CRM files with automatic column detection and configurable field mapping. Auto-suggest maps source columns to Control ID, Inheritance Type, Provider, and Customer Responsibility. 4-step dialog: upload → column mapping → preview → apply.
+- **Coverage Dashboard** — Per-provider coverage cards showing controlled/total controls, unique capabilities, and components. KPI bar with overall coverage percentage, total capabilities, and gap control count. Expandable gap controls table with family grouping.
+- **Component Linking** — Multi-select `ComponentPickerModal` for linking/unlinking capabilities to components. Search and type filter with pre-selected indicators. "Link Components" button on capability cards with component badges.
+- **Guided Empty State** — Three color-coded action cards (Create Manually, Import CSP Profile, Import CRM) for first-time users on the Capabilities page.
+- **Inheritance Page Simplification** — Removed CSP Profile and CRM Import buttons from Control Inheritance toolbar. Added cross-link banner ("Designations derived from Security Capabilities. [Manage Capabilities →]") and source capability hover tooltips showing capability names and component links.
+- **Component-to-Capability Shortcut** — "+ Capability" button on Thing-type components without capabilities. Navigates to Capabilities page with prefilled name and provider via query params.
+- **REST API Endpoints**:
+  - `GET /api/dashboard/capabilities/coverage` — Compute coverage dashboard (provider cards, KPI, gaps)
+  - `GET /api/dashboard/capabilities/csp-profiles` — List CSP profiles with service counts
+  - `POST /api/dashboard/capabilities/import/csp-profile` — Import CSP profile (preview or apply)
+  - `POST /api/dashboard/capabilities/import/crm` — Import CRM spreadsheet (preview or apply)
+  - `POST /api/dashboard/components/{componentId}/capabilities` — Bulk link capabilities
+  - `DELETE /api/dashboard/components/{componentId}/capabilities/{capabilityId}` — Unlink capability
+- **39 Tests** — 15 unit tests (CapabilityImportService), 5 unit tests (CoverageComputation), 6 unit tests (CspProfileServiceExt), 13 integration tests (CSP import, CRM import, component linking, performance benchmarks).
+
+### Changed
+
+- **ControlInheritance.tsx** — Removed 6 state variables, 5 handler functions, 2 dialog imports; replaced with cross-link banner and source capability tooltips.
+- **CapabilityLibrary.tsx** — Added CRM import dialog, component picker modal, guided empty state, and search params handling for createFrom prefill.
+- **CapabilityCard.tsx** — Added component badges and "Link Components" button.
+- **ComponentSection.tsx** — Added capability count badge and "+ Capability" button for Thing-type components.
+- **ComponentInventory.tsx** — Added `handleCreateCapability` navigation with query params.
+
+### Documentation
+
+- **Security Capabilities Hub Guide** — New comprehensive guide covering 3-layer model, CSP import, CRM import, coverage dashboard, component linking, control inheritance integration, and all API endpoints.
+- **Control Inheritance Guide** — Removed CSP/CRM import sections, added cross-link banner docs, updated source badges and designation sources.
+- **Architecture Overview** — Added Security Capabilities Hub section with architecture diagram and 3-layer model.
+- **Data Model** — Added CspProfile/CspService JSON schemas and import pipeline data flow diagram.
+- **MCP Server API** — Added Feature 045 endpoint table, removed deprecated inheritance import endpoints.
+- **Agent Tool Catalog** — Added Capabilities Hub REST endpoints with request/response examples.
+- **Tool Inventory** — Added 4 new endpoint rows (16d–16g).
+- **Glossary** — Added 3-Layer Model, Capabilities Hub, Coverage %, Gap Controls terms.
+- **ISSM Guide** — Updated Step 7 to reference Capabilities Hub for CSP/CRM import.
+- **AO Quick Reference** — Added Capabilities Coverage KPI section for portfolio risk assessment.
+
+---
+
 ## [1.28.0] - 2026-03-22
 
 ### Added

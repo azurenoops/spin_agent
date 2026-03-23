@@ -1,111 +1,122 @@
-# Security Capabilities Library
+# Security Capabilities Hub
 
-> Feature 030: Visual Compliance Dashboard & Risk Solutions Library
+> Feature 045: Unified Security Capabilities Hub
 
-The Security Capabilities Library provides a centralized catalog of your organization's security solutions, with automatic NIST 800-53 control mapping, narrative generation, and propagation management.
-
----
-
-## Overview
-
-A **Security Capability** represents a technology, process, or service that implements one or more NIST 800-53 controls. Examples include:
-
-- **Multi-Factor Authentication** (Entra ID) → AC-2, AC-7, IA-2, IA-5, IA-8
-- **Encryption at Rest** (Key Vault) → SC-12, SC-13, SC-28
-- **Log Analytics** (Azure Monitor) → AU-2, AU-3, AU-6, AU-12
+The Capabilities Hub is a centralized command center for managing the full security capability pipeline: **Components → Capabilities → Control Inheritance**. It provides CSP profile import, CRM file import, coverage analytics, and component linking — all from a single page.
 
 ---
 
-## Creating a Capability
+## Three-Layer Model
 
-Navigate to `/capabilities` and click **+ Create Capability**.
+The Capabilities Hub implements a 3-layer architecture:
 
-### Required Fields
+1. **Components** — Technology products and services (e.g., "Microsoft Entra ID", "Zscaler ZIA")
+2. **Capabilities** — Security functions mapped to NIST 800-53 control families (e.g., "Entra ID / Access Control")
+3. **Control Mappings** — Links from capabilities to specific controls with inheritance types (Inherited, Shared)
 
-| Field | Description |
-|-------|-------------|
-| **Name** | Unique display name (e.g., "Multi-Factor Authentication") |
-| **Provider** | Technology provider (e.g., "Microsoft Entra ID") |
-| **Category** | NIST 800-53 control family (e.g., "IA — Identification and Authentication") |
-| **Description** | What this capability does and how it works |
-| **Implementation Status** | Planned, InProgress, Implemented, or Deprecated |
-| **Owner** | Team or role responsible |
+---
+
+## Getting Started
+
+When the Capabilities page is empty, a **Guided Empty State** offers three paths:
+
+| Path | Description |
+|------|-------------|
+| **Create Manually** | Define a single capability with name, provider, category |
+| **Import CSP Profile** | Bulk-import from Azure FedRAMP High or another seed profile |
+| **Import CRM File** | Upload a CSV/Excel CRM to auto-create capabilities |
+
+---
+
+## CSP Profile Import
+
+1. Click **Import CSP Profile** in the toolbar
+2. Select a profile from the dropdown (e.g., "Azure Government FedRAMP High")
+3. Choose conflict resolution: **Skip** existing or **Overwrite**
+4. Click **Preview** to see a dryRun summary (components/capabilities to create vs reuse)
+5. Click **Confirm Import** to execute
+
+The import pipeline:
+
+- Creates one **Component** per CSP service (e.g., "Microsoft Entra ID")
+- Creates one **Capability** per service ("{service} / {family}" naming)
+- Creates **ControlMappings** with inheritance types from the profile
+- Auto-generates **narratives** for each mapped control
+- Derives **org-level defaults** for downstream system inheritance
+
+---
+
+## CRM File Import
+
+1. Click **Import CRM** in the toolbar
+2. Drag & drop or browse for a CSV or Excel file
+3. Map detected columns to target fields (Control ID, Inheritance Type, Provider, Customer Responsibility)
+4. Review sample data and set conflict resolution
+5. Click **Preview Import** to see a dryRun summary
+6. Click **Confirm Import** to execute
+
+The import groups rows by **Provider + NIST Family** to create capabilities automatically.
+
+---
+
+## Coverage Dashboard
+
+Four KPI cards at the top of the Capabilities page show:
+
+| Card | Description |
+|------|-------------|
+| **Total Capabilities** | Number of security capabilities defined |
+| **Mapped Controls** | Controls with at least one capability mapping |
+| **Gap Controls** | Controls in the highest baseline with no mapping |
+| **Coverage %** | Mapped / total controls in highest baseline |
+
+The Coverage % also appears on the **Portfolio Risk Profile** page as an 8th KPI card.
+
+---
+
+## Component Linking
+
+Each capability card shows **component badges** for linked components. Click **Link Components** to:
+
+1. Search and filter the org-level component library
+2. Toggle checkboxes to link/unlink components
+3. Save changes
+
+On the **Component Inventory** page, Thing-type components without capabilities show a **+ Capability** quick action that navigates to the Capabilities page with the create form pre-filled.
+
+---
+
+## Control Inheritance Integration
+
+The **Control Inheritance** page now shows:
+
+- A **cross-link banner**: "Designations derived from Security Capabilities. [Manage Capabilities →]"
+- **Component context tooltips** on org-level defaults: hover over Source Capability to see which capabilities back each designation
+- CSP Profile and CRM Import buttons have been **removed** from the inheritance page (use the Capabilities Hub instead)
 
 ---
 
 ## Control Mapping
 
-After creating a capability, expand it and use the **Mapping Panel** to link controls.
+Expand a capability card to see the **Mapping Panel** for linking controls.
 
 ### Mapping Roles
 
-Each mapping has a role that describes the capability's relationship to the control:
-
 | Role | Description |
 |------|-------------|
-| **Primary** | This capability is the primary implementation for the control |
-| **Supporting** | This capability supports another primary implementation |
-| **Shared** | This capability is shared across multiple controls |
-
-!!! warning "Duplicate Primary"
-    If a control already has a Primary mapping from another capability, you'll see a warning. Only one capability should be Primary per control per system.
+| **Primary** | This capability is the primary implementation |
+| **Supporting** | Supports another primary implementation |
+| **Shared** | Shared across multiple controls |
 
 ---
 
 ## Narrative Auto-Generation
 
-When you map a capability to controls, narratives are automatically generated and written to the corresponding `ControlImplementation` records.
-
-### How It Works
-
-1. The **NarrativeTemplateService** generates a narrative using the capability's name, provider, and description
-2. Each NIST family has context-specific wording (e.g., AC family includes access control terms, IA family includes authentication terms)
-3. The generated narrative is stored in `ControlImplementation.Narrative`
-4. `SecurityCapabilityId` is set on the `ControlImplementation` to track the source
-
-### Example Generated Narrative
-
-> *"Access control is enforced through Multi-Factor Authentication provided by Microsoft Entra ID. This capability ensures that all user access to the system requires multi-factor verification, supporting the requirements of AC-2 by implementing automated account management procedures."*
-
----
-
-## Narrative Propagation
-
-When you **update** a capability (change name, provider, or description), narratives are automatically regenerated for all mapped controls.
+When you map a capability to controls, narratives are automatically generated using the capability's name, provider, and description. Each NIST family has context-specific wording.
 
 ### Manual Override Protection
 
-If you manually edit a generated narrative in the SSP authoring workflow, the `IsManuallyCustomized` flag is set to `true`. When the capability is updated:
-
-- **Non-customized narratives** → Regenerated automatically
-- **Customized narratives** → Skipped (preserved as-is)
-
-The update response shows how many narratives were updated vs. skipped:
-
-```
-Updated 4 narratives, skipped 1 manually customized
-```
-
----
-
-## Deleting a Capability
-
-When you delete a capability:
-
-1. All `ControlImplementation.SecurityCapabilityId` references are set to `null`
-2. Existing narratives are **preserved** (not deleted)
-3. A `DashboardActivity` entry is created to track the deletion
-
----
-
-## Browsing & Filtering
-
-The Capabilities Library page supports:
-
-- **Search** — Filter by capability name
-- **Category Filter** — Filter by NIST control family
-- **Status Filter** — Filter by implementation status
-- **Pagination** — Cursor-based pagination for large catalogs
+Manually edited narratives have `IsManuallyCustomized = true` and are preserved during capability updates.
 
 ---
 
@@ -115,18 +126,11 @@ The Capabilities Library page supports:
 |--------|------|-------------|
 | GET | `/api/dashboard/capabilities` | List capabilities with filters |
 | POST | `/api/dashboard/capabilities` | Create a new capability |
-| PUT | `/api/dashboard/capabilities/{id}` | Update capability (triggers propagation) |
+| PUT | `/api/dashboard/capabilities/{id}` | Update capability |
 | DELETE | `/api/dashboard/capabilities/{id}` | Delete capability |
-| GET | `/api/dashboard/capabilities/{id}/mappings` | List control mappings |
-| POST | `/api/dashboard/capabilities/{id}/mappings` | Create new mappings |
-
----
-
-## Boundary-Scoped Mappings (Feature 033)
-
-Capability-to-control mappings can be scoped to specific authorization boundaries:
-
-- A **boundary badge** on each mapping indicates its boundary scope (or "All Boundaries" for organization-wide mappings)
-- When adding new mappings, a boundary selector allows targeting a specific boundary
-- **Composite narratives**: When a control has mappings across multiple boundaries, the narrative auto-generates with organization-wide sections first, followed by per-boundary sections alphabetically
-- Manually customized narratives are not overwritten during propagation (logged as `CompositeNarrativeSkipped` audit event)
+| POST | `/api/dashboard/capabilities/import/csp-profile` | Import CSP profile |
+| POST | `/api/dashboard/capabilities/import/crm` | Import CRM file |
+| GET | `/api/dashboard/capabilities/coverage` | Coverage analytics |
+| GET | `/api/dashboard/capabilities/csp-profiles` | List available CSP profiles |
+| POST | `/api/dashboard/components/{id}/capabilities` | Link capabilities to component |
+| DELETE | `/api/dashboard/components/{id}/capabilities/{capId}` | Unlink capability |

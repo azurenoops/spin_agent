@@ -250,3 +250,15 @@ As the AO, you review and authorize the submission of authorization packages to 
 > "Validate package readiness for [system name]"
 
 > "Generate authorization package for [system name]"
+
+---
+
+## Capabilities Coverage KPI (Feature 045)
+
+The Security Capabilities Hub provides a **Coverage %** KPI that tracks how many baseline controls are mapped to at least one security capability. This metric feeds into your Portfolio Risk Profile:
+
+- **Coverage %**: Percentage of NIST controls with at least one capability mapping
+- **Gap Controls**: Controls not yet mapped to any capability (higher risk for authorization decisions)
+- **Provider Cards**: Per-CSP breakdown of controlled vs. total controls
+
+Navigate to the [Capabilities Hub](/capabilities) dashboard to review coverage and identify gaps before authorization decisions.

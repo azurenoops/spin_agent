@@ -843,6 +843,9 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     // Feature 043: CSP Profile Service
     services.AddSingleton<Ato.Copilot.Mcp.Services.CspProfileService>();
 
+    // Feature 045: Capabilities Hub Import Service
+    services.AddScoped<Ato.Copilot.Mcp.Services.CapabilityImportService>();
+
     // Feature 044: Org-Level Inheritance Service
     services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IOrgInheritanceService,
         Ato.Copilot.Agents.Compliance.Services.OrgInheritanceService>();

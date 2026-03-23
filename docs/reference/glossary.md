@@ -4,6 +4,12 @@
 
 ---
 
+## #
+
+| Term | Definition |
+|------|-----------|
+| **3-Layer Model** | The Capabilities Hub architecture: Components (provider grouping) → Capabilities (security solutions) → Control Mappings (NIST control links with roles). Introduced in Feature 045 |
+
 ## A
 
 | Term | Definition |
@@ -25,6 +31,7 @@
 | Term | Definition |
 |------|-----------|
 | **CAC** | Common Access Card — DoD smart card used for PKI-based authentication |
+| **Capabilities Hub** | The unified Security Capabilities Hub page in the Dashboard. Manages CSP profile imports, CRM imports, capability-control mappings, coverage metrics, and component linking (Feature 045) |
 | **CAT** | Category (STIG severity) — CAT I (Critical), CAT II (Significant), CAT III (Low) |
 | **CCI** | Control Correlation Identifier — Maps NIST 800-53 controls to STIG rules |
 | **CKL** | Checklist (DISA STIG Viewer format) — XML file containing STIG assessment results for a specific benchmark |
@@ -35,6 +42,7 @@
 | **ConMon** | Continuous Monitoring — See CM |
 | **CRM** | Customer Responsibility Matrix — Documents shared/inherited control responsibilities between provider and tenant |
 | **CSP** | Cloud Service Provider |
+| **Coverage %** | The percentage of NIST baseline controls mapped to at least one security capability. Displayed on the Capabilities Hub KPI bar |
 | **CUI** | Controlled Unclassified Information — Sensitive but unclassified information requiring safeguarding |
 
 ## D
@@ -66,6 +74,7 @@
 
 | Term | Definition |
 |------|-----------|
+| **Gap Controls** | NIST baseline controls that are not yet mapped to any security capability. Displayed on the Capabilities Hub coverage dashboard |
 | **GRC** | Governance, Risk, and Compliance |
 | **Hardware Inventory** | Catalog of physical and virtual computing resources (servers, workstations, network devices, storage) within a system's authorization boundary |
 
