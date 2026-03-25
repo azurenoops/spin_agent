@@ -21,7 +21,7 @@ import type { EntraDiscoveryItem } from '../api/azureDiscovery';
 import { getCapabilities } from '../api/capabilities';
 import type { CreateComponentRequest, ComponentType, ComponentStatus, SecurityCapabilityDto, DiscoveredResource } from '../types/dashboard';
 
-const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing'];
+const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing', 'Policy'];
 const STATUS_OPTIONS: ComponentStatus[] = ['Active', 'Planned', 'Decommissioned'];
 
 const TYPE_COLORS: Record<string, string> = {
@@ -250,7 +250,6 @@ export default function ComponentLibrary() {
             <h2 className="text-2xl font-bold text-gray-900">Component Library</h2>
             <p className="mt-1 text-sm text-gray-500">
               Org-wide People, Places, Things, and Policies — assign to systems with boundary scope
-              Org-wide People, Places, and Things — assign to systems with boundary scope
             </p>
           </div>
           <div className="flex gap-2">

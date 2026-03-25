@@ -36,7 +36,7 @@ export default function MetricCard({
       : '';
 
   return (
-    <div className="h-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-center">
         <p className="text-sm font-medium text-gray-500">{title}</p>
         {helpKey && <HelpTooltip helpKey={helpKey} />}
