@@ -21,7 +21,6 @@ import type { EntraDiscoveryItem } from '../api/azureDiscovery';
 import { getCapabilities } from '../api/capabilities';
 import type { CreateComponentRequest, ComponentType, ComponentStatus, SecurityCapabilityDto, DiscoveredResource } from '../types/dashboard';
 
-const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing', 'Policy'];
 const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing'];
 const STATUS_OPTIONS: ComponentStatus[] = ['Active', 'Planned', 'Decommissioned'];
 

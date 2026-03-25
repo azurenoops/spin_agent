@@ -80,7 +80,7 @@ export default function SystemDetail() {
           value={`${km.narrativeCoverage.toFixed(1)}%`}
           helpKey="narrativeCoverage"
         />
-        <Link to={`/systems/${detail.systemId}/deviations`} className="block">
+        <Link to={`/systems/${detail.systemId}/deviations`} className="block h-full">
           <MetricCard
             title="Active Deviations"
             value={km.activeDeviations}
