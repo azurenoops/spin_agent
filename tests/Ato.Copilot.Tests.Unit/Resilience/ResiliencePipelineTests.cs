@@ -173,19 +173,22 @@ public class ResiliencePipelineTests
         // Build a simple client with retry via Polly ResiliencePipeline directly
         var pipelineBuilder = new ResiliencePipelineBuilder<HttpResponseMessage>();
 
-        pipelineBuilder.AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+        if (maxRetries > 0)
         {
-            MaxRetryAttempts = maxRetries,
-            Delay = TimeSpan.FromSeconds(baseDelay),
-            BackoffType = DelayBackoffType.Exponential,
-            UseJitter = true,
-            ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
-                .HandleResult(r => r.StatusCode is
-                    HttpStatusCode.ServiceUnavailable or
-                    HttpStatusCode.TooManyRequests or
-                    HttpStatusCode.GatewayTimeout or
-                    HttpStatusCode.RequestTimeout)
-        });
+            pipelineBuilder.AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+            {
+                MaxRetryAttempts = maxRetries,
+                Delay = TimeSpan.FromSeconds(baseDelay),
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true,
+                ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+                    .HandleResult(r => r.StatusCode is
+                        HttpStatusCode.ServiceUnavailable or
+                        HttpStatusCode.TooManyRequests or
+                        HttpStatusCode.GatewayTimeout or
+                        HttpStatusCode.RequestTimeout)
+            });
+        }
 
         pipelineBuilder.AddTimeout(TimeSpan.FromSeconds(timeoutSeconds));
 

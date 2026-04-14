@@ -349,7 +349,8 @@ public class PrivacyService : IPrivacyService
 
         if (pia != null)
         {
-            context.PrivacyImpactAssessments.Remove(pia);
+            // Reset PIA to UnderReview (preserve content; a new review cycle is required)
+            pia.Status = PiaStatus.UnderReview;
         }
 
         // Delete PTA
