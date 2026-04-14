@@ -28,6 +28,21 @@ on:
         required: true
         default: ca-ato-copilot-mcp
         type: string
+        sql_server_name:
+          description: Azure SQL Server name (must be globally unique, e.g. sql-ato-copilot)
+          required: true
+          default: sql-ato-copilot
+          type: string
+        sql_database_name:
+          description: Database name
+          required: true
+          default: AtoCopilot
+          type: string
+        sql_admin_login:
+          description: SQL admin username
+          required: true
+          default: atoadmin
+          type: string
 
 permissions:
   id-token: write
@@ -116,8 +131,8 @@ jobs:
       - name: Create initial container app
         run: |
           CA_NAME="${{ github.event.inputs.containerapp_name }}"
-          RG="${{ github.event.inputs.resource_group }}"
           ENV_NAME="${{ github.event.inputs.containerapp_env_name }}"
+           RG="${{ github.event.inputs.resource_group }}"
 
           LOGIN_SERVER=$(az acr show -g "$RG" -n "${{ github.event.inputs.acr_name }}" --query loginServer -o tsv)
           USERNAME=$(az acr credential show -n "${{ github.event.inputs.acr_name }}" --query username -o tsv)
@@ -144,6 +159,11 @@ jobs:
         shell: bash
         run: |
           echo "Set these repository variables after bootstrap:" >> "$GITHUB_STEP_SUMMARY"
+           echo "" >> "$GITHUB_STEP_SUMMARY"
+           echo "## Secrets" >> "$GITHUB_STEP_SUMMARY"
+           echo "- ATO_DB_CONNECTION_STRING  (shown in 'Create Azure SQL Server' step output)" >> "$GITHUB_STEP_SUMMARY"
+           echo "" >> "$GITHUB_STEP_SUMMARY"
+           echo "## Repository Variables" >> "$GITHUB_STEP_SUMMARY"
           echo "- AZURE_RESOURCE_GROUP=${{ github.event.inputs.resource_group }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- AZURE_ACR_NAME=${{ github.event.inputs.acr_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- AZURE_CONTAINERAPP_ENV_NAME=${{ github.event.inputs.containerapp_env_name }}" >> "$GITHUB_STEP_SUMMARY"
