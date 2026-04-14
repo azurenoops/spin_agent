@@ -61,10 +61,26 @@ jobs:
 
       - name: Create Container Apps environment
         run: |
+          ENV_NAME="${{ github.event.inputs.containerapp_env_name }}"
+          RG="${{ github.event.inputs.resource_group }}"
+          LOCATION="${{ github.event.inputs.location }}"
+
+          EXISTING=$(az containerapp env show --name "$ENV_NAME" --resource-group "$RG" --query "id" -o tsv 2>/dev/null || true)
+          if [[ -n "$EXISTING" ]]; then
+            WORKLOAD=$(az containerapp env show --name "$ENV_NAME" --resource-group "$RG" --query "properties.workloadProfiles" -o tsv 2>/dev/null || true)
+            if [[ -n "$WORKLOAD" ]]; then
+              echo "::warning::Existing environment '$ENV_NAME' uses workload profiles. Deleting and recreating as Consumption-only..."
+              az containerapp env delete --name "$ENV_NAME" --resource-group "$RG" --yes
+            else
+              echo "Environment '$ENV_NAME' already exists as Consumption-only. Skipping creation."
+              exit 0
+            fi
+          fi
+
           az containerapp env create \
-            --name "${{ github.event.inputs.containerapp_env_name }}" \
-            --resource-group "${{ github.event.inputs.resource_group }}" \
-            --location "${{ github.event.inputs.location }}" \
+            --name "$ENV_NAME" \
+            --resource-group "$RG" \
+            --location "$LOCATION" \
             --enable-workload-profiles false
 
       - name: Create initial container app
