@@ -68,6 +68,57 @@ jobs:
           echo "password=${PASSWORD}" >> "$GITHUB_OUTPUT"
           echo "login_server=${LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure Container Apps environment exists (idempotent)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ vars.AZURE_RESOURCE_GROUP }}"
+          ENV_NAME="${{ vars.AZURE_CONTAINERAPP_ENV_NAME }}"
+
+          # Prefer explicit location variable when defined; otherwise use RG location.
+          LOCATION="${{ vars.AZURE_LOCATION || '' }}"
+          if [ -z "$LOCATION" ]; then
+            LOCATION=$(az group show -n "$RG" --query location -o tsv)
+          fi
+
+          LAW_NAME="law-${ENV_NAME}"
+
+          LAW_ID=$(az monitor log-analytics workspace show \
+            --resource-group "$RG" --workspace-name "$LAW_NAME" \
+            --query customerId -o tsv 2>/dev/null || true)
+
+          if [ -z "$LAW_ID" ]; then
+            az monitor log-analytics workspace create \
+              --resource-group "$RG" \
+              --workspace-name "$LAW_NAME" \
+              --location "$LOCATION" \
+              --retention-time 30 >/dev/null
+            LAW_ID=$(az monitor log-analytics workspace show \
+              --resource-group "$RG" --workspace-name "$LAW_NAME" \
+              --query customerId -o tsv)
+          fi
+
+          LAW_KEY=$(az monitor log-analytics workspace get-shared-keys \
+            --resource-group "$RG" --workspace-name "$LAW_NAME" \
+            --query primarySharedKey -o tsv)
+
+          EXISTING_ENV=$(az containerapp env show \
+            --name "$ENV_NAME" --resource-group "$RG" \
+            --query id -o tsv 2>/dev/null || true)
+
+          if [ -n "$EXISTING_ENV" ]; then
+            echo "Container Apps environment '$ENV_NAME' already exists."
+          else
+            az containerapp env create \
+              --name "$ENV_NAME" \
+              --resource-group "$RG" \
+              --location "$LOCATION" \
+              --logs-workspace-id "$LAW_ID" \
+              --logs-workspace-key "$LAW_KEY" \
+              --enable-workload-profiles false >/dev/null
+            echo "Created Container Apps environment '$ENV_NAME'."
+          fi
+
       - name: Build env var arguments
         id: envargs
         shell: bash
