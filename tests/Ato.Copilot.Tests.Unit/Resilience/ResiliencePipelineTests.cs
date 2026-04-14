@@ -101,9 +101,9 @@ public class ResiliencePipelineTests
     public async Task Timeout_CancelsRequest_WhenExceedsTimeout()
     {
         // Arrange
-        var handler = new TestDelegatingHandler(async _ =>
+        var handler = new TestDelegatingHandler(async (_, ct) =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
             return new HttpResponseMessage(HttpStatusCode.OK);
         });
 
@@ -207,20 +207,25 @@ public class ResiliencePipelineTests
     /// </summary>
     private class TestDelegatingHandler : HttpMessageHandler
     {
-        private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _handler;
+        private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _handler;
 
         public TestDelegatingHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
         {
-            _handler = request => Task.FromResult(handler(request));
+            _handler = (request, _) => Task.FromResult(handler(request));
         }
 
         public TestDelegatingHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> asyncHandler)
+        {
+            _handler = (request, _) => asyncHandler(request);
+        }
+
+        public TestDelegatingHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> asyncHandler)
         {
             _handler = asyncHandler;
         }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
-            => _handler(request);
+            => _handler(request, cancellationToken);
     }
 }
