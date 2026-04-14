@@ -59,11 +59,39 @@ jobs:
             --sku Basic \
             --admin-enabled true
 
+      - name: Create Log Analytics Workspace (idempotent)
+        run: |
+          RG="${{ github.event.inputs.resource_group }}"
+          LOCATION="${{ github.event.inputs.location }}"
+          LAW_NAME="law-${{ github.event.inputs.containerapp_env_name }}"
+
+          EXISTING=$(az monitor log-analytics workspace show \
+            --resource-group "$RG" --workspace-name "$LAW_NAME" \
+            --query "customerId" -o tsv 2>/dev/null || true)
+
+          if [[ -n "$EXISTING" ]]; then
+            echo "Log Analytics Workspace '$LAW_NAME' already exists. Reusing."
+          else
+            az monitor log-analytics workspace create \
+              --resource-group "$RG" \
+              --workspace-name "$LAW_NAME" \
+              --location "$LOCATION" \
+              --retention-time 30
+          fi
+
       - name: Create Container Apps environment
         run: |
           ENV_NAME="${{ github.event.inputs.containerapp_env_name }}"
           RG="${{ github.event.inputs.resource_group }}"
           LOCATION="${{ github.event.inputs.location }}"
+          LAW_NAME="law-${{ github.event.inputs.containerapp_env_name }}"
+
+          LAW_ID=$(az monitor log-analytics workspace show \
+            --resource-group "$RG" --workspace-name "$LAW_NAME" \
+            --query "customerId" -o tsv)
+          LAW_KEY=$(az monitor log-analytics workspace get-shared-keys \
+            --resource-group "$RG" --workspace-name "$LAW_NAME" \
+            --query "primarySharedKey" -o tsv)
 
           EXISTING=$(az containerapp env show --name "$ENV_NAME" --resource-group "$RG" --query "id" -o tsv 2>/dev/null || true)
           if [[ -n "$EXISTING" ]]; then
@@ -81,18 +109,30 @@ jobs:
             --name "$ENV_NAME" \
             --resource-group "$RG" \
             --location "$LOCATION" \
+            --logs-workspace-id "$LAW_ID" \
+            --logs-workspace-key "$LAW_KEY" \
             --enable-workload-profiles false
 
       - name: Create initial container app
         run: |
-          LOGIN_SERVER=$(az acr show -g "${{ github.event.inputs.resource_group }}" -n "${{ github.event.inputs.acr_name }}" --query loginServer -o tsv)
+          CA_NAME="${{ github.event.inputs.containerapp_name }}"
+          RG="${{ github.event.inputs.resource_group }}"
+          ENV_NAME="${{ github.event.inputs.containerapp_env_name }}"
+
+          LOGIN_SERVER=$(az acr show -g "$RG" -n "${{ github.event.inputs.acr_name }}" --query loginServer -o tsv)
           USERNAME=$(az acr credential show -n "${{ github.event.inputs.acr_name }}" --query username -o tsv)
-          PASSWORD=$(az acr credential show -n "${{ github.event.inputs.acr_name }}" --query passwords[0].value -o tsv)
+          PASSWORD=$(az acr credential show -n "${{ github.event.inputs.acr_name }}" --query "passwords[0].value" -o tsv)
+
+          EXISTING=$(az containerapp show --name "$CA_NAME" --resource-group "$RG" --query "id" -o tsv 2>/dev/null || true)
+          if [[ -n "$EXISTING" ]]; then
+            echo "Container app '$CA_NAME' already exists. Skipping creation."
+            exit 0
+          fi
 
           az containerapp create \
-            --name "${{ github.event.inputs.containerapp_name }}" \
-            --resource-group "${{ github.event.inputs.resource_group }}" \
-            --environment "${{ github.event.inputs.containerapp_env_name }}" \
+            --name "$CA_NAME" \
+            --resource-group "$RG" \
+            --environment "$ENV_NAME" \
             --image mcr.microsoft.com/k8se/quickstart:latest \
             --target-port 8080 \
             --ingress external \
