@@ -444,7 +444,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         Dictionary<string, string> mergeData,
         IProgress<double>? progress)
     {
-        var doc = Document.Create(container =>
+        var doc = global::QuestPDF.Fluent.Document.Create(container =>
         {
             container.Page(page =>
             {

@@ -494,3 +494,23 @@ public class CreateNarrativeRequest
     public string? Narrative { get; init; }
     public string? ImplementationStatus { get; init; }
 }
+
+// ─── System Profile (Feature 046) ───────────────────────────────────────────
+
+public class SaveProfileSectionBody
+{
+    public required string Content { get; init; }
+    public object[]? ChildItems { get; init; }
+}
+
+public class SubmitSectionsBody
+{
+    public string? Action { get; init; }
+    public string[]? SectionTypes { get; init; }
+}
+
+public class ReviewSectionBody
+{
+    public required string Decision { get; init; }
+    public string? Comments { get; init; }
+}

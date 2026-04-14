@@ -800,3 +800,170 @@ export interface Sp80060InfoType {
   integrity: string;
   availability: string;
 }
+
+// ─── System Profile (Feature 046) ──────────────────────────────────────────────
+
+export type ProfileSectionType =
+  | 'MissionAndPurpose'
+  | 'UsersAndAccess'
+  | 'EnvironmentAndDeployment'
+  | 'DataTypes'
+  | 'PortsProtocolsAndServices'
+  | 'LeveragedAuthorizations';
+
+export type GovernanceStatus =
+  | 'NotStarted'
+  | 'Draft'
+  | 'UnderReview'
+  | 'Approved'
+  | 'NeedsRevision';
+
+export interface ProfileSectionSummary {
+  sectionType: ProfileSectionType;
+  governanceStatus: GovernanceStatus;
+  completionPercentage: number;
+  lastEditedBy: string | null;
+  lastEditedAt: string | null;
+  reviewerComments: string | null;
+}
+
+export interface ProfileSectionDetail {
+  id: string;
+  sectionType: ProfileSectionType;
+  governanceStatus: GovernanceStatus;
+  draftContent: string | null;
+  approvedContent: string | null;
+  completionPercentage: number;
+  lastEditedBy: string | null;
+  lastEditedAt: string | null;
+  submittedBy: string | null;
+  submittedAt: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewerComments: string | null;
+  userCategories: UserCategoryItem[];
+  dataTypeEntries: DataTypeItem[];
+  ppsEntries: PpsItem[];
+  leveragedAuthorizations: LeveragedAuthItem[];
+}
+
+export interface UserCategoryItem {
+  id: string;
+  categoryName: string;
+  description: string | null;
+  approximateCount: number | null;
+  accessMethod: string | null;
+  dataSensitivityLevel: string | null;
+  sortOrder: number;
+}
+
+export interface DataTypeItem {
+  id: string;
+  dataTypeName: string;
+  description: string | null;
+  sensitivityClassification: string;
+  source: string | null;
+  destination: string | null;
+  applicableRegulations: string | null;
+  sortOrder: number;
+}
+
+export interface PpsItem {
+  id: string;
+  portOrRange: string;
+  protocol: string;
+  serviceName: string;
+  direction: string;
+  justification: string | null;
+  sortOrder: number;
+}
+
+export interface LeveragedAuthItem {
+  id: string;
+  providerName: string;
+  authorizationType: string;
+  authorizationDate: string | null;
+  coveredControlFamilies: string | null;
+  sortOrder: number;
+}
+
+export interface MissionOwnerInfo {
+  userId: string;
+  displayName: string;
+}
+
+export interface ProfileOverview {
+  systemId: string;
+  systemName: string;
+  missionOwner: MissionOwnerInfo | null;
+  overallCompleteness: {
+    completedCount: number;
+    mandatorySections: number;
+    allSections: number;
+    approvedCount: number;
+    approvedPercentage: number;
+  };
+  sections: ProfileSectionSummary[];
+}
+
+export interface ProfileCompletenessResponse {
+  systemId: string;
+  totalSections: number;
+  statusCounts: Record<string, number>;
+  approvedPercentage: number;
+  isProfileComplete: boolean;
+  incompleteSections: IncompleteSectionInfo[];
+  missionOwnerAssigned: boolean;
+  missionOwnerName: string | null;
+  daysSinceRegistration: number;
+}
+
+export interface IncompleteSectionInfo {
+  sectionType: ProfileSectionType;
+  status: GovernanceStatus;
+}
+
+export interface ProfileTodoResponse {
+  hasProfileTasks: boolean;
+  incompleteSections: ProfileTodoItem[];
+  revisionSections: ProfileTodoItem[];
+  flaggedControls: FlaggedControlItem[];
+}
+
+export interface ProfileTodoItem {
+  sectionType: ProfileSectionType;
+  label: string;
+  status: GovernanceStatus;
+  reviewerComments: string | null;
+}
+
+export interface FlaggedControlItem {
+  controlId: string;
+  controlTitle: string;
+  hasDraft: boolean;
+}
+
+export interface BusinessContextDraftResponse {
+  id: string;
+  controlId: string;
+  content: string;
+  governanceStatus: GovernanceStatus;
+  authoredBy: string;
+  authoredAt: string;
+  reviewerComments: string | null;
+}
+
+export interface SaveProfileSectionRequest {
+  content: string;
+  childItems?: unknown[];
+}
+
+export interface SubmitSectionsRequest {
+  action: 'submit' | 'withdraw';
+  sectionTypes?: ProfileSectionType[];
+}
+
+export interface ReviewSectionRequest {
+  decision: 'approve' | 'request_revision';
+  comments?: string;
+}

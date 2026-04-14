@@ -1,0 +1,173 @@
+name: Reusable - Deploy Container App Stage
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: GitHub environment name (dev, test, production)
+        required: true
+        type: string
+      image:
+        description: Fully-qualified container image to deploy
+        required: true
+        type: string
+      inject_runtime_secrets:
+        description: Whether to set optional runtime secrets and secretref env vars
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+      ATO_DB_CONNECTION_STRING:
+        required: false
+      ATO_AZUREAI_APIKEY:
+        required: false
+      ATO_AZUREAD_CLIENTSECRET:
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment_name }}
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate stage configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${{ vars.AZURE_RESOURCE_GROUP }}" || (echo "Missing environment variable: AZURE_RESOURCE_GROUP" && exit 1)
+          test -n "${{ vars.AZURE_CONTAINERAPP_NAME }}" || (echo "Missing environment variable: AZURE_CONTAINERAPP_NAME" && exit 1)
+          test -n "${{ vars.AZURE_CONTAINERAPP_ENV_NAME }}" || (echo "Missing environment variable: AZURE_CONTAINERAPP_ENV_NAME" && exit 1)
+          test -n "${{ vars.AZURE_ACR_NAME }}" || (echo "Missing environment variable: AZURE_ACR_NAME" && exit 1)
+
+      - name: Resolve ACR credentials
+        id: acr
+        shell: bash
+        run: |
+          set -euo pipefail
+          USERNAME=$(az acr credential show -n "${{ vars.AZURE_ACR_NAME }}" --query username -o tsv)
+          PASSWORD=$(az acr credential show -n "${{ vars.AZURE_ACR_NAME }}" --query passwords[0].value -o tsv)
+          LOGIN_SERVER=$(az acr show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ vars.AZURE_ACR_NAME }}" --query loginServer -o tsv)
+          echo "username=${USERNAME}" >> "$GITHUB_OUTPUT"
+          echo "password=${PASSWORD}" >> "$GITHUB_OUTPUT"
+          echo "login_server=${LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build env var arguments
+        id: envargs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV_ARGS="ASPNETCORE_URLS=http://+:3001 ATO_RUN_MODE=http"
+          ENV_ARGS="${ENV_ARGS} ATO_GATEWAY__AZURE__CLOUDENVIRONMENT=${{ vars.ATO_GATEWAY_AZURE_CLOUDENVIRONMENT || 'AzureGovernment' }}"
+          ENV_ARGS="${ENV_ARGS} ATO_AZUREAI__ENABLED=${{ vars.ATO_AZUREAI_ENABLED || 'false' }}"
+          ENV_ARGS="${ENV_ARGS} ATO_AZUREAI__PROVIDER=${{ vars.ATO_AZUREAI_PROVIDER || 'OpenAi' }}"
+          ENV_ARGS="${ENV_ARGS} ATO_AZUREAI__ENDPOINT=${{ vars.ATO_AZUREAI_ENDPOINT || '' }}"
+          ENV_ARGS="${ENV_ARGS} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-4o' }}"
+
+          if [ "${{ inputs.inject_runtime_secrets }}" = "true" ]; then
+            if [ -n "${{ secrets.ATO_DB_CONNECTION_STRING || '' }}" ]; then
+              ENV_ARGS="${ENV_ARGS} ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION=secretref:db-connection-string"
+            fi
+            if [ -n "${{ secrets.ATO_AZUREAI_APIKEY || '' }}" ]; then
+              ENV_ARGS="${ENV_ARGS} ATO_AZUREAI__APIKEY=secretref:azureai-apikey"
+            fi
+            if [ -n "${{ secrets.ATO_AZUREAD_CLIENTSECRET || '' }}" ]; then
+              ENV_ARGS="${ENV_ARGS} ATO_AZUREAD__CLIENTSECRET=secretref:azuread-client-secret"
+            fi
+          fi
+
+          echo "value=${ENV_ARGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Create/update container app
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ vars.AZURE_RESOURCE_GROUP }}"
+          APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
+          ENV_NAME="${{ vars.AZURE_CONTAINERAPP_ENV_NAME }}"
+          IMAGE="${{ inputs.image }}"
+          ENV_ARGS="${{ steps.envargs.outputs.value }}"
+
+          if az containerapp show -g "${RG}" -n "${APP}" >/dev/null 2>&1; then
+            # shellcheck disable=SC2086
+            az containerapp update \
+              --resource-group "${RG}" \
+              --name "${APP}" \
+              --image "${IMAGE}" \
+              --set-env-vars ${ENV_ARGS}
+          else
+            # shellcheck disable=SC2086
+            az containerapp create \
+              --resource-group "${RG}" \
+              --name "${APP}" \
+              --environment "${ENV_NAME}" \
+              --image "${IMAGE}" \
+              --target-port 3001 \
+              --ingress external \
+              --registry-server "${{ steps.acr.outputs.login_server }}" \
+              --registry-username "${{ steps.acr.outputs.username }}" \
+              --registry-password "${{ steps.acr.outputs.password }}" \
+              --env-vars ${ENV_ARGS}
+          fi
+
+      - name: Set optional runtime secrets
+        if: inputs.inject_runtime_secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ vars.AZURE_RESOURCE_GROUP }}"
+          APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
+
+          if [ -n "${{ secrets.ATO_DB_CONNECTION_STRING || '' }}" ]; then
+            az containerapp secret set -g "${RG}" -n "${APP}" --secrets "db-connection-string=${{ secrets.ATO_DB_CONNECTION_STRING }}"
+          fi
+          if [ -n "${{ secrets.ATO_AZUREAI_APIKEY || '' }}" ]; then
+            az containerapp secret set -g "${RG}" -n "${APP}" --secrets "azureai-apikey=${{ secrets.ATO_AZUREAI_APIKEY }}"
+          fi
+          if [ -n "${{ secrets.ATO_AZUREAD_CLIENTSECRET || '' }}" ]; then
+            az containerapp secret set -g "${RG}" -n "${APP}" --secrets "azuread-client-secret=${{ secrets.ATO_AZUREAD_CLIENTSECRET }}"
+          fi
+
+      - name: Reapply env vars after secret updates
+        if: inputs.inject_runtime_secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ vars.AZURE_RESOURCE_GROUP }}"
+          APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
+          ENV_ARGS="${{ steps.envargs.outputs.value }}"
+
+          # shellcheck disable=SC2086
+          az containerapp update \
+            --resource-group "${RG}" \
+            --name "${APP}" \
+            --set-env-vars ${ENV_ARGS}
+
+      - name: Smoke check deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL=$(az containerapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ vars.AZURE_CONTAINERAPP_NAME }}" --query properties.configuration.ingress.fqdn -o tsv)
+          echo "Deployed URL (${{ inputs.environment_name }}): https://${URL}"
+          curl -fsS "https://${URL}/health" | cat
+          echo "### Deployment complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: ${{ inputs.environment_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App: ${{ vars.AZURE_CONTAINERAPP_NAME }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: ${{ inputs.image }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: https://${URL}" >> "$GITHUB_STEP_SUMMARY"

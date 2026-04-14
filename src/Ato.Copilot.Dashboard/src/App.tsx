@@ -21,6 +21,7 @@ import PoamManagement from './pages/PoamManagement';
 import ControlInheritance from './pages/ControlInheritance';
 import BaselineManagement from './pages/BaselineManagement';
 import ControlCatalog from './pages/ControlCatalog';
+import SystemProfile from './pages/SystemProfile';
 import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
@@ -64,6 +65,7 @@ function AppContent() {
           <Route path="capability-coverage" element={<CapabilityCoverage />} />
           <Route path="inheritance" element={<ControlInheritance />} />
           <Route path="baseline" element={<BaselineManagement />} />
+          <Route path="profile/:sectionType" element={<SystemProfile />} />
         </Route>
         <Route path="/capabilities" element={<CapabilityLibrary />} />
         <Route path="/components" element={<ComponentLibrary />} />

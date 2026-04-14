@@ -50,7 +50,7 @@ public class RmfRegistrationIntegrationTests : IDisposable
         _advanceTool = new AdvanceRmfStepTool(lifecycleSvc, Mock.Of<ILogger<AdvanceRmfStepTool>>());
         _boundaryTool = new DefineBoundaryTool(boundarySvc, scopeFactory, Mock.Of<ILogger<DefineBoundaryTool>>());
         _excludeTool = new ExcludeFromBoundaryTool(boundarySvc, Mock.Of<ILogger<ExcludeFromBoundaryTool>>());
-        _assignTool = new AssignRmfRoleTool(boundarySvc, Mock.Of<ILogger<AssignRmfRoleTool>>());
+        _assignTool = new AssignRmfRoleTool(boundarySvc, Mock.Of<IProfileNotificationService>(), Mock.Of<ILogger<AssignRmfRoleTool>>());
         _listRolesTool = new ListRmfRolesTool(boundarySvc, Mock.Of<ILogger<ListRmfRolesTool>>());
     }
 

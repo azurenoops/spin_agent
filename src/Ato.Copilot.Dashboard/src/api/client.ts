@@ -11,6 +11,21 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Dev-only simulated role header (FR-048).
+  // Ignored when real CAC auth is active on the server.
+  try {
+    const raw = localStorage.getItem('ato-dashboard-settings');
+    if (raw) {
+      const settings = JSON.parse(raw) as { role?: string };
+      if (settings.role) {
+        config.headers['X-Simulated-Role'] = settings.role;
+      }
+    }
+  } catch {
+    // Ignore parse errors
+  }
+
   return config;
 });
 

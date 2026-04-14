@@ -784,6 +784,9 @@ void RegisterCoreServices(IServiceCollection services, IConfiguration configurat
     // KnowledgeBase agent + services
     services.AddKnowledgeBaseAgent(configuration);
 
+    // Document agent + adapter tools (document-centric orchestration)
+    services.AddDocumentAgent();
+
     // MCP server
     services.AddMcpServer(configuration);
 

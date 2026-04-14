@@ -5,6 +5,7 @@ import ChatToggle from '../chat/ChatToggle';
 import { useChatPanel } from '../chat/ChatPanelContext';
 import SettingsPanel from '../settings/SettingsPanel';
 import NotificationPanel from '../notifications/NotificationPanel';
+import RoleSwitcher from './RoleSwitcher';
 import { useNotifications } from '../../hooks/useNotifications';
 
 const navItems = [
@@ -77,6 +78,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
           <h1 className="hidden text-sm font-medium text-gray-700 lg:block">{title}</h1>
         </div>
           <div className="flex items-center gap-1">
+            <RoleSwitcher />
             <button type="button" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Search" title="Search">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />

@@ -45,6 +45,7 @@
     <EmbeddedResource Include="Compliance\Resources\oscal-schemas\oscal_assessment-results_schema.json" />
     <EmbeddedResource Include="Compliance\Resources\oscal-schemas\oscal_assessment-plan_schema.json" />
     <EmbeddedResource Include="Configuration\Prompts\ConfigurationAgent.prompt.txt" />
+    <EmbeddedResource Include="Document\Prompts\DocumentAgent.prompt.txt" />
     <EmbeddedResource Include="KnowledgeBase\Prompts\KnowledgeBaseAgent.prompt.txt" />
   </ItemGroup>
 

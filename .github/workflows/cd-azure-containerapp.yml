@@ -1,0 +1,152 @@
+name: CD - Azure Container Apps (Promoted)
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional image tag override
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: cd-azure-promoted
+  cancel-in-progress: false
+
+jobs:
+  build-image:
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: dev
+
+    outputs:
+      image: ${{ steps.image.outputs.value }}
+      image_tag: ${{ steps.tag.outputs.value }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate required variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESOURCE_GROUP="${{ vars.AZURE_RESOURCE_GROUP }}"
+          ACR_NAME="${{ vars.AZURE_ACR_NAME }}"
+
+          test -n "${RESOURCE_GROUP}" || (echo "Missing repo variable: AZURE_RESOURCE_GROUP" && exit 1)
+          test -n "${ACR_NAME}" || (echo "Missing repo variable: AZURE_ACR_NAME" && exit 1)
+
+      - name: Get ACR metadata
+        id: acr
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESOURCE_GROUP="${{ vars.AZURE_RESOURCE_GROUP }}"
+          ACR_NAME="${{ vars.AZURE_ACR_NAME }}"
+
+          LOGIN_SERVER=$(az acr show -g "${RESOURCE_GROUP}" -n "${ACR_NAME}" --query loginServer -o tsv)
+          USERNAME=$(az acr credential show -n "${ACR_NAME}" --query username -o tsv)
+          PASSWORD=$(az acr credential show -n "${ACR_NAME}" --query passwords[0].value -o tsv)
+
+          echo "login_server=${LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
+          echo "username=${USERNAME}" >> "$GITHUB_OUTPUT"
+          echo "password=${PASSWORD}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute image tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.inputs.image_tag || '' }}" ]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+          else
+            TAG="${GITHUB_SHA}"
+          fi
+          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute full image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "value=${{ steps.acr.outputs.login_server }}/ato-copilot-mcp:${{ steps.tag.outputs.value }}" >> "$GITHUB_OUTPUT"
+
+      - name: Docker login to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.acr.outputs.login_server }}
+          username: ${{ steps.acr.outputs.username }}
+          password: ${{ steps.acr.outputs.password }}
+
+      - name: Build and push MCP image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image.outputs.value }}
+            ${{ steps.acr.outputs.login_server }}/ato-copilot-mcp:latest
+
+  deploy-dev:
+    needs: build-image
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: dev
+      image: ${{ needs.build-image.outputs.image }}
+      inject_runtime_secrets: true
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
+      ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
+
+  deploy-test:
+    needs: [deploy-dev, build-image]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: test
+      image: ${{ needs.build-image.outputs.image }}
+      inject_runtime_secrets: true
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
+      ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
+
+  deploy-production:
+    needs: [deploy-test, build-image]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: production
+      image: ${{ needs.build-image.outputs.image }}
+      inject_runtime_secrets: true
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
+      ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}

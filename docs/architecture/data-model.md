@@ -25,6 +25,7 @@
 - [Compliance Watch Entities](#compliance-watch-entities)
 - [Dashboard Entities](#dashboard-entities)
 - [Implementation Roadmap Entities](#implementation-roadmap-entities-feature-031)
+- [System Profile Entities](#system-profile-entities-feature-046)
 - [Database Configuration](#database-configuration)
 - [Enumerations](#enumerations)
 
@@ -941,6 +942,98 @@ HW/SW inventory item linked to a registered system (Feature 025).
 | `SuppressionRule` | Alert suppression by control/severity |
 | `EscalationPath` | Alert escalation configuration |
 | `AutoRemediationRule` | Auto-remediation rule definition |
+
+---
+
+## System Profile Entities (Feature 046)
+
+### SystemProfileSection
+
+Primary entity for system profile content. Each system has up to 6 sections (one per `ProfileSectionType`).
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| Id | string(36) | PK, GUID |
+| RegisteredSystemId | string(36) | FK → RegisteredSystem, cascade delete |
+| SectionType | ProfileSectionType | Enum → string(30) |
+| DraftContent | string(16000) | Nullable, JSON content |
+| ApprovedContent | string(16000) | Nullable, JSON — set on approval |
+| GovernanceStatus | SspSectionStatus | Enum → string(20) |
+| RowVersion | byte[] | Concurrency token |
+| SubmittedBy / SubmittedAt | string / DateTime | Nullable |
+| ReviewedBy / ReviewedAt | string / DateTime | Nullable |
+| ReviewerComments | string(4000) | Nullable |
+| LastEditedBy / LastEditedAt | string / DateTime | Nullable |
+
+**Unique Index**: `(RegisteredSystemId, SectionType)`
+**Covering Index**: `GovernanceStatus`
+
+### Child Entities
+
+| Entity | Parent FK | Key Columns |
+|--------|-----------|-------------|
+| **UserCategory** | SystemProfileSectionId | categoryName, description, approximateCount, accessMethod, dataSensitivityLevel, sortOrder |
+| **DataTypeEntry** | SystemProfileSectionId | dataTypeName, sensitivityClassification, source, destination, applicableRegulations, sortOrder |
+| **PpsEntry** | SystemProfileSectionId | portOrRange, protocol, serviceName, direction, justification, sortOrder |
+| **LeveragedAuthorization** | SystemProfileSectionId | providerName, authorizationType, authorizationDate, coveredControlFamilies, sortOrder |
+
+### BusinessContextDraft
+
+Mission Owner business-context narrative for a specific control implementation.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| Id | string(36) | PK, GUID |
+| ControlImplementationId | string(36) | FK → ControlImplementation, unique |
+| Content | string(16000) | Required |
+| GovernanceStatus | SspSectionStatus | Enum → string(20) |
+| AuthoredBy / AuthoredAt | string / DateTime | |
+| ReviewerComments | string(4000) | Nullable |
+| RowVersion | byte[] | Concurrency token |
+
+### BusinessContextControlFlag
+
+Marks controls as needing Mission Owner business context.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| Id | string(36) | PK, GUID |
+| RegisteredSystemId | string(36) | FK → RegisteredSystem |
+| ControlId | string(36) | |
+| IsFlagged | bool | |
+
+**Unique Index**: `(RegisteredSystemId, ControlId)`
+
+### ProfileAuditEntry
+
+Tracks all governance state transitions for profile sections.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| Id | string(36) | PK, GUID |
+| SystemProfileSectionId | string(36) | FK → SystemProfileSection |
+| Action | string(100) | e.g., "Submitted", "Approved", "Withdrawn" |
+| PerformedBy | string | |
+| PerformedAt | DateTime | |
+| PreviousStatus | SspSectionStatus | Enum → string(20) |
+| NewStatus | SspSectionStatus | Enum → string(20) |
+| Comments | string(4000) | Nullable |
+
+### ProfileSectionType Enum
+
+`MissionAndPurpose`, `UsersAndAccess`, `EnvironmentAndDeployment`, `DataTypes`, `PortsProtocolsAndServices`, `LeveragedAuthorizations`
+
+### State Transition Diagram
+
+```
+NotStarted → Draft (first save)
+Draft → UnderReview (submit)
+UnderReview → Approved (ISSM approve)
+UnderReview → NeedsRevision (ISSM request revision)
+UnderReview → Draft (MO withdraw)
+NeedsRevision → Draft (MO re-edit)
+Approved → Draft (MO re-edit, preserves ApprovedContent)
+```
 
 ---
 

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Ato.Copilot.Agents.Common;
 using Ato.Copilot.Agents.Compliance.Agents;
+using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Agents.Compliance.Tools;
 using Ato.Copilot.Agents.Compliance.Tools.Poam;
 using Ato.Copilot.Agents.Configuration.Agents;
@@ -420,7 +421,7 @@ public class McpServerAiIntegrationTests
             new AdvanceRmfStepTool(Mock.Of<IRmfLifecycleService>(), Mock.Of<ILogger<AdvanceRmfStepTool>>()),
             new DefineBoundaryTool(Mock.Of<IBoundaryService>(), sf, Mock.Of<ILogger<DefineBoundaryTool>>()),
             new ExcludeFromBoundaryTool(Mock.Of<IBoundaryService>(), Mock.Of<ILogger<ExcludeFromBoundaryTool>>()),
-            new AssignRmfRoleTool(Mock.Of<IBoundaryService>(), Mock.Of<ILogger<AssignRmfRoleTool>>()),
+            new AssignRmfRoleTool(Mock.Of<IBoundaryService>(), Mock.Of<IProfileNotificationService>(), Mock.Of<ILogger<AssignRmfRoleTool>>()),
             new ListRmfRolesTool(Mock.Of<IBoundaryService>(), Mock.Of<ILogger<ListRmfRolesTool>>()),
             new ListBoundaryDefinitionsTool(sf, Mock.Of<ILogger<ListBoundaryDefinitionsTool>>()),
             new CreateBoundaryDefinitionTool(sf, Mock.Of<ILogger<CreateBoundaryDefinitionTool>>()),

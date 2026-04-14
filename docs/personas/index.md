@@ -13,21 +13,22 @@
 | **SCA** | `Compliance.Auditor` | Independent assessor of control effectiveness (read-only) | Teams, MCP API |
 | **AO** | `Compliance.AuthorizingOfficial` | Accepts risk and issues authorization decisions | Teams (Adaptive Cards) |
 | **Engineer** | `Compliance.PlatformEngineer` | Builds/operates the system; implements controls and fixes findings | VS Code (`@ato`) |
+| **Mission Owner** | `MissionOwner` | System mission authority — provides business context and system details | Dashboard, VS Code (`@ato`) |
 | **Administrator** | `Compliance.Administrator` | Manages ATO Copilot templates and infrastructure configuration | MCP API, VS Code |
 
 ---
 
 ## RACI Matrix — Persona Responsibilities by RMF Phase
 
-| RMF Phase | ISSM | ISSO | SCA | AO | Engineer |
-|-----------|------|------|-----|-----|----------|
-| **Prepare** | **R** (Lead) | A (Support) | — | I (Informed) | A (Support) |
-| **Categorize** | **R** (Lead) | A (Support) | — | I (Informed) | C (Consulted) |
-| **Select** | **R** (Lead) | A (Support) | C (Review) | — | C (Consulted) |
-| **Implement** | I (Oversight) | **R** (Lead) | — | — | **R** (Lead) |
-| **Assess** | A (Support) | A (Support) | **R** (Lead) | I (Informed) | A (Support) |
-| **Authorize** | A (Package) | A (Support) | A (SAR delivery) | **R** (Decide) | — |
-| **Monitor** | **R** (Lead) | **R** (Day-to-day) | C (Periodic) | I (Escalation) | A (Remediation) |
+| RMF Phase | ISSM | ISSO | SCA | AO | Engineer | Mission Owner |
+|-----------|------|------|-----|-----|----------|---------------|
+| **Prepare** | **R** (Lead) | A (Support) | — | I (Informed) | A (Support) | — |
+| **Categorize** | **R** (Lead) | A (Support) | — | I (Informed) | C (Consulted) | A (System Profile) |
+| **Select** | **R** (Lead) | A (Support) | C (Review) | — | C (Consulted) | — |
+| **Implement** | I (Oversight) | **R** (Lead) | — | — | **R** (Lead) | A (Business Context) |
+| **Assess** | A (Support) | A (Support) | **R** (Lead) | I (Informed) | A (Support) | — |
+| **Authorize** | A (Package) | A (Support) | A (SAR delivery) | **R** (Decide) | — | — |
+| **Monitor** | **R** (Lead) | **R** (Day-to-day) | C (Periodic) | I (Escalation) | A (Remediation) | I (Informed) |
 
 **Legend**: **R** = Responsible (does the work), **A** = Accountable (supports/assists), **C** = Consulted, **I** = Informed
 

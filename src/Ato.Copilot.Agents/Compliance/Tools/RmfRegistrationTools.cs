@@ -640,24 +640,27 @@ public class ExcludeFromBoundaryTool : BaseTool
 public class AssignRmfRoleTool : BaseTool
 {
     private readonly IBoundaryService _boundaryService;
+    private readonly Services.IProfileNotificationService _notificationService;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public AssignRmfRoleTool(
         IBoundaryService boundaryService,
+        Services.IProfileNotificationService notificationService,
         ILogger<AssignRmfRoleTool> logger) : base(logger)
     {
         _boundaryService = boundaryService;
+        _notificationService = notificationService;
     }
 
     public override string Name => "compliance_assign_rmf_role";
 
     public override string Description =>
-        "Assign an RMF role (AuthorizingOfficial, Issm, Isso, Sca, SystemOwner) to a user for a specific registered system.";
+        "Assign an RMF role (AuthorizingOfficial, Issm, Isso, Sca, SystemOwner, MissionOwner) to a user for a specific registered system.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {
         ["system_id"] = new() { Name = "system_id", Description = "System GUID, name, or acronym", Type = "string", Required = true },
-        ["role"] = new() { Name = "role", Description = "RMF role: AuthorizingOfficial | Issm | Isso | Sca | SystemOwner", Type = "string", Required = true },
+        ["role"] = new() { Name = "role", Description = "RMF role: AuthorizingOfficial | Issm | Isso | Sca | SystemOwner | MissionOwner", Type = "string", Required = true },
         ["user_id"] = new() { Name = "user_id", Description = "User identity", Type = "string", Required = true },
         ["user_display_name"] = new() { Name = "user_display_name", Description = "Display name of the user", Type = "string", Required = false }
     };
@@ -678,12 +681,26 @@ public class AssignRmfRoleTool : BaseTool
             return JsonSerializer.Serialize(new { status = "error", errorCode = "INVALID_INPUT", message = "The 'user_id' parameter is required." }, JsonOpts);
 
         if (!Enum.TryParse<RmfRole>(roleStr, true, out var role))
-            return JsonSerializer.Serialize(new { status = "error", errorCode = "INVALID_INPUT", message = $"Invalid role '{roleStr}'. Use: AuthorizingOfficial, Issm, Isso, Sca, SystemOwner." }, JsonOpts);
+            return JsonSerializer.Serialize(new { status = "error", errorCode = "INVALID_INPUT", message = $"Invalid role '{roleStr}'. Use: AuthorizingOfficial, Issm, Isso, Sca, SystemOwner, MissionOwner." }, JsonOpts);
 
         try
         {
             var assignment = await _boundaryService.AssignRmfRoleAsync(
                 systemId, role, userId, displayName, "mcp-user", cancellationToken);
+
+            // Notify Mission Owner on assignment (FR-049)
+            if (role == RmfRole.MissionOwner)
+            {
+                try
+                {
+                    await _notificationService.NotifyMissionOwnerAssignedAsync(
+                        assignment.RegisteredSystemId, assignment.UserId, cancellationToken);
+                }
+                catch (Exception notifyEx)
+                {
+                    Logger.LogWarning(notifyEx, "Failed to send MO assignment notification for system '{SystemId}'", systemId);
+                }
+            }
 
             sw.Stop();
             return JsonSerializer.Serialize(new

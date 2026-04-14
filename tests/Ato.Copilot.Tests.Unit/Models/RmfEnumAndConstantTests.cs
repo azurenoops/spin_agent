@@ -106,7 +106,7 @@ public class RmfEnumAndConstantTests
     [Fact]
     public void RmfRole_HasFiveValues()
     {
-        Enum.GetValues<RmfRole>().Should().HaveCount(5);
+        Enum.GetValues<RmfRole>().Should().HaveCount(6);
     }
 
     [Theory]
@@ -115,6 +115,7 @@ public class RmfEnumAndConstantTests
     [InlineData(RmfRole.Issm)]
     [InlineData(RmfRole.Sca)]
     [InlineData(RmfRole.AuthorizingOfficial)]
+    [InlineData(RmfRole.MissionOwner)]
     public void RmfRole_ContainsExpectedValue(RmfRole role)
     {
         Enum.IsDefined(role).Should().BeTrue();

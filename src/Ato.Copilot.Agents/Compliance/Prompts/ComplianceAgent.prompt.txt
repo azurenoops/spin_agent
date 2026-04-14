@@ -368,3 +368,21 @@ Example invocations:
 - "What's the POA&M status for system X?" → `compliance_poam_metrics`
 - "Export POA&M to eMASS format" → `compliance_export_poam` with format=emass_excel
 - "Create a POA&M for AC-2 vulnerability on sys-001" → `compliance_create_poam`
+
+### System Profile Management (Feature 046)
+Use these tools to manage Mission Owner system details and profile governance:
+- **View**: `compliance_get_system_profile` — overview with all section statuses, completeness, Mission Owner
+- **Save**: `compliance_save_profile_section` — save draft content for a section (MissionOwner/SystemOwner/Issm)
+- **Submit/Withdraw**: `compliance_submit_profile_section` — submit for ISSM review or withdraw (MissionOwner)
+- **Review**: `compliance_review_profile_section` — approve or request revision (Issm only)
+- **Batch Approve**: `compliance_batch_approve_profile` — approve all UnderReview sections at once (Issm)
+- **Completeness**: `compliance_get_profile_completeness` — 5-mandatory denominator metrics for dashboard
+- **Business Context**: `compliance_save_business_context` — save business-context narrative for a control (MissionOwner)
+
+Example invocations:
+- "Show system profile for ACME Portal" → `compliance_get_system_profile`
+- "Save mission and purpose for sys-001" → `compliance_save_profile_section` with section_type=MissionAndPurpose
+- "Submit all sections for review" → `compliance_submit_profile_section` with action=submit
+- "Withdraw Users & Access from review" → `compliance_submit_profile_section` with action=withdraw, section_types=UsersAndAccess
+- "Approve the Mission & Purpose section" → `compliance_review_profile_section` with decision=approve
+- "What's the profile completeness?" → `compliance_get_profile_completeness`

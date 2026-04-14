@@ -342,6 +342,32 @@ public class AtoCopilotContext : DbContext
     /// <summary>Junction linking baselines to their included control IDs.</summary>
     public DbSet<BaselineControlEntry> BaselineControlEntries => Set<BaselineControlEntry>();
 
+    // ─── System Profile Entities (Feature 046) ──────────────────────────────
+
+    /// <summary>Profile sections for registered systems (one per section type per system).</summary>
+    public DbSet<SystemProfileSection> SystemProfileSections => Set<SystemProfileSection>();
+
+    /// <summary>User category child entities for Users &amp; Access profile sections.</summary>
+    public DbSet<UserCategory> UserCategories => Set<UserCategory>();
+
+    /// <summary>Data type child entities for Data Types profile sections.</summary>
+    public DbSet<DataTypeEntry> DataTypeEntries => Set<DataTypeEntry>();
+
+    /// <summary>Ports/protocols/services child entities for PPS profile sections.</summary>
+    public DbSet<PpsEntry> PpsEntries => Set<PpsEntry>();
+
+    /// <summary>Leveraged authorization child entities for Leveraged Auth profile sections.</summary>
+    public DbSet<LeveragedAuthorization> LeveragedAuthorizations => Set<LeveragedAuthorization>();
+
+    /// <summary>Business-context narrative drafts linked to controls.</summary>
+    public DbSet<BusinessContextDraft> BusinessContextDrafts => Set<BusinessContextDraft>();
+
+    /// <summary>Per-system ISSM override flags for business-context controls.</summary>
+    public DbSet<BusinessContextControlFlag> BusinessContextControlFlags => Set<BusinessContextControlFlag>();
+
+    /// <summary>Immutable audit trail entries for profile section state transitions.</summary>
+    public DbSet<ProfileAuditEntry> ProfileAuditEntries => Set<ProfileAuditEntry>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -2812,6 +2838,182 @@ public class AtoCopilotContext : DbContext
             entity.HasKey(e => new { e.BaselineId, e.ControlId });
             entity.Property(e => e.BaselineId).HasMaxLength(36);
             entity.Property(e => e.ControlId).HasMaxLength(20);
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // System Profile Entities (Feature 046)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        // ─── SystemProfileSection ────────────────────────────────────────────────
+        modelBuilder.Entity<SystemProfileSection>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.SectionType).HasConversion<string>().HasMaxLength(30);
+            entity.Property(e => e.GovernanceStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.DraftContent).HasMaxLength(16000);
+            entity.Property(e => e.ApprovedContent).HasMaxLength(16000);
+            entity.Property(e => e.LastEditedBy).HasMaxLength(200);
+            entity.Property(e => e.SubmittedBy).HasMaxLength(200);
+            entity.Property(e => e.ReviewedBy).HasMaxLength(200);
+            entity.Property(e => e.ReviewerComments).HasMaxLength(2000);
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            // Unique composite: one section per type per system
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.SectionType })
+                .IsUnique()
+                .HasDatabaseName("IX_SystemProfileSection_System_Type");
+
+            // Covering index for governance queries
+            entity.HasIndex(e => e.GovernanceStatus)
+                .HasDatabaseName("IX_SystemProfileSection_Status");
+
+            entity.HasIndex(e => e.RegisteredSystemId)
+                .HasDatabaseName("IX_SystemProfileSection_SystemId");
+
+            // FK to RegisteredSystem
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── UserCategory ────────────────────────────────────────────────────────
+        modelBuilder.Entity<UserCategory>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SystemProfileSectionId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.CategoryName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.AccessMethod).HasMaxLength(500);
+            entity.Property(e => e.DataSensitivityLevel).HasMaxLength(100);
+
+            entity.HasOne(e => e.SystemProfileSection)
+                .WithMany(e => e.UserCategories)
+                .HasForeignKey(e => e.SystemProfileSectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── DataTypeEntry ───────────────────────────────────────────────────────
+        modelBuilder.Entity<DataTypeEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SystemProfileSectionId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.DataTypeName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.SensitivityClassification).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Source).HasMaxLength(500);
+            entity.Property(e => e.Destination).HasMaxLength(500);
+            entity.Property(e => e.ApplicableRegulations).HasMaxLength(1000);
+
+            entity.HasOne(e => e.SystemProfileSection)
+                .WithMany(e => e.DataTypeEntries)
+                .HasForeignKey(e => e.SystemProfileSectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── PpsEntry ────────────────────────────────────────────────────────────
+        modelBuilder.Entity<PpsEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SystemProfileSectionId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.PortOrRange).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Protocol).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ServiceName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Direction).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Justification).HasMaxLength(2000);
+
+            entity.HasOne(e => e.SystemProfileSection)
+                .WithMany(e => e.PpsEntries)
+                .HasForeignKey(e => e.SystemProfileSectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── LeveragedAuthorization ──────────────────────────────────────────────
+        modelBuilder.Entity<LeveragedAuthorization>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SystemProfileSectionId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ProviderName).HasMaxLength(300).IsRequired();
+            entity.Property(e => e.AuthorizationType).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.CoveredControlFamilies).HasMaxLength(1000);
+
+            entity.HasOne(e => e.SystemProfileSection)
+                .WithMany(e => e.LeveragedAuthorizations)
+                .HasForeignKey(e => e.SystemProfileSectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── BusinessContextDraft ────────────────────────────────────────────────
+        modelBuilder.Entity<BusinessContextDraft>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.ControlImplementationId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Content).HasMaxLength(8000).IsRequired();
+            entity.Property(e => e.GovernanceStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.AuthoredBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.SubmittedBy).HasMaxLength(200);
+            entity.Property(e => e.ReviewedBy).HasMaxLength(200);
+            entity.Property(e => e.ReviewerComments).HasMaxLength(2000);
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            // One draft per control implementation
+            entity.HasIndex(e => e.ControlImplementationId)
+                .IsUnique()
+                .HasDatabaseName("IX_BusinessContextDraft_CtrlImpl");
+
+            // FK to ControlImplementation
+            entity.HasOne(e => e.ControlImplementation)
+                .WithMany()
+                .HasForeignKey(e => e.ControlImplementationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── BusinessContextControlFlag ──────────────────────────────────────────
+        modelBuilder.Entity<BusinessContextControlFlag>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.FlaggedBy).HasMaxLength(200).IsRequired();
+
+            // Unique composite: one flag per control per system
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.ControlId })
+                .IsUnique()
+                .HasDatabaseName("IX_BizCtxFlag_System_Control");
+
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── ProfileAuditEntry ───────────────────────────────────────────────────
+        modelBuilder.Entity<ProfileAuditEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.SystemProfileSectionId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.Action).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.PerformedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.PreviousStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.NewStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Comments).HasMaxLength(2000);
+
+            entity.HasIndex(e => e.SystemProfileSectionId)
+                .HasDatabaseName("IX_ProfileAuditEntry_SectionId");
+
+            entity.HasOne(e => e.SystemProfileSection)
+                .WithMany(e => e.AuditEntries)
+                .HasForeignKey(e => e.SystemProfileSectionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

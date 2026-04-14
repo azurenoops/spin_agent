@@ -1,0 +1,93 @@
+name: Bootstrap Azure Container App Infra
+
+on:
+  workflow_dispatch:
+    inputs:
+      location:
+        description: Azure region (for example usgovvirginia or eastus2)
+        required: true
+        default: usgovvirginia
+        type: string
+      resource_group:
+        description: Resource group name
+        required: true
+        default: rg-ato-copilot
+        type: string
+      acr_name:
+        description: ACR name (must be globally unique)
+        required: true
+        default: atocopilotacr
+        type: string
+      containerapp_env_name:
+        description: Container Apps environment name
+        required: true
+        default: cae-ato-copilot
+        type: string
+      containerapp_name:
+        description: Container app name
+        required: true
+        default: ca-ato-copilot-mcp
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create resource group
+        run: |
+          az group create \
+            --name "${{ github.event.inputs.resource_group }}" \
+            --location "${{ github.event.inputs.location }}"
+
+      - name: Create Azure Container Registry
+        run: |
+          az acr create \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --name "${{ github.event.inputs.acr_name }}" \
+            --sku Basic \
+            --admin-enabled true
+
+      - name: Create Container Apps environment
+        run: |
+          az containerapp env create \
+            --name "${{ github.event.inputs.containerapp_env_name }}" \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --location "${{ github.event.inputs.location }}"
+
+      - name: Create initial container app
+        run: |
+          LOGIN_SERVER=$(az acr show -g "${{ github.event.inputs.resource_group }}" -n "${{ github.event.inputs.acr_name }}" --query loginServer -o tsv)
+          USERNAME=$(az acr credential show -n "${{ github.event.inputs.acr_name }}" --query username -o tsv)
+          PASSWORD=$(az acr credential show -n "${{ github.event.inputs.acr_name }}" --query passwords[0].value -o tsv)
+
+          az containerapp create \
+            --name "${{ github.event.inputs.containerapp_name }}" \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --environment "${{ github.event.inputs.containerapp_env_name }}" \
+            --image mcr.microsoft.com/k8se/quickstart:latest \
+            --target-port 8080 \
+            --ingress external \
+            --registry-server "${LOGIN_SERVER}" \
+            --registry-username "${USERNAME}" \
+            --registry-password "${PASSWORD}"
+
+      - name: Output values for repository variables
+        shell: bash
+        run: |
+          echo "Set these repository variables after bootstrap:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- AZURE_RESOURCE_GROUP=${{ github.event.inputs.resource_group }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- AZURE_ACR_NAME=${{ github.event.inputs.acr_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- AZURE_CONTAINERAPP_ENV_NAME=${{ github.event.inputs.containerapp_env_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- AZURE_CONTAINERAPP_NAME=${{ github.event.inputs.containerapp_name }}" >> "$GITHUB_STEP_SUMMARY"

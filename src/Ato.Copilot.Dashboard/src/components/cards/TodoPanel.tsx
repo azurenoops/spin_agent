@@ -1,8 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePolling } from '../../hooks/usePolling';
-import type { TodoList, TodoItem } from '../../types/dashboard';
+import { useSettings } from '../../hooks/useSettings';
+import type { TodoList, TodoItem, ProfileTodoResponse } from '../../types/dashboard';
 import apiClient from '../../api/client';
+import { getProfileTodos } from '../../api/systemProfile';
 import TodoActionDialog from './TodoActionDialog';
 
 interface ResolveBlockedInfo {
@@ -20,7 +22,19 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
   const [selectedItem, setSelectedItem] = useState<TodoItem | null>(null);
   const [resolving, setResolving] = useState<string | null>(null);
   const [resolveBlocked, setResolveBlocked] = useState<ResolveBlockedInfo | null>(null);
+  const [profileTodos, setProfileTodos] = useState<ProfileTodoResponse | null>(null);
+  const { settings } = useSettings();
   const navigate = useNavigate();
+
+  // Fetch profile todos for MissionOwner
+  useEffect(() => {
+    if (settings.role !== 'MissionOwner') {
+      setProfileTodos(null);
+      return;
+    }
+    getProfileTodos(systemId).then(setProfileTodos).catch(() => setProfileTodos(null));
+  }, [systemId, settings.role]);
+
   const fetcher = useCallback(
     () => apiClient.get<TodoList>(`/systems/${systemId}/todos`).then((r) => r.data),
     [systemId],
@@ -66,6 +80,50 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
 
   return (
     <>
+      {/* Profile Tasks (MissionOwner only) */}
+      {profileTodos?.hasProfileTasks && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 mb-3">
+          <div className="px-5 pt-3 pb-1">
+            <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Your Profile Tasks</p>
+          </div>
+          <div className="divide-y divide-indigo-100">
+            {profileTodos.incompleteSections.map((s) => (
+              <button
+                key={s.sectionType}
+                type="button"
+                onClick={() => navigate(`/systems/${systemId}/profile/${s.sectionType}`)}
+                className="flex w-full items-center justify-between px-5 py-3 hover:bg-indigo-100 transition-colors text-left"
+              >
+                <div>
+                  <p className="text-sm font-medium text-indigo-900">{s.label}</p>
+                  <p className="text-xs text-indigo-600">{s.status}</p>
+                </div>
+                {arrow}
+              </button>
+            ))}
+            {profileTodos.revisionSections.map((s) => (
+              <button
+                key={`rev-${s.sectionType}`}
+                type="button"
+                onClick={() => navigate(`/systems/${systemId}/profile/${s.sectionType}`)}
+                className="flex w-full items-center justify-between px-5 py-3 hover:bg-amber-100 bg-amber-50 transition-colors text-left"
+              >
+                <div>
+                  <p className="text-sm font-medium text-amber-900">{s.label} — Needs Revision</p>
+                  {s.reviewerComments && <p className="text-xs text-amber-700 mt-0.5">{s.reviewerComments}</p>}
+                </div>
+                {arrow}
+              </button>
+            ))}
+            {profileTodos.flaggedControls.map((c) => (
+              <div key={c.controlId} className="px-5 py-3 text-sm text-indigo-700">
+                Business context needed: <span className="font-medium">{c.controlTitle}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-gray-200 bg-white">
         <div className="px-5 pt-3 pb-1">
           <p className="text-xs text-gray-500">

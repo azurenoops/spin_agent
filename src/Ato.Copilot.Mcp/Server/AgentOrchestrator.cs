@@ -65,6 +65,49 @@ public class AgentOrchestrator
             }).ToList();
         }
 
+        // Document-page context boost: when the user is on the dashboard documents page,
+        // prefer the Document agent for narrative/template/source-document workflows.
+        if (context != null &&
+            context.TryGetValue("page", out var pageObj) &&
+            pageObj is string page &&
+            page.Equals("documents", StringComparison.OrdinalIgnoreCase))
+        {
+            scored = scored.Select(x =>
+            {
+                if (x.agent.AgentName.Contains("Document", StringComparison.OrdinalIgnoreCase))
+                {
+                    var boosted = Math.Min(1.0, x.score + 0.20);
+                    _logger.LogDebug("Context boost: {AgentId} {OrigScore:F2} → {BoostedScore:F2} (documents page)",
+                        x.agent.AgentId, x.score, boosted);
+                    return (x.agent, score: boosted);
+                }
+
+                return x;
+            }).ToList();
+        }
+
+        // Intent boost for source-document/template language regardless of page.
+        var lowerMessage = message.ToLowerInvariant();
+        if (lowerMessage.Contains("sharepoint") ||
+            lowerMessage.Contains("source document") ||
+            lowerMessage.Contains("reference document") ||
+            lowerMessage.Contains("custom rmf template") ||
+            lowerMessage.Contains("documents page"))
+        {
+            scored = scored.Select(x =>
+            {
+                if (x.agent.AgentName.Contains("Document", StringComparison.OrdinalIgnoreCase))
+                {
+                    var boosted = Math.Min(1.0, x.score + 0.15);
+                    _logger.LogDebug("Intent boost: {AgentId} {OrigScore:F2} → {BoostedScore:F2} (document intent)",
+                        x.agent.AgentId, x.score, boosted);
+                    return (x.agent, score: boosted);
+                }
+
+                return x;
+            }).ToList();
+        }
+
         // Log all scores for observability
         foreach (var (agent, score) in scored)
         {

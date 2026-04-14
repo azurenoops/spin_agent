@@ -1224,6 +1224,318 @@ public static class DashboardEndpoints
             })
             .WithName("GetTodoList");
 
+        // ─── System Profile (Feature 046) ──────────────────────────────────
+
+        group.MapGet("/systems/{systemId}/profile", async (
+                string systemId,
+                ISystemProfileService profileService,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    var result = await profileService.GetProfileOverviewAsync(systemId, ct);
+                    return Results.Ok(result);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("SYSTEM_NOT_FOUND"))
+                {
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = ex.Message,
+                        ErrorCode = "SYSTEM_NOT_FOUND",
+                        Suggestion = "Check the system ID and try again",
+                    });
+                }
+            })
+            .WithName("GetSystemProfile");
+
+        group.MapGet("/systems/{systemId}/profile/{sectionType}", async (
+                string systemId,
+                string sectionType,
+                ISystemProfileService profileService,
+                CancellationToken ct) =>
+            {
+                if (!Enum.TryParse<ProfileSectionType>(sectionType, true, out var parsedType))
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = $"Invalid section type '{sectionType}'",
+                        ErrorCode = "INVALID_INPUT",
+                    });
+
+                var result = await profileService.GetSectionDetailAsync(systemId, parsedType, ct);
+                if (result is null)
+                {
+                    // Return a synthesized "not started" section matching what the frontend expects
+                    return Results.Ok(new
+                    {
+                        id = (string?)null,
+                        sectionType = parsedType.ToString(),
+                        governanceStatus = "NotStarted",
+                        draftContent = (string?)null,
+                        approvedContent = (string?)null,
+                        completionPercentage = 0,
+                        lastEditedBy = (string?)null,
+                        lastEditedAt = (string?)null,
+                        submittedBy = (string?)null,
+                        submittedAt = (string?)null,
+                        reviewedBy = (string?)null,
+                        reviewedAt = (string?)null,
+                        reviewerComments = (string?)null,
+                        userCategories = Array.Empty<object>(),
+                        dataTypeEntries = Array.Empty<object>(),
+                        ppsEntries = Array.Empty<object>(),
+                        leveragedAuthorizations = Array.Empty<object>(),
+                    });
+                }
+
+                return Results.Ok(new
+                {
+                    id = result.Id,
+                    sectionType = result.SectionType.ToString(),
+                    governanceStatus = result.GovernanceStatus.ToString(),
+                    draftContent = result.DraftContent,
+                    approvedContent = result.ApprovedContent,
+                    completionPercentage = result.CompletionPercentage,
+                    lastEditedBy = result.LastEditedBy,
+                    lastEditedAt = result.LastEditedAt?.ToString("O"),
+                    submittedBy = result.SubmittedBy,
+                    submittedAt = result.SubmittedAt?.ToString("O"),
+                    reviewedBy = result.ReviewedBy,
+                    reviewedAt = result.ReviewedAt?.ToString("O"),
+                    reviewerComments = result.ReviewerComments,
+                    userCategories = result.UserCategories.OrderBy(c => c.SortOrder).Select(c => new
+                    {
+                        c.Id, categoryName = c.CategoryName, description = c.Description,
+                        approximateCount = c.ApproximateCount, accessMethod = c.AccessMethod,
+                        dataSensitivityLevel = c.DataSensitivityLevel, sortOrder = c.SortOrder,
+                    }),
+                    dataTypeEntries = result.DataTypeEntries.OrderBy(d => d.SortOrder).Select(d => new
+                    {
+                        d.Id, dataTypeName = d.DataTypeName, description = d.Description,
+                        sensitivityClassification = d.SensitivityClassification,
+                        source = d.Source, destination = d.Destination,
+                        applicableRegulations = d.ApplicableRegulations, sortOrder = d.SortOrder,
+                    }),
+                    ppsEntries = result.PpsEntries.OrderBy(p => p.SortOrder).Select(p => new
+                    {
+                        p.Id, portOrRange = p.PortOrRange, protocol = p.Protocol,
+                        serviceName = p.ServiceName, direction = p.Direction,
+                        justification = p.Justification, sortOrder = p.SortOrder,
+                    }),
+                    leveragedAuthorizations = result.LeveragedAuthorizations.OrderBy(l => l.SortOrder).Select(l => new
+                    {
+                        l.Id, providerName = l.ProviderName, authorizationType = l.AuthorizationType,
+                        authorizationDate = l.AuthorizationDate, coveredControlFamilies = l.CoveredControlFamilies,
+                        sortOrder = l.SortOrder,
+                    }),
+                });
+            })
+            .WithName("GetProfileSection");
+
+        group.MapPut("/systems/{systemId}/profile/{sectionType}", async (
+                string systemId,
+                string sectionType,
+                SaveProfileSectionBody body,
+                HttpContext httpContext,
+                ISystemProfileService profileService,
+                CancellationToken ct) =>
+            {
+                if (!Enum.TryParse<ProfileSectionType>(sectionType, true, out var parsedType))
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = $"Invalid section type '{sectionType}'",
+                        ErrorCode = "INVALID_INPUT",
+                    });
+
+                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                try
+                {
+                    var result = await profileService.SaveDraftAsync(
+                        systemId, parsedType, body.Content, userId, ct);
+
+                    return Results.Ok(new
+                    {
+                        id = result.Id,
+                        sectionType = result.SectionType.ToString(),
+                        governanceStatus = result.GovernanceStatus.ToString(),
+                        draftContent = result.DraftContent,
+                        approvedContent = result.ApprovedContent,
+                        completionPercentage = result.CompletionPercentage,
+                        lastEditedBy = result.LastEditedBy,
+                        lastEditedAt = result.LastEditedAt?.ToString("O"),
+                        submittedBy = result.SubmittedBy,
+                        submittedAt = result.SubmittedAt?.ToString("O"),
+                        reviewedBy = result.ReviewedBy,
+                        reviewedAt = result.ReviewedAt?.ToString("O"),
+                        reviewerComments = result.ReviewerComments,
+                        userCategories = Array.Empty<object>(),
+                        dataTypeEntries = Array.Empty<object>(),
+                        ppsEntries = Array.Empty<object>(),
+                        leveragedAuthorizations = Array.Empty<object>(),
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    var code = ex.Message.Contains(':') ? ex.Message[..ex.Message.IndexOf(':')] : "OPERATION_FAILED";
+                    var statusCode = code switch
+                    {
+                        "UNAUTHORIZED" => StatusCodes.Status403Forbidden,
+                        "SYSTEM_NOT_FOUND" => StatusCodes.Status404NotFound,
+                        _ => StatusCodes.Status400BadRequest,
+                    };
+                    return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: statusCode);
+                }
+            })
+            .WithName("SaveProfileSection");
+
+        group.MapPost("/systems/{systemId}/profile/submit", async (
+                string systemId,
+                SubmitSectionsBody body,
+                HttpContext httpContext,
+                ISystemProfileService profileService,
+                CancellationToken ct) =>
+            {
+                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                try
+                {
+                    var sectionTypes = body.SectionTypes?.Select(s =>
+                    {
+                        Enum.TryParse<ProfileSectionType>(s, true, out var t);
+                        return t;
+                    }).ToList();
+
+                    if (string.Equals(body.Action, "withdraw", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var result = await profileService.WithdrawSectionAsync(systemId, sectionTypes, userId, ct);
+                        return Results.Ok(new
+                        {
+                            withdrawnSections = result.WithdrawnSections.Select(s => s.ToString()),
+                            skippedSections = result.SkippedSections.Select(s => new { sectionType = s.SectionType.ToString(), s.Reason }),
+                            withdrawnBy = result.WithdrawnBy,
+                            withdrawnAt = result.WithdrawnAt.ToString("O"),
+                        });
+                    }
+                    else
+                    {
+                        var result = await profileService.SubmitForReviewAsync(systemId, sectionTypes, userId, ct);
+                        return Results.Ok(new
+                        {
+                            submittedSections = result.SubmittedSections.Select(s => s.ToString()),
+                            skippedSections = result.SkippedSections.Select(s => new { sectionType = s.SectionType.ToString(), s.Reason }),
+                            submittedBy = result.SubmittedBy,
+                            submittedAt = result.SubmittedAt.ToString("O"),
+                        });
+                    }
+                }
+                catch (InvalidOperationException ex)
+                {
+                    var code = ex.Message.Contains(':') ? ex.Message[..ex.Message.IndexOf(':')] : "OPERATION_FAILED";
+                    var statusCode = code switch
+                    {
+                        "UNAUTHORIZED" => StatusCodes.Status403Forbidden,
+                        _ => StatusCodes.Status400BadRequest,
+                    };
+                    return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: statusCode);
+                }
+            })
+            .WithName("SubmitProfileSections");
+
+        group.MapPost("/systems/{systemId}/profile/{sectionType}/review", async (
+                string systemId,
+                string sectionType,
+                ReviewSectionBody body,
+                HttpContext httpContext,
+                ISystemProfileService profileService,
+                CancellationToken ct) =>
+            {
+                if (!Enum.TryParse<ProfileSectionType>(sectionType, true, out var parsedType))
+                    return Results.BadRequest(new ErrorResponse { Error = $"Invalid section type", ErrorCode = "INVALID_INPUT" });
+
+                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var decision = body.Decision.Equals("approve", StringComparison.OrdinalIgnoreCase)
+                    ? ReviewDecision.Approve
+                    : ReviewDecision.RequestRevision;
+
+                try
+                {
+                    var result = await profileService.ReviewSectionAsync(
+                        systemId, parsedType, decision, userId, body.Comments, ct);
+                    return Results.Ok(new
+                    {
+                        sectionType = result.SectionType.ToString(),
+                        newStatus = result.GovernanceStatus.ToString(),
+                        reviewedBy = result.ReviewedBy,
+                        reviewedAt = result.ReviewedAt?.ToString("O"),
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    var code = ex.Message.Contains(':') ? ex.Message[..ex.Message.IndexOf(':')] : "OPERATION_FAILED";
+                    var statusCode = code switch
+                    {
+                        "UNAUTHORIZED" => StatusCodes.Status403Forbidden,
+                        "COMMENTS_REQUIRED" => StatusCodes.Status400BadRequest,
+                        _ => StatusCodes.Status400BadRequest,
+                    };
+                    return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: statusCode);
+                }
+            })
+            .WithName("ReviewProfileSection");
+
+        group.MapPost("/systems/{systemId}/profile/batch-approve", async (
+                string systemId,
+                HttpContext httpContext,
+                ISystemProfileService profileService,
+                CancellationToken ct) =>
+            {
+                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                try
+                {
+                    var result = await profileService.BatchApproveSectionsAsync(systemId, userId, ct);
+                    return Results.Ok(new
+                    {
+                        approvedSections = result.ApprovedSections.Select(s => s.ToString()),
+                        approvedCount = result.ApprovedCount,
+                        reviewedBy = result.ReviewedBy,
+                        reviewedAt = result.ReviewedAt.ToString("O"),
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    var code = ex.Message.Contains(':') ? ex.Message[..ex.Message.IndexOf(':')] : "OPERATION_FAILED";
+                    return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: StatusCodes.Status403Forbidden);
+                }
+            })
+            .WithName("BatchApproveProfile");
+
+        group.MapGet("/systems/{systemId}/profile/completeness", async (
+                string systemId,
+                ISystemProfileService profileService,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    var result = await profileService.GetCompletenessAsync(systemId, ct);
+                    return Results.Ok(result);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("SYSTEM_NOT_FOUND"))
+                {
+                    return Results.NotFound(new ErrorResponse { Error = ex.Message, ErrorCode = "SYSTEM_NOT_FOUND" });
+                }
+            })
+            .WithName("GetProfileCompleteness");
+
+        group.MapGet("/systems/{systemId}/profile/todos", async (
+                string systemId,
+                HttpContext httpContext,
+                ISystemProfileService profileService,
+                CancellationToken ct) =>
+            {
+                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var result = await profileService.GetProfileTodosAsync(systemId, userId, ct);
+                return Results.Ok(result);
+            })
+            .WithName("GetProfileTodos");
+
         // ─── Boundary Definitions (Feature 033) ─────────────────────────────
         group.MapGet("/systems/{systemId}/boundary-definitions", async (
                 string systemId,

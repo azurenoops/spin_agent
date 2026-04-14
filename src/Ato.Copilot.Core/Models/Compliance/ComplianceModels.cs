@@ -563,7 +563,9 @@ public enum RmfRole
     /// <summary>Security Control Assessor — independent assessment of control effectiveness.</summary>
     Sca,
     /// <summary>System Owner — responsible for system implementation (maps to Engineer persona).</summary>
-    SystemOwner
+    SystemOwner,
+    /// <summary>Mission Owner — provides system-level business context (maps to Mission Owner persona).</summary>
+    MissionOwner
 }
 
 /// <summary>

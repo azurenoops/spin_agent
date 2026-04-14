@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using Polly.Retry;
+using Polly.Timeout;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Unit.Resilience;
@@ -101,9 +102,9 @@ public class ResiliencePipelineTests
     public async Task Timeout_CancelsRequest_WhenExceedsTimeout()
     {
         // Arrange
-        var handler = new TestDelegatingHandler(async _ =>
+        var handler = new TestDelegatingHandler(async (_, ct) =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
             return new HttpResponseMessage(HttpStatusCode.OK);
         });
 
@@ -113,7 +114,9 @@ public class ResiliencePipelineTests
         Func<Task> act = () => client.GetAsync("http://test/api");
 
         // Assert
-        await act.Should().ThrowAsync<TaskCanceledException>();
+        await act.Should().ThrowAsync<Exception>()
+            .Where(ex => (ex is TimeoutRejectedException) || (ex is OperationCanceledException)
+                || ex.InnerException is TaskCanceledException);
     }
 
     /// <summary>
@@ -173,19 +176,22 @@ public class ResiliencePipelineTests
         // Build a simple client with retry via Polly ResiliencePipeline directly
         var pipelineBuilder = new ResiliencePipelineBuilder<HttpResponseMessage>();
 
-        pipelineBuilder.AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+        if (maxRetries > 0)
         {
-            MaxRetryAttempts = maxRetries,
-            Delay = TimeSpan.FromSeconds(baseDelay),
-            BackoffType = DelayBackoffType.Exponential,
-            UseJitter = true,
-            ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
-                .HandleResult(r => r.StatusCode is
-                    HttpStatusCode.ServiceUnavailable or
-                    HttpStatusCode.TooManyRequests or
-                    HttpStatusCode.GatewayTimeout or
-                    HttpStatusCode.RequestTimeout)
-        });
+            pipelineBuilder.AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+            {
+                MaxRetryAttempts = maxRetries,
+                Delay = TimeSpan.FromSeconds(baseDelay),
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true,
+                ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+                    .HandleResult(r => r.StatusCode is
+                        HttpStatusCode.ServiceUnavailable or
+                        HttpStatusCode.TooManyRequests or
+                        HttpStatusCode.GatewayTimeout or
+                        HttpStatusCode.RequestTimeout)
+            });
+        }
 
         pipelineBuilder.AddTimeout(TimeSpan.FromSeconds(timeoutSeconds));
 
@@ -204,20 +210,25 @@ public class ResiliencePipelineTests
     /// </summary>
     private class TestDelegatingHandler : HttpMessageHandler
     {
-        private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _handler;
+        private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _handler;
 
         public TestDelegatingHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
         {
-            _handler = request => Task.FromResult(handler(request));
+            _handler = (request, _) => Task.FromResult(handler(request));
         }
 
         public TestDelegatingHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> asyncHandler)
+        {
+            _handler = (request, _) => asyncHandler(request);
+        }
+
+        public TestDelegatingHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> asyncHandler)
         {
             _handler = asyncHandler;
         }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
-            => _handler(request);
+            => _handler(request, cancellationToken);
     }
 }

@@ -1,8 +1,11 @@
 import { useState, useCallback, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
+import { useSettings } from '../hooks/useSettings';
 import { getNarratives, bulkUpdateNarratives, saveNarrative, regenerateNarrative, getAvailableControls, createNarrative } from '../api/narratives';
+import { getBusinessContext } from '../api/businessContext';
 import type { NarrativeListItem, AvailableControl } from '../api/narratives';
+import type { BusinessContextDraftResponse } from '../types/dashboard';
 import EvidenceSection from '../components/EvidenceSection';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -207,6 +210,7 @@ function AddNarrativeDialog({
 
 export default function Narratives() {
   const { id: systemId } = useParams<{ id: string }>();
+  const { settings } = useSettings();
   const [familyFilter, setFamilyFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [search, setSearch] = useState('');
@@ -222,6 +226,7 @@ export default function Narratives() {
   const savedTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [regenError, setRegenError] = useState('');
+  const [businessContextCache, setBusinessContextCache] = useState<Record<string, BusinessContextDraftResponse | null>>({});
 
   const fetchNarratives = useCallback(() => {
     if (!systemId) return Promise.resolve([]);
@@ -277,7 +282,16 @@ export default function Narratives() {
     setExpanded(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
-      else next.add(id);
+      else {
+        next.add(id);
+        // Fetch business context on expand if not cached
+        const item = items.find(n => n.id === id);
+        if (item && systemId && !(item.controlId in businessContextCache)) {
+          getBusinessContext(systemId, item.controlId)
+            .then(bc => setBusinessContextCache(c => ({ ...c, [item.controlId]: bc })))
+            .catch(() => setBusinessContextCache(c => ({ ...c, [item.controlId]: null })));
+        }
+      }
       return next;
     });
   };
@@ -582,6 +596,45 @@ export default function Narratives() {
                                 controlImplementationId={n.id}
                               />
                             )}
+                            {/* Business Context Side Panel (T048/T049) */}
+                            {(() => {
+                              const bc = businessContextCache[n.controlId];
+                              if (bc) {
+                                return (
+                                  <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-semibold text-indigo-700">Mission Owner Business Context</span>
+                                      <StatusBadge status={bc.governanceStatus} variant={approvalVariant(bc.governanceStatus)} />
+                                    </div>
+                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{bc.content}</p>
+                                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                                      <span>By {bc.authoredBy}</span>
+                                      <span>{formatDate(bc.authoredAt)}</span>
+                                    </div>
+                                    {settings.role === 'ISSO' && (
+                                      <button
+                                        type="button"
+                                        className="text-xs text-indigo-600 font-medium hover:underline"
+                                        onClick={() => setEditedNarratives(prev => ({
+                                          ...prev,
+                                          [n.controlId]: (prev[n.controlId] ?? n.narrative ?? '') + '\n\n' + bc.content,
+                                        }))}
+                                      >
+                                        Copy to Narrative
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              if (bc === null) {
+                                return (
+                                  <p className="mt-3 text-xs text-gray-400 italic">
+                                    Awaiting business context from Mission Owner
+                                  </p>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         </td>
                       </tr>

@@ -48,10 +48,11 @@ public class AuthModelTests
     [InlineData(24)]
     public void CacSession_TimeoutRange_ShouldBeWithin1To24Hours(int hours)
     {
+        var now = DateTimeOffset.UtcNow;
         var session = new CacSession
         {
-            SessionStart = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.AddHours(hours)
+            SessionStart = now,
+            ExpiresAt = now.AddHours(hours)
         };
 
         var duration = session.ExpiresAt - session.SessionStart;

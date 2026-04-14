@@ -89,6 +89,10 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 - SQLite (dev) / SQL Server (prod) via EF Core — existing `AtoCopilotContext` (043-control-inheritance)
 - C# 13 / .NET 9, TypeScript 5 / React 19 + EF Core 9, ASP.NET Core Minimal APIs, Vite 6, Tailwind CSS 3, Axios (044-org-control-inheritance)
 - SQL Server (EF Core migrations, `AtoCopilotContext`) (044-org-control-inheritance)
+- C# 13 / .NET 9.0 (backend), TypeScript / React (dashboard) + ASP.NET Core, EF Core 9.0.0, Serilog, xUnit, FluentAssertions, Moq, React 18, Axios (046-mission-system-details)
+- SQLite (dev) / SQL Server (prod) via EF Core dual-provider; `AtoCopilotContext` (046-mission-system-details)
+- C# 13 / .NET 9.0 (backend), TypeScript / React 18 (frontend) + ASP.NET Core, EF Core 9.0.0, Axios, Tailwind CSS (046-mission-system-details)
+- SQLite (dev) / SQL Server (prod), dual-provider via `AtoCopilotContext` (046-mission-system-details)
 
 - C# 13 / .NET 9.0 + Azure.Identity 1.13, Azure.ResourceManager 1.13, Microsoft.Extensions.AI 9.4-preview, Microsoft.EntityFrameworkCore 9.0, Serilog 4.2, xUnit 2.9, FluentAssertions 7.0, Moq 4.20 (001-core-compliance)
 
@@ -108,13 +112,9 @@ dotnet build Ato.Copilot.sln [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMAN
 C# .NET 9: Follow standard conventions
 
 ## Recent Changes
-- 040-component-centric-boundary: Added C# / .NET 8 + EF Core 8, Azure.ResourceManager, Azure.ResourceManager.ResourceGraph, ASP.NET Core Minimal APIs, React 18 + TypeScript (Vite dashboard)
-- 038-evidence-repository: Added C# / .NET 9.0 (backend), TypeScript / React 18+ (frontend) + ASP.NET Core Minimal APIs, Entity Framework Core 9, Axios, React, Tailwind CSS, Heroicons
-- 037-ssp-document-export: Added C# 12 / .NET 9.0 (backend), TypeScript 5.x / React (frontend) + QuestPDF 2025.7.0 (PDF), DocumentFormat.OpenXml via ZipArchive (DOCX), ClosedXML 0.104.2 (Excel), System.Text.Json (OSCAL), SignalR (real-time), axios (frontend HTTP)
-- 035-deviation-management: Added C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (dashboard), TypeScript 5 / Node.js (M365 Teams + VS Code extensions) + EF Core 9.0, ASP.NET Core Minimal APIs, Serilog, SignalR, Recharts (frontend), @microsoft/signalr (frontend)
-- 036-risk-solutions: Added C# 9 / .NET 8 (backend), TypeScript / React 18 (dashboard) + EF Core 8 (SQL Server), ASP.NET Minimal APIs, Vite, TailwindCSS
-- 035-deviation-management: Added C# 13 / .NET 9.0 (backend), TypeScript 5 / React 19 (dashboard), TypeScript 5 / Node.js (M365 Teams + VS Code extensions) + EF Core 9.0, ASP.NET Core Minimal APIs, Serilog, SignalR, Recharts (frontend), @microsoft/signalr (frontend)
-- 034-dashboard-chat: Added TypeScript 5.7 / React 19 / C# 13 (.NET 9.0 — backend, no changes expected) + React 19, react-router-dom 7, axios 1.7, react-markdown (new), remark-gfm (new), react-syntax-highlighter (new)
+- 046-mission-system-details: Added C# 13 / .NET 9.0 (backend), TypeScript / React 18 (frontend) + ASP.NET Core, EF Core 9.0.0, Axios, Tailwind CSS
+- 046-mission-system-details: Added C# 13 / .NET 9.0 (backend), TypeScript / React 18 (frontend) + ASP.NET Core, EF Core 9.0.0, Axios, Tailwind CSS
+- 046-mission-system-details: Added C# 13 / .NET 9.0 (backend), TypeScript / React (dashboard) + ASP.NET Core, EF Core 9.0.0, Serilog, xUnit, FluentAssertions, Moq, React 18, Axios
 
 
 <!-- MANUAL ADDITIONS START -->

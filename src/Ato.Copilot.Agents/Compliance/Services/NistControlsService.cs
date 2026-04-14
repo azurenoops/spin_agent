@@ -88,6 +88,8 @@ public class NistControlsService : INistControlsService
     /// <inheritdoc />
     public async Task<NistCatalog?> GetCatalogAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var activity = ActivitySource.StartActivity("GetCatalog");
         var sw = Stopwatch.StartNew();
 

@@ -6,7 +6,7 @@ import { useLocalStorage } from './useLocalStorage';
 export interface DashboardSettings {
   // Profile & Identity
   displayName: string;
-  role: 'AO' | 'ISSM' | 'ISSO' | 'SCA' | 'Engineer' | '';
+  role: 'AO' | 'ISSM' | 'ISSO' | 'SCA' | 'Engineer' | 'MissionOwner' | '';
   organization: string;
 
   // Notifications & Alerts

@@ -1,3 +1,4 @@
+using Azure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Caching.Memory;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Graph;
 using Ato.Copilot.Agents.Common;
 using Ato.Copilot.Agents.Compliance.Agents;
 using Ato.Copilot.Agents.Compliance.Configuration;
@@ -17,6 +19,8 @@ using Ato.Copilot.Agents.Compliance.Services.ScanImport;
 using Ato.Copilot.Agents.Compliance.Tools;
 using Ato.Copilot.Agents.Configuration.Agents;
 using Ato.Copilot.Agents.Configuration.Tools;
+using Ato.Copilot.Agents.Document.Agents;
+using Ato.Copilot.Agents.Document.Tools;
 using Ato.Copilot.Agents.KnowledgeBase.Agents;
 using Ato.Copilot.Agents.KnowledgeBase.Configuration;
 using Ato.Copilot.Agents.KnowledgeBase.Services;
@@ -41,6 +45,8 @@ public static class ServiceCollectionExtensions
     {
         // Bind compliance agent options
         services.Configure<ComplianceAgentOptions>(configuration.GetSection("Agents:Compliance"));
+
+        RegisterGraphClient(services, configuration);
 
         // Bind boundary options (feature flag for Azure resource validation)
         services.Configure<BoundaryOptions>(configuration.GetSection("Agents:Compliance:Boundary"));
@@ -718,6 +724,26 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<RemoveComponentFromBoundaryTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComponentRiskSummaryTool>());
 
+        // ─── System Profile services and tools (Feature 046) ────────────────
+        services.AddSingleton<ISystemProfileService, SystemProfileService>();
+        services.AddSingleton<IProfileNotificationService, ProfileNotificationService>();
+        services.AddSingleton<IEmailSender, StubEmailSender>();
+
+        services.AddSingleton<ComplianceGetSystemProfileTool>();
+        services.AddSingleton<ComplianceSaveProfileSectionTool>();
+        services.AddSingleton<ComplianceSubmitProfileSectionTool>();
+        services.AddSingleton<ComplianceReviewProfileSectionTool>();
+        services.AddSingleton<ComplianceBatchApproveProfileTool>();
+        services.AddSingleton<ComplianceGetProfileCompletenessTool>();
+        services.AddSingleton<ComplianceSaveBusinessContextTool>();
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceGetSystemProfileTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceSaveProfileSectionTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceSubmitProfileSectionTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceReviewProfileSectionTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceBatchApproveProfileTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceGetProfileCompletenessTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ComplianceSaveBusinessContextTool>());
+
         // Register the agent
         services.AddSingleton<ComplianceAgent>();
         services.AddSingleton<BaseAgent>(sp => sp.GetRequiredService<ComplianceAgent>());
@@ -881,6 +907,61 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseAgent>(sp => sp.GetRequiredService<KnowledgeBaseAgent>());
 
         return services;
+    }
+
+    /// <summary>
+    /// Register the Document agent and thin adapter tools.
+    /// This layer orchestrates existing canonical compliance services and avoids duplicated logic.
+    /// </summary>
+    public static IServiceCollection AddDocumentAgent(this IServiceCollection services)
+    {
+        services.AddSingleton<DocumentStatusTool>();
+        services.AddSingleton<DocumentContextSourceTool>();
+        services.AddSingleton<DocumentTemplateSelectorTool>();
+        services.AddSingleton<DocumentNarrativeGenerateAdapterTool>();
+
+        services.AddSingleton<DocumentAgent>();
+        services.AddSingleton<BaseAgent>(sp => sp.GetRequiredService<DocumentAgent>());
+
+        return services;
+    }
+
+    private static void RegisterGraphClient(IServiceCollection services, IConfiguration configuration)
+    {
+        if (services.Any(sd => sd.ServiceType == typeof(GraphServiceClient)))
+            return;
+
+        var configuredCloud = configuration.GetValue<string>("Gateway:Azure:CloudEnvironment")
+            ?? configuration.GetValue<string>("AzureAi:CloudEnvironment")
+            ?? "AzureGovernment";
+
+        var isPublicCloud = configuredCloud.Equals("AzureCloud", StringComparison.OrdinalIgnoreCase)
+            || configuredCloud.Equals("AzurePublicCloud", StringComparison.OrdinalIgnoreCase);
+
+        var authorityHost = isPublicCloud
+            ? AzureAuthorityHosts.AzurePublicCloud
+            : AzureAuthorityHosts.AzureGovernment;
+        var graphBaseUrl = isPublicCloud
+            ? "https://graph.microsoft.com/v1.0"
+            : "https://graph.microsoft.us/v1.0";
+        var scopes = new[]
+        {
+            isPublicCloud
+                ? "https://graph.microsoft.com/.default"
+                : "https://graph.microsoft.us/.default"
+        };
+
+        services.AddSingleton(sp =>
+        {
+            var logger = sp.GetService<ILogger<GraphServiceClient>>();
+            var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+            {
+                AuthorityHost = authorityHost
+            });
+
+            logger?.LogInformation("Registered GraphServiceClient for {GraphBaseUrl}", graphBaseUrl);
+            return new GraphServiceClient(credential, scopes, graphBaseUrl);
+        });
     }
 
     /// <summary>
