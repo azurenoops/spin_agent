@@ -64,7 +64,8 @@ jobs:
           az containerapp env create \
             --name "${{ github.event.inputs.containerapp_env_name }}" \
             --resource-group "${{ github.event.inputs.resource_group }}" \
-            --location "${{ github.event.inputs.location }}"
+            --location "${{ github.event.inputs.location }}" \
+            --enable-workload-profiles false
 
       - name: Create initial container app
         run: |
