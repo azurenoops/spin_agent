@@ -28,21 +28,21 @@ on:
         required: true
         default: ca-ato-copilot-mcp
         type: string
-        sql_server_name:
-          description: Azure SQL Server name (must be globally unique, e.g. sql-ato-copilot)
-          required: true
-          default: sql-ato-copilot
-          type: string
-        sql_database_name:
-          description: Database name
-          required: true
-          default: AtoCopilot
-          type: string
-        sql_admin_login:
-          description: SQL admin username
-          required: true
-          default: atoadmin
-          type: string
+      sql_server_name:
+        description: Azure SQL Server name (must be globally unique, e.g. sql-ato-copilot)
+        required: true
+        default: sql-ato-copilot
+        type: string
+      sql_database_name:
+        description: Database name
+        required: true
+        default: AtoCopilot
+        type: string
+      sql_admin_login:
+        description: SQL admin username
+        required: true
+        default: atoadmin
+        type: string
 
 permissions:
   id-token: write
@@ -61,28 +61,97 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Create resource group
+        shell: bash
         run: |
+          set -euo pipefail
           az group create \
             --name "${{ github.event.inputs.resource_group }}" \
             --location "${{ github.event.inputs.location }}"
 
-      - name: Create Azure Container Registry
+      - name: Create Azure Container Registry (idempotent)
+        shell: bash
         run: |
+          set -euo pipefail
           az acr create \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.acr_name }}" \
             --sku Basic \
             --admin-enabled true
 
-      - name: Create Log Analytics Workspace (idempotent)
+      - name: Create Azure SQL Server and database (idempotent)
+        shell: bash
         run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          LOCATION="${{ github.event.inputs.location }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          SQL_DB="${{ github.event.inputs.sql_database_name }}"
+          SQL_ADMIN="${{ github.event.inputs.sql_admin_login }}"
+          SQL_PASSWORD="${{ secrets.ATO_SQL_ADMIN_PASSWORD }}"
+
+          if [[ -z "$SQL_PASSWORD" ]]; then
+            echo "::error::Secret ATO_SQL_ADMIN_PASSWORD is not set. Add it to GitHub Secrets before running bootstrap."
+            exit 1
+          fi
+
+          EXISTING_SERVER=$(az sql server show \
+            --resource-group "$RG" --name "$SQL_SERVER" \
+            --query fullyQualifiedDomainName -o tsv 2>/dev/null || true)
+
+          if [[ -n "$EXISTING_SERVER" ]]; then
+            FQDN="$EXISTING_SERVER"
+            echo "SQL Server '$SQL_SERVER' already exists at $FQDN. Reusing."
+          else
+            FQDN=$(az sql server create \
+              --resource-group "$RG" \
+              --name "$SQL_SERVER" \
+              --location "$LOCATION" \
+              --admin-user "$SQL_ADMIN" \
+              --admin-password "$SQL_PASSWORD" \
+              --query fullyQualifiedDomainName -o tsv)
+            echo "Created SQL Server '$SQL_SERVER'."
+          fi
+
+          az sql server firewall-rule create \
+            --resource-group "$RG" \
+            --server "$SQL_SERVER" \
+            --name AllowAzureServices \
+            --start-ip-address 0.0.0.0 \
+            --end-ip-address 0.0.0.0 >/dev/null
+
+          EXISTING_DB=$(az sql db show \
+            --resource-group "$RG" --server "$SQL_SERVER" --name "$SQL_DB" \
+            --query id -o tsv 2>/dev/null || true)
+
+          if [[ -n "$EXISTING_DB" ]]; then
+            echo "Database '$SQL_DB' already exists. Reusing."
+          else
+            az sql db create \
+              --resource-group "$RG" \
+              --server "$SQL_SERVER" \
+              --name "$SQL_DB" \
+              --service-objective S2 \
+              --backup-storage-redundancy Local >/dev/null
+            echo "Created database '$SQL_DB'."
+          fi
+
+          CONN="Server=tcp:${FQDN},1433;Database=${SQL_DB};User Id=${SQL_ADMIN};Password=<ATO_SQL_ADMIN_PASSWORD>;TrustServerCertificate=False;Encrypt=True;"
+          echo "### SQL Server" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Server: ${FQDN}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Database: ${SQL_DB}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Set GitHub secret: ATO_DB_CONNECTION_STRING=${CONN}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create Log Analytics Workspace (idempotent)
+        shell: bash
+        run: |
+          set -euo pipefail
           RG="${{ github.event.inputs.resource_group }}"
           LOCATION="${{ github.event.inputs.location }}"
           LAW_NAME="law-${{ github.event.inputs.containerapp_env_name }}"
 
           EXISTING=$(az monitor log-analytics workspace show \
             --resource-group "$RG" --workspace-name "$LAW_NAME" \
-            --query "customerId" -o tsv 2>/dev/null || true)
+            --query customerId -o tsv 2>/dev/null || true)
 
           if [[ -n "$EXISTING" ]]; then
             echo "Log Analytics Workspace '$LAW_NAME' already exists. Reusing."
@@ -91,31 +160,40 @@ jobs:
               --resource-group "$RG" \
               --workspace-name "$LAW_NAME" \
               --location "$LOCATION" \
-              --retention-time 30
+              --retention-time 30 >/dev/null
+            echo "Created Log Analytics Workspace '$LAW_NAME'."
           fi
 
-      - name: Create Container Apps environment
+      - name: Create Container Apps environment (idempotent)
+        shell: bash
         run: |
+          set -euo pipefail
           ENV_NAME="${{ github.event.inputs.containerapp_env_name }}"
           RG="${{ github.event.inputs.resource_group }}"
           LOCATION="${{ github.event.inputs.location }}"
-          LAW_NAME="law-${{ github.event.inputs.containerapp_env_name }}"
+          LAW_NAME="law-${ENV_NAME}"
 
           LAW_ID=$(az monitor log-analytics workspace show \
             --resource-group "$RG" --workspace-name "$LAW_NAME" \
-            --query "customerId" -o tsv)
+            --query customerId -o tsv)
           LAW_KEY=$(az monitor log-analytics workspace get-shared-keys \
             --resource-group "$RG" --workspace-name "$LAW_NAME" \
-            --query "primarySharedKey" -o tsv)
+            --query primarySharedKey -o tsv)
 
-          EXISTING=$(az containerapp env show --name "$ENV_NAME" --resource-group "$RG" --query "id" -o tsv 2>/dev/null || true)
+          EXISTING=$(az containerapp env show \
+            --name "$ENV_NAME" --resource-group "$RG" \
+            --query id -o tsv 2>/dev/null || true)
+
           if [[ -n "$EXISTING" ]]; then
-            WORKLOAD=$(az containerapp env show --name "$ENV_NAME" --resource-group "$RG" --query "properties.workloadProfiles" -o tsv 2>/dev/null || true)
-            if [[ -n "$WORKLOAD" ]]; then
-              echo "::warning::Existing environment '$ENV_NAME' uses workload profiles. Deleting and recreating as Consumption-only..."
+            PROFILE_COUNT=$(az containerapp env show \
+              --name "$ENV_NAME" --resource-group "$RG" \
+              --query "length(properties.workloadProfiles)" -o tsv 2>/dev/null || echo "0")
+
+            if [[ "${PROFILE_COUNT}" != "0" ]]; then
+              echo "Existing environment '$ENV_NAME' is workload-profiles based. Recreating as consumption-only..."
               az containerapp env delete --name "$ENV_NAME" --resource-group "$RG" --yes
             else
-              echo "Environment '$ENV_NAME' already exists as Consumption-only. Skipping creation."
+              echo "Environment '$ENV_NAME' already exists as consumption-only."
               exit 0
             fi
           fi
@@ -126,22 +204,32 @@ jobs:
             --location "$LOCATION" \
             --logs-workspace-id "$LAW_ID" \
             --logs-workspace-key "$LAW_KEY" \
-            --enable-workload-profiles false
+            --enable-workload-profiles false >/dev/null
+          echo "Created environment '$ENV_NAME'."
 
-      - name: Create initial container app
+      - name: Create initial container app (idempotent)
+        shell: bash
         run: |
+          set -euo pipefail
           CA_NAME="${{ github.event.inputs.containerapp_name }}"
           ENV_NAME="${{ github.event.inputs.containerapp_env_name }}"
-           RG="${{ github.event.inputs.resource_group }}"
+          RG="${{ github.event.inputs.resource_group }}"
 
           LOGIN_SERVER=$(az acr show -g "$RG" -n "${{ github.event.inputs.acr_name }}" --query loginServer -o tsv)
           USERNAME=$(az acr credential show -n "${{ github.event.inputs.acr_name }}" --query username -o tsv)
           PASSWORD=$(az acr credential show -n "${{ github.event.inputs.acr_name }}" --query "passwords[0].value" -o tsv)
 
-          EXISTING=$(az containerapp show --name "$CA_NAME" --resource-group "$RG" --query "id" -o tsv 2>/dev/null || true)
-          if [[ -n "$EXISTING" ]]; then
+          EXISTING_APP=$(az containerapp show --name "$CA_NAME" --resource-group "$RG" --query id -o tsv 2>/dev/null || true)
+          if [[ -n "$EXISTING_APP" ]]; then
             echo "Container app '$CA_NAME' already exists. Skipping creation."
             exit 0
+          fi
+
+          # Guard against eventual consistency/race: ensure environment is resolvable now.
+          ENV_ID=$(az containerapp env show --name "$ENV_NAME" --resource-group "$RG" --query id -o tsv 2>/dev/null || true)
+          if [[ -z "$ENV_ID" ]]; then
+            echo "::error::Container Apps environment '$ENV_NAME' not found in resource group '$RG'."
+            exit 1
           fi
 
           az containerapp create \
@@ -151,19 +239,15 @@ jobs:
             --image mcr.microsoft.com/k8se/quickstart:latest \
             --target-port 8080 \
             --ingress external \
-            --registry-server "${LOGIN_SERVER}" \
-            --registry-username "${USERNAME}" \
-            --registry-password "${PASSWORD}"
+            --registry-server "$LOGIN_SERVER" \
+            --registry-username "$USERNAME" \
+            --registry-password "$PASSWORD"
 
       - name: Output values for repository variables
         shell: bash
         run: |
-          echo "Set these repository variables after bootstrap:" >> "$GITHUB_STEP_SUMMARY"
-           echo "" >> "$GITHUB_STEP_SUMMARY"
-           echo "## Secrets" >> "$GITHUB_STEP_SUMMARY"
-           echo "- ATO_DB_CONNECTION_STRING  (shown in 'Create Azure SQL Server' step output)" >> "$GITHUB_STEP_SUMMARY"
-           echo "" >> "$GITHUB_STEP_SUMMARY"
-           echo "## Repository Variables" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Repository Variables" >> "$GITHUB_STEP_SUMMARY"
           echo "- AZURE_RESOURCE_GROUP=${{ github.event.inputs.resource_group }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- AZURE_ACR_NAME=${{ github.event.inputs.acr_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- AZURE_CONTAINERAPP_ENV_NAME=${{ github.event.inputs.containerapp_env_name }}" >> "$GITHUB_STEP_SUMMARY"
