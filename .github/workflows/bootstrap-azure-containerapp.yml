@@ -135,37 +135,34 @@ jobs:
                 break
               fi
 
-              EXISTING_SERVER=$(az sql server show \
-                --resource-group "$RG" --name "$SQL_SERVER" \
-                --query fullyQualifiedDomainName -o tsv 2>/dev/null || true)
-              if [[ -n "$EXISTING_SERVER" ]]; then
-                FQDN="$EXISTING_SERVER"
-                SQL_LOCATION=$(az sql server show \
-                  --resource-group "$RG" --name "$SQL_SERVER" \
-                  --query location -o tsv 2>/dev/null || echo "$LOCATION")
-                CREATE_SQL_SUCCESS="true"
-                echo "SQL Server '$SQL_SERVER' became available at $FQDN in location '$SQL_LOCATION'. Reusing."
-                break
+              # InvalidResourceLocation means the server was already created in a prior
+              # attempt (possibly during the capacity-blocked region). ARM may not yet
+              # reflect it, so poll for up to 90s before giving up.
+              if grep -Eq "InvalidResourceLocation|already exists in location" /tmp/sql-create.err; then
+                echo "Server name already registered in Azure. Waiting for ARM visibility (up to 90s)..."
+                for _poll in 1 2 3 4 5 6; do
+                  sleep 15
+                  EXISTING_FQDN=$(az sql server show \
+                    --resource-group "$RG" --name "$SQL_SERVER" \
+                    --query fullyQualifiedDomainName -o tsv 2>/dev/null || true)
+                  if [[ -n "$EXISTING_FQDN" ]]; then
+                    FQDN="$EXISTING_FQDN"
+                    SQL_LOCATION=$(az sql server show \
+                      --resource-group "$RG" --name "$SQL_SERVER" \
+                      --query location -o tsv 2>/dev/null || echo "$LOCATION")
+                    CREATE_SQL_SUCCESS="true"
+                    echo "SQL Server '$SQL_SERVER' now visible at $FQDN in location '$SQL_LOCATION'. Reusing."
+                    break 2
+                  fi
+                  echo "  (poll ${_poll}/6 — not yet visible)"
+                done
+                echo "::error::SQL Server '$SQL_SERVER' reported as already existing but never became visible after 90s."
+                exit 1
               fi
 
               if grep -Eq "RegionDoesNotAllowProvisioning|is not accepting creation of new Windows Azure SQL Database servers" /tmp/sql-create.err; then
                 echo "Location '$CANDIDATE' is capacity blocked for SQL server creation. Trying next candidate..."
                 continue
-              fi
-
-              if grep -Eq "InvalidResourceLocation|already exists in location" /tmp/sql-create.err; then
-                EXISTING_SERVER=$(az sql server show \
-                  --resource-group "$RG" --name "$SQL_SERVER" \
-                  --query fullyQualifiedDomainName -o tsv 2>/dev/null || true)
-                if [[ -n "$EXISTING_SERVER" ]]; then
-                  FQDN="$EXISTING_SERVER"
-                  SQL_LOCATION=$(az sql server show \
-                    --resource-group "$RG" --name "$SQL_SERVER" \
-                    --query location -o tsv 2>/dev/null || echo "$LOCATION")
-                  CREATE_SQL_SUCCESS="true"
-                  echo "SQL Server '$SQL_SERVER' already exists after create attempt at $FQDN in location '$SQL_LOCATION'. Reusing."
-                  break
-                fi
               fi
 
               echo "::error::Failed to create SQL Server in '$CANDIDATE'."
