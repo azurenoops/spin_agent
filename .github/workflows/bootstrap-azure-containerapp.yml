@@ -135,29 +135,57 @@ jobs:
                 break
               fi
 
-              # InvalidResourceLocation means the server was already created in a prior
-              # attempt (possibly during the capacity-blocked region). ARM may not yet
-              # reflect it, so poll for up to 90s before giving up.
+              # InvalidResourceLocation means Azure has registered this name already
+              # (even if the prior attempt appeared to fail with a capacity error).
+              # `az sql server show` only returns Ready servers; use `list` to catch all
+              # provisioning states, then reuse/delete-and-retry accordingly.
               if grep -Eq "InvalidResourceLocation|already exists in location" /tmp/sql-create.err; then
-                echo "Server name already registered in Azure. Waiting for ARM visibility (up to 90s)..."
-                for _poll in 1 2 3 4 5 6; do
-                  sleep 15
-                  EXISTING_FQDN=$(az sql server show \
-                    --resource-group "$RG" --name "$SQL_SERVER" \
-                    --query fullyQualifiedDomainName -o tsv 2>/dev/null || true)
-                  if [[ -n "$EXISTING_FQDN" ]]; then
-                    FQDN="$EXISTING_FQDN"
-                    SQL_LOCATION=$(az sql server show \
-                      --resource-group "$RG" --name "$SQL_SERVER" \
+                echo "Server name '$SQL_SERVER' already registered in Azure. Polling for state (up to 3 min)..."
+                NEED_RETRY_WITH_SAME_NAME="false"
+                for _poll in $(seq 1 12); do
+                  SERVER_STATE=$(az sql server list --resource-group "$RG" \
+                    --query "[?name=='${SQL_SERVER}'].state" -o tsv 2>/dev/null | head -1 || true)
+                  if [[ "$SERVER_STATE" == "Ready" ]]; then
+                    FQDN=$(az sql server show --resource-group "$RG" --name "$SQL_SERVER" \
+                      --query fullyQualifiedDomainName -o tsv 2>/dev/null)
+                    SQL_LOCATION=$(az sql server show --resource-group "$RG" --name "$SQL_SERVER" \
                       --query location -o tsv 2>/dev/null || echo "$LOCATION")
                     CREATE_SQL_SUCCESS="true"
-                    echo "SQL Server '$SQL_SERVER' now visible at $FQDN in location '$SQL_LOCATION'. Reusing."
+                    echo "SQL Server '$SQL_SERVER' is Ready at $FQDN in '$SQL_LOCATION'. Reusing."
                     break 2
+                  elif [[ "$SERVER_STATE" == "Disabled" || "$SERVER_STATE" == "Failed" ]]; then
+                    echo "SQL Server '$SQL_SERVER' is in state '$SERVER_STATE'. Deleting so it can be recreated..."
+                    az sql server delete --resource-group "$RG" --name "$SQL_SERVER" --yes 2>/dev/null || true
+                    NEED_RETRY_WITH_SAME_NAME="true"
+                    sleep 20
+                    break  # exit poll loop; outer loop will retry next region candidate
+                  elif [[ -n "$SERVER_STATE" ]]; then
+                    echo "  (poll ${_poll}/12 — state: $SERVER_STATE)"
+                  else
+                    echo "  (poll ${_poll}/12 — not yet found in resource group)"
                   fi
-                  echo "  (poll ${_poll}/6 — not yet visible)"
+                  sleep 15
                 done
-                echo "::error::SQL Server '$SQL_SERVER' reported as already existing but never became visible after 90s."
-                exit 1
+                if [[ "$CREATE_SQL_SUCCESS" != "true" ]]; then
+                  if [[ "$NEED_RETRY_WITH_SAME_NAME" == "true" ]]; then
+                    echo "Retrying SQL server create with cleaned-up name '$SQL_SERVER'..."
+                    continue
+                  fi
+
+                  SUFFIX="$(date +%m%d%H%M)-$((RANDOM%900+100))"
+                  MAX_BASE_LEN=$((63 - 1 - ${#SUFFIX}))
+                  BASE_NAME="${SQL_SERVER:0:${MAX_BASE_LEN}}"
+                  BASE_NAME="${BASE_NAME%-}"
+                  if [[ -z "$BASE_NAME" ]]; then
+                    BASE_NAME="azsql"
+                  fi
+                  NEW_SQL_SERVER="${BASE_NAME}-${SUFFIX}"
+
+                  echo "::warning::Server name '$SQL_SERVER' remains reserved/invisible after 3 minutes."
+                  echo "::warning::Switching to unique server name '$NEW_SQL_SERVER' and continuing."
+                  SQL_SERVER="$NEW_SQL_SERVER"
+                  continue
+                fi
               fi
 
               if grep -Eq "RegionDoesNotAllowProvisioning|is not accepting creation of new Windows Azure SQL Database servers" /tmp/sql-create.err; then
