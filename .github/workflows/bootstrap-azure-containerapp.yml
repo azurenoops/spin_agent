@@ -31,7 +31,7 @@ on:
       sql_server_name:
         description: Azure SQL Server name (must be globally unique, e.g. sql-ato-copilot)
         required: true
-        default: sql-ato-copilot
+        default: azsql-ato-copilot
         type: string
       sql_database_name:
         description: Database name
