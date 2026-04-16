@@ -2629,7 +2629,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.TicketingIntegration)
                 .WithMany()
                 .HasForeignKey(e => e.TicketingIntegrationId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         // ─── AuthorizationPackage (Feature 041) ─────────────────────────────────

@@ -7572,7 +7572,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Poam.TicketingIntegration", "TicketingIntegration")
                         .WithMany()
                         .HasForeignKey("TicketingIntegrationId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("PoamItem");
