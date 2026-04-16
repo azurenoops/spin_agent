@@ -22,8 +22,11 @@ FROM nginx:stable-alpine AS runtime
 # Remove default config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy custom nginx config
-COPY src/Ato.Copilot.Dashboard/nginx.conf /etc/nginx/conf.d/default.conf
+# Default MCP upstream for local docker-compose runs; overridden in Container Apps.
+ENV MCP_BASE_URL=http://ato-copilot:3001
+
+# Copy nginx template to enable runtime env var substitution.
+COPY src/Ato.Copilot.Dashboard/nginx.conf /etc/nginx/templates/default.conf.template
 
 # Copy built SPA
 COPY --from=build /app/dist /usr/share/nginx/html

@@ -7,10 +7,45 @@ on:
         description: GitHub environment name (dev, test, production)
         required: true
         type: string
+      workload:
+        description: Workload type (mcp or dashboard)
+        required: false
+        default: mcp
+        type: string
       image:
         description: Fully-qualified container image to deploy
         required: true
         type: string
+      containerapp_name:
+        description: Optional Container App name override
+        required: false
+        default: ""
+        type: string
+      containerapp_env_name:
+        description: Optional Container Apps environment name override
+        required: false
+        default: ""
+        type: string
+      target_port:
+        description: Container App ingress target port
+        required: false
+        default: "3001"
+        type: string
+      health_path:
+        description: Health check path to validate deployment
+        required: false
+        default: /health
+        type: string
+      include_mcp_env_vars:
+        description: Whether to include MCP-specific environment variables
+        required: false
+        default: true
+        type: boolean
+      assign_managed_identity:
+        description: Whether to assign a system-assigned managed identity
+        required: false
+        default: true
+        type: boolean
       inject_runtime_secrets:
         description: Whether to set optional runtime secrets and secretref env vars
         required: false
@@ -52,9 +87,52 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${{ vars.AZURE_RESOURCE_GROUP }}" || (echo "Missing environment variable: AZURE_RESOURCE_GROUP" && exit 1)
-          test -n "${{ vars.AZURE_CONTAINERAPP_NAME }}" || (echo "Missing environment variable: AZURE_CONTAINERAPP_NAME" && exit 1)
-          test -n "${{ vars.AZURE_CONTAINERAPP_ENV_NAME }}" || (echo "Missing environment variable: AZURE_CONTAINERAPP_ENV_NAME" && exit 1)
+          if [ -z "${{ inputs.containerapp_name }}" ] && [ -z "${{ vars.AZURE_CONTAINERAPP_NAME || '' }}" ]; then
+            echo "Missing environment variable: AZURE_CONTAINERAPP_NAME"
+            exit 1
+          fi
+          if [ -z "${{ inputs.containerapp_env_name }}" ] && [ -z "${{ vars.AZURE_CONTAINERAPP_ENV_NAME || '' }}" ]; then
+            echo "Missing environment variable: AZURE_CONTAINERAPP_ENV_NAME"
+            exit 1
+          fi
           test -n "${{ vars.AZURE_ACR_NAME }}" || (echo "Missing environment variable: AZURE_ACR_NAME" && exit 1)
+
+      - name: Resolve deployment target
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          WORKLOAD="${{ inputs.workload }}"
+          APP="${{ inputs.containerapp_name }}"
+          BASE_APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
+
+          if [ -z "$APP" ]; then
+            if [ "$WORKLOAD" = "dashboard" ]; then
+              APP="${{ vars.AZURE_DASHBOARD_CONTAINERAPP_NAME || '' }}"
+              if [ -z "$APP" ]; then
+                APP="${BASE_APP/-mcp/-dashboard}"
+                if [ "$APP" = "$BASE_APP" ]; then
+                  APP="${BASE_APP}-dashboard"
+                fi
+              fi
+            else
+              APP="$BASE_APP"
+            fi
+          fi
+
+          ENV_NAME="${{ inputs.containerapp_env_name }}"
+          if [ -z "$ENV_NAME" ]; then
+            if [ "$WORKLOAD" = "dashboard" ]; then
+              ENV_NAME="${{ vars.AZURE_DASHBOARD_CONTAINERAPP_ENV_NAME || '' }}"
+            fi
+            if [ -z "$ENV_NAME" ]; then
+              ENV_NAME="${{ vars.AZURE_CONTAINERAPP_ENV_NAME }}"
+            fi
+          fi
+
+          echo "app=${APP}" >> "$GITHUB_OUTPUT"
+          echo "env_name=${ENV_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve ACR credentials
         id: acr
@@ -73,7 +151,7 @@ jobs:
         run: |
           set -euo pipefail
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
-          ENV_NAME="${{ vars.AZURE_CONTAINERAPP_ENV_NAME }}"
+          ENV_NAME="${{ steps.target.outputs.env_name }}"
 
           # Prefer explicit location variable when defined; otherwise use RG location.
           LOCATION="${{ vars.AZURE_LOCATION || '' }}"
@@ -124,12 +202,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ENV_ARGS_BASE="ASPNETCORE_URLS=http://+:3001 ATO_RUN_MODE=http"
-          ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_GATEWAY__AZURE__CLOUDENVIRONMENT=${{ vars.ATO_GATEWAY_AZURE_CLOUDENVIRONMENT || 'AzureGovernment' }}"
-          ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENABLED=${{ vars.ATO_AZUREAI_ENABLED || 'false' }}"
-          ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__PROVIDER=${{ vars.ATO_AZUREAI_PROVIDER || 'OpenAi' }}"
-          ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENDPOINT=${{ vars.ATO_AZUREAI_ENDPOINT || '' }}"
-          ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-4o' }}"
+          ENV_ARGS_BASE=""
+          if [ "${{ inputs.include_mcp_env_vars }}" = "true" ]; then
+            ENV_ARGS_BASE="ASPNETCORE_URLS=http://+:3001 ATO_RUN_MODE=http"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_GATEWAY__AZURE__CLOUDENVIRONMENT=${{ vars.ATO_GATEWAY_AZURE_CLOUDENVIRONMENT || 'AzureGovernment' }}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENABLED=${{ vars.ATO_AZUREAI_ENABLED || 'false' }}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__PROVIDER=${{ vars.ATO_AZUREAI_PROVIDER || 'OpenAi' }}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENDPOINT=${{ vars.ATO_AZUREAI_ENDPOINT || '' }}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-4o' }}"
+          elif [ "${{ inputs.workload }}" = "dashboard" ]; then
+            MCP_APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
+            MCP_FQDN=$(az containerapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${MCP_APP}" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
+            if [ -n "${MCP_FQDN}" ]; then
+              ENV_ARGS_BASE="MCP_BASE_URL=https://${MCP_FQDN}"
+            fi
+          fi
 
           SECRETREF_ARGS=""
 
@@ -154,31 +241,52 @@ jobs:
         run: |
           set -euo pipefail
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
-          APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
-          ENV_NAME="${{ vars.AZURE_CONTAINERAPP_ENV_NAME }}"
+          APP="${{ steps.target.outputs.app }}"
+          ENV_NAME="${{ steps.target.outputs.env_name }}"
           IMAGE="${{ inputs.image }}"
           ENV_ARGS="${{ steps.envargs.outputs.base }}"
+          TARGET_PORT="${{ inputs.target_port }}"
 
           if az containerapp show -g "${RG}" -n "${APP}" >/dev/null 2>&1; then
-            # shellcheck disable=SC2086
-            az containerapp update \
-              --resource-group "${RG}" \
-              --name "${APP}" \
-              --image "${IMAGE}" \
-              --set-env-vars ${ENV_ARGS}
+            if [ -n "${ENV_ARGS}" ]; then
+              # shellcheck disable=SC2086
+              az containerapp update \
+                --resource-group "${RG}" \
+                --name "${APP}" \
+                --image "${IMAGE}" \
+                --set-env-vars ${ENV_ARGS}
+            else
+              az containerapp update \
+                --resource-group "${RG}" \
+                --name "${APP}" \
+                --image "${IMAGE}"
+            fi
           else
-            # shellcheck disable=SC2086
-            az containerapp create \
-              --resource-group "${RG}" \
-              --name "${APP}" \
-              --environment "${ENV_NAME}" \
-              --image "${IMAGE}" \
-              --target-port 3001 \
-              --ingress external \
-              --registry-server "${{ steps.acr.outputs.login_server }}" \
-              --registry-username "${{ steps.acr.outputs.username }}" \
-              --registry-password "${{ steps.acr.outputs.password }}" \
-              --env-vars ${ENV_ARGS}
+            if [ -n "${ENV_ARGS}" ]; then
+              # shellcheck disable=SC2086
+              az containerapp create \
+                --resource-group "${RG}" \
+                --name "${APP}" \
+                --environment "${ENV_NAME}" \
+                --image "${IMAGE}" \
+                --target-port "${TARGET_PORT}" \
+                --ingress external \
+                --registry-server "${{ steps.acr.outputs.login_server }}" \
+                --registry-username "${{ steps.acr.outputs.username }}" \
+                --registry-password "${{ steps.acr.outputs.password }}" \
+                --env-vars ${ENV_ARGS}
+            else
+              az containerapp create \
+                --resource-group "${RG}" \
+                --name "${APP}" \
+                --environment "${ENV_NAME}" \
+                --image "${IMAGE}" \
+                --target-port "${TARGET_PORT}" \
+                --ingress external \
+                --registry-server "${{ steps.acr.outputs.login_server }}" \
+                --registry-username "${{ steps.acr.outputs.username }}" \
+                --registry-password "${{ steps.acr.outputs.password }}"
+            fi
           fi
 
       - name: Ensure ingress target port
@@ -187,17 +295,18 @@ jobs:
           set -euo pipefail
           az containerapp ingress update \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+            --name "${{ steps.target.outputs.app }}" \
             --type external \
-            --target-port 3001 >/dev/null
+            --target-port "${{ inputs.target_port }}" >/dev/null
 
       - name: Ensure system-assigned managed identity
+        if: inputs.assign_managed_identity
         shell: bash
         run: |
           set -euo pipefail
           az containerapp identity assign \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+            --name "${{ steps.target.outputs.app }}" \
             --system-assigned >/dev/null
 
       - name: Set optional runtime secrets
@@ -206,7 +315,7 @@ jobs:
         run: |
           set -euo pipefail
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
-          APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
+          APP="${{ steps.target.outputs.app }}"
 
           if [ -n "${{ secrets.ATO_DB_CONNECTION_STRING || '' }}" ]; then
             az containerapp secret set -g "${RG}" -n "${APP}" --secrets "db-connection-string=${{ secrets.ATO_DB_CONNECTION_STRING }}"
@@ -224,25 +333,29 @@ jobs:
         run: |
           set -euo pipefail
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
-          APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
+          APP="${{ steps.target.outputs.app }}"
           ENV_ARGS="${{ steps.envargs.outputs.with_secrets }}"
 
-          # shellcheck disable=SC2086
-          az containerapp update \
-            --resource-group "${RG}" \
-            --name "${APP}" \
-            --set-env-vars ${ENV_ARGS}
+          if [ -n "${ENV_ARGS}" ]; then
+            # shellcheck disable=SC2086
+            az containerapp update \
+              --resource-group "${RG}" \
+              --name "${APP}" \
+              --set-env-vars ${ENV_ARGS}
+          fi
 
       - name: Smoke check deployment
         shell: bash
         run: |
           set -euo pipefail
-          URL=$(az containerapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ vars.AZURE_CONTAINERAPP_NAME }}" --query properties.configuration.ingress.fqdn -o tsv)
+          APP="${{ steps.target.outputs.app }}"
+          URL=$(az containerapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${APP}" --query properties.configuration.ingress.fqdn -o tsv)
+          HEALTH_PATH="${{ inputs.health_path }}"
           echo "Deployed URL (${{ inputs.environment_name }}): https://${URL}"
 
           HEALTH_OK="false"
           for ATTEMPT in $(seq 1 20); do
-            if curl -fsS --max-time 15 "https://${URL}/health" >/tmp/health-response.txt 2>/tmp/health-error.txt; then
+            if curl -fsS --max-time 15 "https://${URL}${HEALTH_PATH}" >/tmp/health-response.txt 2>/tmp/health-error.txt; then
               HEALTH_OK="true"
               cat /tmp/health-response.txt
               echo "Health check passed on attempt ${ATTEMPT}."
@@ -258,13 +371,13 @@ jobs:
             echo "Recent revision status:"
             az containerapp revision list \
               --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+              --name "${APP}" \
               --query "[].{name:name,active:properties.active,replicas:properties.replicas,health:properties.healthState,created:properties.createdTime}" -o table || true
 
             echo "Ingress and latest revision details:"
             az containerapp show \
               --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+              --name "${APP}" \
               --query "{fqdn:properties.configuration.ingress.fqdn,latestRevision:properties.latestRevisionName,provisioningState:properties.provisioningState}" -o json || true
 
             echo "Last curl error:"
@@ -274,6 +387,7 @@ jobs:
 
           echo "### Deployment complete" >> "$GITHUB_STEP_SUMMARY"
           echo "- Environment: ${{ inputs.environment_name }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- App: ${{ vars.AZURE_CONTAINERAPP_NAME }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workload: ${{ inputs.workload }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App: ${APP}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Image: ${{ inputs.image }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: https://${URL}" >> "$GITHUB_STEP_SUMMARY"

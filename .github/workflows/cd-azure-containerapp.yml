@@ -30,7 +30,8 @@ jobs:
     environment: dev
 
     outputs:
-      image: ${{ steps.image.outputs.value }}
+      mcp_image: ${{ steps.mcp_image.outputs.value }}
+      dashboard_image: ${{ steps.dashboard_image.outputs.value }}
       image_tag: ${{ steps.tag.outputs.value }}
 
     steps:
@@ -82,12 +83,19 @@ jobs:
           fi
           echo "value=${TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Compute full image
-        id: image
+      - name: Compute full MCP image
+        id: mcp_image
         shell: bash
         run: |
           set -euo pipefail
           echo "value=${{ steps.acr.outputs.login_server }}/ato-copilot-mcp:${{ steps.tag.outputs.value }}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute full Dashboard image
+        id: dashboard_image
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "value=${{ steps.acr.outputs.login_server }}/ato-copilot-dashboard:${{ steps.tag.outputs.value }}" >> "$GITHUB_OUTPUT"
 
       - name: Docker login to ACR
         uses: docker/login-action@v3
@@ -103,15 +111,26 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ steps.image.outputs.value }}
+            ${{ steps.mcp_image.outputs.value }}
             ${{ steps.acr.outputs.login_server }}/ato-copilot-mcp:latest
+
+      - name: Build and push Dashboard image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./src/Ato.Copilot.Dashboard/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.dashboard_image.outputs.value }}
+            ${{ steps.acr.outputs.login_server }}/ato-copilot-dashboard:latest
 
   deploy-dev:
     needs: build-image
     uses: ./.github/workflows/deploy-containerapp-stage.yml
     with:
       environment_name: dev
-      image: ${{ needs.build-image.outputs.image }}
+      workload: mcp
+      image: ${{ needs.build-image.outputs.mcp_image }}
       inject_runtime_secrets: true
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -121,12 +140,30 @@ jobs:
       ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
       ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
 
-  deploy-test:
+  deploy-dev-dashboard:
     needs: [deploy-dev, build-image]
     uses: ./.github/workflows/deploy-containerapp-stage.yml
     with:
+      environment_name: dev
+      workload: dashboard
+      image: ${{ needs.build-image.outputs.dashboard_image }}
+      target_port: "8080"
+      health_path: /
+      include_mcp_env_vars: false
+      assign_managed_identity: false
+      inject_runtime_secrets: false
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  deploy-test:
+    needs: [deploy-dev-dashboard, build-image]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
       environment_name: test
-      image: ${{ needs.build-image.outputs.image }}
+      workload: mcp
+      image: ${{ needs.build-image.outputs.mcp_image }}
       inject_runtime_secrets: true
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -136,12 +173,30 @@ jobs:
       ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
       ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
 
-  deploy-production:
+  deploy-test-dashboard:
     needs: [deploy-test, build-image]
     uses: ./.github/workflows/deploy-containerapp-stage.yml
     with:
+      environment_name: test
+      workload: dashboard
+      image: ${{ needs.build-image.outputs.dashboard_image }}
+      target_port: "8080"
+      health_path: /
+      include_mcp_env_vars: false
+      assign_managed_identity: false
+      inject_runtime_secrets: false
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  deploy-production:
+    needs: [deploy-test-dashboard, build-image]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
       environment_name: production
-      image: ${{ needs.build-image.outputs.image }}
+      workload: mcp
+      image: ${{ needs.build-image.outputs.mcp_image }}
       inject_runtime_secrets: true
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -150,3 +205,20 @@ jobs:
       ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
       ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
       ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
+
+  deploy-production-dashboard:
+    needs: [deploy-production, build-image]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: production
+      workload: dashboard
+      image: ${{ needs.build-image.outputs.dashboard_image }}
+      target_port: "8080"
+      health_path: /
+      include_mcp_env_vars: false
+      assign_managed_identity: false
+      inject_runtime_secrets: false
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
