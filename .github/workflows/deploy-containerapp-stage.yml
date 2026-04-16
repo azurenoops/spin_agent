@@ -181,6 +181,25 @@ jobs:
               --env-vars ${ENV_ARGS}
           fi
 
+      - name: Ensure ingress target port
+        shell: bash
+        run: |
+          set -euo pipefail
+          az containerapp ingress update \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+            --type external \
+            --target-port 3001 >/dev/null
+
+      - name: Ensure system-assigned managed identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          az containerapp identity assign \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+            --system-assigned >/dev/null
+
       - name: Set optional runtime secrets
         if: inputs.inject_runtime_secrets
         shell: bash
