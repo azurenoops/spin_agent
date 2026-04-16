@@ -6518,7 +6518,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
                         .WithMany()
                         .HasForeignKey("RegisteredSystemId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.Navigation("GroupedAlert");
 
@@ -6657,7 +6657,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.SystemComponent", "Component")
                         .WithMany()
                         .HasForeignKey("ComponentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.NistControl", null)
                         .WithMany()
@@ -6667,7 +6667,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.ScanImportRecord", null)
                         .WithMany()
                         .HasForeignKey("ImportRecordId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.Navigation("Component");
                 });
@@ -6815,7 +6815,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.SecurityCapability", "SecurityCapability")
                         .WithMany()
                         .HasForeignKey("SecurityCapabilityId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.Navigation("ApprovedVersion");
 
@@ -6835,7 +6835,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.OrgInheritanceDefault", "OrgInheritanceDefault")
                         .WithMany()
                         .HasForeignKey("OrgInheritanceDefaultId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.Navigation("ControlBaseline");
 
@@ -6919,7 +6919,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.ControlImplementation", "ControlImplementation")
                         .WithMany()
                         .HasForeignKey("ControlImplementationId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
                         .WithMany()
@@ -6930,7 +6930,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.SecurityCapability", "SecurityCapability")
                         .WithMany()
                         .HasForeignKey("SecurityCapabilityId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.Navigation("ControlImplementation");
 
@@ -6997,7 +6997,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundary", "BoundaryResource")
                         .WithMany()
                         .HasForeignKey("BoundaryResourceId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.InventoryItem", "ParentHardware")
                         .WithMany("InstalledSoftware")
@@ -7321,7 +7321,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.ComplianceFinding", null)
                         .WithMany()
                         .HasForeignKey("ComplianceFindingId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.ScanImportRecord", null)
                         .WithMany()
@@ -7350,7 +7350,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.ComplianceAssessment", "ComplianceAssessment")
                         .WithMany()
                         .HasForeignKey("AssessmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
                         .WithMany()
@@ -7374,7 +7374,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.SecurityAssessmentPlan", "SecurityAssessmentPlan")
                         .WithMany()
                         .HasForeignKey("SapId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.Navigation("RegisteredSystem");
 
@@ -7456,7 +7456,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
                         .WithMany()
                         .HasForeignKey("RegisteredSystemId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.Navigation("AuthorizationBoundaryDefinition");
 
@@ -7502,7 +7502,7 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.PoamItem", "PoamItem")
                         .WithMany()
                         .HasForeignKey("PoamItemId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.ClientSetNull);
 
                     b.Navigation("Board");
 

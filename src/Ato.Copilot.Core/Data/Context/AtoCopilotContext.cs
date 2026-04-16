@@ -478,7 +478,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne<ScanImportRecord>()
                 .WithMany()
                 .HasForeignKey(e => e.ImportRecordId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
 
             // Indexes
             entity.HasIndex(e => e.ControlId);
@@ -495,7 +495,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.Component)
                 .WithMany()
                 .HasForeignKey(e => e.ComponentId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
         });
 
         // ─── NistControl ────────────────────────────────────────────────────────
@@ -840,7 +840,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.RegisteredSystem)
                 .WithMany()
                 .HasForeignKey(e => e.RegisteredSystemId)
-                .OnDelete(DeleteBehavior.SetNull)
+                .OnDelete(DeleteBehavior.ClientSetNull)
                 .IsRequired(false);
             entity.HasIndex(e => e.RegisteredSystemId).HasDatabaseName("IX_ComplianceAlert_RegisteredSystemId");
         });
@@ -1266,7 +1266,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.OrgInheritanceDefault)
                 .WithMany()
                 .HasForeignKey(e => e.OrgInheritanceDefaultId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
 
             // Indexes
             entity.HasIndex(e => e.ControlBaselineId).HasDatabaseName("IX_ControlInheritance_BaselineId");
@@ -1342,7 +1342,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.SecurityCapability)
                 .WithMany()
                 .HasForeignKey(e => e.SecurityCapabilityId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
             entity.HasIndex(e => e.SecurityCapabilityId)
                 .HasDatabaseName("IX_ControlImplementation_SecurityCapabilityId");
 
@@ -1695,7 +1695,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.PoamItem)
                 .WithMany()
                 .HasForeignKey(e => e.PoamItemId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
         });
 
         // ─── ScanImportRecord (Feature 017 — SCAP/STIG Import) ──────────────
@@ -1783,7 +1783,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne<ComplianceFinding>()
                 .WithMany()
                 .HasForeignKey(e => e.ComplianceFindingId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
 
             // Indexes
             entity.HasIndex(e => e.ScanImportRecordId).HasDatabaseName("IX_ScanImportFinding_ImportRecordId");
@@ -1817,7 +1817,7 @@ public class AtoCopilotContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.AssessmentId)
                 .IsRequired(false)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
 
             // Indexes
             entity.HasIndex(e => new { e.RegisteredSystemId, e.Status })
@@ -2089,7 +2089,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.BoundaryResource)
                 .WithMany()
                 .HasForeignKey(e => e.BoundaryResourceId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
 
             // Indexes
             entity.HasIndex(e => e.RegisteredSystemId)
@@ -2194,7 +2194,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.RegisteredSystem)
                 .WithMany()
                 .HasForeignKey(e => e.RegisteredSystemId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
 
             // Feature 040: Azure resource ID index for dedup + finding linkage
             entity.HasIndex(e => e.AzureResourceId).HasDatabaseName("IX_SystemComponent_AzureResourceId");
@@ -2513,11 +2513,11 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(x => x.ControlImplementation)
                 .WithMany()
                 .HasForeignKey(x => x.ControlImplementationId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
             entity.HasOne(x => x.SecurityCapability)
                 .WithMany()
                 .HasForeignKey(x => x.SecurityCapabilityId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
         });
 
         // ─── EvidenceVersion (Feature 038) ────────────────────────────────────
@@ -2709,7 +2709,7 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.SecurityAssessmentPlan)
                 .WithMany()
                 .HasForeignKey(e => e.SapId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull);
 
             entity.HasMany(e => e.Sections)
                 .WithOne(s => s.SecurityAssessmentReport)
