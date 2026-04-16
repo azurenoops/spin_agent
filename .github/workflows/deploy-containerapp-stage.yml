@@ -220,7 +220,39 @@ jobs:
           set -euo pipefail
           URL=$(az containerapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ vars.AZURE_CONTAINERAPP_NAME }}" --query properties.configuration.ingress.fqdn -o tsv)
           echo "Deployed URL (${{ inputs.environment_name }}): https://${URL}"
-          curl -fsS "https://${URL}/health" | cat
+
+          HEALTH_OK="false"
+          for ATTEMPT in $(seq 1 20); do
+            if curl -fsS --max-time 15 "https://${URL}/health" >/tmp/health-response.txt 2>/tmp/health-error.txt; then
+              HEALTH_OK="true"
+              cat /tmp/health-response.txt
+              echo "Health check passed on attempt ${ATTEMPT}."
+              break
+            fi
+
+            echo "Health check attempt ${ATTEMPT}/20 failed. Waiting 15s before retry..."
+            sleep 15
+          done
+
+          if [ "$HEALTH_OK" != "true" ]; then
+            echo "::error::Health endpoint did not become ready after 5 minutes."
+            echo "Recent revision status:"
+            az containerapp revision list \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+              --query "[].{name:name,active:properties.active,replicas:properties.replicas,health:properties.healthState,created:properties.createdTime}" -o table || true
+
+            echo "Ingress and latest revision details:"
+            az containerapp show \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+              --query "{fqdn:properties.configuration.ingress.fqdn,latestRevision:properties.latestRevisionName,provisioningState:properties.provisioningState}" -o json || true
+
+            echo "Last curl error:"
+            cat /tmp/health-error.txt || true
+            exit 1
+          fi
+
           echo "### Deployment complete" >> "$GITHUB_STEP_SUMMARY"
           echo "- Environment: ${{ inputs.environment_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- App: ${{ vars.AZURE_CONTAINERAPP_NAME }}" >> "$GITHUB_STEP_SUMMARY"
