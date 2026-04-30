@@ -76,6 +76,7 @@ nav:
     - Authorize: rmf-phases/authorize.md
     - Monitor: rmf-phases/monitor.md
   - Guides:
+    - End-to-End Demo: guides/end-to-end-demo.md
     - Compliance Dashboard: guides/compliance-dashboard.md
     - Compliance Watch: guides/compliance-watch.md
     - Remediation Kanban: guides/remediation-kanban.md
