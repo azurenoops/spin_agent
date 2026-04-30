@@ -5,10 +5,10 @@ import PortfolioDashboard from './pages/PortfolioDashboard';
 import SystemDetail from './pages/SystemDetail';
 import CapabilityLibrary from './pages/CapabilityLibrary';
 import ComponentLibrary from './pages/ComponentLibrary';
-import GapAnalysis from './pages/GapAnalysis';
 import Roadmap from './pages/Roadmap';
 import BoundaryManagement from './pages/BoundaryManagement';
 import Documents from './pages/Documents';
+import ConMon from './pages/ConMon';
 import Assessments from './pages/Assessments';
 import Remediation from './pages/Remediation';
 import Narratives from './pages/Narratives';
@@ -53,8 +53,8 @@ function AppContent() {
           <Route path="roadmap" element={<Roadmap />} />
           <Route path="boundaries" element={<BoundaryManagement />} />
           <Route path="legal" element={<LegalRegulatory />} />
-          <Route path="gaps" element={<GapAnalysis />} />
           <Route path="documents" element={<Documents />} />
+          <Route path="conmon" element={<ConMon />} />
           <Route path="narratives" element={<Narratives />} />
           <Route path="deviations" element={<DeviationsPage />} />
           <Route path="assessments" element={<Assessments />} />

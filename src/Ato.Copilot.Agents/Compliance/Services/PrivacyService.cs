@@ -349,8 +349,8 @@ public class PrivacyService : IPrivacyService
 
         if (pia != null)
         {
-            // Reset PIA to UnderReview (preserve content; a new review cycle is required)
-            pia.Status = PiaStatus.UnderReview;
+            // PIA requires a non-null PtaId FK, so it must be removed before PTA deletion.
+            context.PrivacyImpactAssessments.Remove(pia);
         }
 
         // Delete PTA

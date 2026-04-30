@@ -342,10 +342,20 @@ public class RmfLifecycleService : IRmfLifecycleService
             Severity = "Error"
         });
 
-        var inScopeComponents = await context.ComponentSystemAssignments
+        // Feature 040 introduced BoundaryComponentAssignments as the source of truth
+        // for boundary composition. Keep a legacy fallback count for older rows that
+        // still rely on ComponentSystemAssignments.AuthorizationBoundaryDefinitionId.
+        var inScopeBoundaryComponents = await context.BoundaryComponentAssignments
+            .CountAsync(bca => bca.AuthorizationBoundaryDefinition!.RegisteredSystemId == system.Id
+                            && bca.IsInScope,
+                        cancellationToken);
+
+        var legacyInScopeComponents = await context.ComponentSystemAssignments
             .CountAsync(csa => csa.RegisteredSystemId == system.Id
                             && csa.AuthorizationBoundaryDefinitionId != null,
                         cancellationToken);
+
+        var inScopeComponents = inScopeBoundaryComponents + legacyInScopeComponents;
 
         results.Add(new GateCheckResult
         {

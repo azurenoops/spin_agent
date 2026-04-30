@@ -142,6 +142,18 @@ export default function ControlInheritance() {
       const result = await deriveOrgDefaults();
       setNarrativeBanner(`Org defaults derived: ${result.derivedCount} derived, ${result.removedCount} removed`);
       await fetchData();
+      // Refresh CRM if currently open so it reflects new org defaults
+      if (showCrm && systemId) {
+        setCrmLoading(true);
+        try {
+          const data = await getCrm(systemId);
+          setCrmData(data);
+        } catch {
+          setCrmData(null);
+        } finally {
+          setCrmLoading(false);
+        }
+      }
     } catch {
       setNarrativeBanner('Failed to derive org defaults. Check that capability mappings exist.');
     } finally {

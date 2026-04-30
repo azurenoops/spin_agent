@@ -136,13 +136,14 @@ public class SystemProfileService : ISystemProfileService
         ProfileSectionType sectionType,
         string? draftContent,
         string userId,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         await EnsureSystemExistsAsync(db, systemId, cancellationToken);
-        await RequireRoleAsync(db, systemId, userId, SaveRoles, cancellationToken);
+        await RequireRoleAsync(db, systemId, userId, SaveRoles, simulatedRole, cancellationToken);
 
         var section = await db.SystemProfileSections
             .FirstOrDefaultAsync(s => s.RegisteredSystemId == systemId
@@ -209,13 +210,14 @@ public class SystemProfileService : ISystemProfileService
         string systemId,
         IEnumerable<ProfileSectionType>? sectionTypes,
         string userId,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         await EnsureSystemExistsAsync(db, systemId, cancellationToken);
-        await RequireRoleAsync(db, systemId, userId, [RmfRole.MissionOwner], cancellationToken);
+        await RequireRoleAsync(db, systemId, userId, [RmfRole.MissionOwner], simulatedRole, cancellationToken);
 
         var sections = await db.SystemProfileSections
             .Where(s => s.RegisteredSystemId == systemId)
@@ -277,13 +279,14 @@ public class SystemProfileService : ISystemProfileService
         string systemId,
         IEnumerable<ProfileSectionType>? sectionTypes,
         string userId,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         await EnsureSystemExistsAsync(db, systemId, cancellationToken);
-        await RequireRoleAsync(db, systemId, userId, [RmfRole.MissionOwner], cancellationToken);
+        await RequireRoleAsync(db, systemId, userId, [RmfRole.MissionOwner], simulatedRole, cancellationToken);
 
         var sections = await db.SystemProfileSections
             .Where(s => s.RegisteredSystemId == systemId)
@@ -344,6 +347,7 @@ public class SystemProfileService : ISystemProfileService
         ReviewDecision decision,
         string reviewerId,
         string? comments = null,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default)
     {
         if (decision == ReviewDecision.RequestRevision && string.IsNullOrWhiteSpace(comments))
@@ -354,7 +358,7 @@ public class SystemProfileService : ISystemProfileService
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         await EnsureSystemExistsAsync(db, systemId, cancellationToken);
-        await RequireRoleAsync(db, systemId, reviewerId, [RmfRole.Issm], cancellationToken);
+        await RequireRoleAsync(db, systemId, reviewerId, [RmfRole.Issm], simulatedRole, cancellationToken);
 
         var section = await db.SystemProfileSections
             .FirstOrDefaultAsync(s => s.RegisteredSystemId == systemId
@@ -407,13 +411,14 @@ public class SystemProfileService : ISystemProfileService
     public async Task<BatchApproveResult> BatchApproveSectionsAsync(
         string systemId,
         string reviewerId,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         await EnsureSystemExistsAsync(db, systemId, cancellationToken);
-        await RequireRoleAsync(db, systemId, reviewerId, [RmfRole.Issm], cancellationToken);
+        await RequireRoleAsync(db, systemId, reviewerId, [RmfRole.Issm], simulatedRole, cancellationToken);
 
         var sections = await db.SystemProfileSections
             .Where(s => s.RegisteredSystemId == systemId
@@ -630,7 +635,7 @@ public class SystemProfileService : ISystemProfileService
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         await EnsureSystemExistsAsync(db, systemId, cancellationToken);
-        await RequireRoleAsync(db, systemId, userId, [RmfRole.MissionOwner], cancellationToken);
+        await RequireRoleAsync(db, systemId, userId, [RmfRole.MissionOwner], null, cancellationToken);
 
         // Find the ControlImplementation for this system + control
         var impl = await db.ControlImplementations
@@ -747,7 +752,7 @@ public class SystemProfileService : ISystemProfileService
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         await EnsureSystemExistsAsync(db, systemId, cancellationToken);
-        await RequireRoleAsync(db, systemId, userId, [RmfRole.Issm], cancellationToken);
+        await RequireRoleAsync(db, systemId, userId, [RmfRole.Issm], null, cancellationToken);
 
         var flag = await db.BusinessContextControlFlags
             .FirstOrDefaultAsync(f => f.RegisteredSystemId == systemId
@@ -798,8 +803,12 @@ public class SystemProfileService : ISystemProfileService
         string systemId,
         string userId,
         RmfRole[] allowedRoles,
+        RmfRole? simulatedRole,
         CancellationToken cancellationToken)
     {
+        if (simulatedRole.HasValue && allowedRoles.Contains(simulatedRole.Value))
+            return;
+
         var hasRole = await db.RmfRoleAssignments
             .AnyAsync(r => r.RegisteredSystemId == systemId
                 && r.UserId == userId

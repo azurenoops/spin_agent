@@ -68,6 +68,25 @@ export async function createCapabilityMappings(id: string, request: CreateMappin
   return data;
 }
 
+export async function updateCapabilityMapping(
+  capabilityId: string,
+  mappingId: string,
+  request: { controlId?: string; role?: 'Primary' | 'Supporting' | 'Shared'; registeredSystemId?: string | null; boundaryDefinitionId?: string | null },
+) {
+  const { data } = await apiClient.put<CapabilityMappingDto>(
+    `/capabilities/${capabilityId}/mappings/${mappingId}`,
+    request,
+  );
+  return data;
+}
+
+export async function deleteCapabilityMapping(
+  capabilityId: string,
+  mappingId: string,
+) {
+  await apiClient.delete(`/capabilities/${capabilityId}/mappings/${mappingId}`);
+}
+
 export async function generateCapabilityDescription(
   name: string,
   provider: string,
@@ -149,9 +168,20 @@ export interface BulkRegenerateResult {
   regeneratedControlIds: string[];
 }
 
-export async function bulkRegenerateNarratives(systemId: string, capabilityId: string) {
+export async function bulkRegenerateNarratives(
+  systemId: string,
+  capabilityId: string,
+  options?: { sourceUrls?: string[] },
+) {
+  const params: Record<string, string> = {};
+  if (options?.sourceUrls && options.sourceUrls.length > 0) {
+    params.sourceUrls = JSON.stringify(options.sourceUrls);
+  }
+
   const { data } = await apiClient.post<BulkRegenerateResult>(
     `/systems/${systemId}/capabilities/${capabilityId}/bulk-regenerate`,
+    {},
+    { params },
   );
   return data;
 }

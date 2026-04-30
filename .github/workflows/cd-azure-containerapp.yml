@@ -110,6 +110,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          platforms: linux/amd64
           tags: |
             ${{ steps.mcp_image.outputs.value }}
             ${{ steps.acr.outputs.login_server }}/ato-copilot-mcp:latest
@@ -120,6 +121,7 @@ jobs:
           context: .
           file: ./src/Ato.Copilot.Dashboard/Dockerfile
           push: true
+          platforms: linux/amd64
           tags: |
             ${{ steps.dashboard_image.outputs.value }}
             ${{ steps.acr.outputs.login_server }}/ato-copilot-dashboard:latest

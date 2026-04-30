@@ -159,7 +159,7 @@ public class ComplianceSaveProfileSectionTool : BaseTool
 
         try
         {
-            var result = await _svc.SaveDraftAsync(systemId, sectionType, content, userId, cancellationToken);
+            var result = await _svc.SaveDraftAsync(systemId, sectionType, content, userId, null, cancellationToken);
             sw.Stop();
 
             return JsonSerializer.Serialize(new
@@ -250,7 +250,7 @@ public class ComplianceSubmitProfileSectionTool : BaseTool
         {
             if (action.Equals("withdraw", StringComparison.OrdinalIgnoreCase))
             {
-                var result = await _svc.WithdrawSectionAsync(systemId, sectionTypes, userId, cancellationToken);
+                        var result = await _svc.WithdrawSectionAsync(systemId, sectionTypes, userId, null, cancellationToken);
                 sw.Stop();
 
                 return JsonSerializer.Serialize(new
@@ -272,7 +272,7 @@ public class ComplianceSubmitProfileSectionTool : BaseTool
             }
             else
             {
-                var result = await _svc.SubmitForReviewAsync(systemId, sectionTypes, userId, cancellationToken);
+                var result = await _svc.SubmitForReviewAsync(systemId, sectionTypes, userId, null, cancellationToken);
                 sw.Stop();
 
                 return JsonSerializer.Serialize(new
@@ -391,7 +391,7 @@ public class ComplianceReviewProfileSectionTool : BaseTool
         try
         {
             var result = await _svc.ReviewSectionAsync(
-                systemId, sectionType, decision.Value, userId, comments, cancellationToken);
+                systemId, sectionType, decision.Value, userId, comments, null, cancellationToken);
             sw.Stop();
 
             var msg = decision == ReviewDecision.Approve
@@ -476,7 +476,7 @@ public class ComplianceBatchApproveProfileTool : BaseTool
 
         try
         {
-            var result = await _svc.BatchApproveSectionsAsync(systemId, userId, cancellationToken);
+            var result = await _svc.BatchApproveSectionsAsync(systemId, userId, null, cancellationToken);
             sw.Stop();
 
             return JsonSerializer.Serialize(new

@@ -31,11 +31,45 @@ apiClient.interceptors.request.use((config) => {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (axios.isAxiosError(error) && error.response?.data) {
-      const errorResponse = error.response.data as ErrorResponse;
-      return Promise.reject(errorResponse);
+  async (error) => {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const originalRequest = error.config as (typeof error.config & { __retriedWithoutAuth?: boolean }) | undefined;
+
+      // Recover from stale local tokens: clear token and retry once without Authorization.
+      if (status === 401 && originalRequest && !originalRequest.__retriedWithoutAuth) {
+        originalRequest.__retriedWithoutAuth = true;
+
+        try {
+          localStorage.removeItem('auth_token');
+        } catch {
+          // Ignore storage errors
+        }
+
+        if (originalRequest.headers) {
+          const headers = originalRequest.headers as Record<string, unknown> & {
+            set?: (name: string, value: string | undefined) => void;
+            delete?: (name: string) => void;
+          };
+
+          // Axios may use AxiosHeaders in browser builds; clear both key variants defensively.
+          headers.set?.('Authorization', undefined);
+          headers.set?.('authorization', undefined);
+          headers.delete?.('Authorization');
+          headers.delete?.('authorization');
+          delete headers.Authorization;
+          delete headers.authorization;
+        }
+
+        return apiClient.request(originalRequest);
+      }
+
+      if (error.response?.data) {
+        const errorResponse = error.response.data as ErrorResponse;
+        return Promise.reject(errorResponse);
+      }
     }
+
     return Promise.reject(error);
   },
 );

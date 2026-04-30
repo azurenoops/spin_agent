@@ -352,6 +352,106 @@ public class ConMonInfo
     public DateTime? LastReportDate { get; init; }
 }
 
+public class ConMonOverviewResponse
+{
+    public required string SystemId { get; init; }
+    public required string SystemName { get; init; }
+    public required string CurrentPhase { get; init; }
+    public ConMonPlanDetailInfo? Plan { get; init; }
+    public required ConMonStatusInfo Status { get; init; }
+    public required ConMonExpirationInfo Expiration { get; init; }
+    public required ConMonReauthorizationInfo Reauthorization { get; init; }
+    public required List<AgreementExpirationInfo> AgreementAlerts { get; init; }
+    public required List<SignificantChangeItemInfo> SignificantChanges { get; init; }
+    public required List<ConMonReportSummaryInfo> Reports { get; init; }
+}
+
+public class ConMonPlanDetailInfo
+{
+    public required string PlanId { get; init; }
+    public required string AssessmentFrequency { get; init; }
+    public DateTime AnnualReviewDate { get; init; }
+    public required List<string> ReportDistribution { get; init; }
+    public required List<string> SignificantChangeTriggers { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime? ModifiedAt { get; init; }
+}
+
+public class ConMonStatusInfo
+{
+    public double CurrentComplianceScore { get; init; }
+    public double? AuthorizedBaselineScore { get; init; }
+    public double? ScoreDelta { get; init; }
+    public int OpenFindings { get; init; }
+    public int ResolvedFindings { get; init; }
+    public int OpenPoamItems { get; init; }
+    public int OverduePoamItems { get; init; }
+    public bool MonitoringEnabled { get; init; }
+    public int DriftAlertCount { get; init; }
+    public int AutoRemediationRuleCount { get; init; }
+    public DateTime? LastMonitoringCheck { get; init; }
+}
+
+public class ConMonExpirationInfo
+{
+    public bool HasActiveAuthorization { get; init; }
+    public string? DecisionType { get; init; }
+    public DateTime? DecisionDate { get; init; }
+    public DateTime? ExpirationDate { get; init; }
+    public int? DaysUntilExpiration { get; init; }
+    public required string AlertLevel { get; init; }
+    public required string AlertMessage { get; init; }
+    public bool IsExpired { get; init; }
+}
+
+public class ConMonReauthorizationInfo
+{
+    public bool IsTriggered { get; init; }
+    public required List<string> Triggers { get; init; }
+    public int UnreviewedChangeCount { get; init; }
+}
+
+public class AgreementExpirationInfo
+{
+    public required string ItemType { get; init; }
+    public required string AgreementTitle { get; init; }
+    public string? TargetSystemName { get; init; }
+    public DateTime? ExpirationDate { get; init; }
+    public int DaysUntilExpiration { get; init; }
+    public required string AlertLevel { get; init; }
+    public required string Message { get; init; }
+}
+
+public class SignificantChangeItemInfo
+{
+    public required string Id { get; init; }
+    public required string ChangeType { get; init; }
+    public required string Description { get; init; }
+    public DateTime DetectedAt { get; init; }
+    public required string DetectedBy { get; init; }
+    public bool RequiresReauthorization { get; init; }
+    public bool ReauthorizationTriggered { get; init; }
+    public string? ReviewedBy { get; init; }
+    public DateTime? ReviewedAt { get; init; }
+    public string? Disposition { get; init; }
+}
+
+public class ConMonReportSummaryInfo
+{
+    public required string ReportId { get; init; }
+    public required string ReportType { get; init; }
+    public required string Period { get; init; }
+    public double ComplianceScore { get; init; }
+    public double? AuthorizedBaselineScore { get; init; }
+    public double? ScoreDelta { get; init; }
+    public int NewFindings { get; init; }
+    public int ResolvedFindings { get; init; }
+    public int OpenPoamItems { get; init; }
+    public int OverduePoamItems { get; init; }
+    public DateTime GeneratedAt { get; init; }
+    public required string GeneratedBy { get; init; }
+}
+
 public class SspSectionInfo
 {
     public int SectionNumber { get; init; }

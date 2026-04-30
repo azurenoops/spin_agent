@@ -293,6 +293,7 @@ export interface SystemComponentDto {
   personName: string | null;
   email: string | null;
   rmfRole: string | null;
+  scopeLevel: 'Organization' | 'System';
   status: ComponentStatus;
   boundaryDefinitionId: string | null;
   boundaryDefinitionName: string | null;
@@ -320,6 +321,7 @@ export interface ComponentSummary {
   personCount: number;
   placeCount: number;
   thingCount: number;
+  policyCount: number;
   totalCount: number;
 }
 

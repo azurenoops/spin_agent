@@ -11,7 +11,7 @@ interface ComponentParams {
 
 interface ComponentInventoryResponse {
   systemId: string;
-  summary: { personCount: number; placeCount: number; thingCount: number; totalCount: number };
+  summary: { personCount: number; placeCount: number; thingCount: number; policyCount: number; totalCount: number };
   items: SystemComponentDto[];
   nextCursor: string | null;
   totalCount: number;

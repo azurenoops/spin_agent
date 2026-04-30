@@ -1,0 +1,229 @@
+name: Prepare SQL Private Network
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Resource group containing SQL server and Container Apps environment
+        required: true
+        default: rg-ato-copilot
+        type: string
+      sql_server_name:
+        description: Azure SQL server name
+        required: true
+        default: azsql-ato-copilot-04152047-902
+        type: string
+      containerapp_env_name:
+        description: Container Apps environment name for vnet-precheck
+        required: true
+        default: cae-ato-copilot
+        type: string
+      location:
+        description: Azure location for network resources
+        required: true
+        default: eastus
+        type: string
+      vnet_name:
+        description: VNet name for private endpoint + optional Container Apps migration
+        required: true
+        default: vnet-ato-copilot
+        type: string
+      vnet_address_prefix:
+        description: VNet CIDR
+        required: true
+        default: 10.40.0.0/16
+        type: string
+      pe_subnet_name:
+        description: Private endpoint subnet name
+        required: true
+        default: snet-sql-private-endpoint
+        type: string
+      pe_subnet_prefix:
+        description: Private endpoint subnet CIDR
+        required: true
+        default: 10.40.1.0/24
+        type: string
+      private_dns_zone:
+        description: Private DNS zone name for Azure SQL
+        required: true
+        default: privatelink.database.windows.net
+        type: string
+      disable_public_network:
+        description: Disable SQL public network access after setup (requires ACA env vnet integration)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure VNet and private endpoint subnet
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          LOCATION="${{ github.event.inputs.location }}"
+          VNET="${{ github.event.inputs.vnet_name }}"
+          VNET_PREFIX="${{ github.event.inputs.vnet_address_prefix }}"
+          PE_SUBNET="${{ github.event.inputs.pe_subnet_name }}"
+          PE_SUBNET_PREFIX="${{ github.event.inputs.pe_subnet_prefix }}"
+
+          VNET_ID=$(az network vnet show -g "$RG" -n "$VNET" --query id -o tsv 2>/dev/null || true)
+          if [ -z "$VNET_ID" ]; then
+            az network vnet create \
+              --resource-group "$RG" \
+              --name "$VNET" \
+              --location "$LOCATION" \
+              --address-prefixes "$VNET_PREFIX" \
+              --subnet-name "$PE_SUBNET" \
+              --subnet-prefixes "$PE_SUBNET_PREFIX" >/dev/null
+          fi
+
+          SUBNET_ID=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET" -n "$PE_SUBNET" --query id -o tsv 2>/dev/null || true)
+          if [ -z "$SUBNET_ID" ]; then
+            az network vnet subnet create \
+              --resource-group "$RG" \
+              --vnet-name "$VNET" \
+              --name "$PE_SUBNET" \
+              --address-prefixes "$PE_SUBNET_PREFIX" >/dev/null
+          fi
+
+          az network vnet subnet update \
+            --resource-group "$RG" \
+            --vnet-name "$VNET" \
+            --name "$PE_SUBNET" \
+            --disable-private-endpoint-network-policies true >/dev/null
+
+      - name: Ensure private DNS zone and VNet link
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          VNET="${{ github.event.inputs.vnet_name }}"
+          DNS_ZONE="${{ github.event.inputs.private_dns_zone }}"
+
+          az network private-dns zone create -g "$RG" -n "$DNS_ZONE" >/dev/null
+
+          LINK_NAME="${VNET}-link"
+          VNET_ID=$(az network vnet show -g "$RG" -n "$VNET" --query id -o tsv)
+          LINK_ID=$(az network private-dns link vnet show -g "$RG" -z "$DNS_ZONE" -n "$LINK_NAME" --query id -o tsv 2>/dev/null || true)
+          if [ -z "$LINK_ID" ]; then
+            az network private-dns link vnet create \
+              --resource-group "$RG" \
+              --zone-name "$DNS_ZONE" \
+              --name "$LINK_NAME" \
+              --virtual-network "$VNET_ID" \
+              --registration-enabled false >/dev/null
+          fi
+
+      - name: Ensure SQL private endpoint + DNS zone group
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          VNET="${{ github.event.inputs.vnet_name }}"
+          PE_SUBNET="${{ github.event.inputs.pe_subnet_name }}"
+          DNS_ZONE="${{ github.event.inputs.private_dns_zone }}"
+
+          SQL_ID=$(az sql server show -g "$RG" -n "$SQL_SERVER" --query id -o tsv)
+          SUBNET_ID=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET" -n "$PE_SUBNET" --query id -o tsv)
+
+          PE_NAME="pe-${SQL_SERVER}"
+          PE_ID=$(az network private-endpoint show -g "$RG" -n "$PE_NAME" --query id -o tsv 2>/dev/null || true)
+          if [ -z "$PE_ID" ]; then
+            az network private-endpoint create \
+              --resource-group "$RG" \
+              --name "$PE_NAME" \
+              --subnet "$SUBNET_ID" \
+              --private-connection-resource-id "$SQL_ID" \
+              --group-id sqlServer \
+              --connection-name "${PE_NAME}-conn" >/dev/null
+          fi
+
+          DNS_ZONE_ID=$(az network private-dns zone show -g "$RG" -n "$DNS_ZONE" --query id -o tsv)
+          ZG_NAME="${PE_NAME}-dns"
+          ZG_ID=$(az network private-endpoint dns-zone-group show -g "$RG" --endpoint-name "$PE_NAME" -n "$ZG_NAME" --query id -o tsv 2>/dev/null || true)
+          if [ -z "$ZG_ID" ]; then
+            az network private-endpoint dns-zone-group create \
+              --resource-group "$RG" \
+              --endpoint-name "$PE_NAME" \
+              --name "$ZG_NAME" \
+              --private-dns-zone "$DNS_ZONE_ID" \
+              --zone-name "$DNS_ZONE" >/dev/null
+          fi
+
+      - name: Verify private endpoint readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          PE_NAME="pe-${SQL_SERVER}"
+
+          STATE=$(az network private-endpoint-connection list \
+            --id "$(az sql server show -g "$RG" -n "$SQL_SERVER" --query id -o tsv)" \
+            --query "[0].properties.privateLinkServiceConnectionState.status" -o tsv)
+          echo "Private endpoint connection status: ${STATE}"
+
+      - name: Optional cutover - disable SQL public network access
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          ENV_NAME="${{ github.event.inputs.containerapp_env_name }}"
+          DISABLE_PUBLIC="${{ github.event.inputs.disable_public_network }}"
+
+          if [ "$DISABLE_PUBLIC" != "true" ]; then
+            echo "disable_public_network=false; leaving SQL publicNetworkAccess unchanged."
+            exit 0
+          fi
+
+          VNET_CFG=$(az containerapp env show \
+            --resource-group "$RG" \
+            --name "$ENV_NAME" \
+            --query "properties.vnetConfiguration" -o json)
+
+          if [ "$VNET_CFG" = "null" ]; then
+            echo "::error::Container Apps environment '$ENV_NAME' is not VNet-integrated."
+            echo "::error::Do not disable SQL public access until workloads can resolve/use private endpoint DNS."
+            exit 1
+          fi
+
+          az sql server update \
+            --resource-group "$RG" \
+            --name "$SQL_SERVER" \
+            --set publicNetworkAccess=Disabled >/dev/null
+
+          echo "SQL publicNetworkAccess disabled for '$SQL_SERVER'."
+
+      - name: Summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          ENV_NAME="${{ github.event.inputs.containerapp_env_name }}"
+
+          SQL_PUBLIC=$(az sql server show -g "$RG" -n "$SQL_SERVER" --query publicNetworkAccess -o tsv)
+          VNET_CFG=$(az containerapp env show -g "$RG" -n "$ENV_NAME" --query properties.vnetConfiguration -o json)
+
+          echo "### SQL Private Networking" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SQL Server: ${SQL_SERVER}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SQL publicNetworkAccess: ${SQL_PUBLIC}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Container Apps env: ${ENV_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Env VNet configuration: ${VNET_CFG}" >> "$GITHUB_STEP_SUMMARY"

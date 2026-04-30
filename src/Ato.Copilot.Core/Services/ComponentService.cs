@@ -336,6 +336,7 @@ public class ComponentService
             PersonName = entity.PersonName,
             Email = entity.Email,
             RmfRole = entity.RmfRoleName,
+            ScopeLevel = string.IsNullOrWhiteSpace(entity.RegisteredSystemId) ? "Organization" : "System",
             Status = entity.Status.ToString(),
             BoundaryDefinitionId = entity.AuthorizationBoundaryDefinitionId,
             BoundaryDefinitionName = entity.AuthorizationBoundaryDefinition?.Name,
@@ -1435,8 +1436,14 @@ public class ComponentService
             .Where(a => a.RegisteredSystemId == systemId)
             .Select(a => a.SystemComponentId);
 
+        // Also include components linked to this system's capabilities via ComponentCapabilityLinks + SystemCapabilityLinks
+        var capLinkedComponentIds = _db.ComponentCapabilityLinks
+            .Where(cl => _db.SystemCapabilityLinks
+                .Any(scl => scl.RegisteredSystemId == systemId && scl.SecurityCapabilityId == cl.SecurityCapabilityId))
+            .Select(cl => cl.SystemComponentId);
+
         IQueryable<SystemComponent> q = _db.SystemComponents
-            .Where(c => assignedComponentIds.Contains(c.Id))
+            .Where(c => assignedComponentIds.Contains(c.Id) || capLinkedComponentIds.Contains(c.Id))
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(query.Type) &&
@@ -1455,14 +1462,15 @@ public class ComponentService
 
         var totalCount = await q.CountAsync(cancellationToken);
 
-        // Summary counts (unfiltered for this system)
+        // Summary counts (unfiltered for this system — combined from both sources)
         var allForSystem = _db.SystemComponents
-            .Where(c => assignedComponentIds.Contains(c.Id));
+            .Where(c => assignedComponentIds.Contains(c.Id) || capLinkedComponentIds.Contains(c.Id));
         var summary = new ComponentSummaryDto
         {
             PersonCount = await allForSystem.CountAsync(c => c.ComponentType == ComponentType.Person, cancellationToken),
             PlaceCount = await allForSystem.CountAsync(c => c.ComponentType == ComponentType.Place, cancellationToken),
             ThingCount = await allForSystem.CountAsync(c => c.ComponentType == ComponentType.Thing, cancellationToken),
+            PolicyCount = await allForSystem.CountAsync(c => c.ComponentType == ComponentType.Policy, cancellationToken),
             TotalCount = await allForSystem.CountAsync(cancellationToken),
         };
 

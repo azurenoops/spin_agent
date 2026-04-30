@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
+using System.Data.Common;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
@@ -13,6 +15,8 @@ namespace Ato.Copilot.Core.Services;
 /// </summary>
 public class CapabilityService
 {
+    private static readonly Regex ParenthesizedEnhancementRegex = new(@"\(([^)]+)\)", RegexOptions.Compiled);
+
     private readonly AtoCopilotContext _db;
     private readonly ILogger<CapabilityService> _logger;
     private readonly NarrativeTemplateService _narrativeService;
@@ -965,26 +969,36 @@ public class CapabilityService
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        var controlIds = mappings.Select(m => m.ControlId).Distinct().ToList();
+        var controlIds = mappings.Select(m => m.ControlId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var controlIdLookup = controlIds
+            .SelectMany(GetControlIdVariants)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var nistControls = await _db.NistControls
-            .Where(n => controlIds.Contains(n.Id))
+            .Where(n => controlIdLookup.Contains(n.Id))
             .AsNoTracking()
-            .ToDictionaryAsync(n => n.Id, cancellationToken);
+            .ToListAsync(cancellationToken);
+
+        var nistById = nistControls.ToDictionary(n => NormalizeControlId(n.Id), n => n, StringComparer.OrdinalIgnoreCase);
 
         // Get implementation status for narrative status
         var implStatuses = await _db.ControlImplementations
-            .Where(ci => ci.SecurityCapabilityId == capabilityId && controlIds.Contains(ci.ControlId))
+            .Where(ci => ci.SecurityCapabilityId == capabilityId && controlIdLookup.Contains(ci.ControlId))
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         var implByControl = implStatuses
-            .GroupBy(ci => ci.ControlId)
-            .ToDictionary(g => g.Key, g => g.ToList());
+            .GroupBy(ci => NormalizeControlId(ci.ControlId))
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
         var dtos = mappings.Select(m =>
         {
-            var nist = nistControls.GetValueOrDefault(m.ControlId);
-            var impl = implByControl.GetValueOrDefault(m.ControlId)?
+            var nist = ResolveByVariants(nistById, m.ControlId);
+            var implCandidates = GetControlIdVariants(m.ControlId)
+                .SelectMany(v => implByControl.GetValueOrDefault(v) ?? [])
+                .ToList();
+            var impl = implCandidates
                 .FirstOrDefault(ci => m.RegisteredSystemId == null || ci.RegisteredSystemId == m.RegisteredSystemId);
 
             var narrativeStatus = impl switch
@@ -997,7 +1011,7 @@ public class CapabilityService
             return new CapabilityMappingDto
             {
                 Id = m.Id,
-                ControlId = m.ControlId,
+                ControlId = FormatControlIdForDisplay(nist?.Id ?? m.ControlId),
                 ControlTitle = nist?.Title,
                 ControlFamily = nist?.Family ?? (m.ControlId.Contains('-') ? m.ControlId.Split('-')[0] : null),
                 Role = m.Role.ToString(),
@@ -1034,13 +1048,11 @@ public class CapabilityService
 
         if (cap is null) return null;
 
-        var requestedControlIds = request.Mappings.Select(m => m.ControlId.ToLowerInvariant()).Distinct().ToList();
-
-        // Validate control IDs exist (OSCAL IDs are lowercase)
-        var validControls = await _db.NistControls
-            .Where(n => requestedControlIds.Contains(n.Id))
+        // Validate control IDs against full catalog while supporting v4/v5 enhancement styles.
+        var catalogControls = await _db.NistControls
             .AsNoTracking()
-            .ToDictionaryAsync(n => n.Id, cancellationToken);
+            .ToListAsync(cancellationToken);
+        var validControls = catalogControls.ToDictionary(n => NormalizeControlId(n.Id), n => n, StringComparer.OrdinalIgnoreCase);
 
         var warnings = new List<MappingWarning>();
         var created = 0;
@@ -1048,13 +1060,30 @@ public class CapabilityService
 
         foreach (var item in request.Mappings)
         {
-            var normalizedControlId = item.ControlId.ToLowerInvariant();
-            if (!validControls.ContainsKey(normalizedControlId))
+            var normalizedControlId = ResolveCatalogControlId(item.ControlId, validControls);
+            if (normalizedControlId is null)
             {
                 warnings.Add(new MappingWarning
                 {
                     ControlId = item.ControlId,
                     Message = $"Control '{item.ControlId}' not found in NIST control catalog — skipped",
+                });
+                continue;
+            }
+
+            var duplicateMappingExists = await _db.CapabilityControlMappings
+                .AnyAsync(m =>
+                    m.SecurityCapabilityId == capabilityId &&
+                    GetControlIdVariants(normalizedControlId).Contains(m.ControlId) &&
+                    m.RegisteredSystemId == item.RegisteredSystemId,
+                    cancellationToken);
+
+            if (duplicateMappingExists)
+            {
+                warnings.Add(new MappingWarning
+                {
+                    ControlId = item.ControlId,
+                    Message = $"Mapping for control '{item.ControlId}' already exists for this capability and scope — skipped",
                 });
                 continue;
             }
@@ -1068,7 +1097,7 @@ public class CapabilityService
                 var existingPrimary = await _db.CapabilityControlMappings
                     .Include(m => m.SecurityCapability)
                     .FirstOrDefaultAsync(m =>
-                        m.ControlId == normalizedControlId &&
+                        GetControlIdVariants(normalizedControlId).Contains(m.ControlId) &&
                         m.RegisteredSystemId == item.RegisteredSystemId &&
                         m.Role == CapabilityMappingRole.Primary &&
                         m.SecurityCapabilityId != capabilityId,
@@ -1081,6 +1110,7 @@ public class CapabilityService
                         ControlId = item.ControlId,
                         Message = $"Another capability '{existingPrimary.SecurityCapability.Name}' already claims Primary role for {item.ControlId}",
                     });
+                    continue;
                 }
             }
 
@@ -1111,7 +1141,7 @@ public class CapabilityService
                 var impl = await _db.ControlImplementations
                     .FirstOrDefaultAsync(ci =>
                         ci.RegisteredSystemId == sysId &&
-                        ci.ControlId == normalizedControlId,
+                        GetControlIdVariants(normalizedControlId).Contains(ci.ControlId),
                         cancellationToken);
 
                 if (impl is null)
@@ -1119,7 +1149,7 @@ public class CapabilityService
                     impl = new ControlImplementation
                     {
                         RegisteredSystemId = sysId,
-                        ControlId = item.ControlId.ToUpperInvariant(),
+                        ControlId = normalizedControlId,
                         SecurityCapabilityId = capabilityId,
                         AuthoredBy = createdBy,
                     };
@@ -1127,6 +1157,7 @@ public class CapabilityService
                 }
                 else if (impl.IsManuallyCustomized)
                 {
+                    impl.ControlId = normalizedControlId;
                     // Link but don't overwrite customized narrative
                     if (impl.SecurityCapabilityId == null)
                         impl.SecurityCapabilityId = capabilityId;
@@ -1134,6 +1165,7 @@ public class CapabilityService
                 }
                 else
                 {
+                    impl.ControlId = normalizedControlId;
                     impl.SecurityCapabilityId = capabilityId;
                 }
 
@@ -1173,14 +1205,22 @@ public class CapabilityService
                     .FirstOrDefaultAsync(cancellationToken);
 
                 // Try AI-assisted generation for single narratives, fall back to deterministic
-                string? narrative = await _narrativeService.GenerateNarrativeWithAiAsync(
-                    cap.Name, cap.Provider, cap.Description,
-                    item.ControlId, nist.Title,
-                    componentContexts.Count > 0 ? componentContexts : null,
-                    boundaryName,
-                    cancellationToken);
+                string? narrative = null;
+                try
+                {
+                    narrative = await _narrativeService.GenerateNarrativeWithAiAsync(
+                        cap.Name, cap.Provider, cap.Description,
+                        normalizedControlId, nist.Title,
+                        componentContexts.Count > 0 ? componentContexts : null,
+                        boundaryName,
+                        cancellationToken);
+                }
+                catch
+                {
+                    // AI generation failed, fall through to deterministic
+                }
 
-                if (narrative is not null)
+                if (narrative is not null && !string.IsNullOrWhiteSpace(narrative))
                 {
                     impl.Narrative = narrative;
                     impl.AiSuggested = true;
@@ -1189,7 +1229,7 @@ public class CapabilityService
                 {
                     impl.Narrative = _narrativeService.GenerateEnrichedNarrative(
                         cap.Name, cap.Provider, cap.Description,
-                        item.ControlId, nist.Title,
+                        normalizedControlId, nist.Title,
                         componentContexts.Count > 0 ? componentContexts : null,
                         boundaryName);
                 }
@@ -1215,6 +1255,202 @@ public class CapabilityService
             Warnings = warnings,
             NarrativesGenerated = narrativesGenerated,
         };
+    }
+
+    /// <summary>
+    /// Updates a single mapping for a capability.
+    /// Returns null when the capability or mapping does not exist.
+    /// </summary>
+    public async Task<CapabilityMappingDto?> UpdateMappingAsync(
+        string capabilityId,
+        string mappingId,
+        UpdateMappingRequest request,
+        string modifiedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var capabilityExists = await _db.SecurityCapabilities
+            .AnyAsync(c => c.Id == capabilityId, cancellationToken);
+        if (!capabilityExists)
+            return null;
+
+        var mapping = await _db.CapabilityControlMappings
+            .Include(m => m.SecurityCapability)
+            .FirstOrDefaultAsync(m => m.Id == mappingId && m.SecurityCapabilityId == capabilityId, cancellationToken);
+        if (mapping is null)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(request.ControlId))
+        {
+            var catalogControls = await _db.NistControls
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+            var controlsById = catalogControls.ToDictionary(n => NormalizeControlId(n.Id), n => n, StringComparer.OrdinalIgnoreCase);
+            var normalizedControlId = ResolveCatalogControlId(request.ControlId, controlsById);
+            if (normalizedControlId is null)
+                throw new InvalidOperationException($"Control '{request.ControlId}' not found in NIST control catalog");
+
+            mapping.ControlId = normalizedControlId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Role) &&
+            Enum.TryParse<CapabilityMappingRole>(request.Role, ignoreCase: true, out var parsedRole))
+        {
+            mapping.Role = parsedRole;
+        }
+
+        if (request.RegisteredSystemId is not null)
+        {
+            mapping.RegisteredSystemId = string.IsNullOrWhiteSpace(request.RegisteredSystemId)
+                ? null
+                : request.RegisteredSystemId;
+        }
+
+        if (request.BoundaryDefinitionId is not null)
+        {
+            mapping.AuthorizationBoundaryDefinitionId = string.IsNullOrWhiteSpace(request.BoundaryDefinitionId)
+                ? null
+                : request.BoundaryDefinitionId;
+        }
+
+        if (mapping.Role == CapabilityMappingRole.Primary)
+        {
+            var existingPrimary = await _db.CapabilityControlMappings
+                .Include(m => m.SecurityCapability)
+                .FirstOrDefaultAsync(m =>
+                    m.Id != mapping.Id &&
+                    GetControlIdVariants(mapping.ControlId).Contains(m.ControlId) &&
+                    m.RegisteredSystemId == mapping.RegisteredSystemId &&
+                    m.Role == CapabilityMappingRole.Primary,
+                    cancellationToken);
+
+            if (existingPrimary is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Another capability '{existingPrimary.SecurityCapability.Name}' already claims Primary role for {mapping.ControlId}");
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await _orgInheritanceService.DeriveOrgDefaultsAsync(modifiedBy, cancellationToken);
+
+        var updated = await GetMappingsAsync(capabilityId, cancellationToken);
+        return updated?.Mappings.FirstOrDefault(m => m.Id == mappingId);
+    }
+
+    private static string NormalizeControlId(string controlId)
+    {
+        return controlId.Trim().ToLowerInvariant();
+    }
+
+    private static IEnumerable<string> GetControlIdVariants(string controlId)
+    {
+        var normalized = NormalizeControlId(controlId);
+        yield return normalized;
+
+        if (normalized.Contains('('))
+        {
+            var dotted = ParenthesizedEnhancementRegex.Replace(normalized, ".$1");
+            if (!string.Equals(dotted, normalized, StringComparison.OrdinalIgnoreCase))
+                yield return dotted;
+        }
+
+        var dotParts = normalized.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        if (dotParts.Length > 1)
+        {
+            var parenthesized = dotParts[0] + string.Concat(dotParts.Skip(1).Select(p => $"({p})"));
+            if (!string.Equals(parenthesized, normalized, StringComparison.OrdinalIgnoreCase))
+                yield return parenthesized;
+        }
+    }
+
+    private static string? ResolveCatalogControlId(
+        string controlId,
+        IDictionary<string, NistControl> controlsById)
+    {
+        foreach (var candidate in GetControlIdVariants(controlId).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (controlsById.TryGetValue(candidate, out var control))
+                return NormalizeControlId(control.Id);
+        }
+
+        return null;
+    }
+
+    private static T? ResolveByVariants<T>(
+        IDictionary<string, T> dictionary,
+        string controlId)
+        where T : class
+    {
+        foreach (var candidate in GetControlIdVariants(controlId).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (dictionary.TryGetValue(candidate, out var value))
+                return value;
+        }
+
+        return null;
+    }
+
+    private static string FormatControlIdForDisplay(string controlId)
+    {
+        return controlId.ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// Deletes a single mapping for a capability.
+    /// </summary>
+    public async Task<bool> DeleteMappingAsync(
+        string capabilityId,
+        string mappingId,
+        string modifiedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var capabilityExists = await _db.SecurityCapabilities
+            .AnyAsync(c => c.Id == capabilityId, cancellationToken);
+        if (!capabilityExists)
+            return false;
+
+        var mapping = await _db.CapabilityControlMappings
+            .FirstOrDefaultAsync(m => m.Id == mappingId && m.SecurityCapabilityId == capabilityId, cancellationToken);
+        if (mapping is null)
+            return false;
+
+        _db.CapabilityControlMappings.Remove(mapping);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            var dbMessage = ex.InnerException is DbException dbEx
+                ? dbEx.Message
+                : ex.InnerException?.Message ?? ex.Message;
+
+            _logger.LogError(
+                ex,
+                "Failed deleting capability mapping {MappingId} for capability {CapabilityId}.",
+                mappingId,
+                capabilityId);
+
+            throw new InvalidOperationException(
+                $"Unable to delete this mapping because it is referenced by other records. {dbMessage}",
+                ex);
+        }
+
+        try
+        {
+            await _orgInheritanceService.DeriveOrgDefaultsAsync(modifiedBy, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Mapping delete already persisted. Keep delete successful and log derivation failure for follow-up.
+            _logger.LogError(
+                ex,
+                "Capability mapping {MappingId} deleted, but org default derivation failed.",
+                mappingId);
+        }
+
+        return true;
     }
 
     // ─── Gap Analysis ─────────────────────────────────────────────────────

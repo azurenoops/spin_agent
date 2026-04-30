@@ -3,6 +3,8 @@ using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
@@ -320,7 +322,7 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
             var suggestion = await _sspService.SuggestNarrativeAsync(systemId, controlId, cancellationToken);
             var narrativeText = suggestion.Narrative;
 
-            var sourceEvidence = await FetchSourceEvidenceAsync(sources, cancellationToken);
+            var sourceEvidence = await FetchSourceEvidenceAsync(sources, controlId, cancellationToken);
             var aiNarrative = await GenerateAiNarrativeFromSourcesAsync(systemId, controlId, suggestion.Narrative, sourceEvidence, cancellationToken);
             if (!string.IsNullOrWhiteSpace(aiNarrative))
                 narrativeText = aiNarrative;
@@ -406,6 +408,7 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
 
     private async Task<List<SourceEvidenceSnippet>> FetchSourceEvidenceAsync(
         List<SourceParser.NormalizedSource> sources,
+        string controlId,
         CancellationToken cancellationToken)
     {
         var results = new List<SourceEvidenceSnippet>();
@@ -422,7 +425,7 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
 
             if (source.SourceType == "SharePointLink")
             {
-                var sharePointEvidence = await FetchSharePointSourceEvidenceAsync(source, cancellationToken);
+                var sharePointEvidence = await FetchSharePointSourceEvidenceAsync(source, controlId, cancellationToken);
                 if (sharePointEvidence != null)
                 {
                     results.Add(sharePointEvidence);
@@ -471,10 +474,16 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
 
     private async Task<SourceEvidenceSnippet?> FetchSharePointSourceEvidenceAsync(
         SourceParser.NormalizedSource source,
+        string controlId,
         CancellationToken cancellationToken)
     {
         if (_graphClient is null || !Uri.TryCreate(source.SourceUrl, UriKind.Absolute, out var uri))
             return null;
+
+        // Sharing links (/:x:/r/... or _layouts/15/Doc.aspx?sourcedoc=) are resolved
+        // via the Graph /shares endpoint, which handles external/cross-tenant links.
+        if (IsSharePointSharingLink(uri))
+            return await FetchSharePointBySharingLinkAsync(source, controlId, cancellationToken);
 
         if (!TryParseSharePointDocumentPath(uri, out var host, out var sitePath, out var documentPath))
             return null;
@@ -501,7 +510,7 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
                 return null;
 
             var fileName = source.FileName ?? Path.GetFileName(documentPath);
-            var extracted = await ExtractDocumentTextAsync(contentStream, fileName, cancellationToken);
+            var extracted = await ExtractDocumentTextAsync(contentStream, fileName, controlId, cancellationToken);
             if (string.IsNullOrWhiteSpace(extracted))
                 return null;
 
@@ -514,6 +523,73 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
         catch (Exception ex)
         {
             Logger.LogDebug(ex, "SharePoint Graph retrieval failed for {Url}", source.SourceUrl);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Returns true for SharePoint sharing links that embed a document GUID
+    /// (/_layouts/15/Doc.aspx?sourcedoc=... or /:x:/r/... patterns).
+    /// These cannot be resolved by the path-based approach.
+    /// </summary>
+    private static bool IsSharePointSharingLink(Uri uri)
+    {
+        if (uri.AbsolutePath.Contains("/_layouts/15/", StringComparison.OrdinalIgnoreCase))
+            return true;
+        // e.g. https://tenant.sharepoint.com/:x:/r/teams/Site/...
+        if (Regex.IsMatch(uri.AbsolutePath, @"^/:[a-z]:/[rs]/", RegexOptions.IgnoreCase))
+            return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Downloads a file referenced by a SharePoint sharing link using the
+    /// Graph /shares/{encodedUrl}/driveItem endpoint.
+    /// </summary>
+    private async Task<SourceEvidenceSnippet?> FetchSharePointBySharingLinkAsync(
+        SourceParser.NormalizedSource source,
+        string controlId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Encode URL as base64url with the required u! prefix
+            var urlBytes = System.Text.Encoding.UTF8.GetBytes(source.SourceUrl);
+            var b64 = Convert.ToBase64String(urlBytes)
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+            var shareToken = $"u!{b64}";
+
+            var driveItem = await _graphClient.Shares[shareToken].DriveItem
+                .GetAsync(cancellationToken: cancellationToken);
+
+            if (driveItem?.Id is null)
+                return null;
+
+            var fileName = source.FileName ?? driveItem.Name ?? "document.xlsx";
+
+            await using var contentStream = await _graphClient.Shares[shareToken].DriveItem.Content
+                .GetAsync(cancellationToken: cancellationToken);
+
+            if (contentStream == null)
+                return null;
+
+            var extracted = await ExtractDocumentTextAsync(contentStream, fileName, controlId, cancellationToken);
+            if (string.IsNullOrWhiteSpace(extracted))
+                return null;
+
+            Logger.LogInformation("Resolved SharePoint sharing link for {ControlId}: {File}", controlId, fileName);
+
+            return new SourceEvidenceSnippet(
+                fileName,
+                source.SourceUrl,
+                "application/vnd.microsoft.graph.sharepoint",
+                Truncate(NormalizeSourceText(extracted, "text/plain"), 1200));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "SharePoint sharing link resolution failed for {Url}: {Message}", source.SourceUrl, ex.Message);
             return null;
         }
     }
@@ -533,6 +609,9 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
             : string.Join("\n\n", sourceEvidence.Select((s, idx) =>
                 $"Source {idx + 1}: {s.Label}\nURL: {s.SourceUrl}\nType: {s.MediaType}\nExcerpt:\n{s.Excerpt}"));
 
+        var hasMsImpl = sourceEvidence.Any(s =>
+            s.Excerpt.Contains("Microsoft Implementation Details:", StringComparison.OrdinalIgnoreCase));
+
         var prompt = $"""
 You are drafting an RMF SSP control implementation narrative.
 System ID: {systemId}
@@ -549,6 +628,7 @@ Instructions:
 2) Use source excerpts when relevant and do not invent technologies or processes.
 3) If sources are insufficient, preserve baseline content and improve clarity only.
 4) Do not include markdown headings.
+{(hasMsImpl ? "5) Source excerpts contain 'Microsoft Implementation Details' from the official Microsoft NIST 800-53 Control Framework workbook. Treat this as the authoritative description of how the Azure/M365 platform implements the control. Incorporate this content as the primary implementation statement, then add system-specific context from the baseline suggestion." : string.Empty)}
 """;
 
         try
@@ -621,6 +701,7 @@ Instructions:
     private static async Task<string?> ExtractDocumentTextAsync(
         Stream contentStream,
         string fileName,
+        string controlId,
         CancellationToken cancellationToken)
     {
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
@@ -630,6 +711,9 @@ Instructions:
 
         if (extension == ".docx")
             return await ExtractDocxTextAsync(memory);
+
+        if (extension == ".xlsx")
+            return ExtractXlsxText(memory, controlId);
 
         if (extension is ".txt" or ".md" or ".csv" or ".json" or ".xml" or ".html" or ".htm")
         {
@@ -654,6 +738,162 @@ Instructions:
         var xml = await reader.ReadToEndAsync();
         var text = Regex.Replace(xml, "<[^>]+>", " ");
         return WebUtility.HtmlDecode(text);
+    }
+
+    private static string? ExtractXlsxText(Stream stream, string controlId)
+    {
+        stream.Position = 0;
+        using var spreadsheet = SpreadsheetDocument.Open(stream, false);
+        var workbookPart = spreadsheet.WorkbookPart;
+        if (workbookPart?.Workbook?.Sheets is null)
+            return null;
+
+        var sharedStrings = workbookPart.SharedStringTablePart?.SharedStringTable;
+        var controlRows = new List<string>();
+
+        foreach (var sheet in workbookPart.Workbook.Sheets.OfType<Sheet>())
+        {
+            if (sheet.Id?.Value is null)
+                continue;
+
+            var worksheetPart = (WorksheetPart?)workbookPart.GetPartById(sheet.Id.Value);
+            var sheetData = worksheetPart?.Worksheet?.GetFirstChild<SheetData>();
+            if (sheetData is null)
+                continue;
+
+            var rows = sheetData.Elements<Row>().ToList();
+            if (rows.Count == 0)
+                continue;
+
+            var headerCells = GetRowValues(rows[0], sharedStrings);
+            var normalizedHeaders = headerCells.Select(NormalizeHeader).ToList();
+
+            var controlIdx = FindColumnIndex(normalizedHeaders, "control", "controlid", "nistcontrol", "controlidentifier", "controlnumber");
+            // Microsoft NIST 800-53 Control Framework workbook columns
+            var msImplIdx = FindColumnIndex(normalizedHeaders,
+                "microsoftimplementationdetails", "microsoftazureimplementation",
+                "microsoftresponsibility", "microsoftazureresponsibility",
+                "implementationdetails", "microsoftimplementation");
+            var customerRespIdx = FindColumnIndex(normalizedHeaders,
+                "customerresponsibility", "customerresponsibilitydescription",
+                "customersresponsibility");
+            var activityNameIdx = FindColumnIndex(normalizedHeaders, "activityname", "activity", "name");
+            var activityDescIdx = FindColumnIndex(normalizedHeaders, "activitydescription", "description", "activitydetails");
+
+            if (controlIdx < 0 && msImplIdx < 0 && activityNameIdx < 0 && activityDescIdx < 0)
+                continue;
+
+            foreach (var row in rows.Skip(1))
+            {
+                var values = GetRowValues(row, sharedStrings);
+                if (values.Count == 0)
+                    continue;
+
+                if (controlIdx >= 0)
+                {
+                    var controlValue = GetValue(values, controlIdx);
+                    if (!IsControlMatch(controlValue, controlId))
+                        continue;
+                }
+
+                // Prefer Microsoft Implementation Details when present (authoritative)
+                if (msImplIdx >= 0)
+                {
+                    var msImpl = GetValue(values, msImplIdx);
+                    if (!string.IsNullOrWhiteSpace(msImpl))
+                    {
+                        var customerResp = customerRespIdx >= 0 ? GetValue(values, customerRespIdx) : string.Empty;
+                        var sb = new System.Text.StringBuilder();
+                        sb.AppendLine($"Microsoft Implementation Details: {msImpl}");
+                        if (!string.IsNullOrWhiteSpace(customerResp))
+                            sb.AppendLine($"Customer Responsibility: {customerResp}");
+                        controlRows.Add(sb.ToString().Trim());
+                        if (controlRows.Count >= 3)
+                            break;
+                        continue;
+                    }
+                }
+
+                var activityName = activityNameIdx >= 0 ? GetValue(values, activityNameIdx) : string.Empty;
+                var activityDescription = activityDescIdx >= 0 ? GetValue(values, activityDescIdx) : string.Empty;
+
+                if (string.IsNullOrWhiteSpace(activityName) && string.IsNullOrWhiteSpace(activityDescription))
+                    continue;
+
+                var formatted = $"Activity Name: {activityName}\nActivity Description: {activityDescription}";
+                controlRows.Add(formatted);
+                if (controlRows.Count >= 3)
+                    break;
+            }
+
+            if (controlRows.Count > 0)
+                break;
+        }
+
+        if (controlRows.Count == 0)
+            return null;
+
+        return string.Join("\n\n", controlRows);
+    }
+
+    private static List<string> GetRowValues(Row row, SharedStringTable? sharedStrings)
+    {
+        var values = new List<string>();
+        foreach (var cell in row.Elements<Cell>())
+        {
+            values.Add(GetCellValue(cell, sharedStrings));
+        }
+
+        return values;
+    }
+
+    private static string GetCellValue(Cell cell, SharedStringTable? sharedStrings)
+    {
+        var raw = cell.CellValue?.Text ?? cell.InnerText ?? string.Empty;
+
+        if (cell.DataType?.Value == CellValues.SharedString &&
+            int.TryParse(raw, out var sharedIndex) &&
+            sharedStrings is not null)
+        {
+            return sharedStrings.ElementAtOrDefault(sharedIndex)?.InnerText?.Trim() ?? string.Empty;
+        }
+
+        return raw.Trim();
+    }
+
+    private static int FindColumnIndex(IReadOnlyList<string> headers, params string[] candidates)
+    {
+        for (var i = 0; i < headers.Count; i++)
+        {
+            var header = headers[i];
+            if (candidates.Any(candidate => header.Contains(candidate, StringComparison.OrdinalIgnoreCase)))
+                return i;
+        }
+
+        return -1;
+    }
+
+    private static string NormalizeHeader(string value) =>
+        Regex.Replace(value ?? string.Empty, "[^a-zA-Z0-9]", string.Empty).ToLowerInvariant();
+
+    private static string GetValue(IReadOnlyList<string> values, int index) =>
+        index >= 0 && index < values.Count ? values[index].Trim() : string.Empty;
+
+    private static bool IsControlMatch(string sourceControl, string expectedControl)
+    {
+        var normalizedSource = NormalizeControlId(sourceControl);
+        var normalizedExpected = NormalizeControlId(expectedControl);
+        return !string.IsNullOrWhiteSpace(normalizedSource)
+            && !string.IsNullOrWhiteSpace(normalizedExpected)
+            && normalizedSource.Equals(normalizedExpected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeControlId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        return Regex.Replace(value.Trim().ToUpperInvariant(), "[^A-Z0-9]", string.Empty);
     }
 
     private static string Truncate(string value, int maxLen)

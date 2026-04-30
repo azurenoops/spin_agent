@@ -14,6 +14,7 @@ public class SystemComponentDto
     public string? PersonName { get; init; }
     public string? Email { get; init; }
     public string? RmfRole { get; init; }
+    public required string ScopeLevel { get; init; }
     public required string Status { get; init; }
     public string? BoundaryDefinitionId { get; init; }
     public string? BoundaryDefinitionName { get; init; }

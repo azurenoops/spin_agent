@@ -31,6 +31,7 @@ public class DashboardService
         CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
+        var normalizedImpactLevel = NormalizeImpactLevelFilter(query.ImpactLevel);
 
         var systemsQuery = _db.RegisteredSystems
             .Where(s => s.IsActive)
@@ -133,8 +134,8 @@ public class DashboardService
             var baselineLevel = system.ControlBaseline?.BaselineLevel ?? "Unknown";
 
             // Apply impact level filter on the materialized list
-            if (!string.IsNullOrEmpty(query.ImpactLevel) &&
-                !baselineLevel.Equals(query.ImpactLevel, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(normalizedImpactLevel) &&
+                !baselineLevel.Equals(normalizedImpactLevel, StringComparison.OrdinalIgnoreCase))
             {
                 return null;
             }
@@ -227,6 +228,23 @@ public class DashboardService
         };
 
         return ("Active", daysRemaining, severity);
+    }
+
+    private static string? NormalizeImpactLevelFilter(string? impactLevel)
+    {
+        if (string.IsNullOrWhiteSpace(impactLevel))
+        {
+            return null;
+        }
+
+        var normalized = impactLevel.Trim();
+        if (normalized.Equals("All Impact Levels", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("All", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return normalized;
     }
 
     private static List<PortfolioSystemSummaryDto> ApplySort(

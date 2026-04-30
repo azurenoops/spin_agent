@@ -41,6 +41,16 @@ export async function getPortfolio(
   return data;
 }
 
+export async function getPortfolioLegacy(
+  params: PortfolioParams = {},
+): Promise<PaginatedResponse<PortfolioSystemSummary>> {
+  const { data } = await apiClient.get<PaginatedResponse<PortfolioSystemSummary>>(
+    '/systems',
+    { params },
+  );
+  return data;
+}
+
 export async function registerSystem(
   body: RegisterSystemBody,
 ): Promise<RegisterSystemResponse> {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Reflection;
 using Ato.Copilot.Agents.Compliance.Models;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
@@ -115,6 +116,10 @@ sealed record OscalSetParameter
 
 public class FrameworkImportService : IFrameworkImportService
 {
+    private const string EmbeddedNistRev5CatalogResource = "Ato.Copilot.Agents.Compliance.Resources.NIST_SP-800-53_rev5_catalog.json";
+    private const string EmbeddedNistBaselinesResource = "Ato.Copilot.Agents.Compliance.Resources.nist-800-53-baselines.json";
+    private const string EmbeddedFedRampBaselinesResource = "Ato.Copilot.Agents.Compliance.Resources.fedramp-baselines.json";
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly HttpClient _httpClient;
     private readonly ILogger<FrameworkImportService> _logger;
@@ -185,16 +190,7 @@ public class FrameworkImportService : IFrameworkImportService
             await db.SaveChangesAsync(ct);
         }
 
-        // Fetch OSCAL catalog
-        _logger.LogInformation("Fetching catalog for {Id} from {Url}", seed.Identifier, seed.CatalogUrl);
-        NistCatalog catalog;
-        using (var cts = CancellationTokenSource.CreateLinkedTokenSource(ct))
-        {
-            cts.CancelAfter(TimeSpan.FromSeconds(90));
-            using var stream = await _httpClient.GetStreamAsync(seed.CatalogUrl, cts.Token);
-            var root = await JsonSerializer.DeserializeAsync<NistCatalogRoot>(stream, cancellationToken: cts.Token);
-            catalog = root?.Catalog ?? throw new InvalidOperationException("Catalog deserialized as null");
-        }
+        var catalog = await LoadCatalogAsync(seed, ct);
 
         // Delete existing controls for this framework (cascade also removes baseline entries via FK)
         await db.FrameworkControls.Where(c => c.FrameworkId == framework.Id).ExecuteDeleteAsync(ct);
@@ -307,17 +303,7 @@ public class FrameworkImportService : IFrameworkImportService
                 _logger.LogInformation("Fetching baseline {Level} for {Id} from {Url}",
                     baselineSeed.Level, seed.Identifier, baselineSeed.SourceUrl);
 
-                List<string> controlIds;
-                Dictionary<string, string>? paramValues = null;
-
-                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(ct))
-                {
-                    cts.CancelAfter(TimeSpan.FromSeconds(60));
-                    using var stream = await _httpClient.GetStreamAsync(baselineSeed.SourceUrl, cts.Token);
-                    var profileRoot = await JsonSerializer.DeserializeAsync<OscalProfileRoot>(stream, cancellationToken: cts.Token);
-                    controlIds = ExtractProfileControlIds(profileRoot);
-                    paramValues = ExtractProfileParameters(profileRoot);
-                }
+                var controlIds = await LoadBaselineControlIdsAsync(seed, baselineSeed, ct);
 
                 // Build baseline control entries (normalize to uppercase display IDs)
                 var entries = controlIds
@@ -344,6 +330,185 @@ public class FrameworkImportService : IFrameworkImportService
                     baselineSeed.Level, seed.Identifier);
             }
         }
+    }
+
+    private async Task<NistCatalog> LoadCatalogAsync(FrameworkSeed seed, CancellationToken ct)
+    {
+        _logger.LogInformation("Fetching catalog for {Id} from {Url}", seed.Identifier, seed.CatalogUrl);
+        var onlineCatalog = await TryFetchCatalogAsync(seed.CatalogUrl, ct);
+        if (onlineCatalog is not null)
+        {
+            return onlineCatalog;
+        }
+
+        if (SupportsEmbeddedCatalog(seed.Identifier))
+        {
+            _logger.LogWarning("Falling back to embedded catalog for {Id}", seed.Identifier);
+            var embeddedCatalog = await LoadEmbeddedCatalogAsync(EmbeddedNistRev5CatalogResource, ct);
+            if (embeddedCatalog is not null)
+            {
+                return embeddedCatalog;
+            }
+        }
+
+        throw new InvalidOperationException($"Unable to load OSCAL catalog for {seed.Identifier}");
+    }
+
+    private async Task<List<string>> LoadBaselineControlIdsAsync(
+        FrameworkSeed seed,
+        BaselineSeed baselineSeed,
+        CancellationToken ct)
+    {
+        var onlineIds = await TryFetchBaselineControlIdsAsync(seed, baselineSeed, ct);
+        if (onlineIds.Count > 0)
+        {
+            return onlineIds;
+        }
+
+        var embeddedIds = await LoadEmbeddedBaselineControlIdsAsync(seed.Identifier, baselineSeed.Level, ct);
+        if (embeddedIds.Count > 0)
+        {
+            _logger.LogWarning(
+                "Falling back to embedded baseline controls for {Id} {Level}",
+                seed.Identifier,
+                baselineSeed.Level);
+            return embeddedIds;
+        }
+
+        return onlineIds;
+    }
+
+    private async Task<NistCatalog?> TryFetchCatalogAsync(string url, CancellationToken ct)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(90));
+
+            using var stream = await _httpClient.GetStreamAsync(url, cts.Token);
+            var root = await JsonSerializer.DeserializeAsync<NistCatalogRoot>(stream, cancellationToken: cts.Token);
+            return root?.Catalog;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Catalog fetch timed out for {Url}", url);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Catalog fetch failed for {Url}", url);
+            return null;
+        }
+    }
+
+    private async Task<NistCatalog?> LoadEmbeddedCatalogAsync(string resourceName, CancellationToken ct)
+    {
+        try
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            await using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream is null)
+            {
+                _logger.LogWarning("Embedded catalog resource not found: {Resource}", resourceName);
+                return null;
+            }
+
+            var root = await JsonSerializer.DeserializeAsync<NistCatalogRoot>(stream, cancellationToken: ct);
+            return root?.Catalog;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Embedded catalog load failed for {Resource}", resourceName);
+            return null;
+        }
+    }
+
+    private async Task<List<string>> TryFetchBaselineControlIdsAsync(
+        FrameworkSeed seed,
+        BaselineSeed baselineSeed,
+        CancellationToken ct)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(60));
+
+            await using var stream = await _httpClient.GetStreamAsync(baselineSeed.SourceUrl, cts.Token);
+            var profileRoot = await JsonSerializer.DeserializeAsync<OscalProfileRoot>(stream, cancellationToken: cts.Token);
+            return ExtractProfileControlIds(profileRoot);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Baseline fetch timed out for {Id} {Level}", seed.Identifier, baselineSeed.Level);
+            return new List<string>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Baseline fetch failed for {Id} {Level}", seed.Identifier, baselineSeed.Level);
+            return new List<string>();
+        }
+    }
+
+    private async Task<List<string>> LoadEmbeddedBaselineControlIdsAsync(
+        string frameworkIdentifier,
+        string baselineLevel,
+        CancellationToken ct)
+    {
+        var resourceName = frameworkIdentifier.Equals("FEDRAMP-R5", StringComparison.OrdinalIgnoreCase)
+            ? EmbeddedFedRampBaselinesResource
+            : frameworkIdentifier.Equals("NIST-800-53-R5", StringComparison.OrdinalIgnoreCase)
+                ? EmbeddedNistBaselinesResource
+                : null;
+
+        if (resourceName is null)
+        {
+            return new List<string>();
+        }
+
+        var key = baselineLevel.Trim().ToLowerInvariant();
+
+        try
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            await using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream is null)
+            {
+                _logger.LogWarning("Embedded baseline resource not found: {Resource}", resourceName);
+                return new List<string>();
+            }
+
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            if (!document.RootElement.TryGetProperty(key, out var baselineElement) || baselineElement.ValueKind != JsonValueKind.Array)
+            {
+                return new List<string>();
+            }
+
+            var ids = new List<string>();
+            foreach (var item in baselineElement.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    var id = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(id))
+                    {
+                        ids.Add(id);
+                    }
+                }
+            }
+
+            return ids;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Embedded baseline load failed for {Framework} {Level}", frameworkIdentifier, baselineLevel);
+            return new List<string>();
+        }
+    }
+
+    private static bool SupportsEmbeddedCatalog(string identifier)
+    {
+        return identifier.Equals("NIST-800-53-R5", StringComparison.OrdinalIgnoreCase)
+            || identifier.Equals("FEDRAMP-R5", StringComparison.OrdinalIgnoreCase);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -414,16 +579,4 @@ public class FrameworkImportService : IFrameworkImportService
         return ids;
     }
 
-    private static Dictionary<string, string>? ExtractProfileParameters(OscalProfileRoot? root)
-    {
-        if (root?.Profile?.Modify?.SetParameters is not { Count: > 0 }) return null;
-
-        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var sp in root.Profile.Modify.SetParameters)
-        {
-            if (sp.ParamId is not null && sp.Values is { Count: > 0 })
-                dict[sp.ParamId] = string.Join("; ", sp.Values);
-        }
-        return dict.Count > 0 ? dict : null;
-    }
 }

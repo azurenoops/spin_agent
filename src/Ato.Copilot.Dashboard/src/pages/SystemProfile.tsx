@@ -5,6 +5,7 @@ import { useSettings } from '../hooks/useSettings';
 import ProfileSectionForm from '../components/forms/ProfileSectionForm';
 import { getProfileSection, saveProfileSection, submitSections, withdrawSections, reviewSection } from '../api/systemProfile';
 import { getProfileCompleteness } from '../api/systemProfile';
+import { formatProfileSectionLabel } from '../utils/profileSections';
 import type {
   ProfileSectionDetail,
   ProfileSectionType,
@@ -24,15 +25,6 @@ function approvalVariant(status: GovernanceStatus) {
     default: return 'bg-gray-100 text-gray-600';
   }
 }
-
-const sectionLabels: Record<ProfileSectionType, string> = {
-  MissionAndPurpose: 'Mission & Purpose',
-  UsersAndAccess: 'Users & Access',
-  EnvironmentAndDeployment: 'Environment & Deployment',
-  DataTypes: 'Data Types & Sensitivity',
-  PortsProtocolsAndServices: 'Ports, Protocols & Services',
-  LeveragedAuthorizations: 'Leveraged Authorizations',
-};
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
@@ -171,7 +163,7 @@ export default function SystemProfile() {
     return <p className="text-gray-500 py-8 text-center">Loading section...</p>;
   }
 
-  const label = sectionLabels[sectionType] ?? sectionType;
+  const label = formatProfileSectionLabel(sectionType);
   const status: GovernanceStatus = section?.governanceStatus ?? 'NotStarted';
 
   return (

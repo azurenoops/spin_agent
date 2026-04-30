@@ -43,6 +43,10 @@ export interface DashboardSettings {
   prismaCloudEnabled: boolean;
   stigViewerEnabled: boolean;
 
+  // Document Narrative Sources
+  sharePointSiteUrl: string;
+  sourceDocuments: string;
+
   // Administration
   sessionTimeout: 15 | 30 | 60 | 120; // minutes
   enableAnalytics: boolean;
@@ -88,6 +92,10 @@ export const DEFAULT_SETTINGS: DashboardSettings = {
   acasEnabled: false,
   prismaCloudEnabled: false,
   stigViewerEnabled: false,
+
+  // Document Narrative Sources
+  sharePointSiteUrl: '',
+  sourceDocuments: '',
 
   // Administration
   sessionTimeout: 30,

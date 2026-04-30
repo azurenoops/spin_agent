@@ -48,6 +48,18 @@ public class CreateMappingsResponse
 }
 
 /// <summary>
+/// Request to update an existing capability-to-control mapping.
+/// Any null field is left unchanged.
+/// </summary>
+public class UpdateMappingRequest
+{
+    public string? ControlId { get; init; }
+    public string? Role { get; init; }
+    public string? RegisteredSystemId { get; init; }
+    public string? BoundaryDefinitionId { get; init; }
+}
+
+/// <summary>
 /// Warning about a potential conflict (e.g., duplicate primary role).
 /// </summary>
 public class MappingWarning

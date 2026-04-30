@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Ato.Copilot.Agents.Compliance.Services;
+using Ato.Copilot.Agents.Document.Tools;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
@@ -15,6 +16,7 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
+using System.Text.RegularExpressions;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
 
@@ -43,6 +45,75 @@ public static class DashboardEndpoints
                 return Results.Ok(result);
             })
             .WithName("GetPortfolio");
+
+        // Legacy aliases for older dashboard bundles that still call deprecated routes.
+        group.MapGet("/systems", async (
+                [AsParameters] PortfolioQuery query,
+                DashboardService service,
+                CancellationToken ct) =>
+            {
+                var result = await service.GetPortfolioAsync(query, ct);
+                return Results.Ok(result);
+            })
+            .WithName("GetSystemsLegacy");
+
+        group.MapGet("/metrics", async (
+                [AsParameters] PortfolioQuery query,
+                DashboardService service,
+                CancellationToken ct) =>
+            {
+                var result = await service.GetPortfolioAsync(query, ct);
+                var items = result.Items ?? [];
+
+                var avgCompliance = items.Count > 0
+                    ? Math.Round(items.Average(i => i.ComplianceScore), 1)
+                    : 0;
+
+                var atoAtRisk = items.Count(i =>
+                    string.Equals(i.AtoSeverity, "red", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(i.AtoSeverity, "expired", StringComparison.OrdinalIgnoreCase));
+
+                var configuredSystems = items.Count(i => i.IsSetupComplete);
+                var coveragePercent = items.Count > 0
+                    ? Math.Round(100.0 * configuredSystems / items.Count, 1)
+                    : (double?)null;
+
+                return Results.Ok(new
+                {
+                    totalSystems = result.TotalCount,
+                    avgCompliance,
+                    openPoams = items.Sum(i => i.OpenPoamCount),
+                    overduePoams = items.Sum(i => i.OverduePoamCount),
+                    catIFindings = items.Sum(i => i.CatICounts),
+                    catIIFindings = items.Sum(i => i.CatIICounts),
+                    catIIIFindings = items.Sum(i => i.CatIIICounts),
+                    atoAtRisk,
+                    coveragePercent,
+                });
+            })
+            .WithName("GetDashboardMetricsLegacy");
+
+        group.MapGet("/coverage", async (
+                [AsParameters] PortfolioQuery query,
+                DashboardService service,
+                CancellationToken ct) =>
+            {
+                var result = await service.GetPortfolioAsync(query, ct);
+                var items = result.Items ?? [];
+                var configuredSystems = items.Count(i => i.IsSetupComplete);
+                var coveragePercent = items.Count > 0
+                    ? Math.Round(100.0 * configuredSystems / items.Count, 1)
+                    : (double?)null;
+
+                return Results.Ok(new
+                {
+                    totalSystems = result.TotalCount,
+                    configuredSystems,
+                    coveragePercent,
+                    coverage = coveragePercent,
+                });
+            })
+            .WithName("GetCoverageLegacy");
 
         // ─── Register System ─────────────────────────────────────────────────
         group.MapPost("/systems", async (
@@ -525,9 +596,65 @@ public static class DashboardEndpoints
         group.MapPost("/systems/{systemId}/controls/{controlId}/regenerate-ai", async (
                 string systemId,
                 string controlId,
+                [FromQuery] string? sourceUrl,
+                [FromQuery] string? sourceUrls,
                 CapabilityService capService,
+                DocumentNarrativeGenerateAdapterTool documentNarrativeTool,
                 CancellationToken ct) =>
             {
+                if (!string.IsNullOrWhiteSpace(sourceUrl) || !string.IsNullOrWhiteSpace(sourceUrls))
+                {
+                    var toolArgs = new Dictionary<string, object?>
+                    {
+                        ["system_id"] = systemId,
+                        ["control_id"] = controlId,
+                        ["save_draft"] = "true",
+                        ["change_reason"] = "Dashboard regenerate using configured document sources",
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(sourceUrl))
+                        toolArgs["source_url"] = sourceUrl;
+                    if (!string.IsNullOrWhiteSpace(sourceUrls))
+                        toolArgs["source_urls"] = sourceUrls;
+
+                    var toolResult = await documentNarrativeTool.ExecuteAsync(toolArgs, ct);
+                    try
+                    {
+                        using var json = System.Text.Json.JsonDocument.Parse(toolResult);
+                        var root = json.RootElement;
+                        var status = root.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
+                        if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase) &&
+                            root.TryGetProperty("data", out var dataEl) &&
+                            dataEl.TryGetProperty("suggested_narrative", out var narrativeEl))
+                        {
+                            return Results.Ok(new { narrative = narrativeEl.GetString() ?? string.Empty });
+                        }
+
+                        if (root.TryGetProperty("message", out var messageEl))
+                        {
+                            return Results.BadRequest(new ErrorResponse
+                            {
+                                Error = messageEl.GetString() ?? "Narrative generation from document sources failed",
+                                ErrorCode = "DOCUMENT_SOURCE_GENERATION_FAILED",
+                            });
+                        }
+
+                        return Results.BadRequest(new ErrorResponse
+                        {
+                            Error = "Narrative generation from document sources failed",
+                            ErrorCode = "DOCUMENT_SOURCE_GENERATION_FAILED",
+                        });
+                    }
+                    catch
+                    {
+                        return Results.BadRequest(new ErrorResponse
+                        {
+                            Error = "Narrative generation from document sources returned an invalid payload",
+                            ErrorCode = "DOCUMENT_SOURCE_INVALID_PAYLOAD",
+                        });
+                    }
+                }
+
                 var (narrative, errorCode) = await capService.RegenerateNarrativeWithAiAsync(
                     systemId, controlId, "dashboard-user", ct);
                 return errorCode switch
@@ -546,9 +673,102 @@ public static class DashboardEndpoints
         group.MapPost("/systems/{systemId}/capabilities/{capabilityId}/bulk-regenerate", async (
                 string systemId,
                 string capabilityId,
+                [FromQuery] string? sourceUrl,
+                [FromQuery] string? sourceUrls,
+                AtoCopilotContext context,
                 CapabilityService capService,
+                DocumentNarrativeGenerateAdapterTool documentNarrativeTool,
                 CancellationToken ct) =>
             {
+                if (!string.IsNullOrWhiteSpace(sourceUrl) || !string.IsNullOrWhiteSpace(sourceUrls))
+                {
+                    var systemExists = await context.RegisteredSystems
+                        .AnyAsync(s => s.Id == systemId && s.IsActive, ct);
+                    if (!systemExists)
+                    {
+                        return Results.NotFound(new ErrorResponse
+                        {
+                            Error = "System or capability not found",
+                            ErrorCode = "NOT_FOUND",
+                        });
+                    }
+
+                    var capabilityExists = await context.SecurityCapabilities
+                        .AnyAsync(c => c.Id == capabilityId, ct);
+                    if (!capabilityExists)
+                    {
+                        return Results.NotFound(new ErrorResponse
+                        {
+                            Error = "System or capability not found",
+                            ErrorCode = "NOT_FOUND",
+                        });
+                    }
+
+                    var impls = await context.ControlImplementations
+                        .Where(ci => ci.RegisteredSystemId == systemId && ci.SecurityCapabilityId == capabilityId)
+                        .Select(ci => new { ci.ControlId, ci.IsManuallyCustomized })
+                        .ToListAsync(ct);
+
+                    var totalControls = impls.Count;
+                    var regenerated = 0;
+                    var skippedCustom = 0;
+                    var failed = 0;
+                    var regeneratedControlIds = new List<string>();
+
+                    foreach (var impl in impls)
+                    {
+                        if (impl.IsManuallyCustomized)
+                        {
+                            skippedCustom++;
+                            continue;
+                        }
+
+                        var toolArgs = new Dictionary<string, object?>
+                        {
+                            ["system_id"] = systemId,
+                            ["control_id"] = impl.ControlId,
+                            ["save_draft"] = "true",
+                            ["change_reason"] = "Bulk regenerate using configured document sources",
+                        };
+
+                        if (!string.IsNullOrWhiteSpace(sourceUrl))
+                            toolArgs["source_url"] = sourceUrl;
+                        if (!string.IsNullOrWhiteSpace(sourceUrls))
+                            toolArgs["source_urls"] = sourceUrls;
+
+                        try
+                        {
+                            var toolResult = await documentNarrativeTool.ExecuteAsync(toolArgs, ct);
+                            using var json = System.Text.Json.JsonDocument.Parse(toolResult);
+                            var root = json.RootElement;
+                            var status = root.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
+
+                            if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+                            {
+                                regenerated++;
+                                regeneratedControlIds.Add(impl.ControlId);
+                            }
+                            else
+                            {
+                                failed++;
+                            }
+                        }
+                        catch
+                        {
+                            failed++;
+                        }
+                    }
+
+                    return Results.Ok(new
+                    {
+                        totalControls,
+                        regenerated,
+                        skippedCustom,
+                        failed,
+                        regeneratedControlIds,
+                    });
+                }
+
                 var result = await capService.BulkRegenerateNarrativesForCapabilityAsync(
                     systemId, capabilityId, "dashboard-user", ct);
                 return result is not null
@@ -719,70 +939,85 @@ public static class DashboardEndpoints
             .WithName("CreateComponent");
 
         // ─── AI Component Description ────────────────────────────────────────
-        group.MapPost("/ai/component-description", async (
-                GenerateComponentDescriptionRequest body,
-                IChatClient chatClient,
-                CancellationToken ct) =>
-            {
-                if (string.IsNullOrWhiteSpace(body.Name))
-                    return Results.BadRequest(new ErrorResponse
-                    {
-                        Error = "Name is required",
-                        ErrorCode = "INVALID_INPUT",
-                    });
-
-                var prompt = $"""Write a concise 2-3 sentence description for a system component used in a federal IT authorization boundary. The component is named "{body.Name}", is classified as a "{body.ComponentType}" type component{(string.IsNullOrWhiteSpace(body.SubType) ? "" : $" with sub-type \"{body.SubType}\"")}. The description should explain what the component does, its role in the system architecture, and its relevance to security and compliance. Do not include any markdown formatting. Return only the description text.""";
-
-                var response = await chatClient.GetResponseAsync(prompt, cancellationToken: ct);
-                var description = response.Text?.Trim() ?? "";
-
-                return Results.Ok(new { description });
-            })
+        group.MapPost("/ai/component-description", GenerateComponentDescription)
             .WithName("GenerateComponentDescription");
 
+        async Task<IResult> GenerateComponentDescription(
+                GenerateComponentDescriptionRequest body,
+                IChatClient? chatClient,
+                CancellationToken ct)
+        {
+            if (chatClient is null)
+                return Results.StatusCode(503);
+
+            if (string.IsNullOrWhiteSpace(body.Name))
+                return Results.BadRequest(new ErrorResponse
+                {
+                    Error = "Name is required",
+                    ErrorCode = "INVALID_INPUT",
+                });
+
+            var prompt = $"""Write a concise 2-3 sentence description for a system component used in a federal IT authorization boundary. The component is named "{body.Name}", is classified as a "{body.ComponentType}" type component{(string.IsNullOrWhiteSpace(body.SubType) ? "" : $" with sub-type \"{body.SubType}\"")}. The description should explain what the component does, its role in the system architecture, and its relevance to security and compliance. Do not include any markdown formatting. Return only the description text.""";
+
+            var response = await chatClient.GetResponseAsync(prompt, cancellationToken: ct);
+            var description = response.Text?.Trim() ?? "";
+
+            return Results.Ok(new { description });
+        }
+
         // ─── AI Capability Description ─────────────────────────────────────
-        group.MapPost("/ai/capability-description", async (
-                GenerateCapabilityDescriptionRequest body,
-                IChatClient chatClient,
-                CancellationToken ct) =>
-            {
-                if (string.IsNullOrWhiteSpace(body.Name))
-                    return Results.BadRequest(new ErrorResponse
-                    {
-                        Error = "Name is required",
-                        ErrorCode = "INVALID_INPUT",
-                    });
-
-                var prompt = $"""Write a concise 2-3 sentence description for a security capability used in a federal information system's authorization boundary. The capability is named "{body.Name}", provided by "{body.Provider}"{(string.IsNullOrWhiteSpace(body.Category) ? "" : $", mapped to the NIST 800-53 \"{body.Category}\" control family")}. The description should explain what the capability does, how it contributes to the system's security posture, and its relevance to RMF compliance. Do not include any markdown formatting. Return only the description text.""";
-
-                var response = await chatClient.GetResponseAsync(prompt, cancellationToken: ct);
-                var description = response.Text?.Trim() ?? "";
-
-                return Results.Ok(new { description });
-            })
+        group.MapPost("/ai/capability-description", GenerateCapabilityDescription)
             .WithName("GenerateCapabilityDescription");
 
+        async Task<IResult> GenerateCapabilityDescription(
+                GenerateCapabilityDescriptionRequest body,
+                IChatClient? chatClient,
+                CancellationToken ct)
+        {
+            if (chatClient is null)
+                return Results.StatusCode(503);
+
+            if (string.IsNullOrWhiteSpace(body.Name))
+                return Results.BadRequest(new ErrorResponse
+                {
+                    Error = "Name is required",
+                    ErrorCode = "INVALID_INPUT",
+                });
+
+            var prompt = $"""Write a concise 2-3 sentence description for a security capability used in a federal information system's authorization boundary. The capability is named "{body.Name}", provided by "{body.Provider}"{(string.IsNullOrWhiteSpace(body.Category) ? "" : $", mapped to the NIST 800-53 \"{body.Category}\" control family")}. The description should explain what the capability does, how it contributes to the system's security posture, and its relevance to RMF compliance. Do not include any markdown formatting. Return only the description text.""";
+
+            var response = await chatClient.GetResponseAsync(prompt, cancellationToken: ct);
+            var description = response.Text?.Trim() ?? "";
+
+            return Results.Ok(new { description });
+        }
+
         // ─── AI System Description ─────────────────────────────────────────
-        group.MapPost("/ai/system-description", async (
-                GenerateSystemDescriptionRequest body,
-                IChatClient chatClient,
-                CancellationToken ct) =>
-            {
-                if (string.IsNullOrWhiteSpace(body.Name))
-                    return Results.BadRequest(new ErrorResponse
-                    {
-                        Error = "Name is required",
-                        ErrorCode = "INVALID_INPUT",
-                    });
-
-                var prompt = $"""Write a concise 2-3 sentence description for a federal information system undergoing RMF authorization. The system is named "{body.Name}", classified as a "{body.SystemType}" with "{body.MissionCriticality}" mission criticality, hosted in "{body.HostingEnvironment}". The description should explain the system's purpose, its operational significance to the organization's mission, and its relevance to security authorization. Do not include any markdown formatting. Return only the description text.""";
-
-                var response = await chatClient.GetResponseAsync(prompt, cancellationToken: ct);
-                var description = response.Text?.Trim() ?? "";
-
-                return Results.Ok(new { description });
-            })
+        group.MapPost("/ai/system-description", GenerateSystemDescription)
             .WithName("GenerateSystemDescription");
+
+        async Task<IResult> GenerateSystemDescription(
+                GenerateSystemDescriptionRequest body,
+                IChatClient? chatClient,
+                CancellationToken ct)
+        {
+            if (chatClient is null)
+                return Results.StatusCode(503);
+
+            if (string.IsNullOrWhiteSpace(body.Name))
+                return Results.BadRequest(new ErrorResponse
+                {
+                    Error = "Name is required",
+                    ErrorCode = "INVALID_INPUT",
+                });
+
+            var prompt = $"""Write a concise 2-3 sentence description for a federal information system undergoing RMF authorization. The system is named "{body.Name}", classified as a "{body.SystemType}" with "{body.MissionCriticality}" mission criticality, hosted in "{body.HostingEnvironment}". The description should explain the system's purpose, its operational significance to the organization's mission, and its relevance to security authorization. Do not include any markdown formatting. Return only the description text.""";
+
+            var response = await chatClient.GetResponseAsync(prompt, cancellationToken: ct);
+            var description = response.Text?.Trim() ?? "";
+
+            return Results.Ok(new { description });
+        }
 
         // ─── Capabilities (US3) ──────────────────────────────────────────────
         group.MapGet("/capabilities", async (
@@ -895,17 +1130,105 @@ public static class DashboardEndpoints
                 CapabilityService service,
                 CancellationToken ct) =>
             {
-                var result = await service.CreateMappingsAsync(id, request, "system", ct);
-                return result is not null
-                    ? Results.Created($"/api/dashboard/capabilities/{id}/mappings", result)
-                    : Results.NotFound(new ErrorResponse
+                try
+                {
+                    var result = await service.CreateMappingsAsync(id, request, "system", ct);
+                    return result is not null
+                        ? Results.Created($"/api/dashboard/capabilities/{id}/mappings", result)
+                        : Results.NotFound(new ErrorResponse
+                        {
+                            Error = "Capability not found",
+                            ErrorCode = "CAPABILITY_NOT_FOUND",
+                            Suggestion = "Check the capability ID and try again",
+                        });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.BadRequest(new ErrorResponse
                     {
-                        Error = "Capability not found",
-                        ErrorCode = "CAPABILITY_NOT_FOUND",
-                        Suggestion = "Check the capability ID and try again",
+                        Error = ex.Message,
+                        ErrorCode = "INVALID_MAPPING_REQUEST",
+                        Suggestion = "Adjust the mapping request and try again",
                     });
+                }
+                catch (DbUpdateException)
+                {
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "One or more mappings already exist for this capability and scope",
+                        ErrorCode = "DUPLICATE_MAPPING",
+                        Suggestion = "Remove duplicates from the request and try again",
+                    });
+                }
             })
             .WithName("CreateCapabilityMappings");
+
+        group.MapPut("/capabilities/{id}/mappings/{mappingId}", async (
+                string id,
+                string mappingId,
+                UpdateMappingRequest request,
+                CapabilityService service,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    var result = await service.UpdateMappingAsync(id, mappingId, request, "system", ct);
+                    return result is not null
+                        ? Results.Ok(result)
+                        : Results.NotFound(new ErrorResponse
+                        {
+                            Error = "Capability or mapping not found",
+                            ErrorCode = "MAPPING_NOT_FOUND",
+                            Suggestion = "Check capability and mapping IDs, then try again",
+                        });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = ex.Message,
+                        ErrorCode = "INVALID_MAPPING_UPDATE",
+                    });
+                }
+            })
+            .WithName("UpdateCapabilityMapping");
+
+        group.MapDelete("/capabilities/{id}/mappings/{mappingId}", async (
+                string id,
+                string mappingId,
+                CapabilityService service,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    var deleted = await service.DeleteMappingAsync(id, mappingId, "system", ct);
+                    return deleted
+                        ? Results.NoContent()
+                        : Results.NotFound(new ErrorResponse
+                        {
+                            Error = "Capability or mapping not found",
+                            ErrorCode = "MAPPING_NOT_FOUND",
+                            Suggestion = "Check capability and mapping IDs, then try again",
+                        });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.Conflict(new ErrorResponse
+                    {
+                        Error = ex.Message,
+                        ErrorCode = "MAPPING_DELETE_CONFLICT",
+                        Suggestion = "Remove dependent references first, then retry.",
+                    });
+                }
+                catch (Exception ex)
+                {
+                    return Results.Problem(
+                        title: "Failed to delete capability mapping",
+                        detail: ex.Message,
+                        statusCode: StatusCodes.Status500InternalServerError);
+                }
+            })
+            .WithName("DeleteCapabilityMapping");
 
         // ─── Feature 045: Capabilities Hub Import/Coverage Endpoints ────────
         group.MapPost("/capabilities/import/csp-profile", async (
@@ -1346,11 +1669,12 @@ public static class DashboardEndpoints
                         ErrorCode = "INVALID_INPUT",
                     });
 
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = ResolveDashboardUserId(httpContext);
+                var simulatedRole = ResolveSimulatedRmfRole(httpContext);
                 try
                 {
                     var result = await profileService.SaveDraftAsync(
-                        systemId, parsedType, body.Content, userId, ct);
+                        systemId, parsedType, body.Content, userId, simulatedRole, ct);
 
                     return Results.Ok(new
                     {
@@ -1394,7 +1718,8 @@ public static class DashboardEndpoints
                 ISystemProfileService profileService,
                 CancellationToken ct) =>
             {
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = ResolveDashboardUserId(httpContext);
+                var simulatedRole = ResolveSimulatedRmfRole(httpContext);
                 try
                 {
                     var sectionTypes = body.SectionTypes?.Select(s =>
@@ -1405,7 +1730,7 @@ public static class DashboardEndpoints
 
                     if (string.Equals(body.Action, "withdraw", StringComparison.OrdinalIgnoreCase))
                     {
-                        var result = await profileService.WithdrawSectionAsync(systemId, sectionTypes, userId, ct);
+                        var result = await profileService.WithdrawSectionAsync(systemId, sectionTypes, userId, simulatedRole, ct);
                         return Results.Ok(new
                         {
                             withdrawnSections = result.WithdrawnSections.Select(s => s.ToString()),
@@ -1416,7 +1741,7 @@ public static class DashboardEndpoints
                     }
                     else
                     {
-                        var result = await profileService.SubmitForReviewAsync(systemId, sectionTypes, userId, ct);
+                        var result = await profileService.SubmitForReviewAsync(systemId, sectionTypes, userId, simulatedRole, ct);
                         return Results.Ok(new
                         {
                             submittedSections = result.SubmittedSections.Select(s => s.ToString()),
@@ -1450,7 +1775,8 @@ public static class DashboardEndpoints
                 if (!Enum.TryParse<ProfileSectionType>(sectionType, true, out var parsedType))
                     return Results.BadRequest(new ErrorResponse { Error = $"Invalid section type", ErrorCode = "INVALID_INPUT" });
 
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = ResolveDashboardUserId(httpContext);
+                var simulatedRole = ResolveSimulatedRmfRole(httpContext);
                 var decision = body.Decision.Equals("approve", StringComparison.OrdinalIgnoreCase)
                     ? ReviewDecision.Approve
                     : ReviewDecision.RequestRevision;
@@ -1458,7 +1784,7 @@ public static class DashboardEndpoints
                 try
                 {
                     var result = await profileService.ReviewSectionAsync(
-                        systemId, parsedType, decision, userId, body.Comments, ct);
+                        systemId, parsedType, decision, userId, body.Comments, simulatedRole, ct);
                     return Results.Ok(new
                     {
                         sectionType = result.SectionType.ToString(),
@@ -1487,10 +1813,11 @@ public static class DashboardEndpoints
                 ISystemProfileService profileService,
                 CancellationToken ct) =>
             {
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = ResolveDashboardUserId(httpContext);
+                var simulatedRole = ResolveSimulatedRmfRole(httpContext);
                 try
                 {
-                    var result = await profileService.BatchApproveSectionsAsync(systemId, userId, ct);
+                    var result = await profileService.BatchApproveSectionsAsync(systemId, userId, simulatedRole, ct);
                     return Results.Ok(new
                     {
                         approvedSections = result.ApprovedSections.Select(s => s.ToString()),
@@ -1530,12 +1857,39 @@ public static class DashboardEndpoints
                 ISystemProfileService profileService,
                 CancellationToken ct) =>
             {
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = ResolveDashboardUserId(httpContext);
                 var result = await profileService.GetProfileTodosAsync(systemId, userId, ct);
                 return Results.Ok(result);
             })
             .WithName("GetProfileTodos");
 
+
+static string ResolveDashboardUserId(HttpContext httpContext)
+{
+    var userId = httpContext.User?.Identity?.Name;
+    return string.IsNullOrWhiteSpace(userId)
+        || string.Equals(userId, "anonymous", StringComparison.OrdinalIgnoreCase)
+        ? "dashboard-user"
+        : userId;
+}
+
+static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
+{
+    if (httpContext.User?.Identity?.IsAuthenticated == true)
+        return null;
+
+    if (!httpContext.Request.Headers.TryGetValue("X-Simulated-Role", out var rawRole))
+        return null;
+
+    return rawRole.ToString() switch
+    {
+        "MissionOwner" => RmfRole.MissionOwner,
+        "ISSM" => RmfRole.Issm,
+        "Engineer" => RmfRole.SystemOwner,
+        "SystemOwner" => RmfRole.SystemOwner,
+        _ => null,
+    };
+}
         // ─── Boundary Definitions (Feature 033) ─────────────────────────────
         group.MapGet("/systems/{systemId}/boundary-definitions", async (
                 string systemId,
@@ -2117,6 +2471,11 @@ public static class DashboardEndpoints
                 if (baseline == null)
                     return Results.NotFound(new ErrorResponse { Error = "No baseline configured for this system", ErrorCode = "BASELINE_NOT_FOUND" });
 
+                // Compute counts from live inheritance records to avoid stale aggregate fields.
+                var inheritedControls = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Inherited);
+                var sharedControls = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Shared);
+                var customerControls = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Customer);
+
                 // Build family breakdown from ControlIds
                 var familyBreakdown = baseline.ControlIds
                     .GroupBy(c => ComplianceFrameworks.ExtractControlFamily(c))
@@ -2145,9 +2504,9 @@ public static class DashboardEndpoints
                     baselineLevel = baseline.BaselineLevel,
                     totalControls = baseline.TotalControls,
                     overlayApplied = baseline.OverlayApplied,
-                    inheritedControls = baseline.InheritedControls,
-                    sharedControls = baseline.SharedControls,
-                    customerControls = baseline.CustomerControls,
+                    inheritedControls,
+                    sharedControls,
+                    customerControls,
                     tailoredInControls = baseline.TailoredInControls,
                     tailoredOutControls = baseline.TailoredOutControls,
                     createdAt = baseline.CreatedAt,
@@ -2714,6 +3073,334 @@ public static class DashboardEndpoints
             })
             .WithName("GetSystemDocuments");
 
+        // ─── Continuous Monitoring Overview ───────────────────────────────
+        group.MapGet("/systems/{systemId}/conmon", async (
+                string systemId,
+                AtoCopilotContext context,
+                IConMonService conMonService,
+                CancellationToken ct) =>
+            {
+                var system = await context.RegisteredSystems
+                    .AsNoTracking()
+                    .Where(s => s.Id == systemId)
+                    .Select(s => new
+                    {
+                        s.Id,
+                        s.Name,
+                        s.CurrentRmfStep,
+                        s.AzureProfile,
+                    })
+                    .FirstOrDefaultAsync(ct);
+
+                if (system is null)
+                    return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "NOT_FOUND" });
+
+                var plan = await context.ConMonPlans
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.RegisteredSystemId == systemId, ct);
+
+                var activeAuth = await context.AuthorizationDecisions
+                    .AsNoTracking()
+                    .Where(d => d.RegisteredSystemId == systemId && d.IsActive)
+                    .OrderByDescending(d => d.DecisionDate)
+                    .FirstOrDefaultAsync(ct);
+
+                var effectivenessCount = await context.ControlEffectivenessRecords
+                    .CountAsync(e => e.RegisteredSystemId == systemId, ct);
+                var satisfiedCount = await context.ControlEffectivenessRecords
+                    .CountAsync(e => e.RegisteredSystemId == systemId && e.Determination == EffectivenessDetermination.Satisfied, ct);
+                var currentComplianceScore = effectivenessCount > 0
+                    ? Math.Round((double)satisfiedCount / effectivenessCount * 100, 2)
+                    : 0.0;
+
+                var baselineScore = activeAuth?.ComplianceScoreAtDecision;
+                var scoreDelta = baselineScore.HasValue
+                    ? Math.Round(currentComplianceScore - baselineScore.Value, 2)
+                    : (double?)null;
+
+                var openFindings = await context.Findings
+                    .CountAsync(f =>
+                        context.Assessments.Any(a => a.Id == f.AssessmentId && a.RegisteredSystemId == systemId) &&
+                        (f.Status == FindingStatus.Open || f.Status == FindingStatus.InProgress),
+                        ct);
+
+                var resolvedFindings = await context.Findings
+                    .CountAsync(f =>
+                        context.Assessments.Any(a => a.Id == f.AssessmentId && a.RegisteredSystemId == systemId) &&
+                        (f.Status == FindingStatus.Remediated || f.Status == FindingStatus.FalsePositive),
+                        ct);
+
+                var openPoamItems = await context.PoamItems
+                    .CountAsync(p => p.RegisteredSystemId == systemId &&
+                        (p.Status == PoamStatus.Ongoing || p.Status == PoamStatus.Delayed),
+                        ct);
+
+                var overduePoamItems = await context.PoamItems
+                    .CountAsync(p => p.RegisteredSystemId == systemId &&
+                        p.Status == PoamStatus.Ongoing &&
+                        p.ScheduledCompletionDate < DateTime.UtcNow &&
+                        p.ActualCompletionDate == null,
+                        ct);
+
+                var subscriptionIds = system.AzureProfile?.SubscriptionIds ?? new List<string>();
+                var monitoringConfigs = subscriptionIds.Count == 0
+                    ? new List<MonitoringConfiguration>()
+                    : await context.MonitoringConfigurations
+                        .AsNoTracking()
+                        .Where(mc => subscriptionIds.Contains(mc.SubscriptionId) && mc.IsEnabled)
+                        .ToListAsync(ct);
+
+                var monitoringEnabled = monitoringConfigs.Count > 0;
+                var lastMonitoringCheck = monitoringConfigs
+                    .Where(mc => mc.LastRunAt.HasValue)
+                    .Select(mc => mc.LastRunAt!.Value.UtcDateTime)
+                    .OrderByDescending(d => d)
+                    .Cast<DateTime?>()
+                    .FirstOrDefault();
+
+                var driftAlertCount = subscriptionIds.Count == 0
+                    ? 0
+                    : await context.ComplianceAlerts
+                        .AsNoTracking()
+                        .CountAsync(a =>
+                            subscriptionIds.Contains(a.SubscriptionId) &&
+                            a.Type == AlertType.Drift &&
+                            a.Status != AlertStatus.Resolved &&
+                            a.Status != AlertStatus.Dismissed,
+                            ct);
+
+                var autoRemediationRuleCount = subscriptionIds.Count == 0
+                    ? 0
+                    : await context.AutoRemediationRules
+                        .AsNoTracking()
+                        .CountAsync(r => r.SubscriptionId != null && subscriptionIds.Contains(r.SubscriptionId) && r.IsEnabled, ct);
+
+                var now = DateTime.UtcNow;
+                var expiration = activeAuth switch
+                {
+                    null => new ConMonExpirationInfo
+                    {
+                        HasActiveAuthorization = false,
+                        AlertLevel = "Warning",
+                        AlertMessage = "No active authorization decision for this system.",
+                    },
+                    _ when activeAuth.ExpirationDate == null && activeAuth.DecisionType == AuthorizationDecisionType.Dato => new ConMonExpirationInfo
+                    {
+                        HasActiveAuthorization = true,
+                        DecisionType = activeAuth.DecisionType.ToString(),
+                        DecisionDate = activeAuth.DecisionDate,
+                        AlertLevel = "Urgent",
+                        AlertMessage = "System has a Denial of Authorization to Operate (DATO). System should not be in production.",
+                    },
+                    _ when activeAuth.ExpirationDate == null => new ConMonExpirationInfo
+                    {
+                        HasActiveAuthorization = true,
+                        DecisionType = activeAuth.DecisionType.ToString(),
+                        DecisionDate = activeAuth.DecisionDate,
+                        AlertLevel = "None",
+                        AlertMessage = "Authorization has no expiration date.",
+                    },
+                    _ => BuildConMonExpirationInfo(activeAuth, now),
+                };
+
+                var agreementAlerts = new List<AgreementExpirationInfo>();
+
+                var activeInterconnections = await context.SystemInterconnections
+                    .Include(ic => ic.Agreements)
+                    .Where(ic => ic.RegisteredSystemId == systemId && ic.Status == InterconnectionStatus.Active)
+                    .AsNoTracking()
+                    .ToListAsync(ct);
+
+                foreach (var interconnection in activeInterconnections)
+                {
+                    foreach (var agreement in interconnection.Agreements.Where(a => a.Status == AgreementStatus.Signed && a.ExpirationDate.HasValue))
+                    {
+                        var daysUntilExpiration = (int)(agreement.ExpirationDate!.Value.Date - now.Date).TotalDays;
+                        if (daysUntilExpiration > 90)
+                            continue;
+
+                        var alertLevel = daysUntilExpiration switch
+                        {
+                            < 0 => "Expired",
+                            <= 30 => "Urgent",
+                            <= 60 => "Warning",
+                            _ => "Info"
+                        };
+
+                        agreementAlerts.Add(new AgreementExpirationInfo
+                        {
+                            ItemType = "ISA",
+                            AgreementTitle = agreement.Title,
+                            TargetSystemName = interconnection.TargetSystemName,
+                            ExpirationDate = agreement.ExpirationDate,
+                            DaysUntilExpiration = daysUntilExpiration,
+                            AlertLevel = alertLevel,
+                            Message = daysUntilExpiration < 0
+                                ? $"ISA '{agreement.Title}' for {interconnection.TargetSystemName} expired {Math.Abs(daysUntilExpiration)} days ago."
+                                : $"ISA '{agreement.Title}' for {interconnection.TargetSystemName} expires in {daysUntilExpiration} days."
+                        });
+                    }
+                }
+
+                var pia = await context.PrivacyImpactAssessments
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.RegisteredSystemId == systemId, ct);
+
+                if (pia?.ExpirationDate is DateTime piaExpirationDate)
+                {
+                    var daysUntilExpiration = (int)(piaExpirationDate.Date - now.Date).TotalDays;
+                    if (daysUntilExpiration <= 90)
+                    {
+                        var alertLevel = daysUntilExpiration switch
+                        {
+                            < 0 => "Expired",
+                            <= 30 => "Urgent",
+                            <= 60 => "Warning",
+                            _ => "Info"
+                        };
+
+                        agreementAlerts.Add(new AgreementExpirationInfo
+                        {
+                            ItemType = "PIA",
+                            AgreementTitle = $"PIA v{pia.Version}",
+                            ExpirationDate = pia.ExpirationDate,
+                            DaysUntilExpiration = daysUntilExpiration,
+                            AlertLevel = alertLevel,
+                            Message = daysUntilExpiration < 0
+                                ? $"PIA expired {Math.Abs(daysUntilExpiration)} days ago."
+                                : $"PIA expires in {daysUntilExpiration} days."
+                        });
+                    }
+                }
+
+                var significantChanges = await context.SignificantChanges
+                    .AsNoTracking()
+                    .Where(c => c.RegisteredSystemId == systemId)
+                    .OrderByDescending(c => c.DetectedAt)
+                    .Take(20)
+                    .Select(c => new SignificantChangeItemInfo
+                    {
+                        Id = c.Id,
+                        ChangeType = c.ChangeType,
+                        Description = c.Description,
+                        DetectedAt = c.DetectedAt,
+                        DetectedBy = c.DetectedBy,
+                        RequiresReauthorization = c.RequiresReauthorization,
+                        ReauthorizationTriggered = c.ReauthorizationTriggered,
+                        ReviewedBy = c.ReviewedBy,
+                        ReviewedAt = c.ReviewedAt,
+                        Disposition = c.Disposition,
+                    })
+                    .ToListAsync(ct);
+
+                var reports = await context.ConMonReports
+                    .AsNoTracking()
+                    .Where(r => r.RegisteredSystemId == systemId)
+                    .OrderByDescending(r => r.GeneratedAt)
+                    .Take(12)
+                    .ToListAsync(ct);
+
+                var reauthorization = await conMonService.CheckReauthorizationAsync(systemId, initiateIfTriggered: false, ct);
+
+                return Results.Ok(new ConMonOverviewResponse
+                {
+                    SystemId = systemId,
+                    SystemName = system.Name,
+                    CurrentPhase = system.CurrentRmfStep.ToString(),
+                    Plan = plan is null ? null : new ConMonPlanDetailInfo
+                    {
+                        PlanId = plan.Id,
+                        AssessmentFrequency = plan.AssessmentFrequency,
+                        AnnualReviewDate = plan.AnnualReviewDate,
+                        ReportDistribution = plan.ReportDistribution,
+                        SignificantChangeTriggers = plan.SignificantChangeTriggers,
+                        CreatedAt = plan.CreatedAt,
+                        ModifiedAt = plan.ModifiedAt,
+                    },
+                    Status = new ConMonStatusInfo
+                    {
+                        CurrentComplianceScore = currentComplianceScore,
+                        AuthorizedBaselineScore = baselineScore,
+                        ScoreDelta = scoreDelta,
+                        OpenFindings = openFindings,
+                        ResolvedFindings = resolvedFindings,
+                        OpenPoamItems = openPoamItems,
+                        OverduePoamItems = overduePoamItems,
+                        MonitoringEnabled = monitoringEnabled,
+                        DriftAlertCount = driftAlertCount,
+                        AutoRemediationRuleCount = autoRemediationRuleCount,
+                        LastMonitoringCheck = lastMonitoringCheck,
+                    },
+                    Expiration = expiration,
+                    Reauthorization = new ConMonReauthorizationInfo
+                    {
+                        IsTriggered = reauthorization.IsTriggered,
+                        Triggers = reauthorization.Triggers,
+                        UnreviewedChangeCount = reauthorization.UnreviewedChangeCount,
+                    },
+                    AgreementAlerts = agreementAlerts,
+                    SignificantChanges = significantChanges,
+                    Reports = reports.Select(r => new ConMonReportSummaryInfo
+                    {
+                        ReportId = r.Id,
+                        ReportType = r.ReportType,
+                        Period = r.ReportPeriod,
+                        ComplianceScore = r.ComplianceScore,
+                        AuthorizedBaselineScore = r.AuthorizedBaselineScore,
+                        ScoreDelta = r.AuthorizedBaselineScore.HasValue
+                            ? Math.Round(r.ComplianceScore - r.AuthorizedBaselineScore.Value, 2)
+                            : null,
+                        NewFindings = r.NewFindings,
+                        ResolvedFindings = r.ResolvedFindings,
+                        OpenPoamItems = r.OpenPoamItems,
+                        OverduePoamItems = r.OverduePoamItems,
+                        GeneratedAt = r.GeneratedAt,
+                        GeneratedBy = r.GeneratedBy,
+                    }).ToList(),
+                });
+            })
+            .WithName("GetSystemConMonOverview");
+
+        // ─── Get ConMon Report Detail ────────────────────────────────────────
+        group.MapGet("/systems/{systemId}/conmon/reports/{reportId}", async (
+                string systemId,
+                string reportId,
+                AtoCopilotContext context,
+                CancellationToken ct) =>
+            {
+                var report = await context.ConMonReports
+                    .Where(r => r.Id == reportId)
+                    .Include(r => r.ConMonPlan)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(ct);
+
+                if (report is null)
+                    return Results.NotFound(new ErrorResponse { Error = "Report not found.", ErrorCode = "NOT_FOUND" });
+
+                if (report.ConMonPlan?.RegisteredSystemId != systemId)
+                    return Results.NotFound(new ErrorResponse { Error = "Report does not belong to this system.", ErrorCode = "NOT_FOUND" });
+
+                return Results.Ok(new
+                {
+                    reportId = report.Id,
+                    reportType = report.ReportType,
+                    period = report.ReportPeriod,
+                    complianceScore = report.ComplianceScore,
+                    authorizedBaselineScore = report.AuthorizedBaselineScore,
+                    scoreDelta = report.AuthorizedBaselineScore.HasValue
+                        ? report.ComplianceScore - report.AuthorizedBaselineScore.Value
+                        : (double?)null,
+                    newFindings = report.NewFindings,
+                    resolvedFindings = report.ResolvedFindings,
+                    openPoamItems = report.OpenPoamItems,
+                    overduePoamItems = report.OverduePoamItems,
+                    generatedAt = report.GeneratedAt,
+                    generatedBy = report.GeneratedBy,
+                    reportContent = report.ReportContent,
+                });
+            })
+            .WithName("GetConMonReportDetail");
+
         // ───────────── Assessments ────────────────────────────────────────────
 
         app.MapGet("/api/dashboard/assessments", async (
@@ -3251,7 +3938,7 @@ public static class DashboardEndpoints
                 context.ControlEffectivenessRecords.AddRange(effectivenessRecords);
                 await context.SaveChangesAsync(ct);
 
-                assessment.Findings = findings;
+                assessment.Findings = persistableFindings;
             }
 
             // Log activity
@@ -3856,6 +4543,80 @@ public static class DashboardEndpoints
             }
         })
         .WithName("GenerateConMonReport");
+
+        // ─── Report Significant Change ───────────────────────────────────────
+        app.MapPost("/api/dashboard/systems/{systemId}/conmon/significant-change", async (
+            string systemId,
+            ReportSignificantChangeRequest body,
+            IConMonService conMonService,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var change = await conMonService.ReportChangeAsync(
+                    systemId,
+                    body.ChangeType ?? "Hardware",
+                    body.Description ?? string.Empty,
+                    body.DetectedBy ?? "dashboard-user",
+                    ct);
+
+                var desc = body.Description ?? string.Empty;
+                var truncatedDesc = desc.Length > 80 ? desc.Substring(0, 80) + "\u2026" : desc;
+                context.DashboardActivities.Add(new DashboardActivity
+                {
+                    RegisteredSystemId = systemId,
+                    EventType = "SignificantChangeReported",
+                    Actor = body.DetectedBy ?? "dashboard-user",
+                    Summary = $"Significant change reported: {body.ChangeType ?? "Hardware"} \u2014 {truncatedDesc}",
+                    RelatedEntityType = "SignificantChange",
+                    RelatedEntityId = change.Id,
+                });
+                await context.SaveChangesAsync(ct);
+
+                return Results.Created($"/api/dashboard/systems/{systemId}/conmon/significant-change/{change.Id}", new
+                {
+                    id = change.Id,
+                    changeType = change.ChangeType,
+                    requiresReauthorization = change.RequiresReauthorization,
+                    reauthorizationTriggered = change.ReauthorizationTriggered,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
+            }
+        })
+        .WithName("ReportSignificantChange");
+
+        // ─── Reauthorization Check ───────────────────────────────────────────
+        app.MapPost("/api/dashboard/systems/{systemId}/conmon/reauthorization-check", async (
+            string systemId,
+            ReauthorizationCheckRequest body,
+            IConMonService conMonService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await conMonService.CheckReauthorizationAsync(
+                    systemId,
+                    body.InitiateIfTriggered,
+                    ct);
+
+                return Results.Ok(new
+                {
+                    isTriggered = result.IsTriggered,
+                    triggers = result.Triggers,
+                    unreviewedChangeCount = result.UnreviewedChangeCount,
+                    initiated = body.InitiateIfTriggered && result.IsTriggered,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
+            }
+        })
+        .WithName("CheckReauthorization");
 
         // ─── Remediation Summary (cross-system) ─────────────────────────────
         app.MapGet("/api/dashboard/remediation/summary", async (
@@ -6898,7 +7659,7 @@ public static class DashboardEndpoints
                 family = control.Family,
                 familyName = NistFamilyNames.GetValueOrDefault(control.Family, control.Family),
                 title = control.Title,
-                description = control.Description,
+                description = ResolveControlCatalogDescription(control.Description),
                 type = control.IsEnhancement ? "Enhancement" : "Control",
                 parentControlId = control.ParentControlId,
                 withdrawn = control.Withdrawn,
@@ -6962,6 +7723,27 @@ public static class DashboardEndpoints
         ["SI"] = "System and Information Integrity",
         ["SR"] = "Supply Chain Risk Management",
     };
+
+    private static readonly Regex OscalInsertParamPattern =
+        new("\\{\\{\\s*insert:\\s*param\\s*,\\s*([^}]+?)\\s*\\}\\}", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static string? ResolveControlCatalogDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+            return description;
+
+        // OSCAL control prose often includes unresolved organization-defined parameters.
+        // Keep the canonical text but render placeholders in a readable form.
+        var resolved = OscalInsertParamPattern.Replace(description, match =>
+        {
+            var paramId = match.Groups[1].Value.Trim();
+            return string.IsNullOrWhiteSpace(paramId)
+                ? "[organization-defined parameter]"
+                : $"[organization-defined parameter: {paramId}]";
+        });
+
+        return resolved;
+    }
 
     // ─── Feature 043: Import helpers ────────────────────────────────────────
 
@@ -7123,6 +7905,14 @@ public static class DashboardEndpoints
         string? ReportType,
         string? Period);
 
+    private record ReportSignificantChangeRequest(
+        string? ChangeType,
+        string? Description,
+        string? DetectedBy);
+
+    private record ReauthorizationCheckRequest(
+        bool InitiateIfTriggered = false);
+
     private record UpdatePoamStatusRequest(
         string Status,
         string? RowVersion = null,
@@ -7130,6 +7920,49 @@ public static class DashboardEndpoints
         string? RevisedDate = null,
         string? DeviationId = null,
         string? Comments = null);
+
+    private static ConMonExpirationInfo BuildConMonExpirationInfo(
+        AuthorizationDecision activeAuth,
+        DateTime now)
+    {
+        var daysUntilExpiration = (int)(activeAuth.ExpirationDate!.Value.Date - now.Date).TotalDays;
+
+        var (alertLevel, alertMessage, isExpired) = daysUntilExpiration switch
+        {
+            < 0 => (
+                "Expired",
+                $"Authorization EXPIRED {Math.Abs(daysUntilExpiration)} days ago on {activeAuth.ExpirationDate.Value:yyyy-MM-dd}. System is operating without authorization. Initiate reauthorization immediately.",
+                true),
+            <= 30 => (
+                "Urgent",
+                $"Authorization expires in {daysUntilExpiration} days on {activeAuth.ExpirationDate.Value:yyyy-MM-dd}. Begin reauthorization process immediately.",
+                false),
+            <= 60 => (
+                "Warning",
+                $"Authorization expires in {daysUntilExpiration} days on {activeAuth.ExpirationDate.Value:yyyy-MM-dd}. Schedule reauthorization activities.",
+                false),
+            <= 90 => (
+                "Info",
+                $"Authorization expires in {daysUntilExpiration} days on {activeAuth.ExpirationDate.Value:yyyy-MM-dd}. Plan for upcoming reauthorization.",
+                false),
+            _ => (
+                "None",
+                $"Authorization valid for {daysUntilExpiration} more days (expires {activeAuth.ExpirationDate.Value:yyyy-MM-dd}).",
+                false)
+        };
+
+        return new ConMonExpirationInfo
+        {
+            HasActiveAuthorization = true,
+            DecisionType = activeAuth.DecisionType.ToString(),
+            DecisionDate = activeAuth.DecisionDate,
+            ExpirationDate = activeAuth.ExpirationDate,
+            DaysUntilExpiration = daysUntilExpiration,
+            AlertLevel = alertLevel,
+            AlertMessage = alertMessage,
+            IsExpired = isExpired,
+        };
+    }
 
     private record BulkPoamStatusRequest(
         List<string> PoamIds,

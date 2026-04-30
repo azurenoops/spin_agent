@@ -204,13 +204,6 @@ jobs:
             fi
           fi
 
-          az sql server firewall-rule create \
-            --resource-group "$RG" \
-            --server "$SQL_SERVER" \
-            --name AllowAzureServices \
-            --start-ip-address 0.0.0.0 \
-            --end-ip-address 0.0.0.0 >/dev/null
-
           EXISTING_DB=$(az sql db show \
             --resource-group "$RG" --server "$SQL_SERVER" --name "$SQL_DB" \
             --query id -o tsv 2>/dev/null || true)
@@ -336,6 +329,43 @@ jobs:
             --registry-server "$LOGIN_SERVER" \
             --registry-username "$USERNAME" \
             --registry-password "$PASSWORD"
+
+      - name: Restrict SQL firewall to Container App egress
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          CA_NAME="${{ github.event.inputs.containerapp_name }}"
+
+          OUTBOUND_IPS=$(az containerapp show \
+            --name "$CA_NAME" --resource-group "$RG" \
+            --query "properties.outboundIpAddresses" -o tsv 2>/dev/null || true)
+
+          if [[ -z "$OUTBOUND_IPS" ]]; then
+            echo "::warning::No container app outbound IPs resolved for '$CA_NAME'."
+            echo "::warning::Skipping SQL firewall hardening in bootstrap; run deployment workflow to reconcile firewall rules."
+            exit 0
+          fi
+
+          for IP in $OUTBOUND_IPS; do
+            RULE_NAME="AllowContainerAppEgress-${IP//./-}"
+            az sql server firewall-rule create \
+              --resource-group "$RG" \
+              --server "$SQL_SERVER" \
+              --name "$RULE_NAME" \
+              --start-ip-address "$IP" \
+              --end-ip-address "$IP" >/dev/null
+          done
+
+          # Remove permissive bootstrap fallback if it exists.
+          az sql server firewall-rule delete \
+            --resource-group "$RG" \
+            --server "$SQL_SERVER" \
+            --name AllowAzureServices 2>/dev/null || true
+
+          echo "### SQL Firewall" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Rules synchronized to container app egress IPs: ${OUTBOUND_IPS}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Output values for repository variables
         shell: bash

@@ -41,6 +41,11 @@ on:
         required: false
         default: true
         type: boolean
+      mcp_base_url_override:
+        description: Optional MCP base URL override for dashboard deployments
+        required: false
+        default: ""
+        type: string
       assign_managed_identity:
         description: Whether to assign a system-assigned managed identity
         required: false
@@ -211,10 +216,15 @@ jobs:
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENDPOINT=${{ vars.ATO_AZUREAI_ENDPOINT || '' }}"
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-4o' }}"
           elif [ "${{ inputs.workload }}" = "dashboard" ]; then
-            MCP_APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
-            MCP_FQDN=$(az containerapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${MCP_APP}" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
-            if [ -n "${MCP_FQDN}" ]; then
-              ENV_ARGS_BASE="MCP_BASE_URL=https://${MCP_FQDN}"
+            MCP_OVERRIDE="${{ inputs.mcp_base_url_override }}"
+            if [ -n "$MCP_OVERRIDE" ]; then
+              ENV_ARGS_BASE="MCP_BASE_URL=${MCP_OVERRIDE}"
+            else
+              MCP_APP="${{ vars.AZURE_CONTAINERAPP_NAME }}"
+              MCP_FQDN=$(az containerapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${MCP_APP}" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
+              if [ -n "${MCP_FQDN}" ]; then
+                ENV_ARGS_BASE="MCP_BASE_URL=https://${MCP_FQDN}"
+              fi
             fi
           fi
 
@@ -343,6 +353,100 @@ jobs:
               --name "${APP}" \
               --set-env-vars ${ENV_ARGS}
           fi
+
+      - name: Reconcile SQL firewall to app egress IPs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP="${{ steps.target.outputs.app }}"
+          APP_RG="${{ vars.AZURE_RESOURCE_GROUP }}"
+          DB_CONN="${{ secrets.ATO_DB_CONNECTION_STRING }}"
+
+          if [ -z "$DB_CONN" ]; then
+            echo "No ATO_DB_CONNECTION_STRING provided; skipping SQL firewall reconciliation."
+            exit 0
+          fi
+
+          SQL_FQDN=$(echo "$DB_CONN" | sed -nE 's/.*Server=tcp:([^,;]+).*/\1/p')
+          if [ -z "$SQL_FQDN" ]; then
+            SQL_FQDN=$(echo "$DB_CONN" | sed -nE 's/.*Server=([^,;]+).*/\1/p')
+          fi
+          if [ -z "$SQL_FQDN" ]; then
+            echo "::warning::Could not parse SQL server FQDN from ATO_DB_CONNECTION_STRING; skipping firewall reconciliation."
+            exit 0
+          fi
+
+          SQL_SERVER="${SQL_FQDN%%.*}"
+          SQL_RG=$(az resource list \
+            --resource-type Microsoft.Sql/servers \
+            --name "$SQL_SERVER" \
+            --query "[0].resourceGroup" -o tsv 2>/dev/null || true)
+
+          if [ -z "$SQL_RG" ]; then
+            echo "::warning::SQL server '$SQL_SERVER' not found in subscription; skipping firewall reconciliation."
+            exit 0
+          fi
+
+          SQL_PUBLIC_ACCESS=$(az sql server show \
+            --resource-group "$SQL_RG" \
+            --name "$SQL_SERVER" \
+            --query publicNetworkAccess -o tsv 2>/dev/null || echo "Unknown")
+
+          if [ "$SQL_PUBLIC_ACCESS" = "Disabled" ]; then
+            echo "SQL server '$SQL_SERVER' has publicNetworkAccess=Disabled; skipping firewall reconciliation."
+            exit 0
+          fi
+
+          OUTBOUND_IPS=$(az containerapp show \
+            -g "$APP_RG" -n "$APP" \
+            --query "properties.outboundIpAddresses" -o tsv 2>/dev/null || true)
+          if [ -z "$OUTBOUND_IPS" ]; then
+            echo "::warning::No outbound IPs resolved for app '$APP'; leaving existing SQL firewall rules unchanged."
+            exit 0
+          fi
+
+          APP_SAFE=$(echo "$APP" | tr -cd '[:alnum:]-' | cut -c1-30)
+          RULE_PREFIX="Allow-${APP_SAFE}-"
+
+          DESIRED_RULES=""
+          for IP in $OUTBOUND_IPS; do
+            RULE_NAME="${RULE_PREFIX}${IP//./-}"
+            DESIRED_RULES+="${RULE_NAME}"$'\n'
+            az sql server firewall-rule create \
+              --resource-group "$SQL_RG" \
+              --server "$SQL_SERVER" \
+              --name "$RULE_NAME" \
+              --start-ip-address "$IP" \
+              --end-ip-address "$IP" >/dev/null
+          done
+
+          EXISTING_RULES=$(az sql server firewall-rule list \
+            --resource-group "$SQL_RG" \
+            --server "$SQL_SERVER" \
+            --query "[?starts_with(name, '${RULE_PREFIX}')].name" -o tsv)
+
+          for RULE in $EXISTING_RULES; do
+            if ! grep -qx "$RULE" <<< "$DESIRED_RULES"; then
+              az sql server firewall-rule delete \
+                --resource-group "$SQL_RG" \
+                --server "$SQL_SERVER" \
+                --name "$RULE" >/dev/null || true
+            fi
+          done
+
+          # Ensure permissive fallback is not retained.
+          az sql server firewall-rule delete \
+            --resource-group "$SQL_RG" \
+            --server "$SQL_SERVER" \
+            --name AllowAzureServices >/dev/null 2>&1 || true
+
+          echo "### SQL Firewall Reconciliation" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SQL Server: ${SQL_SERVER}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Resource Group: ${SQL_RG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App: ${APP}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Allowed egress IPs: ${OUTBOUND_IPS}" >> "$GITHUB_STEP_SUMMARY"
+
 
       - name: Smoke check deployment
         shell: bash

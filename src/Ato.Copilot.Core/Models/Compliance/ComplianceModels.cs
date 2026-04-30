@@ -999,7 +999,7 @@ public class ComplianceFinding
 /// </summary>
 public class NistControl
 {
-    /// <summary>NIST control ID (e.g., "ac-2", "ac-2(1)"). Must match ^[a-z]{2}-\d+(\(\d+\))?$.</summary>
+    /// <summary>NIST control ID (e.g., "ac-2", "ac-2(1)", "ac-2.1"). Supports both v4 and v5 enhancement numbering.</summary>
     public string Id { get; set; } = string.Empty;
 
     /// <summary>Two-letter control family abbreviation (e.g., "AC").</summary>

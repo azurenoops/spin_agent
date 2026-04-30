@@ -66,9 +66,17 @@ export async function saveNarrative(
 export async function regenerateNarrative(
   systemId: string,
   controlId: string,
+  options?: { sourceUrls?: string[] },
 ): Promise<string | null> {
+  const params: Record<string, string> = {};
+  if (options?.sourceUrls && options.sourceUrls.length > 0) {
+    params.sourceUrls = JSON.stringify(options.sourceUrls);
+  }
+
   const { data } = await apiClient.post<{ narrative: string }>(
     `/systems/${encodeURIComponent(systemId)}/controls/${encodeURIComponent(controlId)}/regenerate-ai`,
+    {},
+    { params },
   );
   return data.narrative;
 }

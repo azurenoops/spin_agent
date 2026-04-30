@@ -4,7 +4,8 @@ import { ComponentSection } from '../components/cards/ComponentSection';
 import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
 import { usePolling } from '../hooks/usePolling';
-import { getComponents, createComponent, updateComponent, deleteComponent, discoverSystemAzureResources, importSystemAzureComponents, relinkComponentFindings } from '../api/components';
+import { getComponents, createComponent, updateComponent, deleteComponent, discoverSystemAzureResources, importSystemAzureComponents, relinkComponentFindings, listComponents, assignToSystem } from '../api/components';
+import type { OrgComponentDto } from '../api/components';
 import { fetchBoundaryDefinitions } from '../api/boundaries';
 import apiClient from '../api/client';
 import type { SystemComponentDto, CreateComponentRequest, ComponentType, BoundaryDefinitionDto, DiscoveredResource } from '../types/dashboard';
@@ -13,6 +14,7 @@ const SECTIONS: { title: string; type: ComponentType }[] = [
   { title: 'People', type: 'Person' },
   { title: 'Places', type: 'Place' },
   { title: 'Things', type: 'Thing' },
+  { title: 'Policies', type: 'Policy' },
 ];
 
 export default function ComponentInventory() {
@@ -20,7 +22,7 @@ export default function ComponentInventory() {
   const navigate = useNavigate();
   const [components, setComponents] = useState<SystemComponentDto[]>([]);
   const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
-  const [summary, setSummary] = useState({ personCount: 0, placeCount: 0, thingCount: 0, totalCount: 0 });
+  const [summary, setSummary] = useState({ personCount: 0, placeCount: 0, thingCount: 0, policyCount: 0, totalCount: 0 });
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -30,6 +32,14 @@ export default function ComponentInventory() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [riskMap, setRiskMap] = useState<Record<string, { openCount: number; overdueCount: number; highestSeverity: string | null }>>({});
+
+  // Add Component dialog mode
+  const [addMode, setAddMode] = useState<'create' | 'existing'>('create');
+  const [orgComponents, setOrgComponents] = useState<OrgComponentDto[]>([]);
+  const [orgSearch, setOrgSearch] = useState('');
+  const [orgLoading, setOrgLoading] = useState(false);
+  const [orgAssignError, setOrgAssignError] = useState<string | null>(null);
+  const [orgAssigning, setOrgAssigning] = useState<string | null>(null);
 
   // Azure discovery state (Feature 040 — US2)
   const [showDiscover, setShowDiscover] = useState(false);
@@ -129,6 +139,44 @@ export default function ComponentInventory() {
     setShowForm(false);
     setEditing(undefined);
     setFormError(null);
+    setAddMode('create');
+    setOrgComponents([]);
+    setOrgSearch('');
+    setOrgAssignError(null);
+  };
+
+  const handleSwitchToExisting = async () => {
+    setAddMode('existing');
+    setOrgAssignError(null);
+    setOrgLoading(true);
+    try {
+      const res = await listComponents({ pageSize: 200 });
+      // Filter out components already shown in this system
+      const currentIds = new Set(components.map((c) => c.id));
+      setOrgComponents(res.items.filter((c) => !currentIds.has(c.id)));
+    } catch {
+      setOrgAssignError('Failed to load org components');
+    } finally {
+      setOrgLoading(false);
+    }
+  };
+
+  const handleAssignExisting = async (comp: OrgComponentDto) => {
+    if (!systemId) return;
+    setOrgAssigning(comp.id);
+    setOrgAssignError(null);
+    try {
+      await assignToSystem(comp.id, { registeredSystemId: systemId });
+      setShowForm(false);
+      setAddMode('create');
+      setOrgComponents([]);
+      setOrgSearch('');
+      await fetchData();
+    } catch (err: unknown) {
+      setOrgAssignError(err instanceof Error ? err.message : 'Failed to assign component');
+    } finally {
+      setOrgAssigning(null);
+    }
   };
 
   // Re-link findings handler (Feature 040 — FR-027)
@@ -216,11 +264,12 @@ export default function ComponentInventory() {
       </div>
 
       {/* Summary metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <MetricCard title="Total" value={summary.totalCount} />
         <MetricCard title="People" value={summary.personCount} />
         <MetricCard title="Places" value={summary.placeCount} />
         <MetricCard title="Things" value={summary.thingCount} />
+        <MetricCard title="Policies" value={summary.policyCount} />
       </div>
 
       {/* Toolbar */}
@@ -241,6 +290,7 @@ export default function ComponentInventory() {
           <option value="Person">Person</option>
           <option value="Place">Place</option>
           <option value="Thing">Thing</option>
+          <option value="Policy">Policy</option>
         </select>
         <select
           value={statusFilter}
@@ -270,15 +320,104 @@ export default function ComponentInventory() {
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4">{editing ? 'Edit Component' : 'Add Component'}</h2>
-            <ComponentForm
-              initial={editing}
-              systemId={systemId}
-              onSubmit={handleSubmit}
-              onCancel={handleCancel}
-              isSubmitting={submitting}
-              error={formError}
-            />
+            <h2 className="text-lg font-semibold mb-3">{editing ? 'Edit Component' : 'Add Component'}</h2>
+
+            {/* Tab switcher — only when creating (not editing) */}
+            {!editing && (
+              <div className="flex rounded-md border border-gray-200 overflow-hidden mb-4 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setAddMode('create')}
+                  className={`flex-1 py-2 font-medium transition-colors ${addMode === 'create' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                >
+                  Create New
+                </button>
+                <button
+                  type="button"
+                  onClick={addMode !== 'existing' ? handleSwitchToExisting : undefined}
+                  className={`flex-1 py-2 font-medium transition-colors ${addMode === 'existing' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                >
+                  Add Existing (Org-Level)
+                </button>
+              </div>
+            )}
+
+            {/* Create New tab */}
+            {(editing || addMode === 'create') && (
+              <ComponentForm
+                initial={editing}
+                systemId={systemId}
+                onSubmit={handleSubmit}
+                onCancel={handleCancel}
+                isSubmitting={submitting}
+                error={formError}
+              />
+            )}
+
+            {/* Add Existing tab */}
+            {!editing && addMode === 'existing' && (
+              <div>
+                <p className="text-xs text-gray-500 mb-3">
+                  Select an org-level component to assign to this system. Components already assigned are hidden.
+                </p>
+                <input
+                  type="text"
+                  value={orgSearch}
+                  onChange={(e) => setOrgSearch(e.target.value)}
+                  placeholder="Search by name..."
+                  className="w-full border rounded px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                />
+                {orgAssignError && (
+                  <div className="bg-red-50 text-red-700 p-2 rounded text-sm mb-3">{orgAssignError}</div>
+                )}
+                {orgLoading ? (
+                  <div className="text-center text-sm text-gray-500 py-8">Loading org components…</div>
+                ) : orgComponents.length === 0 ? (
+                  <div className="text-center text-sm text-gray-400 py-8">No unassigned org-level components found.</div>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {orgComponents
+                      .filter((c) =>
+                        !orgSearch.trim() ||
+                        c.name.toLowerCase().includes(orgSearch.trim().toLowerCase()) ||
+                        (c.subType ?? '').toLowerCase().includes(orgSearch.trim().toLowerCase()),
+                      )
+                      .map((comp) => (
+                        <div key={comp.id} className="flex items-center justify-between border rounded px-3 py-2 hover:bg-gray-50">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{comp.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {comp.componentType}{comp.subType ? ` · ${comp.subType}` : ''}{comp.personName ? ` · ${comp.personName}` : ''}
+                            </p>
+                            {comp.capabilityLinks.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {comp.capabilityLinks.slice(0, 3).map((cl) => (
+                                  <span key={cl.capabilityId} className="inline-flex rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">{cl.capabilityName}</span>
+                                ))}
+                                {comp.capabilityLinks.length > 3 && (
+                                  <span className="text-xs text-gray-400">+{comp.capabilityLinks.length - 3} more</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleAssignExisting(comp)}
+                            disabled={orgAssigning === comp.id}
+                            className="ml-3 shrink-0 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {orgAssigning === comp.id ? 'Assigning…' : 'Assign'}
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+                <div className="flex justify-end pt-4">
+                  <button type="button" onClick={handleCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -422,7 +561,7 @@ export default function ComponentInventory() {
       {summary.totalCount === 0 && !search && !typeFilter && !statusFilter ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-lg mb-2">No components yet</p>
-          <p className="text-sm">Add People, Places, and Things that make up your system.</p>
+          <p className="text-sm">Add People, Places, Things, and Policies that make up your system.</p>
         </div>
       ) : boundaries.length > 1 ? (
         // Group by boundary when multiple boundaries exist
@@ -508,7 +647,14 @@ export default function ComponentInventory() {
         <div className="space-y-4">
           {SECTIONS.map(({ title, type }) => {
             const items = components.filter((c) => c.componentType === type);
-            const count = type === 'Person' ? summary.personCount : type === 'Place' ? summary.placeCount : summary.thingCount;
+            const count =
+              type === 'Person'
+                ? summary.personCount
+                : type === 'Place'
+                  ? summary.placeCount
+                  : type === 'Thing'
+                    ? summary.thingCount
+                    : summary.policyCount;
             return (
               <ComponentSection
                 key={type}

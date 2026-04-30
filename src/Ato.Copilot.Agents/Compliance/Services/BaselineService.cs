@@ -534,6 +534,7 @@ public class BaselineService : IBaselineService
             };
 
             context.ControlInheritances.Add(inheritance);
+            baseline.Inheritances.Add(inheritance);
 
             // Create audit entry for the change
             context.InheritanceAuditEntries.Add(new InheritanceAuditEntry
@@ -677,9 +678,18 @@ public class BaselineService : IBaselineService
 
         var baseline = await context.ControlBaselines
             .Include(b => b.Inheritances)
+            .AsNoTracking()
             .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, cancellationToken)
             ?? throw new InvalidOperationException(
                 $"No baseline found for system '{systemId}'. Run select_baseline first.");
+        
+        // Ensure ControlIds list is populated; if empty, log warning
+        if (baseline.ControlIds == null || baseline.ControlIds.Count == 0)
+        {
+            _logger.LogWarning(
+                "Baseline for system '{SystemId}' has no ControlIds. TotalControls={Total}",
+                systemId, baseline.TotalControls);
+        }
 
         var system = await context.RegisteredSystems
             .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken);
@@ -688,8 +698,13 @@ public class BaselineService : IBaselineService
         var inheritanceLookup = baseline.Inheritances
             .ToDictionary(i => i.ControlId, i => i);
 
+        // Fallback: if ControlIds is empty or null, reconstruct from Inheritances + get all baseline controls
+        var controlIdsList = baseline.ControlIds?.Count > 0 
+            ? baseline.ControlIds 
+            : await ReconstructControlIdsAsync(baseline, context, cancellationToken);
+
         // Group controls by family
-        var familyGroups = baseline.ControlIds
+        var familyGroups = controlIdsList
             .GroupBy(c => ComplianceFrameworks.ExtractControlFamily(c))
             .OrderBy(g => g.Key)
             .Select(g =>
@@ -761,6 +776,50 @@ public class BaselineService : IBaselineService
         "BulkUpdate" => "Bulk Update",
         _ => source
     };
+
+    // ─── Reconstruction helper ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Reconstructs control IDs from baseline data if ControlIds JSON column is empty.
+    /// Falls back to: (1) All Inheritance control IDs, (2) All controls by baseline level.
+    /// </summary>
+    private async Task<List<string>> ReconstructControlIdsAsync(
+        ControlBaseline baseline,
+        AtoCopilotContext context,
+        CancellationToken cancellationToken)
+    {
+        // First try: Get all control IDs from Inheritances for this baseline
+        var inheritanceControlIds = await context.ControlInheritances
+            .Where(i => i.ControlBaselineId == baseline.Id)
+            .Select(i => i.ControlId)
+            .ToListAsync(cancellationToken);
+
+        if (inheritanceControlIds.Count > 0)
+        {
+            inheritanceControlIds.Sort(ControlIdComparer.Instance);
+            _logger.LogWarning(
+                "Reconstructed {Count} control IDs for baseline '{SystemId}' from Inheritances",
+                inheritanceControlIds.Count, baseline.RegisteredSystemId);
+            return inheritanceControlIds;
+        }
+
+        // Second try: Get all controls by baseline level from reference data
+        var levelControls = _referenceData.GetBaselineControlIds(baseline.BaselineLevel).ToList();
+        if (levelControls.Count > 0)
+        {
+            _logger.LogWarning(
+                "Reconstructed {Count} control IDs for baseline '{SystemId}' from baseline level '{Level}'",
+                levelControls.Count, baseline.RegisteredSystemId, baseline.BaselineLevel);
+            return levelControls;
+        }
+
+        // Last resort: return empty list and log critical error
+        _logger.LogError(
+            "Failed to reconstruct control IDs for baseline '{SystemId}'. ControlIds was empty, " +
+            "no Inheritances found, and baseline level '{Level}' returned no controls.",
+            baseline.RegisteredSystemId, baseline.BaselineLevel);
+        return [];
+    }
 
     // ─── Control ID comparer ─────────────────────────────────────────────────
 

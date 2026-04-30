@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchBoundaryDefinitions, createBoundaryDefinition, assignComponentToBoundary, listBoundaryComponents, addBoundaryResource } from '../../../api/boundaries';
+import { fetchBoundaryDefinitions, createBoundaryDefinition, assignComponent, listBoundaryComponents, addBoundaryResource } from '../../../api/boundaries';
 import { getComponents, listComponents } from '../../../api/components';
 import type { OrgComponentDto } from '../../../api/components';
 import type { BoundaryDefinitionDto, CreateBoundaryDefinitionRequest, SystemComponentDto, BoundaryComponentDto } from '../../../types/dashboard';
@@ -82,7 +82,10 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
     if (assignedComponentIds.has(componentId)) return;
     setAssigningId(componentId);
     try {
-      await assignComponentToBoundary(componentId, systemId, boundaryId);
+      await assignComponent(systemId, boundaryId, {
+        componentId,
+        isInScope: true,
+      });
       // Also create a legacy AuthorizationBoundary resource entry so the RMF gate passes
       await addBoundaryResource(boundaryId, {
         resourceId: componentId,

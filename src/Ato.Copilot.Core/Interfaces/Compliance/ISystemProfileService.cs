@@ -37,6 +37,7 @@ public interface ISystemProfileService
         ProfileSectionType sectionType,
         string? draftContent,
         string userId,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default);
 
     // ─── Governance Workflow ─────────────────────────────────────────────
@@ -49,6 +50,7 @@ public interface ISystemProfileService
         string systemId,
         IEnumerable<ProfileSectionType>? sectionTypes,
         string userId,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -59,6 +61,7 @@ public interface ISystemProfileService
         string systemId,
         IEnumerable<ProfileSectionType>? sectionTypes,
         string userId,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -70,6 +73,7 @@ public interface ISystemProfileService
         ReviewDecision decision,
         string reviewerId,
         string? comments = null,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -78,6 +82,7 @@ public interface ISystemProfileService
     Task<BatchApproveResult> BatchApproveSectionsAsync(
         string systemId,
         string reviewerId,
+        RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default);
 
     // ─── Completeness & Todos ────────────────────────────────────────────

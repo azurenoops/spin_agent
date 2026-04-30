@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { getSystemDocuments } from '../api/documents';
@@ -300,7 +301,18 @@ function ConMonSection({ data }: { data: SystemDocumentsResponse }) {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-      <SectionHeader icon="📊" title="Continuous Monitoring" />
+      <SectionHeader
+        icon="📊"
+        title="Continuous Monitoring"
+        action={
+          <Link
+            to={`/systems/${data.systemId}/conmon`}
+            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+          >
+            Open ConMon
+          </Link>
+        }
+      />
       <div className="divide-y divide-gray-100">
         <DocRow
           label="ConMon Plan"
