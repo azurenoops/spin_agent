@@ -1,0 +1,363 @@
+name: Migrate Container Apps To VNet Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Resource group name
+        required: true
+        default: rg-ato-copilot
+        type: string
+      location:
+        description: Azure location
+        required: true
+        default: eastus
+        type: string
+      deployment_environment:
+        description: GitHub environment name for reusable deployment jobs
+        required: true
+        default: dev
+        type: string
+      source_mcp_app:
+        description: Existing MCP app name (source)
+        required: true
+        default: ca-ato-copilot-mcp
+        type: string
+      source_dashboard_app:
+        description: Existing Dashboard app name (source)
+        required: true
+        default: ca-ato-copilot-dashboard
+        type: string
+      target_env_name:
+        description: New VNet-integrated Container Apps environment name
+        required: true
+        default: cae-ato-copilot-vnet
+        type: string
+      target_mcp_app:
+        description: Target MCP app name (new app)
+        required: true
+        default: ca-ato-copilot-mcp-vnet
+        type: string
+      target_dashboard_app:
+        description: Target Dashboard app name (new app)
+        required: true
+        default: ca-ato-copilot-dashboard-vnet
+        type: string
+      vnet_name:
+        description: VNet name for Container Apps + SQL private endpoint
+        required: true
+        default: vnet-ato-copilot
+        type: string
+      vnet_address_prefix:
+        description: VNet CIDR
+        required: true
+        default: 10.40.0.0/16
+        type: string
+      infra_subnet_name:
+        description: Container Apps infrastructure subnet name
+        required: true
+        default: snet-containerapps-infra
+        type: string
+      infra_subnet_prefix:
+        description: Container Apps infrastructure subnet CIDR
+        required: true
+        default: 10.40.2.0/24
+        type: string
+      pe_subnet_name:
+        description: Private endpoint subnet name
+        required: true
+        default: snet-sql-private-endpoint
+        type: string
+      pe_subnet_prefix:
+        description: Private endpoint subnet CIDR
+        required: true
+        default: 10.40.1.0/24
+        type: string
+      sql_server_name:
+        description: Azure SQL server name
+        required: true
+        default: azsql-ato-copilot-04152047-902
+        type: string
+      private_dns_zone:
+        description: Private DNS zone name for Azure SQL
+        required: true
+        default: privatelink.database.windows.net
+        type: string
+      disable_sql_public_network:
+        description: Disable SQL public network access at end of workflow
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  prepare-network:
+    runs-on: ubuntu-latest
+    outputs:
+      mcp_image: ${{ steps.images.outputs.mcp_image }}
+      dashboard_image: ${{ steps.images.outputs.dashboard_image }}
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure VNet + subnets
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          LOCATION="${{ github.event.inputs.location }}"
+          VNET="${{ github.event.inputs.vnet_name }}"
+          VNET_PREFIX="${{ github.event.inputs.vnet_address_prefix }}"
+          INFRA_SUBNET="${{ github.event.inputs.infra_subnet_name }}"
+          INFRA_PREFIX="${{ github.event.inputs.infra_subnet_prefix }}"
+          PE_SUBNET="${{ github.event.inputs.pe_subnet_name }}"
+          PE_PREFIX="${{ github.event.inputs.pe_subnet_prefix }}"
+
+          VNET_ID=$(az network vnet show -g "$RG" -n "$VNET" --query id -o tsv 2>/dev/null || true)
+          if [ -z "$VNET_ID" ]; then
+            az network vnet create \
+              --resource-group "$RG" \
+              --name "$VNET" \
+              --location "$LOCATION" \
+              --address-prefixes "$VNET_PREFIX" >/dev/null
+          fi
+
+          az network vnet subnet show -g "$RG" --vnet-name "$VNET" -n "$INFRA_SUBNET" >/dev/null 2>&1 || \
+            az network vnet subnet create -g "$RG" --vnet-name "$VNET" -n "$INFRA_SUBNET" --address-prefixes "$INFRA_PREFIX" >/dev/null
+
+          az network vnet subnet update \
+            --resource-group "$RG" \
+            --vnet-name "$VNET" \
+            --name "$INFRA_SUBNET" \
+            --delegations Microsoft.App/environments >/dev/null
+
+          az network vnet subnet show -g "$RG" --vnet-name "$VNET" -n "$PE_SUBNET" >/dev/null 2>&1 || \
+            az network vnet subnet create -g "$RG" --vnet-name "$VNET" -n "$PE_SUBNET" --address-prefixes "$PE_PREFIX" >/dev/null
+
+          az network vnet subnet update \
+            --resource-group "$RG" \
+            --vnet-name "$VNET" \
+            --name "$PE_SUBNET" \
+            --disable-private-endpoint-network-policies true >/dev/null
+
+      - name: Ensure SQL private endpoint + DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          VNET="${{ github.event.inputs.vnet_name }}"
+          PE_SUBNET="${{ github.event.inputs.pe_subnet_name }}"
+          DNS_ZONE="${{ github.event.inputs.private_dns_zone }}"
+
+          az network private-dns zone create -g "$RG" -n "$DNS_ZONE" >/dev/null
+
+          VNET_ID=$(az network vnet show -g "$RG" -n "$VNET" --query id -o tsv)
+          LINK_NAME="${VNET}-link"
+          az network private-dns link vnet show -g "$RG" -z "$DNS_ZONE" -n "$LINK_NAME" >/dev/null 2>&1 || \
+            az network private-dns link vnet create \
+              --resource-group "$RG" \
+              --zone-name "$DNS_ZONE" \
+              --name "$LINK_NAME" \
+              --virtual-network "$VNET_ID" \
+              --registration-enabled false >/dev/null
+
+          SQL_ID=$(az sql server show -g "$RG" -n "$SQL_SERVER" --query id -o tsv)
+          SUBNET_ID=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET" -n "$PE_SUBNET" --query id -o tsv)
+
+          PE_NAME="pe-${SQL_SERVER}"
+          az network private-endpoint show -g "$RG" -n "$PE_NAME" >/dev/null 2>&1 || \
+            az network private-endpoint create \
+              --resource-group "$RG" \
+              --name "$PE_NAME" \
+              --subnet "$SUBNET_ID" \
+              --private-connection-resource-id "$SQL_ID" \
+              --group-id sqlServer \
+              --connection-name "${PE_NAME}-conn" >/dev/null
+
+          DNS_ZONE_ID=$(az network private-dns zone show -g "$RG" -n "$DNS_ZONE" --query id -o tsv)
+          ZG_NAME="${PE_NAME}-dns"
+          az network private-endpoint dns-zone-group show -g "$RG" --endpoint-name "$PE_NAME" -n "$ZG_NAME" >/dev/null 2>&1 || \
+            az network private-endpoint dns-zone-group create \
+              --resource-group "$RG" \
+              --endpoint-name "$PE_NAME" \
+              --name "$ZG_NAME" \
+              --private-dns-zone "$DNS_ZONE_ID" \
+              --zone-name "$DNS_ZONE" >/dev/null
+
+      - name: Ensure target Container Apps environment (VNet integrated)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          LOCATION="${{ github.event.inputs.location }}"
+          ENV_NAME="${{ github.event.inputs.target_env_name }}"
+          VNET="${{ github.event.inputs.vnet_name }}"
+          INFRA_SUBNET="${{ github.event.inputs.infra_subnet_name }}"
+
+          LAW_NAME="law-${ENV_NAME}"
+          az monitor log-analytics workspace show -g "$RG" --workspace-name "$LAW_NAME" >/dev/null 2>&1 || \
+            az monitor log-analytics workspace create -g "$RG" --workspace-name "$LAW_NAME" --location "$LOCATION" --retention-time 30 >/dev/null
+
+          LAW_ID=$(az monitor log-analytics workspace show -g "$RG" --workspace-name "$LAW_NAME" --query customerId -o tsv)
+          LAW_KEY=$(az monitor log-analytics workspace get-shared-keys -g "$RG" --workspace-name "$LAW_NAME" --query primarySharedKey -o tsv)
+          INFRA_SUBNET_ID=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET" -n "$INFRA_SUBNET" --query id -o tsv)
+
+          if az containerapp env show -g "$RG" -n "$ENV_NAME" >/dev/null 2>&1; then
+            echo "Container Apps environment '$ENV_NAME' already exists."
+          else
+            az containerapp env create \
+              --name "$ENV_NAME" \
+              --resource-group "$RG" \
+              --location "$LOCATION" \
+              --logs-workspace-id "$LAW_ID" \
+              --logs-workspace-key "$LAW_KEY" \
+              --infrastructure-subnet-resource-id "$INFRA_SUBNET_ID" >/dev/null
+            echo "Created VNet-integrated environment '$ENV_NAME'."
+          fi
+
+      - name: Resolve source app images
+        id: images
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          SRC_MCP="${{ github.event.inputs.source_mcp_app }}"
+          SRC_DASH="${{ github.event.inputs.source_dashboard_app }}"
+
+          MCP_IMAGE=$(az containerapp show -g "$RG" -n "$SRC_MCP" --query "properties.template.containers[0].image" -o tsv)
+          DASH_IMAGE=$(az containerapp show -g "$RG" -n "$SRC_DASH" --query "properties.template.containers[0].image" -o tsv)
+
+          echo "mcp_image=${MCP_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "dashboard_image=${DASH_IMAGE}" >> "$GITHUB_OUTPUT"
+
+  deploy-target-mcp:
+    needs: prepare-network
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: ${{ github.event.inputs.deployment_environment }}
+      workload: mcp
+      image: ${{ needs.prepare-network.outputs.mcp_image }}
+      containerapp_name: ${{ github.event.inputs.target_mcp_app }}
+      containerapp_env_name: ${{ github.event.inputs.target_env_name }}
+      inject_runtime_secrets: true
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
+      ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
+
+  discover-target-mcp-fqdn:
+    needs: deploy-target-mcp
+    runs-on: ubuntu-latest
+    outputs:
+      mcp_base_url: ${{ steps.mcp.outputs.base_url }}
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve target MCP FQDN
+        id: mcp
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          APP="${{ github.event.inputs.target_mcp_app }}"
+          FQDN=$(az containerapp show -g "$RG" -n "$APP" --query properties.configuration.ingress.fqdn -o tsv)
+          echo "base_url=https://${FQDN}" >> "$GITHUB_OUTPUT"
+
+  deploy-target-dashboard:
+    needs: [prepare-network, discover-target-mcp-fqdn]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: ${{ github.event.inputs.deployment_environment }}
+      workload: dashboard
+      image: ${{ needs.prepare-network.outputs.dashboard_image }}
+      containerapp_name: ${{ github.event.inputs.target_dashboard_app }}
+      containerapp_env_name: ${{ github.event.inputs.target_env_name }}
+      target_port: "8080"
+      health_path: /
+      include_mcp_env_vars: false
+      mcp_base_url_override: ${{ needs.discover-target-mcp-fqdn.outputs.mcp_base_url }}
+      assign_managed_identity: false
+      inject_runtime_secrets: false
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  validate-target:
+    needs: [deploy-target-mcp, deploy-target-dashboard]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate target endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          MCP_APP="${{ github.event.inputs.target_mcp_app }}"
+          DASH_APP="${{ github.event.inputs.target_dashboard_app }}"
+
+          MCP_FQDN=$(az containerapp show -g "$RG" -n "$MCP_APP" --query properties.configuration.ingress.fqdn -o tsv)
+          DASH_FQDN=$(az containerapp show -g "$RG" -n "$DASH_APP" --query properties.configuration.ingress.fqdn -o tsv)
+
+          curl -fsS --max-time 20 "https://${MCP_FQDN}/health" >/dev/null
+          curl -fsS --max-time 20 "https://${MCP_FQDN}/api/dashboard/systems" -H "X-Simulated-Role: ISSM" >/dev/null
+          curl -fsS --max-time 20 "https://${DASH_FQDN}/" >/dev/null
+
+          echo "### VNet Migration Validation" >> "$GITHUB_STEP_SUMMARY"
+          echo "- MCP: https://${MCP_FQDN}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dashboard: https://${DASH_FQDN}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Endpoint checks: passed" >> "$GITHUB_STEP_SUMMARY"
+
+  optional-cutover:
+    if: github.event.inputs.disable_sql_public_network == 'true'
+    needs: validate-target
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Disable SQL public network access
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          MCP_APP="${{ github.event.inputs.target_mcp_app }}"
+
+          az sql server update -g "$RG" -n "$SQL_SERVER" --set publicNetworkAccess=Disabled >/dev/null
+
+          MCP_FQDN=$(az containerapp show -g "$RG" -n "$MCP_APP" --query properties.configuration.ingress.fqdn -o tsv)
+          curl -fsS --max-time 20 "https://${MCP_FQDN}/api/dashboard/systems" -H "X-Simulated-Role: ISSM" >/dev/null
+
+          echo "SQL public network access disabled for '$SQL_SERVER'." >> "$GITHUB_STEP_SUMMARY"
+          echo "Post-cutover MCP systems check: passed" >> "$GITHUB_STEP_SUMMARY"
