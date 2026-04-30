@@ -1,0 +1,55 @@
+{
+    "name": "ATO Copilot Dev Container",
+    "image": "mcr.microsoft.com/devcontainers/dotnet:1-9.0-bookworm",
+    "features": {
+        "ghcr.io/devcontainers/features/node:1": {
+            "version": "20"
+        },
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+            "version": "latest",
+            "moby": true
+        },
+        "ghcr.io/devcontainers/features/azure-cli:1": {
+            "version": "latest"
+        },
+        "ghcr.io/devcontainers/features/python:1": {
+            "version": "3.11"
+        },
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+    "forwardPorts": [3001, 5001, 1433],
+    "portsAttributes": {
+        "3001": { "label": "MCP Server" },
+        "5001": { "label": "Web Chat" },
+        "1433": { "label": "SQL Server" }
+    },
+    "postCreateCommand": "bash scripts/bootstrap.sh",
+    "remoteUser": "vscode",
+    "containerEnv": {
+        "DOTNET_NOLOGO": "1",
+        "DOTNET_CLI_TELEMETRY_OPTOUT": "1"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-dotnettools.csdevkit",
+                "ms-dotnettools.csharp",
+                "ms-azuretools.vscode-docker",
+                "ms-azuretools.vscode-bicep",
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode",
+                "bradlc.vscode-tailwindcss",
+                "ms-python.python",
+                "github.copilot",
+                "github.copilot-chat",
+                "github.vscode-github-actions",
+                "redhat.vscode-yaml",
+                "tamasfe.even-better-toml"
+            ],
+            "settings": {
+                "dotnet.defaultSolution": "Ato.Copilot.sln",
+                "github.copilot.chat.codeGeneration.useInstructionFiles": true
+            }
+        }
+    }
+}

@@ -56,9 +56,34 @@ ATO Copilot is where you DO the work, eMASS is where you SUBMIT the work.
 
 ### Prerequisites
 
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) — pinned by [`global.json`](global.json)
 - [Docker](https://www.docker.com/) (recommended for full deployment)
+- Node.js 20 LTS (for VS Code/M365 extensions and React SPAs)
 - Azure subscription (Azure Government preferred)
+
+### Set up your dev machine
+
+**macOS / Linux**
+
+```bash
+./scripts/bootstrap.sh           # installs prerequisites + restores all dependencies
+./scripts/bootstrap.sh --check   # verify prerequisites without installing
+```
+
+**Windows (PowerShell)**
+
+```powershell
+.\scripts\bootstrap.ps1
+.\scripts\bootstrap.ps1 -Check
+```
+
+**Codespaces / Dev Container** — open the repo in VS Code and choose
+**"Reopen in Container"**. The container ([`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json))
+runs `bootstrap.sh` automatically and pre-installs the recommended extensions.
+
+The bootstrap script verifies/installs .NET 9 SDK, Node 20, Docker, Azure CLI,
+Python 3.11, and `dotnet-ef`, then runs `dotnet restore` and `npm ci` for every
+sub-project. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details.
 
 ### Docker (Recommended)
 
