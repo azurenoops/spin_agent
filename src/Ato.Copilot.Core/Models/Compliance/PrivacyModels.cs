@@ -120,10 +120,13 @@ public class PrivacyImpactAssessment
     [MaxLength(36)]
     public string RegisteredSystemId { get; set; } = string.Empty;
 
-    /// <summary>Triggering PTA.</summary>
-    [Required]
+    /// <summary>
+    /// Triggering PTA. Nullable: when a PTA is invalidated (e.g. info types
+    /// change), the PTA row is deleted but the PIA document is preserved with
+    /// status <see cref="PiaStatus.UnderReview"/> and this FK cleared.
+    /// </summary>
     [MaxLength(36)]
-    public string PtaId { get; set; } = string.Empty;
+    public string? PtaId { get; set; }
 
     /// <summary>PIA lifecycle status.</summary>
     [Required]
