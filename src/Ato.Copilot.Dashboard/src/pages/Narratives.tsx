@@ -45,6 +45,29 @@ function formatDate(dt: string | null | undefined): string {
   return new Date(dt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+type ControlActivity = {
+  name: string;
+  description: string;
+};
+
+function parseControlActivities(narrative: string | null | undefined): ControlActivity[] {
+  if (!narrative) return [];
+
+  const normalized = narrative.replace(/\r/g, '');
+  const pattern = /Activity Name:\s*(.+?)(?:\n|\s+)Activity Description:\s*([\s\S]*?)(?=(?:\n\s*(?:-\s*)?Activity Name:)|\n\n|$)/gi;
+  const activities: ControlActivity[] = [];
+
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(normalized)) !== null) {
+    const name = (match[1] ?? '').trim();
+    const description = (match[2] ?? '').replace(/^[-:\s]+/, '').trim();
+    if (!name && !description) continue;
+    activities.push({ name, description });
+  }
+
+  return activities;
+}
+
 const FAMILIES = ['All', 'AC', 'AU', 'AT', 'CA', 'CM', 'CP', 'IA', 'IR', 'MA', 'MP', 'PE', 'PL', 'PM', 'PS', 'RA', 'SA', 'SC', 'SI', 'SR'];
 const STATUSES = ['All', 'Implemented', 'PartiallyImplemented', 'Planned', 'NotApplicable'];
 const IMPL_STATUSES = ['Planned', 'Implemented', 'PartiallyImplemented', 'NotApplicable'];
@@ -228,6 +251,27 @@ export default function Narratives() {
   const [regenError, setRegenError] = useState('');
   const [businessContextCache, setBusinessContextCache] = useState<Record<string, BusinessContextDraftResponse | null>>({});
 
+  const buildConfiguredSourceUrls = () => {
+    if (!settings?.sharePointSiteUrl || !settings?.sourceDocuments) {
+      return [];
+    }
+    const base = settings.sharePointSiteUrl.trim().replace(/\/+$/, '');
+    const lines = settings.sourceDocuments
+      .split(/\r?\n|,/) 
+      .map(x => x.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) return [] as string[];
+
+    return lines
+      .map((line) => {
+        if (/^https?:\/\//i.test(line)) return line;
+        if (!base) return null;
+        return `${base}/${line.replace(/^\/+/, '')}`;
+      })
+      .filter((x): x is string => Boolean(x));
+  };
+
   const fetchNarratives = useCallback(() => {
     if (!systemId) return Promise.resolve([]);
     const params: Record<string, string> = {};
@@ -337,7 +381,12 @@ export default function Narratives() {
     setRegeneratingIds(prev => new Set([...prev, controlId]));
     setRegenError('');
     try {
-      const newNarrative = await regenerateNarrative(systemId, controlId);
+      const sourceUrls = buildConfiguredSourceUrls();
+      const newNarrative = await regenerateNarrative(
+        systemId,
+        controlId,
+        sourceUrls.length > 0 ? { sourceUrls } : undefined,
+      );
       if (newNarrative) {
         setEditedNarratives(prev => ({ ...prev, [controlId]: newNarrative }));
       }
@@ -382,6 +431,43 @@ export default function Narratives() {
             onCreated={() => { setShowAddDialog(false); refresh(); }}
           />
         )}
+
+        {/* Document source indicator */}
+        {(() => {
+          const configuredSources = buildConfiguredSourceUrls();
+          if (configuredSources.length > 0) {
+            return (
+              <div className="flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm text-teal-800">
+                <svg className="h-4 w-4 flex-shrink-0 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>
+                  <span className="font-medium">Document sources active</span> — Regenerate uses{' '}
+                  <span className="font-medium">{configuredSources.length} configured source{configuredSources.length !== 1 ? 's' : ''}</span> from SharePoint to ground narratives in your policy documents.
+                </span>
+                <span
+                  title={configuredSources.join('\n')}
+                  className="ml-auto cursor-default rounded bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700"
+                >
+                  {configuredSources.length} source{configuredSources.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
+              <svg className="h-4 w-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>
+                No document sources configured — Regenerate uses security capability data.{' '}
+                Configure SharePoint sources in{' '}
+                <span className="font-medium text-gray-700">Settings → Documents To Consume</span>{' '}
+                to generate narratives from your policy documents instead.
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Progress bar */}
         {stats.total > 0 && (
@@ -566,6 +652,10 @@ export default function Narratives() {
                     {expanded.has(n.id) && (
                       <tr className="bg-gray-50">
                         <td colSpan={9} className="px-6 py-4">
+                          {(() => {
+                            const narrativeValue = editedNarratives[n.controlId] ?? n.narrative ?? '';
+                            const activities = parseControlActivities(narrativeValue);
+                            return (
                           <div className="space-y-2">
                             <div className="flex items-center justify-between text-xs text-gray-500">
                               <div className="flex items-center gap-4">
@@ -585,10 +675,25 @@ export default function Narratives() {
                             </div>
                             <textarea
                               className="w-full rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-700 min-h-[120px] resize-y focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-                              value={editedNarratives[n.controlId] ?? n.narrative ?? ''}
+                              value={narrativeValue}
                               onChange={e => setEditedNarratives(prev => ({ ...prev, [n.controlId]: e.target.value }))}
                               onBlur={e => handleNarrativeBlur(n.controlId, e.target.value, n.narrative)}
                             />
+                            {activities.length > 0 && (
+                              <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Control Activities</p>
+                                <div className="mt-2 space-y-2">
+                                  {activities.map((activity, idx) => (
+                                    <div key={`${n.controlId}-activity-${idx}`} className="rounded border border-indigo-100 bg-white p-2">
+                                      <p className="text-sm font-medium text-gray-900">{activity.name || 'Unnamed Activity'}</p>
+                                      {activity.description && (
+                                        <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{activity.description}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                             {systemId && (
                               <EvidenceSection
                                 systemId={systemId}
@@ -636,6 +741,8 @@ export default function Narratives() {
                               return null;
                             })()}
                           </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     )}

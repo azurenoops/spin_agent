@@ -260,29 +260,6 @@ export const helpSections: HelpSection[] = [
     ],
   },
   {
-    id: 'gap-analysis',
-    title: 'Gap Analysis',
-    content:
-      'The Gap Analysis page shows which controls in your system\'s baseline are covered by capabilities and which remain unmapped. Use it to identify and prioritize security gaps.',
-    subsections: [
-      {
-        title: 'Summary Metrics',
-        content:
-          'Four cards show Total Controls (baseline size), Covered (mapped to capabilities), Gaps (unmapped), and Coverage percentage. The subtitle notes how many families fall below 50% coverage.',
-      },
-      {
-        title: 'Coverage Matrix',
-        content:
-          'The matrix displays each NIST control family as a colored cell. Green indicates 80% or more coverage, yellow 50–79%, and red below 50%. Click a family cell to expand and see individual unmapped controls.',
-      },
-      {
-        title: 'Identifying Critical Gaps',
-        content:
-          'Focus on red families first — these represent the largest security gaps. Within each family, controls marked as "Gaps" need capability mappings before the system can achieve authorization.',
-      },
-    ],
-  },
-  {
     id: 'todo-panel',
     title: 'To Do Panel',
     content:
@@ -405,7 +382,7 @@ export const helpSections: HelpSection[] = [
       {
         title: 'Boundary-Scoped Compliance',
         content:
-          'Capability-to-control mappings can be scoped to specific boundaries for per-boundary compliance tracking. Use the boundary selector on the Gap Analysis page to view coverage for a specific boundary or compare across all boundaries.',
+          'Capability-to-control mappings can be scoped to specific boundaries for per-boundary compliance tracking.',
       },
     ],
   },

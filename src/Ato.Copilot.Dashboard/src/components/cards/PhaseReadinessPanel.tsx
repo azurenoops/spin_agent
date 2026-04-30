@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   getPhaseReadiness,
   advanceRmfStep,
@@ -14,9 +15,11 @@ import type { GateAction } from './GateActionDialog';
 interface PhaseReadinessPanelProps {
   systemId: string;
   onAdvanced: () => void;
+  supplementalGates?: GateResult[];
+  profileLink?: string;
 }
 
-export default function PhaseReadinessPanel({ systemId, onAdvanced }: PhaseReadinessPanelProps) {
+export default function PhaseReadinessPanel({ systemId, onAdvanced, supplementalGates = [], profileLink }: PhaseReadinessPanelProps) {
   const [readiness, setReadiness] = useState<PhaseReadinessResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,9 +44,10 @@ export default function PhaseReadinessPanel({ systemId, onAdvanced }: PhaseReadi
     void fetchReadiness();
   }, [fetchReadiness]);
 
-  const passedGates = readiness?.gateResults.filter((g) => g.passed) ?? [];
-  const failedGates = readiness?.gateResults.filter((g) => !g.passed) ?? [];
-  const totalGates = readiness?.gateResults.length ?? 0;
+  const allGates = [...(readiness?.gateResults ?? []), ...supplementalGates];
+  const passedGates = allGates.filter((g) => g.passed);
+  const failedGates = allGates.filter((g) => !g.passed);
+  const totalGates = allGates.length;
   const progressPct = totalGates > 0 ? (passedGates.length / totalGates) * 100 : 0;
   const allPassed = failedGates.length === 0;
 
@@ -156,8 +160,9 @@ export default function PhaseReadinessPanel({ systemId, onAdvanced }: PhaseReadi
 
       {/* Gate Checklist */}
       <div className="divide-y divide-gray-50">
-        {readiness.gateResults.map((gate) => {
+        {allGates.map((gate) => {
           const actions = gate.passed ? null : getGateAction(gate);
+          const isProfileGate = gate.gateName.toLowerCase().includes('system profile');
           return (
             <div key={gate.gateName} className="px-5 py-3 flex items-start gap-3">
               {/* Status icon */}
@@ -199,6 +204,17 @@ export default function PhaseReadinessPanel({ systemId, onAdvanced }: PhaseReadi
                       {a.label} →
                     </button>
                   ))}
+                </div>
+              )}
+
+              {!actions && !gate.passed && isProfileGate && profileLink && (
+                <div className="flex-shrink-0">
+                  <Link
+                    to={profileLink}
+                    className="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+                  >
+                    View Profile →
+                  </Link>
                 </div>
               )}
             </div>

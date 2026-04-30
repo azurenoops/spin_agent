@@ -44,7 +44,7 @@ export default function RmfPhaseProgressComponent({ phases }: RmfPhaseProgressPr
             <div
               className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${circleColors[phase.status]}`}
             >
-              {phase.ordinal + 1}
+              {phase.ordinal}
             </div>
             <span className="mt-1 text-[11px] text-gray-600 text-center">{phase.phase}</span>
             {phase.status === 'current' && (

@@ -146,31 +146,17 @@ export default function SystemDetail() {
         <PhaseReadinessPanel
           systemId={detail.systemId}
           onAdvanced={refetch}
+          supplementalGates={profileCompleteness ? [{
+            gateName: 'System Profile Complete',
+            passed: profileCompleteness.isProfileComplete,
+            message: profileCompleteness.isProfileComplete
+              ? 'System profile sections are complete.'
+              : `${profileCompleteness.incompleteSections.length} section(s) still require completion or approval.`,
+            severity: 'Warning',
+          }] : []}
+          profileLink={`/systems/${detail.systemId}/profile/MissionAndPurpose`}
         />
       </div>
-
-      {/* Profile Incomplete Banner (T042) */}
-      {profileCompleteness && !profileCompleteness.isProfileComplete && (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-amber-800">System Profile Incomplete</p>
-              <p className="text-xs text-amber-600 mt-1">
-                {profileCompleteness.incompleteSections.map((s) => s.sectionType).join(', ')}
-                {profileCompleteness.missionOwnerName && (
-                  <> — Assigned to {profileCompleteness.missionOwnerName}</>
-                )}
-              </p>
-            </div>
-            <Link
-              to={`/systems/${detail.systemId}/profile/MissionAndPurpose`}
-              className="text-xs text-amber-700 font-medium hover:underline whitespace-nowrap"
-            >
-              View Profile →
-            </Link>
-          </div>
-        </div>
-      )}
 
       {/* Key Metrics */}
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">

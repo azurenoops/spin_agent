@@ -4,9 +4,10 @@ import PageLayout from './PageLayout';
 import TodoPanel from '../cards/TodoPanel';
 import { usePolling } from '../../hooks/usePolling';
 import { useSettings } from '../../hooks/useSettings';
+import apiClient from '../../api/client';
 import { getSystemDetail } from '../../api/systemDetail';
 import { getProfileCompleteness } from '../../api/systemProfile';
-import type { SystemDetailResponse, ProfileCompletenessResponse } from '../../types/dashboard';
+import type { SystemDetailResponse, ProfileCompletenessResponse, TodoList } from '../../types/dashboard';
 
 // ─── Context ────────────────────────────────────────────────────────────────
 
@@ -70,7 +71,6 @@ const navGroups: NavGroup[] = [
       { path: 'inheritance', label: 'Control Inheritance', d: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
       { path: 'narratives', label: 'Narratives', d: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25' },
       { path: 'legal', label: 'Legal & Regulatory', d: 'M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 01-2.031.352 5.989 5.989 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971z' },
-      { path: 'gaps', label: 'Gap Analysis', d: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z' },
     ],
   },
   {
@@ -90,6 +90,7 @@ const navGroups: NavGroup[] = [
     items: [
       { path: 'roadmap', label: 'Implementation Roadmap', d: 'M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5' },
       { path: 'documents', label: 'Documents', d: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z' },
+      { path: 'conmon', label: 'ConMon', d: 'M3 13.5h4.5V21H3v-7.5zm6.75-6h4.5V21h-4.5V7.5zm6.75-4.5H21V21h-4.5V3z' },
     ],
   },
 ];
@@ -101,27 +102,43 @@ export default function SystemLayout() {
   const { settings } = useSettings();
   const [detail, setDetail] = useState<SystemDetailResponse | null>(null);
   const [profileCompleteness, setProfileCompleteness] = useState<ProfileCompletenessResponse | null>(null);
+  const [todoCount, setTodoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [sidePanelTab, setSidePanelTab] = useState<'todo' | 'details'>('todo');
 
+  const withTimeout = useCallback(<T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        setTimeout(() => reject(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  }, []);
+
   const fetchData = useCallback(async () => {
     if (!id) return;
     try {
-      const [d, comp] = await Promise.all([
-        getSystemDetail(id),
-        getProfileCompleteness(id).catch(() => null),
+      const [d, comp, todoList] = await Promise.all([
+        withTimeout(getSystemDetail(id), 8000),
+        withTimeout(getProfileCompleteness(id), 5000).catch(() => null),
+        withTimeout(
+          apiClient.get<TodoList>(`/systems/${id}/todos`).then((r) => r.data),
+          5000,
+        ).catch(() => null),
       ]);
       setDetail(d);
       setProfileCompleteness(comp);
+      setTodoCount(todoList?.items.length ?? 0);
       setError(null);
     } catch {
       setError('Failed to load system detail');
+      setTodoCount(0);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, withTimeout]);
 
   usePolling(fetchData);
 
@@ -151,7 +168,7 @@ export default function SystemLayout() {
     : 0;
 
   const sidePanelTabs = [
-    { key: 'todo' as const, label: 'To do', badge: 0 },
+    { key: 'todo' as const, label: 'To do', badge: todoCount },
     { key: 'details' as const, label: 'System Details', badge: profileActionCount },
   ];
 

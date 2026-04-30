@@ -56,7 +56,7 @@ export default function Roadmap() {
         <div>
           <p className="text-red-500">{error ?? 'No active implementation roadmap found'}</p>
           <p className="mt-2 text-sm text-gray-500">
-            Generate an implementation roadmap use the "Generate Roadmap" action on the Gap Analysis page.
+            Generate an implementation roadmap using the Compliance Posture tools.
           </p>
         </div>
       </>

@@ -69,6 +69,13 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
     try {
       const desc = await generateComponentDescription(name, componentType, subType || undefined);
       setDescription(desc);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate description';
+      if (msg.includes('503')) {
+        alert('AI service is not configured. Contact administrator to enable Azure OpenAI integration.');
+      } else {
+        alert(`Error generating description: ${msg}`);
+      }
     } finally {
       setGeneratingDesc(false);
     }

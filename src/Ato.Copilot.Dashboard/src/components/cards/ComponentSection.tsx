@@ -11,6 +11,7 @@ const typeEmoji: Record<string, string> = {
   Person: '👤',
   Place: '🏢',
   Thing: '🔧',
+  Policy: '📘',
 };
 
 interface ComponentSectionProps {
@@ -66,6 +67,9 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                       <span className="font-medium text-gray-900 text-sm truncate">{comp.name}</span>
                       <span className={`text-xs px-1.5 py-0.5 rounded ${statusColors[comp.status] ?? 'bg-gray-100'}`}>
                         {comp.status}
+                      </span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${comp.scopeLevel === 'Organization' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>
+                        {comp.scopeLevel}
                       </span>
                       {riskMap?.[comp.id] && riskMap[comp.id]!.openCount > 0 && (
                         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${severityBadge[riskMap[comp.id]!.highestSeverity ?? 'III'] ?? 'bg-gray-200'}`}

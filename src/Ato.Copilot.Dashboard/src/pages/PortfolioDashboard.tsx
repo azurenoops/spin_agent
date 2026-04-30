@@ -4,7 +4,7 @@ import SystemSummaryRow from '../components/cards/SystemSummaryRow';
 import IntakeWizard from '../components/wizard/IntakeWizard';
 import { usePolling } from '../hooks/usePolling';
 import { useIntakeWizard } from '../hooks/useIntakeWizard';
-import { getPortfolio, updateSystem, generateSystemDescription } from '../api/portfolio';
+import { getPortfolio, getPortfolioLegacy, updateSystem, generateSystemDescription } from '../api/portfolio';
 import type { UpdateSystemBody } from '../api/portfolio';
 import type { PortfolioSystemSummary } from '../types/dashboard';
 
@@ -21,6 +21,7 @@ export default function PortfolioDashboard() {
   const [systems, setSystems] = useState<PortfolioSystemSummary[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [impactFilter, setImpactFilter] = useState('');
@@ -46,14 +47,27 @@ export default function PortfolioDashboard() {
 
   const fetchPortfolio = useCallback(async () => {
     try {
-      const result = await getPortfolio({
+      const query = {
         sortBy,
         sortDir,
         impactLevel: impactFilter || undefined,
         rmfPhase: rmfFilter || undefined,
-      });
+      };
+
+      let result;
+      try {
+        result = await getPortfolio(query);
+      } catch {
+        result = await getPortfolioLegacy(query);
+      }
+
       setSystems(result.items);
       setTotalCount(result.totalCount);
+      setLoadError('');
+    } catch {
+      setSystems([]);
+      setTotalCount(0);
+      setLoadError('Unable to load systems right now. Please refresh, or verify dashboard-to-MCP connectivity.');
     } finally {
       setLoading(false);
     }
@@ -237,6 +251,13 @@ export default function PortfolioDashboard() {
                       try {
                         const desc = await generateSystemDescription(editForm.name!, editForm.systemType ?? 'MajorApplication', editForm.missionCriticality ?? 'MissionEssential', editForm.hostingEnvironment ?? 'AzureGovernment');
                         setEditForm({ ...editForm, description: desc });
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : 'Failed to generate description';
+                        if (msg.includes('503')) {
+                          alert('AI service is not configured. Contact administrator to enable Azure OpenAI integration.');
+                        } else {
+                          alert(`Error generating description: ${msg}`);
+                        }
                       } finally {
                         setEditGeneratingDesc(false);
                       }
@@ -294,6 +315,11 @@ export default function PortfolioDashboard() {
       {/* Table */}
       {loading ? (
         <p className="text-gray-500">Loading portfolio...</p>
+      ) : loadError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-sm font-medium text-red-800">Systems could not be loaded</p>
+          <p className="mt-1 text-sm text-red-700">{loadError}</p>
+        </div>
       ) : systems.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-12 text-center">
           <p className="text-gray-500">No systems registered</p>

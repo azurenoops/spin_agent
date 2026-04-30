@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../api/capabilities';
 import AddCapabilityDialog from '../components/AddCapabilityDialog';
 import EvidenceUploadDialog from '../components/EvidenceUploadDialog';
+import { useSettings } from '../hooks/useSettings';
 
 const ROLE_COLORS: Record<string, string> = {
   Primary: 'bg-indigo-100 text-indigo-700',
@@ -25,8 +26,28 @@ const TYPE_COLORS: Record<string, string> = {
 
 export default function CapabilityCoverage() {
   const { id: systemId } = useParams<{ id: string }>();
+  const { settings } = useSettings();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+
+  const configuredSourceUrls = (() => {
+    if (!settings?.sharePointSiteUrl || !settings?.sourceDocuments) {
+      return [];
+    }
+    const base = settings.sharePointSiteUrl.trim().replace(/\/+$/, '');
+    const lines = settings.sourceDocuments
+      .split(/\r?\n|,/) 
+      .map(x => x.trim())
+      .filter(Boolean);
+
+    return lines
+      .map((line) => {
+        if (/^https?:\/\//i.test(line)) return line;
+        if (!base) return null;
+        return `${base}/${line.replace(/^\/+/, '')}`;
+      })
+      .filter((x): x is string => Boolean(x));
+  })();
 
   const fetcher = useCallback(
     () => (systemId ? getCapabilityCoverage(systemId) : Promise.reject('No systemId')),
@@ -86,6 +107,7 @@ export default function CapabilityCoverage() {
               key={cap.capabilityId}
               capability={cap}
               systemId={systemId ?? ''}
+              sourceUrls={configuredSourceUrls}
               isExpanded={expandedId === cap.capabilityId}
               onToggle={() => setExpandedId(expandedId === cap.capabilityId ? null : cap.capabilityId)}
               onRefresh={refresh}
@@ -122,12 +144,14 @@ function SummaryCard({ label, value, color }: { label: string; value: string | n
 function CapabilityRow({
   capability: cap,
   systemId,
+  sourceUrls,
   isExpanded,
   onToggle,
   onRefresh,
 }: {
   capability: CapabilityCoverageDto;
   systemId: string;
+  sourceUrls: string[];
   isExpanded: boolean;
   onToggle: () => void;
   onRefresh: () => void;
@@ -143,7 +167,11 @@ function CapabilityRow({
     setRegenerating(true);
     setRegenResult(null);
     try {
-      const result = await bulkRegenerateNarratives(systemId, cap.capabilityId);
+      const result = await bulkRegenerateNarratives(
+        systemId,
+        cap.capabilityId,
+        sourceUrls.length > 0 ? { sourceUrls } : undefined,
+      );
       setRegenResult(result);
       onRefresh();
     } catch {
@@ -245,6 +273,9 @@ function CapabilityRow({
                   )}
                   {regenerating ? 'Regenerating...' : 'Regenerate Narratives'}
                 </button>
+                {sourceUrls.length > 0 && (
+                  <span className="text-xs text-indigo-600">Using configured SharePoint/document sources</span>
+                )}
                 {regenResult && (
                   <span className="text-xs text-gray-600">
                     {regenResult.failed > 0 ? (
@@ -281,27 +312,49 @@ function CapabilityEvidenceSection({ systemId, capabilityId }: { systemId: strin
   const [loaded, setLoaded] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  useCallback(() => {}, [refreshKey]); // keep lint happy
+  useEffect(() => {
+    let active = true;
+    setLoaded(false);
 
-  // Lazy-load evidence on mount
-  useState(() => {
-    import('../api/evidence').then(({ listEvidence }) => {
-      listEvidence({ systemId, pageSize: 100 })
-        .then((res) => {
-          const capEvidence = res.items.filter(
-            (e: { securityCapabilityId?: string | null }) => e.securityCapabilityId === capabilityId,
-          );
-          setArtifacts(capEvidence.map((e: { id: string; fileName?: string | null; artifactCategory: string; uploadedBy: string; uploadedAt: string }) => ({
-            id: e.id,
-            fileName: e.fileName ?? 'Evidence',
-            artifactCategory: e.artifactCategory,
-            uploadedBy: e.uploadedBy,
-            uploadedAt: e.uploadedAt,
-          })));
-        })
-        .finally(() => setLoaded(true));
-    });
-  });
+    import('../api/evidence')
+      .then(({ listEvidence }) => listEvidence({ systemId, pageSize: 100 }))
+      .then((res) => {
+        if (!active) return;
+
+        const capEvidence = (res.items ?? []).filter(
+          (e: { securityCapabilityId?: string | null }) => e.securityCapabilityId === capabilityId,
+        );
+
+        setArtifacts(
+          capEvidence.map(
+            (e: {
+              id: string;
+              fileName?: string | null;
+              artifactCategory?: string | null;
+              uploadedBy?: string | null;
+              uploadedAt?: string | null;
+            }) => ({
+              id: e.id,
+              fileName: e.fileName ?? 'Evidence',
+              artifactCategory: e.artifactCategory ?? 'Other',
+              uploadedBy: e.uploadedBy ?? 'Unknown',
+              uploadedAt: e.uploadedAt ?? '',
+            }),
+          ),
+        );
+      })
+      .catch(() => {
+        if (!active) return;
+        setArtifacts([]);
+      })
+      .finally(() => {
+        if (active) setLoaded(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [systemId, capabilityId, refreshKey]);
 
   return (
     <div className="border-t border-gray-100 pt-3">
@@ -328,7 +381,7 @@ function CapabilityEvidenceSection({ systemId, capabilityId }: { systemId: strin
             <div key={a.id} className="flex items-center gap-2 text-xs text-gray-600">
               <span className="font-medium">{a.fileName}</span>
               <span className="text-gray-400">&middot;</span>
-              <span>{a.artifactCategory.replace(/([A-Z])/g, ' $1').trim()}</span>
+              <span>{(a.artifactCategory || 'Other').replace(/([A-Z])/g, ' $1').trim()}</span>
               <span className="text-gray-400">&middot;</span>
               <span>{a.uploadedBy}</span>
             </div>

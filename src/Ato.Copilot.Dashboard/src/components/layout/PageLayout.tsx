@@ -7,6 +7,7 @@ import SettingsPanel from '../settings/SettingsPanel';
 import NotificationPanel from '../notifications/NotificationPanel';
 import RoleSwitcher from './RoleSwitcher';
 import { useNotifications } from '../../hooks/useNotifications';
+import spinLogo from '../../assets/2026-04-22_15-58-30.png';
 
 const navItems = [
   { to: '/', label: 'Portfolio' },
@@ -49,12 +50,8 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
       {/* Top header */}
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
         <div className="flex items-center gap-6">
-          <NavLink to="/" className="flex items-center gap-2 text-lg font-semibold text-blue-700 hover:text-blue-800">
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5Z" fill="#2563EB" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
-              <path d="m8.5 12.5 2.5 2.5 4.5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            ATO Copilot
+          <NavLink to="/" className="flex items-center" aria-label="Security Posture Intelligence Navigator home">
+            <img src={spinLogo} alt="Security Posture Intelligence Navigator" className="block h-12 w-auto object-contain" />
           </NavLink>
           <nav className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => (

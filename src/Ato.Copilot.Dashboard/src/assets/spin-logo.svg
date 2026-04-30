@@ -1,0 +1,27 @@
+<svg width="980" height="420" viewBox="0 0 980 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="spinArcGradient" x1="108" y1="210" x2="877" y2="210" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F255F"/>
+      <stop offset="1" stop-color="#1E7EF2"/>
+    </linearGradient>
+    <linearGradient id="spinTextGradient" x1="470" y1="225" x2="928" y2="225" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F255F"/>
+      <stop offset="1" stop-color="#1E7EF2"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M165 135C221 66 320 28 429 28C518 28 601 53 667 105" stroke="url(#spinArcGradient)" stroke-width="24" stroke-linecap="round"/>
+  <path d="M216 175C257 123 330 94 410 94C468 94 523 110 568 141" stroke="#9AA0A6" stroke-width="15" stroke-linecap="round"/>
+  <path d="M339 328C395 370 468 392 542 392C618 392 689 370 744 327" stroke="#9AA0A6" stroke-width="13" stroke-linecap="round"/>
+  <path d="M164 302C224 371 323 410 435 410C558 410 673 363 748 278" stroke="url(#spinArcGradient)" stroke-width="24" stroke-linecap="round"/>
+
+  <path d="M724 110L862 56L803 178L801 131L682 114L724 110Z" fill="#1E7EF2"/>
+  <path d="M763 131L826 95L789 138L763 131Z" fill="white" fill-opacity="0.94"/>
+  <path d="M817 133L871 203L844 184L817 161V133Z" fill="#1E7EF2"/>
+
+  <g transform="translate(12 10) skewX(-12)">
+    <text x="20" y="262" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="214" font-weight="900" fill="#0F255F">SP</text>
+    <text x="448" y="262" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="214" font-weight="900" fill="url(#spinTextGradient)">iN</text>
+  </g>
+  <circle cx="623" cy="166" r="24" fill="#1E7EF2"/>
+</svg>

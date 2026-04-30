@@ -88,6 +88,13 @@ export default function SystemRegistration({
         form.hostingEnvironment,
       );
       setForm((f) => ({ ...f, description: desc }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate description';
+      if (msg.includes('503')) {
+        onErrors({ description: ['AI service is not configured. Contact administrator to enable Azure OpenAI integration.'] });
+      } else {
+        onErrors({ description: [msg] });
+      }
     } finally {
       setGeneratingDesc(false);
     }

@@ -48,6 +48,13 @@ interface FrameworkControlDetail {
   framework: { identifier: string; name: string; version: string };
 }
 
+interface ImportFrameworksResponse {
+  frameworksImported: number;
+  totalControls: number;
+  totalBaselines: number;
+  errors: string[];
+}
+
 type SelectionView = 'all' | 'additional' | 'removed';
 
 const FAMILIES = [
@@ -272,6 +279,7 @@ export default function ControlCatalog() {
   const [selectedControlId, setSelectedControlId] = useState<string | null>(null);
   const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<{ tone: 'success' | 'warning' | 'error'; text: string } | null>(null);
   const [defaultSaved, setDefaultSaved] = useState(false);
 
   // Direct fetch state — no polling (control catalog data is static)
@@ -413,12 +421,30 @@ export default function ControlCatalog() {
 
   const handleImportFrameworks = async () => {
     setImporting(true);
+    setImportMessage(null);
     try {
-      await apiClient.post('/frameworks/import');
+      const { data } = await apiClient.post<ImportFrameworksResponse>('/frameworks/import');
       const fws = await fetchFrameworks();
       setFrameworks(fws);
-    } catch {
-      // import failed silently
+      if (data.frameworksImported <= 0) {
+        const reason = data.errors[0] ?? 'Framework import failed. Check MCP logs for connectivity errors.';
+        setImportMessage({ tone: 'error', text: reason });
+      } else if (data.errors.length > 0) {
+        setImportMessage({
+          tone: 'warning',
+          text: `Imported ${data.frameworksImported} framework(s) with warnings: ${data.errors[0]}`,
+        });
+      } else {
+        setImportMessage({
+          tone: 'success',
+          text: `Imported ${data.frameworksImported} framework(s), ${data.totalControls.toLocaleString()} controls, ${data.totalBaselines} baselines.`,
+        });
+      }
+    } catch (error) {
+      const message = typeof error === 'object' && error && 'error' in error
+        ? String((error as { error?: string }).error)
+        : 'Framework import failed. Verify network access to GitHub or use embedded fallback data.';
+      setImportMessage({ tone: 'error', text: message });
     } finally {
       setImporting(false);
     }
@@ -439,6 +465,19 @@ export default function ControlCatalog() {
             <div>
               <p className="text-sm font-medium text-amber-800">No frameworks imported yet</p>
               <p className="text-xs text-amber-600 mt-0.5">Import official NIST and FedRAMP frameworks from OSCAL GitHub repositories.</p>
+              {importMessage && (
+                <p
+                  className={`mt-2 text-xs ${
+                    importMessage.tone === 'error'
+                      ? 'text-red-700'
+                      : importMessage.tone === 'warning'
+                        ? 'text-amber-700'
+                        : 'text-green-700'
+                  }`}
+                >
+                  {importMessage.text}
+                </p>
+              )}
             </div>
             <button
               onClick={handleImportFrameworks}
@@ -447,6 +486,20 @@ export default function ControlCatalog() {
             >
               {importing ? 'Importing...' : 'Import Frameworks'}
             </button>
+          </div>
+        )}
+
+        {frameworks.length > 0 && importMessage && (
+          <div
+            className={`rounded-lg border p-3 text-sm ${
+              importMessage.tone === 'error'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : importMessage.tone === 'warning'
+                  ? 'border-amber-200 bg-amber-50 text-amber-700'
+                  : 'border-green-200 bg-green-50 text-green-700'
+            }`}
+          >
+            {importMessage.text}
           </div>
         )}
 

@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import type { CapabilityMappingDto, BoundaryDefinitionDto } from '../../types/dashboard';
-import { getCapabilityMappings, createCapabilityMappings } from '../../api/capabilities';
+import {
+  getCapabilityMappings,
+  createCapabilityMappings,
+  updateCapabilityMapping,
+  deleteCapabilityMapping,
+} from '../../api/capabilities';
 import { fetchBoundaryDefinitions } from '../../api/boundaries';
 import apiClient from '../../api/client';
 
@@ -8,6 +13,12 @@ const narrativeStatusBadge: Record<string, string> = {
   Populated: 'bg-green-100 text-green-800',
   Empty: 'bg-gray-100 text-gray-600',
   Customized: 'bg-purple-100 text-purple-800',
+};
+
+const narrativeStatusLabel: Record<string, string> = {
+  Populated: 'Populated',
+  Empty: 'No Narrative',
+  Customized: 'Customized',
 };
 
 interface MappingPanelProps {
@@ -20,6 +31,10 @@ export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
   const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
+  const [editingMappingId, setEditingMappingId] = useState<string | null>(null);
+  const [editRole, setEditRole] = useState<'Primary' | 'Supporting' | 'Shared'>('Supporting');
+  const [editBoundaryId, setEditBoundaryId] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchMappings = async () => {
@@ -53,33 +68,83 @@ export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
         await fetchMappings();
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? 'Failed to create mapping');
+      setError(
+        err?.error ??
+        err?.message ??
+        err?.response?.data?.error ??
+        'Failed to create mapping',
+      );
     }
   };
 
-  // Group by family, then deduplicate by controlId within each family
+  // Group by family
   const groupedMappings = mappings.reduce<Record<string, CapabilityMappingDto[]>>((acc, m) => {
     const family = m.controlFamily ?? 'Other';
     (acc[family] ??= []).push(m);
     return acc;
   }, {});
 
-  // Deduplicate: merge rows with the same controlId into one representative row
-  const deduped = (items: CapabilityMappingDto[]) => {
-    const byControl = new Map<string, CapabilityMappingDto[]>();
-    for (const m of items) {
-      const key = m.controlId.toLowerCase();
-      (byControl.get(key) ?? (() => { const a: CapabilityMappingDto[] = []; byControl.set(key, a); return a; })()).push(m);
-    }
-    return Array.from(byControl.values()).map(group => ({
-      representative: group[0]!,
-      systemCount: new Set(group.map(m => m.registeredSystemId).filter(Boolean)).size,
-      allIds: group.map(m => m.id),
-    }));
-  };
-
   // Unique control count for the header
   const uniqueControlCount = new Set(mappings.map(m => m.controlId.toLowerCase())).size;
+
+  const getScopeLabel = (mapping: CapabilityMappingDto) => {
+    if (mapping.registeredSystemName) {
+      return mapping.registeredSystemName;
+    }
+
+    if (mapping.boundaryDefinitionName) {
+      return `Boundary: ${mapping.boundaryDefinitionName}`;
+    }
+
+    return 'Global (All Systems)';
+  };
+
+  const beginEdit = (mapping: CapabilityMappingDto) => {
+    setEditingMappingId(mapping.id);
+    setEditRole(mapping.role);
+    setEditBoundaryId(mapping.boundaryDefinitionId ?? '');
+    setError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingMappingId(null);
+    setError(null);
+  };
+
+  const handleSaveEdit = async (mappingId: string) => {
+    setSavingEdit(true);
+    setError(null);
+    try {
+      await updateCapabilityMapping(capabilityId, mappingId, {
+        role: editRole,
+        boundaryDefinitionId: boundaries.length > 0 ? (editBoundaryId || null) : undefined,
+      });
+      await fetchMappings();
+      setEditingMappingId(null);
+    } catch (err: unknown) {
+      const apiError = err as { error?: string; message?: string };
+      setError(apiError?.error ?? apiError?.message ?? 'Failed to update mapping');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteMapping = async (mappingId: string) => {
+    if (!confirm('Remove this control mapping?')) return;
+
+    setError(null);
+    try {
+      await deleteCapabilityMapping(capabilityId, mappingId);
+      await fetchMappings();
+      if (editingMappingId === mappingId) {
+        setEditingMappingId(null);
+      }
+    } catch (err: any) {
+      const responseError = err?.response?.data?.error;
+      const detailError = err?.response?.data?.detail;
+      setError(responseError ?? detailError ?? err?.message ?? 'Failed to delete mapping');
+    }
+  };
 
   if (loading) return <div className="text-sm text-gray-400 py-2">Loading mappings...</div>;
 
@@ -119,11 +184,11 @@ export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
             <div key={family}>
               <h5 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{family}</h5>
               <div className="space-y-1">
-                {deduped(items)
-                  .sort((a, b) => a.representative.controlId.localeCompare(b.representative.controlId))
-                  .map(({ representative: m, systemCount }) => (
+                {items
+                  .sort((a, b) => a.controlId.localeCompare(b.controlId))
+                  .map((m) => (
                     <div
-                      key={m.controlId}
+                      key={m.id}
                       className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded text-sm"
                     >
                       <div className="flex items-center gap-2">
@@ -131,13 +196,69 @@ export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
                         <span className="text-gray-500 truncate max-w-xs">{m.controlTitle}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">{m.role}</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
-                          {systemCount > 1 ? `${systemCount} Systems` : m.registeredSystemName ?? m.boundaryDefinitionName ?? 'All Systems'}
-                        </span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${narrativeStatusBadge[m.narrativeStatus] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {m.narrativeStatus}
-                        </span>
+                        {editingMappingId === m.id ? (
+                          <>
+                            <select
+                              value={editRole}
+                              onChange={(e) => setEditRole(e.target.value as 'Primary' | 'Supporting' | 'Shared')}
+                              className="text-xs rounded border border-gray-300 px-2 py-1"
+                            >
+                              <option value="Primary">Primary</option>
+                              <option value="Supporting">Supporting</option>
+                              <option value="Shared">Shared</option>
+                            </select>
+                            {boundaries.length > 0 && (
+                              <select
+                                value={editBoundaryId}
+                                onChange={(e) => setEditBoundaryId(e.target.value)}
+                                className="text-xs rounded border border-gray-300 px-2 py-1"
+                              >
+                                <option value="">Global (All Systems)</option>
+                                {boundaries.map((b) => (
+                                  <option key={b.id} value={b.id}>{b.name}</option>
+                                ))}
+                              </select>
+                            )}
+                            <button
+                              onClick={() => handleSaveEdit(m.id)}
+                              disabled={savingEdit}
+                              className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs text-gray-400">{m.role}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                              {getScopeLabel(m)}
+                            </span>
+                            <span
+                              className={`text-xs px-1.5 py-0.5 rounded ${narrativeStatusBadge[m.narrativeStatus] ?? 'bg-gray-100 text-gray-600'}`}
+                              title={m.narrativeStatus === 'Empty' ? 'No control implementation narrative has been generated or authored yet.' : undefined}
+                            >
+                              {narrativeStatusLabel[m.narrativeStatus] ?? m.narrativeStatus}
+                            </span>
+                            <button
+                              onClick={() => beginEdit(m)}
+                              className="text-xs px-2 py-1 rounded border border-blue-300 text-blue-700 hover:bg-blue-50"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMapping(m.id)}
+                              className="text-xs px-2 py-1 rounded border border-red-300 text-red-700 hover:bg-red-50"
+                            >
+                              Remove
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
