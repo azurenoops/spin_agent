@@ -1,5 +1,8 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
+using Ato.Copilot.Mcp.Authorization;
 
 namespace Ato.Copilot.Mcp.Hubs;
 
@@ -10,10 +13,14 @@ namespace Ato.Copilot.Mcp.Hubs;
 public class NotificationHub : Hub
 {
     private readonly ILogger<NotificationHub> _logger;
+    private readonly IAuthorizationService _authorization;
 
-    public NotificationHub(ILogger<NotificationHub> logger)
+    public NotificationHub(
+        ILogger<NotificationHub> logger,
+        IAuthorizationService authorization)
     {
         _logger = logger;
+        _authorization = authorization;
     }
 
     /// <summary>
@@ -40,6 +47,49 @@ public class NotificationHub : Hub
         // Broadcast to all connections for this user so multi-tab stays in sync
         var userId = Context.User?.Identity?.Name ?? Context.ConnectionId;
         await Clients.Group($"user:{userId}").SendAsync("NotificationRead", notificationId);
+    }
+
+    /// <summary>
+    /// Subscribe to a single wizard background job's progress (Feature 047 — research §R2).
+    /// The caller MUST satisfy the <see cref="OnboardingAdministratorRequirement"/>; otherwise
+    /// the hub raises a <see cref="HubException"/> and no group membership is granted.
+    /// </summary>
+    /// <param name="jobId">Wizard job id (matches <c>WizardJobStatus.Id</c>).</param>
+    public async Task SubscribeToWizardJob(string jobId)
+    {
+        if (!Guid.TryParse(jobId, out var parsedJobId))
+            throw new HubException("jobId must be a GUID");
+
+        if (Context.User is null)
+            throw new HubException("Authentication required");
+
+        var auth = await _authorization.AuthorizeAsync(
+            Context.User,
+            null,
+            OnboardingAdministratorRequirement.PolicyName);
+
+        if (!auth.Succeeded)
+        {
+            _logger.LogDebug(
+                "NotificationHub.SubscribeToWizardJob denied for {ConnectionId}",
+                Context.ConnectionId);
+            throw new HubException("Forbidden");
+        }
+
+        var tenantId = Context.User.FindFirstValue("tid")
+            ?? Context.User.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid");
+
+        if (!Guid.TryParse(tenantId, out var parsedTenant))
+            throw new HubException("Tenant claim missing");
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"wizard-{parsedTenant}");
+        await Groups.AddToGroupAsync(
+            Context.ConnectionId,
+            $"wizard-{parsedTenant}-job-{parsedJobId}");
+
+        _logger.LogInformation(
+            "NotificationHub: {ConnectionId} subscribed to wizard job {JobId} (tenant {TenantId})",
+            Context.ConnectionId, parsedJobId, parsedTenant);
     }
 
     public override async Task OnConnectedAsync()

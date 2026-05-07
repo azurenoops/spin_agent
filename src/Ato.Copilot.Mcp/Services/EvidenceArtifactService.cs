@@ -14,7 +14,7 @@ namespace Ato.Copilot.Mcp.Services;
 /// </summary>
 public class EvidenceArtifactService : IEvidenceArtifactService
 {
-    private readonly AtoCopilotContext _context;
+    private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly IFileStorageProvider _storageProvider;
     private readonly ILogger<EvidenceArtifactService> _logger;
 
@@ -44,11 +44,11 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     /// Initializes a new instance of <see cref="EvidenceArtifactService"/>.
     /// </summary>
     public EvidenceArtifactService(
-        AtoCopilotContext context,
+        IDbContextFactory<AtoCopilotContext> dbFactory,
         IFileStorageProvider storageProvider,
         ILogger<EvidenceArtifactService> logger)
     {
-        _context = context;
+        _dbFactory = dbFactory;
         _storageProvider = storageProvider;
         _logger = logger;
     }
@@ -69,6 +69,8 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     {
         ValidateTargetIds(controlImplementationId, securityCapabilityId);
         ValidateFile(fileName, contentType, content.Length);
+
+        await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var artifactId = Guid.NewGuid().ToString();
         var sanitizedFileName = Path.GetFileName(fileName);
@@ -112,6 +114,7 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     /// <inheritdoc />
     public async Task<EvidenceArtifact?> GetByIdAsync(string evidenceId, CancellationToken cancellationToken = default)
     {
+        await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await _context.EvidenceArtifacts
             .Include(e => e.Versions)
             .Include(e => e.ControlImplementation)
@@ -134,6 +137,8 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     {
         pageSize = Math.Clamp(pageSize, 1, 100);
         page = Math.Max(page, 1);
+
+        await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var query = _context.EvidenceArtifacts
             .Include(e => e.ControlImplementation)
@@ -182,6 +187,7 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     /// <inheritdoc />
     public async Task<List<EvidenceArtifact>> ListForControlAsync(string controlImplementationId, CancellationToken cancellationToken = default)
     {
+        await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await _context.EvidenceArtifacts
             .Where(e => e.ControlImplementationId == controlImplementationId && !e.IsDeleted)
             .OrderByDescending(e => e.UploadedAt)
@@ -191,6 +197,8 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     /// <inheritdoc />
     public async Task<EvidenceSummary> GetSummaryAsync(string registeredSystemId, CancellationToken cancellationToken = default)
     {
+        await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var manualCount = await _context.EvidenceArtifacts
             .CountAsync(e => e.RegisteredSystemId == registeredSystemId && !e.IsDeleted, cancellationToken);
 
@@ -239,6 +247,8 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     /// <inheritdoc />
     public async Task<(Stream Content, string FileName, string ContentType)?> DownloadAsync(string evidenceId, CancellationToken cancellationToken = default)
     {
+        await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var artifact = await _context.EvidenceArtifacts
             .Where(e => e.Id == evidenceId && !e.IsDeleted)
             .FirstOrDefaultAsync(cancellationToken);
@@ -260,6 +270,8 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     /// <inheritdoc />
     public async Task<bool> DeleteAsync(string evidenceId, string deletedBy, CancellationToken cancellationToken = default)
     {
+        await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var artifact = await _context.EvidenceArtifacts
             .Where(e => e.Id == evidenceId && !e.IsDeleted)
             .FirstOrDefaultAsync(cancellationToken);
@@ -289,6 +301,8 @@ public class EvidenceArtifactService : IEvidenceArtifactService
         CancellationToken cancellationToken = default)
     {
         ValidateFile(fileName, contentType, content.Length);
+
+        await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var artifact = await _context.EvidenceArtifacts
             .Where(e => e.Id == evidenceId && !e.IsDeleted)

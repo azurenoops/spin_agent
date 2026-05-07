@@ -18,7 +18,9 @@ using Ato.Copilot.State.Extensions;
 using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Endpoints;
+using Ato.Copilot.Mcp.Endpoints.Onboarding;
 using Ato.Copilot.Mcp.Middleware;
+using Ato.Copilot.Mcp.Logging;
 using Ato.Copilot.Mcp.Server;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
@@ -116,7 +118,7 @@ async Task RunStdioModeAsync(string[] args)
         })
         .ConfigureServices((ctx, services) =>
         {
-            RegisterCoreServices(services, ctx.Configuration);
+            services.AddAtoCopilotMcp(ctx.Configuration);
 
             // Validate CAC simulation mode configuration
             ValidateCacSimulationConfig(ctx.Configuration, ctx.HostingEnvironment.EnvironmentName);
@@ -164,7 +166,7 @@ async Task RunHttpModeAsync(string[] args)
     }
 
     // Register services
-    RegisterCoreServices(builder.Services, builder.Configuration);
+    builder.Services.AddAtoCopilotMcp(builder.Configuration);
 
     // Validate CAC simulation mode configuration
     ValidateCacSimulationConfig(builder.Configuration, builder.Environment.EnvironmentName);
@@ -277,6 +279,88 @@ async Task RunHttpModeAsync(string[] args)
     builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.INotificationBroadcaster,
         Ato.Copilot.Mcp.Services.SignalRNotificationBroadcaster>();
 
+    // Onboarding wizard (Feature 047) — bind options + register policy / services / hosted job worker.
+    builder.Services.Configure<Ato.Copilot.Core.Configuration.OnboardingOptions>(
+        builder.Configuration.GetSection(Ato.Copilot.Core.Configuration.OnboardingOptions.SectionName));
+
+    // Register a default authentication scheme that surfaces the principal already
+    // populated by CacAuthenticationMiddleware. Required so AuthorizationMiddleware
+    // can issue ChallengeAsync/ForbidAsync for endpoints with RequireAuthorization().
+    builder.Services
+        .AddAuthentication(Ato.Copilot.Mcp.Authentication.CacPassthroughAuthHandler.SchemeName)
+        .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,
+                   Ato.Copilot.Mcp.Authentication.CacPassthroughAuthHandler>(
+            Ato.Copilot.Mcp.Authentication.CacPassthroughAuthHandler.SchemeName,
+            _ => { });
+
+    builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy(
+            Ato.Copilot.Mcp.Authorization.OnboardingAdministratorRequirement.PolicyName,
+            policy => policy.Requirements.Add(
+                new Ato.Copilot.Mcp.Authorization.OnboardingAdministratorRequirement()));
+    });
+    builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+        Ato.Copilot.Mcp.Authorization.OnboardingAdministratorHandler>();
+    builder.Services.AddSingleton<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobChannel>();
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Onboarding.IWizardProgressNotifier,
+        Ato.Copilot.Mcp.Hubs.Onboarding.SignalRWizardProgressNotifier>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardAuditService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.Auditing.WizardAuditService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IBootstrapAdministratorService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.BootstrapAdministratorService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOnboardingStateService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.OnboardingStateService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardJobRunner,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobRunner>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardArtifactDependencyService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.WizardArtifactDependencyService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOrganizationContextService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.OrganizationContextService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IDirectorySearchClient,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.GraphDirectorySearchClient>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IPersonService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.PersonService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOrganizationRoleAssignmentService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.OrganizationRoleAssignmentService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IRegisteredSystemRoleSnapshotter,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.RegisteredSystemRoleSnapshotter>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IEmassImportParser,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.EmassImportParser>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IEmassImportService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.EmassImportService>();
+    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.Handlers.EmassParseJobHandler>();
+    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.Handlers.EmassCommitJobHandler>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.ISspPdfExtractionService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.SspPdfExtractionService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.ISspPdfImportService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.SspPdfImportService>();
+    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.Handlers.SspPdfExtractJobHandler>();
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Onboarding.IDelegatedArmTokenProvider,
+        Ato.Copilot.Mcp.Onboarding.ConfiguredArmTokenProvider>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IAzureSubscriptionEnumerationService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions.AzureSubscriptionEnumerationService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IAzureSubscriptionRegistrationService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions.AzureSubscriptionRegistrationService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IAzureSubscriptionScopeResolver,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions.AzureSubscriptionScopeResolver>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOrganizationTemplateService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.Templates.OrganizationTemplateService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.INarrativeSeedDocumentService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.NarrativeSeeds.NarrativeSeedDocumentService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardArtifactInventoryService,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.WizardArtifactInventoryService>();
+    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.NarrativeSeeds.Handlers.NarrativeSeedIndexJobHandler>();
+    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.Cascade.ExportRerenderJobHandler>();
+    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+        Ato.Copilot.Agents.Compliance.Services.Onboarding.Cascade.ImportRerenderJobHandler>();
+    builder.Services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobHostedService>();
+
     var app = builder.Build();
 
     // Auto-migrate database at startup (fail = exit code 1)
@@ -299,6 +383,13 @@ async Task RunHttpModeAsync(string[] args)
     app.UseMiddleware<ComplianceAuthorizationMiddleware>();
     app.UseMiddleware<RequestMetricsMiddleware>();
     app.UseMiddleware<AuditLoggingMiddleware>();
+    app.UseOnboardingTelemetry();
+
+    // Standard ASP.NET Core authentication + authorization run only for endpoints with
+    // [Authorize] / RequireAuthorization() metadata (Feature 047 wizard endpoints).
+    // The custom CAC + Compliance middleware above still gates everything else.
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     // Map MCP HTTP endpoints
     var httpBridge = app.Services.GetRequiredService<McpHttpBridge>();
@@ -312,6 +403,19 @@ async Task RunHttpModeAsync(string[] args)
 
     // Map Notification REST API endpoints
     app.MapNotificationEndpoints();
+
+    // Map Onboarding Wizard endpoints (Feature 047)
+    app.MapOnboardingStateEndpoints();
+    app.MapWizardJobsEndpoints();
+    app.MapOrganizationContextEndpoints();
+    app.MapPersonEndpoints();
+    app.MapRoleAssignmentEndpoints();
+    app.MapEmassImportEndpoints();
+    app.MapSspPdfImportEndpoints();
+    app.MapAzureSubscriptionEndpoints();
+    app.MapOrganizationTemplateEndpoints();
+    app.MapNarrativeSeedEndpoints();
+    app.MapImportedDocumentsEndpoints();
 
     // Map SignalR notification hub
     app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications");
@@ -626,6 +730,35 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         logger.LogWarning(ex, "Could not apply schema additions — non-fatal");
     }
 
+    // Feature 047: Repair Persons.UX_Person_Tenant_EntraObjectId — drop the
+    // unfiltered unique index and recreate it with `[EntraObjectId] IS NOT NULL`
+    // so multiple local-only persons (no Entra OID) can coexist per tenant.
+    // SQL Server treats NULL as a single value in a UNIQUE index by default.
+    const string personIndexRepairSql = """
+        IF EXISTS (
+            SELECT 1
+            FROM sys.indexes i
+            JOIN sys.objects o ON o.object_id = i.object_id
+            WHERE o.name = 'Persons'
+              AND i.name = 'UX_Person_Tenant_EntraObjectId'
+              AND i.has_filter = 0)
+        BEGIN
+            DROP INDEX UX_Person_Tenant_EntraObjectId ON Persons;
+            CREATE UNIQUE INDEX UX_Person_Tenant_EntraObjectId
+                ON Persons (TenantId, EntraObjectId)
+                WHERE EntraObjectId IS NOT NULL;
+        END
+        """;
+
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(personIndexRepairSql, ct);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Could not repair Persons unique index — non-fatal");
+    }
+
     // Feature 036: Migrate existing system-scoped components to org-wide assignments
     try
     {
@@ -762,136 +895,6 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     {
         logger.LogWarning(ex, "Could not apply Feature 040 schema — non-fatal");
     }
-}
-
-// ────────────────────────────────────────────────────────────────
-//  Service Registration (shared between modes)
-// ────────────────────────────────────────────────────────────────
-void RegisterCoreServices(IServiceCollection services, IConfiguration configuration)
-{
-    // Core infrastructure
-    services.AddAtoCopilotCore(configuration);
-
-    // State management
-    services.AddInMemoryStateManagement();
-
-    // Compliance agent + tools
-    services.AddComplianceAgent(configuration);
-
-    // Configuration agent + tools
-    services.AddConfigurationAgent();
-
-    // KnowledgeBase agent + services
-    services.AddKnowledgeBaseAgent(configuration);
-
-    // Document agent + adapter tools (document-centric orchestration)
-    services.AddDocumentAgent();
-
-    // MCP server
-    services.AddMcpServer(configuration);
-
-    // Dashboard services (Feature 030)
-    services.AddScoped<Ato.Copilot.Core.Services.DashboardService>();
-    services.AddScoped<Ato.Copilot.Core.Services.TodoService>();
-    services.AddScoped<Ato.Copilot.Core.Services.CapabilityService>();
-    services.AddScoped<Ato.Copilot.Core.Services.ComponentService>();
-    services.AddScoped<Ato.Copilot.Core.Services.SystemCapabilityLinkService>();
-    services.AddSingleton<Ato.Copilot.Core.Services.BoundaryLockService>();
-    services.AddHostedService<Ato.Copilot.Core.Services.BoundaryMigrationService>();
-    services.AddScoped<Ato.Copilot.Agents.Compliance.Services.EntraIdDiscoveryService>();
-    services.AddSingleton<Ato.Copilot.Core.Services.NarrativeTemplateService>(sp =>
-    {
-        var chatClient = sp.GetService<Microsoft.Extensions.AI.IChatClient>();
-        var aiOptions = sp.GetService<Microsoft.Extensions.Options.IOptions<Ato.Copilot.Core.Configuration.AzureAiOptions>>()?.Value;
-        var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<Ato.Copilot.Core.Services.NarrativeTemplateService>>();
-        return new Ato.Copilot.Core.Services.NarrativeTemplateService(chatClient, aiOptions, logger);
-    });
-    services.AddSingleton<Ato.Copilot.Core.Services.ComplianceTrendSnapshotService>();
-    services.AddHostedService(sp => sp.GetRequiredService<Ato.Copilot.Core.Services.ComplianceTrendSnapshotService>());
-
-    // Boundary services (Feature 033)
-    services.AddScoped<Ato.Copilot.Core.Services.BoundaryDefinitionService>();
-    services.AddSingleton(sp =>
-        new Ato.Copilot.Agents.Compliance.Services.AzureResourceDiscoveryService(
-            sp.GetRequiredService<ArmClient>(),
-            sp.GetRequiredService<Ato.Copilot.Core.Services.ArmClientFactory>(),
-            sp.GetRequiredService<ILogger<Ato.Copilot.Agents.Compliance.Services.AzureResourceDiscoveryService>>(),
-            sp.GetRequiredService<IDbContextFactory<Ato.Copilot.Core.Data.Context.AtoCopilotContext>>()));
-
-    // Roadmap services (Feature 031)
-    services.AddScoped<Ato.Copilot.Core.Interfaces.Roadmap.IRoadmapService, Ato.Copilot.Core.Services.RoadmapService>();
-
-    // Deviation services (Feature 035)
-    services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IDeviationService, Ato.Copilot.Core.Services.DeviationService>();
-    services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.DeviationExpirationService>();
-
-    // SSP Export services (Feature 037)
-    services.Configure<Ato.Copilot.Core.Configuration.ExportSettings>(
-        configuration.GetSection(Ato.Copilot.Core.Configuration.ExportSettings.SectionName));
-    // Feature flags (Feature 040)
-    services.Configure<Ato.Copilot.Core.Configuration.FeatureOptions>(
-        configuration.GetSection("Features"));
-    services.AddSingleton(System.Threading.Channels.Channel.CreateBounded<Ato.Copilot.Core.Dtos.Dashboard.SspExportJob>(
-        new System.Threading.Channels.BoundedChannelOptions(100) { FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait }));
-    services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.ISspExportService,
-        Ato.Copilot.Agents.Compliance.Services.SspExportService>();
-    services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.ISspExportNotifier,
-        Ato.Copilot.Mcp.Services.SignalRSspExportNotifier>();
-    services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportBackgroundService>();
-    services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.SspExportRetentionService>();
-
-    // Feature 043: Control Inheritance CRM Export
-    services.AddSingleton<Ato.Copilot.Mcp.Services.CrmExportService>();
-
-    // Feature 043: CSP Profile Service
-    services.AddSingleton<Ato.Copilot.Mcp.Services.CspProfileService>();
-
-    // Feature 045: Capabilities Hub Import Service
-    services.AddScoped<Ato.Copilot.Mcp.Services.CapabilityImportService>();
-
-    // Feature 044: Org-Level Inheritance Service
-    services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IOrgInheritanceService,
-        Ato.Copilot.Agents.Compliance.Services.OrgInheritanceService>();
-
-    // Feature 041: Authorization Package generation pipeline
-    services.AddSingleton(System.Threading.Channels.Channel.CreateBounded<Ato.Copilot.Core.Dtos.Dashboard.PackageExportJob>(
-        new System.Threading.Channels.BoundedChannelOptions(20) { FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait }));
-    services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.IPackageExportNotifier,
-        Ato.Copilot.Mcp.Services.SignalRPackageExportNotifier>();
-    services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.PackageBackgroundService>();
-
-    // Evidence Repository services (Feature 038)
-    services.Configure<Ato.Copilot.Mcp.Configuration.EvidenceOptions>(
-        configuration.GetSection(Ato.Copilot.Mcp.Configuration.EvidenceOptions.SectionName));
-    var evidenceStorageProvider = configuration.GetValue<string>("Evidence:StorageProvider") ?? "Local";
-    if (evidenceStorageProvider.Equals("AzureBlob", StringComparison.OrdinalIgnoreCase))
-    {
-        var connectionString = configuration.GetValue<string>("Evidence:AzureBlobConnectionString")
-            ?? throw new InvalidOperationException("Evidence:AzureBlobConnectionString is required when StorageProvider is AzureBlob.");
-        var containerName = configuration.GetValue<string>("Evidence:AzureBlobContainerName") ?? "evidence";
-        services.AddSingleton<Ato.Copilot.Core.Interfaces.Storage.IFileStorageProvider>(sp =>
-            new Ato.Copilot.Mcp.Services.Storage.AzureBlobStorageProvider(
-                connectionString, containerName,
-                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Ato.Copilot.Mcp.Services.Storage.AzureBlobStorageProvider>>()));
-    }
-    else
-    {
-        var localPath = configuration.GetValue<string>("Evidence:LocalStoragePath") ?? "/data/evidence";
-        services.AddSingleton<Ato.Copilot.Core.Interfaces.Storage.IFileStorageProvider>(sp =>
-            new Ato.Copilot.Mcp.Services.Storage.LocalFileStorageProvider(
-                localPath,
-                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Ato.Copilot.Mcp.Services.Storage.LocalFileStorageProvider>>()));
-    }
-    services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IEvidenceArtifactService,
-        Ato.Copilot.Mcp.Services.EvidenceArtifactService>();
-    services.AddHostedService<Ato.Copilot.Mcp.Services.EvidenceVersionPurgeService>();
-
-    // POA&M Management services (Feature 039)
-    services.AddScoped<Ato.Copilot.Core.Services.PoamService>();
-    services.AddScoped<Ato.Copilot.Core.Services.PoamSyncService>();
-    services.AddScoped<Ato.Copilot.Core.Services.TicketingService>();
-    services.AddScoped<Ato.Copilot.Core.Services.Ticketing.ITicketingProvider, Ato.Copilot.Core.Services.Ticketing.JiraProvider>();
-    services.AddScoped<Ato.Copilot.Core.Services.Ticketing.ITicketingProvider, Ato.Copilot.Core.Services.Ticketing.ServiceNowProvider>();
 }
 
 // ────────────────────────────────────────────────────────────────
