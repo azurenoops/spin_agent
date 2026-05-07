@@ -56,6 +56,36 @@ on:
         required: false
         default: false
         type: boolean
+      min_replicas:
+        description: "Minimum replica count. Set to 1+ to disable cold-start (scale-to-zero)."
+        required: false
+        default: "1"
+        type: string
+      max_replicas:
+        description: Maximum replica count for autoscaling.
+        required: false
+        default: "5"
+        type: string
+      cpu:
+        description: "vCPU request per replica (e.g. 0.5, 1.0, 2.0). .NET 9 needs >= 0.5."
+        required: false
+        default: "1.0"
+        type: string
+      memory:
+        description: "Memory request per replica (e.g. 1.0Gi, 2.0Gi). Must pair with cpu (cpu*2 == memoryGi typical)."
+        required: false
+        default: "2.0Gi"
+        type: string
+      http_scale_concurrency:
+        description: Concurrent HTTP requests per replica that triggers scale-out.
+        required: false
+        default: "50"
+        type: string
+      enable_session_affinity:
+        description: "Enable sticky sessions on ingress (REQUIRED for SignalR with >1 replica)."
+        required: false
+        default: true
+        type: boolean
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -257,6 +287,23 @@ jobs:
           ENV_ARGS="${{ steps.envargs.outputs.base }}"
           TARGET_PORT="${{ inputs.target_port }}"
 
+          MIN_REPLICAS="${{ inputs.min_replicas }}"
+          MAX_REPLICAS="${{ inputs.max_replicas }}"
+          CPU="${{ inputs.cpu }}"
+          MEMORY="${{ inputs.memory }}"
+          HTTP_CONCURRENCY="${{ inputs.http_scale_concurrency }}"
+
+          # Sized resource args that apply to BOTH create and update.
+          RESOURCE_ARGS=(
+            --min-replicas "${MIN_REPLICAS}"
+            --max-replicas "${MAX_REPLICAS}"
+            --cpu "${CPU}"
+            --memory "${MEMORY}"
+            --scale-rule-name http-rule
+            --scale-rule-type http
+            --scale-rule-http-concurrency "${HTTP_CONCURRENCY}"
+          )
+
           if az containerapp show -g "${RG}" -n "${APP}" >/dev/null 2>&1; then
             if [ -n "${ENV_ARGS}" ]; then
               # shellcheck disable=SC2086
@@ -264,12 +311,14 @@ jobs:
                 --resource-group "${RG}" \
                 --name "${APP}" \
                 --image "${IMAGE}" \
+                "${RESOURCE_ARGS[@]}" \
                 --set-env-vars ${ENV_ARGS}
             else
               az containerapp update \
                 --resource-group "${RG}" \
                 --name "${APP}" \
-                --image "${IMAGE}"
+                --image "${IMAGE}" \
+                "${RESOURCE_ARGS[@]}"
             fi
           else
             if [ -n "${ENV_ARGS}" ]; then
@@ -284,6 +333,7 @@ jobs:
                 --registry-server "${{ steps.acr.outputs.login_server }}" \
                 --registry-username "${{ steps.acr.outputs.username }}" \
                 --registry-password "${{ steps.acr.outputs.password }}" \
+                "${RESOURCE_ARGS[@]}" \
                 --env-vars ${ENV_ARGS}
             else
               az containerapp create \
@@ -295,7 +345,8 @@ jobs:
                 --ingress external \
                 --registry-server "${{ steps.acr.outputs.login_server }}" \
                 --registry-username "${{ steps.acr.outputs.username }}" \
-                --registry-password "${{ steps.acr.outputs.password }}"
+                --registry-password "${{ steps.acr.outputs.password }}" \
+                "${RESOURCE_ARGS[@]}"
             fi
           fi
 
@@ -308,6 +359,25 @@ jobs:
             --name "${{ steps.target.outputs.app }}" \
             --type external \
             --target-port "${{ inputs.target_port }}" >/dev/null
+
+      - name: Ensure ingress session affinity (required for SignalR)
+        if: inputs.enable_session_affinity
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Sticky sessions are mandatory for SignalR (negotiate → websocket
+          # must hit the same replica) whenever max_replicas > 1.
+          # `az containerapp ingress sticky-sessions set` is GA from az CLI
+          # 2.45 (Jan-2023). `azure/login@v2` provisions a current CLI on the
+          # runner, so we can rely on the command being present.
+          if ! az containerapp ingress sticky-sessions set --help >/dev/null 2>&1; then
+            echo "::warning::'az containerapp ingress sticky-sessions set' not available — upgrade az CLI to >=2.45 on the runner. Skipping affinity configuration."
+            exit 0
+          fi
+          az containerapp ingress sticky-sessions set \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ steps.target.outputs.app }}" \
+            --affinity sticky >/dev/null
 
       - name: Ensure system-assigned managed identity
         if: inputs.assign_managed_identity

@@ -343,14 +343,31 @@ public class PrivacyService : IPrivacyService
             return;
         }
 
-        // Remove any PIA linked to this PTA first (PtaId is a required FK)
+        // Preserve any PIA linked to this PTA: detach the FK and reset status to
+        // UnderReview so the document content is retained for re-assessment
+        // (T019 / Clarification Q6 — info-type changes invalidate the PTA but the
+        // narrative work product survives until the ISSO re-runs the analysis).
         var pia = await context.PrivacyImpactAssessments
             .FirstOrDefaultAsync(p => p.PtaId == pta.Id, cancellationToken);
 
         if (pia != null)
         {
-            // PIA requires a non-null PtaId FK, so it must be removed before PTA deletion.
-            context.PrivacyImpactAssessments.Remove(pia);
+            pia.PtaId = null;
+            pia.Status = PiaStatus.UnderReview;
+            pia.ModifiedAt = DateTime.UtcNow;
+            // Clear approval metadata — the document must be re-reviewed.
+            pia.ApprovedBy = null;
+            pia.ApprovedAt = null;
+            pia.ExpirationDate = null;
+
+            // Persist the PIA detach + status change before deleting the PTA so
+            // the FK constraint (NoAction) is satisfied on SQL Server.
+            await context.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "PIA {PiaId} for system {SystemId} reset to UnderReview pending PTA re-analysis",
+                pia.Id,
+                systemId);
         }
 
         // Delete PTA

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using Ato.Copilot.Core.Constants;
@@ -14,12 +15,26 @@ namespace Ato.Copilot.Core.Services;
 public class DashboardService
 {
     private readonly AtoCopilotContext _db;
+    private readonly IDbContextFactory<AtoCopilotContext>? _dbFactory;
     private readonly ILogger<DashboardService> _logger;
 
-    /// <summary>Initializes a new instance of <see cref="DashboardService"/>.</summary>
+    /// <summary>Test-friendly constructor (sequential queries on the supplied context).</summary>
     public DashboardService(AtoCopilotContext db, ILogger<DashboardService> logger)
+        : this(db, dbFactory: null, logger) { }
+
+    /// <summary>
+    /// Production constructor. When <paramref name="dbFactory"/> is supplied, hot paths
+    /// (e.g. portfolio listing) fan out independent reads across short-lived contexts to
+    /// hide Azure SQL round-trip latency.
+    /// </summary>
+    [ActivatorUtilitiesConstructor]
+    public DashboardService(
+        AtoCopilotContext db,
+        IDbContextFactory<AtoCopilotContext>? dbFactory,
+        ILogger<DashboardService> logger)
     {
         _db = db;
+        _dbFactory = dbFactory;
         _logger = logger;
     }
 
@@ -53,70 +68,108 @@ public class DashboardService
 
         // Load authorization decisions for all systems
         var systemIds = systems.Select(s => s.Id).ToList();
+        var nowUtc = DateTime.UtcNow;
 
-        var activeDecisions = await _db.AuthorizationDecisions
-            .Where(d => systemIds.Contains(d.RegisteredSystemId) && d.IsActive)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        // ─── Wave 1: 5 mutually independent reads ────────────────────────────
+        // When the DI factory is available we fan these out across short-lived
+        // contexts (each EF Core DbContext forbids concurrent ops). This trims
+        // ~5 sequential Azure SQL round-trips down to a single max-of-5 latency.
+        // When no factory is supplied (unit tests with InMemory provider) we
+        // fall back to the original sequential path.
+        List<AuthorizationDecision> activeDecisions;
+        List<PoamCountRow> poamCounts;
+        List<LatestScoreRow> latestScores;
+        List<SystemCountRow> boundaryCountsBySystem;
+        List<SystemCountRow> roleCountsBySystem;
+        HashSet<string> categorizationSet;
 
-        var poamCounts = await _db.PoamItems
-            .Where(p => systemIds.Contains(p.RegisteredSystemId) && p.Status == PoamStatus.Ongoing)
-            .GroupBy(p => p.RegisteredSystemId)
-            .Select(g => new
-            {
-                SystemId = g.Key,
-                OpenCount = g.Count(),
-                OverdueCount = g.Count(p => p.ScheduledCompletionDate < DateTime.UtcNow)
-            })
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        if (_dbFactory is not null)
+        {
+            var decisionsTask    = QueryActiveDecisionsAsync(systemIds, cancellationToken);
+            var poamCountsTask   = QueryPoamCountsAsync(systemIds, nowUtc, cancellationToken);
+            var latestScoresTask = QueryLatestScoresAsync(systemIds, cancellationToken);
+            var boundariesTask   = QueryBoundaryCountsAsync(systemIds, cancellationToken);
+            var rolesTask        = QueryRoleCountsAsync(systemIds, cancellationToken);
+            var categTask        = QueryCategorizationIdsAsync(systemIds, cancellationToken);
 
-        // Get latest assessment scores per system
-        var latestScores = await _db.Assessments
-            .Where(a => a.RegisteredSystemId != null && systemIds.Contains(a.RegisteredSystemId!) && a.Status == AssessmentStatus.Completed)
-            .GroupBy(a => a.RegisteredSystemId!)
-            .Select(g => new
-            {
-                SystemId = g.Key,
-                Latest = g.OrderByDescending(a => a.AssessedAt).First(),
-                Prior = g.OrderByDescending(a => a.AssessedAt).Skip(1).FirstOrDefault()
-            })
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+            await Task.WhenAll(decisionsTask, poamCountsTask, latestScoresTask, boundariesTask, rolesTask, categTask)
+                .ConfigureAwait(false);
 
-        // Get finding counts by CatSeverity per system from latest assessments
+            activeDecisions          = decisionsTask.Result;
+            poamCounts               = poamCountsTask.Result;
+            latestScores             = latestScoresTask.Result;
+            boundaryCountsBySystem   = boundariesTask.Result;
+            roleCountsBySystem       = rolesTask.Result;
+            categorizationSet        = new HashSet<string>(categTask.Result);
+        }
+        else
+        {
+            activeDecisions = await _db.AuthorizationDecisions
+                .Where(d => systemIds.Contains(d.RegisteredSystemId) && d.IsActive)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            poamCounts = await _db.PoamItems
+                .Where(p => systemIds.Contains(p.RegisteredSystemId) && p.Status == PoamStatus.Ongoing)
+                .GroupBy(p => p.RegisteredSystemId)
+                .Select(g => new PoamCountRow(
+                    g.Key,
+                    g.Count(),
+                    g.Count(p => p.ScheduledCompletionDate < nowUtc)))
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            latestScores = await _db.Assessments
+                .Where(a => a.RegisteredSystemId != null && systemIds.Contains(a.RegisteredSystemId!) && a.Status == AssessmentStatus.Completed)
+                .GroupBy(a => a.RegisteredSystemId!)
+                .Select(g => new LatestScoreRow(
+                    g.Key,
+                    g.OrderByDescending(a => a.AssessedAt).First(),
+                    g.OrderByDescending(a => a.AssessedAt).Skip(1).FirstOrDefault()))
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            boundaryCountsBySystem = await _db.AuthorizationBoundaryDefinitions
+                .Where(b => systemIds.Contains(b.RegisteredSystemId))
+                .GroupBy(b => b.RegisteredSystemId)
+                .Select(g => new SystemCountRow(g.Key, g.Count()))
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            roleCountsBySystem = await _db.RmfRoleAssignments
+                .Where(r => systemIds.Contains(r.RegisteredSystemId) && r.IsActive)
+                .GroupBy(r => r.RegisteredSystemId)
+                .Select(g => new SystemCountRow(g.Key, g.Count()))
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            var categorizationIds = await _db.SecurityCategorizations
+                .Where(sc => systemIds.Contains(sc.RegisteredSystemId))
+                .Select(sc => sc.RegisteredSystemId)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+            categorizationSet = new HashSet<string>(categorizationIds);
+        }
+
+        // ─── Wave 2: dependent on latestScores ───────────────────────────────
         var latestAssessmentIds = latestScores
             .Select(s => s.Latest.Id)
             .ToList();
 
-        var findingCounts = await _db.Findings
-            .Where(f => latestAssessmentIds.Contains(f.AssessmentId) && f.Status == FindingStatus.Open && f.CatSeverity != null)
-            .GroupBy(f => new { f.AssessmentId, f.CatSeverity })
-            .Select(g => new { g.Key.AssessmentId, g.Key.CatSeverity, Count = g.Count() })
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-
-        // Setup completion queries for intake wizard badge
-        var boundaryCountsBySystem = await _db.AuthorizationBoundaryDefinitions
-            .Where(b => systemIds.Contains(b.RegisteredSystemId))
-            .GroupBy(b => b.RegisteredSystemId)
-            .Select(g => new { SystemId = g.Key, Count = g.Count() })
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-
-        var roleCountsBySystem = await _db.RmfRoleAssignments
-            .Where(r => systemIds.Contains(r.RegisteredSystemId) && r.IsActive)
-            .GroupBy(r => r.RegisteredSystemId)
-            .Select(g => new { SystemId = g.Key, Count = g.Count() })
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-
-        var systemsWithCategorization = await _db.SecurityCategorizations
-            .Where(sc => systemIds.Contains(sc.RegisteredSystemId))
-            .Select(sc => sc.RegisteredSystemId)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-        var categorizationSet = new HashSet<string>(systemsWithCategorization);
+        List<FindingCountRow> findingCounts;
+        if (_dbFactory is not null)
+        {
+            findingCounts = await QueryFindingCountsAsync(latestAssessmentIds, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            findingCounts = await _db.Findings
+                .Where(f => latestAssessmentIds.Contains(f.AssessmentId) && f.Status == FindingStatus.Open && f.CatSeverity != null)
+                .GroupBy(f => new { f.AssessmentId, f.CatSeverity })
+                .Select(g => new FindingCountRow(g.Key.AssessmentId, g.Key.CatSeverity, g.Count()))
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+        }
 
         // Build DTOs
         var summaries = systems.Select(system =>
@@ -723,4 +776,109 @@ public class DashboardService
         var diff = (7 + (dt.DayOfWeek - DayOfWeek.Monday)) % 7;
         return dt.Date.AddDays(-diff);
     }
+
+    // ─── Parallel-fan-out helpers (used when IDbContextFactory is available) ──
+    // Each helper opens a short-lived DbContext so the parallel reads do not
+    // share state — EF Core forbids concurrent operations on a single context.
+
+    private async Task<List<AuthorizationDecision>> QueryActiveDecisionsAsync(
+        List<string> systemIds, CancellationToken ct)
+    {
+        await using var ctx = await _dbFactory!.CreateDbContextAsync(ct).ConfigureAwait(false);
+        return await ctx.AuthorizationDecisions
+            .Where(d => systemIds.Contains(d.RegisteredSystemId) && d.IsActive)
+            .AsNoTracking()
+            .ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task<List<PoamCountRow>> QueryPoamCountsAsync(
+        List<string> systemIds, DateTime nowUtc, CancellationToken ct)
+    {
+        await using var ctx = await _dbFactory!.CreateDbContextAsync(ct).ConfigureAwait(false);
+        return await ctx.PoamItems
+            .Where(p => systemIds.Contains(p.RegisteredSystemId) && p.Status == PoamStatus.Ongoing)
+            .GroupBy(p => p.RegisteredSystemId)
+            .Select(g => new PoamCountRow(
+                g.Key,
+                g.Count(),
+                g.Count(p => p.ScheduledCompletionDate < nowUtc)))
+            .AsNoTracking()
+            .ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task<List<LatestScoreRow>> QueryLatestScoresAsync(
+        List<string> systemIds, CancellationToken ct)
+    {
+        await using var ctx = await _dbFactory!.CreateDbContextAsync(ct).ConfigureAwait(false);
+        return await ctx.Assessments
+            .Where(a => a.RegisteredSystemId != null && systemIds.Contains(a.RegisteredSystemId!) && a.Status == AssessmentStatus.Completed)
+            .GroupBy(a => a.RegisteredSystemId!)
+            .Select(g => new LatestScoreRow(
+                g.Key,
+                g.OrderByDescending(a => a.AssessedAt).First(),
+                g.OrderByDescending(a => a.AssessedAt).Skip(1).FirstOrDefault()))
+            .AsNoTracking()
+            .ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task<List<SystemCountRow>> QueryBoundaryCountsAsync(
+        List<string> systemIds, CancellationToken ct)
+    {
+        await using var ctx = await _dbFactory!.CreateDbContextAsync(ct).ConfigureAwait(false);
+        return await ctx.AuthorizationBoundaryDefinitions
+            .Where(b => systemIds.Contains(b.RegisteredSystemId))
+            .GroupBy(b => b.RegisteredSystemId)
+            .Select(g => new SystemCountRow(g.Key, g.Count()))
+            .AsNoTracking()
+            .ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task<List<SystemCountRow>> QueryRoleCountsAsync(
+        List<string> systemIds, CancellationToken ct)
+    {
+        await using var ctx = await _dbFactory!.CreateDbContextAsync(ct).ConfigureAwait(false);
+        return await ctx.RmfRoleAssignments
+            .Where(r => systemIds.Contains(r.RegisteredSystemId) && r.IsActive)
+            .GroupBy(r => r.RegisteredSystemId)
+            .Select(g => new SystemCountRow(g.Key, g.Count()))
+            .AsNoTracking()
+            .ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task<List<string>> QueryCategorizationIdsAsync(
+        List<string> systemIds, CancellationToken ct)
+    {
+        await using var ctx = await _dbFactory!.CreateDbContextAsync(ct).ConfigureAwait(false);
+        return await ctx.SecurityCategorizations
+            .Where(sc => systemIds.Contains(sc.RegisteredSystemId))
+            .Select(sc => sc.RegisteredSystemId)
+            .AsNoTracking()
+            .ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task<List<FindingCountRow>> QueryFindingCountsAsync(
+        List<string> latestAssessmentIds, CancellationToken ct)
+    {
+        await using var ctx = await _dbFactory!.CreateDbContextAsync(ct).ConfigureAwait(false);
+        return await ctx.Findings
+            .Where(f => latestAssessmentIds.Contains(f.AssessmentId) && f.Status == FindingStatus.Open && f.CatSeverity != null)
+            .GroupBy(f => new { f.AssessmentId, f.CatSeverity })
+            .Select(g => new FindingCountRow(g.Key.AssessmentId, g.Key.CatSeverity, g.Count()))
+            .AsNoTracking()
+            .ToListAsync(ct).ConfigureAwait(false);
+    }
 }
+
+// ─── Internal projection records ─────────────────────────────────────────────
+// Plain records so the same shape is shared by the sequential and fan-out paths.
+
+internal sealed record PoamCountRow(string SystemId, int OpenCount, int OverdueCount);
+
+internal sealed record LatestScoreRow(
+    string SystemId,
+    ComplianceAssessment Latest,
+    ComplianceAssessment? Prior);
+
+internal sealed record SystemCountRow(string SystemId, int Count);
+
+internal sealed record FindingCountRow(string AssessmentId, CatSeverity? CatSeverity, int Count);

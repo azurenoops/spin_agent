@@ -1899,7 +1899,7 @@ public class AtoCopilotContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasMaxLength(36);
             entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
-            entity.Property(e => e.PtaId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.PtaId).HasMaxLength(36);
             entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
             entity.Property(e => e.SystemDescription).HasMaxLength(4000);
             entity.Property(e => e.PurposeOfCollection).HasMaxLength(4000);

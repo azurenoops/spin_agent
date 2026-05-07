@@ -5,9 +5,15 @@ publish/
 
 # IDE
 .vs/
-.vscode/
 *.user
 *.suo
+
+# VS Code: track shared workspace settings, ignore user-local overrides
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 
 # Environment
 .env

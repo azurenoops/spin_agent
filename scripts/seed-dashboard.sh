@@ -1,7 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="http://localhost:3001/api/dashboard"
+# Configurable base — defaults to localhost:3001 but honors:
+#   - $ATO_BASE_URL  (full URL, including /api/dashboard)
+#   - $ATO_SERVER_PORT (just the port; full URL is built from it)
+#   - .env in repo root (auto-loaded if neither is set)
+if [ -z "${ATO_BASE_URL:-}" ]; then
+  if [ -z "${ATO_SERVER_PORT:-}" ] && [ -f "$(dirname "$0")/../.env" ]; then
+    # shellcheck disable=SC1090,SC2046
+    set -o allexport; . "$(dirname "$0")/../.env"; set +o allexport || true
+  fi
+  ATO_BASE_URL="http://localhost:${ATO_SERVER_PORT:-3001}/api/dashboard"
+fi
+BASE="$ATO_BASE_URL"
+echo "Seeding via $BASE"
 H="Content-Type: application/json"
 
 post() { curl -s -X POST "$1" -H "$H" -d "$2"; }
@@ -134,10 +146,64 @@ COMP_AZAZ=$(find_or_create_comp "Azure Government US Gov Arizona" '{"name":"Azur
 echo "  Azure Gov AZ: $COMP_AZAZ"
 
 echo ""
-echo "=== Assigning Components to Systems (idempotent — skips existing) ==="
+echo "=== Resolving System IDs (auto-seeds Eagle Eye / Eagle Nest if missing) ==="
 
-EE="bf426f9a-ed9b-4457-9827-36ba16ba1b85"
-EN="10c551a9-e750-47b5-901c-4faaac6b6899"
+# Idempotent helper: find existing system by exact name, or create a new one
+# Returns the system UUID, even if the system already existed.
+find_or_create_system() {
+  local name="$1"
+  local json="$2"
+  local encoded
+  encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$name")
+  local listing
+  listing=$(curl -s "$BASE/portfolio?search=$encoded&pageSize=50")
+  local existing_id
+  existing_id=$(echo "$listing" | python3 -c "
+import sys, json
+target = sys.argv[1]
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for it in data.get('items', []):
+    if it.get('name') == target:
+        # Portfolio DTO uses 'systemId'; legacy callers may return 'id'
+        print(it.get('systemId') or it.get('id') or '')
+        sys.exit(0)
+" "$name" 2>/dev/null || echo "")
+  if [ -n "$existing_id" ]; then
+    echo "$existing_id"
+  else
+    post "$BASE/systems" "$json" | get_id
+  fi
+}
+
+EE=$(find_or_create_system "Eagle Eye" '{
+  "name": "Eagle Eye",
+  "acronym": "EAGLE-EYE",
+  "systemType": "MajorApplication",
+  "missionCriticality": "MissionCritical",
+  "hostingEnvironment": "AzureGovernment",
+  "description": "Flagship intelligence-surveillance-reconnaissance (ISR) data fusion platform.",
+  "cloudEnvironment": "Government",
+  "subscriptionIds": []
+}')
+echo "  Eagle Eye  : $EE"
+
+EN=$(find_or_create_system "Eagle Nest" '{
+  "name": "Eagle Nest",
+  "acronym": "EAGLE-NEST",
+  "systemType": "Enclave",
+  "missionCriticality": "MissionEssential",
+  "hostingEnvironment": "AzureGovernment",
+  "description": "Operations enclave hosting analytics back-end services for the Eagle Eye platform.",
+  "cloudEnvironment": "Government",
+  "subscriptionIds": []
+}')
+echo "  Eagle Nest : $EN"
+
+echo ""
+echo "=== Assigning Components to Systems (idempotent — skips existing) ==="
 
 # Eagle Eye — all 14 components
 for CID in $COMP_ENTRA $COMP_SENTINEL $COMP_DEFENDER $COMP_KV $COMP_FW $COMP_DFE $COMP_ASR $COMP_POLICY $COMP_ISSM $COMP_ISSO $COMP_ADMIN $COMP_AZVA $COMP_AZTX $COMP_AZAZ; do
