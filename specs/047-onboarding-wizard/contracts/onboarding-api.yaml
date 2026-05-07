@@ -1,0 +1,368 @@
+openapi: 3.0.3
+info:
+  title: ATO Copilot — Tenant Onboarding Wizard API
+  version: 0.1.0
+  description: |
+    Endpoints backing Steps 1–2 of the onboarding wizard, the wizard-lifecycle
+    state, and the cross-cutting "Imported Documents" management view. All
+    endpoints require the `OnboardingAdministrator` policy (FR-001/FR-002/FR-009).
+    Responses use the project-wide envelope `{ status, data, metadata }` per
+    Constitution VII.
+servers:
+  - url: /
+    description: ATO Copilot Mcp host
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Envelope:
+      type: object
+      required: [status, metadata]
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        data:
+          description: Response payload (shape depends on operation).
+        metadata:
+          type: object
+          properties:
+            executionTimeMs: { type: integer }
+            toolName:        { type: string }
+            timestamp:       { type: string, format: date-time }
+
+    ProblemEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [message, errorCode]
+              properties:
+                message:    { type: string, description: "Plain-language description (Constitution VII)." }
+                errorCode:  { type: string, example: "WIZARD_BOOTSTRAP_RACE" }
+                suggestion: { type: string }
+
+    OnboardingState:
+      type: object
+      properties:
+        tenantId: { type: string, format: uuid }
+        status:   { type: string, enum: [NotStarted, InProgress, Completed, ReRunInProgress] }
+        completedSteps:
+          type: array
+          items:
+            type: object
+            properties:
+              stepName: { type: string, enum: [OrganizationContext, Roles, Emass, SspPdf, AzureSubscriptions, Templates, NarrativeSeeds] }
+              status:   { type: string, enum: [Skipped, Completed] }
+              completedAt: { type: string, format: date-time }
+              durationMs: { type: integer }
+        lastStep: { type: string }
+        onboardingStartedAt:   { type: string, format: date-time, nullable: true }
+        onboardingCompletedAt: { type: string, format: date-time, nullable: true }
+        lastReRunAt:           { type: string, format: date-time, nullable: true }
+
+    OrganizationContext:
+      type: object
+      required: [organizationName, branch]
+      properties:
+        organizationName: { type: string, maxLength: 256 }
+        branch:
+          type: string
+          enum: [Army, Navy, AirForce, MarineCorps, SpaceForce, CoastGuard, CivilAgency, IndustryPartnerOther]
+        branchQualifier: { type: string, maxLength: 128, description: "Required when branch=IndustryPartnerOther." }
+        subOrganization: { type: string, maxLength: 256 }
+        classificationPosture: { type: string, enum: [Unclassified, CUI, Secret, TopSecret] }
+        authoritativeRepositoryUrl: { type: string, format: uri }
+        primaryPocEmail: { type: string, format: email }
+
+    Person:
+      type: object
+      required: [id, displayName, email, isLinkedToDirectory]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: string, format: email }
+        phoneNumber: { type: string }
+        entraObjectId: { type: string, format: uuid, nullable: true }
+        isLinkedToDirectory: { type: boolean }
+
+    OrganizationRoleAssignment:
+      type: object
+      required: [role, personId]
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [Issm, Isso, Administrator, Assessor] }
+        personId: { type: string, format: uuid }
+        isPrimary: { type: boolean }
+
+    ImportedArtifactSummary:
+      type: object
+      properties:
+        id:             { type: string, format: uuid }
+        artifactKind:   { type: string, enum: [Template, EmassImport, SspPdfImport, NarrativeSeed] }
+        label:          { type: string }
+        version:        { type: string, nullable: true }
+        fileName:       { type: string }
+        fileSizeBytes:  { type: integer, format: int64 }
+        format:         { type: string }
+        uploadedAt:     { type: string, format: date-time }
+        uploadedBy:     { type: string, format: uuid }
+        status:         { type: string, enum: [Active, Superseded, Flagged, Failed, Deleted] }
+        isDefault:      { type: boolean, nullable: true, description: "Templates only." }
+        dependentsCount: { type: integer }
+
+paths:
+  /api/onboarding/state:
+    get:
+      summary: Get the current tenant's onboarding state.
+      responses:
+        '200':
+          description: Onboarding state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/OnboardingState' }
+        '403':
+          description: Forbidden (caller lacks Administrator role).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemEnvelope' }
+
+  /api/onboarding/start:
+    post:
+      summary: |
+        Start onboarding for a fresh tenant. The first authenticated user is auto-granted
+        the in-app Administrator role under a tenant-level lock; subsequent calls require
+        the role.
+      responses:
+        '200':
+          description: Onboarding started (and bootstrap admin granted if first run).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/OnboardingState' }
+        '403':
+          description: Forbidden (post-bootstrap caller without Administrator role).
+        '409':
+          description: Conflict (onboarding already in progress).
+
+  /api/onboarding/steps/{stepName}/skip:
+    post:
+      summary: Mark a non-foundational step as skipped (FR-006).
+      parameters:
+        - name: stepName
+          in: path
+          required: true
+          schema: { type: string, enum: [Emass, SspPdf, AzureSubscriptions, Templates, NarrativeSeeds] }
+      responses:
+        '200':
+          description: Step marked skipped.
+        '400':
+          description: Cannot skip foundational step (FR-007 — Step 1 specifically).
+
+  /api/onboarding/organization-context:
+    get:
+      summary: Get current organization context (Step 1).
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/OrganizationContext' }
+    put:
+      summary: Save / update organization context (Step 1).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrganizationContext' }
+      responses:
+        '200':
+          description: Saved. Audit entry written.
+        '400':
+          description: Validation error (e.g., empty name, missing branch qualifier for IndustryPartnerOther).
+
+  /api/onboarding/persons:
+    get:
+      summary: Search persons by name or email (Step 2 fallback path).
+      parameters:
+        - name: query
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Matching local persons.
+    post:
+      summary: Create a free-text local Person (FR-022, research §R1).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayName, email]
+              properties:
+                displayName: { type: string }
+                email: { type: string, format: email }
+                phoneNumber: { type: string }
+      responses:
+        '201':
+          description: Person created (`isLinkedToDirectory=false`).
+
+  /api/onboarding/persons/search-directory:
+    get:
+      summary: Search Entra ID for a person via Microsoft.Graph (preferred path).
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Directory search results.
+
+  /api/onboarding/persons/{id}/promote:
+    post:
+      summary: Promote a free-text local Person to directory-linked (research §R1; one-way).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entraObjectId]
+              properties:
+                entraObjectId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Promoted. Audit entry written.
+        '409':
+          description: Already directory-linked.
+
+  /api/onboarding/role-assignments:
+    get:
+      summary: List organization-level role assignments (Step 2).
+      responses:
+        '200':
+          description: List of active role assignments.
+    post:
+      summary: Add a role assignment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrganizationRoleAssignment' }
+      responses:
+        '201':
+          description: Created.
+        '409':
+          description: Constraint violation (e.g., would leave zero Administrators).
+
+  /api/onboarding/role-assignments/{id}:
+    delete:
+      summary: Remove a role assignment.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Removed.
+        '409':
+          description: Constraint violation (last Administrator demoting self without replacement).
+
+  /api/onboarding/imports:
+    get:
+      summary: List every wizard-uploaded artifact for the management view (FR-092).
+      parameters:
+        - name: kind
+          in: query
+          schema: { type: string, enum: [Template, EmassImport, SspPdfImport, NarrativeSeed] }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1, minimum: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+      responses:
+        '200':
+          description: Paginated artifact summaries.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: '#/components/schemas/ImportedArtifactSummary' }
+                          page:     { type: integer }
+                          pageSize: { type: integer }
+                          total:    { type: integer }
+
+  /api/onboarding/imports/{id}/dependencies:
+    get:
+      summary: List dependent downstream artifacts for a wizard-uploaded source (FR-094).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Dependents list with stale flags.
+
+  /api/onboarding/dependencies/{id}/rerun:
+    post:
+      summary: Trigger an admin-initiated re-run for a flagged dependency (FR-095).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Job enqueued.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          jobId: { type: string, format: uuid }

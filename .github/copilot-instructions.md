@@ -112,9 +112,9 @@ dotnet build Ato.Copilot.sln [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMAN
 C# .NET 9: Follow standard conventions
 
 ## Recent Changes
+- 047-onboarding-wizard: Added C# 13 / .NET 9.0 (backend), TypeScript 5.7 / React 19 (frontend) + ASP.NET Core 9.0, EF Core 9.0.0 (SQL Server + SQLite), Microsoft.AspNetCore.SignalR, Microsoft.Identity.Web 3.5+, Microsoft.Graph 5.70+, Azure.Identity 1.13.2, Azure.ResourceManager 1.13.2, Serilog 4.2.0, DocumentFormat.OpenXml, ClosedXML 0.104.2, PdfPig (new), Microsoft.Extensions.AI 9.4-preview, React 19, React Router 7, Vite 6, Tailwind CSS 3, Axios 1.7, @microsoft/signalr 8.x
 - 046-mission-system-details: Added C# 13 / .NET 9.0 (backend), TypeScript / React 18 (frontend) + ASP.NET Core, EF Core 9.0.0, Axios, Tailwind CSS
 - 046-mission-system-details: Added C# 13 / .NET 9.0 (backend), TypeScript / React 18 (frontend) + ASP.NET Core, EF Core 9.0.0, Axios, Tailwind CSS
-- 046-mission-system-details: Added C# 13 / .NET 9.0 (backend), TypeScript / React (dashboard) + ASP.NET Core, EF Core 9.0.0, Serilog, xUnit, FluentAssertions, Moq, React 18, Axios
 
 
 <!-- MANUAL ADDITIONS START -->
