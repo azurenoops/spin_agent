@@ -4856,6 +4856,15 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                 }
             }
 
+            // Map task severity → DoD CAT (per DoDI 8510.01):
+            // Critical/High → CAT I, Medium → CAT II, Low/Informational → CAT III.
+            static string SeverityToCat(FindingSeverity s) => s switch
+            {
+                FindingSeverity.Critical or FindingSeverity.High => nameof(CatSeverity.CatI),
+                FindingSeverity.Medium => nameof(CatSeverity.CatII),
+                _ => nameof(CatSeverity.CatIII),
+            };
+
             return Results.Ok(new
             {
                 items = tasks.Select(t =>
@@ -4872,7 +4881,9 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                         t.ControlId,
                         t.ControlFamily,
                         severity = t.Severity.ToString(),
-                        catSeverity = t.PoamItemId != null && poamCatMap.TryGetValue(t.PoamItemId, out var cat) ? cat : (string?)null,
+                        catSeverity = t.PoamItemId != null && poamCatMap.TryGetValue(t.PoamItemId, out var cat)
+                            ? cat
+                            : SeverityToCat(t.Severity),
                         status = t.Status.ToString(),
                         t.AssigneeId,
                         t.AssigneeName,
