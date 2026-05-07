@@ -75,7 +75,7 @@ export default function CompletionSummary({ systemId, systemName, completedSteps
 
       {/* Phase advancement status */}
       {phaseStatus === 'checking' && (
-        <div className="mb-6 w-full max-w-md rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+        <div className="mb-6 w-full max-w-md rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-700">
           Checking phase readiness and attempting to advance...
         </div>
       )}
@@ -123,7 +123,7 @@ export default function CompletionSummary({ systemId, systemName, completedSteps
 
       <button
         onClick={handleGoToSystem}
-        className="rounded-md bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+        className="rounded-md bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
       >
         Go to System
       </button>

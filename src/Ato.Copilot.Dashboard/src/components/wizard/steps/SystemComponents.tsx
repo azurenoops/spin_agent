@@ -111,7 +111,7 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
         <button
           onClick={() => setActiveTab('org')}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            activeTab === 'org' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            activeTab === 'org' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
           Add from Organization Library
@@ -119,7 +119,7 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
         <button
           onClick={() => setActiveTab('new')}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            activeTab === 'new' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            activeTab === 'new' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
           Create New Component
@@ -153,7 +153,7 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
                     <button
                       onClick={() => handleAssignOrg(oc)}
                       disabled={alreadyAssigned || assigning === oc.id}
-                      className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                      className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                     >
                       {alreadyAssigned ? 'Assigned' : assigning === oc.id ? 'Adding...' : 'Add'}
                     </button>
@@ -250,7 +250,7 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
       )}
 
       <div className="mt-6 flex justify-end">
-        <button onClick={onNext} className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={onNext} className="rounded-md bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700">
           Next
         </button>
       </div>

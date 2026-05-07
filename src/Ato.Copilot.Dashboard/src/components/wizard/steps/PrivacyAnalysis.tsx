@@ -270,7 +270,7 @@ export default function PrivacyAnalysis({ systemId, onFinish, onBack, onCancel, 
           <button
             onClick={handleSubmitPta}
             disabled={savingPta}
-            className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {savingPta ? 'Submitting...' : 'Submit PTA'}
           </button>
@@ -354,7 +354,7 @@ export default function PrivacyAnalysis({ systemId, onFinish, onBack, onCancel, 
               <button
                 onClick={handleCertifyNoInterconnections}
                 disabled={certifying}
-                className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {certifying ? 'Certifying...' : 'Certify No Interconnections'}
               </button>
@@ -434,7 +434,7 @@ export default function PrivacyAnalysis({ systemId, onFinish, onBack, onCancel, 
               <button
                 onClick={handleAddInterconnection}
                 disabled={addingIxn || !ixnForm.remoteSystem.trim()}
-                className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {addingIxn ? 'Adding...' : 'Add Interconnection'}
               </button>
