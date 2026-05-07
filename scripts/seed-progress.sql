@@ -123,11 +123,13 @@ WHERE NOT EXISTS (
 );
 
 -- ─── 6.  Primary authorization-boundary definitions (tiers 2..5) ────────────
+-- BoundaryType is the BoundaryDefinitionType enum (Physical | Logical | Hybrid),
+-- NOT an environment name. Environment goes in the boundary Name.
 ;WITH bdef(SystemId, Name, BoundaryType, Description) AS (
-    SELECT @cw, N'Coastal Watch — Production',   N'Production', N'Maritime collaboration enclave (single Azure Gov VA subscription).'
-    UNION ALL SELECT @pf, N'Phoenix Falcon — Production', N'Production', N'Logistics application boundary across two AzGov subscriptions.'
-    UNION ALL SELECT @en, N'Eagle Nest — Production',     N'Production', N'Analytics back-end supporting Eagle Eye.'
-    UNION ALL SELECT @ee, N'Eagle Eye — Production',      N'Production', N'ISR data fusion platform — primary authorization boundary.'
+    SELECT @cw, N'Coastal Watch — Production',   N'Logical', N'Maritime collaboration enclave (single Azure Gov VA subscription).'
+    UNION ALL SELECT @pf, N'Phoenix Falcon — Production', N'Logical', N'Logistics application boundary across two AzGov subscriptions.'
+    UNION ALL SELECT @en, N'Eagle Nest — Production',     N'Logical', N'Analytics back-end supporting Eagle Eye.'
+    UNION ALL SELECT @ee, N'Eagle Eye — Production',      N'Logical', N'ISR data fusion platform — primary authorization boundary.'
 )
 INSERT INTO AuthorizationBoundaryDefinitions (Id, RegisteredSystemId, Name, BoundaryType, Description, IsPrimary, CreatedAt, CreatedBy)
 SELECT
