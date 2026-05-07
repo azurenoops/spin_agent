@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.Onboarding;
 using Ato.Copilot.Core.Models.Compliance;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
@@ -62,6 +63,36 @@ public class RmfLifecycleService : IRmfLifecycleService
         _logger.LogInformation(
             "Registered system {SystemName} ({SystemId}) by {CreatedBy} | Type: {SystemType}",
             system.Name, system.Id, createdBy, systemType);
+
+        // FR-024 — copy organization-level role assignments to per-system rows
+        // (T068, Feature 047 onboarding wizard). Best-effort: failure here MUST NOT
+        // fail system registration. Tenancy is single-tenant in dev/test today; we
+        // resolve via the singleton OrganizationContext row.
+        try
+        {
+            var snapshotter = scope.ServiceProvider
+                .GetService<IRegisteredSystemRoleSnapshotter>();
+            if (snapshotter is not null)
+            {
+                var orgContext = await context.OrganizationContexts
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (orgContext is not null)
+                {
+                    var actorGuid = Guid.TryParse(createdBy, out var parsed)
+                        ? parsed
+                        : Guid.Empty;
+                    await snapshotter.SnapshotAsync(
+                        orgContext.TenantId, system.Id, actorGuid, Guid.NewGuid(), cancellationToken);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to snapshot org-level role assignments to system {SystemId}; system registration succeeded.",
+                system.Id);
+        }
 
         return system;
     }
