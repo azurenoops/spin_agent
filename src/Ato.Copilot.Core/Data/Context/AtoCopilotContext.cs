@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Models.Roadmap;
 
@@ -368,6 +369,52 @@ public class AtoCopilotContext : DbContext
     /// <summary>Immutable audit trail entries for profile section state transitions.</summary>
     public DbSet<ProfileAuditEntry> ProfileAuditEntries => Set<ProfileAuditEntry>();
 
+    // ─── Tenant Onboarding Wizard (Feature 047) ──────────────────────────────
+
+    /// <summary>Per-tenant onboarding wizard lifecycle state (one row per tenant).</summary>
+    public DbSet<TenantOnboardingState> TenantOnboardingStates => Set<TenantOnboardingState>();
+
+    /// <summary>Per-step completion records under <see cref="TenantOnboardingStates"/>.</summary>
+    public DbSet<OnboardingStepCompletion> OnboardingStepCompletions => Set<OnboardingStepCompletion>();
+
+    /// <summary>Per-tenant organization profile captured during Step 1 (singleton).</summary>
+    public DbSet<OrganizationContext> OrganizationContexts => Set<OrganizationContext>();
+
+    /// <summary>Per-tenant identity records for RMF role assignees.</summary>
+    public DbSet<Person> Persons => Set<Person>();
+
+    /// <summary>Assignments of <see cref="Persons"/> to organization-level RMF roles.</summary>
+    public DbSet<OrganizationRoleAssignment> OrganizationRoleAssignments => Set<OrganizationRoleAssignment>();
+
+    /// <summary>Per-system snapshots of organization-level role assignments
+    /// supporting FR-024 (inheritance default) and FR-025 (per-system override).</summary>
+    public DbSet<SystemRoleAssignment> SystemRoleAssignments => Set<SystemRoleAssignment>();
+
+    /// <summary>Per-upload eMASS bulk-import sessions (Step 3).</summary>
+    public DbSet<EmassImportSession> EmassImportSessions => Set<EmassImportSession>();
+
+    /// <summary>Per-PDF SSP ingestion sessions (Step 4).</summary>
+    public DbSet<SspPdfImportSession> SspPdfImportSessions => Set<SspPdfImportSession>();
+
+    /// <summary>Per-tenant Azure subscription registrations (Step 5).</summary>
+    public DbSet<AzureSubscriptionRegistration> AzureSubscriptionRegistrations => Set<AzureSubscriptionRegistration>();
+
+    /// <summary>Tenant-scoped custom document templates (Step 6).</summary>
+    public DbSet<OrganizationDocumentTemplate> OrganizationDocumentTemplates => Set<OrganizationDocumentTemplate>();
+
+    /// <summary>Tenant-scoped reference documents seeded for narrative generation (Step 7).</summary>
+    public DbSet<NarrativeSeedDocument> NarrativeSeedDocuments => Set<NarrativeSeedDocument>();
+
+    /// <summary>Source→dependent links powering FR-094 cascade flagging.</summary>
+    public DbSet<WizardArtifactDependency> WizardArtifactDependencies => Set<WizardArtifactDependency>();
+
+    /// <summary>Persisted background-job state (FR-064 / FR-066 polling fallback).</summary>
+    public DbSet<WizardJobStatus> WizardJobStatuses => Set<WizardJobStatus>();
+
+    /// <summary>Persistent audit log for FR-097 wizard actions.</summary>
+    public DbSet<WizardAuditEntry> WizardAuditEntries => Set<WizardAuditEntry>();
+
+    //
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -3014,6 +3061,192 @@ public class AtoCopilotContext : DbContext
                 .WithMany(e => e.AuditEntries)
                 .HasForeignKey(e => e.SystemProfileSectionId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── Onboarding Wizard (Feature 047) ─────────────────────────────────────
+        ConfigureOnboardingEntities(modelBuilder);
+    }
+
+    /// <summary>
+    /// Configures the 13 onboarding-wizard entities introduced in Feature 047. Includes
+    /// the filtered unique index on <c>OrganizationDocumentTemplate(TenantId, TemplateType)</c>
+    /// where <c>IsDefault = 1</c> (data-model.md §"Default-template 'exactly one' invariant").
+    /// </summary>
+    private static void ConfigureOnboardingEntities(ModelBuilder modelBuilder)
+    {
+        // TenantOnboardingState
+        modelBuilder.Entity<TenantOnboardingState>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.LastStep).HasMaxLength(64);
+            entity.HasIndex(e => e.TenantId).IsUnique().HasDatabaseName("UX_TenantOnboardingState_TenantId");
+            entity.HasMany(e => e.StepCompletions)
+                .WithOne()
+                .HasForeignKey(c => c.TenantOnboardingStateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // OnboardingStepCompletion
+        modelBuilder.Entity<OnboardingStepCompletion>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.StepName).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.HasIndex(e => new { e.TenantOnboardingStateId, e.StepName })
+                .IsUnique()
+                .HasDatabaseName("UX_OnboardingStepCompletion_State_Step");
+        });
+
+        // OrganizationContext
+        modelBuilder.Entity<OrganizationContext>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.OrganizationName).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Branch).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.BranchQualifier).HasMaxLength(128);
+            entity.Property(e => e.SubOrganization).HasMaxLength(256);
+            entity.Property(e => e.ClassificationPosture).HasConversion<string>().HasMaxLength(32);
+            entity.Property(e => e.AuthoritativeRepositoryUrl).HasMaxLength(2048);
+            entity.Property(e => e.PrimaryPocEmail).HasMaxLength(320);
+            entity.HasIndex(e => e.TenantId).IsUnique().HasDatabaseName("UX_OrganizationContext_TenantId");
+        });
+
+        // Person
+        modelBuilder.Entity<Person>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.DisplayName).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Email).HasMaxLength(320).IsRequired();
+            entity.Property(e => e.PhoneNumber).HasMaxLength(64);
+            entity.HasIndex(e => new { e.TenantId, e.Email }).HasDatabaseName("IX_Person_Tenant_Email");
+            entity.HasIndex(e => new { e.TenantId, e.EntraObjectId })
+                .IsUnique()
+                .HasFilter("[EntraObjectId] IS NOT NULL")
+                .HasDatabaseName("UX_Person_Tenant_EntraObjectId");
+        });
+
+        // OrganizationRoleAssignment
+        modelBuilder.Entity<OrganizationRoleAssignment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Role).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.HasOne(e => e.Person)
+                .WithMany()
+                .HasForeignKey(e => e.PersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.TenantId, e.Role, e.PersonId })
+                .HasDatabaseName("IX_OrgRoleAssignment_Tenant_Role_Person");
+        });
+
+        // EmassImportSession
+        modelBuilder.Entity<EmassImportSession>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.OriginalFileName).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.StorageBlobKey).HasMaxLength(1024).IsRequired();
+            entity.Property(e => e.ContentChecksumSha256).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.Format).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Error).HasMaxLength(1024);
+            entity.HasIndex(e => new { e.TenantId, e.Status })
+                .HasDatabaseName("IX_EmassImportSession_Tenant_Status");
+        });
+
+        // SspPdfImportSession
+        modelBuilder.Entity<SspPdfImportSession>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.OriginalFileName).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.StorageBlobKey).HasMaxLength(1024).IsRequired();
+            entity.Property(e => e.ContentChecksumSha256).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.RejectReason).HasConversion<string>().HasMaxLength(64);
+            entity.HasIndex(e => new { e.TenantId, e.BatchId })
+                .HasDatabaseName("IX_SspPdfImportSession_Tenant_Batch");
+        });
+
+        // AzureSubscriptionRegistration
+        modelBuilder.Entity<AzureSubscriptionRegistration>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.DisplayName).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Environment).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.HasIndex(e => new { e.TenantId, e.SubscriptionId })
+                .IsUnique()
+                .HasDatabaseName("UX_AzureSubReg_Tenant_Subscription");
+        });
+
+        // OrganizationDocumentTemplate
+        modelBuilder.Entity<OrganizationDocumentTemplate>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TemplateType).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Label).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Version).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.OriginalFileName).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.StorageBlobKey).HasMaxLength(1024).IsRequired();
+            entity.Property(e => e.FileFormat).HasConversion<string>().HasMaxLength(16).IsRequired();
+            entity.Property(e => e.ContentChecksumSha256).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.ValidationStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            // Filtered unique index — at most one IsDefault=true per (TenantId, TemplateType).
+            entity.HasIndex(e => new { e.TenantId, e.TemplateType })
+                .IsUnique()
+                .HasFilter("[IsDefault] = 1")
+                .HasDatabaseName("UX_OrgDocTemplate_DefaultPerType");
+            entity.HasIndex(e => new { e.TenantId, e.TemplateType, e.Status })
+                .HasDatabaseName("IX_OrgDocTemplate_Tenant_Type_Status");
+        });
+
+        // NarrativeSeedDocument
+        modelBuilder.Entity<NarrativeSeedDocument>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Label).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.IndexingStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.HasIndex(e => new { e.TenantId, e.Status })
+                .HasDatabaseName("IX_NarrativeSeed_Tenant_Status");
+        });
+
+        // WizardArtifactDependency
+        modelBuilder.Entity<WizardArtifactDependency>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SourceArtifactType).HasConversion<string>().HasMaxLength(64).IsRequired();
+            entity.Property(e => e.DependentType).HasConversion<string>().HasMaxLength(64).IsRequired();
+            entity.Property(e => e.SourceVersionTag).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.StaleReason).HasMaxLength(512);
+            entity.HasIndex(e => new { e.TenantId, e.SourceArtifactType, e.SourceArtifactId })
+                .HasDatabaseName("IX_WizardArtifactDep_Source");
+            entity.HasIndex(e => new { e.TenantId, e.DependentType, e.DependentId })
+                .HasDatabaseName("IX_WizardArtifactDep_Dependent");
+        });
+
+        // WizardJobStatus
+        modelBuilder.Entity<WizardJobStatus>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.JobType).HasConversion<string>().HasMaxLength(64).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Message).HasMaxLength(1024);
+            entity.Property(e => e.ErrorCode).HasMaxLength(128);
+            entity.Property(e => e.Suggestion).HasMaxLength(1024);
+            entity.HasIndex(e => new { e.TenantId, e.Status })
+                .HasDatabaseName("IX_WizardJob_Tenant_Status");
+        });
+
+        // WizardAuditEntry
+        modelBuilder.Entity<WizardAuditEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Action).HasConversion<string>().HasMaxLength(64).IsRequired();
+            entity.Property(e => e.ResourceType).HasMaxLength(64).IsRequired();
+            entity.HasIndex(e => new { e.TenantId, e.Timestamp })
+                .HasDatabaseName("IX_WizardAudit_Tenant_TimestampDesc")
+                .IsDescending(false, true);
         });
     }
 

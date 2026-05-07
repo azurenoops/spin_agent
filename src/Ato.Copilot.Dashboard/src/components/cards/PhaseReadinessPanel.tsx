@@ -148,7 +148,7 @@ export default function PhaseReadinessPanel({ systemId, onAdvanced, supplemental
         <div className="mt-3 flex items-center gap-3">
           <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${allPassed ? 'bg-green-500' : 'bg-blue-500'}`}
+              className={`h-full rounded-full transition-all duration-500 ${allPassed ? 'bg-green-500' : 'bg-indigo-500'}`}
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -199,7 +199,7 @@ export default function PhaseReadinessPanel({ systemId, onAdvanced, supplemental
                     <button
                       key={a.action}
                       onClick={() => setActiveAction(a.action)}
-                      className="inline-flex items-center rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                      className="inline-flex items-center rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
                     >
                       {a.label} →
                     </button>

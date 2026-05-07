@@ -30,10 +30,11 @@ public class ComponentLibraryEndpointTests : IDisposable
         var options = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseInMemoryDatabase($"CompLibIntegration_{Guid.NewGuid()}")
             .Options;
-        _db = new AtoCopilotContext(options);
+        var factory = new IntegrationTestDbContextFactory(options);
+        _db = factory.Context;
         var narrativeService = new NarrativeTemplateService();
         _componentService = new ComponentService(
-    _db, Mock.Of<ILogger<ComponentService>>(), narrativeService, new SystemCapabilityLinkService(_db, Mock.Of<ILogger<SystemCapabilityLinkService>>()));
+    factory, Mock.Of<ILogger<ComponentService>>(), narrativeService, new SystemCapabilityLinkService(factory, Mock.Of<ILogger<SystemCapabilityLinkService>>()));
 _capabilityService = new CapabilityService(
     _db, Mock.Of<ILogger<CapabilityService>>(), narrativeService, Mock.Of<IDeviationService>(), Mock.Of<IOrgInheritanceService>());
         SeedData();

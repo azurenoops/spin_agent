@@ -96,7 +96,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={200}
-          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           placeholder="e.g., Microsoft Entra ID"
         />
       </div>
@@ -112,7 +112,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
                 value={t}
                 checked={componentType === t}
                 onChange={() => setComponentType(t)}
-                className="text-blue-600"
+                className="text-indigo-600"
               />
               {t}
             </label>
@@ -127,7 +127,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
           value={subType}
           onChange={(e) => setSubType(e.target.value)}
           maxLength={200}
-          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           placeholder="e.g., Cloud Service, Network Device"
         />
       </div>
@@ -164,7 +164,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
           onChange={(e) => setDescription(e.target.value)}
           maxLength={4000}
           rows={3}
-          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           placeholder="Describe this component..."
         />
       </div>
@@ -177,7 +177,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
             value={owner}
             onChange={(e) => setOwner(e.target.value)}
             maxLength={200}
-            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
             placeholder="e.g., Platform Team"
           />
         </div>
@@ -186,7 +186,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as ComponentStatus)}
-            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -204,7 +204,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
               value={personName}
               onChange={(e) => setPersonName(e.target.value)}
               maxLength={200}
-              className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+              className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
               placeholder="e.g., Jane Smith"
             />
           </div>
@@ -215,7 +215,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               maxLength={200}
-              className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+              className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
               placeholder="e.g., jane.smith@agency.gov"
             />
           </div>
@@ -228,7 +228,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
           <select
             value={rmfRole}
             onChange={(e) => setRmfRole(e.target.value)}
-            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           >
             {RMF_ROLE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -249,7 +249,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
         <button
           type="submit"
           disabled={!isValid || isSubmitting}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? 'Saving...' : initial ? 'Update' : 'Create'}
         </button>

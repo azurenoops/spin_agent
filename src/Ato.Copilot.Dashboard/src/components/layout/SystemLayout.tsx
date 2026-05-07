@@ -183,13 +183,13 @@ export default function SystemLayout() {
             onClick={() => setSidePanelTab(tab.key)}
             className={`flex-1 px-3 py-2 text-sm font-medium transition-colors border-b-2 ${
               sidePanelTab === tab.key
-                ? 'border-blue-600 text-blue-700'
+                ? 'border-indigo-600 text-indigo-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
             {tab.label}
             {tab.badge > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-600">
+              <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-600">
                 {tab.badge}
               </span>
             )}
@@ -211,7 +211,7 @@ export default function SystemLayout() {
                 <h3 className="text-sm font-semibold text-gray-700">Profile Completeness</h3>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className="bg-blue-600 h-2 rounded-full transition-all"
+                    className="bg-indigo-600 h-2 rounded-full transition-all"
                     style={{ width: `${profileCompleteness.approvedPercentage}%` }}
                   />
                 </div>
@@ -226,7 +226,7 @@ export default function SystemLayout() {
                 {settings.role === 'MissionOwner' && profileCompleteness.incompleteSections.length > 0 && profileCompleteness.incompleteSections[0] && (
                   <Link
                     to={`${basePath}/profile/${profileCompleteness.incompleteSections[0].sectionType}`}
-                    className="inline-block text-xs text-blue-600 hover:underline"
+                    className="inline-block text-xs text-indigo-600 hover:underline"
                   >
                     Continue editing profile →
                   </Link>
@@ -332,7 +332,7 @@ export default function SystemLayout() {
                   {group.label}
                 </span>
                 {isPrimary && settings.role && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500 flex-shrink-0" title="Primary for your role" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 flex-shrink-0" title="Primary for your role" />
                 )}
               </div>
             )}
@@ -345,7 +345,7 @@ export default function SystemLayout() {
                   className={({ isActive }) =>
                     `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                       isActive
-                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        ? 'bg-indigo-50 text-indigo-700 font-medium'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     } ${navCollapsed ? 'justify-center' : ''}`
                   }
@@ -374,11 +374,11 @@ export default function SystemLayout() {
       >
         {/* Breadcrumb */}
         <div className="mb-4 text-sm">
-          <Link to="/" className="text-blue-600 hover:underline">
+          <Link to="/" className="text-indigo-600 hover:underline">
             Portfolio
           </Link>
           <span className="mx-2 text-gray-400">/</span>
-          <Link to={basePath} className="text-blue-600 hover:underline">
+          <Link to={basePath} className="text-indigo-600 hover:underline">
             {detail.name}
           </Link>
         </div>

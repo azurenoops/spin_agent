@@ -61,8 +61,10 @@ public class EvidenceEndpointsTests : IAsyncLifetime
 
         builder.Services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(dbName));
+        builder.Services.AddDbContextFactory<AtoCopilotContext>(opts =>
+            opts.UseInMemoryDatabase(dbName), lifetime: ServiceLifetime.Singleton);
         builder.Services.AddSingleton<IFileStorageProvider>(storageProvider.Object);
-        builder.Services.AddScoped<IEvidenceArtifactService, EvidenceArtifactService>();
+        builder.Services.AddSingleton<IEvidenceArtifactService, EvidenceArtifactService>();
         builder.Services.AddSingleton(Mock.Of<IEvidenceStorageService>());
         builder.Services.AddLogging();
 

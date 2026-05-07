@@ -78,6 +78,12 @@ public class CacAuthenticationMiddleware
                 if (simId.CertificateThumbprint is not null)
                     claims.Add(new("x5t", simId.CertificateThumbprint));
 
+                if (simId.TenantId is { } simTenant)
+                    claims.Add(new("tid", simTenant.ToString()));
+
+                if (simId.ObjectId is { } simObject)
+                    claims.Add(new("oid", simObject.ToString()));
+
                 context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Simulated"));
                 context.Items["ClientType"] = ClientType.Simulated;
 

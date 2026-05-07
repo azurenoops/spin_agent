@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import PageLayout from '../components/layout/PageLayout';
+import PageHero from '../components/layout/PageHero';
 import { useSettings } from '../hooks/useSettings';
 import apiClient from '../api/client';
 
@@ -178,7 +179,7 @@ function ControlDetailDrawer({ controlId, frameworkId, onClose }: { controlId: s
               <h3 className="text-base font-semibold text-gray-900">{detail.title}</h3>
               <div className="mt-1 flex items-center gap-2">
                 <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
-                  detail.type === 'Control' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'
+                  detail.type === 'Control' ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'
                 }`}>{detail.type}</span>
                 {detail.parentControlId && (
                   <span className="text-xs text-gray-500">Enhancement of {detail.parentControlId}</span>
@@ -452,13 +453,12 @@ export default function ControlCatalog() {
 
   return (
     <PageLayout title="Control Catalog">
+      <PageHero
+        eyebrow="Controls"
+        title="Control Catalog"
+        description="Browse and manage the organization's control catalog and its associated frameworks."
+      />
       <div className="space-y-4">
-        {/* Page title */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Control Catalog</h1>
-          <p className="text-sm text-gray-500 mt-1">Browse and manage the organization's control catalog and its associated frameworks.</p>
-        </div>
-
         {/* Import banner — show when no frameworks are imported yet */}
         {frameworks.length === 0 && !loading && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between">
@@ -547,7 +547,7 @@ export default function ControlCatalog() {
                 className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                   defaultSaved
                     ? 'bg-green-600 text-white'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
                 }`}
               >
                 {defaultSaved ? '✓ Default Saved' : 'Set Default Selection'}
@@ -563,7 +563,7 @@ export default function ControlCatalog() {
               <select
                 value={settings.activeFramework}
                 onChange={e => { updateSettings({ activeFramework: e.target.value as typeof settings.activeFramework }); setPage(1); }}
-                className="rounded-md border border-gray-300 py-1 px-2 text-sm font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="rounded-md border border-gray-300 py-1 px-2 text-sm font-medium text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="NIST 800-53 Rev. 5">NIST 800-53 Rev. 5</option>
                 <option value="NIST 800-53 Rev. 4">NIST 800-53 Rev. 4</option>
@@ -583,13 +583,13 @@ export default function ControlCatalog() {
                   placeholder="Search..."
                   value={search}
                   onChange={e => handleSearch(e.target.value)}
-                  className="rounded-md border border-gray-300 py-1.5 pl-8 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48"
+                  className="rounded-md border border-gray-300 py-1.5 pl-8 pr-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-48"
                 />
               </div>
               <select
                 value={familyFilter}
                 onChange={e => handleFamilyChange(e.target.value)}
-                className="rounded-md border border-gray-300 py-1.5 px-3 text-sm text-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="rounded-md border border-gray-300 py-1.5 px-3 text-sm text-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="">Filter control families...</option>
                 {FAMILIES.map(f => (
@@ -599,7 +599,7 @@ export default function ControlCatalog() {
               <select
                 value={levelFilter}
                 onChange={e => handleLevelChange(e.target.value)}
-                className="rounded-md border border-gray-300 py-1.5 px-3 text-sm text-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="rounded-md border border-gray-300 py-1.5 px-3 text-sm text-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="">Filter security level...</option>
                 {baselineCols.map(b => (
@@ -654,12 +654,12 @@ export default function ControlCatalog() {
               ) : (
                 displayItems.map(c => (
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setSelectedControlId(c.id)}>
-                    <td className="px-4 py-2.5 font-medium text-blue-700 whitespace-nowrap">{c.id}</td>
+                    <td className="px-4 py-2.5 font-medium text-indigo-700 whitespace-nowrap">{c.id}</td>
                     <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{c.familyName}</td>
                     <td className="px-4 py-2.5 text-gray-700">{c.title}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap">
                       <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
-                        c.type === 'Control' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'
+                        c.type === 'Control' ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'
                       }`}>{c.type}</span>
                     </td>
                     {baselineCols.map(col => (
@@ -670,7 +670,7 @@ export default function ControlCatalog() {
                     <td className="px-3 py-2.5 text-center">
                       <button
                         onClick={e => { e.stopPropagation(); setSelectedControlId(c.id); }}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
                         title="View details"
                       >
                         View
@@ -714,7 +714,7 @@ export default function ControlCatalog() {
                     onClick={() => setPage(pageNum)}
                     className={`rounded border px-3 py-1 text-sm ${
                       pageNum === page
-                        ? 'border-blue-600 bg-blue-50 text-blue-700 font-medium'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-medium'
                         : 'border-gray-300 hover:bg-gray-50'
                     }`}
                   >

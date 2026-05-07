@@ -48,7 +48,7 @@ export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error 
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={200}
-          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           placeholder="e.g., Production Environment"
         />
       </div>
@@ -64,7 +64,7 @@ export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error 
                 value={t}
                 checked={boundaryType === t}
                 onChange={() => setBoundaryType(t)}
-                className="text-blue-600"
+                className="text-indigo-600"
               />
               {t}
             </label>
@@ -79,7 +79,7 @@ export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error 
           onChange={(e) => setDescription(e.target.value)}
           maxLength={2000}
           rows={3}
-          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none resize-y"
+          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none resize-y"
           placeholder="Describe the purpose and scope of this boundary..."
         />
       </div>
@@ -88,7 +88,7 @@ export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error 
         <button
           type="submit"
           disabled={!isValid || isSubmitting}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
         >
           {isSubmitting ? 'Saving...' : initial ? 'Update Boundary' : 'Create Boundary'}
         </button>

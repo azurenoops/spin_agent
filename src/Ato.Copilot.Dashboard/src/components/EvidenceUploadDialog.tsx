@@ -162,7 +162,7 @@ export default function EvidenceUploadDialog({
             />
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="cursor-pointer rounded-md border-2 border-dashed border-gray-300 px-4 py-6 text-center transition-colors hover:border-blue-400 hover:bg-blue-50"
+              className="cursor-pointer rounded-md border-2 border-dashed border-gray-300 px-4 py-6 text-center transition-colors hover:border-indigo-400 hover:bg-indigo-50"
             >
               {file ? (
                 <div className="space-y-1">
@@ -191,7 +191,7 @@ export default function EvidenceUploadDialog({
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as ArtifactCategory)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             >
               {ARTIFACT_CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -205,7 +205,7 @@ export default function EvidenceUploadDialog({
             <select
               value={collectionMethod}
               onChange={(e) => setCollectionMethod(e.target.value as CollectionMethod)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             >
               {COLLECTION_METHODS.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
@@ -222,7 +222,7 @@ export default function EvidenceUploadDialog({
               maxLength={2000}
               rows={3}
               placeholder="Describe what this evidence demonstrates..."
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             />
             <p className="mt-1 text-xs text-gray-400">{description.length}/2000</p>
           </div>
@@ -232,7 +232,7 @@ export default function EvidenceUploadDialog({
             <div className="space-y-1">
               <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
                 <div
-                  className="h-full rounded-full bg-blue-600 transition-all duration-300"
+                  className="h-full rounded-full bg-indigo-600 transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -253,7 +253,7 @@ export default function EvidenceUploadDialog({
           <button
             onClick={handleSubmit}
             disabled={!isValid || uploading}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {uploading ? 'Uploading...' : 'Upload Evidence'}
           </button>

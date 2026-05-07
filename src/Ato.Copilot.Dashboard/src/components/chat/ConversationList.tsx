@@ -53,7 +53,7 @@ export default function ConversationList({
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(conv.id); }}
             className={`flex w-full items-center justify-between px-4 py-2 text-left cursor-pointer transition-colors ${
               conv.id === activeId
-                ? 'bg-blue-50 text-blue-700'
+                ? 'bg-indigo-50 text-indigo-700'
                 : 'text-gray-600 hover:bg-gray-50'
             }`}
           >

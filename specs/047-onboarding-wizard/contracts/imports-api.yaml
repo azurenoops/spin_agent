@@ -1,0 +1,287 @@
+openapi: 3.0.3
+info:
+  title: ATO Copilot — Onboarding Wizard Imports API (eMASS + SSP PDF)
+  version: 0.1.0
+  description: |
+    Endpoints for Step 3 (eMASS bulk import) and Step 4 (SSP PDF ingestion). All
+    parse / extract / commit work executes as background jobs; clients receive a
+    `jobId` and stream live status via the SignalR `wizard-{tenantId}` group
+    (see `progress-events.md`). A polling fallback is provided per FR-066.
+servers:
+  - url: /
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    JobAccepted:
+      type: object
+      required: [jobId, sessionId]
+      properties:
+        jobId:     { type: string, format: uuid }
+        sessionId: { type: string, format: uuid, description: "EmassImportSession.Id or SspPdfImportSession.Id" }
+
+    JobStatus:
+      type: object
+      properties:
+        jobId:    { type: string, format: uuid }
+        jobType:
+          type: string
+          enum: [EmassParse, EmassCommit, SspPdfExtract, NarrativeSeedIndex, TemplateValidation, ExportRerender, ImportRerender]
+        status:
+          type: string
+          enum: [Queued, InProgress, Succeeded, Failed, Cancelled]
+        percent:    { type: integer, nullable: true, minimum: 0, maximum: 100 }
+        message:    { type: string, nullable: true }
+        errorCode:  { type: string, nullable: true }
+        suggestion: { type: string, nullable: true }
+        enqueuedAt: { type: string, format: date-time, nullable: true }
+        startedAt:  { type: string, format: date-time, nullable: true }
+        finishedAt: { type: string, format: date-time, nullable: true }
+
+    EmassPreview:
+      type: object
+      properties:
+        sessionId: { type: string, format: uuid }
+        systems:
+          type: array
+          items:
+            type: object
+            properties:
+              identifier: { type: string }
+              displayName: { type: string }
+              controlsCount: { type: integer }
+              poamCount: { type: integer }
+              conflict:
+                type: string
+                enum: [None, ExistingSystem]
+              suggestedResolution:
+                type: string
+                enum: [Merge, Skip, Overwrite]
+
+    EmassCommitRequest:
+      type: object
+      required: [sessionId, perSystemDecisions]
+      properties:
+        sessionId: { type: string, format: uuid }
+        perSystemDecisions:
+          type: array
+          items:
+            type: object
+            required: [identifier, decision]
+            properties:
+              identifier: { type: string }
+              decision: { type: string, enum: [Merge, Skip, Overwrite] }
+
+    SspPdfBatchSummary:
+      type: object
+      properties:
+        batchId: { type: string, format: uuid }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sessionId: { type: string, format: uuid }
+              fileName: { type: string }
+              status: { type: string, enum: [Uploaded, Extracting, Extracted, Imported, Rejected, Failed] }
+              rejectReason:
+                type: string
+                nullable: true
+                enum: [Encrypted, PasswordProtected, ImageOnly, Unreadable, UnknownFramework]
+              extractionResultUrl: { type: string, format: uri, nullable: true }
+
+    SspExtractedFieldCorrection:
+      type: object
+      required: [fieldPath, value]
+      properties:
+        fieldPath: { type: string, example: "systemIdentification.systemName" }
+        value: { type: string }
+
+paths:
+  /api/onboarding/imports/emass/upload:
+    post:
+      summary: Upload an eMASS export (XLSX or package ZIP). Parsing runs as a background job (FR-064).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '202':
+          description: Upload accepted; parse job enqueued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobAccepted' }
+        '413':
+          description: Upload exceeds OnboardingOptions:Limits:EmassMaxBytes (FR-036).
+        '415':
+          description: Unsupported media type / invalid eMASS structure (FR-031).
+
+  /api/onboarding/imports/emass/{sessionId}/preview:
+    get:
+      summary: Get the parsed preview for an eMASS upload (FR-032).
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Preview with per-system / control / POA&M counts and conflict info.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmassPreview' }
+        '409':
+          description: Parse not yet complete; client should subscribe to SignalR or poll.
+
+  /api/onboarding/imports/emass/commit:
+    post:
+      summary: Commit the import with per-system decisions (FR-033, FR-034). Runs as background job.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmassCommitRequest' }
+      responses:
+        '202':
+          description: Commit job enqueued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobAccepted' }
+
+  /api/onboarding/imports/emass/{sessionId}/log:
+    get:
+      summary: Download the import log for a completed eMASS session (FR-035).
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Import log (CSV).
+          content:
+            text/csv: {}
+
+  /api/onboarding/imports/ssp-pdf/upload:
+    post:
+      summary: Upload one or more SSP PDFs as a single batch (FR-040, FR-046). Each PDF spawns its own extraction job.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '202':
+          description: Batch accepted; per-PDF extraction jobs enqueued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [batchId, items]
+                properties:
+                  batchId: { type: string, format: uuid }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/JobAccepted' }
+        '413':
+          description: At least one upload exceeds OnboardingOptions:Limits:SspPdfMaxBytes.
+        '422':
+          description: Batch size exceeds OnboardingOptions:Limits:SspPdfBatchMax.
+
+  /api/onboarding/imports/ssp-pdf/batches/{batchId}:
+    get:
+      summary: Get per-PDF status summary for a batch.
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Batch summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SspPdfBatchSummary' }
+
+  /api/onboarding/imports/ssp-pdf/{sessionId}/extraction:
+    get:
+      summary: Get the extracted field map (with confidence bands) for a single PDF.
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Extraction result (JSON; structure documented in research §R3).
+
+  /api/onboarding/imports/ssp-pdf/{sessionId}/corrections:
+    put:
+      summary: Apply user corrections to extracted fields before committing (FR-042).
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/SspExtractedFieldCorrection' }
+      responses:
+        '200':
+          description: Corrections saved.
+
+  /api/onboarding/imports/ssp-pdf/{sessionId}/import:
+    post:
+      summary: Commit the extracted (and possibly corrected) system into the portfolio.
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '201':
+          description: System created with PDF-source provenance tags (FR-043).
+        '409':
+          description: PDF rejected (Encrypted / PasswordProtected / ImageOnly / Unreadable / UnknownFramework).
+
+  /api/onboarding/jobs/{jobId}:
+    get:
+      summary: Polling-fallback status endpoint (FR-066). Idempotent.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Current job status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobStatus' }

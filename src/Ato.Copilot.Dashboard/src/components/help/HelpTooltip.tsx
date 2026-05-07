@@ -35,7 +35,7 @@ export default function HelpTooltip({ helpKey }: HelpTooltipProps) {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="ml-1.5 rounded-full p-0.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+        className="ml-1.5 rounded-full p-0.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
         aria-label={`Help: ${content.title}`}
         aria-expanded={open}
       >

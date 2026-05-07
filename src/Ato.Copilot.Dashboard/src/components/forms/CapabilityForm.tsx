@@ -94,7 +94,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={200}
-          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           placeholder="e.g., Multi-Factor Authentication"
         />
       </div>
@@ -106,7 +106,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
           maxLength={200}
-          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           placeholder="e.g., Microsoft Entra ID"
         />
       </div>
@@ -116,7 +116,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
         >
           <option value="">Select a NIST family...</option>
           {Object.entries(NIST_FAMILIES).map(([code, label]) => (
@@ -157,7 +157,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
           onChange={(e) => setDescription(e.target.value)}
           maxLength={8000}
           rows={4}
-          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           placeholder="Describe how this capability works..."
         />
       </div>
@@ -168,7 +168,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
           <select
             value={implementationStatus}
             onChange={(e) => setImplementationStatus(e.target.value as CapabilityStatusOption)}
-            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -182,7 +182,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
             value={owner}
             onChange={(e) => setOwner(e.target.value)}
             maxLength={200}
-            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+            className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
             placeholder="e.g., Identity Team"
           />
         </div>
@@ -199,7 +199,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
         <button
           type="submit"
           disabled={!isValid || isSubmitting}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? 'Saving...' : initial ? 'Update' : 'Create'}
         </button>

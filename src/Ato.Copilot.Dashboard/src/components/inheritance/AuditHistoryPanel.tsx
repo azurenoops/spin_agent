@@ -3,7 +3,7 @@ import type { AuditEntry } from '../../types/inheritance';
 function ChangeSourceBadge({ source }: { source: string }) {
   const map: Record<string, string> = {
     Manual: 'bg-gray-100 text-gray-700',
-    BulkUpdate: 'bg-blue-100 text-blue-700',
+    BulkUpdate: 'bg-indigo-100 text-indigo-700',
     ProfileApply: 'bg-purple-100 text-purple-700',
     CrmImport: 'bg-green-100 text-green-700',
   };

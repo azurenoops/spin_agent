@@ -158,7 +158,7 @@ WHERE NOT EXISTS (
 INSERT INTO AuthorizationBoundaryDefinitions (Id, RegisteredSystemId, Name, BoundaryType, Description, IsPrimary, CreatedAt, CreatedBy)
 SELECT
     CONVERT(NVARCHAR(36), CAST(HASHBYTES('MD5', N'boundary:' + @en) AS UNIQUEIDENTIFIER)),
-    @en, N'Eagle Nest — Production', N'Production',
+    @en, N'Eagle Nest — Production', N'Logical',
     N'Analytics back-end supporting Eagle Eye ISR fusion.',
     1, DATEADD(DAY, -85, @now), @actor
 WHERE NOT EXISTS (
@@ -693,7 +693,7 @@ WHERE NOT EXISTS (
 INSERT INTO AuthorizationBoundaryDefinitions (Id, RegisteredSystemId, Name, BoundaryType, Description, IsPrimary, CreatedAt, CreatedBy)
 SELECT
     CONVERT(NVARCHAR(36), CAST(HASHBYTES('MD5', N'boundary:' + @ts) AS UNIQUEIDENTIFIER)),
-    @ts, N'Test System — Development', N'Development',
+    @ts, N'Test System — Development', N'Logical',
     N'Engineering sandbox; no CUI / PII. Supports developer enablement workflows.',
     1, DATEADD(DAY, -27, @now), @actor
 WHERE NOT EXISTS (

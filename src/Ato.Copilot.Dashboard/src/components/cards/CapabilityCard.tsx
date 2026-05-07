@@ -2,7 +2,7 @@ import type { SecurityCapabilityDto } from '../../types/dashboard';
 
 const statusColors: Record<string, string> = {
   Implemented: 'bg-green-100 text-green-800',
-  InProgress: 'bg-blue-100 text-blue-800',
+  InProgress: 'bg-indigo-100 text-indigo-800',
   Planned: 'bg-gray-100 text-gray-700',
   Deprecated: 'bg-red-100 text-red-800',
 };
@@ -21,7 +21,7 @@ export function CapabilityCard({ capability, isExpanded, onToggle, onEdit, onDel
     <div className="border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
       <button
         onClick={onToggle}
-        className="w-full text-left p-4 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-lg"
+        className="w-full text-left p-4 focus:outline-none focus:ring-2 focus:ring-indigo-300 rounded-lg"
       >
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
@@ -67,13 +67,13 @@ export function CapabilityCard({ capability, isExpanded, onToggle, onEdit, onDel
           <div className="flex gap-2 pt-1">
             <button
               onClick={onEdit}
-              className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
             >
               Edit
             </button>
             <button
               onClick={onLinkComponents}
-              className="px-3 py-1.5 text-xs border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
+              className="px-3 py-1.5 text-xs border border-indigo-600 text-indigo-600 rounded hover:bg-indigo-50"
             >
               Link Components
             </button>

@@ -67,7 +67,7 @@ export default function VerifyRoles({ systemId, onNext }: VerifyRolesProps) {
       )}
 
       <div className="mt-6 flex justify-end">
-        <button onClick={onNext} className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={onNext} className="rounded-md bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700">
           Next
         </button>
       </div>

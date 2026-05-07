@@ -47,17 +47,6 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
             EnvironmentName = "Development"
         });
 
-        builder.Services.AddDbContext<AtoCopilotContext>(
-            options => options.UseInMemoryDatabase(_dbName),
-            ServiceLifetime.Singleton,
-            ServiceLifetime.Singleton);
-        builder.Services.AddSingleton<IDbContextFactory<AtoCopilotContext>>(sp =>
-        {
-            var optionsBuilder = new DbContextOptionsBuilder<AtoCopilotContext>();
-            optionsBuilder.UseInMemoryDatabase(_dbName);
-            return new TestDbContextFactory(optionsBuilder.Options);
-        });
-
         builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(GatewayOptions.SectionName));
         builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
 
@@ -87,11 +76,7 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
             });
         });
 
-        builder.Services.AddInMemoryStateManagement();
-        builder.Services.AddComplianceAgent(builder.Configuration);
-        builder.Services.AddConfigurationAgent();
-        builder.Services.AddKnowledgeBaseAgent(builder.Configuration);
-        builder.Services.AddMcpServer(builder.Configuration);
+        builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>
                 policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
@@ -191,17 +176,6 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
             EnvironmentName = "Development"
         });
 
-        builder.Services.AddDbContext<AtoCopilotContext>(
-            options => options.UseInMemoryDatabase(_dbName),
-            ServiceLifetime.Singleton,
-            ServiceLifetime.Singleton);
-        builder.Services.AddSingleton<IDbContextFactory<AtoCopilotContext>>(sp =>
-        {
-            var optionsBuilder = new DbContextOptionsBuilder<AtoCopilotContext>();
-            optionsBuilder.UseInMemoryDatabase(_dbName);
-            return new TestDbContextFactory(optionsBuilder.Options);
-        });
-
         builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(GatewayOptions.SectionName));
         builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
 
@@ -230,11 +204,7 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
             });
         });
 
-        builder.Services.AddInMemoryStateManagement();
-        builder.Services.AddComplianceAgent(builder.Configuration);
-        builder.Services.AddConfigurationAgent();
-        builder.Services.AddKnowledgeBaseAgent(builder.Configuration);
-        builder.Services.AddMcpServer(builder.Configuration);
+        builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>
                 policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));

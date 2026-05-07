@@ -15,7 +15,7 @@ export default function ProgressSteps({ steps }: ProgressStepsProps) {
           <div key={index} className="flex items-start gap-2 text-sm">
             <div className="mt-0.5 flex-shrink-0">
               {isLatest ? (
-                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
               ) : (
                 <svg className="h-3.5 w-3.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />

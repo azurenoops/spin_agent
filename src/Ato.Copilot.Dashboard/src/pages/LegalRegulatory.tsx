@@ -189,7 +189,7 @@ export default function LegalRegulatory() {
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             + Legal &amp; Regulatory
           </button>
@@ -231,7 +231,7 @@ export default function LegalRegulatory() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search policies..."
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <span className="self-center text-sm text-gray-500">
           {items.length} item{items.length !== 1 ? 's' : ''}
@@ -299,7 +299,7 @@ export default function LegalRegulatory() {
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="e.g., FISMA 2014"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   autoFocus
                 />
               </div>
@@ -328,7 +328,7 @@ export default function LegalRegulatory() {
                   onChange={(e) => setFormDescription(e.target.value)}
                   rows={3}
                   placeholder="Brief description or legal citation..."
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">
@@ -342,7 +342,7 @@ export default function LegalRegulatory() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {submitting ? 'Saving...' : 'Add'}
                 </button>
@@ -378,7 +378,7 @@ export default function LegalRegulatory() {
               value={orgSearch}
               onChange={(e) => setOrgSearch(e.target.value)}
               placeholder="Search policies..."
-              className="mb-4 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mb-4 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             {loadingOrg ? (
               <p className="text-sm text-gray-500">Loading...</p>
@@ -401,7 +401,7 @@ export default function LegalRegulatory() {
                             type="button"
                             disabled={submitting}
                             onClick={() => handleAssignExisting(comp)}
-                            className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                            className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                           >
                             Assign
                           </button>

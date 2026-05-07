@@ -26,7 +26,11 @@ import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
 import { SettingsContext, useSettingsProvider } from './hooks/useSettings';
+import { OrganizationContextProvider } from './hooks/useOrganizationContext';
 import SystemDataProvider from './components/SystemRoute';
+import OnboardingShell from './features/onboarding/OnboardingShell';
+import OnboardingGate from './features/onboarding/OnboardingGate';
+import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
 
 function AppContent() {
   const { panelState, togglePanel, closePanel, setWidth } = useChatPanel();
@@ -69,6 +73,8 @@ function AppContent() {
         </Route>
         <Route path="/capabilities" element={<CapabilityLibrary />} />
         <Route path="/components" element={<ComponentLibrary />} />
+        <Route path="/onboarding" element={<OnboardingShell />} />
+        <Route path="/admin/imported-documents" element={<ImportedDocumentsView />} />
         <Route path="/controls" element={<ControlCatalog />} />
       </Routes>
       <ChatPanel
@@ -77,6 +83,7 @@ function AppContent() {
         width={panelState.width}
         onWidthChange={setWidth}
       />
+      <OnboardingGate />
     </SystemDataProvider>
   );
 }
@@ -87,7 +94,9 @@ export default function App() {
   return (
     <SettingsContext.Provider value={settingsCtx}>
       <ChatPanelProvider>
-        <AppContent />
+        <OrganizationContextProvider>
+          <AppContent />
+        </OrganizationContextProvider>
       </ChatPanelProvider>
     </SettingsContext.Provider>
   );

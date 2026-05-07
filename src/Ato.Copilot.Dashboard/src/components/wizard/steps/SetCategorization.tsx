@@ -263,8 +263,8 @@ export default function SetCategorization({ systemId, onNext, onErrors }: SetCat
 
       {/* FIPS 199 Summary */}
       {selected.length > 0 && (
-        <div className="mb-6 rounded-md border border-blue-200 bg-blue-50 p-4">
-          <h3 className="text-sm font-medium text-blue-900 mb-2">FIPS 199 Overall Categorization: <span className="font-bold">{overallFips}</span></h3>
+        <div className="mb-6 rounded-md border border-indigo-200 bg-indigo-50 p-4">
+          <h3 className="text-sm font-medium text-indigo-900 mb-2">FIPS 199 Overall Categorization: <span className="font-bold">{overallFips}</span></h3>
           <div className="flex gap-6 text-sm">
             <span>Confidentiality: <strong>{overallC}</strong></span>
             <span>Integrity: <strong>{overallI}</strong></span>
@@ -343,7 +343,7 @@ export default function SetCategorization({ systemId, onNext, onErrors }: SetCat
                   key={t.id}
                   onClick={() => handleSelect(t)}
                   disabled={selectedIds.has(t.id)}
-                  className={`w-full text-left px-3 py-1.5 text-sm border-b border-gray-100 hover:bg-blue-50 ${selectedIds.has(t.id) ? 'opacity-50' : ''}`}
+                  className={`w-full text-left px-3 py-1.5 text-sm border-b border-gray-100 hover:bg-indigo-50 ${selectedIds.has(t.id) ? 'opacity-50' : ''}`}
                 >
                   <span className="text-xs text-gray-400 mr-2">{t.id}</span>
                   {t.name}
@@ -382,7 +382,7 @@ export default function SetCategorization({ systemId, onNext, onErrors }: SetCat
         <button
           onClick={handleSaveCategorization}
           disabled={saving}
-          className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {saving ? 'Saving...' : 'Save & Select Baseline'}
         </button>

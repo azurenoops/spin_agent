@@ -35,7 +35,7 @@ const TYPE_FILTER_OPTIONS: BoundaryDefinitionType[] = ['Physical', 'Logical', 'H
 
 const TYPE_BADGE: Record<string, string> = {
   Physical: 'bg-orange-100 text-orange-800',
-  Logical: 'bg-blue-100 text-blue-800',
+  Logical: 'bg-indigo-100 text-indigo-800',
   Hybrid: 'bg-purple-100 text-purple-800',
 };
 
@@ -191,7 +191,7 @@ export default function BoundaryManagement() {
           <button
             type="button"
             onClick={() => { setFormMode({ kind: 'create' }); setFormError(null); }}
-            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             + Add Boundary
           </button>
@@ -199,14 +199,14 @@ export default function BoundaryManagement() {
 
         {/* P-16 Guidance: Component Library first (Feature 040 US7) */}
         {systemComponentCount !== null && systemComponentCount === 0 && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
             <div className="flex items-start gap-3">
-              <svg className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="h-5 w-5 text-indigo-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
               </svg>
               <div>
-                <h3 className="text-sm font-semibold text-blue-800">NIST RMF Step P-16: Complete Asset Identification First</h3>
-                <p className="mt-1 text-sm text-blue-700">
+                <h3 className="text-sm font-semibold text-indigo-800">NIST RMF Step P-16: Complete Asset Identification First</h3>
+                <p className="mt-1 text-sm text-indigo-700">
                   Before defining authorization boundaries (P-17), populate your Component Library with the system's assets.
                   Navigate to <strong>Component Inventory</strong> to discover Azure resources and import them as components.
                 </p>
@@ -222,7 +222,7 @@ export default function BoundaryManagement() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search boundaries..."
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
           <select
             value={typeFilter}
@@ -386,7 +386,7 @@ export default function BoundaryManagement() {
 
               {/* Tab header */}
               <div className="flex border-b border-gray-200 px-6">
-                <div className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px border-blue-600 text-blue-600">
+                <div className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px border-indigo-600 text-indigo-600">
                   Components ({boundaryComponents.length})
                 </div>
               </div>
@@ -417,7 +417,7 @@ export default function BoundaryManagement() {
 // ─── Boundary Components Tab ─────────────────────────────────────────────
 
 const TYPE_COLORS: Record<string, string> = {
-  Person: 'bg-blue-50 text-blue-700',
+  Person: 'bg-indigo-50 text-indigo-700',
   Place: 'bg-green-50 text-green-700',
   Thing: 'bg-purple-50 text-purple-700',
 };
@@ -591,7 +591,7 @@ function BoundaryComponentsTab({
           )}
           <button
             onClick={() => setShowAdd(!showAdd)}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
           >
             {showAdd ? 'Done' : '+ Assign Component'}
           </button>
@@ -600,7 +600,7 @@ function BoundaryComponentsTab({
 
       {/* Add component picker */}
       {showAdd && (
-        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+        <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
           <input
             type="text"
             value={search}
@@ -628,7 +628,7 @@ function BoundaryComponentsTab({
                   <button
                     onClick={() => handleAdd(c)}
                     disabled={addingIds.has(c.id)}
-                    className="ml-2 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex-shrink-0"
+                    className="ml-2 px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 flex-shrink-0"
                   >
                     {addingIds.has(c.id) ? 'Adding...' : 'Add'}
                   </button>
@@ -645,7 +645,7 @@ function BoundaryComponentsTab({
           <div className="text-center py-8">
             <p className="text-gray-500 mb-3">No components assigned to this boundary yet.</p>
             {!showAdd && (
-              <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+              <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
                 Assign Components
               </button>
             )}
@@ -704,7 +704,7 @@ function BoundaryComponentsTab({
                               <button
                                 onClick={() => handleSaveScope(a.assignmentId, false)}
                                 disabled={!editRationale.trim()}
-                                className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded disabled:opacity-50"
+                                className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded disabled:opacity-50"
                               >
                                 Save
                               </button>
@@ -726,7 +726,7 @@ function BoundaryComponentsTab({
                   </td>
                   <td className="py-2 pr-3 text-xs text-gray-600">
                     {a.exclusionRationale && <div title={a.exclusionRationale} className="truncate max-w-[200px]">{a.exclusionRationale}</div>}
-                    {a.inheritanceProvider && <div className="text-blue-600 text-xs">↳ {a.inheritanceProvider}</div>}
+                    {a.inheritanceProvider && <div className="text-indigo-600 text-xs">↳ {a.inheritanceProvider}</div>}
                   </td>
                   <td className="py-2 text-right">
                     <button onClick={() => handleRemoveNew(a.assignmentId)} className="text-xs text-red-600 hover:underline">Remove</button>
@@ -742,7 +742,7 @@ function BoundaryComponentsTab({
           <div className="text-center py-8">
             <p className="text-gray-500 mb-3">No components assigned to this boundary yet.</p>
             {!showAdd && (
-              <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+              <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
                 Add Components
               </button>
             )}
@@ -778,7 +778,7 @@ function BoundaryComponentsTab({
                     {c.capabilityLinks.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {c.capabilityLinks.map((cl) => (
-                          <span key={cl.capabilityId} className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded truncate max-w-[150px]" title={cl.capabilityName}>
+                          <span key={cl.capabilityId} className="text-xs bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded truncate max-w-[150px]" title={cl.capabilityName}>
                             {cl.capabilityName}
                           </span>
                         ))}

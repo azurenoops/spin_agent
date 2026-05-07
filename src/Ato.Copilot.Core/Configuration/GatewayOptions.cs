@@ -206,6 +206,18 @@ public class SimulatedIdentityOptions
 
     /// <summary>Simulated role assignments. Empty list = least privilege.</summary>
     public List<string> Roles { get; set; } = [];
+
+    /// <summary>
+    /// Optional simulated tenant id (Entra <c>tid</c> claim). Required for endpoints
+    /// that scope access by tenant (e.g., the onboarding wizard policies).
+    /// </summary>
+    public Guid? TenantId { get; set; }
+
+    /// <summary>
+    /// Optional simulated object id (Entra <c>oid</c> claim). Required for endpoints
+    /// that resolve the calling subject by object id.
+    /// </summary>
+    public Guid? ObjectId { get; set; }
 }
 
 /// <summary>

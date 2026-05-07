@@ -120,18 +120,18 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
                 key={b.id}
                 onClick={() => setSelectedBoundary(selectedBoundary === b.id ? null : b.id)}
                 className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors ${
-                  selectedBoundary === b.id ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                  selectedBoundary === b.id ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
                 }`}
               >
                 <div>
                   <span className="font-medium text-gray-900">{b.name}</span>
-                  <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">{b.boundaryType}</span>
+                  <span className="ml-2 rounded bg-indigo-100 px-1.5 py-0.5 text-xs text-indigo-700">{b.boundaryType}</span>
                   {b.isPrimary && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">Primary</span>}
                   {b.componentCount != null && b.componentCount > 0 && (
                     <span className="ml-2 text-xs text-gray-400">{b.componentCount} component{b.componentCount !== 1 ? 's' : ''}</span>
                   )}
                 </div>
-                <span className="text-xs text-blue-600">{selectedBoundary === b.id ? 'Selected' : 'Click to assign components'}</span>
+                <span className="text-xs text-indigo-600">{selectedBoundary === b.id ? 'Selected' : 'Click to assign components'}</span>
               </div>
             ))}
           </div>
@@ -140,9 +140,9 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
 
       {/* Component assignment panel — shown when a boundary is selected */}
       {selectedBoundary && (
-        <div className="mb-6 rounded-md border border-blue-200 bg-blue-50/50 p-4">
+        <div className="mb-6 rounded-md border border-indigo-200 bg-indigo-50/50 p-4">
           <h3 className="text-sm font-medium text-gray-700 mb-3">
-            Assign Components to: <span className="text-blue-700">{boundaries.find((b) => b.id === selectedBoundary)?.name}</span>
+            Assign Components to: <span className="text-indigo-700">{boundaries.find((b) => b.id === selectedBoundary)?.name}</span>
           </h3>
 
           {/* Sub-tabs for system vs org components */}
@@ -150,7 +150,7 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
             <button
               onClick={() => setCompTab('system')}
               className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
-                compTab === 'system' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                compTab === 'system' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               System Components
@@ -158,7 +158,7 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
             <button
               onClick={() => setCompTab('org')}
               className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
-                compTab === 'org' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                compTab === 'org' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               Organization Library
@@ -193,7 +193,7 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
                     <button
                       onClick={() => handleAssignComponent(c.id, c.name, c.componentType, selectedBoundary)}
                       disabled={assigningId === c.id}
-                      className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+                      className="rounded bg-indigo-600 px-2 py-0.5 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
                     >
                       {assigningId === c.id ? 'Assigning...' : 'Assign'}
                     </button>
@@ -221,7 +221,7 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
                     <button
                       onClick={() => handleAssignComponent(oc.id, oc.name, oc.componentType, selectedBoundary)}
                       disabled={assigningId === oc.id}
-                      className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+                      className="rounded bg-indigo-600 px-2 py-0.5 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
                     >
                       {assigningId === oc.id ? 'Assigning...' : 'Assign'}
                     </button>
@@ -289,7 +289,7 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
       </div>
 
       <div className="mt-6 flex justify-end">
-        <button onClick={onNext} className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={onNext} className="rounded-md bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700">
           Next
         </button>
       </div>

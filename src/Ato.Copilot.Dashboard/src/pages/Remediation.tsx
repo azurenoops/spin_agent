@@ -35,7 +35,7 @@ function CatBadge({ cat }: { cat: string }) {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    Ongoing: 'bg-blue-100 text-blue-700',
+    Ongoing: 'bg-indigo-100 text-indigo-700',
     Completed: 'bg-green-100 text-green-700',
     Delayed: 'bg-amber-100 text-amber-700',
     RiskAccepted: 'bg-gray-100 text-gray-600',
@@ -52,7 +52,7 @@ function SeverityBadge({ severity }: { severity: string }) {
     Critical: 'bg-purple-100 text-purple-800',
     High: 'bg-red-100 text-red-700',
     Medium: 'bg-amber-100 text-amber-700',
-    Low: 'bg-blue-100 text-blue-700',
+    Low: 'bg-indigo-100 text-indigo-700',
   };
   return (
     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${colors[severity] ?? 'bg-gray-100 text-gray-500'}`}>
@@ -245,19 +245,19 @@ export default function Remediation() {
               placeholder="Search tasks..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48"
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-48"
             />
             {/* View toggle */}
             <div className="inline-flex rounded-md shadow-sm">
               <button
                 onClick={() => setViewMode('table')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-l-md border ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded-l-md border ${viewMode === 'table' ? 'bg-indigo-50 text-indigo-700 border-indigo-300' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
               >
                 Table
               </button>
               <button
                 onClick={() => setViewMode('kanban')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-r-md border-t border-b border-r ${viewMode === 'kanban' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded-r-md border-t border-b border-r ${viewMode === 'kanban' ? 'bg-indigo-50 text-indigo-700 border-indigo-300' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
               >
                 Kanban
               </button>
@@ -268,7 +268,7 @@ export default function Remediation() {
         {/* Loading / Error */}
         {loading && !summary && (
           <div className="flex items-center justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
           </div>
         )}
         {error && (
@@ -281,7 +281,7 @@ export default function Remediation() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               <div className="rounded-lg border border-gray-200 bg-white p-4">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Tasks</p>
-                <p className="mt-1 text-2xl font-bold text-blue-600">{summary.totalTasks}</p>
+                <p className="mt-1 text-2xl font-bold text-indigo-600">{summary.totalTasks}</p>
               </div>
               <div className="rounded-lg border border-gray-200 bg-white p-4">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">In Progress</p>
@@ -304,7 +304,7 @@ export default function Remediation() {
                 <div className="flex gap-1 h-6 rounded-full overflow-hidden">
                   {[
                     { key: 'backlog', label: 'Backlog', color: 'bg-gray-400', count: summary.tasksByStatus.backlog },
-                    { key: 'todo', label: 'To Do', color: 'bg-blue-400', count: summary.tasksByStatus.todo },
+                    { key: 'todo', label: 'To Do', color: 'bg-indigo-400', count: summary.tasksByStatus.todo },
                     { key: 'inProgress', label: 'In Progress', color: 'bg-indigo-500', count: summary.tasksByStatus.inProgress },
                     { key: 'inReview', label: 'In Review', color: 'bg-amber-400', count: summary.tasksByStatus.inReview },
                     { key: 'blocked', label: 'Blocked', color: 'bg-red-500', count: summary.tasksByStatus.blocked },
@@ -323,7 +323,7 @@ export default function Remediation() {
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                   {[
                     { label: 'Backlog', color: 'bg-gray-400', count: summary.tasksByStatus.backlog },
-                    { label: 'To Do', color: 'bg-blue-400', count: summary.tasksByStatus.todo },
+                    { label: 'To Do', color: 'bg-indigo-400', count: summary.tasksByStatus.todo },
                     { label: 'In Progress', color: 'bg-indigo-500', count: summary.tasksByStatus.inProgress },
                     { label: 'In Review', color: 'bg-amber-400', count: summary.tasksByStatus.inReview },
                     { label: 'Blocked', color: 'bg-red-500', count: summary.tasksByStatus.blocked },
@@ -366,7 +366,7 @@ export default function Remediation() {
                       ) : filteredTasks.map(t => (
                         <tr
                           key={t.id}
-                          className={`hover:bg-gray-50 cursor-pointer ${selectedTask?.id === t.id ? 'bg-blue-50' : ''}`}
+                          className={`hover:bg-gray-50 cursor-pointer ${selectedTask?.id === t.id ? 'bg-indigo-50' : ''}`}
                           onClick={() => setSelectedTask(selectedTask?.id === t.id ? null : t)}
                         >
                           <td className="px-3 py-2.5 font-mono text-xs text-gray-400">{t.taskNumber}</td>
@@ -387,7 +387,7 @@ export default function Remediation() {
                             {t.poamItemId ? (
                               <Link
                                 to={`/systems/${systemId}/poam?detail=${t.poamItemId}`}
-                                className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-200"
+                                className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-200"
                               >
                                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -410,7 +410,7 @@ export default function Remediation() {
                           <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => setSelectedTask(t)}
-                              className="text-xs text-blue-600 hover:text-blue-800"
+                              className="text-xs text-indigo-600 hover:text-indigo-800"
                             >
                               Detail
                             </button>
@@ -427,7 +427,7 @@ export default function Remediation() {
                 {Object.entries(kanbanColumns).map(([colStatus, tasks]) => {
                   const colColors: Record<string, { bg: string; border: string; header: string }> = {
                     Backlog: { bg: 'bg-gray-50', border: 'border-gray-200', header: 'text-gray-600' },
-                    ToDo: { bg: 'bg-blue-50', border: 'border-blue-200', header: 'text-blue-700' },
+                    ToDo: { bg: 'bg-indigo-50', border: 'border-indigo-200', header: 'text-indigo-700' },
                     InProgress: { bg: 'bg-indigo-50', border: 'border-indigo-200', header: 'text-indigo-700' },
                     InReview: { bg: 'bg-amber-50', border: 'border-amber-200', header: 'text-amber-700' },
                     Blocked: { bg: 'bg-red-50', border: 'border-red-200', header: 'text-red-700' },
@@ -439,7 +439,7 @@ export default function Remediation() {
                   return (
                     <div
                       key={colStatus}
-                      className={`flex-shrink-0 w-64 rounded-lg border-2 transition-colors ${isOver ? 'border-blue-400 bg-blue-50/50 ring-2 ring-blue-200' : `${c.border} ${c.bg}`}`}
+                      className={`flex-shrink-0 w-64 rounded-lg border-2 transition-colors ${isOver ? 'border-indigo-400 bg-indigo-50/50 ring-2 ring-indigo-200' : `${c.border} ${c.bg}`}`}
                       onDragOver={(e) => handleDragOver(e, colStatus)}
                       onDragLeave={(e) => handleDragLeave(e, colStatus)}
                       onDrop={(e) => void handleDrop(e, colStatus)}
@@ -450,9 +450,9 @@ export default function Remediation() {
                           <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">{tasks.length}</span>
                         </div>
                       </div>
-                      <div className={`p-2 space-y-2 max-h-[60vh] overflow-y-auto min-h-[80px] ${isOver ? 'bg-blue-50/30' : ''}`}>
+                      <div className={`p-2 space-y-2 max-h-[60vh] overflow-y-auto min-h-[80px] ${isOver ? 'bg-indigo-50/30' : ''}`}>
                         {tasks.length === 0 ? (
-                          <p className={`text-xs text-center py-4 ${isOver ? 'text-blue-500 font-medium' : 'text-gray-400'}`}>
+                          <p className={`text-xs text-center py-4 ${isOver ? 'text-indigo-500 font-medium' : 'text-gray-400'}`}>
                             {isOver ? 'Drop here' : 'No tasks'}
                           </p>
                         ) : tasks.map(t => (
@@ -468,7 +468,7 @@ export default function Remediation() {
                               <span className="text-[10px] font-mono text-gray-400">{t.taskNumber}</span>
                               {t.catSeverity ? <CatBadge cat={t.catSeverity} /> : <SeverityBadge severity={t.severity} />}
                               {t.poamItemId && (
-                                <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[8px] font-bold text-blue-700" title="Linked to POA&M">
+                                <span className="inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[8px] font-bold text-indigo-700" title="Linked to POA&M">
                                   POA&M
                                 </span>
                               )}
@@ -485,7 +485,7 @@ export default function Remediation() {
                             </div>
                             <p className="text-xs font-medium text-gray-800 line-clamp-2">{t.title}</p>
                             {t.componentName && (
-                              <p className="text-[10px] text-blue-600 mt-0.5 truncate" title={`Component: ${t.componentName}`}>⬡ {t.componentName}</p>
+                              <p className="text-[10px] text-indigo-600 mt-0.5 truncate" title={`Component: ${t.componentName}`}>⬡ {t.componentName}</p>
                             )}
                             <div className="mt-2 flex items-center justify-between text-[10px] text-gray-500">
                               <span className="font-mono">{t.controlId}</span>
@@ -571,9 +571,9 @@ export default function Remediation() {
                     <StatusBadge status={selectedTask.status} />
                   </div>
                   {selectedTask.componentName && (
-                    <div className="rounded-md border border-blue-100 bg-blue-50 p-3 col-span-2">
-                      <p className="text-xs text-blue-500">Component</p>
-                      <p className="text-sm font-medium text-blue-800">⬡ {selectedTask.componentName}</p>
+                    <div className="rounded-md border border-indigo-100 bg-indigo-50 p-3 col-span-2">
+                      <p className="text-xs text-indigo-500">Component</p>
+                      <p className="text-sm font-medium text-indigo-800">⬡ {selectedTask.componentName}</p>
                     </div>
                   )}
                 </div>
@@ -590,7 +590,7 @@ export default function Remediation() {
                       />
                       <Link
                         to={`/systems/${systemId}/poam?detail=${selectedTask.poamItemId}`}
-                        className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                        className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
                       >
                         View POA&M →
                       </Link>
@@ -666,7 +666,7 @@ export default function Remediation() {
                     className={`w-full flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
                       p.hasTask
                         ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
-                        : 'border-gray-200 hover:bg-blue-50 disabled:opacity-50'
+                        : 'border-gray-200 hover:bg-indigo-50 disabled:opacity-50'
                     }`}
                   >
                     <div className="flex items-center gap-2">

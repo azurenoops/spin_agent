@@ -105,7 +105,7 @@ export default function CrmImportDialog({
           {/* ── Step 1: Upload ── */}
           {step === 'upload' && (
             <div
-              className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition ${dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+              className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition ${dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'}`}
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
@@ -117,7 +117,7 @@ export default function CrmImportDialog({
                   <p className="mb-2 text-sm text-gray-500">Drag & drop a CSV or Excel file, or</p>
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                   >
                     Browse Files
                   </button>
@@ -213,7 +213,7 @@ export default function CrmImportDialog({
                 <button
                   onClick={handleApply}
                   disabled={!allMapped || loading}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {loading ? 'Importing…' : 'Apply Import'}
                 </button>
@@ -234,7 +234,7 @@ export default function CrmImportDialog({
                 <div className="rounded-md bg-gray-50 p-3"><span className="text-gray-500">Overwritten</span><br /><strong>{result.duplicatesOverwritten}</strong></div>
               </div>
               {result.narrativesAutoUpdated > 0 && (
-                <div className="rounded-md bg-blue-50 p-4 text-sm text-blue-800">
+                <div className="rounded-md bg-indigo-50 p-4 text-sm text-indigo-800">
                   <strong>{result.narrativesAutoUpdated}</strong> narrative{result.narrativesAutoUpdated !== 1 ? 's' : ''} auto-updated: Inherited → Implemented, Shared → Partially Implemented
                 </div>
               )}
@@ -245,7 +245,7 @@ export default function CrmImportDialog({
                 </div>
               )}
               <div className="flex justify-end pt-2">
-                <button onClick={onClose} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Done</button>
+                <button onClick={onClose} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Done</button>
               </div>
             </>
           )}

@@ -557,6 +557,22 @@ public partial class DocumentTemplateService : IDocumentTemplateService
             ["PreparedDate"] = DateTime.UtcNow.ToString("yyyy-MM-dd")
         };
 
+        // Feature 047 (T054 / FR-014): SSP cover-page picks up the per-tenant
+        // OrganizationContext captured in Step 1 of the onboarding wizard.
+        // RegisteredSystem currently has no TenantId, so we read the singleton
+        // OrganizationContext row in dev/test; multi-tenant resolution becomes a
+        // follow-up once system→tenant linkage is wired (see plan.md T047a §1).
+        var organization = await db.OrganizationContexts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+        data["OrganizationName"] = organization?.OrganizationName ?? "Organization Name (capture in onboarding wizard Step 1)";
+        if (organization != null)
+        {
+            data["OrganizationBranch"] = organization.Branch.ToString();
+            if (!string.IsNullOrWhiteSpace(organization.SubOrganization))
+                data["OrganizationSubOrganization"] = organization.SubOrganization;
+        }
+
         switch (documentType)
         {
             case "ssp":

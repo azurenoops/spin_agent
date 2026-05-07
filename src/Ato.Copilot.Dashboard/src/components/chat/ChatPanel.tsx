@@ -122,7 +122,7 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
       {!isMobile && (
         <div
           onMouseDown={handleMouseDown}
-          className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 transition-colors"
+          className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-400 transition-colors"
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize chat panel"

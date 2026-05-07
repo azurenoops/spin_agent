@@ -24,9 +24,10 @@ public class SystemCapabilityLinkServiceTests : IDisposable
         var dbOptions = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseInMemoryDatabase($"CapabilityLinkTests_{Guid.NewGuid()}")
             .Options;
-        _db = new AtoCopilotContext(dbOptions);
+        var factory = new TestDbContextFactory(dbOptions);
+        _db = factory.Context;
         var logger = Mock.Of<ILogger<SystemCapabilityLinkService>>();
-        _sut = new SystemCapabilityLinkService(_db, logger);
+        _sut = new SystemCapabilityLinkService(factory, logger);
 
         SeedData();
     }

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import PageLayout from '../components/layout/PageLayout';
+import PageHero from '../components/layout/PageHero';
 import SystemSummaryRow from '../components/cards/SystemSummaryRow';
 import IntakeWizard from '../components/wizard/IntakeWizard';
 import { usePolling } from '../hooks/usePolling';
@@ -116,17 +117,18 @@ export default function PortfolioDashboard() {
 
   return (
     <PageLayout title="Systems">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Systems</h1>
-        <p className="text-sm text-gray-500 mt-1">Register, manage, and monitor all information systems in your portfolio</p>
-      </div>
+      <PageHero
+        eyebrow="Portfolio"
+        title="Systems"
+        description="Register, manage, and monitor all information systems in your portfolio."
+      />
 
       {/* Filters */}
-      <div className="mb-4 flex gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <select
           value={impactFilter}
           onChange={(e) => setImpactFilter(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         >
           <option value="">All Impact Levels</option>
           <option value="Low">Low</option>
@@ -136,7 +138,7 @@ export default function PortfolioDashboard() {
         <select
           value={rmfFilter}
           onChange={(e) => setRmfFilter(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         >
           <option value="">All RMF Phases</option>
           <option value="Prepare">Prepare</option>
@@ -147,15 +149,18 @@ export default function PortfolioDashboard() {
           <option value="Authorize">Authorize</option>
           <option value="Monitor">Monitor</option>
         </select>
-        <span className="ml-auto self-center text-sm text-gray-500">
+        <span className="self-center text-sm text-gray-500">
           {totalCount} system{totalCount !== 1 ? 's' : ''}
         </span>
-        <button
-          onClick={() => wizard.open()}
-          className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          + Add System
-        </button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => wizard.open()}
+            className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            + Add System
+          </button>
+        </div>
       </div>
 
       {/* Intake Wizard */}
@@ -303,7 +308,7 @@ export default function PortfolioDashboard() {
               <button
                 onClick={handleEditSystem}
                 disabled={editSaving || !editForm.name?.trim()}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {editSaving ? 'Saving...' : 'Save Changes'}
               </button>

@@ -19,7 +19,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  Person: 'bg-blue-50 text-blue-700',
+  Person: 'bg-indigo-50 text-indigo-700',
   Place: 'bg-green-50 text-green-700',
   Thing: 'bg-purple-50 text-purple-700',
 };
@@ -76,7 +76,7 @@ export default function CapabilityCoverage() {
         <button
           type="button"
           onClick={() => setShowAddDialog(true)}
-          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+          className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -90,7 +90,7 @@ export default function CapabilityCoverage() {
         <SummaryCard label="Capabilities" value={summary.totalCapabilities} />
         <SummaryCard label="Mapped Controls" value={summary.totalMappedControls} />
         <SummaryCard label="Populated" value={summary.totalNarrativesPopulated} color="text-green-600" />
-        <SummaryCard label="Custom" value={summary.totalNarrativesCustom} color="text-blue-600" />
+        <SummaryCard label="Custom" value={summary.totalNarrativesCustom} color="text-indigo-600" />
         <SummaryCard label="Empty" value={summary.totalNarrativesEmpty} color="text-red-600" />
         <SummaryCard label="Coverage" value={`${summary.coveragePercent}%`} color="text-indigo-600" />
       </div>
@@ -216,7 +216,7 @@ function CapabilityRow({
           {/* Narrative status breakdown */}
           <div className="flex flex-wrap gap-4 text-sm">
             <span className="text-green-600">Populated: {ns.populated}</span>
-            <span className="text-blue-600">Custom: {ns.custom}</span>
+            <span className="text-indigo-600">Custom: {ns.custom}</span>
             <span className="text-red-600">Empty: {ns.empty}</span>
             {ns.aiGenerated > 0 && <span className="text-purple-600">AI Generated: {ns.aiGenerated}</span>}
           </div>
@@ -360,11 +360,11 @@ function CapabilityEvidenceSection({ systemId, capabilityId }: { systemId: strin
     <div className="border-t border-gray-100 pt-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-gray-500">
-          Evidence {artifacts.length > 0 && <span className="ml-1 text-blue-600">({artifacts.length})</span>}
+          Evidence {artifacts.length > 0 && <span className="ml-1 text-indigo-600">({artifacts.length})</span>}
         </p>
         <button
           onClick={() => setShowUpload(true)}
-          className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+          className="inline-flex items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700"
         >
           <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

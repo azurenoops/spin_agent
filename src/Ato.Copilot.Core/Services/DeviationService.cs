@@ -13,17 +13,17 @@ namespace Ato.Copilot.Core.Services;
 /// </summary>
 public class DeviationService : IDeviationService
 {
-    private readonly AtoCopilotContext _db;
+    private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly ILogger<DeviationService> _logger;
     private readonly INotificationBroadcaster? _broadcaster;
 
     /// <summary>Initializes a new instance of <see cref="DeviationService"/>.</summary>
     public DeviationService(
-        AtoCopilotContext db,
+        IDbContextFactory<AtoCopilotContext> dbFactory,
         ILogger<DeviationService> logger,
         INotificationBroadcaster? broadcaster = null)
     {
-        _db = db;
+        _dbFactory = dbFactory;
         _logger = logger;
         _broadcaster = broadcaster;
     }
@@ -37,6 +37,8 @@ public class DeviationService : IDeviationService
         string requestedBy = "mcp-user",
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         // Validate system exists
         var system = await _db.RegisteredSystems
             .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken)
@@ -143,6 +145,7 @@ public class DeviationService : IDeviationService
         string deviationId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await _db.Deviations
             .Include(d => d.Finding)
             .Include(d => d.PoamEntry)
@@ -155,6 +158,7 @@ public class DeviationService : IDeviationService
         string deviationId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         var deviation = await _db.Deviations
             .Include(d => d.Finding)
             .Include(d => d.PoamEntry)
@@ -257,6 +261,8 @@ public class DeviationService : IDeviationService
         pageSize = Math.Clamp(pageSize, 1, 100);
         page = Math.Max(1, page);
 
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var query = _db.Deviations
             .Where(d => d.RegisteredSystemId == systemId);
 
@@ -338,6 +344,7 @@ public class DeviationService : IDeviationService
         string systemId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         var deviations = await _db.Deviations
             .Where(d => d.RegisteredSystemId == systemId)
             .Select(d => new
@@ -377,6 +384,8 @@ public class DeviationService : IDeviationService
         string reviewerRole = "ISSM",
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var deviation = await _db.Deviations
             .Include(d => d.Finding)
             .Include(d => d.PoamEntry)
@@ -475,6 +484,8 @@ public class DeviationService : IDeviationService
         string revokedBy = "mcp-user",
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var deviation = await _db.Deviations
             .Include(d => d.Finding)
             .Include(d => d.PoamEntry)
@@ -523,6 +534,8 @@ public class DeviationService : IDeviationService
         string extendedBy = "mcp-user",
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var deviation = await _db.Deviations
             .FirstOrDefaultAsync(d => d.Id == deviationId, cancellationToken)
             ?? throw new InvalidOperationException($"Deviation '{deviationId}' not found.");
@@ -574,6 +587,7 @@ public class DeviationService : IDeviationService
         string boundaryDefinitionId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await _db.Deviations
             .Where(d => d.RegisteredSystemId == systemId
                 && d.DeviationType == DeviationType.Waiver
@@ -589,6 +603,7 @@ public class DeviationService : IDeviationService
         string systemId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await _db.Deviations
             .CountAsync(d => d.RegisteredSystemId == systemId
                 && d.Status == DeviationStatus.Approved,
@@ -600,6 +615,7 @@ public class DeviationService : IDeviationService
     /// <inheritdoc />
     public async Task<int> ExpireDeviationsAsync(CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         var expiredDeviations = await _db.Deviations
             .Include(d => d.Finding)
             .Include(d => d.PoamEntry)
@@ -638,6 +654,7 @@ public class DeviationService : IDeviationService
         string findingId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         var orphanedDeviations = await _db.Deviations
             .Where(d => d.FindingId == findingId
                 && (d.Status == DeviationStatus.Pending || d.Status == DeviationStatus.Approved))
@@ -676,6 +693,7 @@ public class DeviationService : IDeviationService
         string systemId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         // Find the Primary boundary for this system to reassign waivers to
         var primaryBoundary = await _db.AuthorizationBoundaryDefinitions
             .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId && b.IsPrimary, cancellationToken);
@@ -772,6 +790,8 @@ public class DeviationService : IDeviationService
         string userId, string subject, string body, CancellationToken ct)
     {
         if (_broadcaster is null || string.IsNullOrEmpty(userId)) return;
+
+        await using var _db = await _dbFactory.CreateDbContextAsync(ct);
 
         var notification = new AlertNotification
         {

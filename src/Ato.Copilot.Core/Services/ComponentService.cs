@@ -11,15 +11,15 @@ namespace Ato.Copilot.Core.Services;
 /// </summary>
 public class ComponentService
 {
-    private readonly AtoCopilotContext _db;
+    private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly ILogger<ComponentService> _logger;
     private readonly NarrativeTemplateService _narrativeService;
     private readonly SystemCapabilityLinkService _linkService;
 
     /// <summary>Initializes a new instance of <see cref="ComponentService"/>.</summary>
-    public ComponentService(AtoCopilotContext db, ILogger<ComponentService> logger, NarrativeTemplateService narrativeService, SystemCapabilityLinkService linkService)
+    public ComponentService(IDbContextFactory<AtoCopilotContext> dbFactory, ILogger<ComponentService> logger, NarrativeTemplateService narrativeService, SystemCapabilityLinkService linkService)
     {
-        _db = db;
+        _dbFactory = dbFactory;
         _logger = logger;
         _narrativeService = narrativeService;
         _linkService = linkService;
@@ -33,6 +33,8 @@ public class ComponentService
         ComponentQuery query,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var systemExists = await _db.RegisteredSystems
             .AnyAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
 
@@ -111,6 +113,8 @@ public class ComponentService
         string createdBy,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var systemExists = await _db.RegisteredSystems
             .AnyAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
         if (!systemExists) return null;
@@ -218,6 +222,8 @@ public class ComponentService
         CreateComponentRequest request,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var entity = await _db.SystemComponents
             .Include(c => c.CapabilityLinks)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
@@ -278,6 +284,8 @@ public class ComponentService
         string deletedBy,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var entity = await _db.SystemComponents
             .Include(c => c.CapabilityLinks).ThenInclude(cl => cl.SecurityCapability)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
@@ -361,6 +369,8 @@ public class ComponentService
         string createdBy,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var imported = new List<SystemComponentDto>();
         var skipped = new List<SkippedResource>();
 
@@ -422,6 +432,8 @@ public class ComponentService
         string createdBy,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var imported = new List<SystemComponentDto>();
         var skipped = new List<SkippedResource>();
         var assignedFromOrg = 0;
@@ -505,6 +517,8 @@ public class ComponentService
         BoundaryComponentQuery query,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         IQueryable<BoundaryComponentAssignment> q = _db.BoundaryComponentAssignments
             .Where(a => a.AuthorizationBoundaryDefinitionId == boundaryId);
 
@@ -577,6 +591,8 @@ public class ComponentService
         if (!isInScope && string.IsNullOrWhiteSpace(exclusionRationale))
             return (null, "RATIONALE_REQUIRED");
 
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var exists = await _db.BoundaryComponentAssignments
             .AnyAsync(a => a.SystemComponentId == componentId && a.AuthorizationBoundaryDefinitionId == boundaryId, cancellationToken);
         if (exists)
@@ -632,6 +648,8 @@ public class ComponentService
         if (!isInScope && string.IsNullOrWhiteSpace(exclusionRationale))
             return (null, "RATIONALE_REQUIRED");
 
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var assignment = await _db.BoundaryComponentAssignments
             .Include(a => a.SystemComponent)
             .FirstOrDefaultAsync(a => a.Id == assignmentId, cancellationToken);
@@ -672,6 +690,8 @@ public class ComponentService
         string assignmentId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var assignment = await _db.BoundaryComponentAssignments
             .FirstOrDefaultAsync(a => a.Id == assignmentId, cancellationToken);
         if (assignment == null) return false;
@@ -692,6 +712,8 @@ public class ComponentService
         string systemId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         // Build a lookup of AzureResourceId → ComponentId for components in this system
         // (both system-scoped AND org-wide components assigned to boundaries of this system)
         var systemComponentMap = await _db.SystemComponents
@@ -746,6 +768,8 @@ public class ComponentService
         string componentId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var component = await _db.SystemComponents
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == componentId, cancellationToken);
@@ -792,6 +816,8 @@ public class ComponentService
         string componentId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var component = await _db.SystemComponents
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == componentId, cancellationToken);
@@ -822,6 +848,8 @@ public class ComponentService
         string? assessmentId = null,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         IQueryable<ComplianceFinding> findingsQuery;
 
         if (!string.IsNullOrEmpty(assessmentId))
@@ -895,6 +923,8 @@ public class ComponentService
         OrgComponentQuery query,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         IQueryable<SystemComponent> q = _db.SystemComponents
             .Where(c => c.RegisteredSystemId == null);
 
@@ -945,6 +975,8 @@ public class ComponentService
         string id,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var entity = await _db.SystemComponents
             .Include(c => c.CapabilityLinks).ThenInclude(cl => cl.SecurityCapability)
             .Include(c => c.SystemAssignments).ThenInclude(a => a.RegisteredSystem)
@@ -968,6 +1000,8 @@ public class ComponentService
 
         if (!Enum.TryParse<ComponentStatus>(request.Status, ignoreCase: true, out var compStatus))
             compStatus = ComponentStatus.Active;
+
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var entity = new SystemComponent
         {
@@ -1019,6 +1053,8 @@ public class ComponentService
         CreateComponentRequest request,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var entity = await _db.SystemComponents
             .Include(c => c.CapabilityLinks)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
@@ -1089,6 +1125,8 @@ public class ComponentService
         string boundaryDefinitionId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var boundary = await _db.AuthorizationBoundaryDefinitions
             .AsNoTracking()
             .FirstOrDefaultAsync(b => b.Id == boundaryDefinitionId, cancellationToken);
@@ -1138,6 +1176,8 @@ public class ComponentService
         string createdBy,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var componentExists = await _db.SystemComponents
             .AnyAsync(c => c.Id == componentId, cancellationToken);
         if (!componentExists) return (null, "Component not found");
@@ -1209,6 +1249,8 @@ public class ComponentService
         string assignmentId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var assignment = await _db.ComponentSystemAssignments
             .FirstOrDefaultAsync(a => a.Id == assignmentId && a.SystemComponentId == componentId,
                 cancellationToken);
@@ -1239,6 +1281,8 @@ public class ComponentService
         string modifiedBy,
         CancellationToken cancellationToken)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         // Find all capabilities linked to this component
         var linkedCapabilityIds = await _db.ComponentCapabilityLinks
             .Where(cl => cl.SystemComponentId == componentId)
@@ -1360,6 +1404,10 @@ public class ComponentService
         _logger.LogInformation(
             "Component {ComponentId} cascade complete: {Total} narratives updated, {Skipped} customized skipped",
             componentId, totalUpdated, totalSkipped);
+
+        // Persist cascade changes (own context, must save here)
+        if (totalUpdated > 0)
+            await _db.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -1370,6 +1418,8 @@ public class ComponentService
         string componentId,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var exists = await _db.SystemComponents
             .AnyAsync(c => c.Id == componentId, cancellationToken);
         if (!exists) return null;
@@ -1427,6 +1477,8 @@ public class ComponentService
         ComponentQuery query,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var systemExists = await _db.RegisteredSystems
             .AnyAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
         if (!systemExists) return null;
@@ -1512,6 +1564,8 @@ public class ComponentService
         string createdBy,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
         var imported = new List<SystemComponentDto>();
         var skipped = new List<SkippedResource>();
 

@@ -52,6 +52,16 @@ export function usePolling<T = void>(
     }
   }, []);
 
+  // When the caller's fetcher identity changes (e.g. a filter or search input
+  // mutates a closed-over value), refetch immediately instead of waiting for
+  // the next polling interval. Without this, filter changes appear unresponsive
+  // for up to `intervalMs` (default 15s, ComponentLibrary uses 30s).
+  useEffect(() => {
+    if (!enabled) return;
+    void tick();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callback, enabled]);
+
   useEffect(() => {
     if (!enabled) return;
 

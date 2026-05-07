@@ -46,7 +46,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 const CATEGORY_COLORS: Record<string, string> = {
   Screenshot: 'bg-purple-100 text-purple-700',
-  ScanResult: 'bg-blue-100 text-blue-700',
+  ScanResult: 'bg-indigo-100 text-indigo-700',
   ConfigurationExport: 'bg-teal-100 text-teal-700',
   PolicyDocument: 'bg-amber-100 text-amber-700',
   AuditLog: 'bg-gray-100 text-gray-700',
@@ -197,7 +197,7 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
                 <button
                   onClick={handleDownload}
                   disabled={downloading}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -232,7 +232,7 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
 
             {/* Replace File Picker */}
             {showReplace && (
-              <div className="rounded-md border border-blue-200 bg-blue-50 p-4">
+              <div className="rounded-md border border-indigo-200 bg-indigo-50 p-4">
                 <p className="mb-2 text-sm font-medium text-gray-700">Select replacement file:</p>
                 <input
                   type="file"
@@ -243,7 +243,7 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
                   <button
                     onClick={handleReplace}
                     disabled={!replaceFile || replacing}
-                    className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {replacing ? 'Replacing...' : 'Upload Replacement'}
                   </button>
@@ -262,7 +262,7 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
               <div className="space-y-1">
                 <InfoRow label="Source" value={
                   <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                    detail.source === 'Automated' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+                    detail.source === 'Automated' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
                   }`}>
                     {detail.source}
                   </span>

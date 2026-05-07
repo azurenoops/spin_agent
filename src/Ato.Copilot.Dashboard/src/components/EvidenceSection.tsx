@@ -26,7 +26,7 @@ function formatDate(dt: string): string {
 
 const CATEGORY_COLORS: Record<string, string> = {
   Screenshot: 'bg-purple-100 text-purple-700',
-  ScanResult: 'bg-blue-100 text-blue-700',
+  ScanResult: 'bg-indigo-100 text-indigo-700',
   ConfigurationExport: 'bg-teal-100 text-teal-700',
   PolicyDocument: 'bg-amber-100 text-amber-700',
   AuditLog: 'bg-gray-100 text-gray-700',
@@ -221,7 +221,7 @@ export default function EvidenceSection({ systemId, controlId, controlImplementa
         <h4 className="text-sm font-semibold text-gray-700">
           Evidence
           {totalCount > 0 && (
-            <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-100 px-1.5 text-xs font-medium text-blue-700">
+            <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-1.5 text-xs font-medium text-indigo-700">
               {totalCount}
             </span>
           )}
@@ -246,7 +246,7 @@ export default function EvidenceSection({ systemId, controlId, controlImplementa
           </button>
           <button
             onClick={() => setShowUpload(true)}
-            className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

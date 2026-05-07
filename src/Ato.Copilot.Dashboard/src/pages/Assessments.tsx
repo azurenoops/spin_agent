@@ -18,7 +18,7 @@ import type { SarResponse } from '../api/sar';
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     completed: 'bg-green-100 text-green-700',
-    running: 'bg-blue-100 text-blue-700',
+    running: 'bg-indigo-100 text-indigo-700',
     pending: 'bg-amber-100 text-amber-700',
     failed: 'bg-red-100 text-red-700',
   };
@@ -50,7 +50,7 @@ function SeverityBadge({ severity }: { severity: string }) {
     critical: 'bg-purple-100 text-purple-800',
     high: 'bg-red-100 text-red-700',
     medium: 'bg-amber-100 text-amber-700',
-    low: 'bg-blue-100 text-blue-700',
+    low: 'bg-indigo-100 text-indigo-700',
   };
   return (
     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${colors[severity.toLowerCase()] ?? 'bg-gray-100 text-gray-500'}`}>
@@ -238,7 +238,7 @@ export default function Assessments() {
               placeholder="Filter assessments..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             <button
               onClick={() => { setShowSapDialog(true); setSapError(null); }}
@@ -262,7 +262,7 @@ export default function Assessments() {
             </button>
             <button
               onClick={() => { setShowRunDialog(true); setRunError(null); }}
-              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 transition-colors"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -286,7 +286,7 @@ export default function Assessments() {
             </div>
             <div className="rounded-lg border border-gray-200 bg-white p-4">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Score</p>
-              <p className="mt-1 text-2xl font-bold text-blue-600">
+              <p className="mt-1 text-2xl font-bold text-indigo-600">
                 {assessments.length > 0 ? Math.round(assessments.reduce((sum, a) => sum + a.complianceScore, 0) / assessments.length) : 0}%
               </p>
             </div>
@@ -351,7 +351,7 @@ export default function Assessments() {
                   </div>
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                     sarData.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                    sarData.status === 'UnderReview' ? 'bg-blue-100 text-blue-700' :
+                    sarData.status === 'UnderReview' ? 'bg-indigo-100 text-indigo-700' :
                     'bg-amber-100 text-amber-700'
                   }`}>
                     {sarData.status === 'UnderReview' ? 'Under Review' : sarData.status}
@@ -382,7 +382,7 @@ export default function Assessments() {
         {/* Loading / error */}
         {loading && !assessments && (
           <div className="flex items-center justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
           </div>
         )}
         {error && (
@@ -418,7 +418,7 @@ export default function Assessments() {
                   <tr key={a.assessmentId} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">
                       {a.systemId ? (
-                        <Link to={`/systems/${a.systemId}`} className="text-blue-600 hover:text-blue-800 hover:underline">
+                        <Link to={`/systems/${a.systemId}`} className="text-indigo-600 hover:text-indigo-800 hover:underline">
                           {a.systemName ?? a.systemId}
                         </Link>
                       ) : (
@@ -442,7 +442,7 @@ export default function Assessments() {
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => void openDetail(a.assessmentId)}
-                        className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                        className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
                       >
                         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -493,7 +493,7 @@ export default function Assessments() {
               <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
                 {detailLoading && (
                   <div className="flex items-center justify-center py-16">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
                   </div>
                 )}
                 {detailError && (
@@ -543,7 +543,7 @@ export default function Assessments() {
                           </span>
                         )}
                         {detailData.lowCount > 0 && (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
                             Low: {detailData.lowCount}
                           </span>
                         )}
@@ -646,7 +646,7 @@ export default function Assessments() {
                             placeholder="Filter findings..."
                             value={findingFilter}
                             onChange={(e) => setFindingFilter(e.target.value)}
-                            className="rounded-md border border-gray-300 px-2.5 py-1 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48"
+                            className="rounded-md border border-gray-300 px-2.5 py-1 text-xs shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-48"
                           />
                         </div>
                         {(() => {
@@ -702,7 +702,7 @@ export default function Assessments() {
                                           </div>
                                           <p className="mt-1 text-gray-500 pl-1">{f.description}</p>
                                           {f.remediationGuidance && (
-                                            <p className="mt-1 text-blue-600 pl-1">Remediation: {f.remediationGuidance}</p>
+                                            <p className="mt-1 text-indigo-600 pl-1">Remediation: {f.remediationGuidance}</p>
                                           )}
                                         </div>
                                       ))}
@@ -825,7 +825,7 @@ export default function Assessments() {
                   type="button"
                   onClick={() => void handleRunAssessment()}
                   disabled={runLoading}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
                   {runLoading ? 'Running...' : 'Run Assessment'}
                 </button>
@@ -987,8 +987,8 @@ export default function Assessments() {
               {/* Body */}
               <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
                 {/* Explainer */}
-                <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
-                  <p className="text-xs text-blue-800">
+                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3">
+                  <p className="text-xs text-indigo-800">
                     The <strong>Security Assessment Plan (SAP)</strong> defines the scope, methodology, and schedule for your system&apos;s security assessment (RMF Step 4).
                     It documents which controls will be assessed, how they&apos;ll be tested, and who is on the assessment team.
                   </p>
@@ -1004,7 +1004,7 @@ export default function Assessments() {
                           <span className="text-amber-500 mt-0.5">⚠</span>
                           <span>
                             <strong>{sapData.evidenceGaps} controls</strong> have evidence gaps.
-                            <button onClick={() => { setShowSapView(false); navigate(`/systems/${systemId}/evidence`); }} className="text-blue-600 hover:underline ml-1 font-medium">Go to Evidence →</button>
+                            <button onClick={() => { setShowSapView(false); navigate(`/systems/${systemId}/evidence`); }} className="text-indigo-600 hover:underline ml-1 font-medium">Go to Evidence →</button>
                           </span>
                         </li>
                       )}
@@ -1035,7 +1035,7 @@ export default function Assessments() {
                         <span className="text-green-500 mt-0.5">→</span>
                         <span>
                           Run an assessment, then generate a <strong>SAR</strong> above. Both are required for the authorization package.
-                          <button onClick={() => { setShowSapView(false); navigate(`/systems/${systemId}/documents`); }} className="text-blue-600 hover:underline ml-1 font-medium">View Documents →</button>
+                          <button onClick={() => { setShowSapView(false); navigate(`/systems/${systemId}/documents`); }} className="text-indigo-600 hover:underline ml-1 font-medium">View Documents →</button>
                         </span>
                       </li>
                     </ul>
@@ -1050,7 +1050,7 @@ export default function Assessments() {
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</p>
-                    <p className="mt-1 text-2xl font-bold text-blue-600">{sapData.customerControls}</p>
+                    <p className="mt-1 text-2xl font-bold text-indigo-600">{sapData.customerControls}</p>
                     <p className="text-[10px] text-gray-400">Your responsibility</p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
@@ -1081,7 +1081,7 @@ export default function Assessments() {
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Evidence Gaps</p>
                     <p className={`mt-1 text-xl font-bold ${sapData.evidenceGaps > 0 ? 'text-amber-600' : 'text-green-600'}`}>{sapData.evidenceGaps}</p>
                     {sapData.evidenceGaps > 0 ? (
-                      <button onClick={() => { setShowSapView(false); navigate(`/systems/${systemId}/evidence`); }} className="text-[10px] text-blue-600 hover:underline">Upload evidence →</button>
+                      <button onClick={() => { setShowSapView(false); navigate(`/systems/${systemId}/evidence`); }} className="text-[10px] text-indigo-600 hover:underline">Upload evidence →</button>
                     ) : (
                       <p className="text-[10px] text-gray-400">All controls covered</p>
                     )}
@@ -1133,7 +1133,7 @@ export default function Assessments() {
                             <tr key={f.family} className="hover:bg-gray-50">
                               <td className="px-3 py-2 font-medium text-gray-800">{f.family}</td>
                               <td className="px-3 py-2 text-center text-gray-600">{f.controlCount}</td>
-                              <td className="px-3 py-2 text-center text-blue-600">{f.customerCount}</td>
+                              <td className="px-3 py-2 text-center text-indigo-600">{f.customerCount}</td>
                               <td className="px-3 py-2 text-center text-green-600">{f.inheritedCount}</td>
                               {!commonMethods && (
                                 <td className="px-3 py-2 text-gray-500">
@@ -1214,7 +1214,7 @@ export default function Assessments() {
                 <div className="flex items-center gap-2">
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                     sarData.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                    sarData.status === 'UnderReview' ? 'bg-blue-100 text-blue-700' :
+                    sarData.status === 'UnderReview' ? 'bg-indigo-100 text-indigo-700' :
                     'bg-amber-100 text-amber-700'
                   }`}>
                     {sarData.status === 'UnderReview' ? 'Under Review' : sarData.status}
@@ -1236,8 +1236,8 @@ export default function Assessments() {
               {/* Body */}
               <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
                 {/* Explainer */}
-                <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
-                  <p className="text-xs text-blue-800">
+                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3">
+                  <p className="text-xs text-indigo-800">
                     The <strong>Security Assessment Report (SAR)</strong> documents the results of your security assessment (RMF Step 4).
                     It aggregates findings from all completed assessments, showing which controls are satisfied and which have gaps that need remediation.
                   </p>
@@ -1253,7 +1253,7 @@ export default function Assessments() {
                           <span className="text-red-500 mt-0.5">⚠</span>
                           <span>
                             <strong>{sarData.notSatisfiedCount} controls</strong> are not satisfied.
-                            <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/remediation`); }} className="text-blue-600 hover:underline ml-1 font-medium">Go to Remediation →</button>
+                            <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/remediation`); }} className="text-indigo-600 hover:underline ml-1 font-medium">Go to Remediation →</button>
                           </span>
                         </li>
                       )}
@@ -1278,14 +1278,14 @@ export default function Assessments() {
                         <span className="text-emerald-500 mt-0.5">3</span>
                         <span>
                           Once approved, the SAR will be included when you
-                          <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/documents`); }} className="text-blue-600 hover:underline ml-1 font-medium">generate the authorization package →</button>
+                          <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/documents`); }} className="text-indigo-600 hover:underline ml-1 font-medium">generate the authorization package →</button>
                         </span>
                       </li>
                     </ul>
                   ) : sarData.status === 'UnderReview' ? (
                     <ul className="text-xs text-gray-600 space-y-1.5">
                       <li className="flex items-start gap-1.5">
-                        <span className="text-blue-500 mt-0.5">⏳</span>
+                        <span className="text-indigo-500 mt-0.5">⏳</span>
                         <span>SAR is under review. The AO or ISSO will approve or request revisions.</span>
                       </li>
                     </ul>
@@ -1298,7 +1298,7 @@ export default function Assessments() {
                       <li className="flex items-start gap-1.5">
                         <span className="text-green-500 mt-0.5">→</span>
                         <span>
-                          <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/documents`); }} className="text-blue-600 hover:underline font-medium">Go to Documents →</button>
+                          <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/documents`); }} className="text-indigo-600 hover:underline font-medium">Go to Documents →</button>
                           {' '}to generate and export the full authorization package.
                         </span>
                       </li>
@@ -1322,7 +1322,7 @@ export default function Assessments() {
                     <p className="mt-1 text-2xl font-bold text-red-600">{sarData.notSatisfiedCount}</p>
                     <p className="text-[10px] text-gray-400">
                       {sarData.notSatisfiedCount > 0 ? (
-                        <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/poam`); }} className="text-blue-600 hover:underline">View POA&Ms →</button>
+                        <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/poam`); }} className="text-indigo-600 hover:underline">View POA&Ms →</button>
                       ) : 'None'}
                     </p>
                   </div>
@@ -1362,7 +1362,7 @@ export default function Assessments() {
                               <td className="px-3 py-2 font-medium text-gray-800">{s.title}</td>
                               <td className="px-3 py-2 text-center">
                                 {s.isAutoGenerated ? (
-                                  <span className="inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">Auto-generated</span>
+                                  <span className="inline-flex items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">Auto-generated</span>
                                 ) : (
                                   <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">Manual entry</span>
                                 )}

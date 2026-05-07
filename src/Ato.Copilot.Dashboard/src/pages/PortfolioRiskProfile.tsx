@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
+import PageHero from '../components/layout/PageHero';
 import { usePolling } from '../hooks/usePolling';
 import { getPortfolio } from '../api/portfolio';
 import { getCoverage } from '../api/capabilities';
@@ -71,12 +72,13 @@ export default function PortfolioRiskProfile() {
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <PageLayout title="Portfolio Risk Profile">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Portfolio Risk Profile</h1>
-        <p className="text-sm text-gray-500 mt-1">Aggregate risk posture across all registered systems</p>
-      </div>
+      <PageHero
+        eyebrow="Portfolio"
+        title="Portfolio Risk Profile"
+        description="Aggregate risk posture across all registered systems."
+      />
 
-      {loading && <p className="text-gray-500">Loading portfolio data...</p>}
+      {loading && <p className="text-slate-500">Loading portfolio data...</p>}
 
       {!loading && stats && (
         <div className="space-y-6">
@@ -99,7 +101,7 @@ export default function PortfolioRiskProfile() {
               <div className="space-y-3">
                 {[...systems].sort((a, b) => a.complianceScore - b.complianceScore).map(s => (
                   <div key={s.systemId} className="flex items-center gap-3">
-                    <Link to={`/systems/${s.systemId}`} className="w-32 text-sm text-blue-600 hover:underline truncate" title={s.name}>
+                    <Link to={`/systems/${s.systemId}`} className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
                       {s.acronym || s.name}
                     </Link>
                     <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
@@ -120,13 +122,13 @@ export default function PortfolioRiskProfile() {
                   const total = s.catICounts + s.catIICounts + s.catIIICounts;
                   return (
                     <div key={s.systemId} className="flex items-center gap-3">
-                      <Link to={`/systems/${s.systemId}`} className="w-32 text-sm text-blue-600 hover:underline truncate" title={s.name}>
+                      <Link to={`/systems/${s.systemId}`} className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
                         {s.acronym || s.name}
                       </Link>
                       <div className="flex-1 flex gap-0.5 h-5 rounded-full overflow-hidden">
                         {s.catICounts > 0 && <div className="bg-red-500 h-5 flex items-center justify-center" style={{ width: `${s.catICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catICounts}</span></div>}
                         {s.catIICounts > 0 && <div className="bg-amber-500 h-5 flex items-center justify-center" style={{ width: `${s.catIICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catIICounts}</span></div>}
-                        {s.catIIICounts > 0 && <div className="bg-blue-400 h-5 flex items-center justify-center" style={{ width: `${s.catIIICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catIIICounts}</span></div>}
+                        {s.catIIICounts > 0 && <div className="bg-indigo-400 h-5 flex items-center justify-center" style={{ width: `${s.catIIICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catIIICounts}</span></div>}
                       </div>
                       <span className="text-xs text-gray-500 w-8 text-right">{total}</span>
                     </div>
@@ -138,7 +140,7 @@ export default function PortfolioRiskProfile() {
                 <div className="flex gap-4 pt-2 text-xs text-gray-500 border-t border-gray-100 mt-2">
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500" /> CAT I</span>
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-500" /> CAT II</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-400" /> CAT III</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-indigo-400" /> CAT III</span>
                 </div>
               </div>
             </div>
@@ -152,7 +154,7 @@ export default function PortfolioRiskProfile() {
               <div className="space-y-3">
                 {[...systems].filter(s => s.openPoamCount > 0).sort((a, b) => b.openPoamCount - a.openPoamCount).map(s => (
                   <div key={s.systemId} className="flex items-center gap-3">
-                    <Link to={`/systems/${s.systemId}/remediation`} className="w-32 text-sm text-blue-600 hover:underline truncate" title={s.name}>
+                    <Link to={`/systems/${s.systemId}/remediation`} className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
                       {s.acronym || s.name}
                     </Link>
                     <div className="flex-1 flex items-center gap-2">
@@ -175,7 +177,7 @@ export default function PortfolioRiskProfile() {
               <div className="space-y-2">
                 {systems.map(s => (
                   <div key={s.systemId} className="flex items-center justify-between py-1.5">
-                    <Link to={`/systems/${s.systemId}`} className="text-sm text-blue-600 hover:underline truncate max-w-[200px]" title={s.name}>
+                    <Link to={`/systems/${s.systemId}`} className="text-sm text-indigo-600 hover:underline truncate max-w-[200px]" title={s.name}>
                       {s.acronym || s.name}
                     </Link>
                     <div className="flex items-center gap-3">
@@ -218,7 +220,7 @@ export default function PortfolioRiskProfile() {
                   {systems.map(s => (
                     <tr key={s.systemId} className="hover:bg-gray-50">
                       <td className="px-5 py-3">
-                        <Link to={`/systems/${s.systemId}`} className="font-medium text-blue-600 hover:underline">{s.name}</Link>
+                        <Link to={`/systems/${s.systemId}`} className="font-medium text-indigo-600 hover:underline">{s.name}</Link>
                         {s.acronym && <span className="ml-1 text-xs text-gray-400">({s.acronym})</span>}
                       </td>
                       <td className="px-5 py-3 text-gray-700">{s.impactLevel || '—'}</td>
@@ -232,7 +234,7 @@ export default function PortfolioRiskProfile() {
                       </td>
                       <td className="px-5 py-3"><span className={s.catICounts > 0 ? 'font-semibold text-red-600' : 'text-gray-400'}>{s.catICounts}</span></td>
                       <td className="px-5 py-3"><span className={s.catIICounts > 0 ? 'font-semibold text-amber-600' : 'text-gray-400'}>{s.catIICounts}</span></td>
-                      <td className="px-5 py-3"><span className={s.catIIICounts > 0 ? 'font-medium text-blue-500' : 'text-gray-400'}>{s.catIIICounts}</span></td>
+                      <td className="px-5 py-3"><span className={s.catIIICounts > 0 ? 'font-medium text-indigo-500' : 'text-gray-400'}>{s.catIIICounts}</span></td>
                       <td className="px-5 py-3">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${severityColor(s.atoSeverity)}`}>{s.atoStatus || '—'}</span>
                       </td>
@@ -247,8 +249,8 @@ export default function PortfolioRiskProfile() {
 
       {!loading && systems.length === 0 && (
         <div className="text-center py-16">
-          <p className="text-gray-500">No systems registered yet.</p>
-          <Link to="/systems" className="text-sm text-blue-600 hover:underline mt-2 inline-block">Go to Systems to add one</Link>
+          <p className="text-slate-500">No systems registered yet.</p>
+          <Link to="/systems" className="text-sm text-indigo-600 hover:underline mt-2 inline-block">Go to Systems to add one</Link>
         </div>
       )}
     </PageLayout>

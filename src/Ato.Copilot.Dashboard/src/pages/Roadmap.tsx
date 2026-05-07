@@ -130,7 +130,7 @@ export default function Roadmap() {
                 <div className="flex-1">
                   <div className="h-3 rounded-full bg-gray-200">
                     <div
-                      className={`h-3 rounded-full ${pp.isOverdue ? 'bg-red-500' : 'bg-blue-500'}`}
+                      className={`h-3 rounded-full ${pp.isOverdue ? 'bg-red-500' : 'bg-indigo-500'}`}
                       style={{ width: `${Math.min(pp.completionPercent, 100)}%` }}
                     />
                   </div>
@@ -228,7 +228,7 @@ function SeverityBadge({ severity }: { severity: string }) {
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     Complete: 'bg-green-100 text-green-800',
-    InProgress: 'bg-blue-100 text-blue-800',
+    InProgress: 'bg-indigo-100 text-indigo-800',
     NotStarted: 'bg-gray-100 text-gray-600',
   };
   return (

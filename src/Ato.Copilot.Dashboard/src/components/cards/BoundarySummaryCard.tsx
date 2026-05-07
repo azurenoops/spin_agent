@@ -2,7 +2,7 @@ import type { BoundaryDefinitionDto } from '../../types/dashboard';
 
 const typeColors: Record<string, string> = {
   Physical: 'bg-orange-100 text-orange-800',
-  Logical: 'bg-blue-100 text-blue-800',
+  Logical: 'bg-indigo-100 text-indigo-800',
   Hybrid: 'bg-purple-100 text-purple-800',
 };
 
@@ -16,7 +16,7 @@ interface BoundarySummaryCardProps {
 
 export function BoundarySummaryCard({ boundary, onEdit, onDelete, onExpand, expanded }: BoundarySummaryCardProps) {
   return (
-    <div className={`rounded-lg border bg-white p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${expanded ? 'border-blue-400 ring-1 ring-blue-200' : 'border-gray-200'}`}
+    <div className={`rounded-lg border bg-white p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${expanded ? 'border-indigo-400 ring-1 ring-indigo-200' : 'border-gray-200'}`}
       onClick={onExpand}
     >
       <div className="flex items-center justify-between mb-2">
@@ -57,7 +57,7 @@ export function BoundarySummaryCard({ boundary, onEdit, onDelete, onExpand, expa
           {onEdit && (
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(); }}
-              className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
             >
               Edit
             </button>

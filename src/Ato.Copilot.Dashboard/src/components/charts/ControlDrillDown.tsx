@@ -18,7 +18,7 @@ const statusColors: Record<string, string> = {
 const severityColors: Record<string, string> = {
   CatI: 'bg-red-600 text-white',
   CatII: 'bg-amber-500 text-white',
-  CatIII: 'bg-blue-500 text-white',
+  CatIII: 'bg-indigo-500 text-white',
 };
 
 const severityLabels: Record<string, string> = {
@@ -28,7 +28,7 @@ const severityLabels: Record<string, string> = {
 };
 
 const poamColors: Record<string, string> = {
-  Ongoing: 'bg-blue-100 text-blue-700',
+  Ongoing: 'bg-indigo-100 text-indigo-700',
   Completed: 'bg-green-100 text-green-700',
   Delayed: 'bg-red-100 text-red-700',
   RiskAccepted: 'bg-amber-100 text-amber-700',
@@ -138,7 +138,7 @@ export default function ControlDrillDown({
                     <div className="flex items-center justify-center gap-1 mt-1">
                       {catI > 0 && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-red-600 text-white">{catI} CAT I</span>}
                       {catII > 0 && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-white">{catII} CAT II</span>}
-                      {catIII > 0 && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-blue-500 text-white">{catIII} CAT III</span>}
+                      {catIII > 0 && <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-indigo-500 text-white">{catIII} CAT III</span>}
                     </div>
                   )}
                 </button>
@@ -187,7 +187,7 @@ export default function ControlDrillDown({
                   <button
                     type="button"
                     onClick={() => setFilter('all')}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-indigo-600 hover:underline"
                   >
                     Show all
                   </button>
@@ -267,7 +267,7 @@ export default function ControlDrillDown({
             <button
               type="button"
               onClick={() => { onClose(); navigate(`/systems/${systemId}/narratives`); }}
-              className="text-xs text-blue-600 hover:underline"
+              className="text-xs text-indigo-600 hover:underline"
             >
               Edit Narratives →
             </button>
@@ -275,7 +275,7 @@ export default function ControlDrillDown({
             <button
               type="button"
               onClick={() => { onClose(); navigate(`/systems/${systemId}/assessments`); }}
-              className="text-xs text-blue-600 hover:underline"
+              className="text-xs text-indigo-600 hover:underline"
             >
               Run Assessment →
             </button>

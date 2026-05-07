@@ -6,14 +6,14 @@ export function SeverityBadge({ severity }: { severity: string }) {
   const map: Record<string, string> = {
     CatI: 'bg-red-100 text-red-700',
     CatII: 'bg-amber-100 text-amber-700',
-    CatIII: 'bg-blue-100 text-blue-700',
+    CatIII: 'bg-indigo-100 text-indigo-700',
   };
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${map[severity] ?? 'bg-gray-100 text-gray-700'}`}>{severity}</span>;
 }
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    Ongoing: 'bg-blue-100 text-blue-700',
+    Ongoing: 'bg-indigo-100 text-indigo-700',
     Completed: 'bg-green-100 text-green-700',
     Delayed: 'bg-red-100 text-red-700',
     RiskAccepted: 'bg-purple-100 text-purple-700',

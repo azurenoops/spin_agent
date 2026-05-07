@@ -93,7 +93,7 @@ export default function CrmView({ crm, loading, onExport, onClose }: CrmViewProp
           <p className="text-xs text-gray-500">Undesignated</p>
         </div>
         <div className="text-center">
-          <p className="text-lg font-bold text-blue-600">{crm.inheritancePercentage}%</p>
+          <p className="text-lg font-bold text-indigo-600">{crm.inheritancePercentage}%</p>
           <p className="text-xs text-gray-500">Designated</p>
         </div>
       </div>

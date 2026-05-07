@@ -25,7 +25,7 @@ function formatDate(dt: string): string {
 
 const CATEGORY_COLORS: Record<string, string> = {
   Screenshot: 'bg-purple-100 text-purple-700',
-  ScanResult: 'bg-blue-100 text-blue-700',
+  ScanResult: 'bg-indigo-100 text-indigo-700',
   ConfigurationExport: 'bg-teal-100 text-teal-700',
   PolicyDocument: 'bg-amber-100 text-amber-700',
   AuditLog: 'bg-gray-100 text-gray-700',
@@ -145,7 +145,7 @@ export default function EvidenceRepository() {
         </div>
         <button
           onClick={() => setShowUpload(true)}
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -176,7 +176,7 @@ export default function EvidenceRepository() {
             placeholder="Search by filename, control, or description..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-full rounded-md border border-gray-300 py-2 pl-10 pr-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-gray-300 py-2 pl-10 pr-3 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
         </div>
         <input
@@ -184,12 +184,12 @@ export default function EvidenceRepository() {
           placeholder="Family (e.g., AC)"
           value={familyFilter}
           onChange={(e) => { setFamilyFilter(e.target.value.toUpperCase()); setPage(1); }}
-          className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
         />
         <select
           value={categoryFilter}
           onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
         >
           {CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>{c.label}</option>
@@ -198,7 +198,7 @@ export default function EvidenceRepository() {
         <select
           value={sourceFilter}
           onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
         >
           {SOURCES.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
@@ -239,7 +239,7 @@ export default function EvidenceRepository() {
             ) : items.map((item) => (
               <tr
                 key={item.id}
-                className={`hover:bg-gray-50 cursor-pointer ${selectedId === item.id ? 'bg-blue-50' : ''}`}
+                className={`hover:bg-gray-50 cursor-pointer ${selectedId === item.id ? 'bg-indigo-50' : ''}`}
                 onClick={() => setSelectedId(item.id)}
               >
                 <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">
@@ -247,7 +247,7 @@ export default function EvidenceRepository() {
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
                   <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                    item.source === 'Automated' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+                    item.source === 'Automated' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
                   }`}>
                     {item.source}
                   </span>
@@ -369,7 +369,7 @@ function SummaryCard({
   color?: 'blue' | 'green' | 'amber' | 'red';
 }) {
   const textColor = color === 'green' ? 'text-green-600'
-    : color === 'blue' ? 'text-blue-600'
+    : color === 'blue' ? 'text-indigo-600'
     : color === 'amber' ? 'text-amber-600'
     : color === 'red' ? 'text-red-600'
     : 'text-gray-900';

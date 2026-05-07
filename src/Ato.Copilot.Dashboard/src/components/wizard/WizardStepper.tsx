@@ -31,7 +31,7 @@ export default function WizardStepper({ currentStep, completedSteps, onStepClick
             {index > 0 && (
               <div
                 className={`hidden sm:block w-8 h-0.5 mx-1 ${
-                  isCompleted || isCurrent ? 'bg-blue-400' : 'bg-gray-300'
+                  isCompleted || isCurrent ? 'bg-indigo-400' : 'bg-gray-300'
                 }`}
               />
             )}
@@ -41,7 +41,7 @@ export default function WizardStepper({ currentStep, completedSteps, onStepClick
               disabled={!isClickable}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
                 isCurrent
-                  ? 'bg-blue-100 text-blue-800 ring-1 ring-blue-300'
+                  ? 'bg-indigo-100 text-indigo-800 ring-1 ring-indigo-300'
                   : isCompleted
                     ? 'text-green-700 hover:bg-green-50 cursor-pointer'
                     : 'text-gray-400 cursor-default'
@@ -52,7 +52,7 @@ export default function WizardStepper({ currentStep, completedSteps, onStepClick
                   isCompleted
                     ? 'bg-green-100 text-green-700'
                     : isCurrent
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-indigo-600 text-white'
                       : 'bg-gray-200 text-gray-500'
                 }`}
               >

@@ -7,13 +7,13 @@ interface Props {
 
 const statusColors: Record<string, string> = {
   Complete: 'bg-green-500',
-  InProgress: 'bg-blue-500',
+  InProgress: 'bg-indigo-500',
   NotStarted: 'bg-gray-300',
 };
 
 const statusBadgeColors: Record<string, string> = {
   Complete: 'bg-green-100 text-green-800',
-  InProgress: 'bg-blue-100 text-blue-800',
+  InProgress: 'bg-indigo-100 text-indigo-800',
   NotStarted: 'bg-gray-100 text-gray-600',
 };
 

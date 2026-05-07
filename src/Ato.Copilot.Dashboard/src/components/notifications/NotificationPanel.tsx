@@ -13,7 +13,7 @@ function severityColor(severity: string | null): string {
     case 'medium':
       return 'bg-yellow-100 text-yellow-800';
     case 'low':
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-indigo-100 text-indigo-800';
     default:
       return 'bg-gray-100 text-gray-700';
   }
@@ -40,13 +40,13 @@ function NotificationItem({
   return (
     <div
       className={`flex gap-3 px-4 py-3 transition-colors ${
-        notification.isRead ? 'bg-white' : 'bg-blue-50/60'
+        notification.isRead ? 'bg-white' : 'bg-indigo-50/60'
       } hover:bg-gray-50`}
     >
       {/* Unread dot */}
       <div className="mt-1.5 flex-shrink-0">
         {!notification.isRead ? (
-          <span className="block h-2 w-2 rounded-full bg-blue-500" />
+          <span className="block h-2 w-2 rounded-full bg-indigo-500" />
         ) : (
           <span className="block h-2 w-2" />
         )}
@@ -73,7 +73,7 @@ function NotificationItem({
             <button
               type="button"
               onClick={() => onMarkRead(notification.id)}
-              className="text-[11px] font-medium text-blue-600 hover:text-blue-800"
+              className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800"
             >
               Mark read
             </button>
@@ -94,7 +94,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
           {unreadCount > 0 && (
-            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
               {unreadCount}
             </span>
           )}
@@ -104,7 +104,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
             <button
               type="button"
               onClick={markAllAsRead}
-              className="rounded px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+              className="rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50"
             >
               Mark all read
             </button>

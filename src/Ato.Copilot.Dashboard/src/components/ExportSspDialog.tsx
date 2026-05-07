@@ -168,7 +168,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                     <label
                       key={f}
                       className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                        format === f ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                        format === f ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'
                       }`}
                     >
                       <input
@@ -177,7 +177,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                         value={f}
                         checked={format === f}
                         onChange={() => setFormat(f)}
-                        className="text-blue-600 focus:ring-blue-500"
+                        className="text-indigo-600 focus:ring-indigo-500"
                       />
                       <span className="text-lg">{formatIcon[f]}</span>
                       <span className="text-sm font-medium text-gray-900">{formatLabel[f]}</span>
@@ -193,7 +193,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                   <select
                     value={templateId}
                     onChange={(e) => setTemplateId(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   >
                     <option value="">Default template</option>
                     {templates.map((t) => (
@@ -212,7 +212,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 {status === 'processing' && (
-                  <svg className="h-5 w-5 text-blue-500 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <svg className="h-5 w-5 text-indigo-500 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path
                       className="opacity-75"
@@ -233,7 +233,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={`h-2 rounded-full transition-all duration-500 ${
-                    status === 'completed' ? 'bg-green-500' : 'bg-blue-500'
+                    status === 'completed' ? 'bg-green-500' : 'bg-indigo-500'
                   }`}
                   style={{ width: `${progressPct}%` }}
                 />
@@ -273,7 +273,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
               </button>
               <button
                 onClick={handleExport}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
               >
                 Export
               </button>
@@ -282,7 +282,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
           {status === 'submitting' && (
             <button
               disabled
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-400 rounded-lg cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-400 rounded-lg cursor-not-allowed"
             >
               Submitting...
             </button>

@@ -118,7 +118,7 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
             placeholder="Search capabilities by name, provider, or category..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
 
           {/* Role selector */}
@@ -132,7 +132,7 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
                   onClick={() => setRole(r.value)}
                   className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${
                     role === r.value
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500'
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500'
                       : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                   }`}
                 >
@@ -163,7 +163,7 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
                   onClick={() => setSelectedId(cap.id === selectedId ? null : cap.id)}
                   className={`w-full rounded-md border px-4 py-3 text-left transition ${
                     cap.id === selectedId
-                      ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
+                      ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
                       : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
@@ -180,7 +180,7 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
                         cap.implementationStatus === 'Implemented'
                           ? 'bg-green-100 text-green-700'
                           : cap.implementationStatus === 'InProgress'
-                            ? 'bg-blue-100 text-blue-700'
+                            ? 'bg-indigo-100 text-indigo-700'
                             : 'bg-gray-100 text-gray-600'
                       }`}
                     >
@@ -215,7 +215,7 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
               type="button"
               onClick={handleAdd}
               disabled={!selectedId || saving}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? 'Adding...' : 'Add Capability'}
             </button>

@@ -125,7 +125,7 @@ export default function TemplateManagementDialog({ onClose }: TemplateManagement
             {!showUpload && (
               <button
                 onClick={() => setShowUpload(true)}
-                className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -154,14 +154,14 @@ export default function TemplateManagementDialog({ onClose }: TemplateManagement
 
         {/* Upload form */}
         {showUpload && (
-          <div className="px-5 py-4 border-b border-gray-200 bg-blue-50 space-y-3">
+          <div className="px-5 py-4 border-b border-gray-200 bg-indigo-50 space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Template File (.docx)</label>
               <input
                 type="file"
                 accept=".docx"
                 onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -172,7 +172,7 @@ export default function TemplateManagementDialog({ onClose }: TemplateManagement
                   value={uploadName}
                   onChange={(e) => setUploadName(e.target.value)}
                   placeholder="e.g., DoD Standard SSP"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
               <div>
@@ -182,7 +182,7 @@ export default function TemplateManagementDialog({ onClose }: TemplateManagement
                   value={uploadDesc}
                   onChange={(e) => setUploadDesc(e.target.value)}
                   placeholder="Optional description"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
             </div>
@@ -196,7 +196,7 @@ export default function TemplateManagementDialog({ onClose }: TemplateManagement
               <button
                 onClick={handleUpload}
                 disabled={!uploadFile || !uploadName.trim() || uploading}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {uploading ? 'Uploading...' : 'Upload'}
               </button>
@@ -235,10 +235,10 @@ export default function TemplateManagementDialog({ onClose }: TemplateManagement
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') handleRename(t.id); if (e.key === 'Escape') setEditingId(null); }}
-                            className="rounded border border-blue-300 px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 w-40"
+                            className="rounded border border-indigo-300 px-2 py-1 text-sm focus:ring-1 focus:ring-indigo-500 w-40"
                             autoFocus
                           />
-                          <button onClick={() => handleRename(t.id)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Save</button>
+                          <button onClick={() => handleRename(t.id)} className="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Save</button>
                           <button onClick={() => setEditingId(null)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
                         </div>
                       ) : (
@@ -260,7 +260,7 @@ export default function TemplateManagementDialog({ onClose }: TemplateManagement
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => { setEditingId(t.id); setEditName(t.name); }}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
                         >
                           Rename
                         </button>

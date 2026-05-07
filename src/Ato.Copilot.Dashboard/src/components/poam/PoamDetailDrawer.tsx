@@ -256,7 +256,7 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                             deviation.deviationType === 'Waiver' ? 'bg-amber-100 text-amber-700' :
                             deviation.deviationType === 'RiskAcceptance' ? 'bg-orange-100 text-orange-700' :
-                            'bg-blue-100 text-blue-700'
+                            'bg-indigo-100 text-indigo-700'
                           }`}>
                             {deviation.deviationType === 'RiskAcceptance' ? 'Risk Acceptance' : deviation.deviationType}
                           </span>
@@ -401,7 +401,7 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
                       <span>by {h.actingUserName}</span>
                       {h.cascadeOrigin && (
-                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-600">
+                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-600">
                           cascade: {h.cascadeOrigin}
                         </span>
                       )}

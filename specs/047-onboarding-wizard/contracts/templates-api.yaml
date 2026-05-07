@@ -1,0 +1,270 @@
+openapi: 3.0.3
+info:
+  title: ATO Copilot — Onboarding Wizard Custom Templates API
+  version: 0.1.0
+  description: |
+    Endpoints for Step 6 (Custom Document Template Upload) and the cross-cutting
+    "Imported Documents" management actions for templates. All template uploads
+    flow through `IFileStorageProvider`; metadata lives in `AtoCopilotContext`.
+    Structural validation runs inline for ≤ 5 MB uploads and as a background job
+    above that threshold.
+servers:
+  - url: /
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Template:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        templateType: { type: string, enum: [Ssp, Sar, Sap, Crm, HwSwInventory] }
+        label: { type: string }
+        version: { type: string }
+        fileFormat: { type: string, enum: [Docx, Xlsx] }
+        fileSizeBytes: { type: integer, format: int64 }
+        originalFileName: { type: string }
+        isDefault: { type: boolean }
+        validationStatus: { type: string, enum: [Pending, Compliant, FlaggedNonCompliant] }
+        validationWarnings:
+          type: array
+          items: { type: string }
+        status: { type: string, enum: [Active, Superseded, Deleted] }
+        uploadedAt: { type: string, format: date-time }
+
+paths:
+  /api/onboarding/templates:
+    get:
+      summary: List custom templates by type.
+      parameters:
+        - name: templateType
+          in: query
+          schema: { type: string, enum: [Ssp, Sar, Sap, Crm, HwSwInventory] }
+        - name: includeDeleted
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Templates list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Template' }
+
+  /api/onboarding/templates/upload:
+    post:
+      summary: Upload a custom template for a specific type (FR-080..FR-088).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, templateType, label]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                templateType: { type: string, enum: [Ssp, Sar, Sap, Crm, HwSwInventory] }
+                label: { type: string, maxLength: 256 }
+                version: { type: string, maxLength: 64 }
+                isDefault: { type: boolean, default: false }
+      responses:
+        '201':
+          description: Template stored. Validation runs inline or via background job depending on size.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+        '413':
+          description: Upload exceeds OnboardingOptions:Limits:TemplateMaxBytes (FR-088).
+        '415':
+          description: Wrong format for slot (e.g., XLSX into SSP slot — FR-081).
+        '422':
+          description: Per-type active count exceeds OnboardingOptions:Limits:TemplatesPerType.
+
+  /api/onboarding/templates/{id}:
+    get:
+      summary: Get template metadata.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Template.
+
+    patch:
+      summary: Rename / re-version / re-tag a template (FR-093 metadata edit path).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:   { type: string }
+                version: { type: string }
+      responses:
+        '200':
+          description: Updated. Audit entry written.
+
+    delete:
+      summary: Delete a template (FR-096 deletion guards apply).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Deleted.
+        '409':
+          description: |
+            Cannot delete: template is currently the organization default for its type, OR
+            still has active dependencies and confirmation flag was not provided.
+
+  /api/onboarding/templates/{id}/download:
+    get:
+      summary: Download the original uploaded template file (FR-093 download).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Template binary.
+          content:
+            application/octet-stream: {}
+
+  /api/onboarding/templates/{id}/replace:
+    post:
+      summary: |
+        Replace the underlying file for an existing template (FR-093 replace + FR-094 cascade
+        + FR-095 re-run). Preserves the template's identity so downstream dependents can be
+        flagged stale.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                version: { type: string }
+      responses:
+        '200':
+          description: Replaced. Cascade summary returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  template: { $ref: '#/components/schemas/Template' }
+                  dependentsFlagged: { type: integer }
+                  suggestedReRunJobs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        dependencyId: { type: string, format: uuid }
+                        dependentType: { type: string }
+                        suggestedJobType: { type: string, enum: [ExportRerender] }
+
+  /api/onboarding/templates/{id}/default:
+    post:
+      summary: |
+        Mark this template as the organization default for its type. Demotes the previous
+        default within the same transaction; cascades exports rendered with the prior default
+        as `IsStale=true` so future re-renders pick up the new default.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Promoted. Audit entry written; prior default demoted.
+
+  /api/onboarding/templates/{id}/default/clear:
+    delete:
+      summary: |
+        Clear the default flag for this template, reverting the export pipeline to the built-in
+        default (FR-085).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Cleared.
+
+  /api/onboarding/narrative-seeds:
+    get:
+      summary: List narrative seed documents (Step 7 / Story 7).
+      responses:
+        '200':
+          description: Documents list (metadata only; bytes live in evidence repo).
+
+    post:
+      summary: Upload a narrative seed document. Persisted via Feature 038 evidence repository.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, label]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                label: { type: string }
+                tags:
+                  type: array
+                  items: { type: string }
+      responses:
+        '202':
+          description: Stored in evidence repo; indexing job enqueued.
+
+  /api/onboarding/narrative-seeds/{id}:
+    delete:
+      summary: Delete a narrative seed document (FR-096 confirmation if cited).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: confirmCitations
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+      responses:
+        '204':
+          description: Deleted.
+        '409':
+          description: Document is cited; explicit confirmation flag required.

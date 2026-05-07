@@ -19,7 +19,7 @@ const components: Components = {
     // Internal dashboard routes
     if (href && DASHBOARD_ROUTE_PATTERN.test(href)) {
       return (
-        <Link to={href} className="text-blue-600 underline hover:text-blue-800">
+        <Link to={href} className="text-indigo-600 underline hover:text-indigo-800">
           {children}
         </Link>
       );
@@ -28,14 +28,14 @@ const components: Components = {
     // NIST control ID links (rendered by server as markdown links)
     if (href && NIST_CONTROL_PATTERN.test(text)) {
       return (
-        <Link to={href} className="rounded bg-blue-50 px-1 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100">
+        <Link to={href} className="rounded bg-indigo-50 px-1 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100">
           {children}
         </Link>
       );
     }
 
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">
+      <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline hover:text-indigo-800">
         {children}
       </a>
     );

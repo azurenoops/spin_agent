@@ -241,9 +241,9 @@ export default function ControlInheritance() {
         </div>
       )}
       {narrativeBanner && (
-        <div className="flex items-center justify-between rounded-lg border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <div className="flex items-center justify-between rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
           <span>{narrativeBanner}</span>
-          <button onClick={() => setNarrativeBanner(null)} className="ml-4 text-blue-600 hover:text-blue-800 font-medium">&times;</button>
+          <button onClick={() => setNarrativeBanner(null)} className="ml-4 text-indigo-600 hover:text-indigo-800 font-medium">&times;</button>
         </div>
       )}
       {hasOrgDefaults && summary && (

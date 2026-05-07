@@ -24,7 +24,8 @@ public class DeviationServiceTests : IDisposable
         var options = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseInMemoryDatabase($"DeviationTests_{Guid.NewGuid()}")
             .Options;
-        _db = new AtoCopilotContext(options);
+        var factory = new TestDbContextFactory(options);
+        _db = factory.Context;
 
         // Seed a RegisteredSystem
         _db.RegisteredSystems.Add(new RegisteredSystem
@@ -34,7 +35,7 @@ public class DeviationServiceTests : IDisposable
         });
         _db.SaveChanges();
 
-        _service = new DeviationService(_db, Mock.Of<ILogger<DeviationService>>());
+        _service = new DeviationService(factory, Mock.Of<ILogger<DeviationService>>());
     }
 
     public void Dispose()

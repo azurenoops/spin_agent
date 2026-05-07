@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
+import PageHero from '../components/layout/PageHero';
 import { CapabilityCard } from '../components/cards/CapabilityCard';
 import { CapabilityForm } from '../components/forms/CapabilityForm';
 import { MappingPanel } from '../components/cards/MappingPanel';
@@ -163,12 +164,11 @@ export default function CapabilityLibrary() {
 
   return (
     <PageLayout title="Security Capabilities">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Security Capabilities</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Components → Capabilities → Control Inheritance — manage the full security capability pipeline
-        </p>
-      </div>
+      <PageHero
+        eyebrow="Capabilities"
+        title="Security Capabilities"
+        description="Components → Capabilities → Control Inheritance — manage the full security capability pipeline."
+      />
 
       {/* Coverage summary cards */}
       <div className="mb-6">
@@ -176,18 +176,18 @@ export default function CapabilityLibrary() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
           type="text"
           placeholder="Search capabilities..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border rounded px-3 py-2 text-sm w-64 focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="w-64 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="border rounded px-3 py-2 text-sm"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         >
           <option value="">All Categories</option>
           {Object.entries(NIST_FAMILIES).map(([code, label]) => (
@@ -197,32 +197,36 @@ export default function CapabilityLibrary() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="border rounded px-3 py-2 text-sm"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         >
           <option value="">All Statuses</option>
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        <div className="flex-1" />
-        <button
-          onClick={() => setShowCspImport(true)}
-          className="px-4 py-2 text-sm border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
-        >
-          Import CSP Profile
-        </button>
-        <button
-          onClick={() => setShowCrmImport(true)}
-          className="px-4 py-2 text-sm border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
-        >
-          Import CRM
-        </button>
-        <button
-          onClick={() => { setShowCreate(true); setFormError(null); }}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          + New Capability
-        </button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowCspImport(true)}
+            className="inline-flex items-center rounded-md border border-indigo-600 px-4 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+          >
+            Import CSP Profile
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCrmImport(true)}
+            className="inline-flex items-center rounded-md border border-indigo-600 px-4 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+          >
+            Import CRM
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowCreate(true); setFormError(null); }}
+            className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            + New Capability
+          </button>
+        </div>
       </div>
 
       {/* CSP Import dialog */}
@@ -325,7 +329,7 @@ export default function CapabilityLibrary() {
               <button
                 onClick={() => executeUpdate(pendingUpdate)}
                 disabled={submitting}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
               >
                 {submitting ? 'Saving...' : 'Confirm & Save'}
               </button>

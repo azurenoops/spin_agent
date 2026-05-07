@@ -38,7 +38,7 @@ export default function QuickActions({ context, onSend, disabled }: QuickActions
             type="button"
             onClick={() => onSend(s.prompt)}
             disabled={disabled}
-            className="flex-shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-gray-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-gray-700 shadow-sm hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {s.icon && <span className="mr-1">{s.icon}</span>}
             {s.label}

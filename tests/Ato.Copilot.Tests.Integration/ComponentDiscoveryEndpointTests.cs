@@ -24,10 +24,11 @@ public class ComponentDiscoveryEndpointTests : IDisposable
         var options = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseInMemoryDatabase($"CompDiscoveryIntegration_{Guid.NewGuid()}")
             .Options;
-        _db = new AtoCopilotContext(options);
+        var factory = new IntegrationTestDbContextFactory(options);
+        _db = factory.Context;
         _service = new ComponentService(
-            _db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(),
-            new SystemCapabilityLinkService(_db, NullLogger<SystemCapabilityLinkService>.Instance));
+            factory, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(),
+            new SystemCapabilityLinkService(factory, NullLogger<SystemCapabilityLinkService>.Instance));
     }
 
     public void Dispose()

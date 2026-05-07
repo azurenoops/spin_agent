@@ -24,7 +24,7 @@ describe('ConversationList', () => {
 
   it('highlights active conversation', () => {
     const { container } = render(<ConversationList conversations={conversations} activeId="1" onSelect={vi.fn()} onDelete={vi.fn()} onNew={vi.fn()} />);
-    const activeButton = container.querySelector('.bg-blue-50');
+    const activeButton = container.querySelector('.bg-indigo-50');
     expect(activeButton).toBeDefined();
   });
 

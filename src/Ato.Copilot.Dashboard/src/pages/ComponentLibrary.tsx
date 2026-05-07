@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
+import PageHero from '../components/layout/PageHero';
 import { usePolling } from '../hooks/usePolling';
 import {
   listComponents,
@@ -18,6 +20,7 @@ import {
   importEntraIdPeople,
 } from '../api/azureDiscovery';
 import type { EntraDiscoveryItem } from '../api/azureDiscovery';
+import { onboarding, type AzureSubscriptionRegistrationDto } from '../features/onboarding/api/onboardingApi';
 import { getCapabilities } from '../api/capabilities';
 import type { CreateComponentRequest, ComponentType, ComponentStatus, SecurityCapabilityDto, DiscoveredResource } from '../types/dashboard';
 
@@ -25,7 +28,7 @@ const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing', 'Policy'];
 const STATUS_OPTIONS: ComponentStatus[] = ['Active', 'Planned', 'Decommissioned'];
 
 const TYPE_COLORS: Record<string, string> = {
-  Person: 'bg-blue-50 text-blue-700 border-blue-200',
+  Person: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   Place: 'bg-green-50 text-green-700 border-green-200',
   Thing: 'bg-purple-50 text-purple-700 border-purple-200',
   Policy: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -46,7 +49,11 @@ export default function ComponentLibrary() {
 
   // ─── Azure Discovery State (Feature 040) ────────────────────────────────
   const [showDiscovery, setShowDiscovery] = useState(false);
-  const [subscriptionId, setSubscriptionId] = useState('');
+  // Registered subscriptions from the onboarding wizard — the user no longer
+  // has to type a sub ID; we drive discovery off the wizard's selection.
+  const [registeredSubs, setRegisteredSubs] = useState<AzureSubscriptionRegistrationDto[]>([]);
+  const [subsLoaded, setSubsLoaded] = useState(false);
+  const [activeSubId, setActiveSubId] = useState<string>('');
   const [discoveredResources, setDiscoveredResources] = useState<DiscoveredResource[]>([]);
   const [failedGroups, setFailedGroups] = useState<string[]>([]);
   const [selectedForImport, setSelectedForImport] = useState<Set<string>>(new Set());
@@ -62,12 +69,12 @@ export default function ComponentLibrary() {
   const [entraImporting, setEntraImporting] = useState(false);
   const [entraError, setEntraError] = useState<string | null>(null);
 
-  const handleDiscover = async () => {
-    if (!subscriptionId.trim()) return;
+  const handleDiscover = useCallback(async (subId: string) => {
+    if (!subId) return;
     setDiscovering(true);
     setDiscoveryError(null);
     try {
-      const result = await discoverAzureResourcesForComponents({ subscriptionId: subscriptionId.trim() });
+      const result = await discoverAzureResourcesForComponents({ subscriptionId: subId });
       setDiscoveredResources(result.resources);
       setFailedGroups(result.failedResourceGroups);
       setSelectedForImport(new Set(
@@ -78,7 +85,7 @@ export default function ComponentLibrary() {
     } finally {
       setDiscovering(false);
     }
-  };
+  }, []);
 
   const handleImportSelected = async () => {
     const toImport = discoveredResources.filter(r => selectedForImport.has(r.resourceId) && !r.alreadyImported);
@@ -101,7 +108,7 @@ export default function ComponentLibrary() {
     }
   };
 
-  const handleEntraDiscover = async () => {
+  const handleEntraDiscover = useCallback(async () => {
     setEntraDiscovering(true);
     setEntraError(null);
     try {
@@ -123,7 +130,7 @@ export default function ComponentLibrary() {
     } finally {
       setEntraDiscovering(false);
     }
-  };
+  }, []);
 
   const handleEntraImport = async () => {
     const toImport = entraItems.filter(i => selectedEntra.has(i.entraObjectId) && !i.alreadyImported);
@@ -147,6 +154,46 @@ export default function ComponentLibrary() {
       setEntraImporting(false);
     }
   };
+
+  // Load the wizard's registered Azure subscriptions once. The Azure-discovery
+  // dialog uses these to drive the picker / auto-scan; the user no longer has
+  // to type a subscription ID by hand.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await onboarding.listAzureRegistrations();
+        if (cancelled) return;
+        const usable = rows.filter((r) => r.status === 'Selected');
+        setRegisteredSubs(usable);
+        const first = usable[0];
+        if (first) setActiveSubId(first.subscriptionId);
+      } catch {
+        if (!cancelled) setRegisteredSubs([]);
+      } finally {
+        if (!cancelled) setSubsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Auto-scan the active subscription when the Azure dialog opens. If the
+  // active sub changes (multi-sub picker), re-scan.
+  useEffect(() => {
+    if (!showDiscovery || !activeSubId) return;
+    void handleDiscover(activeSubId);
+  }, [showDiscovery, activeSubId, handleDiscover]);
+
+  // Auto-scan Entra ID when its dialog opens — there's nothing for the user
+  // to configure, so don't make them click an extra button.
+  useEffect(() => {
+    if (!showEntraDiscovery) return;
+    if (entraItems.length > 0) return; // already scanned this session
+    void handleEntraDiscover();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEntraDiscovery]);
 
   const fetcher = useCallback(
     () => listComponents({
@@ -243,53 +290,25 @@ export default function ComponentLibrary() {
 
   return (
     <PageLayout title="Component Library">
+      <PageHero
+        eyebrow="Components"
+        title="Component Library"
+        description="Org-wide People, Places, Things, and Policies — assign to systems with boundary scope."
+      />
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Component Library</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Org-wide People, Places, Things, and Policies — assign to systems with boundary scope
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => { setShowEntraDiscovery(true); setEntraError(null); }}
-              className="inline-flex items-center rounded-md border border-indigo-600 px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
-            >
-              Discover from Entra ID
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowDiscovery(true); setDiscoveryError(null); }}
-              className="inline-flex items-center rounded-md border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
-            >
-              Discover from Azure
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowCreate(true); setFormError(null); }}
-              className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              + New Component
-            </button>
-          </div>
-        </div>
-
         {/* Filters */}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search components..."
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-64 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           >
             <option value="">All Types</option>
             {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -297,7 +316,7 @@ export default function ComponentLibrary() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           >
             <option value="">All Statuses</option>
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -307,6 +326,29 @@ export default function ComponentLibrary() {
               {data.totalCount} component{data.totalCount !== 1 ? 's' : ''}
             </span>
           )}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowEntraDiscovery(true); setEntraError(null); }}
+              className="inline-flex items-center rounded-md border border-indigo-600 px-4 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+            >
+              Discover from Entra ID
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowDiscovery(true); setDiscoveryError(null); }}
+              className="inline-flex items-center rounded-md border border-indigo-600 px-4 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+            >
+              Discover from Azure
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowCreate(true); setFormError(null); }}
+              className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              + New Component
+            </button>
+          </div>
         </div>
 
         {/* Component Cards */}
@@ -355,7 +397,7 @@ export default function ComponentLibrary() {
                   <p className="text-xs font-medium text-gray-500 mb-1">Linked Capabilities</p>
                   <div className="flex flex-wrap gap-1">
                     {comp.capabilityLinks.map((cl) => (
-                      <span key={cl.capabilityId} className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
+                      <span key={cl.capabilityId} className="inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700">
                         {cl.capabilityName}
                       </span>
                     ))}
@@ -453,7 +495,7 @@ export default function ComponentLibrary() {
                   }}
                   disabled={submitting}
                   className={`rounded-md px-4 py-2 text-sm text-white disabled:opacity-50 ${
-                    pendingDeleteId ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                    pendingDeleteId ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'
                   }`}
                 >
                   {submitting ? 'Processing...' : (pendingDeleteId ? 'Confirm Delete' : 'Confirm & Save')}
@@ -467,30 +509,78 @@ export default function ComponentLibrary() {
         {showDiscovery && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="max-h-[80vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Discover from Azure</h3>
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="text"
-                  value={subscriptionId}
-                  onChange={(e) => setSubscriptionId(e.target.value)}
-                  placeholder="Azure Subscription ID"
-                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <button
-                  onClick={handleDiscover}
-                  disabled={discovering || !subscriptionId.trim()}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {discovering ? 'Scanning...' : 'Scan'}
-                </button>
-              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Discover from Azure</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Resources are pulled from the Azure subscriptions you registered in the onboarding wizard.
+              </p>
+
+              {!subsLoaded ? (
+                <p className="text-sm text-gray-500">Loading registered subscriptions…</p>
+              ) : registeredSubs.length === 0 ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                  <p className="font-medium">No Azure subscriptions are connected yet.</p>
+                  <p className="mt-1">
+                    Open the onboarding wizard and complete <strong>Step 3 — Add Azure subscriptions</strong>,
+                    then return here to discover resources.
+                  </p>
+                  <Link
+                    to="/onboarding?stepNav=admin"
+                    className="mt-3 inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                  >
+                    Open onboarding wizard
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  {registeredSubs.length > 1 && (
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Subscription</label>
+                      <select
+                        value={activeSubId}
+                        onChange={(e) => {
+                          setActiveSubId(e.target.value);
+                          setDiscoveredResources([]);
+                          setSelectedForImport(new Set());
+                          setFailedGroups([]);
+                        }}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        {registeredSubs.map((s) => (
+                          <option key={s.subscriptionId} value={s.subscriptionId}>
+                            {s.displayName} ({s.subscriptionId})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {registeredSubs.length === 1 && registeredSubs[0] && (
+                    <div className="mb-4 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                      Scanning <strong>{registeredSubs[0].displayName}</strong> ({registeredSubs[0].subscriptionId})
+                    </div>
+                  )}
+                  {discovering && (
+                    <p className="text-sm text-gray-500 mb-3">Scanning Azure resources…</p>
+                  )}
+                  <div className="flex justify-end mb-3">
+                    <button
+                      type="button"
+                      onClick={() => activeSubId && void handleDiscover(activeSubId)}
+                      disabled={discovering || !activeSubId}
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {discovering ? 'Scanning…' : 'Refresh'}
+                    </button>
+                  </div>
+                </>
+              )}
+
               {discoveryError && (
                 <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{discoveryError}</div>
               )}
               {failedGroups.length > 0 && (
                 <div className="mb-3 rounded-md bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-800">
                   Discovery partially failed for: {failedGroups.join(', ')}.
-                  <button onClick={handleDiscover} className="ml-2 underline">Retry</button>
+                  <button onClick={() => activeSubId && void handleDiscover(activeSubId)} className="ml-2 underline">Retry</button>
                 </div>
               )}
               {discoveredResources.length > 0 && (
@@ -549,7 +639,7 @@ export default function ComponentLibrary() {
                               {r.alreadyImported ? (
                                 <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 border border-green-200">Already imported</span>
                               ) : (
-                                <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 border border-blue-200">New</span>
+                                <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700 border border-indigo-200">New</span>
                               )}
                             </td>
                           </tr>
@@ -570,7 +660,7 @@ export default function ComponentLibrary() {
                   <button
                     onClick={handleImportSelected}
                     disabled={importing || selectedForImport.size === 0}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {importing ? 'Importing...' : `Import ${selectedForImport.size} Component${selectedForImport.size !== 1 ? 's' : ''}`}
                   </button>
@@ -588,14 +678,8 @@ export default function ComponentLibrary() {
               <p className="text-sm text-gray-600 mb-4">
                 Discover users and security groups from Microsoft Entra ID to import as Person components.
               </p>
-              {entraItems.length === 0 && !entraDiscovering && (
-                <button
-                  onClick={handleEntraDiscover}
-                  disabled={entraDiscovering}
-                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 mb-4"
-                >
-                  {entraDiscovering ? 'Discovering...' : 'Scan Entra ID'}
-                </button>
+              {entraDiscovering && entraItems.length === 0 && (
+                <p className="text-sm text-gray-500 mb-4">Scanning Entra ID…</p>
               )}
               {entraError && (
                 <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{entraError}</div>
@@ -753,7 +837,7 @@ function ComponentFormInline({
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
         <label className="block text-sm font-medium text-gray-700">Name *</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -771,25 +855,25 @@ function ComponentFormInline({
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700">Sub-Type</label>
-        <input type="text" value={subType} onChange={(e) => setSubType(e.target.value)} maxLength={100} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        <input type="text" value={subType} onChange={(e) => setSubType(e.target.value)} maxLength={100} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700">Description</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700">Owner</label>
-        <input type="text" value={owner} onChange={(e) => setOwner(e.target.value)} maxLength={200} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        <input type="text" value={owner} onChange={(e) => setOwner(e.target.value)} maxLength={200} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
       </div>
       {componentType === 'Person' && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700">Person Name</label>
-            <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} maxLength={200} placeholder="e.g. John Smith" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} maxLength={200} placeholder="e.g. John Smith" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} placeholder="e.g. john@example.com" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} placeholder="e.g. john@example.com" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
           </div>
         </div>
       )}
@@ -803,7 +887,7 @@ function ComponentFormInline({
           value={capSearch}
           onChange={(e) => setCapSearch(e.target.value)}
           placeholder="Search capabilities..."
-          className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-1 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-1 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <div className="max-h-36 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 p-2 space-y-1">
           {filteredCaps.length === 0 ? (
@@ -817,7 +901,7 @@ function ComponentFormInline({
                   type="checkbox"
                   checked={selectedCapIds.has(cap.id)}
                   onChange={() => toggleCap(cap.id)}
-                  className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="h-3.5 w-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 <span className="truncate text-gray-700">{cap.name}</span>
                 <span className="ml-auto text-xs text-gray-400 flex-shrink-0">{cap.category}</span>
@@ -828,7 +912,7 @@ function ComponentFormInline({
       </div>
       <div className="flex justify-end gap-2 pt-2">
         <button type="button" onClick={onCancel} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-        <button type="submit" disabled={submitting || !name} className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+        <button type="submit" disabled={submitting || !name} className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
           {submitting ? 'Saving...' : (initial ? 'Update' : 'Create')}
         </button>
       </div>

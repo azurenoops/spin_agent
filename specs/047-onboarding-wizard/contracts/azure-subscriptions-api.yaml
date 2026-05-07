@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: ATO Copilot — Onboarding Wizard Azure Subscription API
+  version: 0.1.0
+  description: |
+    Endpoints backing Step 5 (Azure subscription scope selection). The enumeration endpoint
+    requires a delegated ARM access token (Microsoft.Identity.Web with incremental consent).
+    If the user has not yet consented to the ARM scope, the API responds 403 with
+    `WWW-Authenticate: Bearer error="insufficient_claims"` so the dashboard can drive the
+    `acquireTokenPopup` / `acquireTokenRedirect` flow (research §R8).
+servers:
+  - url: /
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Subscription:
+      type: object
+      properties:
+        subscriptionId: { type: string, format: uuid }
+        displayName:    { type: string }
+        parentTenantId: { type: string, format: uuid }
+        environment:    { type: string, enum: [AzureCloud, AzureUSGovernment] }
+
+    SubscriptionRegistration:
+      allOf:
+        - $ref: '#/components/schemas/Subscription'
+        - type: object
+          properties:
+            id:                { type: string, format: uuid }
+            status:            { type: string, enum: [Selected, Unavailable] }
+            lastSeenVisibleAt: { type: string, format: date-time }
+
+    EnumerationProblem:
+      type: object
+      required: [errorCode, message, suggestion]
+      properties:
+        errorCode:
+          type: string
+          enum:
+            - WIZARD_ARM_CONSENT_REQUIRED
+            - WIZARD_ARM_NO_SUBSCRIPTIONS_VISIBLE
+            - WIZARD_ARM_TOKEN_EXPIRED
+            - WIZARD_ARM_UNREACHABLE
+        message:    { type: string }
+        suggestion: { type: string }
+
+paths:
+  /api/onboarding/azure/subscriptions:
+    get:
+      summary: Enumerate Azure subscriptions visible to the signed-in user's delegated ARM token.
+      description: |
+        Calls `GetSubscriptions().GetAllAsync()` on `ArmClient` constructed from a
+        delegated `TokenCredential`. Server-side caching is intentionally disabled
+        (FR-074 freshness).
+      responses:
+        '200':
+          description: List of visible subscriptions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Subscription' }
+        '403':
+          description: Insufficient claims — ARM scope consent required.
+          headers:
+            WWW-Authenticate:
+              schema:
+                type: string
+                example: 'Bearer error="insufficient_claims", claims="..."'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnumerationProblem' }
+        '503':
+          description: ARM unreachable (network / Azure outage).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnumerationProblem' }
+
+  /api/onboarding/azure/subscriptions/registrations:
+    get:
+      summary: Get current tenant's registered Azure subscriptions (selected scope).
+      responses:
+        '200':
+          description: List of registrations including any flagged "Unavailable" (FR-074).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SubscriptionRegistration' }
+    put:
+      summary: Replace the tenant's selected subscription set (Step 5 commit).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriptionIds]
+              properties:
+                subscriptionIds:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Registrations updated. Subscriptions no longer visible to the user are
+                       set to `status=Unavailable` rather than removed (FR-074); subscriptions
+                       removed from the request are hard-removed.
+
+  /api/onboarding/azure/subscriptions/registrations/{id}:
+    delete:
+      summary: Hard-remove a previously selected subscription from tenant scope.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Removed.

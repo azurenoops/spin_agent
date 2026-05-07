@@ -86,7 +86,7 @@ export default function DeviationDetailDrawer({ deviationId, onClose, onActionCo
               <div className="flex items-center gap-2">
                 <span className="text-xl font-mono font-bold">{detail.controlId}</span>
                 <span className="rounded px-2 py-0.5 text-xs font-medium bg-gray-100">{detail.deviationType}</span>
-                <span className="rounded px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800">
+                <span className="rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800">
                   {SEVERITY_LABELS[detail.catSeverity]}
                 </span>
               </div>
@@ -224,7 +224,7 @@ export default function DeviationDetailDrawer({ deviationId, onClose, onActionCo
                       onChange={(e) => setExtendJustification(e.target.value)}
                       className="rounded border border-gray-300 px-2 py-1 text-sm w-full" />
                     <button disabled={actionLoading || !newExpDate} onClick={handleExtend}
-                      className="rounded bg-blue-600 text-white px-3 py-1.5 text-sm hover:bg-blue-700 disabled:opacity-50 w-full">
+                      className="rounded bg-indigo-600 text-white px-3 py-1.5 text-sm hover:bg-indigo-700 disabled:opacity-50 w-full">
                       Extend Expiration
                     </button>
                   </div>
