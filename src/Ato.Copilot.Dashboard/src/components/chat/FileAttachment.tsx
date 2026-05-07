@@ -116,7 +116,7 @@ export default function FileAttachment({ attachments, onAdd, onRemove, disabled 
         onDragLeave={handleDragLeave}
         className={`rounded-lg border-2 border-dashed p-2 text-center text-xs transition-colors ${
           isDragOver
-            ? 'border-blue-400 bg-blue-50 text-blue-600'
+            ? 'border-indigo-400 bg-indigo-50 text-indigo-600'
             : 'border-gray-200 text-gray-400'
         }`}
       >
@@ -125,7 +125,7 @@ export default function FileAttachment({ attachments, onAdd, onRemove, disabled 
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
-            className="font-medium text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+            className="font-medium text-indigo-600 hover:text-indigo-800 disabled:text-gray-400"
           >
             browse
           </button>

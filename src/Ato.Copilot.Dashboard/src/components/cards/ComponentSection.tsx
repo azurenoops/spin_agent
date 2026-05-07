@@ -3,7 +3,7 @@ import type { SystemComponentDto } from '../../types/dashboard';
 
 const statusColors: Record<string, string> = {
   Active: 'bg-green-100 text-green-800',
-  Planned: 'bg-blue-100 text-blue-800',
+  Planned: 'bg-indigo-100 text-indigo-800',
   Decommissioned: 'bg-gray-100 text-gray-600',
 };
 
@@ -84,7 +84,7 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                       {comp.subType && <span>{comp.subType}</span>}
                       {comp.owner && <span>Owner: {comp.owner}</span>}
                       {comp.personName && <span>{comp.personName}</span>}
-                      {comp.email && <span className="text-blue-600">{comp.email}</span>}
+                      {comp.email && <span className="text-indigo-600">{comp.email}</span>}
                       {comp.rmfRole && <span className="text-purple-600 font-medium">{comp.rmfRole}</span>}
                     </div>
                     {comp.linkedCapabilities.length > 0 && (
@@ -105,7 +105,7 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                     {onRelink && comp.azureResourceId && (
                       <button onClick={() => onRelink(comp)} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1">Re-link</button>
                     )}
-                    <button onClick={() => onEdit(comp)} className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1">Edit</button>
+                    <button onClick={() => onEdit(comp)} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1">Edit</button>
                     <button onClick={() => onDelete(comp.id)} className="text-xs text-red-500 hover:text-red-700 px-2 py-1">Delete</button>
                   </div>
                 </div>

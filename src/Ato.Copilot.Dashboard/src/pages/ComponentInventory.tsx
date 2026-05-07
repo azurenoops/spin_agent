@@ -279,7 +279,7 @@ export default function ComponentInventory() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search components..."
-          className="border rounded px-3 py-1.5 text-sm flex-1 min-w-[200px] focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          className="border rounded px-3 py-1.5 text-sm flex-1 min-w-[200px] focus:ring-2 focus:ring-indigo-300 focus:outline-none"
         />
         <select
           value={typeFilter}
@@ -304,7 +304,7 @@ export default function ComponentInventory() {
         </select>
         <button
           onClick={() => { setShowForm(true); setEditing(undefined); setFormError(null); }}
-          className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
         >
           + Add Component
         </button>
@@ -328,14 +328,14 @@ export default function ComponentInventory() {
                 <button
                   type="button"
                   onClick={() => setAddMode('create')}
-                  className={`flex-1 py-2 font-medium transition-colors ${addMode === 'create' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  className={`flex-1 py-2 font-medium transition-colors ${addMode === 'create' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                 >
                   Create New
                 </button>
                 <button
                   type="button"
                   onClick={addMode !== 'existing' ? handleSwitchToExisting : undefined}
-                  className={`flex-1 py-2 font-medium transition-colors ${addMode === 'existing' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  className={`flex-1 py-2 font-medium transition-colors ${addMode === 'existing' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                 >
                   Add Existing (Org-Level)
                 </button>
@@ -365,7 +365,7 @@ export default function ComponentInventory() {
                   value={orgSearch}
                   onChange={(e) => setOrgSearch(e.target.value)}
                   placeholder="Search by name..."
-                  className="w-full border rounded px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                  className="w-full border rounded px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-indigo-300 focus:outline-none"
                 />
                 {orgAssignError && (
                   <div className="bg-red-50 text-red-700 p-2 rounded text-sm mb-3">{orgAssignError}</div>
@@ -392,7 +392,7 @@ export default function ComponentInventory() {
                             {comp.capabilityLinks.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {comp.capabilityLinks.slice(0, 3).map((cl) => (
-                                  <span key={cl.capabilityId} className="inline-flex rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">{cl.capabilityName}</span>
+                                  <span key={cl.capabilityId} className="inline-flex rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700">{cl.capabilityName}</span>
                                 ))}
                                 {comp.capabilityLinks.length > 3 && (
                                   <span className="text-xs text-gray-400">+{comp.capabilityLinks.length - 3} more</span>
@@ -403,7 +403,7 @@ export default function ComponentInventory() {
                           <button
                             onClick={() => handleAssignExisting(comp)}
                             disabled={orgAssigning === comp.id}
-                            className="ml-3 shrink-0 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                            className="ml-3 shrink-0 px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                           >
                             {orgAssigning === comp.id ? 'Assigning…' : 'Assign'}
                           </button>
@@ -528,7 +528,7 @@ export default function ComponentInventory() {
                             {r.alreadyImported ? (
                               <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">Already imported</span>
                             ) : r.existsInOrgLibrary ? (
-                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">In org library</span>
+                              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">In org library</span>
                             ) : (
                               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">New</span>
                             )}
@@ -576,7 +576,7 @@ export default function ComponentInventory() {
                 <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold text-gray-700">{boundary.name}</h3>
-                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                    <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">
                       {boundary.boundaryType}
                     </span>
                     {boundary.isPrimary && (

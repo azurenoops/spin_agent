@@ -7,12 +7,12 @@ export default function PoamSeverityHeatbar({ catI, catII, catIII }: { catI: num
       <div className="flex h-4 overflow-hidden rounded-full">
         {catI > 0 && <div className="bg-red-500" style={{ width: `${(catI / total) * 100}%` }} title={`CAT I: ${catI}`} />}
         {catII > 0 && <div className="bg-amber-400" style={{ width: `${(catII / total) * 100}%` }} title={`CAT II: ${catII}`} />}
-        {catIII > 0 && <div className="bg-blue-400" style={{ width: `${(catIII / total) * 100}%` }} title={`CAT III: ${catIII}`} />}
+        {catIII > 0 && <div className="bg-indigo-400" style={{ width: `${(catIII / total) * 100}%` }} title={`CAT III: ${catIII}`} />}
       </div>
       <div className="mt-2 flex gap-4 text-xs text-gray-500">
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-500" /> CAT I: {catI}</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-400" /> CAT II: {catII}</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-blue-400" /> CAT III: {catIII}</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-indigo-400" /> CAT III: {catIII}</span>
       </div>
     </div>
   );

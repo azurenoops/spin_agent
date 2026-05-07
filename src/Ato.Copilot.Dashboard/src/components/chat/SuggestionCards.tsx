@@ -17,7 +17,7 @@ export default function SuggestionCards({ suggestions, onSelect, disabled }: Sug
           type="button"
           onClick={() => onSelect(suggestion.prompt)}
           disabled={disabled}
-          className="flex-shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex-shrink-0 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {suggestion.icon && <span className="mr-1">{suggestion.icon}</span>}
           {suggestion.label}

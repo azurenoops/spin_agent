@@ -4,7 +4,7 @@ const SEVERITY_LABELS: Record<number, string> = { 0: 'CAT I', 1: 'CAT II', 2: 'C
 const SEVERITY_COLORS: Record<number, string> = {
   0: 'bg-red-100 text-red-800',
   1: 'bg-yellow-100 text-yellow-800',
-  2: 'bg-blue-100 text-blue-800',
+  2: 'bg-indigo-100 text-indigo-800',
 };
 const STATUS_COLORS: Record<string, string> = {
   Pending: 'bg-yellow-100 text-yellow-800',
@@ -67,7 +67,7 @@ export default function DeviationTable({
               onClick={() => onTypeChange(tab.key)}
               className={`px-4 py-2 text-sm font-medium border-b-2 ${
                 typeFilter === tab.key
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-indigo-500 text-indigo-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >

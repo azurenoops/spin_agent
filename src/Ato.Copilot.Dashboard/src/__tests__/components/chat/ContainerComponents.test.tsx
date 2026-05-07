@@ -51,7 +51,7 @@ describe('ChatToggle', () => {
 
   it('shows active state when open', () => {
     const { container } = render(<ChatToggle isOpen={true} onClick={vi.fn()} />);
-    const button = container.querySelector('.bg-blue-50');
+    const button = container.querySelector('.bg-indigo-50');
     expect(button).toBeDefined();
   });
 

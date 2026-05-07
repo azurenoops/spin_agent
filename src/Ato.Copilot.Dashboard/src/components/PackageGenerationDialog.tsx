@@ -80,7 +80,7 @@ function RemediationText({
           <button
             type="button"
             onClick={() => onNavigate(`/systems/${systemId}/${route.path}`)}
-            className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 underline font-medium"
+            className="inline-flex items-center gap-0.5 text-indigo-600 hover:text-indigo-800 underline font-medium"
           >
             Open {route.label}
             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -343,7 +343,7 @@ export default function PackageGenerationDialog({
                                     <button
                                       type="button"
                                       onClick={() => handleNavigate(`/systems/${systemId}/${route.path}`)}
-                                      className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 underline font-medium"
+                                      className="inline-flex items-center gap-0.5 text-indigo-600 hover:text-indigo-800 underline font-medium"
                                     >
                                       Open {route.label}
                                       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -391,7 +391,7 @@ export default function PackageGenerationDialog({
                 <div className="space-y-2">
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      evidenceMode === 'Embedded' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                      evidenceMode === 'Embedded' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'
                     }`}
                   >
                     <input
@@ -400,7 +400,7 @@ export default function PackageGenerationDialog({
                       value="Embedded"
                       checked={evidenceMode === 'Embedded'}
                       onChange={() => setEvidenceMode('Embedded')}
-                      className="text-blue-600 focus:ring-blue-500"
+                      className="text-indigo-600 focus:ring-indigo-500"
                     />
                     <div>
                       <span className="text-sm font-medium text-gray-900">Embedded</span>
@@ -409,7 +409,7 @@ export default function PackageGenerationDialog({
                   </label>
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      evidenceMode === 'ManifestOnly' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                      evidenceMode === 'ManifestOnly' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'
                     }`}
                   >
                     <input
@@ -418,7 +418,7 @@ export default function PackageGenerationDialog({
                       value="ManifestOnly"
                       checked={evidenceMode === 'ManifestOnly'}
                       onChange={() => setEvidenceMode('ManifestOnly')}
-                      className="text-blue-600 focus:ring-blue-500"
+                      className="text-indigo-600 focus:ring-indigo-500"
                     />
                     <div>
                       <span className="text-sm font-medium text-gray-900">Manifest Only</span>
@@ -444,7 +444,7 @@ export default function PackageGenerationDialog({
                         a.status === 'done'
                           ? 'bg-green-50 text-green-800'
                           : a.status === 'generating'
-                            ? 'bg-blue-50 text-blue-800'
+                            ? 'bg-indigo-50 text-indigo-800'
                             : a.status === 'failed'
                               ? 'bg-red-50 text-red-800'
                               : 'bg-gray-50 text-gray-500'
@@ -452,7 +452,7 @@ export default function PackageGenerationDialog({
                     >
                       {a.status === 'done' && <span className="text-green-600">&#10003;</span>}
                       {a.status === 'generating' && (
-                        <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-4 w-4 text-indigo-600" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
@@ -517,7 +517,7 @@ export default function PackageGenerationDialog({
               </button>
               <button
                 onClick={handleGenerate}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
               >
                 Generate Package
               </button>
@@ -565,7 +565,7 @@ export default function PackageGenerationDialog({
                   setError(null);
                   setFailedArtifact(null);
                 }}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
               >
                 Retry
               </button>

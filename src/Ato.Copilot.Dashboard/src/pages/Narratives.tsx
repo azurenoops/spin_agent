@@ -15,7 +15,7 @@ function StatusBadge({ status, variant }: { status: string; variant?: 'green' | 
     green: 'bg-green-100 text-green-700',
     amber: 'bg-amber-100 text-amber-700',
     red: 'bg-red-100 text-red-700',
-    blue: 'bg-blue-100 text-blue-700',
+    blue: 'bg-indigo-100 text-indigo-700',
     gray: 'bg-gray-100 text-gray-500',
   };
   return (
@@ -142,7 +142,7 @@ function AddNarrativeDialog({
                 value={controlSearch}
                 onChange={e => setControlSearch(e.target.value)}
                 placeholder="Search controls (e.g. ac-2, audit)..."
-                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
               <div className="mt-2 max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-gray-50">
                 {loadingControls ? (
@@ -155,7 +155,7 @@ function AddNarrativeDialog({
                       key={c.id}
                       type="button"
                       onClick={() => setSelectedControl(c)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50"
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-indigo-50"
                     >
                       <span className="font-medium text-gray-900">{c.id}</span>
                       <span className="ml-2 truncate text-gray-500">{c.title}</span>
@@ -201,7 +201,7 @@ function AddNarrativeDialog({
               onChange={e => setNarrative(e.target.value)}
               rows={5}
               placeholder="Enter the implementation narrative text (optional — can be added later)..."
-              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
@@ -219,7 +219,7 @@ function AddNarrativeDialog({
             type="button"
             onClick={handleSubmit}
             disabled={!selectedControl || submitting}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {submitting ? 'Creating...' : 'Create'}
           </button>
@@ -418,7 +418,7 @@ export default function Narratives() {
           </div>
           <button
             onClick={() => setShowAddDialog(true)}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             + Add Narrative
           </button>
@@ -480,13 +480,13 @@ export default function Narratives() {
               <div className="flex h-full">
                 <div className="bg-green-500 transition-all" style={{ width: `${(stats.implemented / stats.total) * 100}%` }} />
                 <div className="bg-amber-400 transition-all" style={{ width: `${(stats.partial / stats.total) * 100}%` }} />
-                <div className="bg-blue-400 transition-all" style={{ width: `${(stats.planned / stats.total) * 100}%` }} />
+                <div className="bg-indigo-400 transition-all" style={{ width: `${(stats.planned / stats.total) * 100}%` }} />
               </div>
             </div>
             <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> Implemented ({stats.implemented})</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Partial ({stats.partial})</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-400" /> Planned ({stats.planned})</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-400" /> Planned ({stats.planned})</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-gray-300" /> Approved ({stats.approved})</span>
               {stats.ai > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-purple-400" /> AI-generated ({stats.ai})</span>}
             </div>
@@ -509,7 +509,7 @@ export default function Narratives() {
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
             <p className="text-xs font-medium text-gray-500 uppercase">Approved</p>
-            <p className="mt-1 text-2xl font-bold text-blue-600">{stats.approved}</p>
+            <p className="mt-1 text-2xl font-bold text-indigo-600">{stats.approved}</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
             <p className="text-xs font-medium text-gray-500 uppercase">AI Suggested</p>
@@ -536,14 +536,14 @@ export default function Narratives() {
             placeholder="Search controls..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-md border border-gray-300 px-3 py-1 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
 
         {/* Bulk actions toolbar */}
         {selected.size > 0 && (
-          <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
-            <span className="text-sm font-medium text-blue-700">{selected.size} selected</span>
+          <div className="flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+            <span className="text-sm font-medium text-indigo-700">{selected.size} selected</span>
             <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
               <option value="">Set status...</option>
               <option value="Implemented">Implemented</option>
@@ -562,7 +562,7 @@ export default function Narratives() {
               type="button"
               disabled={updating || (!bulkStatus && !bulkApproval)}
               onClick={handleBulkUpdate}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {updating ? 'Updating...' : 'Apply'}
             </button>
@@ -573,7 +573,7 @@ export default function Narratives() {
         {/* Loading / error */}
         {loading && !narratives && (
           <div className="flex items-center justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
           </div>
         )}
         {error && (
@@ -619,7 +619,7 @@ export default function Narratives() {
                   </tr>
                 ) : items.map((n) => (
                   <Fragment key={n.id}>
-                    <tr className={`hover:bg-gray-50 ${selected.has(n.controlId) ? 'bg-blue-50' : ''}`}>
+                    <tr className={`hover:bg-gray-50 ${selected.has(n.controlId) ? 'bg-indigo-50' : ''}`}>
                       <td className="px-3 py-3">
                         <input
                           type="checkbox"
@@ -662,7 +662,7 @@ export default function Narratives() {
                                 <span>Authored: {formatDate(n.authoredAt)}</span>
                                 <span>Version: {n.version}</span>
                                 {n.aiSuggested && <span className="text-purple-600 font-medium">AI-generated narrative</span>}
-                                {savingIds.has(n.controlId) && <span className="text-blue-600 font-medium">Saving…</span>}
+                                {savingIds.has(n.controlId) && <span className="text-indigo-600 font-medium">Saving…</span>}
                                 {savedIds.has(n.controlId) && !savingIds.has(n.controlId) && <span className="text-green-600 font-medium">Saved ✓</span>}
                               </div>
                               <button
@@ -674,7 +674,7 @@ export default function Narratives() {
                               </button>
                             </div>
                             <textarea
-                              className="w-full rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-700 min-h-[120px] resize-y focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                              className="w-full rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-700 min-h-[120px] resize-y focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                               value={narrativeValue}
                               onChange={e => setEditedNarratives(prev => ({ ...prev, [n.controlId]: e.target.value }))}
                               onBlur={e => handleNarrativeBlur(n.controlId, e.target.value, n.narrative)}

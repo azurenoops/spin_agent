@@ -9,7 +9,7 @@ export default function ChatToggle({ isOpen, onClick }: ChatToggleProps) {
       type="button"
       onClick={onClick}
       className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 transition-colors ${
-        isOpen ? 'bg-blue-50 text-blue-600' : 'text-gray-500'
+        isOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'
       }`}
       aria-label="Chat (Ctrl+Shift+C)"
       title="Chat (Ctrl+Shift+C)"
@@ -23,7 +23,7 @@ export default function ChatToggle({ isOpen, onClick }: ChatToggleProps) {
         />
       </svg>
       {isOpen && (
-        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-blue-500" />
+        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-indigo-500" />
       )}
     </button>
   );

@@ -2,7 +2,7 @@ import type { PoamMetrics } from '../../types/poam';
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
   const colorMap: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    blue: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     red: 'bg-red-50 text-red-700 border-red-200',
     rose: 'bg-rose-50 text-rose-700 border-rose-200',
     amber: 'bg-amber-50 text-amber-700 border-amber-200',

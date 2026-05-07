@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSettings, type DashboardSettings } from '../../hooks/useSettings';
 import apiClient from '../../api/client';
 
@@ -33,7 +34,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-gray-200'}`}
+        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-200'}`}
       >
         <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform mt-0.5 ${checked ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'}`} />
       </button>
@@ -53,7 +54,7 @@ function SelectField<T extends string | number>({ label, value, options, onChang
           const parsed = typeof value === 'number' ? (Number(raw) as unknown as T) : (raw as unknown as T);
           onChange(parsed);
         }}
-        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       >
         {options.map((o) => (
           <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
@@ -72,7 +73,7 @@ function TextField({ label, value, onChange, placeholder }: { label: string; val
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
     </label>
   );
@@ -87,7 +88,7 @@ function TextAreaField({ label, value, onChange, placeholder, rows = 4 }: { labe
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
-        className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
     </label>
   );
@@ -104,7 +105,7 @@ function NumberField({ label, value, onChange, min, max, suffix }: { label: stri
           onChange={(e) => onChange(Number(e.target.value))}
           min={min}
           max={max}
-          className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 text-right focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 text-right focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         {suffix && <span className="text-xs text-gray-500">{suffix}</span>}
       </div>
@@ -306,9 +307,30 @@ function DocumentSourcesSection({ settings, update }: { settings: DashboardSetti
   );
 }
 
-function AdminSection({ settings, update }: { settings: DashboardSettings; update: (p: Partial<DashboardSettings>) => void }) {
+function AdminSection({ settings, update, onClose }: { settings: DashboardSettings; update: (p: Partial<DashboardSettings>) => void; onClose: () => void }) {
+  const navigate = useNavigate();
   return (
     <div className="space-y-1">
+      <SectionDivider title="Onboarding" />
+      <div className="py-2">
+        <p className="text-sm text-gray-700">
+          Re-open the tenant onboarding wizard to update organization context, RMF role assignments,
+          Azure subscription scope, document templates, eMASS package, SSP PDF ingestion, or narrative seeds.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            navigate('/onboarding?stepNav=admin');
+          }}
+          className="mt-3 inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7V5a2 2 0 012-2h4l2 2h7a2 2 0 012 2v3M3 7h18M3 7v10a2 2 0 002 2h14a2 2 0 002-2V10" />
+          </svg>
+          Open onboarding wizard
+        </button>
+      </div>
       <SectionDivider title="Session" />
       <SelectField label="Session Timeout" value={settings.sessionTimeout} onChange={(v) => update({ sessionTimeout: v })} options={[
         { label: '15 minutes', value: 15 },
@@ -340,7 +362,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       case 'compliance': return <ComplianceSection settings={settings} update={updateSettings} />;
       case 'integrations': return <IntegrationsSection settings={settings} update={updateSettings} />;
       case 'documents': return <DocumentSourcesSection settings={settings} update={updateSettings} />;
-      case 'admin': return <AdminSection settings={settings} update={updateSettings} />;
+      case 'admin': return <AdminSection settings={settings} update={updateSettings} onClose={onClose} />;
     }
   };
 
@@ -391,7 +413,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
                   onClick={() => setActiveSection(s.id)}
                   className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
                     activeSection === s.id
-                      ? 'bg-blue-50 text-blue-700 font-medium'
+                      ? 'bg-indigo-50 text-indigo-700 font-medium'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`}
                 >

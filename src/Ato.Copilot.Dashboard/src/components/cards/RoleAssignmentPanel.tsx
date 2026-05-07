@@ -13,7 +13,7 @@ const ROLE_OPTIONS = [
 function roleBadgeColor(role: string): string {
   switch (role) {
     case 'AuthorizingOfficial': return 'bg-purple-100 text-purple-800';
-    case 'Issm': return 'bg-blue-100 text-blue-800';
+    case 'Issm': return 'bg-indigo-100 text-indigo-800';
     case 'Isso': return 'bg-green-100 text-green-800';
     case 'Sca': return 'bg-amber-100 text-amber-800';
     case 'SystemOwner': return 'bg-indigo-100 text-indigo-800';
@@ -81,7 +81,7 @@ export default function RoleAssignmentPanel({ systemId }: Props) {
           <button
             type="button"
             onClick={() => setDialogOpen(true)}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+            className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
           >
             + Assign Role
           </button>
@@ -133,7 +133,7 @@ export default function RoleAssignmentPanel({ systemId }: Props) {
                 <select
                   value={formRole}
                   onChange={(e) => setFormRole(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 >
                   {ROLE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -147,7 +147,7 @@ export default function RoleAssignmentPanel({ systemId }: Props) {
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="e.g. Jane Smith"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
             </div>
@@ -163,7 +163,7 @@ export default function RoleAssignmentPanel({ systemId }: Props) {
                 type="button"
                 onClick={handleAssign}
                 disabled={!formName.trim() || saving}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? 'Assigning…' : 'Assign'}
               </button>

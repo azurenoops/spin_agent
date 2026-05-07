@@ -46,7 +46,7 @@ export default function FindingsSeverityCard({ catI, catII, catIII }: FindingsSe
         )}
         {catIII > 0 && (
           <div
-            className="bg-blue-400"
+            className="bg-indigo-400"
             style={{ width: `${(catIII / total) * 100}%` }}
             title={`CAT III: ${catIII}`}
           />
@@ -60,7 +60,7 @@ export default function FindingsSeverityCard({ catI, catII, catIII }: FindingsSe
           <span className="h-2 w-2 rounded-full bg-yellow-500" /> II: {catII}
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-blue-400" /> III: {catIII}
+          <span className="h-2 w-2 rounded-full bg-indigo-400" /> III: {catIII}
         </span>
       </div>
     </div>

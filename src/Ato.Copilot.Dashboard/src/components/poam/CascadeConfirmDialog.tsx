@@ -30,7 +30,7 @@ export default function CascadeConfirmDialog({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" onClick={onDismiss}>
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="mb-1 flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">⟳</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">⟳</span>
           <h3 className="text-base font-bold text-gray-900">Cascade Change</h3>
         </div>
         <p className="mt-3 text-sm text-gray-700">{message}</p>

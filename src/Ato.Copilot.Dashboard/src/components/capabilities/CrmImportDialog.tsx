@@ -133,12 +133,12 @@ export default function CrmImportDialog({ open, onClose, onSuccess }: CrmImportD
         <div className="max-h-[70vh] overflow-y-auto px-6 py-4 space-y-4">
           {/* Loading spinner */}
           {loading && (
-            <div className="flex items-center gap-3 rounded-md bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            <div className="flex items-center gap-3 rounded-md bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
               <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Processing…{elapsed >= 2 && <span className="text-blue-500">({elapsed}s)</span>}
+              Processing…{elapsed >= 2 && <span className="text-indigo-500">({elapsed}s)</span>}
             </div>
           )}
 
@@ -149,7 +149,7 @@ export default function CrmImportDialog({ open, onClose, onSuccess }: CrmImportD
           {/* ── Step 1: Upload ── */}
           {step === 'upload' && !loading && (
             <div
-              className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition ${dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+              className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition ${dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'}`}
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
@@ -157,7 +157,7 @@ export default function CrmImportDialog({ open, onClose, onSuccess }: CrmImportD
               <p className="mb-2 text-sm text-gray-500">Drag & drop a CSV or Excel file, or</p>
               <button
                 onClick={() => fileRef.current?.click()}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 Browse Files
               </button>
@@ -246,7 +246,7 @@ export default function CrmImportDialog({ open, onClose, onSuccess }: CrmImportD
                 <button
                   onClick={handlePreview}
                   disabled={!allMapped}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   Preview Import
                 </button>
@@ -257,7 +257,7 @@ export default function CrmImportDialog({ open, onClose, onSuccess }: CrmImportD
           {/* ── Step 3: Preview ── */}
           {step === 'preview' && preview && !loading && (
             <>
-              <div className="rounded-md bg-blue-50 p-4 text-sm text-blue-800">
+              <div className="rounded-md bg-indigo-50 p-4 text-sm text-indigo-800">
                 <strong>Preview: {preview.fileName}</strong> — {preview.rowsParsed} rows parsed
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
@@ -314,7 +314,7 @@ export default function CrmImportDialog({ open, onClose, onSuccess }: CrmImportD
                 </div>
               )}
               <div className="flex justify-end pt-2">
-                <button onClick={onClose} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Done</button>
+                <button onClick={onClose} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Done</button>
               </div>
             </>
           )}

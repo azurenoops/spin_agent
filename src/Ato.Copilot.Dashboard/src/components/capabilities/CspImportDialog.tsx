@@ -119,7 +119,7 @@ export default function CspImportDialog({ open, onClose, onSuccess }: CspImportD
 
           {loading && (
             <div className="flex items-center gap-3 py-4">
-              <svg className="h-5 w-5 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none">
+              <svg className="h-5 w-5 animate-spin text-indigo-600" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
@@ -314,7 +314,7 @@ export default function CspImportDialog({ open, onClose, onSuccess }: CspImportD
           {step === 'select' && selectedId && !loading && (
             <button
               onClick={handlePreview}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
               Preview Import
             </button>
@@ -329,7 +329,7 @@ export default function CspImportDialog({ open, onClose, onSuccess }: CspImportD
               </button>
               <button
                 onClick={handleApply}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 Apply Import
               </button>

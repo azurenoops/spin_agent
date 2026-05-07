@@ -198,16 +198,16 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
                   navigate(resolveBlocked.actionLink);
                   setResolveBlocked(null);
                 }}
-                className="flex w-full items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-left hover:bg-blue-100 transition-colors"
+                className="flex w-full items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-left hover:bg-indigo-100 transition-colors"
               >
-                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-blue-900">{resolveBlocked.actionLabel}</p>
-                  <p className="text-xs text-blue-700 mt-0.5">Complete this action, then try resolving again</p>
+                  <p className="text-sm font-medium text-indigo-900">{resolveBlocked.actionLabel}</p>
+                  <p className="text-xs text-indigo-700 mt-0.5">Complete this action, then try resolving again</p>
                 </div>
               </button>
             </div>

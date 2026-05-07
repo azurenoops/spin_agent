@@ -154,7 +154,7 @@ export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
         <h4 className="text-sm font-semibold text-gray-700">Control Mappings ({uniqueControlCount})</h4>
         <button
           onClick={() => setShowPicker(true)}
-          className="text-xs text-blue-600 hover:text-blue-800"
+          className="text-xs text-indigo-600 hover:text-indigo-800"
         >
           + Add Mapping
         </button>
@@ -222,7 +222,7 @@ export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
                             <button
                               onClick={() => handleSaveEdit(m.id)}
                               disabled={savingEdit}
-                              className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                              className="text-xs px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
                             >
                               Save
                             </button>
@@ -236,7 +236,7 @@ export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
                         ) : (
                           <>
                             <span className="text-xs text-gray-400">{m.role}</span>
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">
                               {getScopeLabel(m)}
                             </span>
                             <span
@@ -247,7 +247,7 @@ export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
                             </span>
                             <button
                               onClick={() => beginEdit(m)}
-                              className="text-xs px-2 py-1 rounded border border-blue-300 text-blue-700 hover:bg-blue-50"
+                              className="text-xs px-2 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
                             >
                               Edit
                             </button>
@@ -368,7 +368,7 @@ function ControlPickerDialog({ existingControlIds, baselineLevel, boundaries, on
               placeholder="Search controls..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full rounded-md border border-gray-300 py-1.5 pl-8 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 py-1.5 pl-8 pr-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               autoFocus
             />
           </div>
@@ -419,14 +419,14 @@ function ControlPickerDialog({ existingControlIds, baselineLevel, boundaries, on
                 <label
                   key={c.id}
                   className={`flex items-center gap-3 rounded px-3 py-2 cursor-pointer transition-colors ${
-                    selected.has(c.id) ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'
+                    selected.has(c.id) ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50 border border-transparent'
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={selected.has(c.id)}
                     onChange={() => handleToggle(c.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                   />
                   <span className="font-mono text-xs font-semibold text-gray-800 w-20 flex-shrink-0">{c.id}</span>
                   <span className="text-sm text-gray-600 truncate">{c.title}</span>
@@ -457,7 +457,7 @@ function ControlPickerDialog({ existingControlIds, baselineLevel, boundaries, on
             <button
               onClick={handleSubmit}
               disabled={selected.size === 0 || adding}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {adding ? 'Adding...' : `Add ${selected.size} Control${selected.size !== 1 ? 's' : ''}`}
             </button>

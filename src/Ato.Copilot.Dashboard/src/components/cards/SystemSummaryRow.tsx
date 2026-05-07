@@ -9,7 +9,7 @@ interface SystemSummaryRowProps {
 
 const rmfBadgeColor: Record<string, string> = {
   Prepare: 'bg-gray-100 text-gray-700',
-  Categorize: 'bg-blue-100 text-blue-700',
+  Categorize: 'bg-indigo-100 text-indigo-700',
   Select: 'bg-indigo-100 text-indigo-700',
   Implement: 'bg-purple-100 text-purple-700',
   Assess: 'bg-amber-100 text-amber-700',

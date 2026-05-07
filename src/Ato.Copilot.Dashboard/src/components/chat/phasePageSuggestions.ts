@@ -429,7 +429,7 @@ export function getIntelligentSuggestions(context: ChatContext): SuggestedAction
 const PHASE_COLORS: Record<RmfPhase, { bg: string; text: string; ring: string }> = {
   Prepare: { bg: 'bg-slate-100', text: 'text-slate-700', ring: 'ring-slate-400' },
   Categorize: { bg: 'bg-purple-100', text: 'text-purple-700', ring: 'ring-purple-400' },
-  Select: { bg: 'bg-blue-100', text: 'text-blue-700', ring: 'ring-blue-400' },
+  Select: { bg: 'bg-indigo-100', text: 'text-indigo-700', ring: 'ring-indigo-400' },
   Implement: { bg: 'bg-cyan-100', text: 'text-cyan-700', ring: 'ring-cyan-400' },
   Assess: { bg: 'bg-amber-100', text: 'text-amber-700', ring: 'ring-amber-400' },
   Authorize: { bg: 'bg-green-100', text: 'text-green-700', ring: 'ring-green-400' },

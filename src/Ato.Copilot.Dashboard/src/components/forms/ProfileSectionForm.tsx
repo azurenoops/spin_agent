@@ -377,7 +377,7 @@ export default function ProfileSectionForm({
 
       {/* Under Review indicator */}
       {governanceStatus === 'UnderReview' && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 font-medium">
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-700 font-medium">
           This section is under ISSM review — content is read-only.
         </div>
       )}
@@ -408,7 +408,7 @@ export default function ProfileSectionForm({
                   disabled={isReadOnly}
                   rows={field.rows ?? 3}
                   maxLength={field.maxLength}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder={field.placeholder}
                 />
                 {field.maxLength && (
@@ -430,7 +430,7 @@ export default function ProfileSectionForm({
                 value={values[field.key] ?? ''}
                 onChange={(e) => handleFieldChange(field.key, e.target.value)}
                 disabled={isReadOnly}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
               >
                 <option value="">— Select —</option>
                 {field.options?.map((opt) => (
@@ -444,7 +444,7 @@ export default function ProfileSectionForm({
                 onChange={(e) => handleFieldChange(field.key, e.target.value)}
                 disabled={isReadOnly}
                 maxLength={field.maxLength}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
                 placeholder={field.placeholder}
               />
             )}
@@ -470,7 +470,7 @@ export default function ProfileSectionForm({
               type="button"
               onClick={handleSave}
               disabled={isSubmitting}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {isSubmitting ? 'Saving...' : 'Save Draft'}
             </button>
@@ -558,7 +558,7 @@ function MultiSelectField({ options, selected, onChange, disabled, placeholder }
       <div
         className={`min-h-[42px] w-full rounded-lg border border-gray-300 px-3 py-2 flex flex-wrap gap-1.5 items-center cursor-text ${
           disabled ? 'bg-gray-50' : 'bg-white hover:border-gray-400'
-        } ${open ? 'border-blue-500 ring-1 ring-blue-500' : ''}`}
+        } ${open ? 'border-indigo-500 ring-1 ring-indigo-500' : ''}`}
         onClick={() => { if (!disabled) setOpen(true); }}
       >
         {selected.length === 0 && !open && (
@@ -567,14 +567,14 @@ function MultiSelectField({ options, selected, onChange, disabled, placeholder }
         {selected.map((s) => (
           <span
             key={s}
-            className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700"
+            className="inline-flex items-center gap-1 rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700"
           >
             {s}
             {!disabled && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); toggle(s); }}
-                className="text-blue-500 hover:text-blue-800"
+                className="text-indigo-500 hover:text-indigo-800"
               >
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -608,11 +608,11 @@ function MultiSelectField({ options, selected, onChange, disabled, placeholder }
                 type="button"
                 onClick={() => { toggle(opt); setFilter(''); }}
                 className={`flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
-                  isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                  isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 <span className={`flex h-4 w-4 items-center justify-center rounded border ${
-                  isSelected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                  isSelected ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
                 }`}>
                   {isSelected && (
                     <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -718,7 +718,7 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTa
                         value={row[col.key] ?? ''}
                         onChange={(e) => updateCell(ri, col.key, e.target.value)}
                         disabled={isReadOnly}
-                        className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                        className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50"
                       >
                         <option value="">—</option>
                         {col.options?.map((opt) => (
@@ -731,7 +731,7 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTa
                         value={row[col.key] ?? ''}
                         onChange={(e) => updateCell(ri, col.key, e.target.value ? Number(e.target.value) : null)}
                         disabled={isReadOnly}
-                        className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                        className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50"
                       />
                     ) : (
                       <input
@@ -740,7 +740,7 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTa
                         onChange={(e) => updateCell(ri, col.key, e.target.value)}
                         disabled={isReadOnly}
                         maxLength={col.maxLength}
-                        className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                        className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50"
                       />
                     )}
                   </td>

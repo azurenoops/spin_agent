@@ -19,7 +19,7 @@ function approvalVariant(status: GovernanceStatus) {
   switch (status) {
     case 'NotStarted': return 'bg-gray-100 text-gray-600';
     case 'Draft': return 'bg-amber-100 text-amber-700';
-    case 'UnderReview': return 'bg-blue-100 text-blue-700';
+    case 'UnderReview': return 'bg-indigo-100 text-indigo-700';
     case 'Approved': return 'bg-green-100 text-green-700';
     case 'NeedsRevision': return 'bg-red-100 text-red-700';
     default: return 'bg-gray-100 text-gray-600';
@@ -181,7 +181,7 @@ export default function SystemProfile() {
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div
-              className="bg-blue-600 h-2.5 rounded-full transition-all"
+              className="bg-indigo-600 h-2.5 rounded-full transition-all"
               style={{ width: `${completeness.approvedPercentage}%` }}
             />
           </div>

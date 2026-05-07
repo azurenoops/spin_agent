@@ -62,7 +62,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
           type="button"
           onClick={() => setShowAttach(!showAttach)}
           className={`flex-shrink-0 rounded-lg p-2 transition-colors ${
-            showAttach ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+            showAttach ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
           }`}
           aria-label="Attach file"
           title="Attach file"
@@ -80,7 +80,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
           placeholder="Ask ATO Copilot..."
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+          className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400"
           aria-label="Chat message input"
         />
         {isProcessing ? (
@@ -100,7 +100,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
             type="button"
             onClick={handleSend}
             disabled={!value.trim() || disabled}
-            className="flex-shrink-0 rounded-lg bg-blue-600 p-2 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="flex-shrink-0 rounded-lg bg-indigo-600 p-2 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             aria-label="Send message"
             title="Send"
           >

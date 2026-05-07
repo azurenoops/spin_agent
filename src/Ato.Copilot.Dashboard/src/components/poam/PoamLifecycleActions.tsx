@@ -82,7 +82,7 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
         {detail.status === 'Delayed' && canTransitionTo('Ongoing') && (
           <button
             onClick={() => setDialog('resume')}
-            className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+            className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
           >
             Resume
           </button>

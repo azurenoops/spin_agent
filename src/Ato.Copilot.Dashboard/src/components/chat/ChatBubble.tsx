@@ -23,9 +23,9 @@ function StatusIndicator({ status }: { status: Message['status'] }) {
     case 'streaming':
       return (
         <div className="flex items-center gap-0.5" title="Streaming">
-          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
-          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" style={{ animationDelay: '0.2s' }} />
-          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" style={{ animationDelay: '0.4s' }} />
+          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
+          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" style={{ animationDelay: '0.2s' }} />
+          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" style={{ animationDelay: '0.4s' }} />
         </div>
       );
     case 'error':
@@ -47,7 +47,7 @@ export default function ChatBubble({ message, onSuggestionSelect, isProcessing }
       <div
         className={`max-w-[85%] rounded-lg px-3 py-2 ${
           isUser
-            ? 'bg-blue-600 text-white'
+            ? 'bg-indigo-600 text-white'
             : 'bg-white border border-gray-200 text-gray-800'
         }`}
       >
@@ -91,7 +91,7 @@ export default function ChatBubble({ message, onSuggestionSelect, isProcessing }
           {message.status !== 'complete' && message.status !== 'error' && (
             <StatusIndicator status={message.status} />
           )}
-          <span className={`text-xs ${isUser ? 'text-blue-200' : 'text-gray-400'}`}>
+          <span className={`text-xs ${isUser ? 'text-indigo-200' : 'text-gray-400'}`}>
             {formatTime(message.timestamp)}
           </span>
         </div>

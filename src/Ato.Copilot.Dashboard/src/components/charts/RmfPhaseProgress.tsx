@@ -6,7 +6,7 @@ interface RmfPhaseProgressProps {
 
 const circleColors: Record<string, string> = {
   complete: 'bg-green-500 text-white',
-  current: 'bg-blue-500 text-white',
+  current: 'bg-indigo-500 text-white',
   upcoming: 'bg-gray-200 text-gray-500',
 };
 
@@ -48,7 +48,7 @@ export default function RmfPhaseProgressComponent({ phases }: RmfPhaseProgressPr
             </div>
             <span className="mt-1 text-[11px] text-gray-600 text-center">{phase.phase}</span>
             {phase.status === 'current' && (
-              <span className="text-[10px] font-medium text-blue-600">
+              <span className="text-[10px] font-medium text-indigo-600">
                 {phase.completionPercent.toFixed(0)}%
               </span>
             )}

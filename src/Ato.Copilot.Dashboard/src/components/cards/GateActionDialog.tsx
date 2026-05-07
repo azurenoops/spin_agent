@@ -59,7 +59,7 @@ const ROLE_OPTIONS = [
 function roleBadgeColor(role: string): string {
   switch (role) {
     case 'AuthorizingOfficial': return 'bg-purple-100 text-purple-800';
-    case 'Issm': return 'bg-blue-100 text-blue-800';
+    case 'Issm': return 'bg-indigo-100 text-indigo-800';
     case 'Isso': return 'bg-green-100 text-green-800';
     case 'Sca': return 'bg-amber-100 text-amber-800';
     case 'SystemOwner': return 'bg-indigo-100 text-indigo-800';
@@ -243,7 +243,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
 
   const submitColor = action === 'certify-none'
     ? 'bg-amber-600 hover:bg-amber-700'
-    : 'bg-blue-600 hover:bg-blue-700';
+    : 'bg-indigo-600 hover:bg-indigo-700';
 
   return (
     <div
@@ -292,7 +292,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                   {PII_CATEGORIES.map((cat) => (
                     <button key={cat} onClick={() => togglePiiCategory(cat)}
                       className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                        ptaCategories.includes(cat) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                        ptaCategories.includes(cat) ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                       }`}>{ptaCategories.includes(cat) ? '✓ ' : ''}{cat}</button>
                   ))}
                 </div>
@@ -301,7 +301,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                 <label className="text-xs font-medium text-gray-700">Purpose</label>
                 <input type="text" value={ptaPurpose} onChange={(e) => setPtaPurpose(e.target.value)}
                   placeholder="e.g., Personnel records and access management"
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
               </div>
             </div>
           )}
@@ -320,20 +320,20 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                   <label className="text-xs font-medium text-gray-700">Remote System *</label>
                   <input type="text" value={icRemoteSystem} onChange={(e) => setIcRemoteSystem(e.target.value)}
                     placeholder="e.g., DISA DEE"
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-700">Hostname</label>
                   <input type="text" value={icHostname} onChange={(e) => setIcHostname(e.target.value)}
                     placeholder="e.g., smtp.dee.disa.mil"
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-700">Direction</label>
                   <select value={icDirection} onChange={(e) => setIcDirection(e.target.value)}
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
                     <option value="Outbound">Outbound</option>
                     <option value="Inbound">Inbound</option>
                     <option value="Bidirectional">Bidirectional</option>
@@ -343,13 +343,13 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                   <label className="text-xs font-medium text-gray-700">Protocol</label>
                   <input type="text" value={icProtocol} onChange={(e) => setIcProtocol(e.target.value)}
                     placeholder="e.g., SMTP/TLS"
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-700">Port</label>
                   <input type="text" value={icPort} onChange={(e) => setIcPort(e.target.value)}
                     placeholder="e.g., 587"
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
                 </div>
               </div>
             </div>
@@ -378,7 +378,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                   <label className="text-xs font-medium text-gray-700">Overlay Name (optional)</label>
                   <input type="text" value={blOverlayName} onChange={(e) => setBlOverlayName(e.target.value)}
                     placeholder="Auto-detected from DoD IL (e.g., CNSSI 1253 IL5)"
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
                 </div>
               )}
             </div>
@@ -401,7 +401,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                       className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
                         catInfoTypes.some(it => it.sp80060Id === t.sp80060Id)
                           ? 'border-green-300 bg-green-50 text-green-700'
-                          : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:bg-indigo-50'
                       }`}>{catInfoTypes.some(it => it.sp80060Id === t.sp80060Id) ? '✓ ' : '+ '}{t.name}</button>
                   ))}
                 </div>
@@ -453,7 +453,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                 </label>
                 <input type="text" value={catJustification} onChange={(e) => setCatJustification(e.target.value)}
                   placeholder="Justification (optional)"
-                  className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                  className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
               </div>
             </div>
           )}
@@ -496,7 +496,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                 <select
                   value={roleSelected}
                   onChange={(e) => setRoleSelected(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 >
                   {ROLE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -512,7 +512,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                   value={personSearch}
                   onChange={(e) => setPersonSearch(e.target.value)}
                   placeholder="Search person components..."
-                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
                 {rolesLoading ? (
                   <p className="text-xs text-gray-500 py-2">Loading persons...</p>
@@ -529,7 +529,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                         onClick={() => setSelectedPerson(p)}
                         className={`w-full text-left flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors ${
                           selectedPerson?.id === p.id
-                            ? 'bg-blue-50 border border-blue-300 text-blue-800'
+                            ? 'bg-indigo-50 border border-indigo-300 text-indigo-800'
                             : 'bg-white hover:bg-gray-50 border border-transparent'
                         }`}
                       >
@@ -538,7 +538,7 @@ export default function GateActionDialog({ action, systemId, onClose, onSuccess 
                           {p.subType && <span className="ml-2 text-xs text-gray-500">{p.subType}</span>}
                         </div>
                         {selectedPerson?.id === p.id && (
-                          <svg className="h-4 w-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg className="h-4 w-4 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
                         )}

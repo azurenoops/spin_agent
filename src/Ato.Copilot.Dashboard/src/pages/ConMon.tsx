@@ -24,7 +24,7 @@ function StatusBadge({ status, variant }: { status: string; variant?: 'green' | 
     green: 'bg-green-100 text-green-700',
     amber: 'bg-amber-100 text-amber-700',
     red: 'bg-red-100 text-red-700',
-    blue: 'bg-blue-100 text-blue-700',
+    blue: 'bg-indigo-100 text-indigo-700',
     gray: 'bg-gray-100 text-gray-500',
   };
 
@@ -71,7 +71,7 @@ function MetricCard({ label, value, detail, tone = 'gray' }: { label: string; va
     green: 'border-green-200',
     amber: 'border-amber-200',
     red: 'border-red-200',
-    blue: 'border-blue-200',
+    blue: 'border-indigo-200',
   };
 
   return (
@@ -142,7 +142,7 @@ function PlanSection({ data, onRefresh }: { data: ConMonOverviewResponse; onRefr
   const editButton = (
     <button
       onClick={() => setShowForm((v) => !v)}
-      className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
     >
       {data.plan ? 'Edit Plan' : 'Create Plan'}
     </button>
@@ -156,7 +156,7 @@ function PlanSection({ data, onRefresh }: { data: ConMonOverviewResponse; onRefr
             <div>
               <label className="block text-xs font-medium uppercase tracking-wider text-gray-500">Assessment Frequency</label>
               <select
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 value={frequency}
                 onChange={(e) => setFrequency(e.target.value)}
               >
@@ -169,7 +169,7 @@ function PlanSection({ data, onRefresh }: { data: ConMonOverviewResponse; onRefr
               <label className="block text-xs font-medium uppercase tracking-wider text-gray-500">Annual Review Date</label>
               <input
                 type="date"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 value={reviewDate}
                 onChange={(e) => setReviewDate(e.target.value)}
               />
@@ -178,7 +178,7 @@ function PlanSection({ data, onRefresh }: { data: ConMonOverviewResponse; onRefr
               <label className="block text-xs font-medium uppercase tracking-wider text-gray-500">Report Distribution <span className="normal-case font-normal text-gray-400">(comma-separated)</span></label>
               <input
                 type="text"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 placeholder="ISSM, ISSO, AO"
                 value={distribution}
                 onChange={(e) => setDistribution(e.target.value)}
@@ -188,7 +188,7 @@ function PlanSection({ data, onRefresh }: { data: ConMonOverviewResponse; onRefr
               <label className="block text-xs font-medium uppercase tracking-wider text-gray-500">Significant Change Triggers <span className="normal-case font-normal text-gray-400">(comma-separated)</span></label>
               <input
                 type="text"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 placeholder="New hardware, OS upgrade, Architecture change"
                 value={triggers}
                 onChange={(e) => setTriggers(e.target.value)}
@@ -206,7 +206,7 @@ function PlanSection({ data, onRefresh }: { data: ConMonOverviewResponse; onRefr
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Save Plan'}
             </button>
@@ -239,7 +239,7 @@ function PlanSection({ data, onRefresh }: { data: ConMonOverviewResponse; onRefr
               <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Report Distribution</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {data.plan.reportDistribution.length > 0 ? data.plan.reportDistribution.map((item) => (
-                  <span key={item} className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">{item}</span>
+                  <span key={item} className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">{item}</span>
                 )) : <span className="text-sm text-gray-500">No recipients configured.</span>}
               </div>
             </div>
@@ -557,7 +557,7 @@ function ReportsSection({ reports, systemId, onRefresh }: { reports: ConMonRepor
   const generateButton = (
     <button
       onClick={() => setShowGenerateForm((v) => !v)}
-      className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
     >
       Generate Report
     </button>
@@ -620,13 +620,13 @@ function ReportsSection({ reports, systemId, onRefresh }: { reports: ConMonRepor
 
       <SectionCard title="Report History" subtitle="Recent ConMon reports and key metrics by period." action={generateButton}>
         {showGenerateForm ? (
-          <div className="mb-5 space-y-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
-            <p className="text-sm font-medium text-blue-900">Generate a New ConMon Report</p>
+          <div className="mb-5 space-y-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+            <p className="text-sm font-medium text-indigo-900">Generate a New ConMon Report</p>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="block text-xs font-medium uppercase tracking-wider text-gray-600">Report Type</label>
                 <select
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   value={reportType}
                   onChange={(e) => setReportType(e.target.value)}
                 >
@@ -639,7 +639,7 @@ function ReportsSection({ reports, systemId, onRefresh }: { reports: ConMonRepor
                 <label className="block text-xs font-medium uppercase tracking-wider text-gray-600">Period</label>
                 <input
                   type="month"
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   value={period}
                   onChange={(e) => setPeriod(e.target.value)}
                 />
@@ -656,7 +656,7 @@ function ReportsSection({ reports, systemId, onRefresh }: { reports: ConMonRepor
               <button
                 onClick={handleGenerate}
                 disabled={generating}
-                className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-md bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {generating ? 'Generating\u2026' : 'Generate'}
               </button>
@@ -696,7 +696,7 @@ function ReportsSection({ reports, systemId, onRefresh }: { reports: ConMonRepor
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       <button
                         onClick={() => handleViewReport(report.reportId)}
-                        className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
                       >
                         View
                       </button>

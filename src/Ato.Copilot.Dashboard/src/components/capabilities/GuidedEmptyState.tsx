@@ -30,7 +30,7 @@ export default function GuidedEmptyState({ onCreateManually, onImportCsp, onImpo
   ];
 
   const colorMap = {
-    blue: { bg: 'bg-blue-50', border: 'border-blue-200', button: 'bg-blue-600', hover: 'hover:bg-blue-700' },
+    blue: { bg: 'bg-indigo-50', border: 'border-indigo-200', button: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
     indigo: { bg: 'bg-indigo-50', border: 'border-indigo-200', button: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
     green: { bg: 'bg-green-50', border: 'border-green-200', button: 'bg-green-600', hover: 'hover:bg-green-700' },
   } as const;
