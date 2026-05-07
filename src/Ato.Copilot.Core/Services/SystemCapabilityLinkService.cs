@@ -10,12 +10,12 @@ namespace Ato.Copilot.Core.Services;
 /// </summary>
 public class SystemCapabilityLinkService
 {
-    private readonly AtoCopilotContext _db;
+    private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly ILogger<SystemCapabilityLinkService> _logger;
 
-    public SystemCapabilityLinkService(AtoCopilotContext db, ILogger<SystemCapabilityLinkService> logger)
+    public SystemCapabilityLinkService(IDbContextFactory<AtoCopilotContext> dbFactory, ILogger<SystemCapabilityLinkService> logger)
     {
-        _db = db;
+        _dbFactory = dbFactory;
         _logger = logger;
     }
 
@@ -28,6 +28,7 @@ public class SystemCapabilityLinkService
         string user,
         CancellationToken ct = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(ct);
         var system = await _db.RegisteredSystems.FindAsync(new object[] { systemId }, ct);
         if (system is null)
             throw new KeyNotFoundException($"System {systemId} not found");
@@ -134,6 +135,7 @@ public class SystemCapabilityLinkService
         string systemId,
         CancellationToken ct = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(ct);
         return await _db.SystemCapabilityLinks
             .Include(l => l.SecurityCapability)
             .Where(l => l.RegisteredSystemId == systemId)
@@ -150,6 +152,7 @@ public class SystemCapabilityLinkService
         string linkId,
         CancellationToken ct = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(ct);
         var link = await _db.SystemCapabilityLinks
             .FirstOrDefaultAsync(l => l.Id == linkId && l.RegisteredSystemId == systemId, ct);
 
