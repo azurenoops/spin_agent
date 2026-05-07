@@ -24,8 +24,9 @@ public class ComponentDiscoveryTests : IDisposable
         var options = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
-        _db = new AtoCopilotContext(options);
-        _service = new ComponentService(_db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(), new SystemCapabilityLinkService(_db, NullLogger<SystemCapabilityLinkService>.Instance));
+        var factory = new TestDbContextFactory(options);
+        _db = factory.Context;
+        _service = new ComponentService(factory, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(), new SystemCapabilityLinkService(factory, NullLogger<SystemCapabilityLinkService>.Instance));
     }
 
     public void Dispose() => _db.Dispose();

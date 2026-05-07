@@ -55,17 +55,6 @@ public class McpToolEndpointTests : IAsyncLifetime
         var dbName = $"IntegrationTest_{Guid.NewGuid():N}";
 
         // Register InMemory DbContext as singleton (all options singleton to avoid captive dependency)
-        builder.Services.AddDbContext<AtoCopilotContext>(
-            options => options.UseInMemoryDatabase(dbName),
-            ServiceLifetime.Singleton,
-            ServiceLifetime.Singleton);
-        builder.Services.AddSingleton<IDbContextFactory<AtoCopilotContext>>(sp =>
-        {
-            var optionsBuilder = new DbContextOptionsBuilder<AtoCopilotContext>();
-            optionsBuilder.UseInMemoryDatabase(dbName);
-            return new TestDbContextFactory(optionsBuilder.Options);
-        });
-
         // Bind configuration (no real Azure client — just the settings)
         builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(GatewayOptions.SectionName));
         builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
@@ -84,21 +73,7 @@ public class McpToolEndpointTests : IAsyncLifetime
             });
         });
 
-        // State management
-        builder.Services.AddInMemoryStateManagement();
-
-        // Compliance agent + tools
-        builder.Services.AddComplianceAgent(builder.Configuration);
-
-        // Configuration agent + tools
-        builder.Services.AddConfigurationAgent();
-
-        // KnowledgeBase agent + tools
-        builder.Services.AddKnowledgeBaseAgent(builder.Configuration);
-
-        // MCP server
-        builder.Services.AddMcpServer(builder.Configuration);
-
+        builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, dbName);
         // CORS
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>

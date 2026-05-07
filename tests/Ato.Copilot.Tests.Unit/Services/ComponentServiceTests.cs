@@ -25,9 +25,10 @@ public class ComponentServiceTests : IDisposable
         _dbOptions = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseInMemoryDatabase($"ComponentTests_{Guid.NewGuid()}")
             .Options;
-        _db = new AtoCopilotContext(_dbOptions);
+        var factory = new TestDbContextFactory(_dbOptions);
+        _db = factory.Context;
         var logger = Mock.Of<ILogger<ComponentService>>();
-        _sut = new ComponentService(_db, logger, new NarrativeTemplateService(), new SystemCapabilityLinkService(_db, Mock.Of<ILogger<SystemCapabilityLinkService>>()));
+        _sut = new ComponentService(factory, logger, new NarrativeTemplateService(), new SystemCapabilityLinkService(factory, Mock.Of<ILogger<SystemCapabilityLinkService>>()));
 
         SeedData();
     }

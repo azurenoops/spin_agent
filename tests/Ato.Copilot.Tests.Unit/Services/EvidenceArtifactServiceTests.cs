@@ -34,10 +34,11 @@ public class EvidenceArtifactServiceTests : IDisposable
         _dbOptions = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseInMemoryDatabase($"EvidenceArtifactTests_{Guid.NewGuid()}")
             .Options;
-        _db = new AtoCopilotContext(_dbOptions);
+        var factory = new TestDbContextFactory(_dbOptions);
+        _db = factory.Context;
 
         _sut = new EvidenceArtifactService(
-            _db,
+            factory,
             _storageProvider.Object,
             Mock.Of<ILogger<EvidenceArtifactService>>());
     }

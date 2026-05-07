@@ -24,8 +24,9 @@ public class EntraIdDiscoveryTests : IDisposable
         var options = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
-        _db = new AtoCopilotContext(options);
-        _componentService = new ComponentService(_db, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(), new SystemCapabilityLinkService(_db, NullLogger<SystemCapabilityLinkService>.Instance));
+        var factory = new TestDbContextFactory(options);
+        _db = factory.Context;
+        _componentService = new ComponentService(factory, NullLogger<ComponentService>.Instance, new NarrativeTemplateService(), new SystemCapabilityLinkService(factory, NullLogger<SystemCapabilityLinkService>.Instance));
     }
 
     public void Dispose() => _db.Dispose();
