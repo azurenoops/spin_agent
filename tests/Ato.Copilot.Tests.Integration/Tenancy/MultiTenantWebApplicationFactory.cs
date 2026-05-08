@@ -255,6 +255,22 @@ internal sealed class TenancySeedHostedService : IHostedService
                 ON "Tenants" ("EntraTenantId") WHERE "EntraTenantId" IS NOT NULL;
             CREATE INDEX IF NOT EXISTS "IX_Tenants_Status"
                 ON "Tenants" ("Status");
+            CREATE TABLE IF NOT EXISTS "CspProfiles" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_CspProfiles" PRIMARY KEY,
+                "LegalEntityName" TEXT NOT NULL,
+                "DisplayName" TEXT NOT NULL,
+                "LogoUrl" TEXT NULL,
+                "PrimarySupportEmail" TEXT NULL,
+                "SupportPhone" TEXT NULL,
+                "DefaultClassificationFloor" INTEGER NOT NULL DEFAULT 0,
+                "OnboardingState" INTEGER NOT NULL DEFAULT 0,
+                "OnboardingCompletedAt" TEXT NULL,
+                "CreatedAt" TEXT NOT NULL,
+                "CreatedBy" TEXT NOT NULL DEFAULT 'system',
+                "UpdatedAt" TEXT NULL,
+                "UpdatedBy" TEXT NULL,
+                "RowVersion" BLOB NULL
+            );
             """;
         await db.Database.ExecuteSqlRawAsync(ddl, ct);
     }

@@ -483,6 +483,9 @@ public class AtoCopilotContext : DbContext
     /// <summary>Feature 048 (T134, FR-081/FR-082): tenant-published baselines visible cross-tenant.</summary>
     public DbSet<GlobalBaseline> GlobalBaselines => Set<GlobalBaseline>();
 
+    /// <summary>Feature 048 (T161, FR-006, US7): singleton hosting-CSP profile. <see cref="GlobalReferenceAttribute"/>.</summary>
+    public DbSet<CspProfile> CspProfiles => Set<CspProfile>();
+
     //
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -3317,6 +3320,20 @@ public class AtoCopilotContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.ParentOrganizationId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CspProfile>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.LegalEntityName).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.DisplayName).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.LogoUrl).HasMaxLength(2048);
+            entity.Property(e => e.PrimarySupportEmail).HasMaxLength(254);
+            entity.Property(e => e.SupportPhone).HasMaxLength(40);
+            entity.Property(e => e.CreatedBy).HasMaxLength(254).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(254);
+            entity.Property(e => e.DefaultClassificationFloor).HasConversion<int>();
+            entity.Property(e => e.OnboardingState).HasConversion<int>();
         });
     }
 
