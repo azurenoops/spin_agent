@@ -422,6 +422,12 @@ async Task RunHttpModeAsync(string[] args)
     // backed by the singleton IMemoryCache so it spans requests.
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspProfileService,
         Ato.Copilot.Core.Services.Tenancy.CspProfileService>();
+    // T177 [US8]: CSP-Admin cross-tenant operational dashboard service
+    // (Feature 048 / FR-094 / FR-098). Scoped to share the
+    // IDbContextFactory pool + ITenantContext request scope. Reads execute on
+    // the CSP-Admin global path (T042 query filter returns every row).
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspDashboardService,
+        Ato.Copilot.Core.Services.Tenancy.CspDashboardService>();
     // T123 (FR-073..FR-076): shared multi-tenant migration logic used by
     // both /api/admin/migrate-to-multitenant and `ato-cli tenant migrate`.
     builder.Services.AddScoped<Ato.Copilot.Core.Services.Tenancy.MultiTenantMigrationService>();
@@ -521,6 +527,8 @@ async Task RunHttpModeAsync(string[] args)
     app.MapTenantOnboardingEndpoints();
     // Feature 048 (T163 [US7]): CSP-Admin onboarding wizard.
     app.MapCspOnboardingEndpoints();
+    // Feature 048 (T181 [US8]): CSP-Admin cross-tenant operational dashboard.
+    app.MapCspDashboardEndpoints();
     // Feature 048 (T116 [US6]): CSP-Admin audit query surface.
     app.MapAuditQueryEndpoints();
     // Feature 048 (T124, FR-073..FR-076): CSP-Admin migration utility surface.

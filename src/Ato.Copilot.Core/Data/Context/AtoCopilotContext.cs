@@ -3271,6 +3271,18 @@ public class AtoCopilotContext : DbContext
         modelBuilder.Entity<Tenant>(entity =>
         {
             entity.HasKey(e => e.Id);
+
+            // Per Feature 048 FR-070, the system tenant has a fixed
+            // Id (Guid.Empty / 00000000-0000-0000-0000-000000000000).
+            // EF Core's default behavior for Guid primary keys is
+            // ValueGeneratedOnAdd, which replaces Guid.Empty values with
+            // a fresh Guid in the change tracker — silently breaking the
+            // FR-070 invariant. ValueGeneratedNever() puts the application
+            // in charge of all Tenant ids (callers either assign a fresh
+            // Guid via the property initializer in Tenant.cs or pass an
+            // explicit value such as TenantBootstrapService.SystemTenantId).
+            entity.Property(e => e.Id).ValueGeneratedNever();
+
             entity.Property(e => e.DisplayName).HasMaxLength(200).IsRequired();
             entity.Property(e => e.LegalEntityName).HasMaxLength(300);
             entity.Property(e => e.DoDComponent).HasMaxLength(120);

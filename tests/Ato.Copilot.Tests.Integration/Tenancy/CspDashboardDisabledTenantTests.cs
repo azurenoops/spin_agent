@@ -109,6 +109,15 @@ public class CspDashboardDisabledTenantTests
         var factory = _factory.Services.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
         await using var db = await factory.CreateDbContextAsync();
 
+        // Suspend FK enforcement for the seed: Feature 048's SQLite-only
+        // test infrastructure has accumulated cross-feature schema additions
+        // (Components, ScanImportRecord, etc.) whose target tables are not
+        // part of this fixture's seed graph. Production runs on SQL Server
+        // where this is enforced via SESSION_CONTEXT + RLS (T107/T109);
+        // the C#-layer EF filter is exercised by TenantQueryFilterTests at
+        // unit level. See data-model.md §"Test Isolation Notes".
+        await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF;");
+
         // Idempotent reset.
         await db.Database.ExecuteSqlRawAsync("DELETE FROM \"Findings\";");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM \"PoamItems\";");
@@ -118,6 +127,20 @@ public class CspDashboardDisabledTenantTests
         await db.Database.ExecuteSqlRawAsync("DELETE FROM \"Organizations\";");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"DELETE FROM \"Tenants\" WHERE \"Id\" = {DisabledTenantId}");
+
+        // Findings.ControlId is a FK → NistControl.Id (Restrict, optional).
+        // Insert the referenced row idempotently before any finding lands.
+        if (!await db.NistControls.AnyAsync(c => c.Id == "AC-2"))
+        {
+            db.NistControls.Add(new NistControl
+            {
+                Id = "AC-2",
+                Family = "AC",
+                Title = "Account Management",
+                Description = "Test seed.",
+                ImpactLevel = "Moderate",
+            });
+        }
 
         // Disabled tenant.
         db.Tenants.Add(new Tenant
@@ -186,5 +209,10 @@ public class CspDashboardDisabledTenantTests
         });
 
         await db.SaveChangesAsync();
+
+        // Re-enable FK enforcement (SQLite default). Subsequent connections
+        // get a fresh PRAGMA scope, but be explicit to avoid surprising
+        // contributors who reuse this DbContext.
+        await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;");
     }
 }
