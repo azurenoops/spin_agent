@@ -137,6 +137,7 @@ public static class TenantsEndpoints
         Guid tenantId,
         ITenantContext tenant,
         ITenantProvisioningService service,
+        ICspDashboardNotifier dashboardNotifier,
         [FromBody] PatchStatusRequest body,
         CancellationToken ct)
     {
@@ -158,6 +159,19 @@ public static class TenantsEndpoints
         try
         {
             var updated = await service.UpdateStatusAsync(tenantId, newStatus, body.Reason, actor, ct);
+
+            // Feature 048 (T187, US8/SC-005): broadcast tenant status changes
+            // so connected CSP-Admin dashboards refresh in <1 s without polling.
+            // Best-effort: the database row is the source of truth; SignalR
+            // failures must not break the underlying status update. The fan-out
+            // happens AFTER the persistence call returns successfully so we
+            // never broadcast a transition that didn't actually commit.
+            await dashboardNotifier.TenantStatusChangedAsync(
+                tenantId,
+                newStatus.ToString(),
+                actor,
+                ct);
+
             return Success(sw, ProjectTenant(updated));
         }
         catch (InvalidOperationException)

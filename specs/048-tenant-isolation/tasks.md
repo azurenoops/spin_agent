@@ -399,8 +399,8 @@
 - [X] T184 [P] [US8] Create `src/Ato.Copilot.Dashboard/src/features/csp-dashboard/TenantsTable.tsx` — paginated, sortable, filterable; row click triggers `POST /api/tenants/{id}/impersonate` and navigates to `/dashboard` (the existing per-tenant dashboard) with the impersonation banner shown via existing `ImpersonationBanner.tsx` from T075
 - [X] T185 [P] [US8] Create `src/Ato.Copilot.Dashboard/src/features/csp-dashboard/api.ts` (Axios wrappers for `/api/csp/dashboard/summary|tenants|atos`)
 - [X] T186 [US8] Add a top-level `/csp-dashboard` nav link to the dashboard sidebar visible only when `IsCspAdmin && deploymentMode === 'MultiTenant' && CspProfile.OnboardingState === 'Active'`
-- [ ] T187 [US8] Add a SignalR `csp-dashboard` hub broadcast on tenant `Status` transitions (Active/Suspended/Disabled) so the all-up dashboard updates in <1 s without a full reload (matches SC-005 contract)
-- [ ] T188 [US8] Run T172–T176 integration tests; iterate until all green
+- [X] T187 [US8] Add a SignalR `csp-dashboard` hub broadcast on tenant `Status` transitions (Active/Suspended/Disabled) so the all-up dashboard updates in <1 s without a full reload (matches SC-005 contract)
+- [X] T188 [US8] Run T172–T176 integration tests; iterate until all green
 
 **Checkpoint**: 3-tenant seed + CSP-Admin sign-in renders the all-up dashboard with correct rollups; row click drills into impersonation; disabled tenants excluded from rollups but shown in list with badge.
 

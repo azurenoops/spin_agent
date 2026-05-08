@@ -307,6 +307,10 @@ async Task RunHttpModeAsync(string[] args)
     // Feature 048 (T149): tenant impersonation fan-out (consumed by TenantsEndpoints).
     builder.Services.AddSingleton<Ato.Copilot.Mcp.Hubs.ITenantContextNotifier,
         Ato.Copilot.Mcp.Hubs.TenantContextNotifier>();
+    // Feature 048 (T187, US8/SC-005): CSP cross-tenant dashboard fan-out
+    // (broadcast on tenant Status transitions from TenantsEndpoints).
+    builder.Services.AddSingleton<Ato.Copilot.Mcp.Hubs.ICspDashboardNotifier,
+        Ato.Copilot.Mcp.Hubs.CspDashboardNotifier>();
 
     // Onboarding wizard (Feature 047) — bind options + register policy / services / hosted job worker.
     builder.Services.Configure<Ato.Copilot.Core.Configuration.OnboardingOptions>(
@@ -541,6 +545,9 @@ async Task RunHttpModeAsync(string[] args)
     app.MapHub<Ato.Copilot.Mcp.Hubs.PackageHub>("/hubs/package");
     // Feature 048 (T149): tenant impersonation fan-out for connected dashboards.
     app.MapHub<Ato.Copilot.Mcp.Hubs.TenantContextHub>("/hubs/tenant-context");
+    // Feature 048 (T187, US8/SC-005): CSP cross-tenant dashboard fan-out for
+    // tenant Status transitions (Active/Suspended/Disabled).
+    app.MapHub<Ato.Copilot.Mcp.Hubs.CspDashboardHub>("/hubs/csp-dashboard");
 
     // Health check endpoint with custom JSON writer (per FR-045 / SC-015)
     app.MapHealthChecks("/health", new HealthCheckOptions
