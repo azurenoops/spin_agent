@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// can be promoted to directory-linked Entra accounts; promotion is one-way and preserves
 /// the same <see cref="Id"/>.
 /// </summary>
+[TenantScoped]
 public class Person
 {
     /// <summary>Primary key — stable across promotion (local → directory-linked).</summary>

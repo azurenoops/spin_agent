@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Poam;
 
@@ -7,8 +8,15 @@ namespace Ato.Copilot.Core.Models.Poam;
 /// External ticketing system configuration per registered system.
 /// Credentials are stored in Azure Key Vault — only the URI is persisted here.
 /// </summary>
+[TenantScoped]
 public class TicketingIntegration
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -71,8 +79,15 @@ public class TicketingIntegration
 /// <summary>
 /// Tracks sync state between a <see cref="PoamItem"/> and its external ticket.
 /// </summary>
+[TenantScoped]
 public class PoamTicketSync
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();

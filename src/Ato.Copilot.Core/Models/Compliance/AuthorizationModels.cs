@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -14,8 +15,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// Decision types: ATO, ATOwC, IATT, DATO per DoDI 8510.01.
 /// RBAC: Compliance.AuthorizingOfficial only.
 /// </summary>
+[TenantScoped]
 public class AuthorizationDecision
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -81,8 +89,15 @@ public class AuthorizationDecision
 /// Risk acceptances have expiration dates and can be revoked.
 /// RBAC: Compliance.AuthorizingOfficial only.
 /// </summary>
+[TenantScoped]
 public class RiskAcceptance
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -147,8 +162,15 @@ public class RiskAcceptance
 /// A Plan of Action and Milestones (POA&amp;M) item tracking a weakness
 /// and remediation plan, linked to a ComplianceFinding and optionally to a Kanban RemediationTask.
 /// </summary>
+[TenantScoped]
 public class PoamItem : ConcurrentEntity
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -255,8 +277,15 @@ public class PoamItem : ConcurrentEntity
 /// <summary>
 /// A milestone within a POA&amp;M item tracking incremental progress toward remediation.
 /// </summary>
+[TenantScoped]
 public class PoamMilestone
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 

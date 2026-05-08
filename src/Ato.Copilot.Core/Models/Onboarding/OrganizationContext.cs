@@ -1,9 +1,11 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
 /// Per-tenant organization profile captured during Step 1 of the onboarding wizard.
 /// Singleton — one row per <see cref="TenantId"/>; replaced via update.
 /// </summary>
+[TenantScoped]
 public class OrganizationContext
 {
     /// <summary>Primary key.</summary>

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -7,8 +8,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// with per-boundary scope status (In Scope or Excluded).
 /// Replaces the scope-tracking role of <see cref="AuthorizationBoundary"/>.
 /// </summary>
+[TenantScoped]
 public class BoundaryComponentAssignment
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

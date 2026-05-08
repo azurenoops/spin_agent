@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -45,8 +46,15 @@ public enum DeviationStatus
 /// A formal compliance exception record — false positive, risk acceptance, or waiver —
 /// with an approval workflow, evidence linkage, expiration, and review cycle.
 /// </summary>
+[TenantScoped]
 public class Deviation
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 

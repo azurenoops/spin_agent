@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -28,8 +29,15 @@ public enum ProfileSectionType
 /// Governance lifecycle follows <see cref="SspSectionStatus"/>: Draft → UnderReview → Approved | NeedsRevision.
 /// No records are pre-created — absence of a record means "Not Started" (R10).
 /// </summary>
+[TenantScoped]
 public class SystemProfileSection
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]
@@ -115,8 +123,15 @@ public class SystemProfileSection
 /// Child entity for the Users &amp; Access profile section.
 /// Defines a class of users accessing the system with access details.
 /// </summary>
+[TenantScoped]
 public class UserCategory
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]
@@ -160,8 +175,15 @@ public class UserCategory
 /// Child entity for the Data Types &amp; Sensitivity profile section.
 /// Documents a specific type of data the system handles.
 /// </summary>
+[TenantScoped]
 public class DataTypeEntry
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]
@@ -211,8 +233,15 @@ public class DataTypeEntry
 /// Child entity for the Ports, Protocols &amp; Services profile section.
 /// Documents a network port, protocol, and service with direction and justification.
 /// </summary>
+[TenantScoped]
 public class PpsEntry
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]
@@ -260,8 +289,15 @@ public class PpsEntry
 /// Child entity for the Leveraged Authorizations profile section.
 /// Documents an external authorization the system inherits protections from.
 /// </summary>
+[TenantScoped]
 public class LeveragedAuthorization
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]
@@ -302,8 +338,15 @@ public class LeveragedAuthorization
 /// Mission Owner's narrative contribution for a specific control.
 /// Stored separately from the ISSO's technical narrative and linked to the same control.
 /// </summary>
+[TenantScoped]
 public class BusinessContextDraft
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]
@@ -362,8 +405,15 @@ public class BusinessContextDraft
 /// Per-system ISSM override flag marking a control for Mission Owner business-context input.
 /// A default static list of -1 controls is auto-flagged; ISSMs can flag/unflag additional controls.
 /// </summary>
+[TenantScoped]
 public class BusinessContextControlFlag
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]
@@ -400,8 +450,15 @@ public class BusinessContextControlFlag
 /// Immutable audit entry for profile section state transitions (FR-032).
 /// Records actor identity, action, timestamp, and section type for every governance transition.
 /// </summary>
+[TenantScoped]
 public class ProfileAuditEntry
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]

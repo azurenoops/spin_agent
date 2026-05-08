@@ -1,13 +1,21 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
 /// <summary>
 /// Outcome of a pre-submission validation run for an authorization package.
 /// </summary>
+[TenantScoped]
 public class PackageValidationResult
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     [Key]
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -41,8 +49,15 @@ public class PackageValidationResult
 /// Individual validation finding within a validation result.
 /// Errors block package generation; warnings allow generation with acknowledgment.
 /// </summary>
+[TenantScoped]
 public class ValidationFinding
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     [Key]
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();

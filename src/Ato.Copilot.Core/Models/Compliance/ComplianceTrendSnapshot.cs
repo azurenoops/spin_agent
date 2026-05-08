@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// Point-in-time record of a system's compliance metrics for trend visualization.
 /// Captured daily by the background snapshot service and on-demand after assessments.
 /// </summary>
+[TenantScoped]
 public class ComplianceTrendSnapshot
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

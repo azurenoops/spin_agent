@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -11,8 +12,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// Records an SCA's per-control effectiveness determination during an assessment.
 /// Maps to DoD CAT severity levels when the determination is OtherThanSatisfied.
 /// </summary>
+[TenantScoped]
 public class ControlEffectiveness
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -70,8 +78,15 @@ public class ControlEffectiveness
 /// Referenced by authorization tools and the dashboard. Records overall compliance
 /// posture computed from individual ControlEffectiveness determinations.
 /// </summary>
+[TenantScoped]
 public class AssessmentRecord
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 

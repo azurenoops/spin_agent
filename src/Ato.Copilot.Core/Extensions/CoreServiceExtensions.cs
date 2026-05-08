@@ -212,13 +212,33 @@ public static class CoreServiceExtensions
         var connectionString = configuration.GetConnectionString("DefaultConnection")
                                ?? "Data Source=ato-copilot.db";
 
-        services.AddDbContextFactory<AtoCopilotContext>(options =>
+        services.AddDbContextFactory<AtoCopilotContext>((sp, options) =>
         {
             // Suppress PendingModelChangesWarning — model snapshot may lag behind
             // code-first changes during active development. EnsureCreated/Migrate
             // will apply the correct schema.
             options.ConfigureWarnings(w =>
                 w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+
+            // Feature 048 (T041): tenant-stamping interceptor — resolved per-DbContext
+            // from DI so the AsyncLocal-backed accessor is always live.
+            var stamper = sp.GetService<Ato.Copilot.Core.Data.Interceptors.TenantStampingSaveChangesInterceptor>();
+            if (stamper is not null)
+            {
+                options.AddInterceptors(stamper);
+            }
+
+            // Feature 048 (T107 / T108): SQL Server SESSION_CONTEXT publisher —
+            // wires the current TenantId / IsCspAdmin claims into every
+            // connection so the Row-Level Security FILTER + BLOCK predicates
+            // installed by RlsPolicyInstaller (T109) can read them. The
+            // interceptor short-circuits to no-op for non-SQL-Server
+            // providers, so it is safe to register unconditionally.
+            var sessionPublisher = sp.GetService<Ato.Copilot.Core.Data.Interceptors.SqlServerSessionContextConnectionInterceptor>();
+            if (sessionPublisher is not null)
+            {
+                options.AddInterceptors(sessionPublisher);
+            }
 
             if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
             {

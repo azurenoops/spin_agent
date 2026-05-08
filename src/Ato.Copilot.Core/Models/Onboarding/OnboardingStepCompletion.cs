@@ -1,11 +1,19 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
 /// Per-step completion record under a <see cref="TenantOnboardingState"/>. Each row is
 /// either a `Completed` or admin `Skipped` event for one of the seven wizard steps.
 /// </summary>
+[TenantScoped]
 public class OnboardingStepCompletion
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Primary key.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
 

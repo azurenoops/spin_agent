@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -8,8 +9,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// Follows a four-state lifecycle: NotStarted → Draft → UnderReview → Approved.
 /// Contains auto-generated findings data plus editable narrative sections.
 /// </summary>
+[TenantScoped]
 public class SecurityAssessmentReport
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     [Key]
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -84,8 +92,15 @@ public class SecurityAssessmentReport
 /// Editable narrative section within a SAR.
 /// Some sections are auto-generated from assessment data, others are user-authored.
 /// </summary>
+[TenantScoped]
 public class SarSection
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     [Key]
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();

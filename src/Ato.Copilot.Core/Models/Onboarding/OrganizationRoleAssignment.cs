@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// (Step 2 of the onboarding wizard). Multiple assignments per role are supported with
 /// per-role cardinality semantics enforced at service boundaries (FR-022 / FR-023).
 /// </summary>
+[TenantScoped]
 public class OrganizationRoleAssignment
 {
     /// <summary>Primary key.</summary>

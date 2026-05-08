@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -27,8 +28,15 @@ public enum SapStatus
 /// Tracks system, assessment scope, status (Draft/Finalized), content, and generation metadata.
 /// </summary>
 /// <remarks>Feature 018. Unique constraint on (RegisteredSystemId, Status) for Draft enforcement.</remarks>
+[TenantScoped]
 public class SecurityAssessmentPlan
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -134,8 +142,15 @@ public class SecurityAssessmentPlan
 /// Stores control metadata, assessment objectives, methods, evidence requirements, and STIG coverage.
 /// </summary>
 /// <remarks>Feature 018. Unique constraint on (SecurityAssessmentPlanId, ControlId).</remarks>
+[TenantScoped]
 public class SapControlEntry
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -205,8 +220,15 @@ public class SapControlEntry
 /// Stores name, organization, role (Lead Assessor / Assessor / Technical SME), and contact info.
 /// </summary>
 /// <remarks>Feature 018. Cascade-deleted when parent SAP is removed.</remarks>
+[TenantScoped]
 public class SapTeamMember
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

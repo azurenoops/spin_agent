@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -56,8 +57,15 @@ public enum CollectionMethod
 /// User-uploaded evidence file linked to a control implementation or security capability.
 /// Supports soft-delete and versioning via <see cref="EvidenceVersion"/>.
 /// </summary>
+[TenantScoped]
 public class EvidenceArtifact
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -148,8 +156,15 @@ public class EvidenceArtifact
 /// Immutable snapshot of a replaced evidence artifact.
 /// Created when an artifact is replaced; the original file is retained until the purge-after date.
 /// </summary>
+[TenantScoped]
 public class EvidenceVersion
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

@@ -1,4 +1,5 @@
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Roadmap;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Roadmap;
 /// A logical grouping of related controls within a roadmap.
 /// Phase status transitions: NotStarted → InProgress → Complete.
 /// </summary>
+[TenantScoped]
 public class RoadmapPhase : ConcurrentEntity
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique phase identifier (GUID format).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 

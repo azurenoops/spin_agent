@@ -1,6 +1,7 @@
 namespace Ato.Copilot.Core.Models.Compliance;
 
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 // ───────────────────────────── Enums (Feature 021) ─────────────────────────────
 
@@ -50,8 +51,15 @@ public enum PiaReviewDecision
 /// <summary>
 /// Determines whether a system requires a full Privacy Impact Assessment. One per system.
 /// </summary>
+[TenantScoped]
 public class PrivacyThresholdAnalysis
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -108,8 +116,15 @@ public class PrivacyThresholdAnalysis
 /// <summary>
 /// Full PIA document with lifecycle management. One per system (when PTA determines PIA is required).
 /// </summary>
+[TenantScoped]
 public class PrivacyImpactAssessment
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

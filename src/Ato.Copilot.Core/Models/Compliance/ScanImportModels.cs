@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 // ═══════════════════════════════════════════════════════════════════════════
 // Feature 017 — SCAP/STIG Viewer Import: Entities, Enums, and DTOs
 // See specs/017-scap-stig-import/data-model.md for full specification.
@@ -92,8 +93,15 @@ public enum ImportFindingAction
 /// Tracks each file import operation. One record per imported file.
 /// See data-model.md §ScanImportRecord for field descriptions.
 /// </summary>
+[TenantScoped]
 public class ScanImportRecord
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -232,8 +240,15 @@ public class ScanImportRecord
 /// to the resulting <see cref="ComplianceFinding"/>.
 /// See data-model.md §ScanImportFinding for field descriptions.
 /// </summary>
+[TenantScoped]
 public class ScanImportFinding
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 

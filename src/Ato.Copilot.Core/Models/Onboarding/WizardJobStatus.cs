@@ -1,9 +1,11 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
 /// Persisted state of a background wizard job (FR-064 / FR-066). Drives both the SignalR
 /// progress stream and the <c>GET /api/onboarding/jobs/{jobId}</c> polling fallback.
 /// </summary>
+[TenantScoped]
 public class WizardJobStatus
 {
     /// <summary>Primary key.</summary>

@@ -1,6 +1,7 @@
 namespace Ato.Copilot.Core.Models.Compliance;
 
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 // ───────────────────────────── Enums (Feature 021) ─────────────────────────────
 
@@ -86,8 +87,15 @@ public enum AgreementStatus
 /// <summary>
 /// Tracks an external system-to-system data flow that crosses the authorization boundary.
 /// </summary>
+[TenantScoped]
 public class SystemInterconnection
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -172,8 +180,15 @@ public class SystemInterconnection
 /// <summary>
 /// Tracks ISA, MOU, or SLA agreements governing system interconnections.
 /// </summary>
+[TenantScoped]
 public class InterconnectionAgreement
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

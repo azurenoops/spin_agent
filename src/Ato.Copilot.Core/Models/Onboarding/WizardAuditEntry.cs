@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// independent of the Serilog audit stream (research §R12). One row per action; the
 /// before/after JSON snapshots provide replay-grade history.
 /// </summary>
+[TenantScoped]
 public class WizardAuditEntry
 {
     /// <summary>Primary key.</summary>

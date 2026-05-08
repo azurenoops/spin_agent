@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
@@ -6,6 +7,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// implementations) so that replacing a source can cascade-flag dependents as stale
 /// (FR-094, research §R6).
 /// </summary>
+[TenantScoped]
 public class WizardArtifactDependency
 {
     /// <summary>Primary key.</summary>

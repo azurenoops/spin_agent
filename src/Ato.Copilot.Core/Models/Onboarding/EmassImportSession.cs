@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// admin upload, parsed asynchronously through a <see cref="WizardJobStatus"/> chain
 /// (`ParseJobId` → preview → `CommitJobId` → committed entities).
 /// </summary>
+[TenantScoped]
 public class EmassImportSession
 {
     /// <summary>Primary key.</summary>

@@ -1,4 +1,5 @@
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Roadmap;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Roadmap;
 /// Root entity representing a phased action plan for closing compliance gaps on a system.
 /// Only one roadmap may have <see cref="RoadmapStatus.Active"/> per system at any time.
 /// </summary>
+[TenantScoped]
 public class ImplementationRoadmap : ConcurrentEntity
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique roadmap identifier (GUID format).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 

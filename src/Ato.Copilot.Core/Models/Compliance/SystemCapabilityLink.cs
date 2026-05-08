@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// Join entity linking a RegisteredSystem to a SecurityCapability.
 /// Enables many-to-many: one system can have many capabilities, one capability can serve many systems.
 /// </summary>
+[TenantScoped]
 public class SystemCapabilityLink
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

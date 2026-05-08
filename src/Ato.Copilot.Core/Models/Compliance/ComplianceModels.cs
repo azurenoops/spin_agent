@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -776,8 +777,15 @@ public class DocumentMetadata
 /// Represents a compliance assessment result containing scan findings and statistics.
 /// Extends existing entity with assessment lifecycle, baseline, progress, and scan summaries.
 /// </summary>
+[TenantScoped]
 public class ComplianceAssessment
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique assessment identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -871,8 +879,15 @@ public class ComplianceAssessment
 /// Represents a compliance finding (violation or observation) linked to a specific
 /// NIST 800-53 control and Azure resource.
 /// </summary>
+[TenantScoped]
 public class ComplianceFinding
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique finding identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -997,6 +1012,7 @@ public class ComplianceFinding
 /// Represents a NIST 800-53 Rev 5 control loaded from the OSCAL catalog.
 /// Supports self-referential enhancements with depth limit of 2.
 /// </summary>
+[GlobalReference]
 public class NistControl
 {
     /// <summary>NIST control ID (e.g., "ac-2", "ac-2(1)", "ac-2.1"). Supports both v4 and v5 enhancement numbering.</summary>
@@ -1043,8 +1059,15 @@ public class NistControl
 /// Remediation plan for compliance findings. Contains ordered steps
 /// with dry-run-by-default behavior and approval workflow.
 /// </summary>
+[TenantScoped]
 public class RemediationPlan
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique plan identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -1167,8 +1190,15 @@ public class RemediationStep
 /// Evidence collected for compliance controls, with SHA-256 content hash
 /// for integrity verification during audit.
 /// </summary>
+[TenantScoped]
 public class ComplianceEvidence
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique evidence identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -1220,8 +1250,15 @@ public class ComplianceEvidence
 /// <summary>
 /// Generated compliance document (SSP, SAR, POA&M) in FedRAMP Markdown format.
 /// </summary>
+[TenantScoped]
 public class ComplianceDocument
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique document identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -1711,8 +1748,15 @@ public class ControlComplianceStatus
 /// Auto-generated human-readable AlertId (ALT-YYYYMMDDNNNNN).
 /// Self-referential FK for correlated/grouped alerts.
 /// </summary>
+[TenantScoped]
 public class ComplianceAlert
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique internal identifier (GUID).</summary>
     public Guid Id { get; set; }
 
@@ -1821,8 +1865,15 @@ public class ComplianceAlert
 /// Defines monitoring mode, frequency, and scope for a subscription or resource group.
 /// One configuration per unique (SubscriptionId, ResourceGroupName) scope.
 /// </summary>
+[TenantScoped]
 public class MonitoringConfiguration
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique configuration identifier.</summary>
     public Guid Id { get; set; }
 
@@ -1864,8 +1915,15 @@ public class MonitoringConfiguration
 /// Point-in-time snapshot of a resource's compliant configuration.
 /// Captured after successful assessment or remediation. Used for drift detection.
 /// </summary>
+[TenantScoped]
 public class ComplianceBaseline
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique baseline identifier.</summary>
     public Guid Id { get; set; }
 
@@ -1901,8 +1959,15 @@ public class ComplianceBaseline
 /// Database-backed date-partitioned counter for generating human-readable alert IDs.
 /// One row per calendar date, atomically incremented within serializable transaction.
 /// </summary>
+[TenantScoped]
 public class AlertIdCounter
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Calendar date (PK).</summary>
     public DateOnly Date { get; set; }
 
@@ -1914,8 +1979,15 @@ public class AlertIdCounter
 /// Record of a notification sent through a specific channel for a specific alert.
 /// Append-only audit trail.
 /// </summary>
+[TenantScoped]
 public class AlertNotification
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique notification identifier.</summary>
     public Guid Id { get; set; }
 
@@ -1963,8 +2035,15 @@ public class AlertNotification
 /// <summary>
 /// Per-user notification preferences persisted in EF Core.
 /// </summary>
+[TenantScoped]
 public class NotificationPreferences
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     public Guid Id { get; set; }
     public string UserId { get; set; } = string.Empty;
     public bool PoamOverdueAlerts { get; set; } = true;
@@ -1979,8 +2058,32 @@ public class NotificationPreferences
 /// Audit log entry for compliance-related actions. Persisted in EF Core.
 /// Retention: 730 days per SEC-015.
 /// </summary>
+[TenantScoped]
 public class AuditLogEntry
 {
+    /// <summary>
+    /// Home tenant of the entry. For impersonation rows this matches
+    /// <c>EffectiveTenantId</c> (the impersonated tenant). Populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021 / FR-052).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
+    /// <summary>
+    /// Home tenant of the principal who initiated the action. Differs from
+    /// <see cref="TenantId"/> only when a CSP-Admin is impersonating another
+    /// tenant (FR-052). Nullable for legacy rows written before the
+    /// tenant-attribution columns existed and for system-driven actions
+    /// performed without an authenticated principal.
+    /// </summary>
+    public Guid? ActorTenantId { get; set; }
+
+    /// <summary>
+    /// The tenant the principal was impersonating when the row was written.
+    /// Non-null only on rows produced under an active impersonation session
+    /// (FR-052). Equal to <see cref="TenantId"/> when set.
+    /// </summary>
+    public Guid? ImpersonatedTenantId { get; set; }
+
     /// <summary>Unique log entry identifier (GUID string).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -2016,13 +2119,30 @@ public class AuditLogEntry
 
     /// <summary>Duration of the action.</summary>
     public TimeSpan? Duration { get; set; }
+
+    /// <summary>
+    /// W3C Trace Context / request correlation id (Feature 048 FR-061).
+    /// Surfaced through <c>/api/audit</c> so CSP-Admin queries can stitch
+    /// a workflow together across services. Populated by
+    /// <c>AuditLoggingMiddleware</c> from
+    /// <c>HttpContext.Items["CorrelationId"]</c> with a fallback to
+    /// <c>Activity.Current?.Id ?? HttpContext.TraceIdentifier</c>.
+    /// </summary>
+    public string? CorrelationId { get; set; }
 }
 
 /// <summary>
 /// A user-defined or default rule that specifies alert conditions, severity overrides, and recipients.
 /// </summary>
+[TenantScoped]
 public class AlertRule
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique rule identifier.</summary>
     public Guid Id { get; set; }
 
@@ -2078,8 +2198,15 @@ public class AlertRule
 /// <summary>
 /// Temporary or permanent rule that mutes alerts for a defined scope.
 /// </summary>
+[TenantScoped]
 public class SuppressionRule
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique suppression rule identifier.</summary>
     public Guid Id { get; set; }
 
@@ -2128,8 +2255,15 @@ public class SuppressionRule
 /// <summary>
 /// Chain of notification actions triggered when an alert is not acknowledged within SLA.
 /// </summary>
+[TenantScoped]
 public class EscalationPath
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
 
@@ -2166,8 +2300,15 @@ public class EscalationPath
 /// Point-in-time compliance posture snapshot for historical trend analysis.
 /// Captured daily (at midnight UTC) and promoted to weekly on Sundays.
 /// </summary>
+[TenantScoped]
 public class ComplianceSnapshot
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique snapshot identifier.</summary>
     public Guid Id { get; set; }
 
@@ -2226,8 +2367,15 @@ public class ComplianceSnapshot
 /// Opt-in rule that defines automatic remediation for trusted, low-risk violations.
 /// High-risk control families (AC, IA, SC) are blocked and always require human approval.
 /// </summary>
+[TenantScoped]
 public class AutoRemediationRule
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique rule identifier.</summary>
     public Guid Id { get; set; }
 

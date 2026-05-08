@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -6,6 +7,7 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// A compliance framework catalog (e.g., NIST 800-53 Rev. 5, Rev. 4, FedRAMP Rev. 5).
 /// Each row represents a distinct versioned catalog whose controls were imported from OSCAL JSON.
 /// </summary>
+[GlobalReference]
 public class ComplianceFramework
 {
     [Key] [MaxLength(36)]
@@ -53,6 +55,7 @@ public class ComplianceFramework
 /// A single control within a versioned compliance framework catalog.
 /// Stores the OSCAL-parsed control data without any baseline-specific information.
 /// </summary>
+[GlobalReference]
 public class FrameworkControl
 {
     [Key] [MaxLength(36)]
@@ -101,6 +104,7 @@ public class FrameworkControl
 /// A named baseline or profile within a framework (e.g., "Low", "Moderate", "High", "Li-SaaS").
 /// Baselines are imported from OSCAL profile documents or embedded reference data.
 /// </summary>
+[GlobalReference]
 public class FrameworkBaseline
 {
     [Key] [MaxLength(36)]
@@ -132,6 +136,7 @@ public class FrameworkBaseline
 /// Junction entry linking a baseline to a specific control ID.
 /// Uses a composite key of (BaselineId, ControlId).
 /// </summary>
+[GlobalReference]
 public class BaselineControlEntry
 {
     [Required] [MaxLength(36)]

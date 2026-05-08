@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// Links an org-wide <see cref="SystemComponent"/> to a <see cref="RegisteredSystem"/>
 /// with an explicit boundary scope.
 /// </summary>
+[TenantScoped]
 public class ComponentSystemAssignment
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     [Key]
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();

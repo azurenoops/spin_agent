@@ -16,6 +16,7 @@ public class OnboardingStateService : IOnboardingStateService
 {
     private static readonly HashSet<string> KnownSteps = new(StringComparer.OrdinalIgnoreCase)
     {
+        // Feature 047 wizard steps.
         "OrganizationContext",
         "Roles",
         "Emass",
@@ -23,6 +24,19 @@ public class OnboardingStateService : IOnboardingStateService
         "AzureSubscriptions",
         "Templates",
         "NarrativeSeeds",
+        // Feature 048 (T092 / US4) tenant-and-organization onboarding steps.
+        // These extend the same step machine so step completions are recorded
+        // alongside the Feature 047 steps in OnboardingStepCompletion. The
+        // Tenant.* steps are submitted via /api/onboarding/tenant/* endpoints
+        // (TenantOnboardingEndpoints, T093) and the Org.Profile step creates
+        // the first Organization row before transitioning Tenants.OnboardingState
+        // to Active per FR-054.
+        "Tenant.LegalEntity",
+        "Tenant.HqAddress",
+        "Tenant.Classification",
+        "Tenant.Ao",
+        "Tenant.PrimaryPoc",
+        "Org.Profile",
     };
 
     private readonly IDbContextFactory<AtoCopilotContext> _contextFactory;
@@ -238,6 +252,15 @@ public class OnboardingStateService : IOnboardingStateService
         "AzureSubscriptions" => 5,
         "Templates" => 6,
         "NarrativeSeeds" => 7,
+        // Feature 048 (T092 / US4) tenant onboarding steps occupy a separate
+        // numbering scheme (101..106) so analytics can distinguish them from
+        // Feature 047's 7-step wizard but keep them in the same event stream.
+        "Tenant.LegalEntity" => 101,
+        "Tenant.HqAddress" => 102,
+        "Tenant.Classification" => 103,
+        "Tenant.Ao" => 104,
+        "Tenant.PrimaryPoc" => 105,
+        "Org.Profile" => 106,
         _ => 0,
     };
 }
