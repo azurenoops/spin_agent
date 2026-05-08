@@ -525,7 +525,9 @@ public static class DashboardEndpoints
                 AtoCopilotContext db,
                 CancellationToken ct) =>
             {
-                var component = await db.SystemComponents.FindAsync(new object[] { componentId }, ct);
+                // T057: use FirstOrDefaultAsync so the tenant query filter applies
+                // (FindAsync bypasses query filters in EF Core).
+                var component = await db.SystemComponents.FirstOrDefaultAsync(c => c.Id == componentId, ct);
                 if (component is null)
                     return Results.NotFound(new ErrorResponse
                     {
@@ -544,8 +546,8 @@ public static class DashboardEndpoints
                         linksAlreadyExist++;
                         continue;
                     }
-                    // Verify capability exists
-                    var cap = await db.SecurityCapabilities.FindAsync(new object[] { capId }, ct);
+                    // Verify capability exists (T057: FirstOrDefaultAsync to apply tenant filter)
+                    var cap = await db.SecurityCapabilities.FirstOrDefaultAsync(c => c.Id == capId, ct);
                     if (cap is null) continue;
 
                     db.ComponentCapabilityLinks.Add(new ComponentCapabilityLink
@@ -2153,7 +2155,8 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                 string? cursor,
                 CancellationToken ct) =>
             {
-                var system = await context.RegisteredSystems.FindAsync([systemId], ct);
+                // T057: use FirstOrDefaultAsync so the tenant query filter applies.
+                var system = await context.RegisteredSystems.FirstOrDefaultAsync(s => s.Id == systemId, ct);
                 if (system == null)
                     return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "SYSTEM_NOT_FOUND" });
 
@@ -2229,7 +2232,8 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                 AtoCopilotContext context,
                 CancellationToken ct) =>
             {
-                var system = await context.RegisteredSystems.FindAsync([systemId], ct);
+                // T057: use FirstOrDefaultAsync so the tenant query filter applies.
+                var system = await context.RegisteredSystems.FirstOrDefaultAsync(s => s.Id == systemId, ct);
                 if (system == null)
                     return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "SYSTEM_NOT_FOUND" });
 
