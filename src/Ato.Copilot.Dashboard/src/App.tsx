@@ -32,6 +32,8 @@ import OnboardingShell from './features/onboarding/OnboardingShell';
 import OnboardingGate from './features/onboarding/OnboardingGate';
 import TenantWizard from './features/onboarding/TenantWizard';
 import TenantOnboardingGuard from './features/onboarding/TenantWizard/TenantOnboardingGuard';
+import CspWizard from './features/csp-onboarding/CspWizard';
+import CspOnboardingGuard from './features/csp-onboarding/CspOnboardingGuard';
 import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
 
 function AppContent() {
@@ -51,8 +53,9 @@ function AppContent() {
 
   return (
     <SystemDataProvider>
-      <TenantOnboardingGuard>
-        <Routes>
+      <CspOnboardingGuard>
+        <TenantOnboardingGuard>
+          <Routes>
           <Route path="/" element={<PortfolioRiskProfile />} />
           <Route path="/systems" element={<PortfolioDashboard />} />
           <Route path="/systems/:id" element={<SystemLayout />}>
@@ -78,10 +81,12 @@ function AppContent() {
           <Route path="/components" element={<ComponentLibrary />} />
           <Route path="/onboarding" element={<OnboardingShell />} />
           <Route path="/onboarding/tenant" element={<TenantWizard />} />
+          <Route path="/onboarding/csp" element={<CspWizard />} />
           <Route path="/admin/imported-documents" element={<ImportedDocumentsView />} />
           <Route path="/controls" element={<ControlCatalog />} />
         </Routes>
-      </TenantOnboardingGuard>
+        </TenantOnboardingGuard>
+      </CspOnboardingGuard>
       <ChatPanel
         isOpen={panelState.isOpen}
         onClose={closePanel}

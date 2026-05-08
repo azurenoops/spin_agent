@@ -9,6 +9,7 @@ import RoleSwitcher from './RoleSwitcher';
 import TenantPicker from '../../features/tenancy/TenantPicker';
 import ImpersonationBanner from '../../features/tenancy/ImpersonationBanner';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useCspBranding } from './useCspBranding';
 import spinLogo from '../../assets/2026-04-22_15-58-30.png';
 
 const navItems = [
@@ -33,6 +34,10 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { panelState, togglePanel } = useChatPanel();
   const { unreadCount } = useNotifications();
+  // Feature 048 / US7 / T170: per-deployment CSP branding (logo +
+  // display name). Falls back to the default SPIN logo + "ATO Copilot"
+  // wordmark in SingleTenant mode or while onboarding is incomplete.
+  const cspBranding = useCspBranding();
   const notifRef = useRef<HTMLDivElement>(null);
 
   // Close notification panel when clicking outside
@@ -56,8 +61,36 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
       {/* Top header */}
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
         <div className="flex items-center gap-6">
-          <NavLink to="/" className="flex items-center" aria-label="Security Posture Intelligence Navigator home">
-            <img src={spinLogo} alt="Security Posture Intelligence Navigator" className="block h-12 w-auto object-contain" />
+          <NavLink
+            to="/"
+            className="flex items-center gap-3"
+            aria-label={
+              cspBranding.displayName
+                ? `${cspBranding.displayName} home`
+                : 'Security Posture Intelligence Navigator home'
+            }
+          >
+            {cspBranding.logoUrl ? (
+              <img
+                src={cspBranding.logoUrl}
+                alt={`${cspBranding.displayName ?? 'CSP'} logo`}
+                className="block h-10 w-auto object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <img
+                src={spinLogo}
+                alt="Security Posture Intelligence Navigator"
+                className="block h-12 w-auto object-contain"
+              />
+            )}
+            {cspBranding.displayName && (
+              <span className="text-base font-semibold text-gray-800">
+                {cspBranding.displayName}
+              </span>
+            )}
           </NavLink>
           <nav className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => (
