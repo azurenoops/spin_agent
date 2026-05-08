@@ -6,6 +6,8 @@ import { useChatPanel } from '../chat/ChatPanelContext';
 import SettingsPanel from '../settings/SettingsPanel';
 import NotificationPanel from '../notifications/NotificationPanel';
 import RoleSwitcher from './RoleSwitcher';
+import TenantPicker from '../../features/tenancy/TenantPicker';
+import ImpersonationBanner from '../../features/tenancy/ImpersonationBanner';
 import { useNotifications } from '../../hooks/useNotifications';
 import spinLogo from '../../assets/2026-04-22_15-58-30.png';
 
@@ -47,6 +49,10 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
+      {/* Feature 048 (T075/T076): persistent banner while CSP-Admin is
+          impersonating a tenant. Self-hides when no impersonation is active
+          (and therefore in SingleTenant mode). */}
+      <ImpersonationBanner />
       {/* Top header */}
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
         <div className="flex items-center gap-6">
@@ -75,6 +81,9 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
           <h1 className="hidden text-sm font-medium text-gray-700 lg:block">{title}</h1>
         </div>
           <div className="flex items-center gap-1">
+            {/* Feature 048 (T076): tenant picker. Self-hides in SingleTenant
+                mode and for non-CSP.Admin callers per FR-041. */}
+            <TenantPicker />
             <RoleSwitcher />
             <button type="button" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Search" title="Search">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

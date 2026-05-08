@@ -30,6 +30,8 @@ import { OrganizationContextProvider } from './hooks/useOrganizationContext';
 import SystemDataProvider from './components/SystemRoute';
 import OnboardingShell from './features/onboarding/OnboardingShell';
 import OnboardingGate from './features/onboarding/OnboardingGate';
+import TenantWizard from './features/onboarding/TenantWizard';
+import TenantOnboardingGuard from './features/onboarding/TenantWizard/TenantOnboardingGuard';
 import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
 
 function AppContent() {
@@ -49,34 +51,37 @@ function AppContent() {
 
   return (
     <SystemDataProvider>
-      <Routes>
-        <Route path="/" element={<PortfolioRiskProfile />} />
-        <Route path="/systems" element={<PortfolioDashboard />} />
-        <Route path="/systems/:id" element={<SystemLayout />}>
-          <Route index element={<SystemDetail />} />
-          <Route path="roadmap" element={<Roadmap />} />
-          <Route path="boundaries" element={<BoundaryManagement />} />
-          <Route path="legal" element={<LegalRegulatory />} />
-          <Route path="documents" element={<Documents />} />
-          <Route path="conmon" element={<ConMon />} />
-          <Route path="narratives" element={<Narratives />} />
-          <Route path="deviations" element={<DeviationsPage />} />
-          <Route path="assessments" element={<Assessments />} />
-          <Route path="remediation" element={<Remediation />} />
-          <Route path="evidence" element={<EvidenceRepository />} />
-          <Route path="components" element={<ComponentInventory />} />
-          <Route path="poam" element={<PoamManagement />} />
-          <Route path="capability-coverage" element={<CapabilityCoverage />} />
-          <Route path="inheritance" element={<ControlInheritance />} />
-          <Route path="baseline" element={<BaselineManagement />} />
-          <Route path="profile/:sectionType" element={<SystemProfile />} />
-        </Route>
-        <Route path="/capabilities" element={<CapabilityLibrary />} />
-        <Route path="/components" element={<ComponentLibrary />} />
-        <Route path="/onboarding" element={<OnboardingShell />} />
-        <Route path="/admin/imported-documents" element={<ImportedDocumentsView />} />
-        <Route path="/controls" element={<ControlCatalog />} />
-      </Routes>
+      <TenantOnboardingGuard>
+        <Routes>
+          <Route path="/" element={<PortfolioRiskProfile />} />
+          <Route path="/systems" element={<PortfolioDashboard />} />
+          <Route path="/systems/:id" element={<SystemLayout />}>
+            <Route index element={<SystemDetail />} />
+            <Route path="roadmap" element={<Roadmap />} />
+            <Route path="boundaries" element={<BoundaryManagement />} />
+            <Route path="legal" element={<LegalRegulatory />} />
+            <Route path="documents" element={<Documents />} />
+            <Route path="conmon" element={<ConMon />} />
+            <Route path="narratives" element={<Narratives />} />
+            <Route path="deviations" element={<DeviationsPage />} />
+            <Route path="assessments" element={<Assessments />} />
+            <Route path="remediation" element={<Remediation />} />
+            <Route path="evidence" element={<EvidenceRepository />} />
+            <Route path="components" element={<ComponentInventory />} />
+            <Route path="poam" element={<PoamManagement />} />
+            <Route path="capability-coverage" element={<CapabilityCoverage />} />
+            <Route path="inheritance" element={<ControlInheritance />} />
+            <Route path="baseline" element={<BaselineManagement />} />
+            <Route path="profile/:sectionType" element={<SystemProfile />} />
+          </Route>
+          <Route path="/capabilities" element={<CapabilityLibrary />} />
+          <Route path="/components" element={<ComponentLibrary />} />
+          <Route path="/onboarding" element={<OnboardingShell />} />
+          <Route path="/onboarding/tenant" element={<TenantWizard />} />
+          <Route path="/admin/imported-documents" element={<ImportedDocumentsView />} />
+          <Route path="/controls" element={<ControlCatalog />} />
+        </Routes>
+      </TenantOnboardingGuard>
       <ChatPanel
         isOpen={panelState.isOpen}
         onClose={closePanel}
