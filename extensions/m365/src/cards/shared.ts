@@ -5,6 +5,8 @@
  * used across all card builders.
  */
 
+export { buildTenantImpersonationBadge } from "./tenantBadge";
+
 /**
  * Builds an agent attribution footer element.
  * Shows "Processed by: {agentUsed}" in accent color, right-aligned.

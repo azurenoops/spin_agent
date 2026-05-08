@@ -102,6 +102,16 @@
           "type": "boolean",
           "default": false,
           "description": "Enable debug logging to output channel"
+        },
+        "ato-copilot.tenantId": {
+          "type": "string",
+          "default": "",
+          "description": "Caller's home tenant id (Guid). Surfaced on the ATO Copilot status bar and forwarded on outbound MCP requests so server-side tools see the correct tenant scope."
+        },
+        "ato-copilot.impersonatedTenantId": {
+          "type": "string",
+          "default": "",
+          "description": "Optional impersonated tenant id (Guid). When set, the status bar shows an Impersonating: <id> badge and outbound MCP requests carry the impersonation scope (CSP-Admin only)."
         }
       }
     }

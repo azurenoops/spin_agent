@@ -42,6 +42,10 @@ export interface McpChatRequest {
       fileName?: string;
       language?: string;
       analysisType?: string;
+      /** Caller's home tenant id (Guid). Set by the status bar provider (T141). */
+      tenantId?: string;
+      /** Optional impersonated tenant id (Guid). CSP-Admin only. */
+      impersonatedTenantId?: string;
     };
   };
   /** Action identifier for button-initiated requests (FR-014b) */
@@ -101,10 +105,44 @@ export interface McpError {
 export class McpClient {
   private client: AxiosInstance;
   private outputChannel?: vscode.OutputChannel;
+  private tenantContextProvider?: () =>
+    | { tenantId: string; impersonatedTenantId?: string }
+    | null;
 
   constructor(outputChannel?: vscode.OutputChannel) {
     this.outputChannel = outputChannel;
     this.client = this.createClient();
+  }
+
+  /**
+   * Register a callback that supplies the current tenant scope (home tenant
+   * id and optional impersonated tenant id) on every outbound MCP request.
+   * Used by the status bar (T141) to forward the user's current tenant
+   * context to the server so MCP tools see the correct identity (FR-024).
+   */
+  public setTenantContextProvider(
+    provider: () => { tenantId: string; impersonatedTenantId?: string } | null
+  ): void {
+    this.tenantContextProvider = provider;
+  }
+
+  private attachTenantContext(request: McpChatRequest): McpChatRequest {
+    const tenant = this.tenantContextProvider?.();
+    if (!tenant) return request;
+    const merged: McpChatRequest = {
+      ...request,
+      context: {
+        ...request.context,
+        metadata: {
+          ...request.context.metadata,
+          tenantId: tenant.tenantId,
+          ...(tenant.impersonatedTenantId
+            ? { impersonatedTenantId: tenant.impersonatedTenantId }
+            : {}),
+        },
+      },
+    };
+    return merged;
   }
 
   private getConfig() {
@@ -172,10 +210,12 @@ export class McpClient {
       `POST /mcp/chat — conversationId=${request.conversationId} messageLen=${request.message.length}`
     );
 
+    const enriched = this.attachTenantContext(request);
+
     try {
       const response = await this.client.post<McpChatResponse>(
         "/mcp/chat",
-        request
+        enriched
       );
       const elapsed = Date.now() - startTime;
       this.log(
@@ -234,7 +274,7 @@ export class McpClient {
       const isHttps = url.protocol === "https:";
       const transport = isHttps ? https : http;
 
-      const body = JSON.stringify(request);
+      const body = JSON.stringify(this.attachTenantContext(request));
       // Use a generous timeout for streaming — AI + tool execution can
       // take well over 30 s.  The socket-level timeout resets with every
       // SSE chunk, so this only fires when the connection truly goes idle.
