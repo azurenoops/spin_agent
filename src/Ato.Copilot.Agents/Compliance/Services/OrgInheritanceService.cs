@@ -560,4 +560,72 @@ public class OrgInheritanceService : IOrgInheritanceService
 
         return new OrgDefaultsListResult(items, totalCount, summary);
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Added in Feature 048 (T218) per the FR-110 reuse-first audit. Provides the
+    /// SINGLE per-row insert / update path for <c>OrgInheritanceDefault</c>. T225
+    /// extends this method to emit a <c>CspCapabilityConsumed</c> domain event when
+    /// <see cref="SaveOrgInheritanceDefaultRequest.SourceCspCapabilityId"/> is non-null.
+    /// The CSP-FK columns themselves (<c>SourceCspCapabilityId</c>, <c>SourceCspComponentId</c>)
+    /// are added to <see cref="OrgInheritanceDefault"/> by T223; this implementation
+    /// passes them through verbatim so T223 can flip the FK assignment from no-op
+    /// to active without touching this method.
+    /// </remarks>
+    public async Task<OrgInheritanceDefault> SaveAsync(
+        SaveOrgInheritanceDefaultRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.ControlId))
+        {
+            throw new ArgumentException("ControlId is required.", nameof(request));
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+
+        var existing = await context.OrgInheritanceDefaults
+            .FirstOrDefaultAsync(d => d.ControlId == request.ControlId, cancellationToken);
+
+        var now = DateTime.UtcNow;
+
+        if (existing is null)
+        {
+            existing = new OrgInheritanceDefault
+            {
+                ControlId = request.ControlId,
+                InheritanceType = request.InheritanceType,
+                Provider = request.Provider,
+                SourceCapabilityIds = request.SourceCapabilityIds,
+                SourceCapabilityNames = request.SourceCapabilityNames,
+                MappingRole = request.MappingRole,
+                DerivedAt = now,
+            };
+            context.OrgInheritanceDefaults.Add(existing);
+            _logger.LogInformation(
+                "OrgInheritanceDefault inserted for {ControlId} by {DerivedBy} (SourceCspCapabilityId={CspCapabilityId})",
+                request.ControlId, request.DerivedBy, request.SourceCspCapabilityId);
+        }
+        else
+        {
+            existing.InheritanceType = request.InheritanceType;
+            existing.Provider = request.Provider;
+            existing.SourceCapabilityIds = request.SourceCapabilityIds;
+            existing.SourceCapabilityNames = request.SourceCapabilityNames;
+            existing.MappingRole = request.MappingRole;
+            existing.DerivedAt = now;
+            _logger.LogInformation(
+                "OrgInheritanceDefault updated for {ControlId} by {DerivedBy} (SourceCspCapabilityId={CspCapabilityId})",
+                request.ControlId, request.DerivedBy, request.SourceCspCapabilityId);
+        }
+
+        // T223 will assign request.SourceCspCapabilityId / SourceCspComponentId to
+        // matching FK columns on OrgInheritanceDefault once those columns exist.
+        // T225 will emit CspCapabilityConsumed via IDomainEventDispatcher when
+        // request.SourceCspCapabilityId.HasValue.
+
+        await context.SaveChangesAsync(cancellationToken);
+        return existing;
+    }
 }

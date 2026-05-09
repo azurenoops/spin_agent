@@ -85,6 +85,12 @@ public static class AtoCopilotMcpServiceExtensions
             var logger = sp.GetService<ILogger<Ato.Copilot.Core.Services.NarrativeTemplateService>>();
             return new Ato.Copilot.Core.Services.NarrativeTemplateService(chatClient, aiOptions, logger);
         });
+        // FR-110 reuse-first audit (T218): IControlNarrativeService is the single
+        // narrative-generation contract; both the concrete and the interface point
+        // at the SAME singleton so DI counts as exactly 1 registration of the
+        // interface — the CspInheritanceReuseAuditHealthCheck enforces this.
+        services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.IControlNarrativeService>(sp =>
+            sp.GetRequiredService<Ato.Copilot.Core.Services.NarrativeTemplateService>());
         services.AddSingleton<Ato.Copilot.Core.Services.ComplianceTrendSnapshotService>();
         if (includeHostedServices)
         {

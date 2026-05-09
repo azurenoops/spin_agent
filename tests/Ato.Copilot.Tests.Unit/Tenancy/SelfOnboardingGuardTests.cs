@@ -73,7 +73,8 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
             Options.Create(new RoleClaimMappingsOptions()),
             http.RequestServices.GetRequiredService<IMemoryCache>(),
             http.RequestServices.GetRequiredService<AtoCopilotContext>(),
-            BuildConfiguration());
+            BuildConfiguration(),
+            BuildCspProfileStub());
 
         await using var scope = _sp.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
@@ -100,7 +101,8 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
             Options.Create(new RoleClaimMappingsOptions()),
             http.RequestServices.GetRequiredService<IMemoryCache>(),
             http.RequestServices.GetRequiredService<AtoCopilotContext>(),
-            BuildConfiguration());
+            BuildConfiguration(),
+            BuildCspProfileStub());
 
         http.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
         var body = await ReadBodyAsync(http);
@@ -159,6 +161,25 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
         var mock = new Mock<ITenantImpersonationService>();
         mock.SetupGet(s => s.CookieName).Returns("ato.impersonation");
         mock.Setup(s => s.Validate(It.IsAny<string>())).Returns((ImpersonationCookiePayload?)null);
+        return mock.Object;
+    }
+
+    /// <summary>
+    /// Provides an Active singleton CspProfile so the FR-090 CSP-onboarding
+    /// gate (added in commit a180962) does not short-circuit the
+    /// self-onboarding tests with a 503.
+    /// </summary>
+    private static ICspProfileService BuildCspProfileStub()
+    {
+        var mock = new Mock<ICspProfileService>();
+        mock.Setup(s => s.GetAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CspProfile
+            {
+                LegalEntityName = "Test CSP",
+                DisplayName = "Test",
+                PrimarySupportEmail = "test@example.com",
+                OnboardingState = OnboardingState.Active,
+            });
         return mock.Object;
     }
 
