@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models;
@@ -485,6 +486,12 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>Feature 048 (T161, FR-006, US7): singleton hosting-CSP profile. <see cref="GlobalReferenceAttribute"/>.</summary>
     public DbSet<CspProfile> CspProfiles => Set<CspProfile>();
+
+    /// <summary>Feature 048 (T194, FR-007, US9): components imported from CSP ATO artifacts. <see cref="GlobalReferenceAttribute"/>.</summary>
+    public DbSet<CspInheritedComponent> CspInheritedComponents => Set<CspInheritedComponent>();
+
+    /// <summary>Feature 048 (T195, FR-008, US9): AI-mapped capabilities of <see cref="CspInheritedComponent"/>. <see cref="GlobalReferenceAttribute"/>.</summary>
+    public DbSet<CspInheritedCapability> CspInheritedCapabilities => Set<CspInheritedCapability>();
 
     //
     /// <inheritdoc />
@@ -3346,6 +3353,64 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.UpdatedBy).HasMaxLength(254);
             entity.Property(e => e.DefaultClassificationFloor).HasConversion<int>();
             entity.Property(e => e.OnboardingState).HasConversion<int>();
+        });
+
+        // Feature 048 (T197, FR-007 / FR-008, US9): CSP-inherited component + capability.
+        // Both entities are [GlobalReference] — the auto-tenant-filter loop in
+        // ConfigureTenantQueryFilters skips them. ComponentType / Status / SourceFormat /
+        // MappedBy / CapabilityStatus are stored as int enums (default conversion).
+        // MappedNistControlIds is persisted as a JSON-array string via a local
+        // ValueConverter (cannot share the OnModelCreating-scoped one since
+        // this is a static helper).
+        var cspMappedControlIdsConverter = new ValueConverter<List<string>, string>(
+            v => JsonSerializer.Serialize(v ?? new List<string>(), (JsonSerializerOptions?)null),
+            v => string.IsNullOrWhiteSpace(v)
+                ? new List<string>()
+                : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>());
+        var cspMappedControlIdsComparer = new ValueComparer<List<string>>(
+            (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>()),
+            v => v == null ? 0 : v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+            v => v == null ? new List<string>() : v.ToList());
+
+        modelBuilder.Entity<CspInheritedComponent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(2000).IsRequired();
+            entity.Property(e => e.ComponentType).HasConversion<int>();
+            entity.Property(e => e.SourceFileName).HasMaxLength(512);
+            entity.Property(e => e.SourceFormat).HasConversion<int>();
+            entity.Property(e => e.SourceArtifactReference).HasMaxLength(2048);
+            entity.Property(e => e.Status).HasConversion<int>();
+            entity.Property(e => e.ImportedBy).HasMaxLength(254).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(254);
+
+            entity.HasIndex(e => new { e.CspProfileId, e.Status })
+                .HasDatabaseName("IX_CspInheritedComponents_CspProfileId_Status");
+
+            entity.HasMany(e => e.Capabilities)
+                .WithOne(c => c.CspInheritedComponent)
+                .HasForeignKey(c => c.CspInheritedComponentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CspInheritedCapability>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(2000).IsRequired();
+            entity.Property(e => e.MappedNistControlIds)
+                .HasConversion(cspMappedControlIdsConverter)
+                .Metadata.SetValueComparer(cspMappedControlIdsComparer);
+            entity.Property(e => e.Status).HasConversion<int>();
+            entity.Property(e => e.MappingFailureReason).HasMaxLength(500);
+            entity.Property(e => e.MappedBy).HasConversion<int>();
+            entity.Property(e => e.CreatedBy).HasMaxLength(254).IsRequired();
+            entity.Property(e => e.ReviewedBy).HasMaxLength(254);
+            entity.Property(e => e.ReviewerNote).HasMaxLength(2000);
+
+            entity.HasIndex(e => new { e.CspInheritedComponentId, e.Status })
+                .HasDatabaseName("IX_CspInheritedCapabilities_ComponentId_Status");
         });
     }
 
