@@ -73,6 +73,18 @@ export interface InheritanceDesignation {
   orgDefault: OrgDefaultInfo | null;
   setBy: string;
   setAt: string;
+  /**
+   * Feature 048 (T137, FR-083): true when the underlying `OrgInheritanceDefault`
+   * has been published as a `[GlobalReference]` baseline by a CSP-Admin.
+   * Drives the `Source: Global Baseline` UI label.
+   */
+  isGlobalBaseline?: boolean;
+  /**
+   * Feature 048 (T137, FR-083): display name of the active tenant. Used when
+   * the row is tenant-local (not a global baseline) to render
+   * `Source: <Tenant.DisplayName>`.
+   */
+  tenantDisplayName?: string | null;
 }
 
 export interface SourceBreakdown {

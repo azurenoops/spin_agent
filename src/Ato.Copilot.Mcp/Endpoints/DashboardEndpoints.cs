@@ -10,6 +10,7 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Kanban;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
@@ -6933,6 +6934,7 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
             [FromQuery] string? sortDirection,
             IBaselineService baselineService,
             AtoCopilotContext context,
+            ITenantContext tenantContext,
             CancellationToken ct) =>
         {
             if (page < 1) page = 1;
@@ -6953,12 +6955,39 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                 .AsNoTracking()
                 .ToDictionaryAsync(d => d.ControlId, d => d, StringComparer.OrdinalIgnoreCase, ct);
 
+            // Feature 048 (T137, FR-083): resolve current tenant display name and the
+            // set of OrgInheritanceDefault.Id values currently published as global
+            // baselines. Drives the per-row `Source: Global Baseline` vs
+            // `Source: <Tenant.DisplayName>` label in the inheritance UI.
+            var effectiveTenantId = tenantContext.EffectiveTenantId;
+            var tenantDisplayName = effectiveTenantId == Guid.Empty
+                ? null
+                : await context.Tenants
+                    .AsNoTracking()
+                    .Where(t => t.Id == effectiveTenantId)
+                    .Select(t => t.DisplayName)
+                    .FirstOrDefaultAsync(ct);
+            var globalBaselineSourceIds = await context.GlobalBaselines
+                .AsNoTracking()
+                .Where(g => g.Kind == "OrgInheritanceDefault" && g.UnpublishedAt == null)
+                .Select(g => g.SourceId)
+                .ToListAsync(ct);
+            var globalBaselineSourceIdSet = globalBaselineSourceIds.Count == 0
+                ? null
+                : new HashSet<Guid>(globalBaselineSourceIds);
+
             // Build designation list from all control IDs + inheritance records
             var inheritanceLookup = baseline.Inheritances.ToDictionary(i => i.ControlId, i => i, StringComparer.OrdinalIgnoreCase);
             var allDesignations = baseline.ControlIds.Select(cid =>
             {
                 inheritanceLookup.TryGetValue(cid, out var inh);
                 orgDefaultLookup.TryGetValue(cid, out var orgDefault);
+                // OrgInheritanceDefault.Id is stored as a GUID-shaped string; GlobalBaseline.SourceId is a Guid.
+                // Match them defensively via TryParse so malformed legacy ids don't throw.
+                var isGlobalBaseline = orgDefault != null
+                    && globalBaselineSourceIdSet != null
+                    && Guid.TryParse(orgDefault.Id, out var orgDefaultGuid)
+                    && globalBaselineSourceIdSet.Contains(orgDefaultGuid);
                 return new
                 {
                     id = inh?.Id ?? string.Empty,
@@ -6977,7 +7006,11 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                         mappingRole = orgDefault.MappingRole.ToString(),
                     },
                     setBy = inh?.SetBy,
-                    setAt = inh?.SetAt
+                    setAt = inh?.SetAt,
+                    // Feature 048 (T137, FR-083): provenance fields driving the
+                    // `Source: <Tenant or Global Baseline>` label in the UI.
+                    isGlobalBaseline,
+                    tenantDisplayName
                 };
             }).ToList();
 
