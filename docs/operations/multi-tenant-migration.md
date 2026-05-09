@@ -239,3 +239,95 @@ wrapped in `IF NOT EXISTS`.
 A: Yes, via `POST /api/admin/tenants/split` — but that is a separate runbook
 (not part of Feature 048).
 
+---
+
+## Release-Validation Runbook (Feature 048, T153)
+
+> **Purpose**: This section is the canonical checklist a release engineer runs
+> on a **clean dev machine** to declare Feature 048 (Tenant Isolation) ready to
+> ship. T153 was deliberately deferred from the agent loop because a clean-machine
+> run cannot be performed inside an automated coding session — there is no
+> guarantee the agent host has no leftover state from prior tests, no stray SQL
+> Server containers, no cached `bin/`/`obj/`/`node_modules/`. This runbook
+> closes that gap: every line below is meant to be executed by a human (or a
+> CI release pipeline) on a workstation that has just run `git clean -xdf`.
+
+### Audience
+
+A release engineer or QA owner cutting a `048-tenant-isolation` build for
+staging or production. Not the day-to-day developer loop.
+
+### Clean-machine prerequisite
+
+Before starting, run **all** of the following from the repo root:
+
+```bash
+# Remove every untracked + ignored artifact (bin, obj, node_modules, dist,
+# site/, .venv, etc.) — but keep .git intact.
+git clean -xdfn          # Dry run — review the file list first.
+git clean -xdf           # Then commit to it.
+
+# Confirm the toolchain matches global.json + package.json engines.
+dotnet --version         # → 9.0.x   (must match global.json)
+node --version           # → v20.x   (M365 + dashboard require Node 20 LTS)
+docker --version         # any 24+   (SQL Server scenario)
+
+# No stray containers from prior runs.
+docker ps -a --filter "name=ato-" --format '{{.Names}}'
+# If any rows print: docker rm -f <name>
+```
+
+If any tool version is wrong, **stop**. Fix the host and start over. Do not
+continue on a partially-correct host — the migration covers RLS and SQL Server
+behaviors that silently no-op on the wrong server version.
+
+### Sequence (executes [`specs/048-tenant-isolation/quickstart.md`](../../specs/048-tenant-isolation/quickstart.md) §§ 1–7)
+
+Execute the seven sections **in order**. Do not skip ahead. Each section's
+"Expected" block is the gate — if any expectation fails, file a release-blocker
+issue and stop.
+
+| # | Quickstart section | What it proves | Pass criteria |
+|---|--------------------|----------------|---------------|
+| 1 | §1 Single-tenant smoke (US3) | Existing `SingleTenant` installs upgrade to the 048 binary unchanged. | Dashboard shows no tenant picker; log line `Tenant isolation: SingleTenant mode active`; system + default tenants present. |
+| 2 | §2 Multi-tenant boot (FR-070/071/073) | `ato-cli tenant migrate` is idempotent + transactional and turns a `SingleTenant` DB into a `MultiTenant` one without data loss. | `ato-cli tenant status` reports `RowsMissingTenant: 0` after migration; report JSON shows `rlsInstalled: true`; app starts cleanly in `MultiTenant` mode. |
+| 3 | §3 Two-tenant isolation (US1) | EF query filters + (on SQL Server) RLS enforce per-tenant scoping for all `DbSet`s. | Tenant A token never returns Tenant B rows from any `/api/*` endpoint, including `/api/dashboard/*` and the inheritance grid. |
+| 4 | §4 CSP-Admin impersonation (US2) | `ImpersonatedTenantId` flows through `ITenantContext` and is observable in audit + UI banner. | Impersonation banner renders; audit log has `actor_tenant_id` ≠ `tenant_id` row; `/api/csp/dashboard/*` endpoints accessible only with `CSP.Admin`. |
+| 5 | §5 SQL Server RLS bypass test (US5) | RLS rejects a raw connection that omits `sp_set_session_context`. | `SELECT COUNT(*) FROM RegisteredSystems` from a session without `tenant_id` returns `0`; the policy is visible in `sys.security_policies`. |
+| 6 | §6 Air-gapped migration (FR-075) | Migration runs without outbound network. | `ato-cli tenant migrate` completes on a host with `iptables -A OUTPUT -j DROP` (or equivalent); no NuGet/Entra calls in the trace. |
+| 7 | §7 Build + tests | Full repo build + tests are green on the clean host. | `dotnet build Ato.Copilot.sln` 0 errors / 0 new warnings; `dotnet test Ato.Copilot.sln` 100% pass; dashboard `npm run lint && npm run build` green; `extensions/vscode` + `extensions/m365` `npm run compile` / `npm run build` green (Constitution § Local Type-Checking Parity). |
+
+### What to record
+
+Save each of the following to a release artifact bundle (e.g.
+`release-validation-048-<date>.zip`):
+
+1. The output of every "Expected" block (terminal log, copy-paste).
+2. `migration-report.json` from §2.4.
+3. A screenshot of the dashboard from §3 showing **only** the active tenant's systems.
+4. A screenshot of the impersonation banner from §4.
+5. The audit-log query result from §4 (CSV).
+6. The `sys.security_policies` row from §5 (CSV).
+7. `dotnet test --logger "trx"` results from §7.
+
+### Drift recording
+
+If any expectation diverges from the quickstart, **document the drift in this
+runbook before the fix lands** (Constitution § Document Before Fix):
+
+1. Append a short subsection under [Troubleshooting](#troubleshooting) with
+   the symptom, root cause, and the corrective action taken.
+2. Update the relevant quickstart `Expected` block in the same PR so the next
+   release engineer sees the new reality.
+3. If the drift is a regression in the 048 code itself (not the runbook),
+   open a release-blocker GitHub issue linking the failing step.
+
+### Sign-off
+
+Release validation is complete when **all seven** quickstart sections produced
+their expected output on a single clean-machine run, the artifact bundle is
+attached to the release ticket, and any drift has been recorded per §Drift
+recording. The release engineer signs off by tagging the commit
+`v0.48.0-rc1` (or the next planned tag) and noting "T153 validated on
+`<date>`" in the release notes.
+
