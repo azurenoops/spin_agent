@@ -360,6 +360,47 @@ internal sealed class TenancySeedHostedService : IHostedService
                 "UpdatedBy" TEXT NULL,
                 "RowVersion" BLOB NULL
             );
+            CREATE TABLE IF NOT EXISTS "CspInheritedComponents" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_CspInheritedComponents" PRIMARY KEY,
+                "CspProfileId" TEXT NOT NULL,
+                "Name" TEXT NOT NULL,
+                "Description" TEXT NOT NULL DEFAULT '',
+                "ComponentType" INTEGER NOT NULL DEFAULT 0,
+                "SourceFileName" TEXT NULL,
+                "SourceFormat" INTEGER NOT NULL DEFAULT 0,
+                "SourceArtifactReference" TEXT NULL,
+                "Status" INTEGER NOT NULL DEFAULT 0,
+                "ImportedAt" TEXT NOT NULL,
+                "ImportedBy" TEXT NOT NULL,
+                "UpdatedAt" TEXT NULL,
+                "UpdatedBy" TEXT NULL,
+                "RowVersion" BLOB NULL
+            );
+            CREATE INDEX IF NOT EXISTS "IX_CspInheritedComponents_CspProfileId_Status"
+                ON "CspInheritedComponents" ("CspProfileId", "Status");
+            CREATE TABLE IF NOT EXISTS "CspInheritedCapabilities" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_CspInheritedCapabilities" PRIMARY KEY,
+                "CspInheritedComponentId" TEXT NOT NULL,
+                "Name" TEXT NOT NULL,
+                "Description" TEXT NOT NULL DEFAULT '',
+                "MappedNistControlIds" TEXT NOT NULL DEFAULT '[]',
+                "MappingConfidence" REAL NULL,
+                "Status" INTEGER NOT NULL DEFAULT 1,
+                "MappingFailureReason" TEXT NULL,
+                "MappedBy" INTEGER NOT NULL DEFAULT 0,
+                "CreatedAt" TEXT NOT NULL,
+                "CreatedBy" TEXT NOT NULL,
+                "ReviewedAt" TEXT NULL,
+                "ReviewedBy" TEXT NULL,
+                "ReviewerNote" TEXT NULL,
+                "RowVersion" BLOB NULL,
+                CONSTRAINT "FK_CspInheritedCapabilities_CspInheritedComponents_CspInheritedComponentId"
+                    FOREIGN KEY ("CspInheritedComponentId")
+                    REFERENCES "CspInheritedComponents" ("Id")
+                    ON DELETE RESTRICT
+            );
+            CREATE INDEX IF NOT EXISTS "IX_CspInheritedCapabilities_ComponentId_Status"
+                ON "CspInheritedCapabilities" ("CspInheritedComponentId", "Status");
             """;
         await db.Database.ExecuteSqlRawAsync(ddl, ct);
     }
