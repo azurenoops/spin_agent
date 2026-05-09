@@ -143,6 +143,27 @@ public static class AtoCopilotMcpServiceExtensions
 
         // Feature 044: IOrgInheritanceService is registered by AddMcpServer (TryAddSingleton)
 
+        // Feature 048 (US9 / US10): CSP-inherited components — uploaded ATO
+        // ingestion + capability mapping. Registered as Scoped so the parser
+        // dispatcher and extraction service can share the same DbContext per
+        // request. The wrapper (CspCapabilityMappingService) composes the
+        // FR-110-protected ICapabilityMappingService — that interface is
+        // intentionally LEFT UNREGISTERED here until the AI mapper from
+        // Features 045 / 008 is wired through (a separate slice). The
+        // CspInheritanceReuseAuditHealthCheck no-ops on unregistered
+        // interfaces so this is safe at startup; the runtime upload path is
+        // gated by T207 endpoints which have not yet landed.
+        services.Configure<Ato.Copilot.Core.Configuration.Tenancy.CspInheritedOptions>(
+            configuration.GetSection(Ato.Copilot.Core.Configuration.Tenancy.CspInheritedOptions.SectionName));
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspAtoDocumentParser,
+            Ato.Copilot.Core.Services.Tenancy.CspAtoDocumentParser>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspComponentExtractionService,
+            Ato.Copilot.Core.Services.Tenancy.CspComponentExtractionService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspCapabilityMappingService,
+            Ato.Copilot.Core.Services.Tenancy.CspCapabilityMappingService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspInheritedComponentService,
+            Ato.Copilot.Core.Services.Tenancy.CspInheritedComponentService>();
+
         // Feature 041: Authorization Package generation pipeline
         services.AddSingleton(System.Threading.Channels.Channel.CreateBounded<Ato.Copilot.Core.Dtos.Dashboard.PackageExportJob>(
             new System.Threading.Channels.BoundedChannelOptions(20) { FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait }));
