@@ -35,6 +35,7 @@ import TenantOnboardingGuard from './features/onboarding/TenantWizard/TenantOnbo
 import CspWizard from './features/csp-onboarding/CspWizard';
 import CspOnboardingGuard from './features/csp-onboarding/CspOnboardingGuard';
 import CspDashboardPage from './features/csp-dashboard/CspDashboardPage';
+import CspInheritedComponentsPage from './features/csp-inherited-components/CspInheritedComponentsPage';
 import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
 
 function AppContent() {
@@ -84,6 +85,7 @@ function AppContent() {
           <Route path="/onboarding/tenant" element={<TenantWizard />} />
           <Route path="/onboarding/csp" element={<CspWizard />} />
           <Route path="/csp-dashboard" element={<CspDashboardPage />} />
+          <Route path="/csp/inherited-components" element={<CspInheritedComponentsPage />} />
           <Route path="/admin/imported-documents" element={<ImportedDocumentsView />} />
           <Route path="/controls" element={<ControlCatalog />} />
         </Routes>

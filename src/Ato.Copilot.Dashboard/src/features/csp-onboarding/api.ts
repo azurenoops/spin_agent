@@ -180,3 +180,89 @@ export async function postCspOnboardingSubmit(): Promise<SubmitResponse> {
   );
   return unwrap(data);
 }
+
+// ---------------------------------------------------------------------------
+// Feature 048 / US9 / T211 — ATO documents step (FR-099..FR-103)
+// ---------------------------------------------------------------------------
+
+export type AtoSourceFormat =
+  | 'Pdf'
+  | 'Docx'
+  | 'OscalJson'
+  | 'Xlsx'
+  | 'EmassZip'
+  | 'Manual';
+
+/** Per-file entry returned by `POST /csp/onboarding/atos/upload`. */
+export interface AtoUploadFileResult {
+  fileName: string;
+  sourceFormat: AtoSourceFormat;
+  parsedSuccessfully: boolean;
+  parseError?: string | null;
+  componentsExtracted: number;
+  capabilitiesMapped: number;
+  capabilitiesNeedsReview: number;
+}
+
+/** Aggregated response shape from `POST /csp/onboarding/atos/upload`. */
+export interface AtoUploadResponse {
+  documentsAccepted: number;
+  componentsExtracted: number;
+  capabilitiesMapped: number;
+  capabilitiesNeedsReview: number;
+  aiMappingAvailable: boolean;
+  aiMappingFailureReason?: string | null;
+  files: AtoUploadFileResult[];
+}
+
+/** Per-document entry inside `AtoStepState.documents`. */
+export interface AtoStepStateDocument {
+  fileName: string;
+  sourceFormat: AtoSourceFormat;
+  componentsExtracted: number;
+  capabilitiesMapped: number;
+  capabilitiesNeedsReview: number;
+}
+
+/** Response shape from `GET /csp/onboarding/atos/state`. */
+export interface AtoStepState {
+  cspProfileId?: string | null;
+  documentsUploaded: number;
+  componentsExtracted: number;
+  capabilitiesMapped: number;
+  capabilitiesNeedsReview: number;
+  aiMappingAvailable: boolean;
+  aiMappingFailureReason?: string | null;
+  files?: AtoStepStateDocument[];
+  documents?: AtoStepStateDocument[];
+}
+
+/**
+ * Uploads one or more ATO source documents (PDF SSP, DOCX, OSCAL JSON, XLSX,
+ * eMASS ZIP) during the CSP-onboarding wizard's ATO Documents step.
+ * Multipart, max 50 MB per file (enforced both client-side and server-side).
+ */
+export async function postCspOnboardingAtosUpload(
+  files: File[],
+): Promise<AtoUploadResponse> {
+  const form = new FormData();
+  for (const f of files) form.append('files', f, f.name);
+  const { data } = await cspClient.post<Envelope<AtoUploadResponse>>(
+    '/csp/onboarding/atos/upload',
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return unwrap(data);
+}
+
+/**
+ * Returns the running tally for the ATO Documents step. Re-entrant — safe to
+ * call on every step mount so the user sees up-to-date totals after a
+ * mid-wizard refresh.
+ */
+export async function getCspOnboardingAtosState(): Promise<AtoStepState> {
+  const { data } = await cspClient.get<Envelope<AtoStepState>>(
+    '/csp/onboarding/atos/state',
+  );
+  return unwrap(data);
+}

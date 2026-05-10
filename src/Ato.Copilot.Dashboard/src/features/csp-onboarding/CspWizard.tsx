@@ -13,6 +13,7 @@ import {
 import IdentityStep from './steps/IdentityStep';
 import SupportContactStep from './steps/SupportContactStep';
 import ClassificationStep from './steps/ClassificationStep';
+import AtoDocumentsStep from './steps/AtoDocumentsStep';
 import ReviewStep from './steps/ReviewStep';
 
 /**
@@ -29,14 +30,32 @@ import ReviewStep from './steps/ReviewStep';
  * is redirected to `/` (portfolio home) — by that point the
  * `503 CSP_ONBOARDING_INCOMPLETE` gate has lifted.
  */
-type WizardStep = 'Identity' | 'SupportContact' | 'Classification' | 'Review';
+type WizardStep =
+  | 'Identity'
+  | 'SupportContact'
+  | 'Classification'
+  | 'AtoDocuments'
+  | 'Review';
 
-const STEPS: WizardStep[] = ['Identity', 'SupportContact', 'Classification', 'Review'];
+// Feature 048 / US9 / T212: `AtoDocuments` is a UI-only step inserted
+// between server-side `Classification` and `Review`. The server's
+// `CspOnboardingStep` enum (Identity/SupportContact/Classification/Review/Complete)
+// remains the source of truth for resumption — when the server reports
+// `Review`, the user has already navigated past `AtoDocuments` at least
+// once, so we resume on `Review` rather than re-injecting the upload step.
+const STEPS: WizardStep[] = [
+  'Identity',
+  'SupportContact',
+  'Classification',
+  'AtoDocuments',
+  'Review',
+];
 
 const STEP_LABELS: Record<WizardStep, string> = {
   Identity: 'Identity',
   SupportContact: 'Support',
   Classification: 'Classification',
+  AtoDocuments: 'ATO documents',
   Review: 'Review',
 };
 
@@ -61,6 +80,9 @@ function toWizardStep(s: CspOnboardingStep): WizardStep {
     case 'Review':
     case 'Complete':
     default:
+      // Server says the user has progressed past Classification → resume
+      // on Review (they have already had a chance to upload ATO docs in
+      // a previous wizard pass). They can hit Back to revisit AtoDocuments.
       return 'Review';
   }
 }
@@ -273,6 +295,14 @@ export default function CspWizard(): ReactElement {
             saving={saving}
             errorMessage={errorMessage}
             onSubmit={handleSaveClassification}
+            onBack={() => setStep(prevWizardStep(step))}
+          />
+        )}
+        {step === 'AtoDocuments' && (
+          <AtoDocumentsStep
+            saving={saving}
+            errorMessage={errorMessage}
+            onContinue={() => setStep(nextWizardStep(step))}
             onBack={() => setStep(prevWizardStep(step))}
           />
         )}
