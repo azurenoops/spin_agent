@@ -39,6 +39,20 @@ public sealed class TenantResolutionMiddleware
     private static readonly TimeSpan TenantStatusCacheTtl = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Builds a fresh <see cref="MemoryCacheEntryOptions"/> for tenant-resolution
+    /// reads. The MCP host configures <c>IMemoryCache</c> with a <c>SizeLimit</c>,
+    /// so every entry MUST declare <c>Size</c>; the simple
+    /// <c>cache.Set(key, value, TimeSpan)</c> overload omits it and throws at
+    /// runtime. A unit size is appropriate because these entries are scalars
+    /// (Guid / enum). See Microsoft.Extensions.Caching.Memory.MemoryCache.SetEntry.
+    /// </summary>
+    private static MemoryCacheEntryOptions BuildCacheOptions() => new()
+    {
+        AbsoluteExpirationRelativeToNow = TenantStatusCacheTtl,
+        Size = 1,
+    };
+
+    /// <summary>
     /// Path prefixes that bypass tenant resolution entirely. Health probes,
     /// the OpenAPI document, and the swagger UI MUST be reachable without an
     /// authenticated tenant.
@@ -328,14 +342,14 @@ public sealed class TenantResolutionMiddleware
             if (deployment.Tenants?.AllowSelfOnboarding == true)
             {
                 var newId = await CreateSelfOnboardedTenantAsync(entraTenantId, db, ct);
-                cache.Set(cacheKey, (Guid?)newId, TenantStatusCacheTtl);
+                cache.Set(cacheKey, (Guid?)newId, BuildCacheOptions());
                 return newId;
             }
             throw new TenantNotProvisionedException(entraTenantId);
         }
 
-        cache.Set(cacheKey, (Guid?)row.Id, TenantStatusCacheTtl);
-        cache.Set(TenantStatusCachePrefix + row.Id, row.Status, TenantStatusCacheTtl);
+        cache.Set(cacheKey, (Guid?)row.Id, BuildCacheOptions());
+        cache.Set(TenantStatusCachePrefix + row.Id, row.Status, BuildCacheOptions());
         return row.Id;
     }
 
@@ -384,7 +398,7 @@ public sealed class TenantResolutionMiddleware
         // Unknown tenant id → treat as Active so the regular 404 paths handle
         // it, rather than masquerading as a lifecycle rejection.
         var resolved = status ?? TenantStatus.Active;
-        cache.Set(key, resolved, TenantStatusCacheTtl);
+        cache.Set(key, resolved, BuildCacheOptions());
         return resolved;
     }
 
@@ -414,7 +428,7 @@ public sealed class TenantResolutionMiddleware
         // Unknown tenant id → treat as Active so the gate doesn't hide the
         // 404 from the downstream pipeline.
         var resolved = state ?? OnboardingState.Active;
-        cache.Set(key, resolved, TenantStatusCacheTtl);
+        cache.Set(key, resolved, BuildCacheOptions());
         return resolved;
     }
 
