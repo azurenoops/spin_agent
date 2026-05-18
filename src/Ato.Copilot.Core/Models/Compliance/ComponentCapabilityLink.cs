@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// Join table linking <see cref="SystemComponent"/> to <see cref="SecurityCapability"/>
 /// in a many-to-many relationship.
 /// </summary>
+[TenantScoped]
 public class ComponentCapabilityLink
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>FK to SystemComponent (composite PK part 1).</summary>
     [Required]
     [MaxLength(36)]

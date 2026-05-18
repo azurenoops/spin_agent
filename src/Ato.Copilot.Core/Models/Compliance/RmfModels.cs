@@ -2,6 +2,7 @@ namespace Ato.Copilot.Core.Models.Compliance;
 
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 // ───────────────────────────── RMF Entities (Feature 010) ─────────────────────────────
 
@@ -69,8 +70,15 @@ public record DeliverableInfo(
 /// Anchor entity for all RMF data. Every persona-driven workflow tool
 /// operates within the context of a registered system.
 /// </summary>
+[TenantScoped]
 public class RegisteredSystem
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -236,8 +244,15 @@ public class AzureEnvironmentProfile
 /// FIPS 199 security categorization for a registered system.
 /// Contains information types whose C/I/A impacts drive the overall categorization.
 /// </summary>
+[TenantScoped]
 public class SecurityCategorization
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -322,6 +337,7 @@ public class SecurityCategorization
 /// <summary>
 /// SP 800-60 information type with provisional or adjusted C/I/A impact levels.
 /// </summary>
+[GlobalReference]
 public class InformationType
 {
     /// <summary>Unique identifier (GUID).</summary>
@@ -380,8 +396,15 @@ public class InformationType
 /// Retained read-only for backward compatibility and migration.</para>
 /// </summary>
 [Obsolete("Use BoundaryComponentAssignment for new boundary-component scope tracking (Feature 040).")]
+[TenantScoped]
 public class AuthorizationBoundary
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -444,8 +467,15 @@ public class AuthorizationBoundary
 /// <summary>
 /// RMF role assignment for a registered system per DoDI 8510.01.
 /// </summary>
+[TenantScoped]
 public class RmfRoleAssignment
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -490,8 +520,15 @@ public class RmfRoleAssignment
 /// Control baseline for a registered system. Contains the selected NIST controls
 /// after baseline selection, overlay application, and tailoring.
 /// </summary>
+[TenantScoped]
 public class ControlBaseline
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -558,8 +595,15 @@ public class ControlBaseline
 /// <summary>
 /// Control tailoring action applied to a baseline (added or removed control).
 /// </summary>
+[TenantScoped]
 public class ControlTailoring
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -604,8 +648,15 @@ public class ControlTailoring
 /// <summary>
 /// Control inheritance designation for FedRAMP/DoD shared responsibility.
 /// </summary>
+[TenantScoped]
 public class ControlInheritance
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -664,8 +715,15 @@ public class ControlInheritance
 /// Org-level default inheritance designation for a specific NIST control,
 /// derived automatically from org-wide capabilities and their control mappings.
 /// </summary>
+[TenantScoped]
 public class OrgInheritanceDefault
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -727,8 +785,15 @@ public enum InheritanceChangeSource
 /// Immutable, append-only audit log entry for every change to a
 /// <see cref="ControlInheritance"/> record.
 /// </summary>
+[TenantScoped]
 public class InheritanceAuditEntry
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -819,8 +884,15 @@ public enum OperationalStatus
 }
 
 /// <summary>Individual NIST SP 800-18 SSP section with lifecycle tracking.</summary>
+[TenantScoped]
 public class SspSection
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -885,8 +957,15 @@ public class SspSection
 }
 
 /// <summary>Reference to an external contingency plan document for SSP §13.</summary>
+[TenantScoped]
 public class ContingencyPlanReference
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -969,8 +1048,15 @@ public enum BoundaryDefinitionType
 /// Represents the boundary container (e.g., "Production", "Dev/Test").
 /// One system can have many boundary definitions.
 /// </summary>
+[TenantScoped]
 public class AuthorizationBoundaryDefinition
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]
@@ -1032,8 +1118,15 @@ public class AuthorizationBoundaryDefinition
 /// Tracks a prerequisite that was skipped during a forced RMF phase advance.
 /// Acts as a persistent reminder until the user resolves the deferred item.
 /// </summary>
+[TenantScoped]
 public class DeferredPrerequisite
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     [Key]
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();

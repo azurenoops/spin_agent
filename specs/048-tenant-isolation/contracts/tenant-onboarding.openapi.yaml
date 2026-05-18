@@ -1,0 +1,222 @@
+openapi: 3.1.0
+info:
+  title: ATO Copilot — Tenant Onboarding Wizard API
+  version: "1.0.0"
+  description: |
+    Step-by-step capture of tenant-level information (FR-054) and creation of
+    the first organization (FR-002). Reuses Feature 047's onboarding state
+    machine; new step prefix is `Tenant.*`. All endpoints require an
+    authenticated principal with a resolved `ITenantContext`. The wizard runs
+    only when `Tenants.OnboardingState != Active`.
+
+components:
+  securitySchemes:
+    cacJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Envelope:
+      $ref: 'tenants.openapi.yaml#/components/schemas/Envelope'
+
+    OnboardingState:
+      type: object
+      required: [tenantId, currentStep, completedSteps, onboardingState]
+      properties:
+        tenantId: { type: string, format: uuid }
+        currentStep:
+          type: string
+          enum:
+            - Tenant.LegalEntity
+            - Tenant.HqAddress
+            - Tenant.Classification
+            - Tenant.Ao
+            - Tenant.PrimaryPoc
+            - Org.Profile
+            - Submitted
+        completedSteps:
+          type: array
+          items: { type: string }
+        onboardingState: { type: string, enum: [Pending, InWizard, Active] }
+
+    LegalEntityStep:
+      type: object
+      required: [legalEntityName]
+      properties:
+        legalEntityName: { type: string, minLength: 1, maxLength: 300 }
+        doDComponent: { type: string, maxLength: 120 }
+        timeZone: { type: string, default: UTC }
+
+    HqAddressStep:
+      type: object
+      required: [hqAddressLine1, hqCity, hqStateOrProvince, hqPostalCode, hqCountry]
+      properties:
+        hqAddressLine1: { type: string, minLength: 1, maxLength: 200 }
+        hqAddressLine2: { type: string, maxLength: 200 }
+        hqCity: { type: string, minLength: 1, maxLength: 120 }
+        hqStateOrProvince: { type: string, minLength: 1, maxLength: 120 }
+        hqPostalCode: { type: string, minLength: 1, maxLength: 20 }
+        hqCountry: { type: string, minLength: 2, maxLength: 80 }
+
+    ClassificationStep:
+      type: object
+      required: [defaultClassificationLevel]
+      properties:
+        defaultClassificationLevel:
+          type: string
+          enum: [Unclassified, CUI, Secret]
+
+    AoStep:
+      type: object
+      required: [authorizingOfficialName, authorizingOfficialEmail]
+      properties:
+        authorizingOfficialName: { type: string, minLength: 1, maxLength: 200 }
+        authorizingOfficialEmail: { type: string, format: email }
+
+    PrimaryPocStep:
+      type: object
+      required: [primaryPocName, primaryPocEmail]
+      properties:
+        primaryPocName: { type: string, minLength: 1, maxLength: 200 }
+        primaryPocEmail: { type: string, format: email }
+        primaryPocPhone: { type: string, maxLength: 40 }
+
+    OrgProfileStep:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+
+security:
+  - cacJwt: []
+
+paths:
+  /api/onboarding/tenant/state:
+    get:
+      summary: Get the current onboarding state and next step for the caller's tenant.
+      operationId: getTenantOnboardingState
+      responses:
+        '200':
+          description: Current state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/OnboardingState' }
+
+  /api/onboarding/tenant/legal-entity:
+    post:
+      summary: Submit Step 1 (legal entity).
+      operationId: submitLegalEntityStep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LegalEntityStep' }
+      responses:
+        '200':
+          description: Step accepted. Audit row written (Action=TenantOnboarding.LegalEntity).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/OnboardingState' }
+
+  /api/onboarding/tenant/hq-address:
+    post:
+      summary: Submit Step 2 (HQ address).
+      operationId: submitHqAddressStep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HqAddressStep' }
+      responses:
+        '200':
+          description: Step accepted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/OnboardingState' }
+
+  /api/onboarding/tenant/classification:
+    post:
+      summary: Submit Step 3 (default classification).
+      operationId: submitClassificationStep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClassificationStep' }
+      responses:
+        '200':
+          description: Step accepted.
+
+  /api/onboarding/tenant/ao:
+    post:
+      summary: Submit Step 4 (Authorizing Official).
+      operationId: submitAoStep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AoStep' }
+      responses:
+        '200':
+          description: Step accepted.
+
+  /api/onboarding/tenant/primary-poc:
+    post:
+      summary: Submit Step 5 (primary POC).
+      operationId: submitPrimaryPocStep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PrimaryPocStep' }
+      responses:
+        '200':
+          description: Step accepted.
+
+  /api/onboarding/tenant/org-profile:
+    post:
+      summary: Submit Step 6 (first organization profile). Creates Organizations row and binds future artifacts.
+      operationId: submitOrgProfileStep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrgProfileStep' }
+      responses:
+        '200':
+          description: Organization created. Wizard transitions to `Submitted`.
+
+  /api/onboarding/tenant/submit:
+    post:
+      summary: Finalize the wizard, transitioning OnboardingState to Active.
+      operationId: submitWizard
+      responses:
+        '200':
+          description: Tenant marked Active. Subsequent requests bypass the wizard.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/OnboardingState' }
+        '422':
+          description: Required fields missing — wizard cannot finalize.

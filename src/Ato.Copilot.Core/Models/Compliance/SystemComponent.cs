@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// An element of the system inventory categorized as Person, Place, or Thing.
 /// Used for SSP Appendix A generation.
 /// </summary>
+[TenantScoped]
 public class SystemComponent
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

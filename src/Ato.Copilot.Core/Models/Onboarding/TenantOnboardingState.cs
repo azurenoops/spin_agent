@@ -1,9 +1,11 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
 /// Per-tenant onboarding wizard state (Feature 047). Drives whether the wizard
 /// auto-opens, where it resumes, and whether re-runs are recorded. One row per tenant.
 /// </summary>
+[TenantScoped]
 public class TenantOnboardingState
 {
     /// <summary>Primary key.</summary>

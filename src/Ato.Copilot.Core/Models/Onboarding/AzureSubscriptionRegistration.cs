@@ -1,9 +1,11 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
 /// Per-tenant Azure subscription registration (Step 5). Recorded after the admin grants
 /// delegated ARM consent and selects subscriptions to bring under the wizard's scope.
 /// </summary>
+[TenantScoped]
 public class AzureSubscriptionRegistration
 {
     /// <summary>Primary key.</summary>

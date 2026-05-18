@@ -1,9 +1,11 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
 /// Per-PDF record for an SSP PDF ingestion session (Step 4). Multiple sessions can share a
 /// <see cref="BatchId"/> when an admin uploads several PDFs at once.
 /// </summary>
+[TenantScoped]
 public class SspPdfImportSession
 {
     /// <summary>Primary key.</summary>

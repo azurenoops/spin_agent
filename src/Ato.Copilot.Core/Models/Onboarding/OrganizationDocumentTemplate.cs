@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
@@ -6,6 +7,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// invariant is enforced both by a filtered unique index and by service transactions
 /// (data-model.md §"Default-template 'exactly one' invariant").
 /// </summary>
+[TenantScoped]
 public class OrganizationDocumentTemplate
 {
     /// <summary>Primary key.</summary>

@@ -1,4 +1,5 @@
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Kanban;
 
@@ -19,8 +20,15 @@ public abstract class ConcurrentEntity
 /// <summary>
 /// Represents a Kanban board grouping remediation tasks for a subscription.
 /// </summary>
+[TenantScoped]
 public class RemediationBoard : ConcurrentEntity
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique board identifier (GUID format).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -55,8 +63,15 @@ public class RemediationBoard : ConcurrentEntity
 /// <summary>
 /// Represents a single remediation work item (Kanban card).
 /// </summary>
+[TenantScoped]
 public class RemediationTask : ConcurrentEntity
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique task identifier (GUID format).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -150,8 +165,15 @@ public class RemediationTask : ConcurrentEntity
 /// A threaded comment on a remediation task.
 /// Supports single-level threading, @mentions, edit/delete windows, and soft deletion.
 /// </summary>
+[TenantScoped]
 public class TaskComment
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique comment identifier (GUID format).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -196,8 +218,15 @@ public class TaskComment
 /// An immutable record of a change to a remediation task.
 /// INSERT-only — no UPDATE or DELETE operations (except cascade from parent).
 /// </summary>
+[TenantScoped]
 public class TaskHistoryEntry
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique history entry identifier (GUID format).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 

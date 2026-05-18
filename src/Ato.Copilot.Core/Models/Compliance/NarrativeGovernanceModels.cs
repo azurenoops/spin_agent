@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -22,8 +23,15 @@ public enum ReviewDecision
 /// tracks the current version number.
 /// </summary>
 /// <remarks>Feature 024 – Narrative Governance.</remarks>
+[TenantScoped]
 public class NarrativeVersion
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]
@@ -78,8 +86,15 @@ public class NarrativeVersion
 /// Multiple reviews can exist per version (e.g. request-revision then approve after edits).
 /// </summary>
 /// <remarks>Feature 024 – Narrative Governance.</remarks>
+[TenantScoped]
 public class NarrativeReview
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]

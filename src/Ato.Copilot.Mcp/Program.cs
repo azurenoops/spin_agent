@@ -19,6 +19,8 @@ using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Endpoints.Onboarding;
+using Ato.Copilot.Mcp.Endpoints.Csp;
+using Ato.Copilot.Mcp.Endpoints.Tenancy;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Logging;
 using Ato.Copilot.Mcp.Server;
@@ -43,6 +45,13 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("System", LogEventLevel.Warning)
     .Enrich.FromLogContext()
     .Enrich.WithProperty("Application", "ATO Copilot")
+    // Feature 048 tenant log-context properties (populated per request via
+    // LogContext.PushProperty in TenantResolutionMiddleware / TenantContextLogEnricher).
+    // Declared up front so they appear consistently in structured logs.
+    .Enrich.WithProperty("TenantId", (string?)null)
+    .Enrich.WithProperty("EffectiveTenantId", (string?)null)
+    .Enrich.WithProperty("ImpersonatedTenantId", (string?)null)
+    .Enrich.WithProperty("ActorTenantId", (string?)null)
     .Destructure.With<SensitiveDataDestructuringPolicy>()
     .WriteTo.File(
         path: "logs/ato-copilot-.log",
@@ -58,6 +67,11 @@ if (mode != "stdio")
         .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
         .Enrich.FromLogContext()
         .Enrich.WithProperty("Application", "ATO Copilot")
+        // Feature 048 tenant log-context properties (see comment in stdio config above).
+        .Enrich.WithProperty("TenantId", (string?)null)
+        .Enrich.WithProperty("EffectiveTenantId", (string?)null)
+        .Enrich.WithProperty("ImpersonatedTenantId", (string?)null)
+        .Enrich.WithProperty("ActorTenantId", (string?)null)
         .Destructure.With<SensitiveDataDestructuringPolicy>()
         .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
         .WriteTo.File(
@@ -76,7 +90,7 @@ try
     else
         await RunHttpModeAsync(args);
 }
-catch (Exception ex)
+catch (Exception ex) when (!IsHostBuildAbortedException(ex))
 {
     Log.Fatal(ex, "ATO Copilot terminated unexpectedly");
     Environment.ExitCode = 1;
@@ -84,6 +98,19 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+// Allow Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory to capture the
+// built host: it aborts the entry point with HostAbortedException (or the
+// HostFactoryResolver internal StopTheHostException) AFTER the host is built.
+// Both must propagate out of Main; if the outer catch swallows them the
+// integration-test fixture reports "entry point exited without ever building
+// an IHost" or "the server has not been started".
+static bool IsHostBuildAbortedException(Exception ex)
+{
+    var typeName = ex.GetType().FullName ?? string.Empty;
+    return typeName == "Microsoft.Extensions.Hosting.HostAbortedException"
+        || typeName.Contains("HostFactoryResolver", StringComparison.Ordinal);
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -278,6 +305,13 @@ async Task RunHttpModeAsync(string[] args)
         });
     builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.INotificationBroadcaster,
         Ato.Copilot.Mcp.Services.SignalRNotificationBroadcaster>();
+    // Feature 048 (T149): tenant impersonation fan-out (consumed by TenantsEndpoints).
+    builder.Services.AddSingleton<Ato.Copilot.Mcp.Hubs.ITenantContextNotifier,
+        Ato.Copilot.Mcp.Hubs.TenantContextNotifier>();
+    // Feature 048 (T187, US8/SC-005): CSP cross-tenant dashboard fan-out
+    // (broadcast on tenant Status transitions from TenantsEndpoints).
+    builder.Services.AddSingleton<Ato.Copilot.Mcp.Hubs.ICspDashboardNotifier,
+        Ato.Copilot.Mcp.Hubs.CspDashboardNotifier>();
 
     // Onboarding wizard (Feature 047) — bind options + register policy / services / hosted job worker.
     builder.Services.Configure<Ato.Copilot.Core.Configuration.OnboardingOptions>(
@@ -361,6 +395,79 @@ async Task RunHttpModeAsync(string[] args)
         Ato.Copilot.Agents.Compliance.Services.Onboarding.Cascade.ImportRerenderJobHandler>();
     builder.Services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobHostedService>();
 
+    // Tenancy (Feature 048) — bind options + register ITenantContext / accessor.
+    // The accessor is Singleton (AsyncLocal-backed); the context itself is Scoped
+    // and populated per-request by TenantResolutionMiddleware (added in Phase 3).
+    builder.Services.Configure<Ato.Copilot.Mcp.Configuration.DeploymentOptions>(
+        builder.Configuration.GetSection(Ato.Copilot.Mcp.Configuration.DeploymentOptions.SectionName));
+    builder.Services.Configure<Ato.Copilot.Mcp.Configuration.RoleClaimMappingsOptions>(
+        builder.Configuration.GetSection(Ato.Copilot.Mcp.Configuration.RoleClaimMappingsOptions.SectionName));
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContextAccessor,
+        Ato.Copilot.Core.Services.Tenancy.TenantContextAccessor>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext,
+        Ato.Copilot.Core.Services.Tenancy.TenantContext>();
+    // T041: SaveChanges interceptor that stamps TenantId + validates FK consistency.
+    builder.Services.AddSingleton<Ato.Copilot.Core.Data.Interceptors.TenantStampingSaveChangesInterceptor>();
+    // T107 [US5]: SQL Server SESSION_CONTEXT publisher — emits TenantId /
+    // EffectiveTenantId / IsCspAdmin on every connection open so the RLS
+    // policy installed by RlsPolicyInstaller can enforce defense-in-depth
+    // tenancy at the database layer (FR-030 / FR-031). No-op on SQLite.
+    builder.Services.AddSingleton<Ato.Copilot.Core.Data.Interceptors.SqlServerSessionContextConnectionInterceptor>();
+    // T066: tenant provisioning surface for /api/tenants endpoints.
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ITenantProvisioningService,
+        Ato.Copilot.Core.Services.Tenancy.TenantProvisioningService>();
+    // T093 [US4]: Tenant-and-Organization onboarding wizard service
+    // (Feature 048 / FR-054). Scoped so it can pull a fresh DbContext per
+    // request via IDbContextFactory.
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ITenantOnboardingService,
+        Ato.Copilot.Core.Services.Tenancy.TenantOnboardingService>();
+    // T162 [US7]: CSP-Admin singleton-profile + onboarding-wizard service
+    // (Feature 048 / FR-006 / FR-090 / FR-092). Scoped to honor
+    // IDbContextFactory + IMemoryCache lifetimes; the 30 s read cache is
+    // backed by the singleton IMemoryCache so it spans requests.
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspProfileService,
+        Ato.Copilot.Core.Services.Tenancy.CspProfileService>();
+    // T177 [US8]: CSP-Admin cross-tenant operational dashboard service
+    // (Feature 048 / FR-094 / FR-098). Scoped to share the
+    // IDbContextFactory pool + ITenantContext request scope. Reads execute on
+    // the CSP-Admin global path (T042 query filter returns every row).
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspDashboardService,
+        Ato.Copilot.Core.Services.Tenancy.CspDashboardService>();
+    // T123 (FR-073..FR-076): shared multi-tenant migration logic used by
+    // both /api/admin/migrate-to-multitenant and `ato-cli tenant migrate`.
+    builder.Services.AddScoped<Ato.Copilot.Core.Services.Tenancy.MultiTenantMigrationService>();
+    // T134 (FR-081/FR-082): cross-tenant baseline publish/unpublish service.
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.IGlobalBaselineService,
+        Ato.Copilot.Core.Services.Tenancy.GlobalBaselineService>();
+    // Feature 048 follow-up (user ask #2): per-org NIST control overrides.
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.IOrgControlOverrideService,
+        Ato.Copilot.Core.Services.Tenancy.OrgControlOverrideService>();
+    // T067: HMAC-signed impersonation cookie service. Singleton because the
+    // signing key is loaded once at startup; all state lives in the cookie.
+    builder.Services.AddSingleton<Ato.Copilot.Mcp.Services.Tenancy.ITenantImpersonationService>(sp =>
+    {
+        var cfg = sp.GetRequiredService<IConfiguration>();
+        var env = sp.GetRequiredService<Microsoft.Extensions.Hosting.IHostEnvironment>();
+        var key = cfg["Auth:Impersonation:SigningKey"];
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            // Feature 048 §T152 (OWASP A02): in production, missing key is
+            // fatal at startup. The intended source is Azure Key Vault, wired
+            // through the configuration provider chain as
+            // Auth:Impersonation:SigningKey (base64-encoded 32-byte value).
+            if (env.IsProduction())
+            {
+                throw new InvalidOperationException(
+                    "Auth:Impersonation:SigningKey is not configured. Production " +
+                    "deployments MUST source this from Azure Key Vault — refusing to " +
+                    "fall back to the dev-only key.");
+            }
+            // Development fallback only — stable, non-secret dev key.
+            key = "dev-only-impersonation-signing-key-change-me-please-32b";
+        }
+        return new Ato.Copilot.Mcp.Services.Tenancy.TenantImpersonationService(key);
+    });
+
     var app = builder.Build();
 
     // Auto-migrate database at startup (fail = exit code 1)
@@ -380,6 +487,10 @@ async Task RunHttpModeAsync(string[] args)
     app.UseRateLimiter();
     app.UseMiddleware<RequestSizeLimitMiddleware>();
     app.UseMiddleware<CacAuthenticationMiddleware>();
+    // T069 (Feature 048): tenant scope MUST be resolved BEFORE authorization
+    // checks so role gates can read ITenantContext.IsCspAdmin and the global
+    // EF query filter sees the resolved EffectiveTenantId.
+    app.UseMiddleware<TenantResolutionMiddleware>();
     app.UseMiddleware<ComplianceAuthorizationMiddleware>();
     app.UseMiddleware<RequestMetricsMiddleware>();
     app.UseMiddleware<AuditLoggingMiddleware>();
@@ -416,10 +527,36 @@ async Task RunHttpModeAsync(string[] args)
     app.MapOrganizationTemplateEndpoints();
     app.MapNarrativeSeedEndpoints();
     app.MapImportedDocumentsEndpoints();
+    // Feature 048 (T070): tenants administration + impersonation surface.
+    app.MapTenantsEndpoints();
+    // Feature 048 (T084): deployment-mode probe for dashboard mode-aware UI.
+    app.MapDeploymentEndpoints();
+    // Feature 048 (T093 [US4]): tenant-and-organization onboarding wizard.
+    app.MapTenantOnboardingEndpoints();
+    // Feature 048 (T163 [US7]): CSP-Admin onboarding wizard.
+    app.MapCspOnboardingEndpoints();
+    // Feature 048 (T208 [US9]): CSP-inherited components management surface
+    // — read-only across tenants, write-gated to CSP-Admin (FR-104..FR-106).
+    app.MapCspInheritedComponentEndpoints();
+    // Feature 048 (T181 [US8]): CSP-Admin cross-tenant operational dashboard.
+    app.MapCspDashboardEndpoints();
+    // Feature 048 (T116 [US6]): CSP-Admin audit query surface.
+    app.MapAuditQueryEndpoints();
+    // Feature 048 (T124, FR-073..FR-076): CSP-Admin migration utility surface.
+    app.MapAdminMigrationEndpoints();
+    // Feature 048 (T135, FR-081/FR-082): CSP-Admin cross-tenant baseline publish/unpublish surface.
+    app.MapGlobalBaselineEndpoints();
+    // Feature 048 follow-up (user ask #2): per-org NIST control override surface.
+    app.MapOrgControlOverrideEndpoints();
 
     // Map SignalR notification hub
     app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications");
     app.MapHub<Ato.Copilot.Mcp.Hubs.PackageHub>("/hubs/package");
+    // Feature 048 (T149): tenant impersonation fan-out for connected dashboards.
+    app.MapHub<Ato.Copilot.Mcp.Hubs.TenantContextHub>("/hubs/tenant-context");
+    // Feature 048 (T187, US8/SC-005): CSP cross-tenant dashboard fan-out for
+    // tenant Status transitions (Active/Suspended/Disabled).
+    app.MapHub<Ato.Copilot.Mcp.Hubs.CspDashboardHub>("/hubs/csp-dashboard");
 
     // Health check endpoint with custom JSON writer (per FR-045 / SC-015)
     app.MapHealthChecks("/health", new HealthCheckOptions
@@ -479,6 +616,8 @@ async Task MigrateDatabaseAsync(IServiceProvider services)
     using var scope = services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<AtoCopilotContext>>();
+    var deploymentOpts = scope.ServiceProvider
+        .GetService<Microsoft.Extensions.Options.IOptions<Ato.Copilot.Mcp.Configuration.DeploymentOptions>>()?.Value;
 
     try
     {
@@ -499,7 +638,7 @@ async Task MigrateDatabaseAsync(IServiceProvider services)
             await EnsureNewTablesAsync(db, logger, cts.Token);
 
             // Always apply column additions to existing tables
-            await EnsureSchemaAdditionsAsync(db, logger, cts.Token);
+            await EnsureSchemaAdditionsAsync(db, logger, cts.Token, deploymentOpts);
 
             logger.LogInformation("SQL Server database ready");
         }
@@ -507,6 +646,11 @@ async Task MigrateDatabaseAsync(IServiceProvider services)
         {
             logger.LogInformation("Applying database migrations...");
             await db.Database.MigrateAsync(cts.Token);
+            // Feature 048 (T056): apply additive tenancy schema (Tenants /
+            // Organizations tables, plus TenantId columns on every
+            // [TenantScoped] entity) on top of the migration baseline. The
+            // additions are idempotent so it's safe to re-run on every boot.
+            await EnsureSchemaAdditionsAsync(db, logger, cts.Token, deploymentOpts);
             logger.LogInformation("Database migrations applied successfully");
         }
     }
@@ -683,7 +827,7 @@ string GetSqlServerColumnType(Microsoft.EntityFrameworkCore.Metadata.IProperty p
 /// <summary>
 /// Applies ALTER TABLE ADD COLUMN for known schema additions that EnsureCreated won't cover.
 /// </summary>
-async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions.Logging.ILogger<AtoCopilotContext> logger, CancellationToken ct)
+async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions.Logging.ILogger<AtoCopilotContext> logger, CancellationToken ct, Ato.Copilot.Mcp.Configuration.DeploymentOptions? deploymentOptions = null)
 {
     // Add columns/indexes that were added to existing tables after initial EnsureCreated
     const string alterSql = """
@@ -895,6 +1039,56 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     {
         logger.LogWarning(ex, "Could not apply Feature 040 schema — non-fatal");
     }
+
+    // Feature 048: Tenancy schema additions (Tenants, Organizations) and system-tenant bootstrap.
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantsAndOrganizationsSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    // Feature 048 (T056): Adds TenantId column + index to every retrofitted
+    // [TenantScoped] entity table. Idempotent / additive.
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantIdColumnAdditions
+        .ApplyAsync(db, logger, ct);
+    // Feature 048 (T073): Adds AuditLogs.ActorTenantId / ImpersonatedTenantId
+    // columns plus the two composite tenant-attribution indexes.
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.AuditLogTenantAttributionAdditions
+        .ApplyAsync(db, logger, ct);
+    // Feature 048 (T134): Adds GlobalBaselines table for cross-tenant sharing.
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.GlobalBaselineSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Services.Tenancy.TenantBootstrapService.EnsureSystemTenantAsync(db, logger, ct);
+    // T060: Backfill OrganizationContext rows whose TenantId still holds the
+    // Entra `tid` rather than the new Tenants.Id. Idempotent; no-op once done.
+    await Ato.Copilot.Core.Services.Tenancy.TenantBootstrapService
+        .BackfillOrganizationContextTenantIdsAsync(db, logger, ct);
+
+    // Feature 048 (T081–T083, FR-070 / FR-071): in SingleTenant mode ensure
+    // the default tenant exists and backfill any NULL TenantId rows; in
+    // MultiTenant mode fail fast if any retrofitted table still holds NULL
+    // TenantIds. The deployment options are passed through from the
+    // Migrate/Startup call sites which both have IServiceProvider access.
+    // Skip when deploymentOptions is null (e.g. when EnsureNewTablesAsync's
+    // nested call runs the schema additions during table creation — the
+    // outer call site that owns the deployment options will perform the
+    // bootstrap once tables are confirmed present).
+    if (deploymentOptions is not null)
+    {
+        var isSingleTenant = deploymentOptions.Mode == Ato.Copilot.Mcp.Configuration.DeploymentMode.SingleTenant;
+        await Ato.Copilot.Core.Services.Tenancy.TenantBootstrapService
+            .EnsureDefaultTenantAndBackfillAsync(
+                db,
+                isSingleTenantMode: isSingleTenant,
+                defaultTenantIdOverride: deploymentOptions.DefaultTenantId,
+                logger,
+                ct);
+    }
+
+    // Feature 048 (T109 / T110, FR-030 – FR-032): install Row-Level Security
+    // FILTER + BLOCK predicates on every [TenantScoped] table when running
+    // against SQL Server. Idempotent (drops + re-creates the policy so a new
+    // [TenantScoped] entity added in a later release picks up the predicate
+    // automatically). For SQLite, RlsPolicyInstaller.ApplyAsync emits the
+    // FR-033 startup warning that RLS is unavailable.
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.RlsPolicyInstaller
+        .ApplyAsync(db, logger, ct);
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -983,4 +1177,26 @@ async Task WriteHealthCheckResponseAsync(HttpContext context, HealthReport repor
     });
 
     await context.Response.WriteAsync(json);
+}
+
+// ----------------------------------------------------------------------------
+// Test-host hook (Feature 048 / WebApplicationFactory)
+// ----------------------------------------------------------------------------
+// `Program` is the implicit class produced by C# top-level statements. The
+// integration test project references both the MCP host (this project) and
+// the Chat host, each of which produces a global-namespace `Program`. To
+// allow `WebApplicationFactory<McpProgram>` to target the MCP host
+// unambiguously from tests, we expose this empty marker class in the
+// `Ato.Copilot.Mcp` namespace. WebApplicationFactory only uses TEntryPoint
+// to locate the application's assembly — it does not invoke the type itself.
+namespace Ato.Copilot.Mcp
+{
+    /// <summary>
+    /// Test-host marker for <c>Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory&lt;T&gt;</c>.
+    /// Tests that need to bring up the MCP host should use
+    /// <c>WebApplicationFactory&lt;McpProgram&gt;</c>; the factory will discover
+    /// the top-level Program entry point via the assembly that defines
+    /// <see cref="McpProgram"/>.
+    /// </summary>
+    public sealed class McpProgram { }
 }

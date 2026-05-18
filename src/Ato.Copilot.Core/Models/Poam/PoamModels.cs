@@ -1,13 +1,21 @@
 using System.ComponentModel.DataAnnotations;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Poam;
 
 /// <summary>
 /// Junction entity linking a <see cref="PoamItem"/> to a <see cref="SystemComponent"/> (many-to-many).
 /// </summary>
+[TenantScoped]
 public class PoamComponentLink
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -41,8 +49,15 @@ public class PoamComponentLink
 /// <summary>
 /// Immutable audit trail entry for a <see cref="PoamItem"/>. Insert-only.
 /// </summary>
+[TenantScoped]
 public class PoamHistoryEntry
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();

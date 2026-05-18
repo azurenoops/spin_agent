@@ -43,6 +43,7 @@ public class DefaultMessageHandlerTests
             _conversationStateMock.Object,
             opts,
             _loggerMock.Object,
+            new NullTenantScopeBinder(),
             agentInvoker);
     }
 

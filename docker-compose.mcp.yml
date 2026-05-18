@@ -85,6 +85,18 @@ services:
       - ATO_DATABASE__PROVIDER=SqlServer
       - ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION=Server=sqlserver,1433;Database=AtoCopilot;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True
 
+      # ── Tenancy (Feature 048) ────────────────────────────
+      # MultiTenant is required to exercise the CSP onboarding wizard
+      # (US7) and the CSP inherited-components surface (US9 / slice 4 of
+      # T211–T216). Override to SingleTenant for self-host evaluation.
+      - ATO_DEPLOYMENT__MODE=${ATO_DEPLOYMENT__MODE:-MultiTenant}
+      # Grant the simulated dev identity the CSP.Admin role so it can
+      # exercise the CSP-Admin-gated actions (Import, Edit, Publish,
+      # Archive, Remap, NeedsReview). The role array in
+      # appsettings.Development.json already supplies indices 0/1
+      # ("Global Reader", "ISSO"); the env-var below adds index 2.
+      - ATO_CACAUTH__SIMULATEDIDENTITY__ROLES__2=CSP.Admin
+
       # ── Feature flags ─────────────────────────────────────
       # Default ON for the local stack so the dashboard's "Discover from
       # Entra ID" dialog can call Microsoft Graph. Override to false in

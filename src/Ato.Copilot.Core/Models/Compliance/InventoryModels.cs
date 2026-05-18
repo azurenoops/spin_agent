@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -72,8 +73,15 @@ public enum SoftwareFunction
 /// A single hardware or software component within a system's authorization boundary.
 /// Tracks eMASS-required fields for HW/SW inventory and SSP integration.
 /// </summary>
+[TenantScoped]
 public class InventoryItem
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID string).</summary>
     [Key]
     [MaxLength(36)]

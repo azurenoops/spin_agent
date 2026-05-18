@@ -19,6 +19,7 @@ public class DefaultMessageHandler : IMessageHandler
     private readonly Func<IncomingMessage, CancellationToken, Task<ChannelMessage>>? _agentInvoker;
     private readonly IOptions<ChannelOptions> _options;
     private readonly ILogger<DefaultMessageHandler> _logger;
+    private readonly ITenantScopeBinder _tenantScopeBinder;
 
     /// <summary>
     /// Initializes a new instance of DefaultMessageHandler.
@@ -28,12 +29,14 @@ public class DefaultMessageHandler : IMessageHandler
         IConversationStateManager conversationState,
         IOptions<ChannelOptions> options,
         ILogger<DefaultMessageHandler> logger,
+        ITenantScopeBinder tenantScopeBinder,
         Func<IncomingMessage, CancellationToken, Task<ChannelMessage>>? agentInvoker = null)
     {
         _channelManager = channelManager;
         _conversationState = conversationState;
         _options = options;
         _logger = logger;
+        _tenantScopeBinder = tenantScopeBinder;
         _agentInvoker = agentInvoker;
     }
 
@@ -42,6 +45,11 @@ public class DefaultMessageHandler : IMessageHandler
     {
         _logger.LogInformation("Handling message from connection {ConnectionId} in conversation {ConversationId}",
             message.ConnectionId, message.ConversationId);
+
+        // Bind the inbound tenant envelope (if any) for the duration of message
+        // processing so persistence + agent invocation see the same ambient
+        // tenant context (FR-021/FR-024). NullTenantScopeBinder is a safe no-op.
+        using var tenantScope = _tenantScopeBinder.Bind(message.TenantContext);
 
         try
         {

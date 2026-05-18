@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Models.Auth;
+using Ato.Copilot.Mcp.Configuration;
 
 namespace Ato.Copilot.Mcp.Middleware;
 
@@ -22,6 +23,7 @@ public class CacAuthenticationMiddleware
     private readonly ILogger<CacAuthenticationMiddleware> _logger;
     private readonly AzureAdOptions _azureAdOptions;
     private readonly CacAuthOptions _cacAuthOptions;
+    private readonly RoleClaimMappingsOptions _roleClaimMappings;
     private readonly IHostEnvironment _hostEnvironment;
 
     /// <summary>
@@ -31,12 +33,14 @@ public class CacAuthenticationMiddleware
         RequestDelegate next,
         IOptions<AzureAdOptions> azureAdOptions,
         IOptions<CacAuthOptions> cacAuthOptions,
+        IOptions<RoleClaimMappingsOptions> roleClaimMappings,
         IHostEnvironment hostEnvironment,
         ILogger<CacAuthenticationMiddleware> logger)
     {
         _next = next;
         _azureAdOptions = azureAdOptions.Value;
         _cacAuthOptions = cacAuthOptions.Value;
+        _roleClaimMappings = roleClaimMappings.Value;
         _hostEnvironment = hostEnvironment;
         _logger = logger;
     }
@@ -229,6 +233,11 @@ public class CacAuthenticationMiddleware
                 claims.Add(new Claim(claim.Type, claim.Value));
             }
 
+            // Feature 048 FR-050: Translate configured Entra Security-Group object IDs
+            // (carried as `groups` claims on the JWT) into named roles on the principal.
+            // Today only `CSP.Admin` is mapped; extend `RoleClaimMappingsOptions` for more.
+            ApplyGroupToRoleMappings(claims);
+
             var identity = new ClaimsIdentity(claims, "Bearer");
             context.User = new ClaimsPrincipal(identity);
 
@@ -293,5 +302,42 @@ public class CacAuthenticationMiddleware
             return ClientType.Web;
 
         return ClientType.CLI;
+    }
+
+    /// <summary>
+    /// Feature 048 FR-050: Inspects the JWT's <c>groups</c> claim values for
+    /// configured Entra Security-Group object IDs (e.g., <c>CSP.Admin</c>) and
+    /// appends a corresponding <see cref="ClaimTypes.Role"/> claim to the list.
+    /// Idempotent: if the role claim is already present, no duplicate is added.
+    /// </summary>
+    /// <param name="claims">Mutable list of claims to be wrapped into the principal.</param>
+    private void ApplyGroupToRoleMappings(List<Claim> claims)
+    {
+        var cspAdminGroupId = _roleClaimMappings.GetGroupIdForRole("CSP.Admin");
+        if (string.IsNullOrWhiteSpace(cspAdminGroupId))
+        {
+            return; // CSP.Admin elevation disabled in this deployment.
+        }
+
+        // Entra emits group memberships as either `groups` (object id) or `wids`
+        // (well-known role id) claims. Match against the configured object id.
+        var hasGroup = claims.Any(c =>
+            string.Equals(c.Type, "groups", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(c.Value, cspAdminGroupId, StringComparison.OrdinalIgnoreCase));
+
+        if (!hasGroup)
+        {
+            return;
+        }
+
+        var alreadyHasRole = claims.Any(c =>
+            string.Equals(c.Type, ClaimTypes.Role, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(c.Value, "CSP.Admin", StringComparison.Ordinal));
+
+        if (!alreadyHasRole)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, "CSP.Admin"));
+            _logger.LogDebug("Mapped Entra group {GroupId} → role CSP.Admin", cspAdminGroupId);
+        }
     }
 }

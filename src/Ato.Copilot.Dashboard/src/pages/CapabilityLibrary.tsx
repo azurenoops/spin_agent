@@ -20,6 +20,13 @@ import {
   getCoverage,
 } from '../api/capabilities';
 import type { CapabilityImpactPreview } from '../api/capabilities';
+import {
+  isUnavailable as isCspUnavailable,
+  listCspInheritedCapabilities,
+  listCspInheritedComponents,
+  type CspInheritedCapability,
+  type CspInheritedComponent,
+} from '../features/csp-inherited-components/api';
 import type {
   SecurityCapabilityDto,
   CreateCapabilityRequest,
@@ -68,6 +75,72 @@ export default function CapabilityLibrary() {
   );
   const { data, refresh } = usePolling<PaginatedResponse<SecurityCapabilityDto>>(fetcher, 30000);
   const capabilities = data?.items ?? [];
+
+  // ─── CSP-inherited capabilities (Feature 048 / FR-104) ──────────────
+  // Org users see CSP-published capabilities alongside their own,
+  // badged with a violet "CSP" chip and read-only (no edit / delete /
+  // link). Reference-only per the user's UX choice. The endpoint
+  // silently self-hides for SingleTenant deployments and pre-onboarding
+  // tenants. We fan out: list Published components first, then fetch
+  // each one's capabilities in parallel — same pattern as
+  // `CspCapabilitiesPage`.
+  type CspCapabilityRow = CspInheritedCapability & {
+    componentName: string;
+    componentType: CspInheritedComponent['componentType'];
+  };
+  const [cspRows, setCspRows] = useState<CspCapabilityRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const componentsResult = await listCspInheritedComponents({
+          status: 'Published',
+          pageSize: 200,
+        });
+        if (cancelled) return;
+        if (isCspUnavailable(componentsResult)) {
+          setCspRows([]);
+          return;
+        }
+        const fanOut = await Promise.all(
+          componentsResult.items.map(async (comp) => {
+            try {
+              const caps = await listCspInheritedCapabilities(comp.id);
+              return caps.map<CspCapabilityRow>((c) => ({
+                ...c,
+                componentName: comp.name,
+                componentType: comp.componentType,
+              }));
+            } catch {
+              return [] as CspCapabilityRow[];
+            }
+          }),
+        );
+        if (cancelled) return;
+        setCspRows(fanOut.flat());
+      } catch {
+        if (!cancelled) setCspRows([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const visibleCspRows = cspRows.filter((row) => {
+    const term = search.trim().toLowerCase();
+    if (term) {
+      const haystack = `${row.name} ${row.description ?? ''} ${row.componentName}`.toLowerCase();
+      if (!haystack.includes(term)) return false;
+    }
+    // Org-form filters (NIST family, status) don't apply to CSP rows:
+    // CSP rows have a control-id list rather than a single family, and
+    // their status enum is Mapped/NeedsReview, not the org workflow.
+    // When either filter is set, omit CSP rows so the filtered org view
+    // stays clean; clear filters to see everything.
+    if (categoryFilter) return false;
+    if (statusFilter) return false;
+    return true;
+  });
 
   const loadCoverage = useCallback(async () => {
     setCoverageLoading(true);
@@ -365,7 +438,7 @@ export default function CapabilityLibrary() {
       )}
 
       {/* Capability list */}
-      {capabilities.length === 0 ? (
+      {capabilities.length === 0 && visibleCspRows.length === 0 ? (
         <GuidedEmptyState
           onCreateManually={() => { setShowCreate(true); setFormError(null); }}
           onImportCsp={() => setShowCspImport(true)}
@@ -373,7 +446,67 @@ export default function CapabilityLibrary() {
         />
       ) : (
         <div className="space-y-3">
-          <p className="text-sm text-gray-500 mb-2">{data?.totalCount ?? 0} capabilities</p>
+          <p className="text-sm text-gray-500 mb-2">
+            {data?.totalCount ?? 0} capabilit{(data?.totalCount ?? 0) === 1 ? 'y' : 'ies'}
+            {visibleCspRows.length > 0 && (
+              <>
+                {' '}
+                <span className="text-violet-700">
+                  +{visibleCspRows.length} CSP
+                </span>
+              </>
+            )}
+          </p>
+          {/* CSP-inherited capabilities render first, badged + read-only.
+              Reference-only — no edit, delete, or link controls. */}
+          {visibleCspRows.map((csp) => (
+            <div
+              key={`csp-${csp.id}`}
+              className="rounded-lg border border-violet-200 bg-violet-50/40 p-4 shadow-sm"
+              data-testid={`csp-capability-row-${csp.id}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center flex-wrap gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900 truncate">
+                      {csp.name}
+                    </h3>
+                    <span
+                      className="inline-flex items-center rounded-full border border-violet-300 bg-violet-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-violet-800"
+                      title="Inherited from CSP — read-only at the org scope"
+                    >
+                      CSP
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700">
+                      {csp.componentName}
+                    </span>
+                  </div>
+                  {csp.description && (
+                    <p className="mt-1 text-xs text-gray-600 line-clamp-2">
+                      {csp.description}
+                    </p>
+                  )}
+                  {csp.mappedNistControlIds.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {csp.mappedNistControlIds.slice(0, 8).map((cid) => (
+                        <span
+                          key={cid}
+                          className="inline-flex items-center rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-xs font-mono text-indigo-700"
+                        >
+                          {cid}
+                        </span>
+                      ))}
+                      {csp.mappedNistControlIds.length > 8 && (
+                        <span className="text-xs text-gray-500">
+                          +{csp.mappedNistControlIds.length - 8} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
           {capabilities.map((cap) => (
             <div key={cap.id}>
               <CapabilityCard

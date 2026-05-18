@@ -5,12 +5,20 @@ import { checkHealth } from "./commands/health";
 import { configure } from "./commands/configure";
 import { IacDiagnosticsProvider } from "./diagnostics/iacDiagnosticsProvider";
 import { IacCodeActionProvider } from "./codeActions/iacCodeActionProvider";
+import { TenantStatusBar } from "./services/tenantStatusBar";
 
 let outputChannel: vscode.OutputChannel;
 
 export function activate(context: vscode.ExtensionContext): void {
   outputChannel = vscode.window.createOutputChannel("ATO Copilot");
   const mcpClient = new McpClient(outputChannel);
+
+  // Tenant status bar — surfaces home/impersonated tenant per FR-024 (T141).
+  const tenantStatusBar = new TenantStatusBar();
+  context.subscriptions.push(tenantStatusBar);
+  mcpClient.setTenantContextProvider(() =>
+    tenantStatusBar.getOutboundContext()
+  );
 
   // Register @ato chat participant
   const participant = vscode.chat.createChatParticipant(

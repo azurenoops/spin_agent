@@ -3,6 +3,11 @@ import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
 import { useSettings } from '../hooks/useSettings';
 import apiClient from '../api/client';
+import {
+  type OrgControlOverrideDto,
+  listOrgControlOverrides,
+} from '../api/orgControlOverrides';
+import OrgControlOverridePanel from '../features/orgs/OrgControlOverridePanel';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -270,7 +275,16 @@ function filterControls(controls: FrameworkControl[], search: string, family: st
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export default function ControlCatalog() {
+/**
+ * Optional scope hint. When `csp` (rendered by the CSP-scope branch of
+ * `ControlsRoute`), the page hero hides the active-org chip and reads as a
+ * CSP-wide catalog rather than the per-organization view. Defaults to `org`.
+ */
+export interface ControlCatalogProps {
+  scope?: 'org' | 'csp';
+}
+
+export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = {}) {
   const { settings, updateSettings } = useSettings();
   const [search, setSearch] = useState('');
   const [familyFilter, setFamilyFilter] = useState('');
@@ -282,6 +296,12 @@ export default function ControlCatalog() {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<{ tone: 'success' | 'warning' | 'error'; text: string } | null>(null);
   const [defaultSaved, setDefaultSaved] = useState(false);
+
+  // Org-level overrides (Feature 048 follow-up — user ask #2). Map by
+  // controlId → most recent server-side override row, used to render the
+  // amber badge on rows the org has diverged on.
+  const [overrides, setOverrides] = useState<Map<string, OrgControlOverrideDto>>(new Map());
+  const [overrideControl, setOverrideControl] = useState<{ id: string; title?: string } | null>(null);
 
   // Direct fetch state — no polling (control catalog data is static)
   const [items, setItems] = useState<FrameworkControl[]>([]);
@@ -303,6 +323,23 @@ export default function ControlCatalog() {
     fetchFrameworks()
       .then(setFrameworks)
       .catch(() => setFrameworks([]));
+  }, []);
+
+  // Load org-level overrides once on mount; refresh when the panel saves.
+  useEffect(() => {
+    let cancelled = false;
+    listOrgControlOverrides()
+      .then((rows) => {
+        if (cancelled) return;
+        setOverrides(new Map(rows.map((r) => [r.controlId, r])));
+      })
+      .catch(() => {
+        // Non-fatal: overrides simply won't be badged.
+        if (!cancelled) setOverrides(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Build dynamic baseline columns from the active framework's baselines
@@ -454,9 +491,14 @@ export default function ControlCatalog() {
   return (
     <PageLayout title="Control Catalog">
       <PageHero
-        eyebrow="Controls"
+        eyebrow={scope === 'csp' ? 'Controls · CSP scope' : 'Controls'}
         title="Control Catalog"
-        description="Browse and manage the organization's control catalog and its associated frameworks."
+        description={
+          scope === 'csp'
+            ? "Browse and manage the CSP-wide control catalog and its associated frameworks. Drop into an organization via impersonation to see per-organization implementation status."
+            : "Browse and manage the organization's control catalog and its associated frameworks."
+        }
+        showOrgName={scope !== 'csp'}
       />
       <div className="space-y-4">
         {/* Import banner — show when no frameworks are imported yet */}
@@ -654,7 +696,19 @@ export default function ControlCatalog() {
               ) : (
                 displayItems.map(c => (
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setSelectedControlId(c.id)}>
-                    <td className="px-4 py-2.5 font-medium text-indigo-700 whitespace-nowrap">{c.id}</td>
+                    <td className="px-4 py-2.5 font-medium text-indigo-700 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span>{c.id}</span>
+                        {overrides.has(c.id) && (
+                          <span
+                            className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800"
+                            title="This org has overridden the CSP default for this control."
+                          >
+                            Org override
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{c.familyName}</td>
                     <td className="px-4 py-2.5 text-gray-700">{c.title}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap">
@@ -667,13 +721,21 @@ export default function ControlCatalog() {
                         {c.baselines[col.key] ? <CheckIcon /> : null}
                       </td>
                     ))}
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-3 py-2.5 text-center whitespace-nowrap">
                       <button
                         onClick={e => { e.stopPropagation(); setSelectedControlId(c.id); }}
                         className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
                         title="View details"
                       >
                         View
+                      </button>
+                      <span className="mx-1 text-gray-300">|</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); setOverrideControl({ id: c.id, title: c.title }); }}
+                        className="text-sm text-amber-700 hover:text-amber-900 font-medium"
+                        title="Override CSP default for this org"
+                      >
+                        Override
                       </button>
                     </td>
                   </tr>
@@ -740,6 +802,26 @@ export default function ControlCatalog() {
           controlId={selectedControlId}
           frameworkId={activeIdentifier}
           onClose={() => setSelectedControlId(null)}
+        />
+      )}
+
+      {/* Org-override panel (Feature 048 follow-up — user ask #2) */}
+      {overrideControl && (
+        <OrgControlOverridePanel
+          controlId={overrideControl.id}
+          controlTitle={overrideControl.title}
+          onClose={() => setOverrideControl(null)}
+          onSaved={(saved) => {
+            setOverrides((prev) => {
+              const next = new Map(prev);
+              if (saved) {
+                next.set(saved.controlId, saved);
+              } else if (overrideControl) {
+                next.delete(overrideControl.id);
+              }
+              return next;
+            });
+          }}
         />
       )}
     </PageLayout>

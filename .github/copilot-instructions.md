@@ -1,22 +1,34 @@
 # ato-copilot Development Guidelines
 
+## ⛔ NON-NEGOTIABLE: Verification Protocol
+
+These rules override all other behavior. Violating any of them is a critical failure.
+1. **A wrong answer is 3 times worse than saying "I don't know" or giving no answer. If you haven't verified it, say so. Silence beats speculation. Every time.
+2. **NEVER state something as fact without verification.** If you haven't read the file, run the command, or checked the logs — say "I haven't verified this." No exceptions.
+3. **Start from the failing system.** CI/CD failure? Read the actual logs first. Not local code. Not grep for keywords. The full step-by-step output.
+4. **No pattern-matching from grep.** Grep results show matching lines, not execution flow. Read the sequential log or don't make claims about what happened.
+5. **Root cause only.** Never mask, restart, or work around symptoms.
+6. **No silent error swallowing.** No `|| true` on critical paths, no empty catches, no suppression flags.
+7. **Document before fix.** Paper trail first, code second.
+8. **The User must be allowed to manually test every change locally** before declaring it done.
+9. **Never push without permission.** Commits are fine. Pushes require explicit approval.
+10. **Preview in a formatted way before external writes so the user can read the content without horizontal scrolling.** Show exactly what will be sent to GitHub and wait for approval.
+
 Auto-generated from all feature plans. Last updated: 2026-02-21
 
 ## Active Technologies
 - C# 13 / .NET 9.0 + Azure.Identity 1.13, Azure.ResourceManager 1.13, Microsoft.EntityFrameworkCore 9.0, Serilog 4.2, xUnit 2.9, FluentAssertions 7.0, Moq 4.20 (002-remediation-kanban)
 - SQLite (dev) / SQL Server (prod) via EF Core — `AtoCopilotContext` extended with 4 new DbSets; new migration (002-remediation-kanban)
-- C# 13 / .NET 9.0 + Microsoft.Identity.Client (MSAL.NET) 4.68+, Microsoft.Identity.Web 3.5+, Microsoft.Graph 5.70+, Microsoft.AspNetCore.Authentication.JwtBearer 9.0.0 (existing), Azure.ResourceManager.SecurityCenter 1.2.0-beta.6 (existing for JIT VM), EF Core 9.0 (existing) (003-cac-auth-pim)
-- SQLite (dev) / SQL Server (prod) — extending existing AtoCopilotContext with CacSession, JitRequestEntity, CertificateRoleMapping entities (003-cac-auth-pim)
-- C# 13 / .NET 9.0 + Microsoft.SemanticKernel 1.34, Microsoft.Identity.Web 3.5, Microsoft.Graph 5.70, Azure.ResourceManager.SecurityCenter, EF Core 9.0, Serilog, xUnit 2.9.3, FluentAssertions 7.0.0, Moq 4.20.72 (003-cac-auth-pim)
-- SQLite (dev) / SQL Server (prod) via EF Core; Azure Key Vault (prod secrets) (003-cac-auth-pim)
+- C# 13 / .NET 9.0 + Microsoft.Identity.Client (MSAL.NET) 4.68+, Microsoft.Identity.Web 3.5+, Microsoft.Graph 5.70+, Microsoft.AspNetCore.Authentication.JwtBearer 9.0.0, Azure.ResourceManager.SecurityCenter 1.2.0-beta.6, Microsoft.SemanticKernel 1.34, EF Core 9.0 (003-cac-auth-pim)
+- SQLite (dev) / SQL Server (prod) via EF Core; Azure Key Vault (prod secrets); extending existing AtoCopilotContext with CacSession, JitRequestEntity, CertificateRoleMapping entities (003-cac-auth-pim)
 - C# 13 / .NET 9.0 + Microsoft.Extensions.AI 9.4.0-preview, Microsoft.Identity.Web 3.5.0, Serilog, Entity Framework Core 9.0.0 (004-kanban-user-context)
 - SQLite (development), SQL Server (production) via EF Core (004-kanban-user-context)
 - C# 13 / .NET 9.0 + EF Core 9.0, Azure.ResourceManager, Serilog, Microsoft.Extensions.Hosting, System.Threading.Channels (005-compliance-watch)
 - SQLite (development) / SQL Server (production) via `AtoCopilotContext`; existing patterns — `IDbContextFactory<AtoCopilotContext>` for Singleton services (005-compliance-watch)
 - C# 13 / .NET 9.0 (backend), TypeScript 4.9 / React 18.2 (frontend) + ASP.NET Core SignalR, EF Core 9.0, Serilog, SPA Services (backend); React, react-markdown, @microsoft/signalr, Tailwind CSS, Axios (frontend) (006-chat-app)
 - SQLite (local dev) / SQL Server (Docker/production) — dual-provider, auto-detected from connection string (006-chat-app)
-- [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION] (007-nist-controls)
-- [if applicable, e.g., PostgreSQL, CoreData, files or N/A] (007-nist-controls)
+- C# 13 / .NET 9.0 + EF Core 9.0, Serilog, xUnit (007-nist-controls)
+- SQLite (dev) / SQL Server (prod) via EF Core — NIST 800-53 Rev 5 control catalog (007-nist-controls)
 - C# 13 / .NET 9.0 + Azure.ResourceManager (1.13.2), Azure.ResourceManager.PolicyInsights (1.2.0), Azure.ResourceManager.SecurityCenter (1.2.0-beta.6), Azure.ResourceManager.Resources (1.9.0), Azure.ResourceManager.ResourceGraph (1.1.0), Azure.Identity (1.13.2), Microsoft.EntityFrameworkCore (9.0.0), Microsoft.Extensions.Caching.Memory (9.0.0), Microsoft.Extensions.AI (9.4.0-preview), Serilog (4.2.0), Microsoft.Graph (5.70.0) (008-compliance-engine)
 - EF Core with SQLite (dev) / SQL Server (prod) via `IDbContextFactory<AtoCopilotContext>`; Azure Blob Storage via `IEvidenceStorageService` (008-compliance-engine)
 - C# 13 / .NET 9.0 + Azure.ResourceManager (1.13.2), Azure.Identity (1.13.2), Microsoft.Extensions.AI (9.4.0-preview), Microsoft.EntityFrameworkCore (9.0.x), Moq, xUnit, FluentAssertions (009-remediation-engine)
@@ -53,10 +65,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 - Azure Cosmos DB (via EF Core) — extends existing `ScanImportRecord`/`ScanImportFinding` entities (026-acas-nessus-import)
 - C# 13 / .NET 9.0 + ASP.NET Core, Entity Framework Core, Serilog, Azure.Identity, Microsoft.Graph (027-cac-simulation-mode)
 - SQL Server via EF Core (`IDbContextFactory<AtoCopilotContext>` pattern) (027-cac-simulation-mode)
-- C# 13 / .NET 9.0 + `Azure.AI.Projects` (new — Foundry SDK), `Azure.AI.OpenAI` 2.1.0 (existing), `Microsoft.Extensions.AI` 9.4.x (existing), EF Core 9.0, ASP.NET Core (028-foundry-agents)
-- SQL Server (containerized), SQLite (dev/test) — no schema changes for this feature (028-foundry-agents)
-- C# 13 / .NET 9.0 + Azure.AI.Agents.Persistent 1.1.0, Azure.AI.OpenAI 2.1.0, Microsoft.Extensions.AI 9.4.x, Azure.Identity 1.13.2, EF Core 9.0, Serilog (028-foundry-agents)
-- SQLite (dev) / SQL Server (prod) via EF Core; Foundry threads are server-side (ephemeral, no local persistence) (028-foundry-agents)
+- C# 13 / .NET 9.0 + `Azure.AI.Projects` (Foundry SDK), `Azure.AI.Agents.Persistent` 1.1.0, `Azure.AI.OpenAI` 2.1.0, `Microsoft.Extensions.AI` 9.4.x, Azure.Identity 1.13.2, EF Core 9.0, Serilog (028-foundry-agents)
+- SQLite (dev/test) / SQL Server (prod, containerized) via EF Core; Foundry threads are server-side (ephemeral, no local persistence) (028-foundry-agents)
 - C# 13 / .NET 9.0 + ASP.NET Core 9.0, Polly 8.4.2 (`Microsoft.Extensions.Http.Resilience` 9.0.0), `System.Threading.RateLimiting`, `System.Diagnostics.Metrics`, Serilog, Entity Framework Core 9.0, OpenTelemetry SDK (new) (029-enterprise-mcp-hardening)
 - SQL Server / SQLite via EF Core (existing); `IMemoryCache` for response caching; embedded OSCAL JSON resource (029-enterprise-mcp-hardening)
 - C# 13 / .NET 9.0 (backend); TypeScript 5 (frontend) + ASP.NET Core 9.0, EF Core 9.0, Serilog (backend); React 19, Vite 6, Recharts 2, Tailwind CSS 3, Axios 1, React Router 7 (frontend) (030-compliance-dashboard)
@@ -89,10 +99,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 - SQLite (dev) / SQL Server (prod) via EF Core — existing `AtoCopilotContext` (043-control-inheritance)
 - C# 13 / .NET 9, TypeScript 5 / React 19 + EF Core 9, ASP.NET Core Minimal APIs, Vite 6, Tailwind CSS 3, Axios (044-org-control-inheritance)
 - SQL Server (EF Core migrations, `AtoCopilotContext`) (044-org-control-inheritance)
-- C# 13 / .NET 9.0 (backend), TypeScript / React (dashboard) + ASP.NET Core, EF Core 9.0.0, Serilog, xUnit, FluentAssertions, Moq, React 18, Axios (046-mission-system-details)
+- C# 13 / .NET 9.0 (backend), TypeScript / React 18 (frontend) + ASP.NET Core, EF Core 9.0.0, Serilog, xUnit, FluentAssertions, Moq, Axios, Tailwind CSS (046-mission-system-details)
 - SQLite (dev) / SQL Server (prod) via EF Core dual-provider; `AtoCopilotContext` (046-mission-system-details)
-- C# 13 / .NET 9.0 (backend), TypeScript / React 18 (frontend) + ASP.NET Core, EF Core 9.0.0, Axios, Tailwind CSS (046-mission-system-details)
-- SQLite (dev) / SQL Server (prod), dual-provider via `AtoCopilotContext` (046-mission-system-details)
 
 - C# 13 / .NET 9.0 + Azure.Identity 1.13, Azure.ResourceManager 1.13, Microsoft.Extensions.AI 9.4-preview, Microsoft.EntityFrameworkCore 9.0, Serilog 4.2, xUnit 2.9, FluentAssertions 7.0, Moq 4.20 (001-core-compliance)
 
@@ -100,22 +108,152 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 
 ```text
 src/
+  Ato.Copilot.Core/         # Domain models, EF Core context, interfaces
+  Ato.Copilot.Agents/       # AI agents + 130+ tool implementations (BaseAgent / BaseTool)
+  Ato.Copilot.Mcp/          # MCP server (stdio + HTTP + SSE)
+  Ato.Copilot.Chat/         # Web chat (ASP.NET Core + React SPA)
+  Ato.Copilot.Dashboard/    # React dashboard (Vite + TS)
+  Ato.Copilot.Channels/     # Multi-channel routing library
+  Ato.Copilot.State/        # In-memory state management
+  Ato.Copilot.Cli/          # ato-cli (System.CommandLine)
+extensions/
+  vscode/                   # VS Code extension (TypeScript)
+  m365/                     # Teams bot (TypeScript, Adaptive Cards)
 tests/
+  Ato.Copilot.Tests.Unit/         # xUnit + FluentAssertions + Moq
+  Ato.Copilot.Tests.Integration/  # WebApplicationFactory
+  Ato.Copilot.Tests.Manual/       # Documented manual scenarios
+specs/                      # Feature specs (NNN-feature-name)
+docs/                       # MkDocs Material documentation
+.specify/                   # Spec-kit templates, scripts, memory
 ```
 
 ## Commands
 
-dotnet build Ato.Copilot.sln [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] dotnet test
+```bash
+# .NET
+dotnet build Ato.Copilot.sln
+dotnet test  Ato.Copilot.sln
+
+# TypeScript type-checking parity (per Constitution § Local Type-Checking Parity)
+cd extensions/vscode              && npm ci && npm run compile
+cd extensions/m365                && npm ci && npm run build
+cd src/Ato.Copilot.Dashboard      && npm ci && npm run typecheck
+
+# Full stack (MCP + Web Chat + SQL Server)
+docker compose -f docker-compose.mcp.yml up --build
+```
 
 ## Code Style
 
-C# .NET 9: Follow standard conventions
+- **C# 13 / .NET 9**: Standard .NET conventions, nullable reference types enabled, implicit usings
+- **TypeScript**: strict mode enabled in all extensions and the dashboard
+- **TDD required (NON-NEGOTIABLE)**: Red-Green-Refactor; failing test before production code (Constitution §VI)
+- **AAA pattern**: All tests use `// Arrange`, `// Act`, `// Assert` comment markers
+- **Coverage**: 80% minimum on modified paths; CI enforces
+- **Containers**: No `:latest` tags in production; immutable, tagged images only
+- **Secrets**: Never in source, `appsettings.*.json`, or images — Azure Key Vault or env only
+- **Logging**: Structured Serilog; redact sensitive tool parameters; no PII/CUI in logs
 
 ## Recent Changes
+- 048-tenant-isolation: Added C# 13 / .NET 9.0 (`net9.0`); TypeScript 5.7 / React 19 (dashboard frontend); TypeScript 5.x / Node 20 LTS (VS Code + M365 extensions) + ASP.NET Core 9.0 (Minimal APIs), EF Core 9.0 (`Microsoft.EntityFrameworkCore` + `Microsoft.EntityFrameworkCore.SqlServer` + `Microsoft.EntityFrameworkCore.Sqlite`), Microsoft.Identity.Web 3.5+, Microsoft.AspNetCore.Authentication.JwtBearer 9.0, Azure.Identity 1.13.2, Serilog 4.2, FluentAssertions 7.0 / Moq 4.20 / xUnit 2.9.3 (tests), `System.CommandLine` 2.0 (new — for `ato-cli` migration tool), React Router 7, Tailwind CSS 3, Vite 6, Axios 1.7, `@microsoft/signalr` 8.x (frontend)
 - 047-onboarding-wizard: Added C# 13 / .NET 9.0 (backend), TypeScript 5.7 / React 19 (frontend) + ASP.NET Core 9.0, EF Core 9.0.0 (SQL Server + SQLite), Microsoft.AspNetCore.SignalR, Microsoft.Identity.Web 3.5+, Microsoft.Graph 5.70+, Azure.Identity 1.13.2, Azure.ResourceManager 1.13.2, Serilog 4.2.0, DocumentFormat.OpenXml, ClosedXML 0.104.2, PdfPig (new), Microsoft.Extensions.AI 9.4-preview, React 19, React Router 7, Vite 6, Tailwind CSS 3, Axios 1.7, @microsoft/signalr 8.x
-- 046-mission-system-details: Added C# 13 / .NET 9.0 (backend), TypeScript / React 18 (frontend) + ASP.NET Core, EF Core 9.0.0, Axios, Tailwind CSS
 - 046-mission-system-details: Added C# 13 / .NET 9.0 (backend), TypeScript / React 18 (frontend) + ASP.NET Core, EF Core 9.0.0, Axios, Tailwind CSS
 
 
 <!-- MANUAL ADDITIONS START -->
+
+## Engineering Principles
+
+### Holistic Thinking
+Before writing any code, trace the impact through the full stack:
+
+- backend (`src/Ato.Copilot.{Core,Agents,Mcp,Chat,Channels,State}`) → database
+  (`AtoCopilotContext` / `ChatDbContext`) → MCP tool surface → frontend
+  (Dashboard, Web Chat, VS Code extension, M365 Teams bot) → tests → docs → specs
+- Verify contract alignment against the **current** implementation, not historical
+  assumptions. The Active Technologies section above can lag reality — read the code.
+- Update specs (`specs/NNN-*/`) and docs (`docs/`) whenever architecture or contract
+  reality changes.
+- For any tool change, ask: does this affect the MCP envelope schema (Constitution
+  § UX Standards)? Does it affect tenant isolation (Feature 048)?
+
+### Senior Developer Mindset
+
+- Act like a senior developer / tech lead, not a checklist executor.
+- Audit every diff as if you were the reviewer who has to defend it at an ATO
+  audit.
+- Anticipate edge cases and contract mismatches before they land.
+- Flag design tension and drift explicitly — don't hide it under `TODO` comments.
+
+### Root Cause Only
+
+- Fix root causes, not symptoms.
+- If a restart hides the issue, the issue is not understood yet.
+- No silent suppression: no `|| true` on critical paths, no empty catches, no
+  `#pragma warning disable` without a justification comment (Constitution § Code
+  Quality Standards).
+
+### Document Before Fix
+
+- Create or update the paper trail before implementing the change.
+- Keep specs (`specs/NNN-*/spec.md`, `plan.md`, `tasks.md`), docs (`docs/`), and
+  GitHub issues synchronized with actual architecture.
+- Per Constitution § DevOps GitHub Issue Discipline (NON-NEGOTIABLE): every Feature
+  and User Story in spec-kit MUST have a corresponding GitHub issue with proper
+  parent linkage.
+
+## Spec-Kit Workflow
+
+This repo uses [Spec-Kit](https://github.com/sstjean/spec-kit). Workflow:
+
+1. **Specify**: `specs/NNN-feature-name/spec.md` — what + why (no implementation)
+2. **Plan**: `specs/NNN-feature-name/plan.md` — tech stack, file layout, Constitution
+   Check, Complexity Tracking
+3. **Tasks**: `specs/NNN-feature-name/tasks.md` — dependency-ordered, parallel-marked
+4. **Implement**: TDD cycle per task (failing test → green → refactor)
+
+After planning a new feature, **always** run:
+
+```bash
+.specify/scripts/bash/update-agent-context.sh copilot
+```
+
+This regenerates the auto-generated portions above. Manual additions in this block
+survive regeneration.
+
+## Constitution Compliance
+
+Every change MUST pass the Constitution Check gate
+([.specify/memory/constitution.md](../.specify/memory/constitution.md), v2.0.0).
+Key non-negotiables to remember while coding:
+
+| Principle | Quick check |
+|---|---|
+| §VI TDD | Did you write the failing test first? Is AAA marked? |
+| §V BaseAgent/BaseTool | Does the new agent extend `BaseAgent`? New tool extend `BaseTool`? |
+| § Security: Zero-Trust | Is the request authenticated AND authorized server-side? |
+| § Security: Tenant Isolation | Does the query filter by tenant on every path? |
+| § Local Type-Checking Parity | Did `tsc --noEmit` run on every TS project you touched? |
+| § DevOps: GitHub Issue Discipline | Is the Feature → User Story sub-issue linkage intact? |
+| § Complexity Justification | If you deviated from §II Simplicity / §III YAGNI, did you fill the Complexity Tracking table in `plan.md`? |
+
+## Session Procedures
+
+When the user says **"Start up"** or **"Shutdown"**, follow the procedures in
+[`.specify/memory/session-procedures.md`](../.specify/memory/session-procedures.md).
+Read that file immediately and execute the steps.
+
+## Editing Discipline
+
+- **Never edit `.github/copilot-instructions.md` between the auto-generated
+  section markers** unless explicitly fixing a generation bug. The script will
+  rewrite Recent Changes and Last Updated on every run.
+- **Always edit between `<!-- MANUAL ADDITIONS START -->` and
+  `<!-- MANUAL ADDITIONS END -->` for free-form notes** — that block is
+  preserved.
+- **`AGENTS.md` is the cross-tool source.** When adding rules that should reach
+  Cursor, Claude Code, Codex CLI, etc., update `AGENTS.md` first and let the
+  spec-kit script propagate.
+
 <!-- MANUAL ADDITIONS END -->

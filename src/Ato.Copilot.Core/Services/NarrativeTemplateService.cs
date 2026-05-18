@@ -1,5 +1,6 @@
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Constants;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -12,7 +13,14 @@ namespace Ato.Copilot.Core.Services;
 /// Generates deterministic narrative text for control implementations
 /// using template-based string interpolation with family-specific contextual wrappers.
 /// </summary>
-public class NarrativeTemplateService
+/// <remarks>
+/// Implements <see cref="IControlNarrativeService"/> as part of the Feature 048
+/// FR-110 reuse-first audit (T218): there is exactly ONE concrete narrative
+/// generator in the codebase. The interface registration is added alongside
+/// the existing concrete singleton; concrete-typed callers continue to work
+/// unchanged (back-compat per the audit's "surgical extension" mandate).
+/// </remarks>
+public class NarrativeTemplateService : IControlNarrativeService
 {
     private readonly IChatClient? _chatClient;
     private readonly AzureAiOptions? _aiOptions;

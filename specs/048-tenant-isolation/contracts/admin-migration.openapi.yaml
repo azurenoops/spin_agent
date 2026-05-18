@@ -1,0 +1,142 @@
+openapi: 3.1.0
+info:
+  title: ATO Copilot — Multi-Tenant Migration Admin API
+  version: "1.0.0"
+  description: |
+    CSP-Admin endpoints to preview and execute the backfill of `TenantId`
+    columns and the installation of SQL Server Row-Level Security policies.
+    Logic is shared with `ato-cli tenant migrate` (see `ato-cli-tenant.md`).
+    See spec FR-073, FR-074, FR-076.
+
+components:
+  securitySchemes:
+    cacJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Envelope:
+      $ref: 'tenants.openapi.yaml#/components/schemas/Envelope'
+
+    TenantOverride:
+      type: object
+      required: [tableName, tenantId]
+      properties:
+        tableName:
+          type: string
+          description: Exact SQL table name in `dbo` schema.
+        rowIdPrefix:
+          type: string
+          nullable: true
+          description: |
+            Optional prefix; when set, only rows whose primary key (as string)
+            starts with this prefix are assigned to the override tenant.
+        tenantId:
+          type: string
+          format: uuid
+
+    MigrationPreview:
+      type: object
+      required: [tables]
+      properties:
+        tables:
+          type: array
+          items:
+            type: object
+            required: [tableName, totalRows, rowsMissingTenant]
+            properties:
+              tableName: { type: string }
+              totalRows: { type: integer, format: int64, minimum: 0 }
+              rowsMissingTenant: { type: integer, format: int64, minimum: 0 }
+              rowsAssignedByOverride: { type: integer, format: int64, minimum: 0 }
+              rowsAssignedToDefault: { type: integer, format: int64, minimum: 0 }
+
+    MigrateRequest:
+      type: object
+      required: [defaultTenantId]
+      properties:
+        defaultTenantId: { type: string, format: uuid }
+        overrides:
+          type: array
+          items: { $ref: '#/components/schemas/TenantOverride' }
+        installRls:
+          type: boolean
+          default: true
+          description: |
+            When true (default), installs SQL Server Row-Level Security
+            policies after backfill. Set false when running pre-flight checks
+            or migrating SQLite (no-op for non-SQL-Server providers).
+
+    MigrationReport:
+      type: object
+      required: [startedAt, completedAt, defaultTenantId, tables, rlsInstalled]
+      properties:
+        startedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time }
+        defaultTenantId: { type: string, format: uuid }
+        tables:
+          type: array
+          items:
+            type: object
+            required: [tableName, totalRows, rowsAssignedToDefault]
+            properties:
+              tableName: { type: string }
+              totalRows: { type: integer, format: int64 }
+              rowsAssignedByOverride: { type: integer, format: int64 }
+              rowsAssignedToDefault: { type: integer, format: int64 }
+              rowsAlreadyAssigned: { type: integer, format: int64 }
+        rlsInstalled: { type: boolean }
+        error:
+          type: string
+          nullable: true
+
+security:
+  - cacJwt: []
+
+paths:
+  /api/admin/migrate-to-multitenant/preview:
+    get:
+      summary: Preview the migration without modifying data.
+      operationId: previewMigration
+      responses:
+        '200':
+          description: Per-table counts for missing-tenant rows.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/MigrationPreview' }
+        '403':
+          description: Not authorized (CSP-Admin required).
+
+  /api/admin/migrate-to-multitenant:
+    post:
+      summary: |
+        Execute the backfill in a single transaction and (optionally) install
+        SQL Server RLS policies. Idempotent — re-running with the same defaults
+        is a no-op when no rows have NULL `TenantId`.
+      operationId: executeMigration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MigrateRequest' }
+      responses:
+        '200':
+          description: Migration completed (or already-completed no-op). Audit row emitted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/MigrationReport' }
+        '403':
+          description: Not authorized (CSP-Admin required).
+        '500':
+          description: Migration failed; transaction rolled back. `error` populated.

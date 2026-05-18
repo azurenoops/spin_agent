@@ -11,6 +11,7 @@ using Moq;
 using Xunit;
 using FluentAssertions;
 using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Mcp.Configuration;
 using Ato.Copilot.Mcp.Middleware;
 
 namespace Ato.Copilot.Tests.Unit.Middleware;
@@ -38,6 +39,7 @@ public class CacAuthenticationMiddlewareTests
             next,
             Options.Create(opts),
             Options.Create(cacOpts),
+            Options.Create(new RoleClaimMappingsOptions()),
             hostEnv.Object,
             _logger.Object);
     }

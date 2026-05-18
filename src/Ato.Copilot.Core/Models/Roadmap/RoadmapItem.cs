@@ -1,4 +1,5 @@
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Roadmap;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Roadmap;
 /// An individual control gap assigned to a phase.
 /// Status is synced bi-directionally with linked Kanban tasks.
 /// </summary>
+[TenantScoped]
 public class RoadmapItem : ConcurrentEntity
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique item identifier (GUID format).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 

@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
@@ -7,6 +8,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// afterward") and editable independently to satisfy FR-025 ("per-system overrides
 /// do not affect the organization-level default").
 /// </summary>
+[TenantScoped]
 public class SystemRoleAssignment
 {
     /// <summary>Primary key.</summary>

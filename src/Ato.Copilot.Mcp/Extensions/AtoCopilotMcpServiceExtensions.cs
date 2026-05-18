@@ -85,6 +85,12 @@ public static class AtoCopilotMcpServiceExtensions
             var logger = sp.GetService<ILogger<Ato.Copilot.Core.Services.NarrativeTemplateService>>();
             return new Ato.Copilot.Core.Services.NarrativeTemplateService(chatClient, aiOptions, logger);
         });
+        // FR-110 reuse-first audit (T218): IControlNarrativeService is the single
+        // narrative-generation contract; both the concrete and the interface point
+        // at the SAME singleton so DI counts as exactly 1 registration of the
+        // interface — the CspInheritanceReuseAuditHealthCheck enforces this.
+        services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.IControlNarrativeService>(sp =>
+            sp.GetRequiredService<Ato.Copilot.Core.Services.NarrativeTemplateService>());
         services.AddSingleton<Ato.Copilot.Core.Services.ComplianceTrendSnapshotService>();
         if (includeHostedServices)
         {
@@ -136,6 +142,31 @@ public static class AtoCopilotMcpServiceExtensions
         services.AddScoped<Ato.Copilot.Mcp.Services.CapabilityImportService>();
 
         // Feature 044: IOrgInheritanceService is registered by AddMcpServer (TryAddSingleton)
+
+        // Feature 048 (US9 / US10): CSP-inherited components — uploaded ATO
+        // ingestion + capability mapping. Registered as Scoped so the parser
+        // dispatcher and extraction service can share the same DbContext per
+        // request. The wrapper (CspCapabilityMappingService) composes the
+        // FR-110-protected ICapabilityMappingService — which is registered
+        // here exactly once as the NullCapabilityMappingService fallback
+        // (FR-102 path: AI mapper unavailable → empty candidate list →
+        // wrapper produces a single NeedsReview capability per component).
+        // The CspInheritanceReuseAuditHealthCheck (T218) verifies the
+        // single-registration invariant. When the AI-backed mapper from
+        // Features 045 / 008 is wired through in the T227 slice, swap the
+        // concrete in place — DO NOT add a second registration.
+        services.Configure<Ato.Copilot.Core.Configuration.Tenancy.CspInheritedOptions>(
+            configuration.GetSection(Ato.Copilot.Core.Configuration.Tenancy.CspInheritedOptions.SectionName));
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.ICapabilityMappingService,
+            Ato.Copilot.Core.Services.Tenancy.NullCapabilityMappingService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspAtoDocumentParser,
+            Ato.Copilot.Core.Services.Tenancy.CspAtoDocumentParser>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspComponentExtractionService,
+            Ato.Copilot.Core.Services.Tenancy.CspComponentExtractionService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspCapabilityMappingService,
+            Ato.Copilot.Core.Services.Tenancy.CspCapabilityMappingService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspInheritedComponentService,
+            Ato.Copilot.Core.Services.Tenancy.CspInheritedComponentService>();
 
         // Feature 041: Authorization Package generation pipeline
         services.AddSingleton(System.Threading.Channels.Channel.CreateBounded<Ato.Copilot.Core.Dtos.Dashboard.PackageExportJob>(

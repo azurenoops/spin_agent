@@ -4,6 +4,8 @@ using Moq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Mcp.Middleware;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Models.Tenancy;
 using System.Security.Claims;
 
 namespace Ato.Copilot.Tests.Unit.CrossCutting;
@@ -15,11 +17,28 @@ namespace Ato.Copilot.Tests.Unit.CrossCutting;
 public class StructuredLoggingTests
 {
     private readonly Mock<ILogger<AuditLoggingMiddleware>> _loggerMock;
+    private readonly ITenantContext _tenantContext;
 
     public StructuredLoggingTests()
     {
         _loggerMock = new Mock<ILogger<AuditLoggingMiddleware>>();
+        _tenantContext = new TestTenantContext();
     }
+
+    /// <summary>
+    /// Minimal <see cref="ITenantContext"/> stand-in for unit tests of the
+    /// audit middleware (Feature 048 T072 added this dependency).
+    /// </summary>
+    private sealed class TestTenantContext : ITenantContext
+    {
+        public Guid TenantId { get; } = Guid.NewGuid();
+        public Guid? OrganizationId => null;
+        public bool IsCspAdmin => false;
+        public Guid? ImpersonatedTenantId => null;
+        public Guid EffectiveTenantId => TenantId;
+        public TenantStatus Status => TenantStatus.Active;
+    }
+
 
     [Fact]
     public async Task AuditLoggingMiddleware_LogsRequestWithCorrelationId()
@@ -33,7 +52,7 @@ public class StructuredLoggingTests
             logger: _loggerMock.Object);
 
         // Act
-        await middleware.InvokeAsync(context);
+        await middleware.InvokeAsync(context, _tenantContext);
 
         // Assert — should log at least 2 entries: request + response
         _loggerMock.Verify(
@@ -61,7 +80,7 @@ public class StructuredLoggingTests
             logger: _loggerMock.Object);
 
         // Act
-        await middleware.InvokeAsync(context);
+        await middleware.InvokeAsync(context, _tenantContext);
 
         // Assert — user ID should be redacted (first 8 chars + ***)
         _loggerMock.Verify(
@@ -85,7 +104,7 @@ public class StructuredLoggingTests
             logger: _loggerMock.Object);
 
         // Act
-        await middleware.InvokeAsync(context);
+        await middleware.InvokeAsync(context, _tenantContext);
 
         // Assert
         _loggerMock.Verify(
@@ -110,7 +129,7 @@ public class StructuredLoggingTests
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => middleware.InvokeAsync(context));
+            () => middleware.InvokeAsync(context, _tenantContext));
 
         _loggerMock.Verify(
             x => x.Log(
@@ -141,7 +160,7 @@ public class StructuredLoggingTests
             logger: _loggerMock.Object);
 
         // Act
-        await middleware.InvokeAsync(context);
+        await middleware.InvokeAsync(context, _tenantContext);
 
         // Assert — should include PimRole in log output
         _loggerMock.Verify(
@@ -165,7 +184,7 @@ public class StructuredLoggingTests
             logger: _loggerMock.Object);
 
         // Act
-        await middleware.InvokeAsync(context);
+        await middleware.InvokeAsync(context, _tenantContext);
 
         // Assert — second log should include status code
         _loggerMock.Verify(
@@ -190,7 +209,7 @@ public class StructuredLoggingTests
             logger: _loggerMock.Object);
 
         // Act
-        await middleware.InvokeAsync(context);
+        await middleware.InvokeAsync(context, _tenantContext);
 
         // Assert — should still log (uses generated request ID)
         _loggerMock.Verify(

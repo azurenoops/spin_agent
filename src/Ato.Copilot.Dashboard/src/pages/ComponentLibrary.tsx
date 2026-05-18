@@ -22,6 +22,11 @@ import {
 import type { EntraDiscoveryItem } from '../api/azureDiscovery';
 import { onboarding, type AzureSubscriptionRegistrationDto } from '../features/onboarding/api/onboardingApi';
 import { getCapabilities } from '../api/capabilities';
+import {
+  isUnavailable as isCspUnavailable,
+  listCspInheritedComponents,
+  type CspInheritedComponent,
+} from '../features/csp-inherited-components/api';
 import type { CreateComponentRequest, ComponentType, ComponentStatus, SecurityCapabilityDto, DiscoveredResource } from '../types/dashboard';
 
 const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing', 'Policy'];
@@ -206,6 +211,58 @@ export default function ComponentLibrary() {
   const { data, refresh } = usePolling<OrgComponentListResponse>(fetcher, 30000);
   const components = data?.items ?? [];
 
+  // ─── CSP-inherited components (Feature 048 / FR-104) ───────────────
+  // Org users see CSP-published components alongside their own, badged
+  // with a violet "CSP" chip and read-only (no edit/delete). Reference-
+  // only — nothing is forked into the tenant. The endpoint silently
+  // self-hides for SingleTenant deployments and pre-onboarding tenants;
+  // we just render no CSP rows in that case.
+  const [cspComponents, setCspComponents] = useState<CspInheritedComponent[]>([]);
+  const matchesCspFilters = useCallback(
+    (c: CspInheritedComponent) => {
+      const term = search.trim().toLowerCase();
+      if (term && !c.name.toLowerCase().includes(term) &&
+          !(c.description ?? '').toLowerCase().includes(term)) {
+        return false;
+      }
+      // CSP component types (Infrastructure/Platform/Service/Identity/
+      // Network/Storage/Compute) don't map cleanly to the org's
+      // Person/Place/Thing/Policy taxonomy. When the org has selected a
+      // typeFilter, treat CSP rows as not matching so they don't pollute
+      // a filtered org view; clear the filter to see everything.
+      if (typeFilter) return false;
+      // Status mapping: CSP rows are always Published when listed here,
+      // so a per-row Status filter from the org form (Active/Planned/
+      // Decommissioned) only applies to org rows.
+      if (statusFilter) return false;
+      return true;
+    },
+    [search, typeFilter, statusFilter],
+  );
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await listCspInheritedComponents({
+          status: 'Published',
+          pageSize: 200,
+        });
+        if (cancelled) return;
+        if (isCspUnavailable(result)) {
+          setCspComponents([]);
+          return;
+        }
+        setCspComponents(result.items);
+      } catch {
+        if (!cancelled) setCspComponents([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const visibleCspComponents = cspComponents.filter(matchesCspFilters);
+
   const handleCreate = async (req: CreateComponentRequest) => {
     setSubmitting(true);
     setFormError(null);
@@ -324,6 +381,14 @@ export default function ComponentLibrary() {
           {data && (
             <span className="self-center text-sm text-gray-500">
               {data.totalCount} component{data.totalCount !== 1 ? 's' : ''}
+              {visibleCspComponents.length > 0 && (
+                <>
+                  {' '}
+                  <span className="text-violet-700">
+                    +{visibleCspComponents.length} CSP
+                  </span>
+                </>
+              )}
             </span>
           )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -353,6 +418,53 @@ export default function ComponentLibrary() {
 
         {/* Component Cards */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {/* CSP-inherited components render first, badged + read-only.
+              Reference-only per Feature 048 / FR-105: orgs can map their
+              systems to these rows but cannot edit or delete them. */}
+          {visibleCspComponents.map((csp) => (
+            <div
+              key={`csp-${csp.id}`}
+              className="rounded-lg border border-violet-200 bg-violet-50/40 p-4 shadow-sm hover:shadow-md transition-shadow"
+              data-testid={`csp-inherited-component-card-${csp.id}`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900 truncate">
+                      {csp.name}
+                    </h3>
+                    <span
+                      className="inline-flex items-center rounded-full border border-violet-300 bg-violet-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-violet-800"
+                      title="Inherited from CSP — read-only at the org scope"
+                    >
+                      CSP
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700">
+                      {csp.componentType}
+                    </span>
+                  </div>
+                  {csp.description && (
+                    <p className="mt-1 text-xs text-gray-600 line-clamp-2">
+                      {csp.description}
+                    </p>
+                  )}
+                  {csp.sourceFileName && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Source: {csp.sourceFileName}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {(csp.capabilityMappedCount ?? 0) > 0 && (
+                <div className="mt-2 border-t border-violet-100 pt-2">
+                  <p className="text-xs text-violet-800">
+                    {csp.capabilityMappedCount} mapped capabilit
+                    {csp.capabilityMappedCount === 1 ? 'y' : 'ies'}
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
           {components.map((comp) => (
             <div key={comp.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
@@ -408,7 +520,7 @@ export default function ComponentLibrary() {
           ))}
         </div>
 
-        {components.length === 0 && !submitting && (
+        {components.length === 0 && visibleCspComponents.length === 0 && !submitting && (
           <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
             <p className="text-sm text-gray-500">No components found. Create one to get started.</p>
           </div>

@@ -1,0 +1,95 @@
+openapi: 3.1.0
+info:
+  title: ATO Copilot — Audit Query API
+  version: "1.0.0"
+  description: |
+    CSP-Admin-only audit log query endpoint. Filters by tenant, actor, action,
+    and time range. Default page size 50; maximum 200. See spec FR-060, FR-061.
+
+components:
+  securitySchemes:
+    cacJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Envelope:
+      $ref: 'tenants.openapi.yaml#/components/schemas/Envelope'
+
+    AuditEntry:
+      type: object
+      required: [id, action, outcome, timestamp]
+      properties:
+        id: { type: string, format: uuid }
+        timestamp: { type: string, format: date-time }
+        actorOid: { type: string, nullable: true }
+        actorTenantId: { type: string, format: uuid, nullable: true }
+        effectiveTenantId: { type: string, format: uuid, nullable: true }
+        impersonatedTenantId: { type: string, format: uuid, nullable: true }
+        action: { type: string }
+        resource: { type: string, nullable: true }
+        outcome: { type: string, enum: [Success, Failure] }
+        correlationId: { type: string, nullable: true }
+        details:
+          type: object
+          additionalProperties: true
+
+    AuditPage:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AuditEntry' }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+
+security:
+  - cacJwt: []
+
+paths:
+  /api/audit:
+    get:
+      summary: Query the audit log (CSP-Admin only).
+      operationId: queryAudit
+      parameters:
+        - in: query
+          name: tenantId
+          schema: { type: string, format: uuid }
+          description: Filter by EffectiveTenantId.
+        - in: query
+          name: actorTenantId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: actorOid
+          schema: { type: string }
+        - in: query
+          name: action
+          schema: { type: string }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Page of audit entries.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/AuditPage' }
+        '403':
+          description: CSP.Admin role required.

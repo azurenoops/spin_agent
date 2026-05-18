@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -7,8 +8,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// Represents a generated eMASS authorization package bundle (ZIP archive).
 /// Tracks generation lifecycle, included artifacts, validation status, and file location.
 /// </summary>
+[TenantScoped]
 public class AuthorizationPackage
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     [Key]
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();

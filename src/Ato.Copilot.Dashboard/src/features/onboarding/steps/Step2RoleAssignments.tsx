@@ -23,7 +23,7 @@ export interface Step2RoleAssignmentsProps {
 const ROLES: { value: OrganizationRole; label: string; description: string }[] = [
   { value: 'Issm', label: 'ISSM', description: 'Information System Security Manager' },
   { value: 'Isso', label: 'ISSO', description: 'Information System Security Officer' },
-  { value: 'Administrator', label: 'Administrator', description: 'Tenant administrator' },
+  { value: 'Administrator', label: 'Administrator', description: 'Organization administrator' },
   { value: 'Assessor', label: 'Assessor (SCA)', description: 'Security control assessor' },
 ];
 

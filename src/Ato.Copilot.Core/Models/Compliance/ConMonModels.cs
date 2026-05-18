@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -16,8 +17,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// One plan per system (enforced by unique constraint on RegisteredSystemId).
 /// Spec §4.1.
 /// </summary>
+[TenantScoped]
 public class ConMonPlan
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Primary key — GUID.</summary>
     [Key]
     [MaxLength(36)]
@@ -70,8 +78,15 @@ public class ConMonPlan
 /// Contains compliance score delta vs. authorized baseline, findings, POA&amp;M status.
 /// Spec §4.2.
 /// </summary>
+[TenantScoped]
 public class ConMonReport
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Primary key — GUID.</summary>
     [Key]
     [MaxLength(36)]
@@ -155,8 +170,15 @@ public class ConMonReport
 /// A significant change to a system that may trigger reauthorization.
 /// Spec §4.4.
 /// </summary>
+[TenantScoped]
 public class SignificantChange
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Primary key — GUID.</summary>
     [Key]
     [MaxLength(36)]

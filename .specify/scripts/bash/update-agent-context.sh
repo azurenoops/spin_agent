@@ -157,11 +157,63 @@ update_existing_agent_file() {
     log_info "Updating existing agent context file..."
     local temp_file=$(mktemp) || { log_error "Failed to create temp file"; return 1; }
     local tech_stack=$(format_technology_stack "$NEW_LANG" "$NEW_FRAMEWORK")
+
+    # Build deduped list of new Active Technologies entries.
+    # An entry is only added if not already present (exact line match).
+    local new_tech_entries=()
+    if [[ -n "$tech_stack" ]]; then
+        local tech_entry="- $tech_stack ($CURRENT_BRANCH)"
+        if ! grep -Fxq "$tech_entry" "$target_file"; then
+            new_tech_entries+=("$tech_entry")
+        fi
+    fi
+    if [[ -n "$NEW_DB" && "$NEW_DB" != "N/A" && "$NEW_DB" != "NEEDS CLARIFICATION" ]]; then
+        local db_entry="- $NEW_DB ($CURRENT_BRANCH)"
+        if ! grep -Fxq "$db_entry" "$target_file"; then
+            new_tech_entries+=("$db_entry")
+        fi
+    fi
+
     local new_change_entry=""
-    [[ -n "$tech_stack" ]] && new_change_entry="- $CURRENT_BRANCH: Added $tech_stack"
+    if [[ -n "$tech_stack" ]]; then
+        new_change_entry="- $CURRENT_BRANCH: Added $tech_stack"
+    elif [[ -n "$NEW_DB" && "$NEW_DB" != "N/A" && "$NEW_DB" != "NEEDS CLARIFICATION" ]]; then
+        new_change_entry="- $CURRENT_BRANCH: Added $NEW_DB"
+    fi
+
+    local in_tech_section=false
+    local tech_added=false
     local in_changes_section=false
     local existing_changes_count=0
+
     while IFS= read -r line || [[ -n "$line" ]]; do
+        # --- Active Technologies handling -----------------------------------
+        if [[ "$line" == "## Active Technologies" ]]; then
+            echo "$line" >> "$temp_file"
+            in_tech_section=true
+            continue
+        fi
+        if [[ $in_tech_section == true ]] && [[ "$line" =~ ^##[[:space:]] ]]; then
+            if [[ $tech_added == false && ${#new_tech_entries[@]} -gt 0 ]]; then
+                local e
+                for e in "${new_tech_entries[@]}"; do echo "$e" >> "$temp_file"; done
+                tech_added=true
+            fi
+            echo "$line" >> "$temp_file"
+            in_tech_section=false
+            continue
+        fi
+        if [[ $in_tech_section == true ]] && [[ -z "$line" ]]; then
+            if [[ $tech_added == false && ${#new_tech_entries[@]} -gt 0 ]]; then
+                local e
+                for e in "${new_tech_entries[@]}"; do echo "$e" >> "$temp_file"; done
+                tech_added=true
+            fi
+            echo "$line" >> "$temp_file"
+            continue
+        fi
+
+        # --- Recent Changes handling ---------------------------------------
         if [[ "$line" == "## Recent Changes" ]]; then
             echo "$line" >> "$temp_file"
             [[ -n "$new_change_entry" ]] && echo "$new_change_entry" >> "$temp_file"
@@ -178,12 +230,29 @@ update_existing_agent_file() {
             fi
             continue
         fi
+
+        # --- Last updated date ---------------------------------------------
         if [[ "$line" =~ \*\*Last\ updated\*\*:.*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] ]]; then
             echo "$line" | sed "s/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/$current_date/" >> "$temp_file"
         else
             echo "$line" >> "$temp_file"
         fi
     done < "$target_file"
+
+    # Post-loop: if file ended while still in tech section, append any
+    # remaining new entries.
+    if [[ $in_tech_section == true && $tech_added == false && ${#new_tech_entries[@]} -gt 0 ]]; then
+        local e
+        for e in "${new_tech_entries[@]}"; do echo "$e" >> "$temp_file"; done
+    fi
+
+    # Sanity-check: warn (but do not fail) if any unsubstituted template
+    # placeholders are detected. These typically indicate a stale create-time
+    # substitution that the User should clean up manually.
+    if grep -Eq '\[(ONLY COMMANDS FOR ACTIVE TECHNOLOGIES|EXTRACTED FROM ALL PLAN\.MD FILES|ACTUAL STRUCTURE FROM PLANS|LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE|LAST 3 FEATURES AND WHAT THEY ADDED)\]' "$temp_file"; then
+        log_warning "Unsubstituted template placeholders remain in $target_file. Review the file manually."
+    fi
+
     mv "$temp_file" "$target_file" || { log_error "Failed to update"; rm -f "$temp_file"; return 1; }
     return 0
 }

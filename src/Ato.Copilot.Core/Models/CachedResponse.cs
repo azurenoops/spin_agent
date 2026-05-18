@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models;
 /// A cached tool response entry for both in-memory and persistent storage (offline mode).
 /// Composite key: SHA256(toolName:sortedParamsJson:subscriptionId).
 /// </summary>
+[TenantScoped]
 public class CachedResponse
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Primary key (EF Core, persistent cache only).</summary>
     public int Id { get; set; }
 

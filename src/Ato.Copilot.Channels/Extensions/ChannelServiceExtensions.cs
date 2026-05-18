@@ -3,6 +3,7 @@ using Ato.Copilot.Channels.Configuration;
 using Ato.Copilot.Channels.Implementations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Ato.Copilot.Channels.Extensions;
@@ -27,6 +28,7 @@ public static class ChannelServiceExtensions
         services.AddSingleton<IChannel, InMemoryChannel>();
         services.AddSingleton<IChannelManager, ChannelManager>();
         services.AddSingleton<IStreamingHandler, StreamingHandler>();
+        services.TryAddSingleton<ITenantScopeBinder, NullTenantScopeBinder>();
         services.AddScoped<IMessageHandler, DefaultMessageHandler>();
         services.AddHostedService<IdleConnectionCleanupService>();
         return services;
@@ -45,6 +47,7 @@ public static class ChannelServiceExtensions
         services.AddSingleton<IChannel, InMemoryChannel>();
         services.AddSingleton<IChannelManager, ChannelManager>();
         services.AddSingleton<IStreamingHandler, StreamingHandler>();
+        services.TryAddSingleton<ITenantScopeBinder, NullTenantScopeBinder>();
         services.AddScoped<IMessageHandler, DefaultMessageHandler>();
         return services;
     }

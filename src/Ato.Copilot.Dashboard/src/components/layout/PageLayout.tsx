@@ -6,7 +6,10 @@ import { useChatPanel } from '../chat/ChatPanelContext';
 import SettingsPanel from '../settings/SettingsPanel';
 import NotificationPanel from '../notifications/NotificationPanel';
 import RoleSwitcher from './RoleSwitcher';
+import TenantPicker from '../../features/tenancy/TenantPicker';
+import ImpersonationBanner from '../../features/tenancy/ImpersonationBanner';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useCspBranding } from './useCspBranding';
 import spinLogo from '../../assets/2026-04-22_15-58-30.png';
 
 const navItems = [
@@ -31,6 +34,10 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { panelState, togglePanel } = useChatPanel();
   const { unreadCount } = useNotifications();
+  // Feature 048 / US7 / T170: per-deployment CSP branding (logo +
+  // display name). Falls back to the default SPIN logo + "ATO Copilot"
+  // wordmark in SingleTenant mode or while onboarding is incomplete.
+  const cspBranding = useCspBranding();
   const notifRef = useRef<HTMLDivElement>(null);
 
   // Close notification panel when clicking outside
@@ -47,11 +54,43 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
+      {/* Feature 048 (T075/T076): persistent banner while CSP-Admin is
+          impersonating a tenant. Self-hides when no impersonation is active
+          (and therefore in SingleTenant mode). */}
+      <ImpersonationBanner />
       {/* Top header */}
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
         <div className="flex items-center gap-6">
-          <NavLink to="/" className="flex items-center" aria-label="Security Posture Intelligence Navigator home">
-            <img src={spinLogo} alt="Security Posture Intelligence Navigator" className="block h-12 w-auto object-contain" />
+          <NavLink
+            to="/"
+            className="flex items-center gap-3"
+            aria-label={
+              cspBranding.displayName
+                ? `${cspBranding.displayName} home`
+                : 'Security Posture Intelligence Navigator home'
+            }
+          >
+            {cspBranding.logoUrl ? (
+              <img
+                src={cspBranding.logoUrl}
+                alt={`${cspBranding.displayName ?? 'CSP'} logo`}
+                className="block h-10 w-auto object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <img
+                src={spinLogo}
+                alt="Security Posture Intelligence Navigator"
+                className="block h-12 w-auto object-contain"
+              />
+            )}
+            {cspBranding.displayName && (
+              <span className="text-base font-semibold text-gray-800">
+                {cspBranding.displayName}
+              </span>
+            )}
           </NavLink>
           <nav className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => (
@@ -70,11 +109,21 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
                 {item.label}
               </NavLink>
             ))}
+            {/* Feature 048 (T076 follow-up): the cross-tenant CSP dashboard
+                resolves at `/` via PortfolioRoute for CSP-Admins, and the
+                CSP-inherited components surface is folded into `/components`
+                via ComponentsRoute (CSP-Admin not impersonating ⇒
+                CspInheritedComponentsPage). The standalone `/csp-dashboard`
+                and `/csp/inherited-components` top-nav links have been
+                retired in favor of the scope-aware resolvers. */}
           </nav>
           <span className="hidden text-sm text-gray-400 lg:block">|</span>
           <h1 className="hidden text-sm font-medium text-gray-700 lg:block">{title}</h1>
         </div>
           <div className="flex items-center gap-1">
+            {/* Feature 048 (T076): tenant picker. Self-hides in SingleTenant
+                mode and for non-CSP.Admin callers per FR-041. */}
+            <TenantPicker />
             <RoleSwitcher />
             <button type="button" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Search" title="Search">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

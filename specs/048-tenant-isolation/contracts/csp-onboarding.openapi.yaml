@@ -1,0 +1,247 @@
+openapi: 3.0.3
+info:
+  title: ATO Copilot — CSP Onboarding API (US7)
+  version: 0.1.0
+  description: |
+    Singleton onboarding wizard for the hosting Cloud Service Provider (CSP)
+    itself, NOT for per-customer tenants. Captures the CSP's own legal entity,
+    branding, support contacts, and default classification floor.
+
+    Available **only** in `MultiTenant` deployments. In `SingleTenant` mode every
+    endpoint below returns `404`.
+
+    All endpoints require the caller to hold the `CSP.Admin` role. While
+    `CspProfile.OnboardingState != Active`, every other tenant-scoped endpoint
+    returns `503 CSP_ONBOARDING_INCOMPLETE`.
+
+servers:
+  - url: https://copilot.ato.example.us/api
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    OnboardingState:
+      type: string
+      enum: [Pending, InWizard, Active]
+    ClassificationFloor:
+      type: string
+      enum: [Unclassified, CUI, Secret]
+    CspOnboardingState:
+      type: object
+      required: [onboardingState, currentStep]
+      properties:
+        cspProfileId:
+          type: string
+          format: uuid
+          nullable: true
+        onboardingState: { $ref: "#/components/schemas/OnboardingState" }
+        currentStep:
+          type: string
+          enum:
+            - Identity
+            - SupportContact
+            - Classification
+            - Review
+            - Complete
+        identity:
+          type: object
+          properties:
+            legalEntityName: { type: string }
+            displayName: { type: string }
+            logoUrl: { type: string, format: uri, nullable: true }
+        supportContact:
+          type: object
+          properties:
+            primarySupportEmail: { type: string, format: email }
+            supportPhone: { type: string, nullable: true }
+        classification:
+          type: object
+          properties:
+            defaultClassificationFloor: { $ref: "#/components/schemas/ClassificationFloor" }
+        onboardingCompletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    IdentityRequest:
+      type: object
+      required: [legalEntityName, displayName]
+      properties:
+        legalEntityName:
+          type: string
+          minLength: 2
+          maxLength: 256
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 64
+        logoUrl:
+          type: string
+          format: uri
+          nullable: true
+    SupportContactRequest:
+      type: object
+      required: [primarySupportEmail]
+      properties:
+        primarySupportEmail:
+          type: string
+          format: email
+        supportPhone:
+          type: string
+          nullable: true
+    ClassificationRequest:
+      type: object
+      required: [defaultClassificationFloor]
+      properties:
+        defaultClassificationFloor: { $ref: "#/components/schemas/ClassificationFloor" }
+    SubmitResponse:
+      type: object
+      required: [cspProfileId, onboardingState, onboardingCompletedAt]
+      properties:
+        cspProfileId: { type: string, format: uuid }
+        onboardingState: { $ref: "#/components/schemas/OnboardingState" }
+        onboardingCompletedAt: { type: string, format: date-time }
+    ErrorEnvelope:
+      type: object
+      required: [status, error]
+      properties:
+        status: { type: string, enum: [error] }
+        error:
+          type: object
+          required: [errorCode, message]
+          properties:
+            errorCode:
+              type: string
+              enum:
+                - CSP_ONBOARDING_INCOMPLETE
+                - CSP_ALREADY_ONBOARDED
+                - FORBIDDEN_NOT_CSP_ADMIN
+                - VALIDATION_FAILED
+                - SINGLE_TENANT_MODE
+            message: { type: string }
+            suggestion: { type: string, nullable: true }
+
+security:
+  - bearerAuth: []
+
+paths:
+  /csp/onboarding/state:
+    get:
+      summary: Get current CSP onboarding state
+      description: |
+        Returns the singleton `CspProfile` row's onboarding progress. Safe to
+        poll. Used by the dashboard router on every page load to decide whether
+        to redirect to `/onboarding/csp`.
+      operationId: getCspOnboardingState
+      responses:
+        "200":
+          description: Current state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CspOnboardingState" }
+        "403":
+          description: Caller is not CSP.Admin.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "404":
+          description: Deployment is in `SingleTenant` mode (`SINGLE_TENANT_MODE`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /csp/onboarding/identity:
+    post:
+      summary: Save CSP legal-entity / display-name / logo (step 1)
+      description: |
+        Idempotent. Creates the singleton `CspProfile` row if absent (with
+        `OnboardingState = InWizard`); otherwise updates fields and advances
+        `currentStep` to `SupportContact`.
+      operationId: postCspOnboardingIdentity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IdentityRequest" }
+      responses:
+        "200":
+          description: Identity saved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CspOnboardingState" }
+        "403": { description: Not CSP.Admin., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "404": { description: Single-tenant mode., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "409":
+          description: CSP already onboarded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "422":
+          description: Validation error.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /csp/onboarding/support:
+    post:
+      summary: Save CSP support contact (step 2)
+      operationId: postCspOnboardingSupport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupportContactRequest" }
+      responses:
+        "200": { description: Saved., content: { application/json: { schema: { $ref: "#/components/schemas/CspOnboardingState" } } } }
+        "403": { description: Not CSP.Admin., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "404": { description: Single-tenant mode., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "409": { description: CSP already onboarded., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "422": { description: Validation error., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+
+  /csp/onboarding/classification:
+    post:
+      summary: Save CSP default classification floor (step 3)
+      operationId: postCspOnboardingClassification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassificationRequest" }
+      responses:
+        "200": { description: Saved., content: { application/json: { schema: { $ref: "#/components/schemas/CspOnboardingState" } } } }
+        "403": { description: Not CSP.Admin., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "404": { description: Single-tenant mode., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "409": { description: CSP already onboarded., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "422": { description: Validation error., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+
+  /csp/onboarding/submit:
+    post:
+      summary: Finalize CSP onboarding (step 4 — review + submit)
+      description: |
+        Sets `OnboardingState = Active`, persists `OnboardingCompletedAt`, and
+        emits an audit row `Action = CspOnboarding.Complete`. After this call,
+        per-tenant pre-provisioning (`POST /api/tenants`) and the per-tenant
+        onboarding wizard (`/api/onboarding/tenant/*`) become available, and
+        all `503 CSP_ONBOARDING_INCOMPLETE` gates lift.
+      operationId: postCspOnboardingSubmit
+      responses:
+        "200":
+          description: Onboarding complete.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubmitResponse" }
+        "403": { description: Not CSP.Admin., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "404": { description: Single-tenant mode., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "409":
+          description: CSP already onboarded — repeated submit rejected.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "422":
+          description: Some required step has not been completed yet.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }

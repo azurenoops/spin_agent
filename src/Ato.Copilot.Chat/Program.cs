@@ -6,7 +6,9 @@ using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 using System.Text.Json;
 using Ato.Copilot.Channels.Abstractions;
 using Ato.Copilot.Agents.Extensions;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Chat.Channels;
 using Ato.Copilot.Chat.Data;
 using Ato.Copilot.Chat.Hubs;
@@ -83,6 +85,12 @@ try
     builder.Services.AddSingleton<IChannel, SignalRChannel>();
     builder.Services.AddSingleton<IChannelManager, SignalRChannelManager>();
     builder.Services.AddScoped<IMessageHandler, ChatServiceMessageHandler>();
+
+    // Tenant scope propagation for in-process MCP tool invocation via Channels
+    // (FR-021/FR-024). Chat owns the bridge because it references both Core
+    // (ITenantContextAccessor) and Channels (ITenantScopeBinder).
+    builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+    builder.Services.AddSingleton<ITenantScopeBinder, AccessorTenantScopeBinder>();
 
     builder.Services.AddHttpClient("McpServer", client =>
     {

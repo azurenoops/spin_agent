@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// Denormalized recent-event record for fast dashboard activity feed rendering.
 /// Captures compliance events as lightweight entries.
 /// </summary>
+[TenantScoped]
 public class DashboardActivity
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

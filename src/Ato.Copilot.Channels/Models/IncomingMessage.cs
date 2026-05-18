@@ -23,6 +23,15 @@ public class IncomingMessage
     /// <summary>Request metadata (e.g., source platform).</summary>
     public Dictionary<string, object> Metadata { get; set; } = new();
 
+    /// <summary>
+    /// Tenant scope attached to this message by the channel transport (VS Code
+    /// extension, M365 Teams bot, etc.). When set, the host binds it to the
+    /// ambient tenant context for the duration of message handling so MCP
+    /// tools see the same identity as direct HTTP callers. See feature 048
+    /// FR-021/FR-024.
+    /// </summary>
+    public TenantContextEnvelope? TenantContext { get; set; }
+
     /// <summary>When the message was sent.</summary>
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
 }

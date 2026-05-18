@@ -1,0 +1,292 @@
+openapi: 3.1.0
+info:
+  title: ATO Copilot — Tenants API
+  version: "1.0.0"
+  description: |
+    Endpoints for listing, provisioning, status-changing, and impersonating
+    tenants. All endpoints require an authenticated principal. CSP-Admin
+    operations require membership in the Entra Security Group mapped via
+    `Auth:RoleClaimMappings:CSP.Admin`. See spec FR-050–FR-059.
+
+servers:
+  - url: https://{deployment-host}
+    variables:
+      deployment-host:
+        default: localhost:5001
+
+components:
+  securitySchemes:
+    cacJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        CAC-derived JWT issued by the CAC middleware. The token's `roles` claim
+        is computed from Entra group membership via `Auth:RoleClaimMappings`.
+
+  schemas:
+    Envelope:
+      type: object
+      required: [status, metadata]
+      properties:
+        status: { type: string, enum: [success, error] }
+        data: { description: Result payload (shape per endpoint). }
+        metadata:
+          type: object
+          required: [executionTimeMs, timestamp]
+          properties:
+            executionTimeMs: { type: integer, minimum: 0 }
+            timestamp: { type: string, format: date-time }
+            tool: { type: string, nullable: true }
+        error:
+          type: object
+          nullable: true
+          required: [errorCode, message]
+          properties:
+            errorCode: { type: string }
+            message: { type: string }
+            suggestion: { type: string }
+
+    Tenant:
+      type: object
+      required: [id, displayName, status, onboardingState, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        entraTenantId: { type: string, format: uuid, nullable: true }
+        displayName: { type: string, minLength: 1, maxLength: 200 }
+        legalEntityName: { type: string, nullable: true, maxLength: 300 }
+        doDComponent: { type: string, nullable: true, maxLength: 120 }
+        primaryPocName: { type: string, nullable: true, maxLength: 200 }
+        primaryPocEmail: { type: string, format: email, nullable: true }
+        primaryPocPhone: { type: string, nullable: true, maxLength: 40 }
+        hqAddressLine1: { type: string, nullable: true, maxLength: 200 }
+        hqAddressLine2: { type: string, nullable: true, maxLength: 200 }
+        hqCity: { type: string, nullable: true, maxLength: 120 }
+        hqStateOrProvince: { type: string, nullable: true, maxLength: 120 }
+        hqPostalCode: { type: string, nullable: true, maxLength: 20 }
+        hqCountry: { type: string, nullable: true, maxLength: 80 }
+        defaultClassificationLevel:
+          type: string
+          enum: [Unclassified, CUI, Secret]
+          default: Unclassified
+        authorizingOfficialName: { type: string, nullable: true, maxLength: 200 }
+        authorizingOfficialEmail: { type: string, format: email, nullable: true }
+        timeZone: { type: string, default: UTC }
+        status: { type: string, enum: [Active, Suspended, Disabled] }
+        onboardingState: { type: string, enum: [Pending, InWizard, Active] }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        updatedBy: { type: string, nullable: true }
+
+    CreateTenantRequest:
+      type: object
+      required: [entraTenantId, displayName]
+      properties:
+        entraTenantId: { type: string, format: uuid }
+        displayName: { type: string, minLength: 1, maxLength: 200 }
+
+    PatchStatusRequest:
+      type: object
+      required: [status, reason]
+      properties:
+        status: { type: string, enum: [Active, Suspended, Disabled] }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    ImpersonationResponse:
+      type: object
+      required: [impersonatedTenantId, expiresAt]
+      properties:
+        impersonatedTenantId: { type: string, format: uuid }
+        expiresAt: { type: string, format: date-time }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication / tenant resolution.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+          examples:
+            missingTenant:
+              value:
+                status: error
+                metadata: { executionTimeMs: 0, timestamp: "2026-05-07T12:00:00Z" }
+                error:
+                  errorCode: MISSING_TENANT_CLAIM
+                  message: "Could not resolve tenant from token."
+                  suggestion: "Ensure your token contains a `tid` claim matching a provisioned tenant."
+    Forbidden:
+      description: Authenticated principal is not authorized for this operation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+          examples:
+            notCspAdmin:
+              value:
+                status: error
+                metadata: { executionTimeMs: 0, timestamp: "2026-05-07T12:00:00Z" }
+                error:
+                  errorCode: FORBIDDEN_NOT_CSP_ADMIN
+                  message: "Operation requires CSP.Admin role."
+                  suggestion: "Contact your CSP administrator to be added to the CSP.Admin Entra Security Group."
+
+security:
+  - cacJwt: []
+
+paths:
+  /api/tenants:
+    get:
+      summary: List tenants visible to the caller (CSP-Admin only).
+      operationId: listTenants
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [Active, Suspended, Disabled] }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Paginated tenant list.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [items, total]
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: '#/components/schemas/Tenant' }
+                          total: { type: integer, minimum: 0 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Pre-provision a tenant (CSP-Admin only). Idempotent on entraTenantId.
+      operationId: createTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTenantRequest' }
+      responses:
+        '200':
+          description: Tenant already existed; returned existing row.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Tenant' }
+        '201':
+          description: New tenant created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Tenant' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/tenants/{tenantId}:
+    parameters:
+      - in: path
+        name: tenantId
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get a single tenant. CSP-Admin can read any tenant; others can read only their own.
+      operationId: getTenant
+      responses:
+        '200':
+          description: Tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Tenant' }
+        '404':
+          description: Not found OR tenant exists but is outside caller's scope (we do not leak existence).
+
+  /api/tenants/{tenantId}/status:
+    parameters:
+      - in: path
+        name: tenantId
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      summary: Change a tenant's lifecycle status (CSP-Admin only).
+      operationId: patchTenantStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PatchStatusRequest' }
+      responses:
+        '200':
+          description: Status updated. Audit row emitted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Tenant' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Concurrency conflict (RowVersion mismatch) or invalid transition.
+
+  /api/tenants/{tenantId}/impersonate:
+    parameters:
+      - in: path
+        name: tenantId
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Begin impersonating the named tenant (CSP-Admin only).
+      operationId: startImpersonation
+      responses:
+        '200':
+          description: Impersonation cookie issued (1-hour expiry). Returns target tenant id and expiry.
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              description: ato-impersonate=<signed-jwt>; HttpOnly; Secure; SameSite=Strict
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ImpersonationResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Tenant not found OR Disabled (CSP-Admin sees Disabled — but path may still 404 if id is bogus).
+
+  /api/tenants/impersonation:
+    delete:
+      summary: End the current impersonation session.
+      operationId: endImpersonation
+      responses:
+        '204':
+          description: Cookie cleared. Subsequent requests scope back to the home tenant.
+        '401': { $ref: '#/components/responses/Unauthorized' }

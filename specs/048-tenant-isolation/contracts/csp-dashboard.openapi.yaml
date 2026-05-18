@@ -1,0 +1,405 @@
+openapi: 3.0.3
+info:
+  title: ATO Copilot — CSP Cross-Tenant Operational Dashboard API (US8)
+  version: 0.1.0
+  description: |
+    All-up dashboard for `CSP.Admin` users. Returns aggregate KPIs across every
+    tenant in the deployment in a single round trip, plus a paginated tenants
+    list with drill-down into impersonation. Reads execute on the CSP-Admin
+    global-view query path (no impersonation cookie required).
+
+    Available **only** in `MultiTenant` deployments and **only** after CSP
+    onboarding (US7) has completed. Otherwise every endpoint returns
+    `503 CSP_ONBOARDING_INCOMPLETE`.
+
+servers:
+  - url: https://copilot.ato.example.us/api
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    TenantStatus:
+      type: string
+      enum: [Active, Suspended, Disabled]
+    OnboardingState:
+      type: string
+      enum: [Pending, InWizard, Active]
+    AtoStatus:
+      type: string
+      enum: [Authorized, InProcess, Denied]
+    Severity:
+      type: string
+      enum: [Critical, High, Moderate, Low]
+    AtoStatusCounts:
+      type: object
+      required: [authorized, inProcess, denied]
+      properties:
+        authorized: { type: integer, minimum: 0 }
+        inProcess: { type: integer, minimum: 0 }
+        denied: { type: integer, minimum: 0 }
+    FindingSeverityCounts:
+      type: object
+      required: [critical, high, moderate, low]
+      properties:
+        critical: { type: integer, minimum: 0 }
+        high: { type: integer, minimum: 0 }
+        moderate: { type: integer, minimum: 0 }
+        low: { type: integer, minimum: 0 }
+    SummaryResponse:
+      type: object
+      required:
+        - tenantCounts
+        - disabledTenantCount
+        - organizationCount
+        - systemCount
+        - atoStatusCounts
+        - openFindingsBySeverity
+        - openPoamCount
+        - openDeviationCount
+        - generatedAt
+      properties:
+        tenantCounts:
+          type: object
+          required: [active, suspended, disabled, total]
+          properties:
+            active: { type: integer, minimum: 0 }
+            suspended: { type: integer, minimum: 0 }
+            disabled: { type: integer, minimum: 0 }
+            total: { type: integer, minimum: 0 }
+        disabledTenantCount:
+          description: |
+            Same value as `tenantCounts.disabled`. Surfaced separately at the
+            top level so the dashboard can render the "Disabled tenants are
+            excluded from rollups below" banner without re-reading nested fields.
+          type: integer
+          minimum: 0
+        organizationCount:
+          description: Excludes organizations whose tenant is `Disabled`.
+          type: integer
+          minimum: 0
+        systemCount:
+          description: Excludes systems whose tenant is `Disabled`.
+          type: integer
+          minimum: 0
+        atoStatusCounts: { $ref: "#/components/schemas/AtoStatusCounts" }
+        openFindingsBySeverity: { $ref: "#/components/schemas/FindingSeverityCounts" }
+        openPoamCount:
+          type: integer
+          minimum: 0
+        openDeviationCount:
+          type: integer
+          minimum: 0
+        generatedAt:
+          type: string
+          format: date-time
+    TenantSummary:
+      type: object
+      required:
+        - tenantId
+        - displayName
+        - status
+        - onboardingState
+        - organizationCount
+        - systemCount
+        - atoStatusCounts
+        - openFindingCount
+      properties:
+        tenantId: { type: string, format: uuid }
+        displayName: { type: string }
+        status: { $ref: "#/components/schemas/TenantStatus" }
+        onboardingState: { $ref: "#/components/schemas/OnboardingState" }
+        organizationCount: { type: integer, minimum: 0 }
+        systemCount: { type: integer, minimum: 0 }
+        atoStatusCounts: { $ref: "#/components/schemas/AtoStatusCounts" }
+        openFindingCount: { type: integer, minimum: 0 }
+        openPoamCount: { type: integer, minimum: 0 }
+        openDeviationCount: { type: integer, minimum: 0 }
+        lastActivityTimestamp:
+          type: string
+          format: date-time
+          nullable: true
+    TenantsPage:
+      type: object
+      required: [items, page, pageSize, totalCount]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/TenantSummary" }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 200 }
+        totalCount: { type: integer, minimum: 0 }
+    AtoRow:
+      type: object
+      required:
+        - decisionId
+        - tenantId
+        - orgDisplayName
+        - systemId
+        - systemName
+        - decisionStatus
+        - decisionType
+        - decisionDate
+      properties:
+        decisionId: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        orgDisplayName: { type: string }
+        systemId: { type: string, format: uuid }
+        systemName: { type: string }
+        decisionStatus: { $ref: "#/components/schemas/AtoStatus" }
+        decisionType:
+          type: string
+          enum: [ATO, IATO, IATT, ATC, Denial]
+        decisionDate: { type: string, format: date-time }
+        expirationDate: { type: string, format: date-time, nullable: true }
+    AtosPage:
+      type: object
+      required: [items, page, pageSize, totalCount]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AtoRow" }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 200 }
+        totalCount: { type: integer, minimum: 0 }
+    SystemRow:
+      type: object
+      required:
+        - systemId
+        - name
+        - tenantId
+        - orgDisplayName
+        - impactLevel
+        - currentRmfPhase
+        - complianceScore
+        - atoStatus
+        - atoSeverity
+        - openPoamCount
+        - overduePoamCount
+      properties:
+        systemId: { type: string }
+        name: { type: string }
+        acronym: { type: string, nullable: true }
+        tenantId: { type: string, format: uuid }
+        orgDisplayName: { type: string }
+        impactLevel:
+          type: string
+          description: FIPS 199 baseline level (Low/Moderate/High/Unknown).
+        currentRmfPhase:
+          type: string
+          description: RmfPhase enum (Categorize/Select/Implement/Assess/Authorize/Monitor/Prepare).
+        complianceScore:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        atoExpirationDate: { type: string, format: date-time, nullable: true }
+        atoStatus:
+          type: string
+          enum: [None, Active, Expired]
+        atoDaysRemaining: { type: integer, nullable: true }
+        atoSeverity:
+          type: string
+          enum: [none, green, yellow, red, expired]
+        openPoamCount: { type: integer, minimum: 0 }
+        overduePoamCount: { type: integer, minimum: 0 }
+    SystemsPage:
+      type: object
+      required: [items, page, pageSize, totalCount]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SystemRow" }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 200 }
+        totalCount: { type: integer, minimum: 0 }
+    ErrorEnvelope:
+      type: object
+      required: [status, error]
+      properties:
+        status: { type: string, enum: [error] }
+        error:
+          type: object
+          required: [errorCode, message]
+          properties:
+            errorCode:
+              type: string
+              enum:
+                - CSP_ONBOARDING_INCOMPLETE
+                - FORBIDDEN_NOT_CSP_ADMIN
+                - SINGLE_TENANT_MODE
+                - VALIDATION_FAILED
+            message: { type: string }
+            suggestion: { type: string, nullable: true }
+
+security:
+  - bearerAuth: []
+
+paths:
+  /csp/dashboard/summary:
+    get:
+      summary: Aggregate cross-tenant KPIs (single round trip)
+      description: |
+        Returns total counts and breakdowns across all tenants. Tenants in
+        `Status = Disabled` are counted in `tenantCounts.disabled` and surfaced
+        as `disabledTenantCount`, but their rows are excluded from rollups
+        (`organizationCount`, `systemCount`, `atoStatusCounts`,
+        `openFindingsBySeverity`, `openPoamCount`, `openDeviationCount`).
+      operationId: getCspDashboardSummary
+      responses:
+        "200":
+          description: Summary KPIs.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SummaryResponse" }
+        "403":
+          description: Not CSP.Admin.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "404":
+          description: Single-tenant deployment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "503":
+          description: CSP onboarding not yet complete.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /csp/dashboard/tenants:
+    get:
+      summary: Paginated cross-tenant list with per-tenant KPIs
+      operationId: getCspDashboardTenants
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: status
+          schema: { $ref: "#/components/schemas/TenantStatus" }
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum:
+              - displayName
+              - status
+              - openFindingCount
+              - lastActivityTimestamp
+            default: displayName
+        - in: query
+          name: order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        "200":
+          description: Tenants page.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TenantsPage" }
+        "403": { description: Not CSP.Admin., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "404": { description: Single-tenant deployment., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "503": { description: CSP onboarding not complete., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+
+  /csp/dashboard/atos:
+    get:
+      summary: Paginated cross-tenant list of ATO decisions
+      operationId: getCspDashboardAtos
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: decisionStatus
+          schema: { $ref: "#/components/schemas/AtoStatus" }
+        - in: query
+          name: decisionType
+          schema:
+            type: string
+            enum: [ATO, IATO, IATT, ATC, Denial]
+        - in: query
+          name: since
+          schema: { type: string, format: date-time }
+        - in: query
+          name: until
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: ATO decisions page.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AtosPage" }
+        "403": { description: Not CSP.Admin., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "404": { description: Single-tenant deployment., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "503": { description: CSP onboarding not complete., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+
+  /csp/dashboard/systems:
+    get:
+      summary: Paginated cross-tenant list of registered systems
+      description: |
+        Powers the CSP-level `/systems` page. Excludes the FR-070 system tenant
+        and (per FR-098) systems whose tenant is `Status = Disabled`. Each row
+        carries `tenantId` + `orgDisplayName` so the dashboard can drill
+        through via impersonation. Soft-deleted systems (`IsActive = false`)
+        are excluded.
+      operationId: getCspDashboardSystems
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: impactLevel
+          description: Filter by FIPS 199 baseline level (case-insensitive; accepts L/M/H aliases).
+          schema:
+            type: string
+            enum: [Low, Moderate, High]
+        - in: query
+          name: rmfPhase
+          description: Filter by `RmfPhase` enum value (case-insensitive).
+          schema:
+            type: string
+            enum: [Prepare, Categorize, Select, Implement, Assess, Authorize, Monitor]
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum:
+              - name
+              - orgDisplayName
+              - impactLevel
+              - rmfPhase
+              - complianceScore
+              - atoExpiration
+              - openPoamCount
+            default: name
+        - in: query
+          name: order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        "200":
+          description: Systems page.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SystemsPage" }
+        "403": { description: Not CSP.Admin., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "404": { description: Single-tenant deployment., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }
+        "503": { description: CSP onboarding not complete., content: { application/json: { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } }

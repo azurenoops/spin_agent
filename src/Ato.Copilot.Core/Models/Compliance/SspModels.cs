@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
@@ -10,8 +11,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// <remarks>
 /// Feature 015 Phase 7 (US5). Unique constraint on (RegisteredSystemId, ControlId).
 /// </remarks>
+[TenantScoped]
 public class ControlImplementation
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique identifier (GUID).</summary>
     [Key]
     [MaxLength(36)]

@@ -1,0 +1,107 @@
+openapi: 3.1.0
+info:
+  title: ATO Copilot — Global Baselines API
+  version: "1.0.0"
+  description: |
+    CSP-Admin endpoints to publish a tenant-local control narrative or evidence
+    artifact as a `[GlobalReference]` row visible to every tenant, and to
+    unpublish such a baseline. See spec FR-080–FR-083.
+
+components:
+  securitySchemes:
+    cacJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Envelope:
+      $ref: 'tenants.openapi.yaml#/components/schemas/Envelope'
+
+    BaselineKind:
+      type: string
+      enum: [ControlNarrative, EvidenceArtifact, OrgInheritanceDefault]
+
+    PublishRequest:
+      type: object
+      required: [kind, sourceId]
+      properties:
+        kind: { $ref: '#/components/schemas/BaselineKind' }
+        sourceId:
+          type: string
+          format: uuid
+          description: Id of the source tenant-local row to publish.
+        title:
+          type: string
+          maxLength: 300
+        notes:
+          type: string
+          maxLength: 4000
+
+    GlobalBaseline:
+      type: object
+      required: [id, kind, publishedAt, publishedBy, sourceTenantId]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/BaselineKind' }
+        title: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        publishedAt: { type: string, format: date-time }
+        publishedBy: { type: string }
+        sourceTenantId: { type: string, format: uuid }
+
+security:
+  - cacJwt: []
+
+paths:
+  /api/global-baselines:
+    get:
+      summary: List published global baselines.
+      operationId: listBaselines
+      parameters:
+        - in: query
+          name: kind
+          schema: { $ref: '#/components/schemas/BaselineKind' }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Page of baselines.
+
+  /api/global-baselines/publish:
+    post:
+      summary: Publish a tenant-local row as a global baseline (CSP-Admin only).
+      operationId: publishBaseline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublishRequest' }
+      responses:
+        '201':
+          description: Baseline created in the system tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/GlobalBaseline' }
+
+  /api/global-baselines/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      summary: Unpublish a global baseline (CSP-Admin only).
+      operationId: unpublishBaseline
+      responses:
+        '204':
+          description: Baseline removed. Audit event emitted; tenants previously inheriting from it are flagged for re-evaluation.

@@ -1,4 +1,5 @@
 using Ato.Copilot.Core.Models.Kanban;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Auth;
 
@@ -6,8 +7,15 @@ namespace Ato.Copilot.Core.Models.Auth;
 /// Represents a CAC/PIV authenticated session with configurable timeout.
 /// Tracks user identity, token hash, and session lifecycle.
 /// </summary>
+[TenantScoped]
 public class CacSession
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique session identifier.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -49,8 +57,15 @@ public class CacSession
 /// Represents a JIT access request for PIM role activation or VM network access.
 /// Tracks the full lifecycle from request through activation to deactivation.
 /// </summary>
+[TenantScoped]
 public class JitRequestEntity : ConcurrentEntity
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique request identifier.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -150,8 +165,15 @@ public class JitRequestEntity : ConcurrentEntity
 /// <summary>
 /// Maps a CAC certificate thumbprint/subject to a platform role for automatic role resolution.
 /// </summary>
+[TenantScoped]
 public class CertificateRoleMapping
 {
+    /// <summary>
+    /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
+    /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
+    /// </summary>
+    public Guid TenantId { get; set; }
+
     /// <summary>Unique mapping identifier.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
 

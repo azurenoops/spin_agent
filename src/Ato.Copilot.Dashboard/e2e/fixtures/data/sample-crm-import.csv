@@ -1,0 +1,54 @@
+Control ID,Responsibility Type,Provider,Customer Responsibility
+AC-1,Shared,Azure Government (FedRAMP High),Customer develops organization-specific access control policies and procedures.
+AC-2,Shared,Azure Government (FedRAMP High),Customer manages application-level user accounts and access provisioning.
+AC-2(1),Shared,Azure Government (FedRAMP High),Customer configures automated account management for application accounts.
+AC-2(2),Inherited,Azure Government (FedRAMP High),
+AC-2(3),Inherited,Azure Government (FedRAMP High),
+AC-2(4),Shared,Azure Government (FedRAMP High),Customer defines and enforces audit actions for account management events.
+AC-3,Shared,Azure Government (FedRAMP High),Customer implements application-level access enforcement mechanisms.
+AC-4,Shared,Azure Government (FedRAMP High),"Customer configures NSGs, firewalls, and application-level information flow policies."
+AC-5,Shared,Azure Government (FedRAMP High),Customer enforces separation of duties for application roles and functions.
+AC-6,Shared,Azure Government (FedRAMP High),Customer implements least privilege for application and data access.
+AC-6(1),Shared,Azure Government (FedRAMP High),Customer authorizes and documents privileged access to security functions.
+AC-6(2),Shared,Azure Government (FedRAMP High),Customer restricts non-privileged user access to security functions and data.
+AC-6(5),Shared,Azure Government (FedRAMP High),Customer restricts privileged accounts to specific authorized personnel.
+AC-6(9),Inherited,Azure Government (FedRAMP High),
+AC-6(10),Inherited,Azure Government (FedRAMP High),
+AC-7,Shared,Azure Government (FedRAMP High),Customer configures application-level unsuccessful login attempt handling.
+AC-8,Customer,,Customer implements system use notification banners for all application interfaces.
+AC-10,Shared,Azure Government (FedRAMP High),Customer limits concurrent sessions per organizational requirements.
+AC-11,Customer,,Customer implements session lock for application interfaces after inactivity timeout.
+AC-11(1),Customer,,Customer conceals previously displayed information upon session lock activation.
+AC-12,Shared,Azure Government (FedRAMP High),Customer configures application session termination policies and timeouts.
+AC-14,Customer,,Customer identifies and documents permitted actions without authentication.
+AC-17,Shared,Azure Government (FedRAMP High),Customer establishes and enforces remote access policies for system management.
+AC-17(1),Inherited,Azure Government (FedRAMP High),
+AC-17(2),Inherited,Azure Government (FedRAMP High),
+AC-17(4),Shared,Azure Government (FedRAMP High),Customer authorizes and monitors all privileged remote access commands.
+AC-18,Inherited,Azure Government (FedRAMP High),
+AC-19,Customer,,Customer controls and manages access to mobile devices used for system access.
+AC-20,Customer,,Customer establishes terms and conditions for external system connections.
+AC-22,Customer,,Customer designates individuals authorized to post publicly accessible content.
+AT-1,Customer,,Customer develops organizational security awareness and training policy and procedures.
+AT-2,Customer,,Customer provides role-based security awareness training to all personnel.
+AT-2(2),Customer,,Customer provides insider threat awareness training to all personnel.
+AT-3,Customer,,Customer provides role-based security training to personnel with assigned security roles.
+AT-4,Customer,,Customer documents and monitors security training records for all personnel.
+AU-1,Customer,,Customer develops organizational audit and accountability policy and procedures.
+AU-2,Customer,,Customer identifies auditable events per organizational security requirements.
+AU-3,Shared,Azure Government (FedRAMP High),Customer configures application-level audit record content and detail.
+AU-3(1),Shared,Azure Government (FedRAMP High),Customer generates additional audit detail for application-specific events.
+AU-4,Inherited,Azure Government (FedRAMP High),
+AU-5,Shared,Azure Government (FedRAMP High),Customer configures alerting when audit storage capacity reaches threshold.
+AU-6,Customer,,Customer reviews and analyzes audit records for indications of inappropriate activity.
+AU-6(1),Customer,,Customer integrates audit review with organizational threat investigation process.
+AU-6(3),Shared,Azure Government (FedRAMP High),Customer correlates audit records across application repositories.
+AU-7,Shared,Azure Government (FedRAMP High),Customer queries application audit logs for investigation support.
+AU-7(1),Shared,Azure Government (FedRAMP High),Customer sorts and searches audit records by specified fields.
+AU-8,Inherited,Azure Government (FedRAMP High),
+AU-9,Inherited,Azure Government (FedRAMP High),
+AU-9(4),Inherited,Azure Government (FedRAMP High),
+AU-11,Customer,,Customer retains audit records per organizational retention policy.
+AU-12,Shared,Azure Government (FedRAMP High),Customer selects auditable events for application-level recording.
+BOGUS-1,Inherited,Azure Government (FedRAMP High),This control does not exist and should be flagged as not found.
+FAKE-42,Customer,,This is another invalid control for testing not-found detection.

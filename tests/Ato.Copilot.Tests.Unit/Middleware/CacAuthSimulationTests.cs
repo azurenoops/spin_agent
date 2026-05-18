@@ -8,6 +8,7 @@ using Xunit;
 using FluentAssertions;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Models.Auth;
+using Ato.Copilot.Mcp.Configuration;
 using Ato.Copilot.Mcp.Middleware;
 
 namespace Ato.Copilot.Tests.Unit.Middleware;
@@ -33,6 +34,7 @@ public class CacAuthSimulationTests
             next,
             Options.Create(azOpts),
             Options.Create(cacOptions),
+            Options.Create(new RoleClaimMappingsOptions()),
             hostEnv.Object,
             _logger.Object);
     }

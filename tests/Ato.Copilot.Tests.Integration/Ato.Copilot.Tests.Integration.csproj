@@ -20,6 +20,14 @@
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="FluentAssertions" Version="7.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0" />
+    <!-- T102 [US5]: SQL Server testcontainer for Row-Level Security tests.
+         Tests using these containers are gated with Skip.IfNot(...) so they
+         run only when Docker is available locally / in CI. -->
+    <PackageReference Include="Testcontainers.MsSql" Version="3.10.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
+    <PackageReference Include="Xunit.SkippableFact" Version="1.5.23" />
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,6 +36,7 @@
     <ProjectReference Include="..\..\src\Ato.Copilot.Core\Ato.Copilot.Core.csproj" />
     <ProjectReference Include="..\..\src\Ato.Copilot.State\Ato.Copilot.State.csproj" />
     <ProjectReference Include="..\..\src\Ato.Copilot.Chat\Ato.Copilot.Chat.csproj" />
+    <ProjectReference Include="..\..\src\Ato.Copilot.Cli\Ato.Copilot.Cli.csproj" />
   </ItemGroup>
 
 </Project>

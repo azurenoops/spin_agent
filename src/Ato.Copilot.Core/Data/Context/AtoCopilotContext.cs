@@ -1,6 +1,9 @@
+using System.Linq.Expressions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Models.Compliance;
@@ -8,6 +11,8 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Models.Roadmap;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Data.Context;
 
@@ -18,10 +23,65 @@ namespace Ato.Copilot.Core.Data.Context;
 public class AtoCopilotContext : DbContext
 {
     /// <summary>
+    /// Optional ambient tenant accessor used to apply tenant query filters at
+    /// runtime (Feature 048 T042). Null when the context is constructed without
+    /// a registered <see cref="ITenantContextAccessor"/> — in that case query
+    /// filters short-circuit to "no filter", which preserves bootstrap and
+    /// background-service behavior.
+    /// </summary>
+    private readonly ITenantContextAccessor? _tenantAccessor;
+
+    /// <summary>
     /// Initializes a new instance of <see cref="AtoCopilotContext"/>.
     /// </summary>
     /// <param name="options">Database context options with provider configuration.</param>
-    public AtoCopilotContext(DbContextOptions<AtoCopilotContext> options) : base(options) { }
+    /// <param name="tenantAccessor">
+    /// Optional ambient tenant-context accessor (singleton). When present, EF
+    /// Core <c>HasQueryFilter</c> closures resolve the active tenant via
+    /// <c>this.TenantFilterEffectiveId</c> at every query execution. When
+    /// <c>null</c> (tests or background bootstrap), the filter short-circuits
+    /// and behaves as if no filter were applied.
+    /// </param>
+    /// <remarks>
+    /// A single constructor with an optional <see cref="ITenantContextAccessor"/>
+    /// avoids the "Multiple constructors accepting all given argument types"
+    /// error that occurs when both ambient accessor IS and IS NOT registered
+    /// in DI across the test matrix.
+    /// </remarks>
+    public AtoCopilotContext(
+        DbContextOptions<AtoCopilotContext> options,
+        ITenantContextAccessor? tenantAccessor = null) : base(options)
+    {
+        _tenantAccessor = tenantAccessor;
+    }
+
+    // ─── Tenant query-filter accessors ───────────────────────────────────────
+    // EF Core captures these properties via `Expression.Property(Expression
+    // .Constant(this), …)` inside HasQueryFilter expressions so that the model
+    // can be cached but each query execution re-evaluates the property against
+    // the live DbContext instance. These are the canonical EF Core pattern for
+    // dynamic per-context filter values.
+
+    /// <summary>
+    /// True when no tenant context is currently ambient (background services,
+    /// bootstrap, or unscoped tests). Filter short-circuits to "no filter".
+    /// </summary>
+    public bool TenantFilterDisabled => _tenantAccessor?.Current is null;
+
+    /// <summary>
+    /// True when the active principal is a CSP-Admin viewing every tenant
+    /// (i.e. impersonation is OFF). When true, the filter is permissive.
+    /// </summary>
+    public bool TenantFilterCspAdminAll =>
+        _tenantAccessor?.Current is { IsCspAdmin: true, ImpersonatedTenantId: null };
+
+    /// <summary>
+    /// The effective tenant id used by query filters and stamping
+    /// (= <c>ImpersonatedTenantId ?? TenantId</c>). Returns
+    /// <see cref="Guid.Empty"/> when no tenant context is ambient.
+    /// </summary>
+    public Guid TenantFilterEffectiveId =>
+        _tenantAccessor?.Current?.EffectiveTenantId ?? Guid.Empty;
 
     /// <summary>Compliance assessments with scan results and statistics.</summary>
     public DbSet<ComplianceAssessment> Assessments => Set<ComplianceAssessment>();
@@ -414,6 +474,33 @@ public class AtoCopilotContext : DbContext
     /// <summary>Persistent audit log for FR-097 wizard actions.</summary>
     public DbSet<WizardAuditEntry> WizardAuditEntries => Set<WizardAuditEntry>();
 
+    // ─── Tenancy (Feature 048) ───────────────────────────────────────────────
+    /// <summary>Authoritative root of an authorization boundary. <see cref="GlobalReferenceAttribute"/>.</summary>
+    public DbSet<Tenant> Tenants => Set<Tenant>();
+
+    /// <summary>Sub-grouping inside a tenant. <see cref="TenantScopedAttribute"/>.</summary>
+    public DbSet<Organization> Organizations => Set<Organization>();
+
+    /// <summary>Feature 048 (T134, FR-081/FR-082): tenant-published baselines visible cross-tenant.</summary>
+    public DbSet<GlobalBaseline> GlobalBaselines => Set<GlobalBaseline>();
+
+    /// <summary>Feature 048 (T161, FR-006, US7): singleton hosting-CSP profile. <see cref="GlobalReferenceAttribute"/>.</summary>
+    public DbSet<CspProfile> CspProfiles => Set<CspProfile>();
+
+    /// <summary>Feature 048 (T194, FR-007, US9): components imported from CSP ATO artifacts. <see cref="GlobalReferenceAttribute"/>.</summary>
+    public DbSet<CspInheritedComponent> CspInheritedComponents => Set<CspInheritedComponent>();
+
+    /// <summary>Feature 048 (T195, FR-008, US9): AI-mapped capabilities of <see cref="CspInheritedComponent"/>. <see cref="GlobalReferenceAttribute"/>.</summary>
+    public DbSet<CspInheritedCapability> CspInheritedCapabilities => Set<CspInheritedCapability>();
+
+    /// <summary>
+    /// Per-org override of CSP-defined NIST control defaults
+    /// (Feature 048 follow-up — user ask #2). <see cref="TenantScopedAttribute"/>:
+    /// each row belongs to exactly one tenant; at most one row per
+    /// (TenantId, ControlId).
+    /// </summary>
+    public DbSet<OrgControlOverride> OrgControlOverrides => Set<OrgControlOverride>();
+
     //
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -651,6 +738,9 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ScanType).HasMaxLength(20);
             entity.Property(e => e.SubscriptionId).HasMaxLength(100);
 
+            // Feature 048 (T117/T118): correlation id for audit-query stitching.
+            entity.Property(e => e.CorrelationId).HasMaxLength(128);
+
             // Value conversions for List<string> properties
             entity.Property(e => e.AffectedResources).HasConversion(stringListConverter);
             entity.Property(e => e.AffectedControls).HasConversion(stringListConverter);
@@ -659,6 +749,14 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => e.Timestamp);
             entity.HasIndex(e => e.SubscriptionId);
             entity.HasIndex(e => new { e.UserId, e.Timestamp });
+
+            // Feature 048 (T073): tenant-attribution composite indexes for the
+            // primary "audit log for this tenant, recent first" query and the
+            // CSP-Admin "actor's history across impersonations" query.
+            entity.HasIndex(e => new { e.TenantId, e.Timestamp })
+                .HasDatabaseName("IX_AuditLogs_TenantId_Timestamp");
+            entity.HasIndex(e => new { e.ActorTenantId, e.Timestamp })
+                .HasDatabaseName("IX_AuditLogs_ActorTenantId_Timestamp");
         });
 
         // ─── RemediationBoard ────────────────────────────────────────────────────
@@ -3065,6 +3163,369 @@ public class AtoCopilotContext : DbContext
 
         // ─── Onboarding Wizard (Feature 047) ─────────────────────────────────────
         ConfigureOnboardingEntities(modelBuilder);
+
+        // ─── Tenancy (Feature 048) ───────────────────────────────────────────────
+        ConfigureTenancyEntities(modelBuilder);
+
+        // ─── Tenant query filters (Feature 048 T042) ─────────────────────────────
+        // Applied last so all entity types are present in the model. Walks the
+        // model and attaches a HasQueryFilter to every CLR type decorated with
+        // [TenantScoped]. The filter resolves the active tenant via the
+        // ambient accessor captured into the closure.
+        ApplyTenantQueryFilters(modelBuilder);
+    }
+
+    /// <summary>
+    /// Reflection-driven query-filter installer (Feature 048 T042 / data-model.md §4).
+    /// For each entity type whose CLR type carries <see cref="TenantScopedAttribute"/>,
+    /// registers a <c>HasQueryFilter</c> equivalent to:
+    /// <code>
+    /// e =&gt; _tenantAccessor == null
+    ///    || _tenantAccessor.Current == null
+    ///    || (_tenantAccessor.Current.IsCspAdmin
+    ///        &amp;&amp; _tenantAccessor.Current.ImpersonatedTenantId == null)
+    ///    || e.TenantId == _tenantAccessor.Current.EffectiveTenantId;
+    /// </code>
+    /// Permissive when no ambient context is set so background services and
+    /// startup paths can still read; restrictive in HTTP request scopes where
+    /// middleware always installs a context. CSP-Admin without impersonation
+    /// sees all rows (FR-026); with impersonation, the filter scopes to the
+    /// impersonated tenant via <c>EffectiveTenantId</c>.
+    /// </summary>
+    private void ApplyTenantQueryFilters(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var clrType = entityType.ClrType;
+            if (clrType is null)
+            {
+                continue;
+            }
+
+            if (entityType.IsOwned())
+            {
+                continue;
+            }
+
+            var hasTenantScoped = clrType.GetCustomAttributes(typeof(TenantScopedAttribute), inherit: false).Length > 0;
+            if (!hasTenantScoped)
+            {
+                continue;
+            }
+
+            var tenantIdProperty = clrType.GetProperty("TenantId");
+            if (tenantIdProperty is null || tenantIdProperty.PropertyType != typeof(Guid))
+            {
+                // Self-check (AssertScopingAttributesPresent) is responsible for
+                // surfacing this as a startup error. Skip silently here so model
+                // creation does not throw before the friendlier diagnostic runs.
+                continue;
+            }
+
+            var lambda = BuildTenantFilterExpression(clrType);
+            modelBuilder.Entity(clrType).HasQueryFilter(lambda);
+        }
+    }
+
+    /// <summary>
+    /// Builds the expression tree for the tenant query filter on the given
+    /// CLR type. The expression follows the canonical EF Core pattern of
+    /// referencing DbContext-instance properties via
+    /// <c>Expression.Property(Expression.Constant(this), …)</c> — this
+    /// allows the model to be cached while EF Core re-evaluates the
+    /// properties against the live DbContext instance at each query
+    /// execution.
+    /// </summary>
+    private LambdaExpression BuildTenantFilterExpression(Type clrType)
+    {
+        // Parameter: e
+        var parameter = Expression.Parameter(clrType, "e");
+
+        // this (the DbContext instance) — EF Core re-binds these property
+        // accesses per query execution.
+        var thisExpr = Expression.Constant(this);
+
+        // this.TenantFilterDisabled — short-circuits when no tenant context.
+        var filterDisabled = Expression.Property(
+            thisExpr,
+            nameof(TenantFilterDisabled));
+
+        // this.TenantFilterCspAdminAll — short-circuits when CSP-Admin viewing
+        // every tenant (impersonation OFF).
+        var cspAdminAll = Expression.Property(
+            thisExpr,
+            nameof(TenantFilterCspAdminAll));
+
+        // this.TenantFilterEffectiveId — the effective tenant id to match.
+        var effectiveTenantId = Expression.Property(
+            thisExpr,
+            nameof(TenantFilterEffectiveId));
+
+        // e.TenantId
+        var entityTenantId = Expression.Property(parameter, "TenantId");
+
+        // e.TenantId == this.TenantFilterEffectiveId
+        var tenantMatches = Expression.Equal(entityTenantId, effectiveTenantId);
+
+        // filterDisabled || cspAdminAll || tenantMatches
+        var body = Expression.OrElse(
+            filterDisabled,
+            Expression.OrElse(cspAdminAll, tenantMatches));
+
+        var delegateType = typeof(Func<,>).MakeGenericType(clrType, typeof(bool));
+        return Expression.Lambda(delegateType, body, parameter);
+    }
+
+    /// <summary>
+    /// Configures the new tenancy entities introduced in Feature 048 (Tenant,
+    /// Organization). Full retrofit of <c>HasQueryFilter</c> across all
+    /// tenant-scoped entities is performed in user-story phase 3 (T044-T053).
+    /// </summary>
+    private static void ConfigureTenancyEntities(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Tenant>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // Per Feature 048 FR-070, the system tenant has a fixed
+            // Id (Guid.Empty / 00000000-0000-0000-0000-000000000000).
+            // EF Core's default behavior for Guid primary keys is
+            // ValueGeneratedOnAdd, which replaces Guid.Empty values with
+            // a fresh Guid in the change tracker — silently breaking the
+            // FR-070 invariant. ValueGeneratedNever() puts the application
+            // in charge of all Tenant ids (callers either assign a fresh
+            // Guid via the property initializer in Tenant.cs or pass an
+            // explicit value such as TenantBootstrapService.SystemTenantId).
+            entity.Property(e => e.Id).ValueGeneratedNever();
+
+            entity.Property(e => e.DisplayName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.LegalEntityName).HasMaxLength(300);
+            entity.Property(e => e.DoDComponent).HasMaxLength(120);
+            entity.Property(e => e.PrimaryPocName).HasMaxLength(200);
+            entity.Property(e => e.PrimaryPocEmail).HasMaxLength(254);
+            entity.Property(e => e.PrimaryPocPhone).HasMaxLength(40);
+            entity.Property(e => e.HqAddressLine1).HasMaxLength(200);
+            entity.Property(e => e.HqAddressLine2).HasMaxLength(200);
+            entity.Property(e => e.HqCity).HasMaxLength(120);
+            entity.Property(e => e.HqStateOrProvince).HasMaxLength(120);
+            entity.Property(e => e.HqPostalCode).HasMaxLength(20);
+            entity.Property(e => e.HqCountry).HasMaxLength(80);
+            entity.Property(e => e.AuthorizingOfficialName).HasMaxLength(200);
+            entity.Property(e => e.AuthorizingOfficialEmail).HasMaxLength(254);
+            entity.Property(e => e.TimeZone).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(200);
+            entity.Property(e => e.DefaultClassificationLevel).HasConversion<int>();
+            entity.Property(e => e.Status).HasConversion<int>();
+            entity.Property(e => e.OnboardingState).HasConversion<int>();
+
+            // Filtered unique index: EntraTenantId is unique when not null.
+            entity.HasIndex(e => e.EntraTenantId)
+                .IsUnique()
+                .HasFilter("[EntraTenantId] IS NOT NULL")
+                .HasDatabaseName("IX_Tenants_EntraTenantId");
+
+            entity.HasIndex(e => e.Status)
+                .HasDatabaseName("IX_Tenants_Status");
+        });
+
+        modelBuilder.Entity<Organization>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+
+            entity.HasIndex(e => new { e.TenantId, e.Name })
+                .IsUnique()
+                .HasDatabaseName("IX_Organizations_TenantId_Name");
+
+            entity.HasIndex(e => new { e.TenantId, e.ParentOrganizationId })
+                .HasDatabaseName("IX_Organizations_TenantId_ParentOrganizationId");
+
+            entity.HasOne(e => e.ParentOrganization)
+                .WithMany()
+                .HasForeignKey(e => e.ParentOrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CspProfile>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.LegalEntityName).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.DisplayName).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.LogoUrl).HasMaxLength(2048);
+            entity.Property(e => e.PrimarySupportEmail).HasMaxLength(254);
+            entity.Property(e => e.SupportPhone).HasMaxLength(40);
+            entity.Property(e => e.CreatedBy).HasMaxLength(254).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(254);
+            entity.Property(e => e.DefaultClassificationFloor).HasConversion<int>();
+            entity.Property(e => e.OnboardingState).HasConversion<int>();
+        });
+
+        // Feature 048 (T197, FR-007 / FR-008, US9): CSP-inherited component + capability.
+        // Both entities are [GlobalReference] — the auto-tenant-filter loop in
+        // ConfigureTenantQueryFilters skips them. ComponentType / Status / SourceFormat /
+        // MappedBy / CapabilityStatus are stored as int enums (default conversion).
+        // MappedNistControlIds is persisted as a JSON-array string via a local
+        // ValueConverter (cannot share the OnModelCreating-scoped one since
+        // this is a static helper).
+        var cspMappedControlIdsConverter = new ValueConverter<List<string>, string>(
+            v => JsonSerializer.Serialize(v ?? new List<string>(), (JsonSerializerOptions?)null),
+            v => string.IsNullOrWhiteSpace(v)
+                ? new List<string>()
+                : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>());
+        var cspMappedControlIdsComparer = new ValueComparer<List<string>>(
+            (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>()),
+            v => v == null ? 0 : v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+            v => v == null ? new List<string>() : v.ToList());
+
+        modelBuilder.Entity<CspInheritedComponent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(2000).IsRequired();
+            entity.Property(e => e.ComponentType).HasConversion<int>();
+            entity.Property(e => e.SourceFileName).HasMaxLength(512);
+            entity.Property(e => e.SourceFormat).HasConversion<int>();
+            entity.Property(e => e.SourceArtifactReference).HasMaxLength(2048);
+            entity.Property(e => e.Status).HasConversion<int>();
+            entity.Property(e => e.ImportedBy).HasMaxLength(254).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(254);
+
+            entity.HasIndex(e => new { e.CspProfileId, e.Status })
+                .HasDatabaseName("IX_CspInheritedComponents_CspProfileId_Status");
+
+            entity.HasMany(e => e.Capabilities)
+                .WithOne(c => c.CspInheritedComponent)
+                .HasForeignKey(c => c.CspInheritedComponentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CspInheritedCapability>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(2000).IsRequired();
+            entity.Property(e => e.MappedNistControlIds)
+                .HasConversion(cspMappedControlIdsConverter)
+                .Metadata.SetValueComparer(cspMappedControlIdsComparer);
+            entity.Property(e => e.Status).HasConversion<int>();
+            entity.Property(e => e.MappingFailureReason).HasMaxLength(500);
+            entity.Property(e => e.MappedBy).HasConversion<int>();
+            entity.Property(e => e.CreatedBy).HasMaxLength(254).IsRequired();
+            entity.Property(e => e.ReviewedBy).HasMaxLength(254);
+            entity.Property(e => e.ReviewerNote).HasMaxLength(2000);
+
+            entity.HasIndex(e => new { e.CspInheritedComponentId, e.Status })
+                .HasDatabaseName("IX_CspInheritedCapabilities_ComponentId_Status");
+        });
+
+        // ─── OrgControlOverride (Feature 048 follow-up — user ask #2) ─────────
+        modelBuilder.Entity<OrgControlOverride>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ImplementationStatus).HasConversion<int?>();
+            entity.Property(e => e.InheritanceApplicability).HasConversion<int?>();
+            entity.Property(e => e.Justification).HasMaxLength(2000);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            // Composite unique key: each tenant may have at most one override
+            // row per control id. The (TenantId, ControlId) ordering also
+            // matches the read path ("all overrides for the active tenant")
+            // and the write path ("upsert by control id within tenant").
+            entity.HasIndex(e => new { e.TenantId, e.ControlId })
+                .IsUnique()
+                .HasDatabaseName("IX_OrgControlOverride_TenantId_ControlId");
+        });
+    }
+
+    /// <summary>
+    /// Tracked exemptions for entity types that genuinely should NOT carry
+    /// either <see cref="TenantScopedAttribute"/> or
+    /// <see cref="GlobalReferenceAttribute"/>. Currently empty — every entity
+    /// must declare its scope. New exemptions REQUIRE security review.
+    /// See feature 048 spec FR-003 and data-model.md §2.3.
+    /// </summary>
+    public static IReadOnlySet<Type> TenantScopingExceptions { get; } = new HashSet<Type>();
+
+    /// <summary>
+    /// Startup self-check (FR-003): scans all entity types known to the
+    /// model and asserts each has exactly one of:
+    /// <list type="bullet">
+    ///   <item><see cref="TenantScopedAttribute"/> AND a
+    ///   <c>Guid TenantId { get; set; }</c> property.</item>
+    ///   <item><see cref="GlobalReferenceAttribute"/>.</item>
+    ///   <item>An entry in <see cref="TenantScopingExceptions"/>.</item>
+    /// </list>
+    /// Throws <see cref="InvalidOperationException"/> on the first offender,
+    /// listing all offenders. Called from <c>Program.cs</c> after model
+    /// finalization but before request processing begins.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when one or more entity types lack a tenant-scoping declaration.
+    /// </exception>
+    public void AssertScopingAttributesPresent()
+    {
+        var offenders = new List<string>();
+
+        foreach (var entityType in Model.GetEntityTypes())
+        {
+            var clrType = entityType.ClrType;
+            if (clrType is null)
+            {
+                continue;
+            }
+
+            // Skip owned types and shadow entity types — they are configured
+            // through their owners, not in their own right.
+            if (entityType.IsOwned())
+            {
+                continue;
+            }
+
+            if (TenantScopingExceptions.Contains(clrType))
+            {
+                continue;
+            }
+
+            var hasTenantScoped = clrType.GetCustomAttributes(typeof(TenantScopedAttribute), inherit: false).Length > 0;
+            var hasGlobalRef = clrType.GetCustomAttributes(typeof(GlobalReferenceAttribute), inherit: false).Length > 0;
+
+            if (hasTenantScoped && hasGlobalRef)
+            {
+                offenders.Add($"{clrType.FullName}: declares both [TenantScoped] and [GlobalReference] (mutually exclusive).");
+                continue;
+            }
+
+            if (hasTenantScoped)
+            {
+                var prop = clrType.GetProperty("TenantId");
+                if (prop is null || prop.PropertyType != typeof(Guid))
+                {
+                    offenders.Add($"{clrType.FullName}: marked [TenantScoped] but lacks a 'Guid TenantId {{ get; set; }}' property.");
+                }
+                continue;
+            }
+
+            if (hasGlobalRef)
+            {
+                continue;
+            }
+
+            offenders.Add($"{clrType.FullName}: missing [TenantScoped] or [GlobalReference]. See data-model.md §2.3.");
+        }
+
+        if (offenders.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Feature 048 tenant-scoping self-check failed. The following entity types must declare " +
+                "[TenantScoped] or [GlobalReference] (or be added to TenantScopingExceptions with security review):\n  " +
+                string.Join("\n  ", offenders));
+        }
     }
 
     /// <summary>

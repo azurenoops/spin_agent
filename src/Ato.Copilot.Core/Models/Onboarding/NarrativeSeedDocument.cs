@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Models.Onboarding;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// indexing live in the Feature 038 evidence repository (referenced via
 /// <see cref="EvidenceArtifactId"/>); this entity tracks onboarding-specific metadata.
 /// </summary>
+[TenantScoped]
 public class NarrativeSeedDocument
 {
     /// <summary>Primary key.</summary>

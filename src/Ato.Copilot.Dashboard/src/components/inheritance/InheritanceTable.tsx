@@ -37,6 +37,39 @@ function SourceBadge({ source }: { source: string | null }) {
   );
 }
 
+/**
+ * Feature 048 (T137, FR-083): renders the canonical source-location label
+ * `Source: Global Baseline` or `Source: <Tenant.DisplayName>` for an
+ * inheritance row. Falls back to nothing when the wire payload lacks both
+ * provenance fields (older backends), preserving backward compatibility.
+ *
+ * Pattern (a) — `Source: <CspProfile.DisplayName> (Inherited from CSP)` —
+ * is owned by Phase 16 (T229) and intentionally not handled here.
+ */
+function SourceLocationLabel({ item }: { item: InheritanceDesignation }) {
+  if (item.isGlobalBaseline) {
+    return (
+      <span
+        className="ml-1 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200"
+        title="This control's inheritance default was published as a global baseline by a CSP-Admin."
+      >
+        Source: Global Baseline
+      </span>
+    );
+  }
+  if (item.orgDisplayName) {
+    return (
+      <span
+        className="ml-1 inline-flex rounded-full bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-200"
+        title="This control's inheritance is owned by your tenant."
+      >
+        Source: {item.orgDisplayName}
+      </span>
+    );
+  }
+  return null;
+}
+
 function OrgDefaultTooltip({ item }: { item: InheritanceDesignation }) {
   const ds = item.designationSource;
   const org = item.orgDefault;
@@ -253,6 +286,7 @@ export default function InheritanceTable({
                           <TypeBadge type={item.inheritanceType} />
                           <SourceBadge source={item.designationSource} />
                           <OrgDefaultTooltip item={item} />
+                          <SourceLocationLabel item={item} />
                         </td>
                         <td className="max-w-xs truncate px-4 py-3 text-sm text-gray-600">{item.provider ?? '—'}</td>
                         <td className="max-w-xs truncate px-4 py-3 text-sm text-gray-600">{item.customerResponsibility ?? '—'}</td>

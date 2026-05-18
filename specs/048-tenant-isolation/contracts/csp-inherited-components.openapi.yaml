@@ -1,0 +1,518 @@
+openapi: 3.0.3
+info:
+  title: ATO Copilot — CSP-Inherited Components API (US9)
+  version: 1.0.0
+  description: |
+    Endpoints that ingest a CSP's existing ATO artifacts (PDF SSP, DOCX, OSCAL JSON,
+    FedRAMP / eMASS XLSX, eMASS ZIP), extract candidate components, attempt to
+    auto-map them to NIST 800-53 capabilities, and expose the resulting
+    CSP-inherited components read-only to every hosted tenant.
+
+    Two surfaces are defined:
+      * `/api/csp/onboarding/atos/*` — wizard step (FR-099..FR-103, MultiTenant only)
+      * `/api/csp/inherited-components/*` — post-onboarding management (FR-104..FR-106)
+
+    All write endpoints require role `CSP.Admin`. All endpoints require a valid
+    Entra-issued bearer token. In `SingleTenant` mode the entire surface returns
+    `404` (`SINGLE_TENANT_MODE`).
+servers:
+  - url: /api
+    description: Default host
+tags:
+  - name: csp-onboarding-atos
+    description: Wizard ATO Documents step (US9)
+  - name: csp-inherited-components
+    description: Read + manage CSP-inherited components and capabilities (US9)
+paths:
+  /csp/onboarding/atos/upload:
+    post:
+      tags: [csp-onboarding-atos]
+      summary: Upload one or more ATO documents during the CSP wizard
+      description: |
+        Multipart upload, one or more files. Each file is parsed using the parser
+        appropriate for its content type, candidate components are extracted as
+        `CspInheritedComponent` rows (`Status = Draft`), and the AI capability
+        mapping pipeline is invoked per component to produce `CspInheritedCapability`
+        rows.
+
+        * Max file size: 50 MB per file (`413 ATO_DOCUMENT_TOO_LARGE` if exceeded).
+        * Supported content types: `application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/json` (OSCAL SSP), `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `application/zip` (eMASS package).
+        * Unknown content types: `400 UNSUPPORTED_ATO_DOCUMENT`.
+        * Parser failures: `400 PARSE_FAILED` with the failing parser name.
+        * If the AI mapping service is unreachable, components are still persisted but `aiMappingAvailable = false` in the response and **zero** capabilities are auto-created (operator can re-run via `/csp/inherited-components/{componentId}/remap`).
+      operationId: cspOnboardingUploadAtos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: One or more ATO documents (max 50 MB each).
+      responses:
+        '200':
+          description: Upload + parsing + (best-effort) AI mapping completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AtoUploadResponse'
+        '400':
+          description: Unsupported content type or parse failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Caller is not `CSP.Admin`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Deployment is in `SingleTenant` mode (`SINGLE_TENANT_MODE`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '413':
+          description: A file exceeds the 50 MB limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /csp/onboarding/atos/state:
+    get:
+      tags: [csp-onboarding-atos]
+      summary: Retrieve the current ATO Documents step state for the wizard
+      description: |
+        Returns the running tally surfaced by FR-103 — `documentsUploaded`,
+        `componentsExtracted`, `capabilitiesMapped`, `capabilitiesNeedsReview`,
+        and `aiMappingAvailable` — plus a per-document list. Re-entrant.
+      operationId: cspOnboardingAtoState
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current wizard state for the ATO Documents step.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AtoStepState'
+        '403': { description: Not CSP-Admin., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: SingleTenant mode., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /csp/inherited-components:
+    get:
+      tags: [csp-inherited-components]
+      summary: List CSP-inherited components visible to the calling tenant
+      description: |
+        Read-only to every authenticated user across every tenant. Non-CSP-Admin
+        callers see only `Status = Published` rows. CSP-Admins additionally see
+        `Status = Draft` and `Status = Archived` rows. Pagination defaults to
+        `pageSize=50` (max `200`).
+      operationId: cspInheritedComponentsList
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/CspInheritedComponentStatus' }
+        - in: query
+          name: search
+          schema: { type: string, maxLength: 200 }
+          description: Case-insensitive substring search on `name` and `description`.
+      responses:
+        '200':
+          description: Paginated component list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CspInheritedComponentsPage'
+        '404': { description: SingleTenant mode., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '503': { description: CSP onboarding incomplete., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /csp/inherited-components/import:
+    post:
+      tags: [csp-inherited-components]
+      summary: Import additional ATO documents after CSP onboarding has completed
+      description: |
+        Same MIME types, size limits, and parsing pipeline as the wizard upload
+        endpoint. Response shape is identical (`AtoUploadResponse`). Available to
+        CSP-Admins only and only when `CspProfile.OnboardingState = Active`.
+      operationId: cspInheritedComponentsImport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Import completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AtoUploadResponse'
+        '400': { description: Unsupported / parse failure., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: Not CSP-Admin., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: SingleTenant mode., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '413': { description: File too large., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '503': { description: CSP onboarding incomplete., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /csp/inherited-components/{componentId}:
+    parameters:
+      - in: path
+        name: componentId
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [csp-inherited-components]
+      summary: Get a single CSP-inherited component
+      operationId: cspInheritedComponentGet
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Component., content: { application/json: { schema: { $ref: '#/components/schemas/CspInheritedComponent' } } } }
+        '404': { description: Not found or SingleTenant mode., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    patch:
+      tags: [csp-inherited-components]
+      summary: Update a component's editable fields (CSP-Admin)
+      operationId: cspInheritedComponentPatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CspInheritedComponentPatchRequest'
+      responses:
+        '200': { description: Updated., content: { application/json: { schema: { $ref: '#/components/schemas/CspInheritedComponent' } } } }
+        '403': { description: Not CSP-Admin., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    delete:
+      tags: [csp-inherited-components]
+      summary: Archive a component (soft delete; CSP-Admin)
+      operationId: cspInheritedComponentArchive
+      security:
+        - bearerAuth: []
+      responses:
+        '204': { description: Archived. }
+        '403': { description: Not CSP-Admin., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /csp/inherited-components/{componentId}/publish:
+    post:
+      tags: [csp-inherited-components]
+      summary: Publish a Draft component to all tenants (CSP-Admin)
+      operationId: cspInheritedComponentPublish
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: componentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Published., content: { application/json: { schema: { $ref: '#/components/schemas/CspInheritedComponent' } } } }
+        '403': { description: Not CSP-Admin., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '409':
+          description: Component is not in `Draft` status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /csp/inherited-components/{componentId}/remap:
+    post:
+      tags: [csp-inherited-components]
+      summary: Re-run AI capability mapping for the component (CSP-Admin)
+      description: |
+        Used when the AI mapping service was unavailable at upload time
+        (`aiMappingAvailable = false`) or when the operator wants to refresh
+        capability mapping after switching models / thresholds. Existing
+        `Status = Mapped` rows are preserved unless `replaceMapped = true`.
+      operationId: cspInheritedComponentRemap
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: componentId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                replaceMapped:
+                  type: boolean
+                  default: false
+                confidenceThresholdOverride:
+                  type: number
+                  format: double
+                  minimum: 0
+                  maximum: 1
+      responses:
+        '200':
+          description: Remap completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemapResponse'
+        '403': { description: Not CSP-Admin., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '503':
+          description: AI mapping service unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /csp/inherited-components/{componentId}/capabilities:
+    get:
+      tags: [csp-inherited-components]
+      summary: List capabilities of a component
+      operationId: cspInheritedComponentCapabilitiesList
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: componentId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/CspInheritedCapabilityStatus' }
+      responses:
+        '200':
+          description: Capability list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CspInheritedCapability'
+        '404': { description: Not found., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /csp/inherited-components/{componentId}/capabilities/{capabilityId}/review:
+    patch:
+      tags: [csp-inherited-components]
+      summary: Resolve a NeedsReview capability (CSP-Admin)
+      description: |
+        Transitions a `NeedsReview` capability to `Mapped`, persists the
+        operator-chosen `MappedNistControlIds` and an optional reviewer note,
+        and emits an audit row `Action = CspInheritedCapability.Review`.
+      operationId: cspInheritedCapabilityReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: componentId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: capabilityId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapabilityReviewRequest'
+      responses:
+        '200':
+          description: Reviewed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CspInheritedCapability'
+        '403': { description: Not CSP-Admin., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '409':
+          description: Capability is already `Mapped` (use PATCH on the parent for re-mapping).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CspInheritedComponentStatus:
+      type: string
+      enum: [Draft, Published, Archived]
+    CspInheritedCapabilityStatus:
+      type: string
+      enum: [Mapped, NeedsReview]
+    SourceFormat:
+      type: string
+      enum: [Pdf, Docx, OscalJson, Xlsx, EmassZip, Manual]
+    CspInheritedComponent:
+      type: object
+      required: [id, cspProfileId, name, componentType, status, importedAt]
+      properties:
+        id: { type: string, format: uuid }
+        cspProfileId: { type: string, format: uuid }
+        name: { type: string, maxLength: 256 }
+        description: { type: string }
+        componentType:
+          type: string
+          enum: [Infrastructure, Platform, Service, Identity, Network, Storage, Compute]
+        sourceFileName: { type: string, nullable: true }
+        sourceFormat: { $ref: '#/components/schemas/SourceFormat' }
+        sourceArtifactReference: { type: string, nullable: true, maxLength: 2048 }
+        status: { $ref: '#/components/schemas/CspInheritedComponentStatus' }
+        importedAt: { type: string, format: date-time }
+        importedBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+        capabilityMappedCount: { type: integer, minimum: 0 }
+        capabilityNeedsReviewCount: { type: integer, minimum: 0 }
+    CspInheritedCapability:
+      type: object
+      required: [id, componentId, name, status, mappedBy]
+      properties:
+        id: { type: string, format: uuid }
+        componentId: { type: string, format: uuid }
+        name: { type: string, maxLength: 256 }
+        description: { type: string }
+        mappedNistControlIds:
+          type: array
+          items: { type: string, example: 'AC-2(1)' }
+        mappingConfidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          nullable: true
+        status: { $ref: '#/components/schemas/CspInheritedCapabilityStatus' }
+        mappingFailureReason: { type: string, nullable: true, maxLength: 2048 }
+        mappedBy:
+          type: string
+          enum: [User, AI]
+        reviewedBy: { type: string, nullable: true }
+        reviewedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CspInheritedComponentPatchRequest:
+      type: object
+      properties:
+        name: { type: string, maxLength: 256 }
+        description: { type: string }
+        componentType:
+          type: string
+          enum: [Infrastructure, Platform, Service, Identity, Network, Storage, Compute]
+    CapabilityReviewRequest:
+      type: object
+      required: [mappedNistControlIds]
+      properties:
+        mappedNistControlIds:
+          type: array
+          items: { type: string }
+          minItems: 1
+        reviewerNote: { type: string, maxLength: 2048 }
+    AtoUploadResponse:
+      type: object
+      required: [documentsAccepted, componentsExtracted, capabilitiesMapped, capabilitiesNeedsReview, aiMappingAvailable, files]
+      properties:
+        documentsAccepted: { type: integer, minimum: 0 }
+        componentsExtracted: { type: integer, minimum: 0 }
+        capabilitiesMapped: { type: integer, minimum: 0 }
+        capabilitiesNeedsReview: { type: integer, minimum: 0 }
+        aiMappingAvailable: { type: boolean }
+        aiMappingFailureReason: { type: string, nullable: true }
+        files:
+          type: array
+          items:
+            type: object
+            required: [fileName, sourceFormat, parsedSuccessfully, componentsExtracted]
+            properties:
+              fileName: { type: string }
+              sourceFormat: { $ref: '#/components/schemas/SourceFormat' }
+              parsedSuccessfully: { type: boolean }
+              parseError: { type: string, nullable: true }
+              componentsExtracted: { type: integer, minimum: 0 }
+              capabilitiesMapped: { type: integer, minimum: 0 }
+              capabilitiesNeedsReview: { type: integer, minimum: 0 }
+    AtoStepState:
+      type: object
+      required: [documentsUploaded, componentsExtracted, capabilitiesMapped, capabilitiesNeedsReview, aiMappingAvailable]
+      properties:
+        documentsUploaded: { type: integer, minimum: 0 }
+        componentsExtracted: { type: integer, minimum: 0 }
+        capabilitiesMapped: { type: integer, minimum: 0 }
+        capabilitiesNeedsReview: { type: integer, minimum: 0 }
+        aiMappingAvailable: { type: boolean }
+        aiMappingFailureReason: { type: string, nullable: true }
+        documents:
+          type: array
+          items:
+            type: object
+            required: [fileName, sourceFormat, componentsExtracted]
+            properties:
+              fileName: { type: string }
+              sourceFormat: { $ref: '#/components/schemas/SourceFormat' }
+              componentsExtracted: { type: integer, minimum: 0 }
+              capabilitiesMapped: { type: integer, minimum: 0 }
+              capabilitiesNeedsReview: { type: integer, minimum: 0 }
+    CspInheritedComponentsPage:
+      type: object
+      required: [items, page, pageSize, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CspInheritedComponent'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 200 }
+        totalItems: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    RemapResponse:
+      type: object
+      required: [componentId, capabilitiesMapped, capabilitiesNeedsReview]
+      properties:
+        componentId: { type: string, format: uuid }
+        capabilitiesMapped: { type: integer, minimum: 0 }
+        capabilitiesNeedsReview: { type: integer, minimum: 0 }
+        capabilitiesAdded: { type: integer, minimum: 0 }
+        capabilitiesUpdated: { type: integer, minimum: 0 }
+    ErrorEnvelope:
+      type: object
+      required: [status, errorCode]
+      properties:
+        status: { type: integer }
+        errorCode:
+          type: string
+          enum:
+            - UNSUPPORTED_ATO_DOCUMENT
+            - PARSE_FAILED
+            - ATO_DOCUMENT_TOO_LARGE
+            - CSP_ONBOARDING_INCOMPLETE
+            - FORBIDDEN_NOT_CSP_ADMIN
+            - SINGLE_TENANT_MODE
+            - VALIDATION_FAILED
+            - AI_MAPPING_UNAVAILABLE
+        message: { type: string }
+        suggestion: { type: string }
+        details:
+          type: object
+          additionalProperties: true
