@@ -115,6 +115,85 @@ public class SingleTenantBootstrapTests : IAsyncLifetime
         stored.Status.Should().Be(TenantStatus.Active);
     }
 
+    /// <summary>
+    /// SingleTenant bootstrap must stamp <c>EntraTenantId = Id</c> on the
+    /// new default tenant row so that <c>TenantResolutionMiddleware</c> can
+    /// resolve it via the simulated CAC <c>tid</c> claim (and any other
+    /// caller whose <c>tid</c> matches the well-known SingleTenant
+    /// sentinel). Without this stamp the middleware lookup
+    /// <c>Tenants WHERE EntraTenantId = tid</c> misses and the request 401s
+    /// with <c>TENANT_NOT_PROVISIONED</c>.
+    /// </summary>
+    [Fact]
+    public async Task EnsureDefaultTenant_StampsEntraTenantId_OnNewRow()
+    {
+        // Arrange
+        await using var scope = _sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<SingleTenantBootstrapTests>>();
+
+        // Act
+        var report = await TenantBootstrapService.EnsureDefaultTenantAndBackfillAsync(
+            db, isSingleTenantMode: true, defaultTenantIdOverride: null, logger);
+
+        // Assert
+        report.Created.Should().BeTrue();
+        var stored = await db.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == TenantBootstrapService.DefaultTenantId);
+        stored.Should().NotBeNull();
+        stored!.EntraTenantId.Should().Be(
+            TenantBootstrapService.DefaultTenantId,
+            "the SingleTenant sentinel row must be addressable by EntraTenantId so the resolution middleware finds it");
+    }
+
+    /// <summary>
+    /// Idempotent backfill: if a deployment was bootstrapped before this
+    /// stamping was introduced, the default tenant row exists but has
+    /// <c>EntraTenantId = NULL</c>. The next startup MUST repair that row
+    /// in place rather than leaving the request pipeline broken.
+    /// </summary>
+    [Fact]
+    public async Task EnsureDefaultTenant_BackfillsEntraTenantId_OnExistingNullRow()
+    {
+        // Arrange — preseed an existing default-tenant row with EntraTenantId = NULL
+        // (simulating a row created by the previous bootstrap implementation).
+        await using (var seedScope = _sp.CreateAsyncScope())
+        {
+            var seedDb = seedScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            seedDb.Tenants.Add(new Tenant
+            {
+                Id = TenantBootstrapService.DefaultTenantId,
+                EntraTenantId = null,
+                DisplayName = "Default Organization",
+                Status = TenantStatus.Active,
+                OnboardingState = OnboardingState.Active,
+                CreatedAt = DateTimeOffset.UtcNow,
+                CreatedBy = "system",
+                TimeZone = "UTC",
+                DefaultClassificationLevel = ClassificationLevel.Unclassified,
+            });
+            await seedDb.SaveChangesAsync();
+        }
+
+        // Act
+        await using var scope = _sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<SingleTenantBootstrapTests>>();
+        var report = await TenantBootstrapService.EnsureDefaultTenantAndBackfillAsync(
+            db, isSingleTenantMode: true, defaultTenantIdOverride: null, logger);
+
+        // Assert
+        report.Created.Should().BeFalse("the row already existed");
+        var stored = await db.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == TenantBootstrapService.DefaultTenantId);
+        stored.Should().NotBeNull();
+        stored!.EntraTenantId.Should().Be(
+            TenantBootstrapService.DefaultTenantId,
+            "an existing default-tenant row with EntraTenantId = NULL must be backfilled idempotently on the next bootstrap");
+    }
+
     [Fact]
     public async Task EnsureDefaultTenant_BackfillsNullTenantIdRows_AndEmitsMigrationLogLine()
     {

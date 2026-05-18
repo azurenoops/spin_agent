@@ -307,6 +307,8 @@ public static class TenantBootstrapService
             .FirstOrDefaultAsync(t => t.Id == defaultId, ct);
         if (existing is not null)
         {
+            var changed = false;
+
             // Idempotent rename of legacy seed rows so existing deployments
             // pick up the rebrand without manual SQL or a forced reseed.
             if (LegacyDefaultDisplayNames.Contains(existing.DisplayName)
@@ -314,12 +316,32 @@ public static class TenantBootstrapService
             {
                 var previous = existing.DisplayName;
                 existing.DisplayName = DefaultOrgDisplayName;
-                existing.UpdatedAt = DateTimeOffset.UtcNow;
-                existing.UpdatedBy = "system";
-                await db.SaveChangesAsync(ct);
+                changed = true;
                 logger.LogInformation(
                     "Renamed default tenant {DefaultTenantId} display name '{Previous}' -> '{Current}'",
                     defaultId, previous, DefaultOrgDisplayName);
+            }
+
+            // Idempotent backfill: deployments bootstrapped before this stamp
+            // was introduced have EntraTenantId = NULL on the default-tenant
+            // row, which makes the TenantResolutionMiddleware lookup
+            // `Tenants WHERE EntraTenantId = tid` miss for CAC simulation and
+            // any caller whose `tid` matches the SingleTenant sentinel. Stamp
+            // it on the next startup so the request pipeline self-heals.
+            if (existing.EntraTenantId is null)
+            {
+                existing.EntraTenantId = defaultId;
+                changed = true;
+                logger.LogInformation(
+                    "Backfilled EntraTenantId on default tenant {DefaultTenantId} for SingleTenant deployment",
+                    defaultId);
+            }
+
+            if (changed)
+            {
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+                existing.UpdatedBy = "system";
+                await db.SaveChangesAsync(ct);
             }
             return false;
         }
@@ -327,6 +349,13 @@ public static class TenantBootstrapService
         db.Tenants.Add(new Tenant
         {
             Id = defaultId,
+            // Stamp EntraTenantId = Id so that the TenantResolutionMiddleware
+            // can resolve the SingleTenant default row via the well-known
+            // sentinel `tid` claim (CAC simulation, dev tooling, and any
+            // caller whose tid matches the default). Without this, the
+            // resolution lookup `Tenants WHERE EntraTenantId = tid` misses
+            // and the request 401s with TENANT_NOT_PROVISIONED.
+            EntraTenantId = defaultId,
             DisplayName = DefaultOrgDisplayName,
             Status = TenantStatus.Active,
             OnboardingState = OnboardingState.Active,
