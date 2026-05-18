@@ -218,6 +218,8 @@ with a forward-only script.
 | Report shows `error: "RLS install failed: ..."` | DB user not `db_owner`             | Re-run with `db_owner` credentials |
 | Post-migration: any tenant sees 0 rows in dashboard | `sp_set_session_context` not set | Confirm app restart picked up `Deployment:Mode = MultiTenant` |
 | `503 CSP_ONBOARDING_INCOMPLETE` after restart | Expected — CSP-Admin must finish wizard | Sign in as `CSP.Admin` and complete `/onboarding/csp` |
+| `401 TENANT_NOT_PROVISIONED` on every request, SingleTenant deployment, fresh boot against existing DB | `TenantBootstrapService` created the default `Tenants` row with `EntraTenantId = NULL`, so `TenantResolutionMiddleware` (which looks up `Tenants WHERE EntraTenantId = <tid claim>`) finds no match | Fixed in commit `e05a709` (`fix(tenancy): stamp EntraTenantId on SingleTenant default row`) — the bootstrap now stamps `EntraTenantId = defaultId` on new rows and backfills existing `NULL` rows on next restart. If you are still on a pre-fix build, set the column manually: `UPDATE dbo.Tenants SET EntraTenantId = Id WHERE EntraTenantId IS NULL` and restart the app. |
+| Boot log shows `WRN ... Failed to install Feature 048 RLS policy ... Cannot DROP FUNCTION 'dbo.fn_TenantPredicate' because it is being referenced by object 'TenantSecurityPolicy'` on every redeploy, dashboards still return data so the failure is silent | `RlsPolicyInstaller.ApplyAsync` dropped the function before the dependent security policy; first install succeeded, every subsequent install caught the dependency error and fell back to app-level filters only — defense-in-depth silently degraded | Fixed in commit `2fbfe33` (`fix(tenancy): drop dependent SECURITY POLICY before fn_TenantPredicate`) — the installer now prepends a conditional `DROP SECURITY POLICY dbo.TenantSecurityPolicy` before the function drop. After deploying the fix, look for `Verified Feature 048 RLS policy on N [TenantScoped] table(s)` at INFO (no WRN) on boot. To verify RLS is actually live, run `SELECT name, is_enabled, is_not_for_replication FROM sys.security_policies WHERE name = 'TenantSecurityPolicy'` — `is_enabled = 1` is required. |
 
 ## FAQ
 
@@ -238,6 +240,177 @@ wrapped in `IF NOT EXISTS`.
 **Q: Can I split one tenant into two later?**
 A: Yes, via `POST /api/admin/tenants/split` — but that is a separate runbook
 (not part of Feature 048).
+
+---
+
+## Production Hardening — Secrets in Key Vault (Private Endpoint)
+
+> **Purpose**: After the cutover validates clean, move the two Container App
+> secrets (`db-connection-string`, `auth-impersonation-signingkey`) out of the
+> Container App's local secret store and into Azure Key Vault, resolved at
+> runtime via the User-Assigned Managed Identity over a Private Endpoint. No
+> source-code changes are required — Container Apps natively resolves
+> `keyvaultref:` secrets and refreshes them on revision restart.
+
+### Topology
+
+```
+Container App  (UAMI: id-ato-copilot-mcp)
+    │ keyvaultref + identityref
+    ▼
+Key Vault       (kv-atocopilot-cus-901)
+    ├── publicNetworkAccess: Disabled
+    ├── networkAcls.defaultAction: Deny
+    ├── enableRbacAuthorization: true
+    ├── enablePurgeProtection: true
+    └── softDeleteRetentionInDays: 90
+    │
+    └── Private Endpoint (pe-kv-atocopilot-cus-901)
+            in snet-pe (10.40.2.0/27)
+            → privatelink.vaultcore.azure.net
+              → kv-atocopilot-cus-901 → 10.40.2.5
+```
+
+### RBAC
+
+| Principal                     | Role                      | Why |
+|-------------------------------|---------------------------|-----|
+| `id-ato-copilot-mcp` (UAMI)   | Key Vault Secrets User    | Runtime read of secret values |
+| Release engineer (per-person) | Key Vault Administrator   | Rotate secrets, manage RBAC |
+
+CSP-Admin Entra group membership grants no implicit KV access; vault RBAC is
+intentionally narrow.
+
+### Provisioning steps
+
+The order matters: the vault is created with public access **enabled** + a
+deny-default firewall + an allow rule for the operator's IP so the initial
+secret upload can land. After both the Private Endpoint and the
+`keyvaultref:` switchover are verified, public access is **disabled** and the
+operator IP is removed. From that point forward the only resolution path is
+UAMI → PE → DNS zone → KV.
+
+1. **Create the vault** with purge protection, RBAC, and a closed firewall:
+
+    ```bash
+    az keyvault create \
+      --name "$KV" --resource-group "$RG" --location "$LOC" \
+      --sku standard --enable-rbac-authorization true \
+      --enable-purge-protection true --retention-days 90 \
+      --public-network-access Enabled \
+      --default-action Deny --bypass AzureServices
+    az keyvault network-rule add -g "$RG" -n "$KV" --ip-address "$MY_IP"
+    ```
+
+2. **Assign RBAC** (allow ~30 s for propagation before the next step):
+
+    ```bash
+    KV_SCOPE=$(az keyvault show -g "$RG" -n "$KV" --query id -o tsv)
+    az role assignment create --role "Key Vault Administrator" \
+      --assignee-object-id "$ME_OBJID" --assignee-principal-type User \
+      --scope "$KV_SCOPE"
+    az role assignment create --role "Key Vault Secrets User" \
+      --assignee-object-id "$UAMI_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
+      --scope "$KV_SCOPE"
+    ```
+
+3. **Copy the current secret values** out of the Container App into the vault:
+
+    ```bash
+    DB=$(az containerapp secret show -g "$RG" -n "$APP" --secret-name db-connection-string --query value -o tsv)
+    KEY=$(az containerapp secret show -g "$RG" -n "$APP" --secret-name auth-impersonation-signingkey --query value -o tsv)
+    az keyvault secret set --vault-name "$KV" --name db-connection-string --value "$DB"
+    az keyvault secret set --vault-name "$KV" --name auth-impersonation-signingkey --value "$KEY"
+    ```
+
+4. **Create the Private Endpoint + DNS zone**:
+
+    ```bash
+    KV_ID=$(az keyvault show -g "$RG" -n "$KV" --query id -o tsv)
+    az network private-endpoint create \
+      -g "$RG" -n "pe-$KV" -l "$LOC" \
+      --vnet-name vnet-ato-copilot --subnet snet-pe \
+      --private-connection-resource-id "$KV_ID" \
+      --group-id vault --connection-name "pe-${KV}-conn"
+    az network private-dns zone create -g "$RG" -n privatelink.vaultcore.azure.net
+    az network private-dns link vnet create \
+      -g "$RG" -z privatelink.vaultcore.azure.net -n link-vnet-ato-copilot \
+      --virtual-network vnet-ato-copilot --registration-enabled false
+    az network private-endpoint dns-zone-group create \
+      -g "$RG" --endpoint-name "pe-$KV" --name default \
+      --zone-name privatelink.vaultcore.azure.net \
+      --private-dns-zone "/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net"
+    ```
+
+5. **Switch the Container App secrets to KV references**:
+
+    ```bash
+    UAMI_ID=$(az identity show -g "$RG" -n id-ato-copilot-mcp --query id -o tsv)
+    az containerapp secret set -g "$RG" -n "$APP" \
+      --secrets \
+        "db-connection-string=keyvaultref:https://$KV.vault.azure.net/secrets/db-connection-string,identityref:$UAMI_ID" \
+        "auth-impersonation-signingkey=keyvaultref:https://$KV.vault.azure.net/secrets/auth-impersonation-signingkey,identityref:$UAMI_ID"
+
+    # Force a new revision so the cluster actually resolves the refs:
+    az containerapp update -g "$RG" -n "$APP" --revision-suffix "kvrefs-$(date -u +%H%M%S)"
+    ```
+
+6. **Validate the new revision is healthy** before locking the vault. If the
+   PE/DNS/RBAC chain is wrong, this is where it surfaces:
+
+    ```bash
+    az containerapp revision list -g "$RG" -n "$APP" \
+      --query "sort_by([].{name:name,health:properties.healthState,running:properties.runningState,created:properties.createdTime}, &created) | reverse(@) | [0]" -o table
+
+    FQDN=$(az containerapp show -g "$RG" -n "$APP" --query properties.configuration.ingress.fqdn -o tsv)
+    curl -sS -o /dev/null -w "%{http_code}\n" "https://$FQDN/api/dashboard/portfolio"   # expect 200
+    curl -sS -o /dev/null -w "%{http_code}\n" "https://$FQDN/api/dashboard/systems"     # expect 200
+    ```
+
+7. **Lock the vault**: remove the operator IP, then disable public access. After
+   this step the operator workstation can no longer read or write KV secrets
+   directly — all rotation must go through Azure Cloud Shell, the portal in an
+   approved private-link path, or an Azure DevOps agent with VNet access.
+
+    ```bash
+    az keyvault network-rule remove -g "$RG" -n "$KV" --ip-address "$MY_IP"
+    az keyvault update -g "$RG" -n "$KV" --public-network-access Disabled
+    ```
+
+8. **Final verification**: confirm the operator is now `Forbidden` and the
+   Container App still resolves secrets:
+
+    ```bash
+    az keyvault secret show --vault-name "$KV" --name db-connection-string --query name -o tsv
+    # → ERROR: (Forbidden) Public network access is disabled and request is not
+    #   from a trusted service nor via an approved private link.
+
+    az containerapp update -g "$RG" -n "$APP" --revision-suffix "postlock-$(date -u +%H%M%S)"
+    # The post-lock revision must reach Healthy / Running with the
+    # public-disabled KV; if it does not, roll back via Container App
+    # `secret set` with the literal values (the secrets were saved during
+    # step 3 — they are still present in KV).
+    ```
+
+### Rotation runbook
+
+To rotate `db-connection-string` or `auth-impersonation-signingkey` after this
+hardening lands:
+
+1. From a host on the same VNet (or via Cloud Shell with private-link), call
+   `az keyvault secret set --vault-name kv-atocopilot-cus-901 --name <name> --value <new>`.
+2. The Container App will pick up the new value on next revision restart;
+   force one with `az containerapp revision restart` or `az containerapp update --revision-suffix rotate-<date>`.
+3. Record the rotation event in the audit log (Constitution §V).
+
+### Troubleshooting (Key Vault)
+
+| Symptom                                                                 | Likely cause                                                                                 | Action |
+|-------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|--------|
+| Container App revision stuck in `Provisioning` with image pulling fine, but `Failed` after start | Secret resolution failure (UAMI not yet granted Secrets User, or PE not yet ready)            | `az containerapp revision show ... --query properties.template.containers[0].imageDetails` — look for `KeyVaultSecretResolutionFailed`. Verify RBAC on KV scope + that `nslookup $KV.vault.azure.net` from inside the VNet resolves to a `10.x` address. |
+| `Forbidden ... not from a trusted service nor via an approved private link` from the cluster | Private DNS zone not linked to the CAE VNet, or DNS zone group missing on the PE             | `az network private-dns link vnet list -g rg-ato-copilot -z privatelink.vaultcore.azure.net` — must list `vnet-ato-copilot`. `az network private-endpoint dns-zone-group list -g rg-ato-copilot --endpoint-name pe-kv-atocopilot-cus-901` — must list `default`. |
+| Operator gets `Forbidden` from their own laptop                          | Expected behavior after step 7                                                                | Use Cloud Shell or a jump host inside the VNet; the workstation no longer has direct KV access. |
+| Container App still using literal values after `secret set`              | Container Apps caches the resolved secret per revision; `secret set` alone does not restart  | Force a new revision via `--revision-suffix` or `revision restart`. |
 
 ---
 
