@@ -20,6 +20,7 @@ using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Endpoints.Onboarding;
 using Ato.Copilot.Mcp.Endpoints.Csp;
+using Ato.Copilot.Mcp.Endpoints.Tenancy;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Logging;
 using Ato.Copilot.Mcp.Server;
@@ -438,6 +439,9 @@ async Task RunHttpModeAsync(string[] args)
     // T134 (FR-081/FR-082): cross-tenant baseline publish/unpublish service.
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.IGlobalBaselineService,
         Ato.Copilot.Core.Services.Tenancy.GlobalBaselineService>();
+    // Feature 048 follow-up (user ask #2): per-org NIST control overrides.
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.IOrgControlOverrideService,
+        Ato.Copilot.Core.Services.Tenancy.OrgControlOverrideService>();
     // T067: HMAC-signed impersonation cookie service. Singleton because the
     // signing key is loaded once at startup; all state lives in the cookie.
     builder.Services.AddSingleton<Ato.Copilot.Mcp.Services.Tenancy.ITenantImpersonationService>(sp =>
@@ -542,6 +546,8 @@ async Task RunHttpModeAsync(string[] args)
     app.MapAdminMigrationEndpoints();
     // Feature 048 (T135, FR-081/FR-082): CSP-Admin cross-tenant baseline publish/unpublish surface.
     app.MapGlobalBaselineEndpoints();
+    // Feature 048 follow-up (user ask #2): per-org NIST control override surface.
+    app.MapOrgControlOverrideEndpoints();
 
     // Map SignalR notification hub
     app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications");

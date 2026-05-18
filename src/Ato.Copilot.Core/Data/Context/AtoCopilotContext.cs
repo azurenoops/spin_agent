@@ -493,6 +493,14 @@ public class AtoCopilotContext : DbContext
     /// <summary>Feature 048 (T195, FR-008, US9): AI-mapped capabilities of <see cref="CspInheritedComponent"/>. <see cref="GlobalReferenceAttribute"/>.</summary>
     public DbSet<CspInheritedCapability> CspInheritedCapabilities => Set<CspInheritedCapability>();
 
+    /// <summary>
+    /// Per-org override of CSP-defined NIST control defaults
+    /// (Feature 048 follow-up — user ask #2). <see cref="TenantScopedAttribute"/>:
+    /// each row belongs to exactly one tenant; at most one row per
+    /// (TenantId, ControlId).
+    /// </summary>
+    public DbSet<OrgControlOverride> OrgControlOverrides => Set<OrgControlOverride>();
+
     //
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -3411,6 +3419,27 @@ public class AtoCopilotContext : DbContext
 
             entity.HasIndex(e => new { e.CspInheritedComponentId, e.Status })
                 .HasDatabaseName("IX_CspInheritedCapabilities_ComponentId_Status");
+        });
+
+        // ─── OrgControlOverride (Feature 048 follow-up — user ask #2) ─────────
+        modelBuilder.Entity<OrgControlOverride>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ImplementationStatus).HasConversion<int?>();
+            entity.Property(e => e.InheritanceApplicability).HasConversion<int?>();
+            entity.Property(e => e.Justification).HasMaxLength(2000);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
+
+            // Composite unique key: each tenant may have at most one override
+            // row per control id. The (TenantId, ControlId) ordering also
+            // matches the read path ("all overrides for the active tenant")
+            // and the write path ("upsert by control id within tenant").
+            entity.HasIndex(e => new { e.TenantId, e.ControlId })
+                .IsUnique()
+                .HasDatabaseName("IX_OrgControlOverride_TenantId_ControlId");
         });
     }
 
