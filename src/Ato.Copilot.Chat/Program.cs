@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
 using Serilog.Events;
@@ -19,19 +20,24 @@ using Ato.Copilot.Chat.Services;
 //  Full-stack SPA + REST API + SignalR hub
 // ────────────────────────────────────────────────────────────────
 
+// Build a minimal IConfiguration for Serilog bootstrap so the `Serilog`
+// appsettings section drives sinks, levels, output templates, and retention.
+// Programmatic .Enrich.WithProperty + Application Insights sink calls below
+// augment whatever the JSON configures — they are NOT replaced by
+// ReadFrom.Configuration.
+var bootstrapConfig = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: true)
+    .AddJsonFile(
+        $"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json",
+        optional: true)
+    .AddEnvironmentVariables("ATO_")
+    .Build();
+
 var logConfig = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-    .MinimumLevel.Override("System", LogEventLevel.Warning)
+    .ReadFrom.Configuration(bootstrapConfig)
     .Enrich.FromLogContext()
-    .Enrich.WithProperty("Application", "ATO Copilot Chat")
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-    .WriteTo.File(
-        path: "logs/ato-copilot-chat-.log",
-        rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 14,
-        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
+    .Enrich.WithProperty("Application", "ATO Copilot Chat");
 
 // Conditionally add Application Insights sink when connection string is available
 var appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
@@ -61,15 +67,31 @@ try
     var connectionString = builder.Configuration.GetConnectionString("ChatDb")
                            ?? "Data Source=chat.db";
 
+    // DatabaseOptions drives EF Core retry, command timeout, and
+    // sensitive-data-logging — same wire-up pattern as Core's RegisterDbContext.
+    var chatDbOptions = new Ato.Copilot.Core.Configuration.DatabaseOptions();
+    builder.Configuration
+        .GetSection(Ato.Copilot.Core.Configuration.DatabaseOptions.SectionName)
+        .Bind(chatDbOptions);
+
     builder.Services.AddDbContext<ChatDbContext>(options =>
     {
+        if (chatDbOptions.EnableSensitiveDataLogging)
+        {
+            options.EnableSensitiveDataLogging();
+        }
+
         if (connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
-            options.UseSqlite(connectionString, sqliteOptions => sqliteOptions.CommandTimeout(30));
+            options.UseSqlite(connectionString,
+                sqliteOptions => sqliteOptions.CommandTimeout(chatDbOptions.CommandTimeoutSeconds));
         else
             options.UseSqlServer(connectionString, sqlOptions =>
             {
-                sqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-                sqlOptions.CommandTimeout(30);
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: chatDbOptions.MaxRetryCount,
+                    maxRetryDelay: TimeSpan.FromSeconds(chatDbOptions.MaxRetryDelay),
+                    errorNumbersToAdd: null);
+                sqlOptions.CommandTimeout(chatDbOptions.CommandTimeoutSeconds);
             });
     });
 

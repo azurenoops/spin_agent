@@ -58,6 +58,10 @@ public static class CoreServiceExtensions
         services.Configure<StreamingOptions>(configuration.GetSection(StreamingOptions.SectionName));
         services.Configure<OpenTelemetryOptions>(configuration.GetSection(OpenTelemetryOptions.SectionName));
 
+        // Bind database options — drives EF Core retry, command timeout, and
+        // sensitive-data-logging behavior in RegisterDbContext below.
+        services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
+
         // Register enterprise hardening singletons
         services.AddSingleton<HttpMetrics>();
         services.AddSingleton<IPathSanitizationService, PathSanitizationService>();
@@ -72,23 +76,32 @@ public static class CoreServiceExtensions
             options.SizeLimit = (long)cachingOptions.SizeLimitMb * 1024 * 1024;
         });
 
-        // Register HTTP client factory with default resilience pipeline (FR-001, T016)
+        // Register HTTP client factory with default resilience pipeline (FR-001, T016).
+        // The "default" pipeline is read from Resilience:Pipelines[?Name=='default']
+        // when present; missing values fall back to the historical hardcoded literals
+        // so behavior is unchanged when the JSON section is absent.
+        var resilienceOptions = new ResilienceOptions();
+        configuration.GetSection(ResilienceOptions.SectionName).Bind(resilienceOptions);
+        var defaultPipeline = resilienceOptions.Pipelines
+            .FirstOrDefault(p => string.Equals(p.Name, "default", StringComparison.OrdinalIgnoreCase))
+            ?? new ResiliencePipelineConfig();
+
         services.AddHttpClient();
         services.AddHttpClient("default", client =>
         {
-            client.Timeout = TimeSpan.FromSeconds(30);
+            client.Timeout = TimeSpan.FromSeconds(defaultPipeline.RequestTimeoutSeconds);
         })
         .AddResilienceHandler("resilience-default", pipelineBuilder =>
         {
             pipelineBuilder.AddRetry(new Microsoft.Extensions.Http.Resilience.HttpRetryStrategyOptions
             {
-                MaxRetryAttempts = 3,
-                Delay = TimeSpan.FromSeconds(2),
+                MaxRetryAttempts = defaultPipeline.MaxRetryAttempts,
+                Delay = TimeSpan.FromSeconds(defaultPipeline.BaseDelaySeconds),
                 BackoffType = DelayBackoffType.Exponential,
-                UseJitter = true,
+                UseJitter = defaultPipeline.UseJitter,
                 ShouldRetryAfterHeader = true,
             });
-            pipelineBuilder.AddTimeout(TimeSpan.FromSeconds(30));
+            pipelineBuilder.AddTimeout(TimeSpan.FromSeconds(defaultPipeline.RequestTimeoutSeconds));
         });
 
         // Register IChatClient from Azure OpenAI when configured
@@ -203,12 +216,19 @@ public static class CoreServiceExtensions
     /// Registers <see cref="AtoCopilotContext"/> with SQLite (development) or
     /// SQL Server (production) based on Database:Provider configuration.
     /// Defaults to SQLite with "Data Source=ato-copilot.db".
+    /// Retry policy, command timeout, and sensitive-data-logging are driven
+    /// by <see cref="DatabaseOptions"/>.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">Application configuration.</param>
     private static void RegisterDbContext(IServiceCollection services, IConfiguration configuration)
     {
-        var provider = configuration.GetValue<string>("Database:Provider") ?? "SQLite";
+        var dbOptions = new DatabaseOptions();
+        configuration.GetSection(DatabaseOptions.SectionName).Bind(dbOptions);
+
+        var provider = !string.IsNullOrWhiteSpace(dbOptions.Provider)
+            ? dbOptions.Provider
+            : "SQLite";
         var connectionString = configuration.GetConnectionString("DefaultConnection")
                                ?? "Data Source=ato-copilot.db";
 
@@ -219,6 +239,14 @@ public static class CoreServiceExtensions
             // will apply the correct schema.
             options.ConfigureWarnings(w =>
                 w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+
+            // EnableSensitiveDataLogging — driven by DatabaseOptions so it can be
+            // flipped on per-environment without a rebuild. MUST remain false in
+            // production (exposes parameter values in logs).
+            if (dbOptions.EnableSensitiveDataLogging)
+            {
+                options.EnableSensitiveDataLogging();
+            }
 
             // Feature 048 (T041): tenant-stamping interceptor — resolved per-DbContext
             // from DI so the AsyncLocal-backed accessor is always live.
@@ -245,17 +273,17 @@ public static class CoreServiceExtensions
                 options.UseSqlServer(connectionString, sqlOptions =>
                 {
                     sqlOptions.EnableRetryOnFailure(
-                        maxRetryCount: 5,
-                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        maxRetryCount: dbOptions.MaxRetryCount,
+                        maxRetryDelay: TimeSpan.FromSeconds(dbOptions.MaxRetryDelay),
                         errorNumbersToAdd: null);
-                    sqlOptions.CommandTimeout(30);
+                    sqlOptions.CommandTimeout(dbOptions.CommandTimeoutSeconds);
                 });
             }
             else
             {
                 options.UseSqlite(connectionString, sqliteOptions =>
                 {
-                    sqliteOptions.CommandTimeout(30);
+                    sqliteOptions.CommandTimeout(dbOptions.CommandTimeoutSeconds);
                 });
             }
         });

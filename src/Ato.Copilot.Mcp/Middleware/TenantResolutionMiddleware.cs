@@ -35,7 +35,6 @@ namespace Ato.Copilot.Mcp.Middleware;
 /// </summary>
 public sealed class TenantResolutionMiddleware
 {
-    private const string TenantStatusCachePrefix = "tenant-status:";
     private static readonly TimeSpan TenantStatusCacheTtl = TimeSpan.FromSeconds(30);
 
     /// <summary>
@@ -349,7 +348,7 @@ public sealed class TenantResolutionMiddleware
         }
 
         cache.Set(cacheKey, (Guid?)row.Id, BuildCacheOptions());
-        cache.Set(TenantStatusCachePrefix + row.Id, row.Status, BuildCacheOptions());
+        cache.Set(TenantResolutionCacheKeys.TenantStatus(row.Id), row.Status, BuildCacheOptions());
         return row.Id;
     }
 
@@ -384,7 +383,7 @@ public sealed class TenantResolutionMiddleware
         IMemoryCache cache,
         CancellationToken ct)
     {
-        var key = TenantStatusCachePrefix + tenantId;
+        var key = TenantResolutionCacheKeys.TenantStatus(tenantId);
         if (cache.TryGetValue<TenantStatus>(key, out var cached))
         {
             return cached;
@@ -414,7 +413,7 @@ public sealed class TenantResolutionMiddleware
         IMemoryCache cache,
         CancellationToken ct)
     {
-        var key = "tenant-onboarding:" + tenantId;
+        var key = TenantResolutionCacheKeys.TenantOnboarding(tenantId);
         if (cache.TryGetValue<OnboardingState>(key, out var cached))
         {
             return cached;
