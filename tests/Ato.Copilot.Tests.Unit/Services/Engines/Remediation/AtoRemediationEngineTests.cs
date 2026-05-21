@@ -2640,6 +2640,134 @@ public class AtoRemediationEngineTests
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // HighRiskFamilies wire-up (Phase 1.B of appsettings cleanup)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Default (no override) — AC family is high-risk per
+    /// <c>ControlFamilies.HighRiskFamilies</c>, so the guide must include
+    /// a change-approval prerequisite for AC.
+    /// </summary>
+    [Fact]
+    public async Task ManualGuide_DefaultHighRiskFamilies_IncludesApprovalPrereqForAc()
+    {
+        // Arrange — _options.HighRiskFamilies is null → fallback to defaults
+        var finding = new ComplianceFinding
+        {
+            Id = "F-HRF-DEFAULT",
+            ControlId = "AC-2",
+            ControlFamily = "AC",
+            Title = "Account Management",
+            RemediationType = RemediationType.Manual,
+            AutoRemediable = false,
+            SubscriptionId = "sub-1"
+        };
+
+        // Act
+        var guide = await _sut.GenerateManualRemediationGuideAsync(finding);
+
+        // Assert
+        guide.Prerequisites.Should().Contain(p => p.Contains("AC") && p.Contains("approval"));
+    }
+
+    /// <summary>
+    /// Wire-up assertion — overriding <c>ComplianceAgentOptions.HighRiskFamilies</c>
+    /// to a non-default set must change classification:
+    /// <list type="bullet">
+    /// <item>AC (previously high-risk by default) → no approval prereq</item>
+    /// <item>RA (not in the default set) → approval prereq added</item>
+    /// </list>
+    /// </summary>
+    [Fact]
+    public async Task ManualGuide_OverrideHighRiskFamilies_DrivesClassification()
+    {
+        // Arrange
+        var customOptions = new ComplianceAgentOptions
+        {
+            EnableAutomatedRemediation = true,
+            HighRiskFamilies = new List<string> { "RA" },  // RA only — exclude AC
+            Remediation = new RemediationOptions
+            {
+                MaxConcurrentRemediations = 3,
+                ScriptTimeoutSeconds = 300,
+                MaxRetries = 3
+            }
+        };
+
+        var engine = new AtoRemediationEngine(
+            _complianceEngine.Object,
+            _dbFactory.Object,
+            _armService.Object,
+            _aiGenerator.Object,
+            _complianceRemediation.Object,
+            _scriptExecutor.Object,
+            _nistSteps.Object,
+            _sanitization.Object,
+            Options.Create(customOptions),
+            _logger.Object,
+            _scopeFactory.Object);
+
+        var acFinding = new ComplianceFinding
+        {
+            Id = "F-HRF-AC", ControlId = "AC-2", ControlFamily = "AC",
+            RemediationType = RemediationType.Manual, AutoRemediable = false,
+            SubscriptionId = "sub-1"
+        };
+        var raFinding = new ComplianceFinding
+        {
+            Id = "F-HRF-RA", ControlId = "RA-3", ControlFamily = "RA",
+            RemediationType = RemediationType.Manual, AutoRemediable = false,
+            SubscriptionId = "sub-1"
+        };
+
+        // Act
+        var acGuide = await engine.GenerateManualRemediationGuideAsync(acFinding);
+        var raGuide = await engine.GenerateManualRemediationGuideAsync(raFinding);
+
+        // Assert
+        acGuide.Prerequisites.Should().NotContain(p => p.Contains("AC") && p.Contains("approval"),
+            "AC was excluded from the overridden HighRiskFamilies list");
+        raGuide.Prerequisites.Should().Contain(p => p.Contains("RA") && p.Contains("approval"),
+            "RA was added to the overridden HighRiskFamilies list");
+    }
+
+    /// <summary>
+    /// Empty override (explicit empty list) should fall back to the canonical
+    /// defaults — same behavior as null. Prevents the trap where a misconfigured
+    /// empty JSON array silently disables high-risk classification entirely.
+    /// </summary>
+    [Fact]
+    public async Task ManualGuide_EmptyHighRiskFamiliesOverride_FallsBackToDefaults()
+    {
+        // Arrange
+        var customOptions = new ComplianceAgentOptions
+        {
+            EnableAutomatedRemediation = true,
+            HighRiskFamilies = new List<string>(),  // explicit empty list
+            Remediation = new RemediationOptions { MaxConcurrentRemediations = 3, ScriptTimeoutSeconds = 300, MaxRetries = 3 }
+        };
+
+        var engine = new AtoRemediationEngine(
+            _complianceEngine.Object, _dbFactory.Object, _armService.Object,
+            _aiGenerator.Object, _complianceRemediation.Object, _scriptExecutor.Object,
+            _nistSteps.Object, _sanitization.Object,
+            Options.Create(customOptions), _logger.Object, _scopeFactory.Object);
+
+        var acFinding = new ComplianceFinding
+        {
+            Id = "F-HRF-EMPTY", ControlId = "AC-2", ControlFamily = "AC",
+            RemediationType = RemediationType.Manual, AutoRemediable = false,
+            SubscriptionId = "sub-1"
+        };
+
+        // Act
+        var guide = await engine.GenerateManualRemediationGuideAsync(acFinding);
+
+        // Assert — AC still treated as high-risk via fallback to ControlFamilies.HighRiskFamilies
+        guide.Prerequisites.Should().Contain(p => p.Contains("AC") && p.Contains("approval"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // Phase 12 — Progress Tracking & History (T092)
     // ═══════════════════════════════════════════════════════════════════════════
 

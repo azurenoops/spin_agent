@@ -16,6 +16,15 @@ public class ComplianceAgentOptions
     public string DefaultFramework { get; set; } = "NIST80053";
     public string DefaultBaseline { get; set; } = "FedRAMPHigh";
 
+    /// <summary>
+    /// NIST 800-53 control families that escalate remediation risk classification
+    /// to <c>High</c> in <c>AtoRemediationEngine</c>. When null or empty, the engine
+    /// falls back to <c>ControlFamilies.HighRiskFamilies</c> (canonical defaults:
+    /// <c>AC</c>, <c>IA</c>, <c>SC</c>).
+    /// Bound from <c>Agents:Compliance:HighRiskFamilies</c>.
+    /// </summary>
+    public List<string>? HighRiskFamilies { get; set; }
+
     public DefenderForCloudOptions DefenderForCloud { get; set; } = new();
     public CodeScanningOptions CodeScanning { get; set; } = new();
     public EvidenceOptions Evidence { get; set; } = new();

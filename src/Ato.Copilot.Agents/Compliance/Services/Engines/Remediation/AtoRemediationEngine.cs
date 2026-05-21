@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Ato.Copilot.Agents.Compliance.Configuration;
+using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Kanban;
@@ -38,10 +39,16 @@ public class AtoRemediationEngine : IRemediationEngine
     private readonly object _historyLock = new();
     private readonly SemaphoreSlim _semaphore;
 
-    private static readonly HashSet<string> HighRiskFamilies = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "AC", "IA", "SC"
-    };
+    /// <summary>
+    /// Per-instance high-risk control family set, sourced from
+    /// <see cref="ComplianceAgentOptions.HighRiskFamilies"/> when configured;
+    /// otherwise falls back to the canonical
+    /// <see cref="ControlFamilies.HighRiskFamilies"/> defaults (AC, IA, SC).
+    /// An empty list in configuration is treated as "use defaults" — this
+    /// prevents a misconfigured empty JSON array from silently disabling
+    /// high-risk classification entirely.
+    /// </summary>
+    private readonly HashSet<string> _highRiskFamilies;
 
     private static readonly JsonSerializerOptions CamelCaseJson = new()
     {
@@ -77,6 +84,13 @@ public class AtoRemediationEngine : IRemediationEngine
         _scopeFactory = scopeFactory;
         _logger = logger;
         _semaphore = new SemaphoreSlim(_options.Remediation.MaxConcurrentRemediations);
+
+        // High-risk family set: prefer configured override; fall back to
+        // ControlFamilies.HighRiskFamilies when null or empty so that a
+        // missing/empty JSON value doesn't silently disable the policy.
+        _highRiskFamilies = _options.HighRiskFamilies is { Count: > 0 } configured
+            ? new HashSet<string>(configured, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(ControlFamilies.HighRiskFamilies, StringComparer.OrdinalIgnoreCase);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -139,7 +153,7 @@ public class AtoRemediationEngine : IRemediationEngine
                 AutoRemediable = finding.AutoRemediable,
                 RemediationType = finding.RemediationType,
                 ResourceId = finding.ResourceId,
-                RiskLevel = HighRiskFamilies.Contains(finding.ControlFamily) ? RiskLevel.High : RiskLevel.Standard
+                RiskLevel = _highRiskFamilies.Contains(finding.ControlFamily) ? RiskLevel.High : RiskLevel.Standard
             };
 
             plan.Steps.Add(step);
@@ -189,7 +203,7 @@ public class AtoRemediationEngine : IRemediationEngine
             });
         }
 
-        var isHighRisk = HighRiskFamilies.Contains(finding.ControlFamily);
+        var isHighRisk = _highRiskFamilies.Contains(finding.ControlFamily);
 
         if (dryRun || !applyRemediation)
         {
@@ -1356,7 +1370,7 @@ public class AtoRemediationEngine : IRemediationEngine
             prerequisites.Add("Policy Contributor role");
             prerequisites.Add("Understanding of Azure Policy effects");
         }
-        if (HighRiskFamilies.Contains(finding.ControlFamily))
+        if (_highRiskFamilies.Contains(finding.ControlFamily))
             prerequisites.Add($"Change approval for {finding.ControlFamily} family controls");
 
         // Required permissions
