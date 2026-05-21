@@ -28,10 +28,7 @@
   - [Logging](#logging)
   - [Structured Log Output](#structured-log-output)
 - [Data Retention](#data-retention)
-- [Rate Limits](#rate-limits)
-- [Feature Flags](#feature-flags)
-- [Performance Tuning](#performance-tuning)
-- [Notification Channels](#notification-channels)
+- [Rate Limiting](#rate-limiting)
 - [Backup & Recovery](#backup--recovery)
 - [Operational Runbook](#operational-runbook)
 
@@ -233,23 +230,22 @@ No manual migration commands are required for deployment.
 ```json
 {
   "AzureAd": {
-    "Instance": "https://login.microsoftonline.us/",
     "TenantId": "your-tenant-id",
     "ClientId": "your-client-id",
+    "ClientSecret": "loaded-from-key-vault",
     "CloudEnvironment": "AzureUSGovernment",
-    "RequireMfa": true,
-    "RequireCac": false,
-    "EnableUserTokenPassthrough": false
+    "RequireCac": false
   }
 }
 ```
 
 | Setting | Description |
 |---|---|
-| `Instance` | Azure AD endpoint (`.us` for Government) |
-| `RequireMfa` | Require multi-factor authentication |
+| `TenantId` | Azure AD tenant (GUID) |
+| `ClientId` | Application registration client ID |
+| `ClientSecret` | Client secret — load from Key Vault in production, leave blank in source |
+| `CloudEnvironment` | `AzureCloud` or `AzureUSGovernment` (drives token authority) |
 | `RequireCac` | Require CAC/PIV certificate authentication |
-| `EnableUserTokenPassthrough` | Pass user token to Azure APIs (OBO flow) |
 
 ### CAC/PIV Authentication
 
@@ -332,24 +328,19 @@ Configure allowed origins for HTTP mode:
 {
   "Agents": {
     "Compliance": {
+      "Enabled": true,
       "DefaultFramework": "NIST800-53",
-      "DefaultImpactLevel": "Moderate",
-      "DefaultScanType": "combined",
-      "DefaultDryRun": true,
+      "DefaultBaseline": "FedRAMPHigh",
       "EnableAutomatedRemediation": false,
-      "MaxConcurrentAssessments": 5,
-      "AssessmentTimeoutSeconds": 60,
-      "EnableContinuousMonitoring": true,
-      "MonitoringIntervalMinutes": 60,
-      "SupportedFrameworks": [
-        "NIST800-53",
-        "FedRAMP-High",
-        "FedRAMP-Moderate",
-        "DoD-IL2",
-        "DoD-IL4",
-        "DoD-IL5"
-      ],
-      "HighRiskFamilies": ["AC", "IA", "SC"]
+      "HighRiskFamilies": ["AC", "IA", "SC"],
+      "NistControls": {
+        "BaseUrl": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
+        "CacheDurationHours": 24,
+        "EnableOfflineFallback": true
+      },
+      "Boundary": {
+        "ValidateAzureResources": false
+      }
     }
   }
 }
@@ -357,10 +348,57 @@ Configure allowed origins for HTTP mode:
 
 | Setting | Default | Description |
 |---|---|---|
-| `DefaultDryRun` | `true` | Remediation defaults to dry-run mode |
+| `Enabled` | `true` | Master switch for the compliance agent |
+| `DefaultFramework` | `"NIST800-53"` | Default compliance framework |
+| `DefaultBaseline` | `"FedRAMPHigh"` | Default control baseline |
 | `EnableAutomatedRemediation` | `false` | Allow auto-remediation globally |
-| `MaxConcurrentAssessments` | `5` | Parallel assessment limit |
-| `MonitoringIntervalMinutes` | `60` | Compliance Watch check interval |
+| `HighRiskFamilies` | `["AC","IA","SC"]` | Families that require manual approval prereqs during remediation; empty/missing falls back to defaults |
+| `NistControls.BaseUrl` | NIST OSCAL URL | Online OSCAL catalog source |
+| `NistControls.CacheDurationHours` | `24` | Catalog cache window |
+| `NistControls.EnableOfflineFallback` | `true` | Use embedded catalog if network unavailable |
+| `Boundary.ValidateAzureResources` | `false` | Validate ARM resource IDs at boundary import |
+
+### Database & EF Core retry
+
+```json
+{
+  "Database": {
+    "Provider": "SqlServer",
+    "EnableSensitiveDataLogging": false,
+    "CommandTimeoutSeconds": 30,
+    "MaxRetryCount": 5,
+    "MaxRetryDelay": 30
+  }
+}
+```
+
+| Setting | Default | Description |
+|---|---|---|
+| `Provider` | `"SQLite"` | `SQLite` (dev) or `SqlServer` (prod) — auto-detected from connection string when omitted |
+| `EnableSensitiveDataLogging` | `false` | Log parameter values (development only — never enable in prod) |
+| `CommandTimeoutSeconds` | `30` | EF Core command timeout |
+| `MaxRetryCount` | `5` | SQL Server transient-fault retry attempts |
+| `MaxRetryDelay` | `30` | Max delay (seconds) between retries |
+
+### HTTP resilience (Polly)
+
+```json
+{
+  "Resilience": {
+    "Pipelines": [
+      {
+        "Name": "default",
+        "MaxRetryAttempts": 3,
+        "BaseDelaySeconds": 2.0,
+        "UseJitter": true,
+        "RequestTimeoutSeconds": 30
+      }
+    ]
+  }
+}
+```
+
+The pipeline named `"default"` is applied to every `IHttpClientFactory` client by `AddCoreServices`. Add additional named pipelines and reference them from named clients.
 
 ---
 
@@ -449,101 +487,11 @@ Automatic cleanup runs daily via `RetentionCleanupHostedService`:
 
 ---
 
-## Rate Limits
+## Rate Limiting
 
-Per-service rate limits prevent Azure API throttling:
+Per-endpoint rate limiting is configured under the `RateLimiting` section (Feature 029). The MCP server applies these limits via ASP.NET Core's `System.Threading.RateLimiting` middleware. Adjust the per-policy windows and permit counts to balance Azure API throttling against responsiveness.
 
-```json
-{
-  "RateLimits": {
-    "ResourceGraphQueriesPerFiveSeconds": 15,
-    "PolicyInsightsQueriesPerMinute": 100,
-    "DefenderQueriesPerMinute": 60,
-    "RemediationActionsPerMinute": 10,
-    "ChatRequestsPerMinute": 30
-  }
-}
-```
-
----
-
-## Feature Flags
-
-Enable or disable individual capabilities:
-
-```json
-{
-  "FeatureFlags": {
-    "EnableResourceScans": true,
-    "EnablePolicyScans": true,
-    "EnableDefenderIntegration": true,
-    "EnableEvidenceCollection": true,
-    "EnableDocumentGeneration": true,
-    "EnableBatchRemediation": true,
-    "EnableAuditLogging": true,
-    "EnableCorsSupport": true
-  }
-}
-```
-
----
-
-## Performance Tuning
-
-```json
-{
-  "Performance": {
-    "MaxConcurrentOperations": 10,
-    "OperationTimeoutSeconds": 300,
-    "MaxResponseSizeKb": 1024,
-    "MaxPageSize": 100,
-    "DefaultPageSize": 50,
-    "MemoryBudgetMb": 512,
-    "StartupTimeoutSeconds": 10
-  }
-}
-```
-
-| Setting | Default | Description |
-|---|---|---|
-| `MaxConcurrentOperations` | `10` | Max parallel Azure API calls |
-| `OperationTimeoutSeconds` | `300` | Overall operation timeout |
-| `MemoryBudgetMb` | `512` | Memory limit for response buffering |
-| `MaxPageSize` | `100` | Maximum items per paginated response |
-
----
-
-## Notification Channels
-
-Configure for Kanban overdue alerts and Compliance Watch notifications:
-
-```json
-{
-  "Agents": {
-    "Kanban": {
-      "Notifications": {
-        "Email": {
-          "Enabled": true,
-          "SmtpHost": "smtp.your-domain.mil",
-          "SmtpPort": 587,
-          "UseSsl": true,
-          "FromAddress": "ato-copilot@your-domain.mil",
-          "Username": "",
-          "Password": ""
-        },
-        "Teams": {
-          "Enabled": true,
-          "WebhookUrl": "https://your-tenant.webhook.office365.us/..."
-        },
-        "Slack": {
-          "Enabled": false,
-          "WebhookUrl": ""
-        }
-      }
-    }
-  }
-}
-```
+For outbound HTTP resilience (retries, jitter, request timeout) configure the `Resilience:Pipelines` section — see [Database & EF Core retry](#database--ef-core-retry) above. The pipeline named `"default"` is applied to every `IHttpClientFactory` client.
 
 ---
 
@@ -582,7 +530,7 @@ Use standard SQL Server backup strategies (full, differential, log). The schema 
 | Exit code 1 on startup | Database migration failure | Check DB connection string, verify network access |
 | `AUTH_REQUIRED` on all requests | Missing Azure AD config | Set `ATO_AZURE_AD__*` environment variables |
 | `PIM_ELEVATION_REQUIRED` | Tool requires PIM role | Activate PIM role first: "Activate Reader role" |
-| Slow assessments | Rate limiting | Increase `RateLimits` values or reduce `MaxConcurrentOperations` |
+| Slow assessments | Rate limiting | Adjust permit windows under `RateLimiting` or relax `Resilience:Pipelines[default].RequestTimeoutSeconds` |
 | No notifications | Channels not configured | Enable and configure Email/Teams/Slack in settings |
 | High memory usage | Large assessment results | Reduce `MaxPageSize` or `MemoryBudgetMb` |
 
@@ -679,10 +627,13 @@ These files do not require external configuration.
 {
   "Agents": {
     "Compliance": {
-      "DefaultDryRun": true,
       "EnableAutomatedRemediation": false,
-      "MaxConcurrentAssessments": 5,
-      "MonitoringIntervalMinutes": 60
+      "DefaultFramework": "NIST800-53",
+      "DefaultBaseline": "FedRAMPHigh",
+      "HighRiskFamilies": ["AC", "IA", "SC"]
+    },
+    "Kanban": {
+      "OverdueScan": { "IntervalMinutes": 5 }
     }
   },
   "Pim": {
