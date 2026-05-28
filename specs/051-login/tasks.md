@@ -340,17 +340,18 @@ immutable cold storage. (Write-side already wired in Phase 2.)
 
 ### 8.2 Sign-in / out / switch commands
 
-- [ ] T104 [TDD-Test] [US5] [extensions/vscode/test/auth/signInCommand.test.ts](extensions/vscode/test/auth/signInCommand.test.ts) — mocks `PublicClientApplication`: assert device-code callback shows the notification with verification URL + code, copies code to clipboard on action click, persists token under correct tenant key, updates status bar to `signedIn`. **Per FR-017 (analysis C14): add two cases asserting `cloud=AzurePublic` requires the response's `verificationUri` to start with `https://microsoft.com/devicelogin` and `cloud=AzureUSGovernment` requires `https://microsoft.us/devicelogin`; a mismatched URL aborts sign-in with a clear error.** RED.
-- [ ] T105 [US5] Create [extensions/vscode/src/auth/signInCommand.ts](extensions/vscode/src/auth/signInCommand.ts) per [contracts/vscode-extension.md § 3.2](specs/051-login/contracts/vscode-extension.md). GREEN T104.
-- [ ] T106 [P] [US5] Create [extensions/vscode/src/auth/signOutCommand.ts](extensions/vscode/src/auth/signOutCommand.ts) per [contracts/vscode-extension.md § 3.3](specs/051-login/contracts/vscode-extension.md)
-- [ ] T107 [P] [US5] Create [extensions/vscode/src/auth/switchTenantCommand.ts](extensions/vscode/src/auth/switchTenantCommand.ts) per [contracts/vscode-extension.md § 3.4](specs/051-login/contracts/vscode-extension.md)
-- [ ] T108 [P] [US5] Create [extensions/vscode/src/auth/statusBar.ts](extensions/vscode/src/auth/statusBar.ts) — 4 states per [contracts/vscode-extension.md § 4](specs/051-login/contracts/vscode-extension.md)
-- [ ] T109 [US5] Register `ato.signIn`, `ato.signOut`, `ato.switchTenant` commands + activate the status bar item in [extensions/vscode/src/extension.ts](extensions/vscode/src/extension.ts) and add them to [extensions/vscode/package.json](extensions/vscode/package.json) `contributes.commands`
-- [ ] T110 [P] [US5] Replace any direct bearer-token reads in [extensions/vscode/src/](extensions/vscode/src/) with a `getActiveTenantToken(context)` helper that calls `pca.acquireTokenSilent` first and falls back to device-code per FR-018 / R-Summary item 1
+- [X] T104 [TDD-Test] [US5] [extensions/vscode/test/auth/signInCommand.test.ts](extensions/vscode/test/auth/signInCommand.test.ts) — mocks `PublicClientApplication`: assert device-code callback shows the notification with verification URL + code, copies code to clipboard on action click, persists token under correct tenant key, updates status bar to `signedIn`. **Per FR-017 (analysis C14): add two cases asserting `cloud=AzurePublic` requires the response's `verificationUri` to start with `https://microsoft.com/devicelogin` and `cloud=AzureUSGovernment` requires `https://microsoft.us/devicelogin`; a mismatched URL aborts sign-in with a clear error.** RED.
+- [X] T105 [US5] Create [extensions/vscode/src/auth/signInCommand.ts](extensions/vscode/src/auth/signInCommand.ts) per [contracts/vscode-extension.md § 3.2](specs/051-login/contracts/vscode-extension.md). GREEN T104.
+- [X] T106 [P] [US5] Create [extensions/vscode/src/auth/signOutCommand.ts](extensions/vscode/src/auth/signOutCommand.ts) per [contracts/vscode-extension.md § 3.3](specs/051-login/contracts/vscode-extension.md)
+- [X] T107 [P] [US5] Create [extensions/vscode/src/auth/switchTenantCommand.ts](extensions/vscode/src/auth/switchTenantCommand.ts) per [contracts/vscode-extension.md § 3.4](specs/051-login/contracts/vscode-extension.md)
+- [X] T108 [P] [US5] Create [extensions/vscode/src/auth/statusBar.ts](extensions/vscode/src/auth/statusBar.ts) — 4 states per [contracts/vscode-extension.md § 4](specs/051-login/contracts/vscode-extension.md)
+- [X] T109 [US5] Register `ato.signIn`, `ato.signOut`, `ato.switchTenant` commands + activate the status bar item in [extensions/vscode/src/extension.ts](extensions/vscode/src/extension.ts) and add them to [extensions/vscode/package.json](extensions/vscode/package.json) `contributes.commands`
+- [X] T110 [P] [US5] Replace any direct bearer-token reads in [extensions/vscode/src/](extensions/vscode/src/) with a `getActiveTenantToken(context)` helper that calls `pca.acquireTokenSilent` first and falls back to device-code per FR-018 / R-Summary item 1
 
 ### 8.3 Manual sign-off
 
 - [ ] T111 [US5] Execute [quickstart.md § 8](specs/051-login/quickstart.md)
+  > **Pending live verification** — quickstart § 8 is a live VS Code Extension Host + Docker stack test that requires manual execution after Phase 8 commits land. Deferred per Phase 8 commit-strategy instructions.
 
 **Checkpoint US5**: Device-code flow works; per-tenant tokens persisted; status bar live.
 

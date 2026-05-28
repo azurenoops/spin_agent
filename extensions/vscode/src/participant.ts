@@ -185,6 +185,54 @@ function renderSuggestions(
 }
 
 /**
+ * Feature 051 (T109) — auth-command hooks injected by `extension.ts`.
+ * The participant intercepts `@ato sign in`, `@ato sign out`, and
+ * `@ato switch tenant` prompts and routes them to the device-code
+ * commands instead of POSTing to the MCP server.
+ */
+export type AuthCommandKind = "signIn" | "signOut" | "switchTenant";
+
+export interface ParticipantOptions {
+  onAuthCommand?: (kind: AuthCommandKind) => Promise<void>;
+}
+
+/**
+ * Classify a chat prompt as an auth command, or `null` if it should be
+ * forwarded to the MCP server as a normal chat message.
+ *
+ * Matches (case-insensitive, trimmed): "sign in", "sign-in", "signin",
+ * "sign out", "sign-out", "signout", "switch tenant", "switch-tenant",
+ * "change tenant", "logout", "log out". Pure helper exported for tests.
+ */
+export function classifyAuthCommand(prompt: string): AuthCommandKind | null {
+  const normalized = prompt.trim().toLowerCase().replace(/[-_]/g, " ");
+  if (
+    normalized === "sign in" ||
+    normalized === "signin" ||
+    normalized === "log in" ||
+    normalized === "login"
+  ) {
+    return "signIn";
+  }
+  if (
+    normalized === "sign out" ||
+    normalized === "signout" ||
+    normalized === "log out" ||
+    normalized === "logout"
+  ) {
+    return "signOut";
+  }
+  if (
+    normalized === "switch tenant" ||
+    normalized === "change tenant" ||
+    normalized === "swap tenant"
+  ) {
+    return "switchTenant";
+  }
+  return null;
+}
+
+/**
  * Creates the @ato chat participant handler.
  *
  * Routes slash commands to the appropriate agent, rebuilds conversation history
@@ -192,7 +240,8 @@ function renderSuggestions(
  * tool execution summaries, compliance tables, suggestion buttons, and follow-up prompts.
  */
 export function createParticipantHandler(
-  mcpClient: McpClient
+  mcpClient: McpClient,
+  options: ParticipantOptions = {},
 ): vscode.ChatRequestHandler {
   return async (
     request: vscode.ChatRequest,
@@ -200,6 +249,23 @@ export function createParticipantHandler(
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken
   ): Promise<vscode.ChatResult> => {
+    // Feature 051 — intercept auth commands BEFORE constructing the MCP
+    // request so the server is not asked to handle device-code flows.
+    if (options.onAuthCommand) {
+      const authKind = classifyAuthCommand(request.prompt);
+      if (authKind !== null) {
+        await options.onAuthCommand(authKind);
+        const friendly =
+          authKind === "signIn"
+            ? "Sign-in flow started — follow the prompts in the notification."
+            : authKind === "signOut"
+              ? "Signed out of ATO Copilot."
+              : "Tenant switcher opened — choose a tenant from the quick pick.";
+        stream.markdown(friendly);
+        return {};
+      }
+    }
+
     const command = request.command;
     const targetAgent = command
       ? SLASH_COMMAND_AGENT_MAP[command]

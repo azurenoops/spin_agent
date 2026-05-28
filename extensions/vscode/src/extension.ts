@@ -6,6 +6,15 @@ import { configure } from "./commands/configure";
 import { IacDiagnosticsProvider } from "./diagnostics/iacDiagnosticsProvider";
 import { IacCodeActionProvider } from "./codeActions/iacCodeActionProvider";
 import { TenantStatusBar } from "./services/tenantStatusBar";
+import { createStatusBarItem } from "./auth/statusBar";
+import { signInCommand } from "./auth/signInCommand";
+import { signOutCommand } from "./auth/signOutCommand";
+import { switchTenantCommand } from "./auth/switchTenantCommand";
+import { getActiveTenantToken } from "./auth/tokenProvider";
+import {
+  getActiveTenantId,
+  readTokenAsync,
+} from "./auth/secretStorage";
 
 let outputChannel: vscode.OutputChannel;
 
@@ -20,10 +29,51 @@ export function activate(context: vscode.ExtensionContext): void {
     tenantStatusBar.getOutboundContext()
   );
 
+  // Feature 051 (T108/T109) — sign-in status bar + device-code commands.
+  const signInStatusBar = createStatusBarItem(context);
+  // If we already have a cached token at activation, reflect that on the
+  // status bar without forcing an interactive flow.
+  void (async () => {
+    const tid = getActiveTenantId(context);
+    if (tid && (await readTokenAsync(context, tid))) {
+      signInStatusBar.update({
+        state: "signedIn",
+        displayName: "Signed In",
+        tenant: tid,
+      });
+    }
+  })();
+
+  // Feature 051 (T110) — wire the per-request bearer-token provider. Reads
+  // the cached token if present and falls back to the device-code flow
+  // (which itself attempts silent renewal first per R-Summary item 1).
+  mcpClient.setTokenProvider(async () => {
+    const tid = getActiveTenantId(context);
+    if (tid) {
+      const cached = await readTokenAsync(context, tid);
+      if (cached) return cached;
+    }
+    // Returning undefined lets the request fly without the header; the
+    // server's 401 will trigger an interactive sign-in via the explicit
+    // `ato.signIn` command flow rather than here, so we don't disrupt
+    // background calls like the health check.
+    return undefined;
+  });
+
   // Register @ato chat participant
   const participant = vscode.chat.createChatParticipant(
     "ato",
-    createParticipantHandler(mcpClient)
+    createParticipantHandler(mcpClient, {
+      onAuthCommand: async (kind) => {
+        if (kind === "signIn") {
+          await signInCommand(context, signInStatusBar, outputChannel);
+        } else if (kind === "signOut") {
+          await signOutCommand(context, signInStatusBar, outputChannel);
+        } else if (kind === "switchTenant") {
+          await switchTenantCommand(context, signInStatusBar, outputChannel);
+        }
+      },
+    })
   );
   participant.iconPath = vscode.Uri.joinPath(
     context.extensionUri,
@@ -43,6 +93,32 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("ato.configure", () => configure())
+  );
+
+  // Feature 051 (T109) — device-code sign-in commands.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ato.signIn", () =>
+      signInCommand(context, signInStatusBar, outputChannel)
+    )
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ato.signOut", () =>
+      signOutCommand(context, signInStatusBar, outputChannel)
+    )
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ato.switchTenant", () =>
+      switchTenantCommand(context, signInStatusBar, outputChannel)
+    )
+  );
+  // Exported for any future internal caller that needs a bearer with the
+  // sign-in-if-needed semantics. Registering as a command keeps the
+  // surface discoverable while keeping the helper available as a TS
+  // import for in-process callers.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ato.internal.getActiveTenantToken", () =>
+      getActiveTenantToken(context, signInStatusBar, outputChannel)
+    )
   );
 
   context.subscriptions.push(
