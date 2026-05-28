@@ -40,10 +40,18 @@ public interface ICspInheritedComponentService
 
     /// <summary>
     /// Manually add a capability to an existing
-    /// <see cref="CspInheritedComponent"/>. The new row is stamped with
-    /// <see cref="MappedBy.User"/> and
-    /// <see cref="CspInheritedCapabilityStatus.Mapped"/> — no AI confidence
-    /// score is recorded. Throws <see cref="KeyNotFoundException"/> if
+    /// <see cref="CspInheritedComponent"/>. Default behavior (Feature 050
+    /// FR-001) is to persist the new row as
+    /// <see cref="CspInheritedCapabilityStatus.NeedsReview"/> with
+    /// <see cref="MappedBy.User"/> so the creator can choose to review later
+    /// (allowed under FR-010 self-review). Pass
+    /// <paramref name="markMappedImmediately"/> = <c>true</c> to opt back
+    /// into the legacy auto-map-on-create behavior — the row is stamped
+    /// with <see cref="CspInheritedCapabilityStatus.Mapped"/>, reviewer
+    /// metadata is set to the creator, and TWO history rows
+    /// (<see cref="CapabilityHistoryEventType.Created"/> +
+    /// <see cref="CapabilityHistoryEventType.Reviewed"/>) are written in
+    /// the same transaction. Throws <see cref="KeyNotFoundException"/> if
     /// <paramref name="componentId"/> does not exist.
     /// </summary>
     Task<CspInheritedCapability> AddCapabilityAsync(
@@ -52,6 +60,7 @@ public interface ICspInheritedComponentService
         string description,
         IReadOnlyList<string> mappedNistControlIds,
         string actor,
+        bool markMappedImmediately = false,
         CancellationToken ct = default);
 
     /// <summary>
@@ -151,6 +160,64 @@ public interface ICspInheritedComponentService
     Task<CspInheritedCapability> ArchiveCapabilityAsync(
         Guid componentId,
         Guid capabilityId,
+        string actor,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Feature 050 FR-002 / FR-012 — reparent a single
+    /// <see cref="CspInheritedCapability"/> from its current parent
+    /// (<paramref name="componentId"/>) to <paramref name="targetComponentId"/>,
+    /// scoped to the caller's tenant. Resets
+    /// <see cref="CspInheritedCapability.Status"/> to
+    /// <see cref="CspInheritedCapabilityStatus.NeedsReview"/>, clears reviewer
+    /// metadata, sets <c>MappingFailureReason = "Moved to a new component; re-review required."</c>,
+    /// and writes exactly one <see cref="CapabilityHistoryEventType.Moved"/>
+    /// audit event in the same transaction. Preserves <c>Name</c>,
+    /// <c>Description</c>, <c>MappedNistControlIds</c>,
+    /// <c>MappingConfidence</c>, <c>MappedBy</c>, <c>CreatedAt</c>,
+    /// <c>CreatedBy</c>.
+    /// </summary>
+    /// <param name="componentId">Current parent component id.</param>
+    /// <param name="capabilityId">Capability to reparent.</param>
+    /// <param name="targetComponentId">
+    /// Destination component. MUST be different from
+    /// <paramref name="componentId"/>, MUST exist in the caller's tenant,
+    /// MUST NOT be Archived. Cross-tenant or archived targets surface as
+    /// <see cref="KeyNotFoundException"/> so the endpoint layer maps them
+    /// to 404 (existence-leak guard).
+    /// </param>
+    /// <param name="rowVersion">
+    /// Caller-supplied current <c>RowVersion</c>. Required (non-null) per
+    /// contract — this method is deliberately stricter than
+    /// <see cref="UpdateCapabilityAsync"/>: reparent is too destructive to
+    /// allow last-write-wins. A stale stamp triggers
+    /// <see cref="Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException"/>.
+    /// </param>
+    /// <param name="actor">Caller's <c>oid</c> claim.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The reparented capability with refreshed <c>RowVersion</c>.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="rowVersion"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="targetComponentId"/> equals
+    /// <paramref name="componentId"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when <paramref name="componentId"/>,
+    /// <paramref name="capabilityId"/>, or
+    /// <paramref name="targetComponentId"/> cannot be resolved, OR when the
+    /// target is Archived. Endpoint surface maps this to HTTP 404.
+    /// </exception>
+    /// <exception cref="Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException">
+    /// Thrown on stale <paramref name="rowVersion"/>. Endpoint surface maps
+    /// this to HTTP 412.
+    /// </exception>
+    Task<CspInheritedCapability> ReparentCapabilityAsync(
+        Guid componentId,
+        Guid capabilityId,
+        Guid targetComponentId,
+        byte[] rowVersion,
         string actor,
         CancellationToken ct = default);
 }

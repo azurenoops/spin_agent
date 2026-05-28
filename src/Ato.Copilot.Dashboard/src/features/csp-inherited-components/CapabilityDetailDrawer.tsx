@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import {
   archiveCspInheritedCapability,
+  isUnavailable,
+  listCapabilityHistory,
   listCspInheritedCapabilities,
+  listCspInheritedComponents,
   patchCspInheritedCapability,
   remapCspInheritedComponent,
   reviewCspInheritedCapability,
+  type CapabilityHistoryEvent,
+  type CapabilityHistoryEventType,
+  type CapabilityHistoryPage,
   type CspInheritedCapability,
   type CspInheritedComponent,
 } from './api';
+import MoveCapabilityDialog from './MoveCapabilityDialog';
 
 interface Props {
   componentId: string;
@@ -63,6 +70,26 @@ export default function CapabilityDetailDrawer({
   const [reviewControls, setReviewControls] = useState('');
   const [reviewerNote, setReviewerNote] = useState('');
 
+  // Feature 050 / US2 — Move-to-another-component state.
+  // `hasEligibleTarget` is computed via a tiny eager fetch (pageSize=2)
+  // on mount; the dialog itself does the full pageSize=200 fetch when
+  // opened. Tri-state: `null` = probing, `true` = at least one other
+  // non-archived component exists, `false` = the user must create one
+  // before this affordance is enabled.
+  const [hasEligibleTarget, setHasEligibleTarget] = useState<boolean | null>(null);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+
+  // Feature 050 / US3 — History tab. Lazy-fetches on tab activation per
+  // contracts/frontend-types.md § 3.2.2. Pagination state is local to the
+  // drawer instance; the server clamps pageSize to [1, 200] and a
+  // pageSize change re-fires the fetch (covered by T034).
+  const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(50);
+  const [history, setHistory] = useState<CapabilityHistoryPage | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
   // Initial fetch — there is no dedicated GET-single-capability endpoint;
   // pull the parent component's capability list and pick this row.
   useEffect(() => {
@@ -92,6 +119,76 @@ export default function CapabilityDetailDrawer({
       cancelled = true;
     };
   }, [componentId, capabilityId]);
+
+  // Eligible-target probe (Feature 050 / US2). One small fetch on mount —
+  // `pageSize=2` because the only signal needed is "does at least one OTHER
+  // non-archived component exist?". Cached per-drawer; the move dialog does
+  // its own `pageSize=200` fetch when opened.
+  useEffect(() => {
+    let cancelled = false;
+    setHasEligibleTarget(null);
+    void (async () => {
+      try {
+        const result = await listCspInheritedComponents({
+          page: 1,
+          pageSize: 2,
+          status: 'Published',
+        });
+        if (cancelled) return;
+        if (isUnavailable(result)) {
+          setHasEligibleTarget(false);
+          return;
+        }
+        // "At least one OTHER" — total ≥ 2 covers the case where the source
+        // component itself counts toward the page. We don't introspect ids
+        // here; the dialog's filter excludes the source component on render.
+        setHasEligibleTarget(result.total >= 2);
+      } catch {
+        if (!cancelled) setHasEligibleTarget(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [componentId]);
+
+  // Feature 050 / US3 — History fetch on tab activation, page/pageSize change,
+  // OR capability identity change (the latter ensures a successful
+  // Move/Edit/Review refreshes the trail since rowVersion bumps each time).
+  useEffect(() => {
+    if (activeTab !== 'history') return;
+    let cancelled = false;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    void (async () => {
+      try {
+        const page = await listCapabilityHistory(componentId, capabilityId, {
+          page: historyPage,
+          pageSize: historyPageSize,
+        });
+        if (cancelled) return;
+        setHistory(page);
+      } catch (err) {
+        if (cancelled) return;
+        const e = err as { message?: string };
+        setHistoryError(e?.message ?? 'Failed to load history.');
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTab,
+    componentId,
+    capabilityId,
+    historyPage,
+    historyPageSize,
+    // Re-fire when the capability's rowVersion changes so a Move/Edit
+    // refreshes the trail. `null`-coalesce keeps the dep array stable.
+    capability?.rowVersion ?? '',
+  ]);
 
   const parsedEditControls = useMemo(() => parseControlIds(editControls), [editControls]);
   const parsedReviewControls = useMemo(() => parseControlIds(reviewControls), [reviewControls]);
@@ -254,9 +351,60 @@ export default function CapabilityDetailDrawer({
         {!capability ? (
           <p className="text-sm text-gray-500">Loading capability…</p>
         ) : (
-          <div className="space-y-5">
-            {/* Edit form */}
-            {editing ? (
+          <div className="space-y-3">
+            {/* Tab nav (Feature 050 / US3 — Details vs History). */}
+            <div
+              role="tablist"
+              aria-label="Capability detail tabs"
+              className="flex gap-1 border-b border-gray-200"
+            >
+              <button
+                role="tab"
+                type="button"
+                aria-selected={activeTab === 'details'}
+                onClick={() => setActiveTab('details')}
+                className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
+                  activeTab === 'details'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+                data-testid="csp-capability-details-tab"
+              >
+                Details
+              </button>
+              <button
+                role="tab"
+                type="button"
+                aria-selected={activeTab === 'history'}
+                onClick={() => setActiveTab('history')}
+                className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
+                  activeTab === 'history'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+                data-testid="csp-capability-history-tab"
+              >
+                History
+              </button>
+            </div>
+
+            {activeTab === 'history' ? (
+              <HistoryPanel
+                history={history}
+                loading={historyLoading}
+                error={historyError}
+                page={historyPage}
+                pageSize={historyPageSize}
+                onPageChange={setHistoryPage}
+                onPageSizeChange={(n) => {
+                  setHistoryPage(1);
+                  setHistoryPageSize(n);
+                }}
+              />
+            ) : (
+              <div className="space-y-5">
+                {/* Edit form */}
+                {editing ? (
               <div className="space-y-3 rounded-md border border-indigo-200 bg-indigo-50 p-3">
                 <label className="block text-xs font-medium text-gray-700">
                   Name
@@ -469,6 +617,24 @@ export default function CapabilityDetailDrawer({
                     Archive
                   </button>
                 )}
+                {capability.status !== 'Archived' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMoveDialog(true)}
+                    disabled={busy || hasEligibleTarget !== true}
+                    className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    data-testid="csp-capability-move-toggle"
+                    title={
+                      hasEligibleTarget === false
+                        ? 'No other CSP-inherited component exists yet. Create one first.'
+                        : hasEligibleTarget === null
+                          ? 'Checking eligible components…'
+                          : 'Move this capability to a different CSP-inherited component'
+                    }
+                  >
+                    Move to another component…
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleRemap}
@@ -481,9 +647,27 @@ export default function CapabilityDetailDrawer({
                 </button>
               </div>
             )}
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Feature 050 / US2 — Move-capability dialog. Mounted conditionally
+          to keep DOM clean when not in use. The dialog owns its own
+          candidate fetch (pageSize=200) per contract § 3.1.2. */}
+      {showMoveDialog && capability && (
+        <MoveCapabilityDialog
+          capability={capability}
+          sourceComponentId={componentId}
+          onCancel={() => setShowMoveDialog(false)}
+          onMoved={(next) => {
+            setShowMoveDialog(false);
+            setCapability(next);
+            onMutated();
+          }}
+        />
+      )}
     </aside>
   );
 }
@@ -517,4 +701,219 @@ function StatusBadge({ status }: { status: CspInheritedCapability['status'] }): 
       {label}
     </span>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Feature 050 / US3 — History tab panel
+// ---------------------------------------------------------------------------
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
+
+interface HistoryPanelProps {
+  history: CapabilityHistoryPage | null;
+  loading: boolean;
+  error: string | null;
+  page: number;
+  pageSize: number;
+  onPageChange: (next: number) => void;
+  onPageSizeChange: (next: number) => void;
+}
+
+function HistoryPanel({
+  history,
+  loading,
+  error,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+}: HistoryPanelProps): ReactElement {
+  if (loading) {
+    return <p className="text-sm text-gray-500">Loading history…</p>;
+  }
+  if (error) {
+    return (
+      <div
+        role="alert"
+        className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+      >
+        {error}
+      </div>
+    );
+  }
+  if (!history || history.items.length === 0) {
+    return (
+      <p className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
+        No history yet.
+      </p>
+    );
+  }
+
+  const totalPages = Math.max(1, Math.ceil(history.total / history.pageSize));
+
+  return (
+    <div className="space-y-2">
+      <ol
+        className="divide-y divide-gray-100 rounded-md border border-gray-200"
+        data-testid="csp-capability-history-list"
+      >
+        {history.items.map((evt) => (
+          <li
+            key={evt.id}
+            data-testid={`csp-capability-history-row-${evt.id}`}
+            data-event-type={evt.eventType}
+            className="flex items-start gap-2 px-3 py-2 text-xs"
+          >
+            <span className="mt-0.5 inline-block w-6 text-center text-base leading-none">
+              {iconFor(evt.eventType)}
+            </span>
+            <div className="flex-1 space-y-1">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="font-medium text-gray-900">{evt.summary}</span>
+                {pillsFor(evt)}
+              </div>
+              <div className="text-[11px] text-gray-500">
+                {formatTime(evt.occurredAt)} · {evt.actorOid}
+              </div>
+              {previewFor(evt)}
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-600">
+        <span>
+          Page {history.page} of {totalPages} · {history.total} event
+          {history.total === 1 ? '' : 's'}
+        </span>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1">
+            Rows
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              className="rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-[11px]"
+              data-testid="csp-capability-history-pagesize"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => onPageChange(Math.max(1, page - 1))}
+            disabled={page <= 1}
+            className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[11px] disabled:opacity-50"
+            data-testid="csp-capability-history-prev"
+          >
+            Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+            disabled={page >= totalPages}
+            className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[11px] disabled:opacity-50"
+            data-testid="csp-capability-history-next"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function iconFor(t: CapabilityHistoryEventType): string {
+  switch (t) {
+    case 'Created':
+      return '+';
+    case 'Edited':
+      return '✎';
+    case 'Reviewed':
+      return '✓';
+    case 'Moved':
+      return '→';
+    case 'Archived':
+      return '🗑';
+    case 'Unarchived':
+      return '↺';
+  }
+}
+
+function pillsFor(evt: CapabilityHistoryEvent): ReactElement | null {
+  const pills: ReactElement[] = [];
+  const meta = evt.metadata;
+  if (meta && typeof meta === 'object') {
+    if (
+      evt.eventType === 'Created' &&
+      meta.markedMappedImmediately === true
+    ) {
+      pills.push(
+        <Pill
+          key="auto-mapped"
+          className="bg-emerald-100 text-emerald-800"
+        >
+          Auto-mapped on create
+        </Pill>,
+      );
+    }
+    if (meta.source === 'Remap') {
+      pills.push(
+        <Pill key="remap" className="bg-indigo-100 text-indigo-800">
+          Remap
+        </Pill>,
+      );
+    }
+  }
+  return pills.length === 0 ? null : <>{pills}</>;
+}
+
+function previewFor(evt: CapabilityHistoryEvent): ReactElement | null {
+  const meta = evt.metadata;
+  if (!meta || typeof meta !== 'object') return null;
+  switch (evt.eventType) {
+    case 'Reviewed':
+      return meta.reviewerNote ? (
+        <blockquote className="border-l-2 border-amber-300 pl-2 italic text-gray-700">
+          {meta.reviewerNote}
+        </blockquote>
+      ) : null;
+    case 'Moved':
+      return meta.fromComponentId || meta.toComponentId ? (
+        <p className="text-[11px] text-gray-500">
+          from <code>{meta.fromComponentId ?? '—'}</code> to{' '}
+          <code>{meta.toComponentId ?? '—'}</code>
+        </p>
+      ) : null;
+    case 'Edited':
+      return meta.fields && meta.fields.length > 0 ? (
+        <p className="text-[11px] text-gray-500">
+          Fields: <span className="font-mono">{meta.fields.join(', ')}</span>
+        </p>
+      ) : null;
+    default:
+      return null;
+  }
+}
+
+function Pill({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className: string;
+}): ReactElement {
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${className}`}>
+      {children}
+    </span>
+  );
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 }

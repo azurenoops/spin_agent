@@ -352,6 +352,15 @@ export interface AddCspInheritedCapabilityRequest {
   name: string;
   description: string;
   mappedNistControlIds: string[];
+  /**
+   * Feature 050 FR-001 — when `true`, the capability is created with
+   * `status = "Mapped"`, `reviewedBy = <caller oid>`, and
+   * `reviewerNote = "Mapped on create by creator."`. The server writes a
+   * second `Reviewed` history row alongside the `Created` row in the same
+   * transaction. Default (`false` or omitted) leaves the row in
+   * `NeedsReview` so it surfaces in the review queue.
+   */
+  markMappedImmediately?: boolean;
 }
 
 /**
@@ -373,7 +382,9 @@ export async function createCspInheritedComponent(
 /**
  * `POST /csp/inherited-components/{componentId}/capabilities` — CSP-Admin
  * only. Adds a capability to an existing component. The server stamps
- * `mappedBy = 'User'` and `status = 'Mapped'` so a future remap respects it.
+ * `mappedBy = 'User'`. Per Feature 050 FR-001 the default
+ * `status = 'NeedsReview'` (caller must explicitly opt in via
+ * `markMappedImmediately = true` to skip the review step).
  */
 export async function addCspInheritedCapability(
   componentId: string,
@@ -382,6 +393,129 @@ export async function addCspInheritedCapability(
   const { data } = await cspClient.post<Envelope<CspInheritedCapability>>(
     `/csp/inherited-components/${encodeURIComponent(componentId)}/capabilities`,
     payload,
+  );
+  return unwrap(data);
+}
+
+// ---------------------------------------------------------------------------
+// Feature 050 / US2 — reparent a capability (POST .../move)
+// ---------------------------------------------------------------------------
+
+/**
+ * Request body for `POST .../capabilities/{capabilityId}/move`.
+ * Mirrors the wire contract in
+ * `specs/050-csp-capability-lifecycle/contracts/http-api.md § 2.2`.
+ */
+export interface ReparentCspInheritedCapabilityRequest {
+  /**
+   * Destination component id. MUST be different from the current parent
+   * and MUST exist in the caller's tenant and not be Archived.
+   */
+  targetComponentId: string;
+}
+
+/**
+ * `POST /csp/inherited-components/{componentId}/capabilities/{capabilityId}/move`
+ * — CSP-Admin only. Reparents a capability to a different non-archived
+ * component in the caller's tenant. Resets `status = NeedsReview`, clears
+ * reviewer metadata, writes one `Moved` history event.
+ *
+ * The `If-Match` header is REQUIRED (Feature 050 FR-002 / FR-012 — reparent
+ * is too destructive to allow last-write-wins). A stale stamp surfaces as
+ * a 412 ROW_VERSION_MISMATCH envelope.
+ */
+export async function reparentCspInheritedCapability(
+  componentId: string,
+  capabilityId: string,
+  payload: ReparentCspInheritedCapabilityRequest,
+  ifMatchRowVersion: string,
+): Promise<CspInheritedCapability> {
+  const { data } = await cspClient.post<Envelope<CspInheritedCapability>>(
+    `/csp/inherited-components/${encodeURIComponent(componentId)}/capabilities/${encodeURIComponent(capabilityId)}/move`,
+    payload,
+    { headers: { 'If-Match': ifMatchRowVersion } },
+  );
+  return unwrap(data);
+}
+
+// ---------------------------------------------------------------------------
+// Feature 050 / US3 — capability history (GET .../history)
+// ---------------------------------------------------------------------------
+
+/**
+ * One of six lifecycle events on a CSP-inherited capability. Mirrors
+ * the C# enum `CapabilityHistoryEventType`.
+ */
+export type CapabilityHistoryEventType =
+  | 'Created'
+  | 'Edited'
+  | 'Reviewed'
+  | 'Moved'
+  | 'Archived'
+  | 'Unarchived';
+
+/**
+ * Structured metadata payload. Shape varies by `eventType` — consumers
+ * MUST pattern-match on `eventType` before reading fields. Full shape
+ * table lives in `specs/050-csp-capability-lifecycle/data-model.md § 1.4`.
+ */
+export type CapabilityHistoryEventMetadata =
+  | null
+  | {
+      /** 'Moved' */
+      fromComponentId?: string;
+      toComponentId?: string;
+      /** 'Created' | 'Edited' | 'Archived' (Remap-originated rows) */
+      remapRunId?: string;
+      source?: 'Remap' | 'Import';
+      /** 'Created' (manual add with markMappedImmediately override) */
+      markedMappedImmediately?: boolean;
+      /** 'Reviewed' */
+      reviewerNote?: string;
+      /** 'Edited' (manual) */
+      fields?: ReadonlyArray<string>;
+    };
+
+export interface CapabilityHistoryEvent {
+  id: string;
+  eventType: CapabilityHistoryEventType;
+  actorOid: string;
+  /** ISO-8601 UTC timestamp the row was written server-side. */
+  occurredAt: string;
+  /** Human-readable description, ≤ 500 chars. */
+  summary: string;
+  metadata: CapabilityHistoryEventMetadata;
+}
+
+export interface CapabilityHistoryPage {
+  items: ReadonlyArray<CapabilityHistoryEvent>;
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface ListCapabilityHistoryParams {
+  /** 1-based page index; default 1, min 1. */
+  page?: number;
+  /** Default 50; clamped to [1, 200] server-side. */
+  pageSize?: number;
+}
+
+/**
+ * `GET /csp/inherited-components/{componentId}/capabilities/{capabilityId}/history`
+ * — CSP-Admin only. Paginated reverse-chronological audit-trail feed for one
+ * capability, scoped to caller's tenant. Empty history is a 200 with
+ * `items: []` (NOT a 404). Server sets `Cache-Control: no-store` so the
+ * dashboard refetches on every drawer open.
+ */
+export async function listCapabilityHistory(
+  componentId: string,
+  capabilityId: string,
+  params: ListCapabilityHistoryParams = {},
+): Promise<CapabilityHistoryPage> {
+  const { data } = await cspClient.get<Envelope<CapabilityHistoryPage>>(
+    `/csp/inherited-components/${encodeURIComponent(componentId)}/capabilities/${encodeURIComponent(capabilityId)}/history`,
+    { params },
   );
   return unwrap(data);
 }

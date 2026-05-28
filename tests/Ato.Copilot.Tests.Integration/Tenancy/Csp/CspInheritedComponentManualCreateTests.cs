@@ -146,9 +146,9 @@ public class CspInheritedComponentManualCreateTests
     // ─── POST /api/csp/inherited-components/{id}/capabilities (CSP-Admin) ────
 
     [Fact]
-    public async Task Post_Capability_AsCspAdmin_Returns200_WithUserMappedByAndMappedStatus()
+    public async Task Post_Capability_AsCspAdmin_Default_Returns200_WithNeedsReviewStatus()
     {
-        // Arrange
+        // Arrange — Feature 050 FR-001: the new default is NeedsReview.
         SetCspAdmin(true);
         var componentId = await SeedComponentAsync("Component For Caps");
         var payload = JsonContent.Create(new
@@ -167,13 +167,93 @@ public class CspInheritedComponentManualCreateTests
         body.GetProperty("status").GetString().Should().Be("success");
         var data = body.GetProperty("data");
         data.GetProperty("name").GetString().Should().Be("Manual Capability");
-        data.GetProperty("status").GetString().Should().Be("Mapped",
-            "manual-create capabilities are immediately Mapped — there is no AI confidence to score.");
+        data.GetProperty("status").GetString().Should().Be("NeedsReview",
+            "Feature 050 FR-001 — manual-create capabilities are vetted by default; "
+            + "creator must explicitly opt in to mark Mapped on create.");
         data.GetProperty("mappedBy").GetString().Should().Be("User",
             "manual-create rows MUST be MappedBy=User so a future remap respects them.");
-        var ids = data.GetProperty("mappedNistControlIds").EnumerateArray()
-            .Select(e => e.GetString()).ToArray();
-        ids.Should().BeEquivalentTo(new[] { "AC-2", "AC-2(1)" });
+        data.GetProperty("reviewedBy").ValueKind.Should().Be(JsonValueKind.Null);
+        data.GetProperty("reviewedAt").ValueKind.Should().Be(JsonValueKind.Null);
+
+        // Verify exactly one Created history row was written.
+        var capabilityId = data.GetProperty("id").GetGuid();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var history = await db.CapabilityHistoryEvents
+            .IgnoreQueryFilters()
+            .Where(h => h.CapabilityId == capabilityId)
+            .ToListAsync();
+        history.Should().HaveCount(1);
+        history[0].EventType.Should().Be(CapabilityHistoryEventType.Created);
+        history[0].MetadataJson.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Post_Capability_AsCspAdmin_WithMarkMappedImmediately_Returns200_WithMappedStatus_AndTwoHistoryRows()
+    {
+        // Arrange — Feature 050 FR-001 override.
+        SetCspAdmin(true);
+        var componentId = await SeedComponentAsync("Component For Override");
+        var payload = JsonContent.Create(new
+        {
+            name = "Manual Capability Mapped Immediately",
+            description = "Authored by CSP-Admin who already verified the mapping.",
+            mappedNistControlIds = new[] { "AC-2" },
+            markMappedImmediately = true,
+        });
+
+        // Act
+        var resp = await _client.PostAsync($"{BaseUrl}/{componentId}/capabilities", payload);
+
+        // Assert
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        var data = body.GetProperty("data");
+        data.GetProperty("status").GetString().Should().Be("Mapped");
+        data.GetProperty("reviewedBy").GetString().Should().NotBeNullOrEmpty();
+        data.GetProperty("reviewedAt").ValueKind.Should().Be(JsonValueKind.String);
+        data.GetProperty("reviewerNote").GetString().Should().Be("Mapped on create by creator.");
+
+        // Verify two history rows: Created + Reviewed.
+        var capabilityId = data.GetProperty("id").GetGuid();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var history = await db.CapabilityHistoryEvents
+            .IgnoreQueryFilters()
+            .Where(h => h.CapabilityId == capabilityId)
+            .ToListAsync();
+        history.Should().HaveCount(2);
+        history.Select(h => h.EventType).Should().Contain(new[]
+        {
+            CapabilityHistoryEventType.Created,
+            CapabilityHistoryEventType.Reviewed,
+        });
+        var created = history.Single(h => h.EventType == CapabilityHistoryEventType.Created);
+        created.MetadataJson.Should().NotBeNull();
+        created.MetadataJson.Should().Contain("markedMappedImmediately");
+    }
+
+    [Fact]
+    public async Task Post_Capability_AsCspAdmin_WithMarkMappedImmediatelyFalse_Returns200_WithNeedsReviewStatus()
+    {
+        // Arrange — explicit false matches absence.
+        SetCspAdmin(true);
+        var componentId = await SeedComponentAsync("Component For ExplicitFalse");
+        var payload = JsonContent.Create(new
+        {
+            name = "Explicit False",
+            description = "x",
+            mappedNistControlIds = new[] { "AC-2" },
+            markMappedImmediately = false,
+        });
+
+        // Act
+        var resp = await _client.PostAsync($"{BaseUrl}/{componentId}/capabilities", payload);
+
+        // Assert
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("data").GetProperty("status").GetString().Should().Be("NeedsReview");
     }
 
     [Fact]
