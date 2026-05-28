@@ -1,4 +1,3 @@
-using System.Reflection;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Models.Auth;
@@ -58,22 +57,9 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
         _connection.Dispose();
     }
 
-    // ─── Interface surface invariant ────────────────────────────────────
-
-    [Fact]
-    public void Interface_HasExactlyThreePublicMethods()
-    {
-        // Arrange
-        var methods = typeof(ILoginAuditService)
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Select(m => m.Name)
-            .ToHashSet();
-
-        // Act + Assert
-        methods.Should().BeEquivalentTo(
-            new[] { "AppendAsync", "ListAsync", "ListSystemTenantAsync" },
-            "contracts/internal-services.md § 1.4 — no Update or Delete on the surface.");
-    }
+    // Interface-surface invariant moved to LoginAuditServiceSurfaceTests.cs
+    // in Phase 7 (T087) so the surface guard is discoverable independently
+    // of the write-path coverage. See contracts/internal-services.md § 1.4.
 
     // ─── AppendAsync — populates Id and OccurredAt server-side ──────────
 
@@ -241,10 +227,16 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
-    // ─── List methods are stubbed pending T085 / T086 ───────────────────
+    // ─── List methods — when the legacy AppendAsync-only ctor is used,
+    // both read paths surface a clear InvalidOperationException so the
+    // append-only test doubles fail loudly if a future test
+    // accidentally invokes the read path under the legacy ctor (which
+    // intentionally has no IDbContextFactory or IHttpContextAccessor).
+    // The behavioural contract for the read paths is exercised in
+    // LoginAuditServiceListTests via the production constructor.
 
     [Fact]
-    public async Task ListAsync_StubbedUntilT085()
+    public async Task ListAsync_LegacyCtor_Throws_InvalidOperation()
     {
         // Arrange
         var sut = NewSut();
@@ -253,11 +245,11 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
         Func<Task> act = () => sut.ListAsync(Guid.NewGuid());
 
         // Assert
-        await act.Should().ThrowAsync<NotImplementedException>();
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Fact]
-    public async Task ListSystemTenantAsync_StubbedUntilT086()
+    public async Task ListSystemTenantAsync_LegacyCtor_Throws_InvalidOperation()
     {
         // Arrange
         var sut = NewSut();
@@ -266,7 +258,7 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
         Func<Task> act = () => sut.ListSystemTenantAsync();
 
         // Assert
-        await act.Should().ThrowAsync<NotImplementedException>();
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────

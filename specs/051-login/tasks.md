@@ -289,18 +289,18 @@ immutable cold storage. (Write-side already wired in Phase 2.)
 
 ### 7.1 Audit read service
 
-- [ ] T085 [TDD-Test] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditServiceListTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditServiceListTests.cs) — `ListAsync(tenantId, since, take)` returns rows in descending `OccurredAt`, respects `[TenantScoped]` filter (other-tenant rows excluded); `ListSystemTenantAsync` throws `UnauthorizedAccessException` without `Auth.SocAnalyst` claim; with claim, returns rows where `EffectiveTenantId = SYSTEM_TENANT_ID` only. RED.
-- [ ] T086 [US10] Implement `ListAsync` + `ListSystemTenantAsync` in [src/Ato.Copilot.Core/Services/Auth/LoginAuditService.cs](src/Ato.Copilot.Core/Services/Auth/LoginAuditService.cs) per [contracts/internal-services.md § 1.3](specs/051-login/contracts/internal-services.md) and [research.md § R9](specs/051-login/research.md). GREEN T085.
-- [ ] T087 [TDD-Test] [P] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditServiceSurfaceTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditServiceSurfaceTests.cs) — reflection assertion: public interface methods are EXACTLY `{ AppendAsync, ListAsync, ListSystemTenantAsync }`. RED then GREEN.
+- [X] T085 [TDD-Test] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditServiceListTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditServiceListTests.cs) — `ListAsync(tenantId, since, take)` returns rows in descending `OccurredAt`, respects `[TenantScoped]` filter (other-tenant rows excluded); `ListSystemTenantAsync` throws `UnauthorizedAccessException` without `Auth.SocAnalyst` claim; with claim, returns rows where `EffectiveTenantId = SYSTEM_TENANT_ID` only. RED.
+- [X] T086 [US10] Implement `ListAsync` + `ListSystemTenantAsync` in [src/Ato.Copilot.Core/Services/Auth/LoginAuditService.cs](src/Ato.Copilot.Core/Services/Auth/LoginAuditService.cs) per [contracts/internal-services.md § 1.3](specs/051-login/contracts/internal-services.md) and [research.md § R9](specs/051-login/research.md). GREEN T085.
+- [X] T087 [TDD-Test] [P] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditServiceSurfaceTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditServiceSurfaceTests.cs) — reflection assertion: public interface methods are EXACTLY `{ AppendAsync, ListAsync, ListSystemTenantAsync }`. RED then GREEN.
 
 ### 7.2 SOC-analyst claim mapping
 
-- [ ] T088 [US10] **Verify (analysis C13): read [src/Ato.Copilot.Core/Configuration/RoleClaimMappings*](src/Ato.Copilot.Core/Configuration/) to confirm Feature 003 already exposes a `RoleClaimMappings:Auth.SocAnalyst` config slot. If absent, this task MUST extend Feature 003's claim resolver to recognize `Auth.SocAnalyst` as a first-class role claim before adding the slot to appsettings.** Add `RoleClaimMappings:Auth.SocAnalyst` config slot to [src/Ato.Copilot.Mcp/appsettings.json](src/Ato.Copilot.Mcp/appsettings.json) and wire it through the existing Feature 003 role-claim resolver so endpoints can check the claim
+- [X] T088 [US10] **Verify (analysis C13): read [src/Ato.Copilot.Core/Configuration/RoleClaimMappings*](src/Ato.Copilot.Core/Configuration/) to confirm Feature 003 already exposes a `RoleClaimMappings:Auth.SocAnalyst` config slot. If absent, this task MUST extend Feature 003's claim resolver to recognize `Auth.SocAnalyst` as a first-class role claim before adding the slot to appsettings.** Add `RoleClaimMappings:Auth.SocAnalyst` config slot to [src/Ato.Copilot.Mcp/appsettings.json](src/Ato.Copilot.Mcp/appsettings.json) and wire it through the existing Feature 003 role-claim resolver so endpoints can check the claim
 
 ### 7.3 Read endpoint
 
-- [ ] T089 [TDD-Test] [US10] [tests/Ato.Copilot.Tests.Integration/Auth/LoginAuditEventsEndpointTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/LoginAuditEventsEndpointTests.cs) — `GET /api/auth/events?since=&take=` returns tenant rows for CSP-Admin or tenant member; `GET /api/auth/events?systemTenant=true` returns 403 `FORBIDDEN_NOT_SOC_ANALYST` without the claim; 200 with it. RED.
-- [ ] T090 [US10] Add the endpoint to [src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs](src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs). GREEN T089.
+- [X] T089 [TDD-Test] [US10] [tests/Ato.Copilot.Tests.Integration/Auth/LoginAuditEventsEndpointTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/LoginAuditEventsEndpointTests.cs) — `GET /api/auth/events?since=&take=` returns tenant rows for CSP-Admin or tenant member; `GET /api/auth/events?systemTenant=true` returns 403 `FORBIDDEN_NOT_SOC_ANALYST` without the claim; 200 with it. RED.
+- [X] T090 [US10] Add the endpoint to [src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs](src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs). GREEN T089.
 
 ### 7.4 Archive sinks
 

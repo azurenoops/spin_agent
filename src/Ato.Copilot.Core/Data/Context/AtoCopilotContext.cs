@@ -3295,11 +3295,53 @@ public class AtoCopilotContext : DbContext
     }
 
     /// <summary>
+    /// Strongly-typed sibling of <see cref="BuildTenantFilterExpression"/>
+    /// for entities whose tenant-scoping column is named
+    /// <c>EffectiveTenantId</c> rather than <c>TenantId</c>. Used by
+    /// <see cref="Ato.Copilot.Core.Models.Auth.LoginAuditEvent"/>
+    /// (Feature 051 — FR-032 / FR-036a) per
+    /// <c>contracts/internal-services.md § 1.3</c>. EF Core requires a
+    /// strongly-typed <see cref="Expression{TDelegate}"/> for the
+    /// generic <c>HasQueryFilter</c> overload on
+    /// <see cref="Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder{TEntity}"/>;
+    /// we cannot reuse the reflection-built <see cref="LambdaExpression"/>
+    /// from the generic installer.
+    /// </summary>
+    private Expression<Func<TEntity, bool>> BuildEffectiveTenantIdFilterExpression<TEntity>()
+        where TEntity : class
+    {
+        var parameter = Expression.Parameter(typeof(TEntity), "e");
+        var thisExpr = Expression.Constant(this);
+
+        var filterDisabled = Expression.Property(thisExpr, nameof(TenantFilterDisabled));
+        var cspAdminAll = Expression.Property(thisExpr, nameof(TenantFilterCspAdminAll));
+        var effectiveTenantId = Expression.Property(thisExpr, nameof(TenantFilterEffectiveId));
+        var entityEffectiveTenantId = Expression.Property(parameter, "EffectiveTenantId");
+
+        var tenantMatches = Expression.Equal(entityEffectiveTenantId, effectiveTenantId);
+        var body = Expression.OrElse(
+            filterDisabled,
+            Expression.OrElse(cspAdminAll, tenantMatches));
+
+        return Expression.Lambda<Func<TEntity, bool>>(body, parameter);
+    }
+
+    /// <summary>
     /// Configures the new tenancy entities introduced in Feature 048 (Tenant,
     /// Organization). Full retrofit of <c>HasQueryFilter</c> across all
     /// tenant-scoped entities is performed in user-story phase 3 (T044-T053).
     /// </summary>
-    private static void ConfigureTenancyEntities(ModelBuilder modelBuilder)
+    /// <remarks>
+    /// NOTE (Feature 051 T086): this method also configures
+    /// <see cref="Ato.Copilot.Core.Models.Auth.LoginAuditEvent"/> which
+    /// installs a per-instance <c>HasQueryFilter</c> via
+    /// <see cref="BuildEffectiveTenantIdFilterExpression{TEntity}"/>.
+    /// That expression must capture <c>this</c> so EF Core can re-bind
+    /// the <c>TenantFilterEffectiveId</c> property per query execution —
+    /// the reason this method is non-static even though every other
+    /// configuration block in it could compile as <c>static</c>.
+    /// </remarks>
+    private void ConfigureTenancyEntities(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Tenant>(entity =>
         {
@@ -3532,6 +3574,25 @@ public class AtoCopilotContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.EffectiveTenantId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Tenant query filter (Feature 051 T086 / contracts/internal-services.md §1.3).
+            // LoginAuditEvent uses `EffectiveTenantId` (not `TenantId`), so the generic
+            // [TenantScoped] filter installer in ApplyTenantQueryFilters() skips it. We
+            // install the equivalent filter inline here so per-tenant reads (ListAsync)
+            // and any other query against LoginAuditEvents are automatically scoped to
+            // the active tenant. The filter mirrors BuildTenantFilterExpression() but
+            // is built manually because EF Core's HasQueryFilter expression cannot
+            // reference DbContext instance properties via the `this` keyword in a
+            // C# lambda — it must be wired through Expression.Constant(this) so the
+            // model can be cached while the live DbContext instance is re-evaluated
+            // at each query execution.
+            //
+            // The SOC-analyst forensic read (ILoginAuditService.ListSystemTenantAsync)
+            // calls .IgnoreQueryFilters() explicitly to bypass this filter and scope
+            // to SYSTEM_TENANT_ID (Guid.Empty). The daily cold-archive job also calls
+            // .IgnoreQueryFilters() because it is tenant-agnostic by design.
+            entity.HasQueryFilter(
+                BuildEffectiveTenantIdFilterExpression<Ato.Copilot.Core.Models.Auth.LoginAuditEvent>());
         });
 
         // ─── OrgControlOverride (Feature 048 follow-up — user ask #2) ─────────

@@ -4,6 +4,7 @@ using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Configuration.Auth;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Auth;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Mcp.Configuration;
@@ -48,6 +49,7 @@ public static class AuthEndpoints
         group.MapGet("/me", GetMeAsync).WithName("GetMe");
         group.MapPost("/signout", PostSignOutAsync).WithName("PostSignOut");
         group.MapPost("/select-tenant", PostSelectTenantAsync).WithName("PostSelectTenant");
+        group.MapGet("/events", GetEventsAsync).WithName("GetAuthEvents");
 
         return app;
     }
@@ -742,6 +744,118 @@ public static class AuthEndpoints
     }
 
     private sealed record SelectTenantRequestBody(string? TenantId, bool? Remember);
+
+    // ─── GET /events ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Feature 051 T090 / US10 — paginated read of <see cref="LoginAuditEvent"/>
+    /// rows for SOC analysts and tenant members. See
+    /// <c>contracts/http-api.md § 7</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>Two modes selected by the <c>systemTenant</c> query parameter:</para>
+    /// <list type="bullet">
+    ///   <item><c>false</c> (default) — returns the active tenant's rows
+    ///   via <see cref="ILoginAuditService.ListAsync"/>. The tenant query
+    ///   filter on <see cref="LoginAuditEvent"/> guarantees cross-tenant
+    ///   isolation regardless of caller intent.</item>
+    ///   <item><c>true</c> — invokes
+    ///   <see cref="ILoginAuditService.ListSystemTenantAsync"/>, which
+    ///   enforces the <c>Auth.SocAnalyst</c> role claim and scopes the
+    ///   read to <c>EffectiveTenantId == Guid.Empty</c>
+    ///   (SYSTEM_TENANT_ID). Callers without the claim get
+    ///   403 <c>FORBIDDEN_NOT_SOC_ANALYST</c>.</item>
+    /// </list>
+    /// <para>Pagination: <c>?take=&lt;1..1000&gt;</c> caps the response
+    /// (default 100, max 1000); <c>?since=&lt;ISO-8601&gt;</c> filters
+    /// rows older than the timestamp. Both args are normalized server-
+    /// side — invalid values fall back to defaults rather than 400.</para>
+    /// </remarks>
+    private static async Task<IResult> GetEventsAsync(
+        HttpContext http,
+        ILoginAuditService audit,
+        ITenantContext tenantContext,
+        CancellationToken ct,
+        DateTimeOffset? since = null,
+        int? take = null,
+        bool? systemTenant = null)
+    {
+        var sw = Stopwatch.StartNew();
+
+        if (!(http.User.Identity?.IsAuthenticated ?? false))
+        {
+            return Unauthorized(sw);
+        }
+
+        var effectiveTake = NormalizeTakeQuery(take);
+        var requestSystemTenant = systemTenant == true;
+
+        try
+        {
+            IReadOnlyList<LoginAuditEvent> rows;
+            if (requestSystemTenant)
+            {
+                // ListSystemTenantAsync enforces the Auth.SocAnalyst claim
+                // and throws UnauthorizedAccessException on failure — we
+                // translate that to the 403 envelope.
+                rows = await audit.ListSystemTenantAsync(since, effectiveTake, ct);
+            }
+            else
+            {
+                rows = await audit.ListAsync(
+                    tenantContext.EffectiveTenantId,
+                    since,
+                    effectiveTake,
+                    ct);
+            }
+
+            var events = rows.Select(ProjectEvent).ToArray();
+            return Success(sw, new
+            {
+                events,
+                count = events.Length,
+                systemTenant = requestSystemTenant,
+            });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Only reachable when systemTenant=true AND the caller lacks
+            // the Auth.SocAnalyst claim. The standard non-SOC read path
+            // never throws this exception.
+            return ErrorEnvelope(sw,
+                StatusCodes.Status403Forbidden,
+                "FORBIDDEN_NOT_SOC_ANALYST",
+                "The Auth.SocAnalyst role claim is required to read SYSTEM_TENANT_ID audit rows.",
+                "Contact your SOC lead to be added to the SOC-analyst group, or omit ?systemTenant=true.");
+        }
+    }
+
+    private static object ProjectEvent(LoginAuditEvent e) => new
+    {
+        id = e.Id,
+        eventType = e.EventType.ToString(),
+        oid = e.Oid,
+        tid = e.Tid,
+        effectiveTenantId = e.EffectiveTenantId,
+        correlationId = e.CorrelationId,
+        sourceIp = e.SourceIp,
+        userAgent = e.UserAgent,
+        surface = e.Surface.ToString(),
+        occurredAt = e.OccurredAt,
+        errorClass = e.ErrorClass?.ToString(),
+        metadataJson = e.MetadataJson,
+    };
+
+    private static int NormalizeTakeQuery(int? take)
+    {
+        const int defaultTake = 100;
+        const int maxTake = 1000;
+        if (take is null or <= 0)
+        {
+            return defaultTake;
+        }
+        return take.Value > maxTake ? maxTake : take.Value;
+    }
 
     // ─── Helpers ────────────────────────────────────────────────────────
 

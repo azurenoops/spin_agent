@@ -333,25 +333,32 @@ public class CacAuthenticationMiddleware
     }
 
     /// <summary>
-    /// Feature 048 FR-050: Inspects the JWT's <c>groups</c> claim values for
-    /// configured Entra Security-Group object IDs (e.g., <c>CSP.Admin</c>) and
-    /// appends a corresponding <see cref="ClaimTypes.Role"/> claim to the list.
+    /// Feature 048 FR-050 / Feature 051 T088: Inspects the JWT's
+    /// <c>groups</c> claim values for configured Entra Security-Group object
+    /// IDs (<c>CSP.Admin</c>, <c>Auth.SocAnalyst</c>) and appends a
+    /// corresponding <see cref="ClaimTypes.Role"/> claim to the list.
     /// Idempotent: if the role claim is already present, no duplicate is added.
     /// </summary>
     /// <param name="claims">Mutable list of claims to be wrapped into the principal.</param>
     private void ApplyGroupToRoleMappings(List<Claim> claims)
     {
-        var cspAdminGroupId = _roleClaimMappings.GetGroupIdForRole("CSP.Admin");
-        if (string.IsNullOrWhiteSpace(cspAdminGroupId))
+        ApplyOneGroupToRoleMapping(claims, "CSP.Admin");
+        ApplyOneGroupToRoleMapping(claims, "Auth.SocAnalyst");
+    }
+
+    private void ApplyOneGroupToRoleMapping(List<Claim> claims, string roleName)
+    {
+        var groupId = _roleClaimMappings.GetGroupIdForRole(roleName);
+        if (string.IsNullOrWhiteSpace(groupId))
         {
-            return; // CSP.Admin elevation disabled in this deployment.
+            return; // Mapping disabled in this deployment.
         }
 
         // Entra emits group memberships as either `groups` (object id) or `wids`
         // (well-known role id) claims. Match against the configured object id.
         var hasGroup = claims.Any(c =>
             string.Equals(c.Type, "groups", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(c.Value, cspAdminGroupId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(c.Value, groupId, StringComparison.OrdinalIgnoreCase));
 
         if (!hasGroup)
         {
@@ -360,12 +367,12 @@ public class CacAuthenticationMiddleware
 
         var alreadyHasRole = claims.Any(c =>
             string.Equals(c.Type, ClaimTypes.Role, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(c.Value, "CSP.Admin", StringComparison.Ordinal));
+            string.Equals(c.Value, roleName, StringComparison.Ordinal));
 
         if (!alreadyHasRole)
         {
-            claims.Add(new Claim(ClaimTypes.Role, "CSP.Admin"));
-            _logger.LogDebug("Mapped Entra group {GroupId} → role CSP.Admin", cspAdminGroupId);
+            claims.Add(new Claim(ClaimTypes.Role, roleName));
+            _logger.LogDebug("Mapped Entra group {GroupId} → role {RoleName}", groupId, roleName);
         }
     }
 

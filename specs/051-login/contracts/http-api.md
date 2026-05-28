@@ -330,7 +330,83 @@ auth-gated endpoint becomes:
 The throttle handler also emits one `LoginFailure` audit row per
 throttled attempt with `MetadataJson = { "throttled": true, "retryAfterSeconds": <int> }`.
 
-## 7. Cross-reference matrix
+## 7. `GET /api/auth/events` — bearer-authenticated
+
+### 7.1 Purpose
+
+Paginated read of `LoginAuditEvent` rows for the SOC analyst and tenant
+member personas (US10 / FR-032 / FR-036a). Two query modes are
+multiplexed through the `?systemTenant=` flag:
+
+- **Per-tenant (default)** — returns rows owned by the active tenant
+  scope (after impersonation and remember-cookie resolution). The
+  automatic tenant query filter on `LoginAuditEvent` guarantees
+  cross-tenant isolation regardless of caller intent.
+- **SYSTEM_TENANT_ID forensic** — `?systemTenant=true` invokes the
+  SOC-analyst read path which `IgnoreQueryFilters()` ONLY to surface
+  rows where `EffectiveTenantId = Guid.Empty` (pre-session failures,
+  `NoTenantAssignment` events, etc.). Gated by the `Auth.SocAnalyst`
+  role claim per [research.md § R9](../research.md).
+
+### 7.2 Request
+
+`GET /api/auth/events?since=<ISO-8601>&take=<int>&systemTenant=<bool>`
+`Authorization: Bearer ...`
+
+| Query | Type | Default | Notes |
+|---|---|---|---|
+| `since` | ISO-8601 datetime | `null` (no lower bound) | Excludes rows with `OccurredAt < since`. |
+| `take` | integer 1..1000 | `100` | Caps the response. Values ≤ 0 or > 1000 are coerced to the default / cap. |
+| `systemTenant` | boolean | `false` | When `true`, switches to the SOC-analyst read path. |
+
+### 7.3 Behavior
+
+1. Validate the bearer; reject 401 if unauthenticated.
+2. If `systemTenant=true`, call `ILoginAuditService.ListSystemTenantAsync`
+   which enforces the `Auth.SocAnalyst` claim. On
+   `UnauthorizedAccessException`, return 403
+   `FORBIDDEN_NOT_SOC_ANALYST`.
+3. Otherwise call `ILoginAuditService.ListAsync(activeTenantId, since, take)`.
+4. Project each `LoginAuditEvent` into the wire shape below.
+5. Return 200 with the envelope.
+
+### 7.4 Response — 200 OK
+
+```jsonc
+{
+  "status": "success",
+  "data": {
+    "events": [
+      {
+        "id": "...",                                  // Guid
+        "eventType": "LoginSuccess",                  // see LoginAuditEventType
+        "oid": "...",                                 // nullable
+        "tid": "...",                                 // nullable
+        "effectiveTenantId": "...",                   // Guid; Guid.Empty for system-tenant rows
+        "correlationId": "...",
+        "sourceIp": "10.0.0.1",
+        "userAgent": "Mozilla/5.0",
+        "surface": "Dashboard",                       // see LoginSurface
+        "occurredAt": "2026-05-28T22:15:32Z",
+        "errorClass": null,                           // see LoginErrorClass, set only for LoginFailure
+        "metadataJson": null                          // see data-model.md § 1.5
+      }
+    ],
+    "count": 1,                                       // events.length, for telemetry
+    "systemTenant": false                             // echoes the requested mode
+  },
+  "metadata": { "executionTimeMs": 14, "correlationId": "..." }
+}
+```
+
+### 7.5 Error responses
+
+| Status | Code | Trigger |
+|---|---|---|
+| 401 | `UNAUTHORIZED` | Missing / invalid bearer. |
+| 403 | `FORBIDDEN_NOT_SOC_ANALYST` | `?systemTenant=true` AND caller lacks the `Auth.SocAnalyst` role claim. |
+
+## 8. Cross-reference matrix
 
 | FR | Endpoint section |
 |---|---|
@@ -343,4 +419,5 @@ throttled attempt with `MetadataJson = { "throttled": true, "retryAfterSeconds":
 | FR-026 – FR-029 | § 2.5 + Feature 048 impersonation endpoint (out of scope here) |
 | FR-030 / FR-031 | § 2 |
 | FR-032 / FR-033 / FR-034 / FR-035 | § 6 + every endpoint's audit-row contract |
+| FR-032 / FR-036 / FR-036a (SOC read path) | § 7 |
 | FR-038 | All endpoints — Serilog logging discipline (no token / refresh-token / thumbprint in log fields) |
