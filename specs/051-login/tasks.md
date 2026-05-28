@@ -473,17 +473,17 @@ Phase 4 — this phase fills the rest.)
 
 ### 12.1 `useMe` hook
 
-- [ ] T137 [TDD-Test] [P] [US9] [src/Ato.Copilot.Dashboard/src/__tests__/auth/useMe.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/useMe.test.tsx) — React Query wrapper around `GET /api/auth/me`; 5-min stale time; refetch on window focus; refetch on `'ato:tenant-changed'` custom event. RED.
-- [ ] T138 [US9] Create [src/Ato.Copilot.Dashboard/src/features/auth/useMe.ts](src/Ato.Copilot.Dashboard/src/features/auth/useMe.ts) per [contracts/frontend-types.md § 4.3](specs/051-login/contracts/frontend-types.md). GREEN T137.
+- [X] T137 [TDD-Test] [P] [US9] [src/Ato.Copilot.Dashboard/src/__tests__/auth/useMe.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/useMe.test.tsx) — React Query wrapper around `GET /api/auth/me`; 5-min stale time; refetch on window focus; refetch on `'ato:tenant-changed'` custom event. RED. **Phase 12 deviation: spec calls for React Query wrapper, but per Phase-12 "do NOT introduce React Query if it isn't already used" constraint we kept the existing `useEffect + useState` hook (Phase 5 / Phase 11). Tests pin the EXISTING `{ data, isLoading, error, refetch }` contract and the new `'ato:tenant-changed'` listener. Window-focus + 5-min stale-time semantics are explicitly OUT OF SCOPE for Phase 12 — see analysis C8 / deferral notes; a future React-Query rewrite will satisfy those.**
+- [X] T138 [US9] Create [src/Ato.Copilot.Dashboard/src/features/auth/useMe.ts](src/Ato.Copilot.Dashboard/src/features/auth/useMe.ts) per [contracts/frontend-types.md § 4.3](specs/051-login/contracts/frontend-types.md). GREEN T137. **Implemented as a minimal extension to the existing Phase-5/11 hook: added a `useEffect` that listens for `'ato:tenant-changed'` and calls `refetch()`. No React Query introduced (per Phase 12 constraints); window-focus + stale-time deferred to the future heavier rewrite noted in the file's JSDoc.**
 
 ### 12.2 Account menu
 
-- [ ] T139 [TDD-Test] [US9] [src/Ato.Copilot.Dashboard/src/__tests__/auth/AccountMenu.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/AccountMenu.test.tsx) — renders displayName + persona + homeTenant.displayName; shows each PIM role with `expiresAt`; auto-hides PIM rows whose `expiresAt` is in the past; sign-out button still works (regression-guard for Phase 4 wire-up). **Per FR-031 (analysis C8): assert `aria-expanded` toggles on open/close, Esc key closes the menu, focus is trapped while open, Tab/Shift-Tab cycles inside the menu, AND a screen-reader live-region announces the active PIM role's expiry on render (`aria-live="polite"`).** RED.
-- [ ] T140 [US9] Extend [src/Ato.Copilot.Dashboard/src/features/auth/AccountMenu.tsx](src/Ato.Copilot.Dashboard/src/features/auth/AccountMenu.tsx) — replace the Phase-4 stub with the full menu. GREEN T139.
+- [X] T139 [TDD-Test] [US9] [src/Ato.Copilot.Dashboard/src/__tests__/auth/AccountMenu.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/AccountMenu.test.tsx) — renders displayName + persona + homeTenant.displayName; shows each PIM role with `expiresAt`; auto-hides PIM rows whose `expiresAt` is in the past; sign-out button still works (regression-guard for Phase 4 wire-up). **Per FR-031 (analysis C8): assert `aria-expanded` toggles on open/close, Esc key closes the menu, focus is trapped while open, Tab/Shift-Tab cycles inside the menu, AND a screen-reader live-region announces the active PIM role's expiry on render (`aria-live="polite"`).** RED.
+- [X] T140 [US9] Extend [src/Ato.Copilot.Dashboard/src/features/auth/AccountMenu.tsx](src/Ato.Copilot.Dashboard/src/features/auth/AccountMenu.tsx) — replace the Phase-4 stub with the full menu. GREEN T139.
 
 ### 12.3 Manual sign-off
 
-- [ ] T141 [US9] Execute [quickstart.md § 12](specs/051-login/quickstart.md)
+- [ ] T141 [US9] Execute [quickstart.md § 12](specs/051-login/quickstart.md) — **Pending live verification.** Deferred per Phase-12 instructions (manual sign-off requires a live deployment with a real PIM role assignment).
 
 **Checkpoint US9**: Profile surface displays all expected fields.
 

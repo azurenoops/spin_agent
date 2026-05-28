@@ -3,14 +3,14 @@ import axios from 'axios';
 import type { MeResponse } from './types';
 
 /**
- * Feature 051 T072 [US3] / T135 [US8] — minimal `useMe` hook with
- * an explicit `refetch()` so the impersonation banner can pull a fresh
- * `/me` after Exit / auto-end (Phase 11.3).
+ * Feature 051 T072 [US3] / T135 [US8] / T138 [US9] — minimal `useMe`
+ * hook with an explicit `refetch()` (Phase 11.3) and an automatic
+ * `'ato:tenant-changed'` refetch (Phase 12 / FR-030).
  *
  * A heavier React-Query-backed hook will replace this when later phases
  * need session-wide identity state, but the current single-fetch + naive
- * state model is enough for the tenant picker and the impersonation
- * banner.
+ * state model is enough for the tenant picker, impersonation banner,
+ * and account menu.
  */
 export interface UseMeResult {
   data: MeResponse | null;
@@ -55,6 +55,19 @@ export function useMe(): UseMeResult {
       cancelled = true;
     };
   }, [tick]);
+
+  // FR-030 — when the tenant picker dispatches `'ato:tenant-changed'`,
+  // every live `useMe()` consumer (impersonation banner, account menu,
+  // tenant picker page) must re-pull `/me` so the SPA's view of the
+  // effective tenant stays coherent. The `ImpersonationBanner` ALSO
+  // listens to this event for legacy reasons (Phase 11.3) — the double
+  // refetch is harmless (React batches the two `setTick` calls in the
+  // same tick) and we are not regressing that wiring here.
+  useEffect(() => {
+    const handler = () => refetch();
+    window.addEventListener('ato:tenant-changed', handler);
+    return () => window.removeEventListener('ato:tenant-changed', handler);
+  }, [refetch]);
 
   return { data, isLoading, error, refetch };
 }
