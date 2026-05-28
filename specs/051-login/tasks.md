@@ -304,11 +304,11 @@ immutable cold storage. (Write-side already wired in Phase 2.)
 
 ### 7.4 Archive sinks
 
-- [ ] T091 [P] [US10] Create [src/Ato.Copilot.Core/Interfaces/Auth/ILoginAuditArchiveSink.cs](src/Ato.Copilot.Core/Interfaces/Auth/ILoginAuditArchiveSink.cs) per [contracts/internal-services.md § 4.2](specs/051-login/contracts/internal-services.md)
-- [ ] T092 [TDD-Test] [P] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/FileSystemArchiveSinkTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/FileSystemArchiveSinkTests.cs) — writes one JSON-Lines file per `{root}/{yyyy}/{MM}/login-audit-{guid}.jsonl`; returns the file path; second call appends without overwrite. RED then GREEN.
-- [ ] T093 [P] [US10] Create [src/Ato.Copilot.Core/Services/Auth/FileSystemArchiveSink.cs](src/Ato.Copilot.Core/Services/Auth/FileSystemArchiveSink.cs)
-- [ ] T094 [TDD-Test] [P] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/AzureBlobAppendArchiveSinkTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/AzureBlobAppendArchiveSinkTests.cs) — uses Azurite-free mock (`Mock<BlobAppendClient>`): asserts append blob path = `audit-archive/{yyyy}/{MM}/login-audit.jsonl`, retries on transient 5xx, throws on 4xx. RED then GREEN.
-- [ ] T095 [P] [US10] Create [src/Ato.Copilot.Core/Services/Auth/AzureBlobAppendArchiveSink.cs](src/Ato.Copilot.Core/Services/Auth/AzureBlobAppendArchiveSink.cs)
+- [X] T091 [P] [US10] Create [src/Ato.Copilot.Core/Interfaces/Auth/ILoginAuditArchiveSink.cs](src/Ato.Copilot.Core/Interfaces/Auth/ILoginAuditArchiveSink.cs) per [contracts/internal-services.md § 4.2](specs/051-login/contracts/internal-services.md)
+- [X] T092 [TDD-Test] [P] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/FileSystemArchiveSinkTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/FileSystemArchiveSinkTests.cs) — writes one JSON-Lines file per `{root}/{yyyy}/{MM}/login-audit-{guid}.jsonl`; returns the file path; second call appends without overwrite. RED then GREEN.
+- [X] T093 [P] [US10] Create [src/Ato.Copilot.Core/Services/Auth/FileSystemArchiveSink.cs](src/Ato.Copilot.Core/Services/Auth/FileSystemArchiveSink.cs)
+- [X] T094 [TDD-Test] [P] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/AzureBlobAppendArchiveSinkTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/AzureBlobAppendArchiveSinkTests.cs) — uses Azurite-free mock (`Mock<BlobAppendClient>`): asserts append blob path = `audit-archive/{yyyy}/{MM}/login-audit.jsonl`, retries on transient 5xx, throws on 4xx. RED then GREEN.
+- [X] T095 [P] [US10] Create [src/Ato.Copilot.Core/Services/Auth/AzureBlobAppendArchiveSink.cs](src/Ato.Copilot.Core/Services/Auth/AzureBlobAppendArchiveSink.cs)
 
 ### 7.5 Archive hosted service
 
