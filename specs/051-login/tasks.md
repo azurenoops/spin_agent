@@ -312,14 +312,14 @@ immutable cold storage. (Write-side already wired in Phase 2.)
 
 ### 7.5 Archive hosted service
 
-- [ ] T096 [P] [US10] Create [src/Ato.Copilot.Core/Interfaces/Auth/ILoginAuditArchiveService.cs](src/Ato.Copilot.Core/Interfaces/Auth/ILoginAuditArchiveService.cs)
-- [ ] T097 [TDD-Test] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditArchiveServiceTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditArchiveServiceTests.cs) — seeds 2,500 rows older than 13 months + 100 rows newer: assert exactly 2,500 archived in three batches of {1000, 1000, 500}; newer rows untouched; sink failure aborts batch + retains rows; `RunHourUtc` honored. RED.
-- [ ] T098 [US10] Create [src/Ato.Copilot.Core/Services/Auth/LoginAuditArchiveService.cs](src/Ato.Copilot.Core/Services/Auth/LoginAuditArchiveService.cs) per [contracts/internal-services.md § 4.4](specs/051-login/contracts/internal-services.md). GREEN T097.
-- [ ] T099 [US10] Register `services.AddHostedService<LoginAuditArchiveService>()` + sink chosen by `Auth:Archive:Sink` in [src/Ato.Copilot.Mcp/Program.cs](src/Ato.Copilot.Mcp/Program.cs)
+- [X] T096 [P] [US10] Create [src/Ato.Copilot.Core/Interfaces/Auth/ILoginAuditArchiveService.cs](src/Ato.Copilot.Core/Interfaces/Auth/ILoginAuditArchiveService.cs)
+- [X] T097 [TDD-Test] [US10] [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditArchiveServiceTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditArchiveServiceTests.cs) — seeds 2,500 rows older than 13 months + 100 rows newer: assert exactly 2,500 archived in three batches of {1000, 1000, 500}; newer rows untouched; sink failure aborts batch + retains rows; `RunHourUtc` honored. RED.
+- [X] T098 [US10] Create [src/Ato.Copilot.Core/Services/Auth/LoginAuditArchiveService.cs](src/Ato.Copilot.Core/Services/Auth/LoginAuditArchiveService.cs) per [contracts/internal-services.md § 4.4](specs/051-login/contracts/internal-services.md). GREEN T097.
+- [X] T099 [US10] Register `services.AddHostedService<LoginAuditArchiveService>()` + sink chosen by `Auth:Archive:Sink` in [src/Ato.Copilot.Mcp/Program.cs](src/Ato.Copilot.Mcp/Program.cs)
 
 ### 7.6 Manual sign-off
 
-- [ ] T100 [US10] Execute [quickstart.md § 15, § 16](specs/051-login/quickstart.md)
+- [ ] T100 [US10] Execute [quickstart.md § 15, § 16](specs/051-login/quickstart.md) — **Pending live verification.** Code path + automated coverage land in T085–T099 (Phase 7.1–7.5); end-to-end SOC-analyst playthrough + 13-month retention sweep validation are deferred until a live Foundry deployment is available.
 
 **Checkpoint US10**: Read endpoint enforces claim; archive job moves > 13-month rows.
 

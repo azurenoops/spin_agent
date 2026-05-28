@@ -456,6 +456,29 @@ async Task RunHttpModeAsync(string[] args)
     builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Auth.IRememberedTenantCookieService,
         Ato.Copilot.Core.Services.Auth.RememberedTenantCookieService>();
 
+    // Feature 051 (T099 / FR-036a): cold-archive sink + daily hosted
+    // service. Sink is selected by Auth:Archive:Sink (FileSystem in
+    // dev / CI, AzureBlobAppend in prod against the AzureUSGovernment
+    // storage account configured in Auth:Archive:AzureBlobAccountUrl).
+    // The hosted service wakes at Auth:Archive:RunHourUtc and migrates
+    // LoginAuditEvent rows older than 13 months in 1,000-row batches.
+    var auth051ArchiveOptions = builder.Configuration
+        .GetSection(Ato.Copilot.Core.Configuration.Auth.AuthOptions.SectionName)
+        .Get<Ato.Copilot.Core.Configuration.Auth.AuthOptions>()
+        ?.Archive
+        ?? new Ato.Copilot.Core.Configuration.Auth.AuthArchiveOptions();
+    if (auth051ArchiveOptions.Sink == Ato.Copilot.Core.Configuration.Auth.ArchiveSinkKind.AzureBlobAppend)
+    {
+        builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Auth.ILoginAuditArchiveSink,
+            Ato.Copilot.Core.Services.Auth.AzureBlobAppendArchiveSink>();
+    }
+    else
+    {
+        builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Auth.ILoginAuditArchiveSink,
+            Ato.Copilot.Core.Services.Auth.FileSystemArchiveSink>();
+    }
+    builder.Services.AddHostedService<Ato.Copilot.Core.Services.Auth.LoginAuditArchiveService>();
+
     // Feature 051 (T032 / FR-034 / FR-035): throttle service + the
     // IDistributedCache backing store. Dev/Test use the in-process
     // distributed memory cache so unit tests need no Redis; non-Development
