@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useMsal } from '@azure/msal-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useLoginConfig } from './LoginConfigContext';
 import { DEFAULT_API_SCOPES } from './msalInstance';
+import { useLoginRaceListener } from './useLoginRaceListener';
 import type { AuthMethodId } from './types';
 
 /**
@@ -18,6 +19,7 @@ export default function LoginPage() {
   const login = useLoginConfig();
   const { instance } = useMsal();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   /** Resolve the `return` deep-link query param, defaulting to `/`. */
   const returnPath = useMemo(() => {
@@ -27,6 +29,13 @@ export default function LoginPage() {
     }
     return '/';
   }, [searchParams]);
+
+  // T053c [US1]: when a sibling tab completes sign-in (MSAL writes its
+  // account keys to localStorage), advance THIS tab to the deep link
+  // without forcing a second user click.
+  useLoginRaceListener({
+    onLoginCompletedInAnotherTab: () => navigate(returnPath, { replace: true }),
+  });
 
   const handleSignIn = (_method: AuthMethodId) => {
     void instance.loginRedirect({

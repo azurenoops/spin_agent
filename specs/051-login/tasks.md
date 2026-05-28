@@ -149,13 +149,14 @@ These tasks run as part of US1 and unblock the MVP without requiring
 US3 to be in scope. **Note (C3): legacy task IDs T074–T076 are RETIRED;
 these replacement IDs T053a–T053c carry the work.**
 
-- [ ] T053a [TDD-Test] [P] [US1] [src/Ato.Copilot.Dashboard/src/__tests__/auth/useLoginRaceListener.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/useLoginRaceListener.test.tsx) — synthetic `StorageEvent` with `key='msal.account.keys.0'` and non-empty accounts calls `onLoginCompletedInAnotherTab`; storage event on an unrelated key does NOT. RED.
-- [ ] T053b [US1] Create [src/Ato.Copilot.Dashboard/src/features/auth/useLoginRaceListener.ts](src/Ato.Copilot.Dashboard/src/features/auth/useLoginRaceListener.ts) per [contracts/frontend-types.md § 4.2](specs/051-login/contracts/frontend-types.md). GREEN T053a.
-- [ ] T053c [US1] Mount the listener on `LoginPage` AND on `LoginCallbackPage` so a parallel-tab sign-in advances the waiting tab to its deep link without requiring user click.
+- [X] T053a [TDD-Test] [P] [US1] [src/Ato.Copilot.Dashboard/src/__tests__/auth/useLoginRaceListener.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/useLoginRaceListener.test.tsx) — synthetic `StorageEvent` with `key='msal.account.keys.0'` and non-empty accounts calls `onLoginCompletedInAnotherTab`; storage event on an unrelated key does NOT. RED.
+- [X] T053b [US1] Create [src/Ato.Copilot.Dashboard/src/features/auth/useLoginRaceListener.ts](src/Ato.Copilot.Dashboard/src/features/auth/useLoginRaceListener.ts) per [contracts/frontend-types.md § 4.2](specs/051-login/contracts/frontend-types.md). GREEN T053a.
+- [X] T053c [US1] Mount the listener on `LoginPage` AND on `LoginCallbackPage` so a parallel-tab sign-in advances the waiting tab to its deep link without requiring user click.
 
 ### 3.7 Manual sign-off
 
 - [ ] T054 [US1] Execute [quickstart.md § 1, § 2, § 4](specs/051-login/quickstart.md) against the local docker stack and tick the boxes
+  > **Pending live verification** — quickstart § 1/2/4 is a live-Docker test that the user runs locally after Phase 3 commits land. Skipped per Phase 3 commit-strategy instructions.
 
 **Checkpoint US1**: Branded `/login` renders, deep link preserved through MSAL flow, `LoginSuccess` audit row written. MVP candidate.
 

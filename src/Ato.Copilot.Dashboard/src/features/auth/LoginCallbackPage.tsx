@@ -1,16 +1,27 @@
 import { useEffect } from 'react';
 import { useMsal } from '@azure/msal-react';
 import { useNavigate } from 'react-router-dom';
+import { useLoginRaceListener } from './useLoginRaceListener';
 
 /**
  * Feature 051 T050 [US1] — handles the MSAL redirect callback. Awaits
  * `handleRedirectPromise`; on success, navigates to the deep-link
  * (carried as `state`) or to `/` if absent. On failure, navigates to
  * `/login/error` with the inferred `errorClass`.
+ *
+ * Defensive: also mounts {@link useLoginRaceListener} (T053c) so that if
+ * a sibling tab finishes sign-in WHILE this callback is still resolving,
+ * we don't end up dispatching two navigations on top of each other —
+ * the listener advances us to `/` and the `handleRedirectPromise`
+ * resolution becomes a no-op against an unmounted component.
  */
 export default function LoginCallbackPage() {
   const { instance } = useMsal();
   const navigate = useNavigate();
+
+  useLoginRaceListener({
+    onLoginCompletedInAnotherTab: () => navigate('/', { replace: true }),
+  });
 
   useEffect(() => {
     let cancelled = false;
