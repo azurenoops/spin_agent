@@ -29,7 +29,7 @@ docker exec -it stark-sql /opt/mssql-tools18/bin/sqlcmd -S localhost \
 # Expect: 1 row with name = LoginAuditEvents
 
 # Verify Redis is in-network and reachable
-docker exec stark-redis redis-cli PING
+docker exec ato-copilot-redis redis-cli PING
 # Expect: PONG
 ```
 

@@ -419,8 +419,8 @@ Two `IDistributedCache` keys per throttle decision:
 - `login-throttle:identity:{oid|tid|anonymous}:{minute-bucket}` — integer
   count, TTL 60 s.
 
-Backed by Redis in production (already deployed as `stark-redis`) and
-`IDistributedMemoryCache` in dev / CI. No persistence, no migration, no
+Backed by Redis in production (Azure Cache for Redis) and the local
+`ato-copilot-redis` service in dev docker-compose; `IDistributedMemoryCache` in dev / CI. No persistence, no migration, no
 entity class.
 
 ## 5. State transitions

@@ -63,14 +63,16 @@ dashboard-wide axios interceptor (`src/features/auth/interceptors.ts`) that:
 
 FR-036 mandates the failed-login throttle counter MUST survive a process
 restart. The repo already runs Redis 7.4 in `docker-compose.mcp.yml`
-(verified — `stark-redis` container at `127.0.0.1:6379`), and prod
+(verified 2026-05-28 — a local `stark-redis` container exists from a sibling
+workspace but is NOT part of `docker-compose.mcp.yml`; T006 added a proper
+`redis` service to this compose so the dependency is self-contained), and prod
 deployments already use Azure Cache for Redis.
 
 **Decision**: Bind `IDistributedCache` to
 `Microsoft.Extensions.Caching.StackExchangeRedis` in production and
 `IDistributedMemoryCache` (in-process) in unit tests + the SQLite-backed
 integration test fixture. The dev `docker-compose.mcp.yml` is updated
-to point the MCP container at the existing `stark-redis` instance.
+to point the MCP container at the new in-compose `redis` instance.
 
 **Rationale**:
 

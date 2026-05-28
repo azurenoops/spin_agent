@@ -35,15 +35,17 @@ by the system tenant.
 - TypeScript 5.7 / React 19 (Dashboard SPA)
 - TypeScript 5.x / Node 20 LTS (VS Code extension, M365 Teams bot)
 
-**Primary Dependencies**: ASP.NET Core 9.0 (Minimal APIs), EF Core 9.0 (SqlServer + Sqlite), Microsoft.Identity.Web 3.5+, Microsoft.Extensions.Caching.StackExchangeRedis 9.0 (NEW), Serilog 4.2; @azure/msal-browser 3.x + @azure/msal-react 2.x (NEW — dashboard); @azure/msal-node 2.x (NEW — VS Code); botbuilder-dialogs (M365)
+**Primary Dependencies**: ASP.NET Core 9.0 (Minimal APIs), EF Core 9.0 (SqlServer + Sqlite), Microsoft.Identity.Web 3.5+, Microsoft.Extensions.Caching.StackExchangeRedis 9.0 (NEW), Serilog 4.2; @azure/msal-browser 4.x + @azure/msal-react 3.x (NEW — dashboard; React-19-compatible versions); @azure/msal-node 2.x (NEW — VS Code); botbuilder-dialogs (M365)
 - **Backend**: ASP.NET Core 9.0 (Minimal APIs), EF Core 9.0 (dual-provider:
   `Microsoft.EntityFrameworkCore.SqlServer` + `.Sqlite`),
   `Microsoft.Identity.Web` 3.5+ (already in repo — JWT validation),
   `Microsoft.Extensions.Caching.StackExchangeRedis` 9.0 (NEW — production
   throttle store; in-memory `IDistributedMemoryCache` in dev), Serilog 4.2,
   xUnit 2.9.3 + FluentAssertions 7.0 + Moq 4.20 (tests).
-- **Dashboard**: `@azure/msal-browser` 3.x + `@azure/msal-react` 2.x (NEW —
-  canonical client-side token holder per Q4 / FR-007a), `react-router-dom`
+- **Dashboard**: `@azure/msal-browser` 4.x + `@azure/msal-react` 3.x (NEW —
+  canonical client-side token holder per Q4 / FR-007a; pinned to msal-react@^3
+  which is the lowest version with a React 19 peer-dependency — msal-react@2
+  predates React 19 and rejects install on this dashboard), `react-router-dom`
   7.0 (already), `axios` 1.7 (already; 401-interceptor will gain MSAL
   silent-refresh fallback), `@testing-library/react` 16 + `vitest` 3
   (already), `js-cookie` 3.x (NEW — first-party signed-cookie read on the
@@ -68,7 +70,7 @@ by the system tenant.
 - **Throttle counter**: `IDistributedCache` — `Microsoft.Extensions.Caching.Memory`
   (`IDistributedMemoryCache`) in dev (already in DI),
   `Microsoft.Extensions.Caching.StackExchangeRedis` in prod (Redis is
-  already in the dev docker-compose as `stark-redis`).
+  already in the dev docker-compose as `redis` / `ato-copilot-redis`).
 - **"Remember tenant" cookie**: first-party signed cookie (HMAC-SHA256 with
   a key drawn from `Auth:Cookie:SigningKey` in Key Vault). No server-side
   mirror.

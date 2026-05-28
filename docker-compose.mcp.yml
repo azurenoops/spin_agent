@@ -39,6 +39,8 @@ services:
     depends_on:
       sqlserver:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "${ATO_SERVER_PORT:-3001}:3001"
     environment:
@@ -84,7 +86,8 @@ services:
       # ── Database (SQL Server) ─────────────────────────────
       - ATO_DATABASE__PROVIDER=SqlServer
       - ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION=Server=sqlserver,1433;Database=AtoCopilot;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True
-
+      # ── Redis (Feature 051 throttle counter) ────────────
+      - ATO_CONNECTIONSTRINGS__REDIS=redis:6379
       # ── Tenancy (Feature 048) ────────────────────────────
       # MultiTenant is required to exercise the CSP onboarding wizard
       # (US7) and the CSP inherited-components surface (US9 / slice 4 of
@@ -172,12 +175,37 @@ services:
     networks:
       - ato-network
 
+  # ─── Redis (Feature 051 throttle counter — FR-036) ────────
+  # Backs `IDistributedCache` for the login-throttle bucket keys per
+  # research.md § R7. In production, swap the connection string for
+  # Azure Cache for Redis. In dev / CI without Docker, the MCP host
+  # falls back to `AddDistributedMemoryCache()` automatically.
+  redis:
+    image: redis:7.4-alpine
+    container_name: ato-copilot-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - ato-network
+
 volumes:
   sql-data:
     driver: local
   ato-logs:
     driver: local
   chat-logs:
+    driver: local
+  redis-data:
     driver: local
 
 networks:
