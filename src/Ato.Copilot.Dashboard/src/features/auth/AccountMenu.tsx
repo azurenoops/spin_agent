@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { getMsalInstance } from './msalInstance';
+import { purgeUnsavedChanges } from './useIdleFormStateBackup';
 
 // TODO(US9): full menu — name, persona, home tenant, active PIM role,
 // settings link, etc. This stub only fulfils US2's "explicit sign-out"
@@ -47,12 +48,16 @@ export default function AccountMenu({ oid, displayName }: AccountMenuProps) {
     setOpen(false);
 
     // FR-008 — explicit sign-out clears unsaved snapshots so the next
-    // session does NOT see a "Restore" prompt. Wired in Phase 4.5
-    // (T062d) once useIdleFormStateBackup ships; until then this is a
-    // no-op so the rest of US2 can land independently. Idle sign-out
-    // (handled in useIdleTimer) intentionally does NOT call purge.
-    // TODO(051 Phase 4.5 / T062d): import purgeUnsavedChanges and call
-    // `purgeUnsavedChanges(oid)` here before logoutRedirect.
+    // session does NOT see a "Restore" prompt. Idle sign-out (handled
+    // in useIdleTimer) intentionally does NOT call purge — that path
+    // preserves the snapshot for restore-on-next-login.
+    if (oid) {
+      try {
+        purgeUnsavedChanges(oid);
+      } catch {
+        // Best-effort — failure here must not block sign-out.
+      }
+    }
 
     try {
       await axios.post('/api/auth/signout');

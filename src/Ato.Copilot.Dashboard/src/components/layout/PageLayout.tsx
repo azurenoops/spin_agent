@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useMsal } from '@azure/msal-react';
 import HelpPanel from '../help/HelpPanel';
 import ChatToggle from '../chat/ChatToggle';
 import { useChatPanel } from '../chat/ChatPanelContext';
@@ -35,6 +36,12 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { panelState, togglePanel } = useChatPanel();
   const { unreadCount } = useNotifications();
+  // Feature 051 T062 / T062d — pluck the Entra oid from MSAL so the
+  // AccountMenu can call purgeUnsavedChanges(oid) on explicit sign-out
+  // (FR-008). `localAccountId` is MSAL's projection of the `oid` claim.
+  const { accounts } = useMsal();
+  const oid = accounts[0]?.localAccountId;
+  const displayName = accounts[0]?.name ?? accounts[0]?.username;
   // Feature 048 / US7 / T170: per-deployment CSP branding (logo +
   // display name). Falls back to the default SPIN logo + "ATO Copilot"
   // wordmark in SingleTenant mode or while onboarding is incomplete.
@@ -164,7 +171,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
                 the full menu (name, persona, home tenant, active PIM
                 role). The existing "JS" avatar above is kept until
                 US3 wires `useMe` so the stub has a display name. */}
-            <AccountMenu />
+            <AccountMenu oid={oid} displayName={displayName} />
           </div>
         </header>
 

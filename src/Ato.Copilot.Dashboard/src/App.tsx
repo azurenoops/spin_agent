@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { useIsAuthenticated } from '@azure/msal-react';
+import { useIsAuthenticated, useMsal } from '@azure/msal-react';
 import PortfolioRoute from './pages/PortfolioRoute';
 import SystemsRoute from './pages/SystemsRoute';
 import ComponentsRoute from './pages/ComponentsRoute';
@@ -41,6 +41,7 @@ import LoginPage from './features/auth/LoginPage';
 import LoginCallbackPage from './features/auth/LoginCallbackPage';
 import RequireAuth from './features/auth/RequireAuth';
 import IdleWarningModal from './features/auth/IdleWarningModal';
+import RestoreUnsavedChangesPrompt from './features/auth/RestoreUnsavedChangesPrompt';
 import { useIdleTimer } from './features/auth/useIdleTimer';
 import { useLoginConfig } from './features/auth/LoginConfigContext';
 
@@ -146,6 +147,17 @@ function AuthenticatedSessionGuards() {
 
 function AuthenticatedSessionGuardsActive() {
   const { idleTimeoutMinutes } = useLoginConfig();
+  const { accounts } = useMsal();
+  // MSAL's `localAccountId` is the Entra `oid` claim — the same value
+  // the backend writes into LoginAuditEvent.Oid (see AuthEndpoints
+  // GetMeAsync). Use it directly so FR-008's localStorage keys are
+  // scoped consistently with the server-side audit identity.
+  const oid = accounts[0]?.localAccountId ?? '';
   useIdleTimer(idleTimeoutMinutes);
-  return <IdleWarningModal />;
+  return (
+    <>
+      <IdleWarningModal />
+      {oid && <RestoreUnsavedChangesPrompt oid={oid} />}
+    </>
+  );
 }
