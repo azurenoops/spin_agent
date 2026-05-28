@@ -440,8 +440,8 @@ on expire / sign-out / idle.
 
 ### 11.1 Pre-impersonation URL capture (FR-029, analysis C6)
 
-- [ ] T129a [TDD-Test] [P] [US8] [src/Ato.Copilot.Dashboard/src/__tests__/auth/preImpersonationUrl.test.ts](src/Ato.Copilot.Dashboard/src/__tests__/auth/preImpersonationUrl.test.ts) — Vitest: assert the "Switch into tenant" affordance writes the current `window.location.pathname + search + hash` to a session-scoped key (`ato.preImpersonationUrl`) BEFORE issuing the Feature 048 impersonate request; assert key removed on explicit Exit; assert key removed on auto-expire. RED.
-- [ ] T129b [US8] Create [src/Ato.Copilot.Dashboard/src/features/auth/preImpersonationUrl.ts](src/Ato.Copilot.Dashboard/src/features/auth/preImpersonationUrl.ts) — thin getter/setter/clearer for the sessionStorage key. GREEN T129a.
+- [X] T129a [TDD-Test] [P] [US8] [src/Ato.Copilot.Dashboard/src/__tests__/auth/preImpersonationUrl.test.ts](src/Ato.Copilot.Dashboard/src/__tests__/auth/preImpersonationUrl.test.ts) — Vitest: assert the "Switch into tenant" affordance writes the current `window.location.pathname + search + hash` to a session-scoped key (`ato.preImpersonationUrl`) BEFORE issuing the Feature 048 impersonate request; assert key removed on explicit Exit; assert key removed on auto-expire. RED.
+- [X] T129b [US8] Create [src/Ato.Copilot.Dashboard/src/features/auth/preImpersonationUrl.ts](src/Ato.Copilot.Dashboard/src/features/auth/preImpersonationUrl.ts) — thin getter/setter/clearer for the sessionStorage key. GREEN T129a.
 
 ### 11.2 Audit rows for impersonation transitions
 
