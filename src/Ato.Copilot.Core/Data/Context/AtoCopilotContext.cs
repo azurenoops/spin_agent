@@ -494,6 +494,14 @@ public class AtoCopilotContext : DbContext
     public DbSet<CspInheritedCapability> CspInheritedCapabilities => Set<CspInheritedCapability>();
 
     /// <summary>
+    /// Feature 050 (FR-004 / FR-005 / FR-014 / FR-015 / FR-016): append-only
+    /// audit-trail rows for <see cref="CspInheritedCapability"/> lifecycle
+    /// events. <see cref="TenantScopedAttribute"/> — each row belongs to the
+    /// CSP tenant that performed the operation.
+    /// </summary>
+    public DbSet<CapabilityHistoryEvent> CapabilityHistoryEvents => Set<CapabilityHistoryEvent>();
+
+    /// <summary>
     /// Per-org override of CSP-defined NIST control defaults
     /// (Feature 048 follow-up — user ask #2). <see cref="TenantScopedAttribute"/>:
     /// each row belongs to exactly one tenant; at most one row per
@@ -3419,6 +3427,47 @@ public class AtoCopilotContext : DbContext
 
             entity.HasIndex(e => new { e.CspInheritedComponentId, e.Status })
                 .HasDatabaseName("IX_CspInheritedCapabilities_ComponentId_Status");
+        });
+
+        // ─── CapabilityHistoryEvent (Feature 050 — FR-004 / FR-014 / FR-015) ──
+        // Append-only audit rows for the CspInheritedCapability lifecycle.
+        // Tenant-scoped on the *acting* CSP tenant. Logical FK to capability
+        // is NoAction (history outlives capability per R9); FK to Tenant is
+        // Cascade (tenant offboarding sweeps rows). SQL Server forbids
+        // multiple cascade paths, so the asymmetric configuration is
+        // intentional and required.
+        modelBuilder.Entity<CapabilityHistoryEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.EventType)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            entity.Property(e => e.ActorOid).HasMaxLength(254).IsRequired();
+            entity.Property(e => e.Summary).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.MetadataJson).HasMaxLength(2000);
+
+            // Primary read path — list events for one capability inside one
+            // tenant, ordered by OccurredAt DESC. Leading on TenantId so the
+            // index serves the tenant-isolation predicate as well.
+            entity.HasIndex(e => new { e.TenantId, e.CapabilityId, e.OccurredAt })
+                .HasDatabaseName("IX_CapabilityHistoryEvents_Tenant_Capability_Occurred")
+                .IsDescending(false, false, true);
+
+            // Logical FK to CspInheritedCapability — NoAction so the row
+            // survives a hard-delete of the parent capability (FR-015).
+            entity.HasOne<CspInheritedCapability>()
+                .WithMany()
+                .HasForeignKey(e => e.CapabilityId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // FK to Tenant — Cascade so tenant offboarding sweeps the rows.
+            entity.HasOne<Tenant>()
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ─── OrgControlOverride (Feature 048 follow-up — user ask #2) ─────────

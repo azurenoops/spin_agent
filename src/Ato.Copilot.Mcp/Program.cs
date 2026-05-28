@@ -1061,6 +1061,12 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // Feature 048 (T134): Adds GlobalBaselines table for cross-tenant sharing.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.GlobalBaselineSchemaAdditions
         .ApplyAsync(db, logger, ct);
+    // Feature 050 (FR-004 / FR-014 / FR-015): Adds the CapabilityHistoryEvents
+    // table for CSP-inherited capability lifecycle auditing. Tenant-scoped
+    // (Cascade FK to Tenants); intentionally no DB-level FK to capabilities
+    // so history outlives a hard-deleted capability per FR-015.
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CapabilityHistoryEventsSchemaAdditions
+        .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Services.Tenancy.TenantBootstrapService.EnsureSystemTenantAsync(db, logger, ct);
     // T060: Backfill OrganizationContext rows whose TenantId still holds the
     // Entra `tid` rather than the new Tenants.Id. Idempotent; no-op once done.

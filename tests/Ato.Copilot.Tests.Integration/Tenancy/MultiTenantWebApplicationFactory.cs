@@ -401,6 +401,21 @@ internal sealed class TenancySeedHostedService : IHostedService
             );
             CREATE INDEX IF NOT EXISTS "IX_CspInheritedCapabilities_ComponentId_Status"
                 ON "CspInheritedCapabilities" ("CspInheritedComponentId", "Status");
+            CREATE TABLE IF NOT EXISTS "CapabilityHistoryEvents" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_CapabilityHistoryEvents" PRIMARY KEY,
+                "CapabilityId" TEXT NOT NULL,
+                "TenantId" TEXT NOT NULL,
+                "EventType" TEXT NOT NULL,
+                "ActorOid" TEXT NOT NULL,
+                "OccurredAt" TEXT NOT NULL,
+                "Summary" TEXT NOT NULL,
+                "MetadataJson" TEXT NULL,
+                CONSTRAINT "FK_CapabilityHistoryEvents_Tenants_TenantId"
+                    FOREIGN KEY ("TenantId") REFERENCES "Tenants" ("Id")
+                    ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS "IX_CapabilityHistoryEvents_Tenant_Capability_Occurred"
+                ON "CapabilityHistoryEvents" ("TenantId" ASC, "CapabilityId" ASC, "OccurredAt" DESC);
             """;
         await db.Database.ExecuteSqlRawAsync(ddl, ct);
     }

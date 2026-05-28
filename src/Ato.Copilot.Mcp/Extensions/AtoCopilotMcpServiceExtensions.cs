@@ -168,6 +168,12 @@ public static class AtoCopilotMcpServiceExtensions
         services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICspInheritedComponentService,
             Ato.Copilot.Core.Services.Tenancy.CspInheritedComponentService>();
 
+        // Feature 050 — CSP-inherited capability lifecycle: append-only
+        // audit-trail writer/reader. Scoped (uses IDbContextFactory; safe at
+        // any lifetime, but matches the surrounding registrations).
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ICapabilityHistoryService,
+            Ato.Copilot.Core.Services.Tenancy.CapabilityHistoryService>();
+
         // Feature 041: Authorization Package generation pipeline
         services.AddSingleton(System.Threading.Channels.Channel.CreateBounded<Ato.Copilot.Core.Dtos.Dashboard.PackageExportJob>(
             new System.Threading.Channels.BoundedChannelOptions(20) { FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait }));
