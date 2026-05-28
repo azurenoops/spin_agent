@@ -348,6 +348,37 @@ curl http://localhost:5005/api/auth/events?systemTenant=true \
 docker compose -f docker-compose.mcp.yml down
 ```
 
+## 17a. WCAG 2.1 AA accessibility — manual CLI sweep (FR-039 / T144a)
+
+The automated `vitest-axe` suite in
+`src/Ato.Copilot.Dashboard/src/__tests__/auth/a11y.test.tsx` covers
+component-level a11y. A live CLI pass against the rendered SPA catches
+regressions axe-core cannot see in jsdom (focus ring contrast, real
+fonts, scroll behaviour, etc.).
+
+```bash
+# Light pass — no install needed, runs on the live dev server.
+cd src/Ato.Copilot.Dashboard
+npm run dev &              # serves on http://localhost:5173
+
+# Standalone HTML-accessibility CLI (one-shot npx invocation).
+npx pa11y@latest \
+  --standard WCAG2AA \
+  --runner axe \
+  http://localhost:5173/login
+
+# Repeat for the other surfaces. /select-tenant + /login/error require a
+# session; if you don't have one handy, log in via the simulation panel
+# (Development env) and re-run.
+npx pa11y@latest --standard WCAG2AA --runner axe http://localhost:5173/select-tenant
+npx pa11y@latest --standard WCAG2AA --runner axe \
+  "http://localhost:5173/login/error?errorClass=ClockSkew&correlationId=abc"
+```
+
+Tick the box in § 18 once each command exits 0 with no `Error: ...`
+findings. (Warnings are acceptable; only `Error`-severity issues block
+sign-off per FR-039.)
+
 ## 18. Sign-off checklist
 
 - [ ] US1 — Branded `/login` page renders
@@ -367,3 +398,4 @@ docker compose -f docker-compose.mcp.yml down
 - [ ] Throttle returns 429 + Retry-After + audit rows (FR-034)
 - [ ] Cold archive migrates rows > 13 months (FR-036a)
 - [ ] SOC analyst read requires `Auth.SocAnalyst` claim (R9)
+- [ ] WCAG 2.1 AA — `pa11y --standard WCAG2AA` clean on `/login`, `/select-tenant`, `/login/error` (§ 17a)

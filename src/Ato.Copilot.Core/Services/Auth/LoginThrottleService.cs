@@ -51,6 +51,7 @@ public sealed class LoginThrottleService : ILoginThrottleService
     private readonly IHostEnvironment _env;
     private readonly ILogger<LoginThrottleService> _logger;
 
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
     public LoginThrottleService(
         IDistributedCache cache,
         IOptionsMonitor<AuthOptions> options,
@@ -63,15 +64,20 @@ public sealed class LoginThrottleService : ILoginThrottleService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    // Test/admin overload — single IOptions snapshot.
-    public LoginThrottleService(
+    /// <summary>
+    /// Test-only constructor — takes an <see cref="IOptions{T}"/> snapshot
+    /// and wraps it in a static monitor. Marked as a static factory rather
+    /// than a second public ctor so the DI container's constructor selector
+    /// is not ambiguous (Feature 051 T143 fix: the dual-ctor surface tripped
+    /// <see cref="Microsoft.Extensions.DependencyInjection.IServiceProvider"/>
+    /// when both ctors had equal-arity resolvable parameters).
+    /// </summary>
+    public static LoginThrottleService CreateForTests(
         IDistributedCache cache,
         IOptions<AuthOptions> options,
         IHostEnvironment env,
         ILogger<LoginThrottleService> logger)
-        : this(cache, new StaticOptionsMonitor(options), env, logger)
-    {
-    }
+        => new(cache, new StaticOptionsMonitor(options), env, logger);
 
     /// <inheritdoc />
     public async Task<LoginThrottleDecision> RegisterAttemptAsync(
@@ -122,6 +128,42 @@ public sealed class LoginThrottleService : ILoginThrottleService
         var bucket = DateTimeOffset.UtcNow.Ticks / BucketWindow.Ticks;
         var idKey = IdentityKeyPrefix + identityKey + ":" + bucket;
         return _cache.RemoveAsync(idKey, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<LoginThrottleDecision> PeekAsync(
+        string sourceIp,
+        string? identityKey,
+        CancellationToken ct = default)
+    {
+        var ip = string.IsNullOrWhiteSpace(sourceIp) ? UnknownIp : sourceIp;
+        var id = string.IsNullOrWhiteSpace(identityKey) ? AnonymousIdentity : identityKey;
+        var now = DateTimeOffset.UtcNow;
+        var bucket = now.Ticks / BucketWindow.Ticks;
+
+        var ipKey = IpKeyPrefix + ip + ":" + bucket;
+        var idKey = IdentityKeyPrefix + id + ":" + bucket;
+
+        var ipCount = await ReadCountAsync(ipKey, ct).ConfigureAwait(false);
+        var idCount = await ReadCountAsync(idKey, ct).ConfigureAwait(false);
+
+        var bucketCfg = SelectBucket();
+        // Peek semantics: Allowed=true ONLY when there is still headroom
+        // for another attempt. As soon as either counter has reached its
+        // cap, the next attempt would push it over — so we deny here.
+        var allowed = ipCount < bucketCfg.PerIpPerMinute
+                       && idCount < bucketCfg.PerIdentityPerMinute;
+
+        var secondsIntoMinute = now.Second + (now.Millisecond / 1000.0);
+        var retryAfter = TimeSpan.FromSeconds(Math.Max(1, 60 - secondsIntoMinute));
+
+        return new LoginThrottleDecision(allowed, retryAfter, ipCount, idCount);
+    }
+
+    private async Task<int> ReadCountAsync(string key, CancellationToken ct)
+    {
+        var bytes = await _cache.GetAsync(key, ct).ConfigureAwait(false);
+        return bytes is { Length: >= 4 } ? BitConverter.ToInt32(bytes, 0) : 0;
     }
 
     private async Task<int> IncrementAsync(string key, CancellationToken ct)

@@ -586,6 +586,13 @@ async Task RunHttpModeAsync(string[] args)
     app.UseRateLimiter();
     app.UseMiddleware<RequestSizeLimitMiddleware>();
     app.UseMiddleware<CacAuthenticationMiddleware>();
+    // Feature 051 T144 [Phase 13.1]: per-IP + per-identity throttle
+    // (FR-034 / FR-035) wraps the auth-gated /api/auth/* endpoints.
+    // Placed AFTER CacAuthenticationMiddleware so the throttle can read
+    // the resolved principal's `oid` for the identity key when present
+    // (the inbound peek + outbound register paths both honor the
+    // analysis-C17 signal selector).
+    app.UseMiddleware<LoginThrottleMiddleware>();
     // T069 (Feature 048): tenant scope MUST be resolved BEFORE authorization
     // checks so role gates can read ITenantContext.IsCspAdmin and the global
     // EF query filter sees the resolved EffectiveTenantId.

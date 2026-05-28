@@ -251,11 +251,17 @@ export default function AccountMenu({ oid: oidProp, displayName: displayNameProp
               <div className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                 Active PIM roles
               </div>
-              <ul className="px-2 pb-1">
+              {/* WCAG: role="menuitem" children require a role="menu" /
+                  role="group" parent (aria-required-parent). Using
+                  <ul>/<li> here would ALSO violate the "list must only
+                  contain <li>" rule (axe-core/list) because <li role=...>
+                  breaks the implicit list semantics. A nested role="group"
+                  satisfies both rules and keeps the visual layout. */}
+              <div role="group" aria-label="Active PIM roles" className="px-2 pb-1">
                 {activeRoles.map((r) => {
                   const ms = Date.parse(r.expiresAt) - nowMs;
                   return (
-                    <li
+                    <div
                       key={r.name}
                       role="menuitem"
                       tabIndex={0}
@@ -265,10 +271,10 @@ export default function AccountMenu({ oid: oidProp, displayName: displayNameProp
                       <span className="ml-2 flex-shrink-0 text-gray-500">
                         {formatCountdown(ms)}
                       </span>
-                    </li>
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
             </>
           )}
 

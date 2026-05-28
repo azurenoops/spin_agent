@@ -39,6 +39,34 @@ public interface ILoginThrottleService
     /// shared NAT or proxy).
     /// </summary>
     Task ResetIdentityAsync(string identityKey, CancellationToken ct = default);
+
+    /// <summary>
+    /// Feature 051 T143 — peek the current per-IP and per-identity counters
+    /// WITHOUT incrementing them, and return whether the next attempt
+    /// would be allowed based on the existing counts.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Used by <c>LoginThrottleMiddleware</c> for the INBOUND short-circuit
+    /// path: when the per-IP or per-identity counter has already reached
+    /// the configured cap, the next request must be denied with a
+    /// <c>429</c> BEFORE running the auth pipeline (otherwise the request
+    /// would consume a slot reserved for legit sign-ins) — and per
+    /// analysis C17 we MUST NOT increment the counter on a request that
+    /// doesn't actually result in a failed-auth response.
+    /// </para>
+    /// <para>
+    /// Returns <c>Allowed = true</c> when both counters are below their
+    /// caps (i.e. there is still headroom for another attempt). Returns
+    /// <c>Allowed = false</c> when EITHER counter has reached OR exceeded
+    /// its cap. <c>CurrentIpCount</c> and <c>CurrentIdentityCount</c> on
+    /// the returned decision are the CURRENT values (no increment).
+    /// </para>
+    /// </remarks>
+    Task<LoginThrottleDecision> PeekAsync(
+        string sourceIp,
+        string? identityKey,
+        CancellationToken ct = default);
 }
 
 /// <summary>

@@ -205,6 +205,15 @@ public static class AuthEndpoints
                 ErrorClass: LoginErrorClass.NoTenantAssignment), ct);
             await db.SaveChangesAsync(ct);
 
+            // Feature 051 T143 [Phase 13.1] — signal the LoginThrottleMiddleware
+            // that this 403 counts as a failed-auth attempt so the
+            // per-IP / per-identity counter increments. Without this
+            // sentinel a tight loop of unmapped-tid 403s would never
+            // throttle (analysis C17 limits the post-response register
+            // path to 401 and tagged 403 only).
+            http.Items[LoginThrottleMiddleware.FailureSignalKey] =
+                LoginThrottleMiddleware.FailureSignal_NoTenantAssignment;
+
             return ErrorEnvelope(sw,
                 StatusCodes.Status403Forbidden,
                 "NO_TENANT_ASSIGNMENT",

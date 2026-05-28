@@ -38,7 +38,7 @@ public sealed class LoginThrottleServiceTests
         };
         var envMock = new Mock<IHostEnvironment>();
         envMock.SetupGet(e => e.EnvironmentName).Returns(environmentName);
-        var sut = new LoginThrottleService(
+        var sut = LoginThrottleService.CreateForTests(
             cache,
             Options.Create(options),
             envMock.Object,
@@ -196,5 +196,81 @@ public sealed class LoginThrottleServiceTests
         // Assert — Three anonymous attempts share the same bucket; the
         // fourth from a different IP still hits the same identity bucket.
         fourth.CurrentIdentityCount.Should().Be(4);
+    }
+
+    // ─── Staging env uses Production bucket (analysis C11) ──────────────
+
+    [Fact]
+    public async Task RegisterAttemptAsync_StagingEnvironment_UsesProductionBucket()
+    {
+        // Per analysis C11 / FR-034: the Development bucket is ONLY
+        // selected when ASPNETCORE_ENVIRONMENT == "Development". Every
+        // other value (Staging, Production, Testing, custom names) MUST
+        // resolve to the Production bucket so a misconfigured Staging
+        // host cannot silently inherit the looser dev thresholds.
+        var (sut, _) = BuildSut(environmentName: "Staging");
+        const string ip = "10.0.0.42";
+
+        // Act — 20 attempts succeed (cap is 20 in Production); 21st trips.
+        for (int i = 0; i < 20; i++)
+        {
+            var d = await sut.RegisterAttemptAsync(ip, identityKey: $"staging-user-{i}");
+            d.Allowed.Should().BeTrue($"attempt {i + 1} of 20 is at or below the Production cap");
+        }
+        var twentyFirst = await sut.RegisterAttemptAsync(ip, identityKey: "staging-user-99");
+
+        // Assert — Staging resolves to Production thresholds, NOT Development's 100.
+        twentyFirst.Allowed.Should().BeFalse(
+            "Staging MUST use the Production throttle bucket (analysis C11). " +
+            "If this fails, a Staging deployment is silently using Development's looser cap.");
+    }
+
+    // ─── PeekAsync does not increment counters ──────────────────────────
+
+    [Fact]
+    public async Task PeekAsync_DoesNotIncrement_AndReflectsExistingCount()
+    {
+        // Arrange — seed the bucket with 5 registered attempts.
+        var (sut, _) = BuildSut(environmentName: "Production");
+        const string ip = "10.0.0.50";
+        const string identity = "user-a";
+        for (int i = 0; i < 5; i++)
+        {
+            await sut.RegisterAttemptAsync(ip, identity);
+        }
+
+        // Act — Peek twice and then register once more.
+        var peek1 = await sut.PeekAsync(ip, identity);
+        var peek2 = await sut.PeekAsync(ip, identity);
+        var afterRegister = await sut.RegisterAttemptAsync(ip, identity);
+
+        // Assert — peek calls leave the counter untouched at 5; the
+        // register call lifts it to 6.
+        peek1.CurrentIpCount.Should().Be(5);
+        peek2.CurrentIpCount.Should().Be(5, "PeekAsync MUST NOT increment the IP counter");
+        peek2.CurrentIdentityCount.Should().Be(5, "PeekAsync MUST NOT increment the identity counter");
+        afterRegister.CurrentIpCount.Should().Be(6);
+        peek1.Allowed.Should().BeTrue("5 of 20 IP cap → still allowed");
+    }
+
+    [Fact]
+    public async Task PeekAsync_AtCap_ReturnsAllowedFalse()
+    {
+        // Arrange — register exactly the IP cap.
+        var (sut, _) = BuildSut(environmentName: "Production");
+        const string ip = "10.0.0.51";
+        for (int i = 0; i < 20; i++)
+        {
+            await sut.RegisterAttemptAsync(ip, $"user-{i}");
+        }
+
+        // Act
+        var peek = await sut.PeekAsync(ip, "another-user");
+
+        // Assert — Allowed=false when counter has REACHED the cap.
+        peek.Allowed.Should().BeFalse(
+            "PeekAsync returns Allowed=false as soon as the counter equals the cap; " +
+            "the next attempt would push it over and is therefore denied.");
+        peek.CurrentIpCount.Should().Be(20);
     }
 }
