@@ -84,7 +84,7 @@ the primary action, (d) after sign-in the user lands on `/dashboard/systems/abc-
 An authenticated user clicks "Sign out" from the top-right account menu. The
 session is invalidated server-side, the local SPA state is cleared (Redux /
 React Query caches, localStorage conversation history from 034-dashboard-chat,
-and the `X-Impersonated-Tenant` cookie from 048-tenant-isolation if present),
+and the `ato-impersonate` cookie from 048-tenant-isolation if present),
 and the user is redirected to `/login` with a confirmation toast. The same
 full-sign-out path runs automatically when the user has been idle past
 `Auth:IdleTimeoutMinutes` (default 30).
@@ -104,7 +104,7 @@ the same full-sign-out and lands on `/login?reason=idle_timeout`.
 **Acceptance Scenarios**:
 
 1. **Given** an authenticated session, **When** the user clicks "Sign out", **Then** the SPA calls `POST /api/auth/signout`, the server revokes the refresh token (or the MSAL cache for that user), and the user is redirected to `/login`.
-2. **Given** the user signs out during an active CSP-Admin impersonation, **When** sign-out completes, **Then** the `X-Impersonated-Tenant` cookie is deleted in addition to the auth token.
+2. **Given** the user signs out during an active CSP-Admin impersonation, **When** sign-out completes, **Then** the `ato-impersonate` cookie is deleted in addition to the auth token.
 3. **Given** the user signs out, **When** the dashboard chat panel is open, **Then** in-memory conversation state is cleared, but localStorage history remains tied to the user's `oid` (re-loaded only after the same user signs back in).
 4. **Given** a session has been idle past `Auth:IdleTimeoutMinutes` (deployment-wide, default 30), **When** the timer fires, **Then** the SPA performs a **full sign-out** — revoke server session, clear local state, redirect to `/login?reason=idle_timeout`. No overlay, no silent renew, no resume.
 5. **Given** the user is mid-edit on a form when idle expires, **When** the timer fires, **Then** the SPA captures the in-flight form state to localStorage **before** sign-out, so on next sign-in the user is offered a "Restore unsaved changes" prompt. This is the only continuity concession given full-sign-out semantics.
@@ -370,8 +370,8 @@ throttled with `429 TOO_MANY_LOGINS` and a `Retry-After` header. Repeat with
 
 #### B. Sign-out & idle sign-out (US2)
 
-- **FR-005**: `POST /api/auth/signout` MUST tear down the server-side session for the calling identity and return `204 NoContent`. For the stateless MSAL.js dashboard flow (FR-007a) there is no server-held refresh token to revoke; the endpoint's server-side work is therefore limited to (a) clearing any first-party auth cookies set by this feature, (b) clearing the `X-Impersonated-Tenant` cookie if present, and (c) writing the `SignOut` / `IdleSignOut` audit row. Token-cache eviction on the client is the SPA's responsibility via `msalInstance.logoutRedirect`.
-- **FR-006**: On sign-out, the SPA MUST clear Redux / React Query caches, in-memory chat state, any first-party auth or impersonation cookies, and the `X-Impersonated-Tenant` cookie if present.
+- **FR-005**: `POST /api/auth/signout` MUST tear down the server-side session for the calling identity and return `204 NoContent`. For the stateless MSAL.js dashboard flow (FR-007a) there is no server-held refresh token to revoke; the endpoint's server-side work is therefore limited to (a) clearing any first-party auth cookies set by this feature, (b) clearing the `ato-impersonate` cookie if present, and (c) writing the `SignOut` / `IdleSignOut` audit row. Token-cache eviction on the client is the SPA's responsibility via `msalInstance.logoutRedirect`.
+- **FR-006**: On sign-out, the SPA MUST clear Redux / React Query caches, in-memory chat state, any first-party auth or impersonation cookies, and the `ato-impersonate` cookie if present.
 - **FR-007**: The SPA MUST track user activity (mouse / keyboard / touch / API success) and, after `Auth:IdleTimeoutMinutes` of inactivity, perform the same full sign-out path as the explicit sign-out — no soft-lock overlay, no silent renew. The redirect URL is `/login?reason=idle_timeout`.
 - **FR-007a**: Access-token renewal MUST be performed by MSAL.js's silent-renewal path (`acquireTokenSilent`); the SPA MUST NOT implement bespoke refresh-token storage or call a server-side refresh endpoint. The dashboard's axios interceptor MUST handle a `401` response by invoking `acquireTokenSilent` and retrying the original request once; if `acquireTokenSilent` fails, the interceptor MUST trigger an interactive `loginRedirect` (preserving the originating URL per FR-001 / FR-004). The idle timer (FR-007) is orthogonal to token validity — a silently-renewed token MUST NOT reset the idle counter; only genuine user input resets it.
 - **FR-008**: Before performing an idle sign-out, the SPA MUST persist the current form's in-flight state to localStorage under a key namespaced by `oid` so a "Restore unsaved changes" prompt can offer recovery on next sign-in.

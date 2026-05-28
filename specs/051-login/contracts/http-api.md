@@ -130,8 +130,11 @@ PIM roles, and impersonation state for the account menu (US9 / FR-030).
 2. Resolve the user's `oid`, `tid` from claims.
 3. Look up the user's home tenant via the existing `Tenants` table.
 4. Read the active PIM role (existing Feature 003 path).
-5. Read the `X-Impersonated-Tenant` cookie via existing Feature 048
-   helper, if present.
+5. Read the impersonation cookie via existing Feature 048
+   helper (production cookie name is `ato-impersonate` per
+   `TenantImpersonationService`; spec previously said
+   `X-Impersonated-Tenant` — corrected 2026-05-28 during Phase 3
+   implementation to match production reality), if present.
 6. Emit a `LoginAuditEvent` of type `LoginSuccess` (debounced — at most
    once per session per tenant; tracked via `IDistributedCache` with a
    5-minute TTL keyed on `oid + tenantId`).
@@ -196,7 +199,8 @@ Optional body: `{ "reason": "manual" | "idle_timeout" }` (default
 
 1. Validate the bearer.
 2. Revoke the MSAL cache for the user (best-effort).
-3. Delete the `X-Impersonated-Tenant` cookie if present (FR-006).
+3. Delete the impersonation cookie (`ato-impersonate` per
+   `TenantImpersonationService`) if present (FR-006).
 4. Emit a `SignOut` or `IdleSignOut` audit row depending on body.
 5. Return 204.
 
