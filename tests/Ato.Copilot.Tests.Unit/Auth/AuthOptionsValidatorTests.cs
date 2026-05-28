@@ -85,6 +85,24 @@ public class AuthOptionsValidatorTests
         result.Succeeded.Should().BeTrue();
     }
 
+    [Fact]
+    public void Validate_MissingCookieSigningKeyInTesting_Succeeds()
+    {
+        // Arrange — integration tests run under env=Testing and seed many
+        // hosts. The validator treats Testing as Development-equivalent
+        // for the SigningKey gate so .ValidateOnStart() does not fail the
+        // host before any tests run.
+        var validator = Validator("Testing");
+        var options = ValidOptions();
+        options.Cookie.SigningKey = string.Empty;
+
+        // Act
+        var result = validator.Validate(name: null, options);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+    }
+
     [Theory]
     [InlineData(4)]
     [InlineData(481)]

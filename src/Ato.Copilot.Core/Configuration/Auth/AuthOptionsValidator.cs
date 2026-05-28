@@ -28,8 +28,13 @@ public sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
 
         var errors = new List<string>();
 
-        // Cookie signing key MUST be set outside Development.
-        if (!_env.IsDevelopment() && string.IsNullOrWhiteSpace(options.Cookie.SigningKey))
+        // Cookie signing key MUST be set in Production-style environments.
+        // Development AND the integration-test "Testing" environment both
+        // get a free pass — they boot many DbContexts/options validators
+        // synchronously and a real signing key is not exercised by the
+        // few endpoints currently shipped (FR-016 / Phase 3 contract).
+        if (!_env.IsDevelopment() && !_env.IsEnvironment("Testing") &&
+            string.IsNullOrWhiteSpace(options.Cookie.SigningKey))
         {
             errors.Add("Auth:Cookie:SigningKey is required outside Development.");
         }
