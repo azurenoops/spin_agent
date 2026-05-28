@@ -218,10 +218,10 @@ requirement entirely. Tasks below close the gap.
 
 ### 5.1 `IRememberedTenantCookieService`
 
-- [ ] T064 [P] [US3] Create [src/Ato.Copilot.Core/Interfaces/Auth/IRememberedTenantCookieService.cs](src/Ato.Copilot.Core/Interfaces/Auth/IRememberedTenantCookieService.cs) per [contracts/internal-services.md § 3.2](specs/051-login/contracts/internal-services.md)
-- [ ] T065 [TDD-Test] [US3] [tests/Ato.Copilot.Tests.Unit/Auth/RememberedTenantCookieServiceTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/RememberedTenantCookieServiceTests.cs) — assert `Issue` produces 4-part base64url string, `Validate` round-trips, tampered HMAC rejected (null), expired cookie rejected (null), wrong signing key rejected (null), never throws. RED.
-- [ ] T066 [US3] Create [src/Ato.Copilot.Core/Services/Auth/RememberedTenantCookieService.cs](src/Ato.Copilot.Core/Services/Auth/RememberedTenantCookieService.cs) — HMAC-SHA256 per [research.md § R8](specs/051-login/research.md). GREEN T065.
-- [ ] T067 [US3] Register `services.AddSingleton<IRememberedTenantCookieService, RememberedTenantCookieService>()` in [src/Ato.Copilot.Mcp/Program.cs](src/Ato.Copilot.Mcp/Program.cs)
+- [X] T064 [P] [US3] Create [src/Ato.Copilot.Core/Interfaces/Auth/IRememberedTenantCookieService.cs](src/Ato.Copilot.Core/Interfaces/Auth/IRememberedTenantCookieService.cs) per [contracts/internal-services.md § 3.2](specs/051-login/contracts/internal-services.md)
+- [X] T065 [TDD-Test] [US3] [tests/Ato.Copilot.Tests.Unit/Auth/RememberedTenantCookieServiceTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/RememberedTenantCookieServiceTests.cs) — assert `Issue` produces 4-part base64url string, `Validate` round-trips, tampered HMAC rejected (null), expired cookie rejected (null), wrong signing key rejected (null), never throws. RED.
+- [X] T066 [US3] Create [src/Ato.Copilot.Core/Services/Auth/RememberedTenantCookieService.cs](src/Ato.Copilot.Core/Services/Auth/RememberedTenantCookieService.cs) — HMAC-SHA256 per [research.md § R8](specs/051-login/research.md). GREEN T065.
+- [X] T067 [US3] Register `services.AddSingleton<IRememberedTenantCookieService, RememberedTenantCookieService>()` in [src/Ato.Copilot.Mcp/Program.cs](src/Ato.Copilot.Mcp/Program.cs)
 
 ### 5.2 Endpoint: POST /api/auth/select-tenant
 

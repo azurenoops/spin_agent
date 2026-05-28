@@ -431,6 +431,12 @@ async Task RunHttpModeAsync(string[] args)
     // Scoped to match request lifetime (it operates on HttpContext).
     builder.Services.AddScoped<Ato.Copilot.Mcp.Middleware.LoginAuditContextAccessor>();
 
+    // Feature 051 (T067 / US3 / FR-012): HMAC-SHA256 issuer + validator for
+    // the device-only `ato-remembered-tenant` cookie. Singleton because the
+    // signing key is bound once at construction from AuthOptions.
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Auth.IRememberedTenantCookieService,
+        Ato.Copilot.Core.Services.Auth.RememberedTenantCookieService>();
+
     // Feature 051 (T032 / FR-034 / FR-035): throttle service + the
     // IDistributedCache backing store. Dev/Test use the in-process
     // distributed memory cache so unit tests need no Redis; non-Development
