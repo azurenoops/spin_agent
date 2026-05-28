@@ -1,11 +1,15 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Models.Auth;
+using Ato.Copilot.Core.Services.Auth;
 using Ato.Copilot.Mcp.Configuration;
 
 namespace Ato.Copilot.Mcp.Middleware;
@@ -48,7 +52,21 @@ public class CacAuthenticationMiddleware
     /// <summary>
     /// Processes the HTTP request, validating JWT and CAC/PIV claims.
     /// </summary>
-    public async Task InvokeAsync(HttpContext context)
+    /// <remarks>
+    /// Feature 051 T079 [US4] — scoped services (<paramref name="dbFactory"/>,
+    /// <paramref name="loginAudit"/>, <paramref name="auditContextAccessor"/>)
+    /// are injected per-request so failure paths can write a
+    /// <see cref="LoginAuditEventType.LoginFailure"/> row with a
+    /// <see cref="LoginErrorClass"/> classification. Each is nullable
+    /// so unit tests that exercise only the simulation / dev pre-empt
+    /// branches don't need to construct DI scaffolding; production
+    /// always supplies non-null instances from <c>Program.cs</c>.
+    /// </remarks>
+    public async Task InvokeAsync(
+        HttpContext context,
+        IDbContextFactory<AtoCopilotContext>? dbFactory = null,
+        ILoginAuditService? loginAudit = null,
+        LoginAuditContextAccessor? auditContextAccessor = null)
     {
         // Skip auth for health checks
         if (context.Request.Path.StartsWithSegments("/health"))
@@ -209,6 +227,16 @@ public class CacAuthenticationMiddleware
                         "JWT missing CAC/PIV amr claims (mfa, rsa). Found: {AmrClaims} from {IP}",
                         string.Join(", ", amrClaims), context.Connection.RemoteIpAddress);
 
+                    // Feature 051 T079 [US4] — classify and write a
+                    // privacy-preserving LoginFailure audit row per
+                    // FR-014/FR-033. The classifier maps "amr missing"
+                    // to MfaFailure (closest canonical class — the
+                    // smart-card cert was present but MFA assertion
+                    // wasn't satisfied).
+                    await WriteLoginFailureAsync(
+                        context, dbFactory, loginAudit, auditContextAccessor,
+                        jwt, LoginErrorClass.MfaFailure);
+
                     context.Response.StatusCode = 401;
                     await context.Response.WriteAsJsonAsync(new
                     {
@@ -338,6 +366,90 @@ public class CacAuthenticationMiddleware
         {
             claims.Add(new Claim(ClaimTypes.Role, "CSP.Admin"));
             _logger.LogDebug("Mapped Entra group {GroupId} → role CSP.Admin", cspAdminGroupId);
+        }
+    }
+
+    /// <summary>
+    /// Feature 051 T079 [US4] — write a privacy-preserving
+    /// <see cref="LoginAuditEventType.LoginFailure"/> row for a CAC
+    /// authentication failure. Stamps <c>SYSTEM_TENANT_ID</c>
+    /// (<see cref="Guid.Empty"/>) on pre-session failures per FR-015 /
+    /// data-model § 1.6 clarification Q2.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>FR-033 (NON-NEGOTIABLE)</strong>: <c>MetadataJson</c> is
+    /// built via <see cref="LoginErrorClassifier.BuildSafeMetadata"/>
+    /// which emits ONLY the error class. Cert thumbprints, serial
+    /// numbers, subject/issuer DNs, and PII beyond <c>oid</c> are
+    /// never persisted on a failure row.
+    /// </para>
+    /// <para>
+    /// <strong>Wired-but-not-yet-induced classes</strong> (Phase 13):
+    /// <see cref="LoginErrorClass.NoCardInserted"/>,
+    /// <see cref="LoginErrorClass.CertExpired"/>,
+    /// <see cref="LoginErrorClass.CertNotYetValid"/>,
+    /// <see cref="LoginErrorClass.CertRevoked"/>, and
+    /// <see cref="LoginErrorClass.ClockSkew"/> require live cert
+    /// validation (OCSP/CRL) on the gateway TLS handler — they are
+    /// classifier-reachable today but the middleware path that observes
+    /// them lands in a later feature.
+    /// </para>
+    /// </remarks>
+    private async Task WriteLoginFailureAsync(
+        HttpContext context,
+        IDbContextFactory<AtoCopilotContext>? dbFactory,
+        ILoginAuditService? loginAudit,
+        LoginAuditContextAccessor? auditContextAccessor,
+        JwtSecurityToken? jwt,
+        LoginErrorClass errorClass)
+    {
+        // Defensive: in unit-test contexts the audit collaborators may
+        // be null (the simulation/dev branches return before reaching
+        // here in production, but a test could still drive this code
+        // path with a hand-built middleware instance).
+        if (dbFactory is null || loginAudit is null || auditContextAccessor is null)
+        {
+            _logger.LogDebug(
+                "Skipping LoginFailure audit-write — audit collaborators not injected " +
+                "(ErrorClass={ErrorClass}). Production DI always supplies them.",
+                errorClass);
+            return;
+        }
+
+        try
+        {
+            // FR-033: oid is the ONLY PII allowed on the row; tid is
+            // forensic context (Entra tenant the caller authenticated
+            // against). Both are well-known JWT claim names.
+            var oid = jwt?.Claims.FirstOrDefault(c =>
+                string.Equals(c.Type, "oid", StringComparison.OrdinalIgnoreCase))?.Value;
+            var tid = jwt?.Claims.FirstOrDefault(c =>
+                string.Equals(c.Type, "tid", StringComparison.OrdinalIgnoreCase))?.Value;
+
+            var auditCtx = auditContextAccessor.FromHttpContext(context);
+            await using var db = await dbFactory.CreateDbContextAsync(context.RequestAborted);
+            await loginAudit.AppendAsync(db, new LoginAuditEventDraft(
+                EventType: LoginAuditEventType.LoginFailure,
+                Oid: oid,
+                Tid: tid,
+                EffectiveTenantId: Guid.Empty,           // FR-015: pre-session → SYSTEM_TENANT_ID
+                CorrelationId: auditCtx.CorrelationId,
+                SourceIp: auditCtx.SourceIp,
+                UserAgent: auditCtx.UserAgent,
+                Surface: LoginSurface.Dashboard,
+                ErrorClass: errorClass,
+                MetadataJson: LoginErrorClassifier.BuildSafeMetadata(errorClass)),
+                context.RequestAborted).ConfigureAwait(false);
+            await db.SaveChangesAsync(context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (Exception auditEx)
+        {
+            // Audit-write failures MUST NOT break the auth pipeline —
+            // the 401 envelope still ships. Log so SOC can correlate.
+            _logger.LogError(auditEx,
+                "Failed to write LoginFailure audit row (ErrorClass={ErrorClass})",
+                errorClass);
         }
     }
 }

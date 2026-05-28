@@ -324,6 +324,25 @@ async Task RunHttpModeAsync(string[] args)
     // Register a default authentication scheme that surfaces the principal already
     // populated by CacAuthenticationMiddleware. Required so AuthorizationMiddleware
     // can issue ChallengeAsync/ForbidAsync for endpoints with RequireAuthorization().
+    //
+    // Feature 051 T080 [US4] — Entra/JWT failure classification map:
+    //
+    //   | LoginErrorClass       | Where it's wired today                              |
+    //   |-----------------------|-----------------------------------------------------|
+    //   | NoTenantAssignment    | AuthEndpoints.GetMeAsync (writes audit + 403)        |
+    //   | MfaFailure            | CacAuthenticationMiddleware amr branch (T079)        |
+    //   | NoCardInserted        | CLIENT-SIDE — browser surfaces cert prompt           |
+    //   | CertExpired           | TODO(Phase 13) — needs cert-auth handler             |
+    //   | CertNotYetValid       | TODO(Phase 13) — needs cert-auth handler             |
+    //   | CertRevoked           | TODO(Phase 13) — needs OCSP/CRL fetcher              |
+    //   | ClockSkew             | TODO(Phase 13) — needs nbf/iat skew detector         |
+    //   | AccountDisabled       | TODO(Phase 13) — needs JwtBearerEvents.OnAuthFailed  |
+    //   | ConditionalAccessBlock| TODO(Phase 13) — needs MSAL claims-challenge handler |
+    //   | NetworkFailure        | CLIENT-SIDE — MSAL surfaces network errors           |
+    //
+    // The classifier (LoginErrorClassifier) supports all 10 classes via pure inputs;
+    // wiring the cert-auth / Conditional-Access paths is deferred until Phase 13
+    // installs a real X509 client-cert authentication handler on the gateway.
     builder.Services
         .AddAuthentication(Ato.Copilot.Mcp.Authentication.CacPassthroughAuthHandler.SchemeName)
         .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,
