@@ -50,24 +50,24 @@ interceptor base. EVERY user story phase depends on this phase.
 
 ### 2.1 Enums + entity
 
-- [ ] T009 [P] Create [src/Ato.Copilot.Core/Models/Auth/LoginAuditEventType.cs](src/Ato.Copilot.Core/Models/Auth/LoginAuditEventType.cs) — enum with 9 values per [data-model.md § 1.3](specs/051-login/data-model.md)
-- [ ] T010 [P] Create [src/Ato.Copilot.Core/Models/Auth/LoginErrorClass.cs](src/Ato.Copilot.Core/Models/Auth/LoginErrorClass.cs) — enum with 10 values per [data-model.md § 1.4](specs/051-login/data-model.md)
-- [ ] T011 [P] Create [src/Ato.Copilot.Core/Models/Auth/LoginSurface.cs](src/Ato.Copilot.Core/Models/Auth/LoginSurface.cs) — enum `Dashboard | VSCode | M365 | Chat`
-- [ ] T012 Create [src/Ato.Copilot.Core/Models/Auth/LoginAuditEvent.cs](src/Ato.Copilot.Core/Models/Auth/LoginAuditEvent.cs) — entity per [data-model.md § 1.12](specs/051-login/data-model.md) with `[TenantScoped]` attribute and all 12 fields
-- [ ] T013 [TDD-Test] Create [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditEventTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditEventTests.cs) — assert `[TenantScoped]` attribute present, validation on `CorrelationId` ≤ 64 chars, `SourceIp` ≤ 45, `UserAgent` ≤ 512, `MetadataJson` ≤ 2000; assert `Id` defaults to `Guid.NewGuid()`. RED.
-- [ ] T014 Make T013 pass — adjust attributes on `LoginAuditEvent.cs` as needed. GREEN.
+- [X] T009 [P] Create [src/Ato.Copilot.Core/Models/Auth/LoginAuditEventType.cs](src/Ato.Copilot.Core/Models/Auth/LoginAuditEventType.cs) — enum with 9 values per [data-model.md § 1.3](specs/051-login/data-model.md)
+- [X] T010 [P] Create [src/Ato.Copilot.Core/Models/Auth/LoginErrorClass.cs](src/Ato.Copilot.Core/Models/Auth/LoginErrorClass.cs) — enum with 10 values per [data-model.md § 1.4](specs/051-login/data-model.md)
+- [X] T011 [P] Create [src/Ato.Copilot.Core/Models/Auth/LoginSurface.cs](src/Ato.Copilot.Core/Models/Auth/LoginSurface.cs) — enum `Dashboard | VSCode | M365 | Chat`
+- [X] T012 Create [src/Ato.Copilot.Core/Models/Auth/LoginAuditEvent.cs](src/Ato.Copilot.Core/Models/Auth/LoginAuditEvent.cs) — entity per [data-model.md § 1.12](specs/051-login/data-model.md) with `[TenantScoped]` attribute and all 12 fields
+- [X] T013 [TDD-Test] Create [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditEventTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditEventTests.cs) — assert `[TenantScoped]` attribute present, validation on `CorrelationId` ≤ 64 chars, `SourceIp` ≤ 45, `UserAgent` ≤ 512, `MetadataJson` ≤ 2000; assert `Id` defaults to `Guid.NewGuid()`. RED.
+- [X] T014 Make T013 pass — adjust attributes on `LoginAuditEvent.cs` as needed. GREEN.
 
 ### 2.2 EF Core wiring
 
-- [ ] T015 Add `DbSet<LoginAuditEvent> LoginAuditEvents` and `OnModelCreating` block per [data-model.md § 2](specs/051-login/data-model.md) to [src/Ato.Copilot.Core/Data/AtoCopilotContext.cs](src/Ato.Copilot.Core/Data/AtoCopilotContext.cs)
-- [ ] T016 [TDD-Test] [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditEventModelBuilderTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditEventModelBuilderTests.cs) — assert the three indexes exist, leading column of `IX_LoginAuditEvents_Tenant_Occurred` is `EffectiveTenantId`, FK `OnDelete=Cascade` to `Tenants`, enum columns use string conversion. RED.
-- [ ] T017 Make T016 pass. GREEN.
+- [X] T015 Add `DbSet<LoginAuditEvent> LoginAuditEvents` and `OnModelCreating` block per [data-model.md § 2](specs/051-login/data-model.md) to [src/Ato.Copilot.Core/Data/AtoCopilotContext.cs](src/Ato.Copilot.Core/Data/AtoCopilotContext.cs)
+- [X] T016 [TDD-Test] [tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditEventModelBuilderTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/LoginAuditEventModelBuilderTests.cs) — assert the three indexes exist, leading column of `IX_LoginAuditEvents_Tenant_Occurred` is `EffectiveTenantId`, FK `OnDelete=Cascade` to `Tenants`, enum columns use string conversion. RED.
+- [X] T017 Make T016 pass. GREEN.
 
 ### 2.3 EnsureSchemaAdditions
 
-- [ ] T018 Create [src/Ato.Copilot.Core/Data/Migrations/EnsureSchemaAdditions/LoginAuditEventsSchemaAdditions.cs](src/Ato.Copilot.Core/Data/Migrations/EnsureSchemaAdditions/LoginAuditEventsSchemaAdditions.cs) — idempotent DDL for SQL Server + SQLite per [data-model.md § 3](specs/051-login/data-model.md)
-- [ ] T019 Wire `LoginAuditEventsSchemaAdditions.ApplyAsync` into `EnsureSchemaAdditionsAsync` in [src/Ato.Copilot.Mcp/Program.cs](src/Ato.Copilot.Mcp/Program.cs) after the Feature 050 `CapabilityHistoryEventsSchemaAdditions` call
-- [ ] T020 [TDD-Test] [tests/Ato.Copilot.Tests.Integration/Auth/LoginAuditEventsSchemaAdditionsTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/LoginAuditEventsSchemaAdditionsTests.cs) — boot a SQLite `AtoCopilotContext`, run `ApplyAsync` twice, assert no exception and `LoginAuditEvents` table + 3 indexes exist. RED then GREEN.
+- [X] T018 Create [src/Ato.Copilot.Core/Data/Migrations/EnsureSchemaAdditions/LoginAuditEventsSchemaAdditions.cs](src/Ato.Copilot.Core/Data/Migrations/EnsureSchemaAdditions/LoginAuditEventsSchemaAdditions.cs) — idempotent DDL for SQL Server + SQLite per [data-model.md § 3](specs/051-login/data-model.md)
+- [X] T019 Wire `LoginAuditEventsSchemaAdditions.ApplyAsync` into `EnsureSchemaAdditionsAsync` in [src/Ato.Copilot.Mcp/Program.cs](src/Ato.Copilot.Mcp/Program.cs) after the Feature 050 `CapabilityHistoryEventsSchemaAdditions` call
+- [X] T020 [TDD-Test] [tests/Ato.Copilot.Tests.Integration/Auth/LoginAuditEventsSchemaAdditionsTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/LoginAuditEventsSchemaAdditionsTests.cs) — boot a SQLite `AtoCopilotContext`, run `ApplyAsync` twice, assert no exception and `LoginAuditEvents` table + 3 indexes exist. RED then GREEN.
 
 ### 2.4 Options binding
 

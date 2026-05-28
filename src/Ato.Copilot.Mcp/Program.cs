@@ -1067,6 +1067,15 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // so history outlives a hard-deleted capability per FR-015.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CapabilityHistoryEventsSchemaAdditions
         .ApplyAsync(db, logger, ct);
+    // Feature 051 (FR-032 / FR-033 / FR-034 / FR-036a): Adds the LoginAuditEvents
+    // table for authentication-event auditing across all four surfaces
+    // (Dashboard, VS Code, M365, Chat). Tenant-scoped on EffectiveTenantId
+    // (Cascade FK to Tenants); pre-session and NoTenantAssignment rows use
+    // SYSTEM_TENANT_ID per clarification Q2. Three indexes ship: per-tenant
+    // read (Tenant, OccurredAt DESC), daily archive scan (OccurredAt), and
+    // forensic per-Oid lookup (Oid, OccurredAt DESC, filtered Oid IS NOT NULL).
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.LoginAuditEventsSchemaAdditions
+        .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Services.Tenancy.TenantBootstrapService.EnsureSystemTenantAsync(db, logger, ct);
     // T060: Backfill OrganizationContext rows whose TenantId still holds the
     // Entra `tid` rather than the new Tenants.Id. Idempotent; no-op once done.

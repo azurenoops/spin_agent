@@ -502,6 +502,16 @@ public class AtoCopilotContext : DbContext
     public DbSet<CapabilityHistoryEvent> CapabilityHistoryEvents => Set<CapabilityHistoryEvent>();
 
     /// <summary>
+    /// Feature 051 (FR-032 / FR-033 / FR-034 / FR-035 / FR-036a): append-only
+    /// audit-trail rows for authentication-related events across the four
+    /// surfaces (Dashboard, VS Code, M365, Chat). <see cref="TenantScopedAttribute"/>
+    /// — every row carries a non-null <c>EffectiveTenantId</c>; pre-session
+    /// and unmapped events use <c>SYSTEM_TENANT_ID</c> per clarification Q2.
+    /// </summary>
+    public DbSet<Ato.Copilot.Core.Models.Auth.LoginAuditEvent> LoginAuditEvents
+        => Set<Ato.Copilot.Core.Models.Auth.LoginAuditEvent>();
+
+    /// <summary>
     /// Per-org override of CSP-defined NIST control defaults
     /// (Feature 048 follow-up — user ask #2). <see cref="TenantScopedAttribute"/>:
     /// each row belongs to exactly one tenant; at most one row per
@@ -3467,6 +3477,60 @@ public class AtoCopilotContext : DbContext
             entity.HasOne<Tenant>()
                 .WithMany()
                 .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── LoginAuditEvent (Feature 051 — FR-032 / FR-033 / FR-034 / FR-036a) ──
+        // Append-only audit rows for authentication events across all four
+        // surfaces. Tenant-scoped on EffectiveTenantId — pre-session and
+        // NoTenantAssignment rows use SYSTEM_TENANT_ID per clarification Q2.
+        // Three indexes: (Tenant, OccurredAt DESC) for the per-tenant view,
+        // (OccurredAt) for the daily archive job, (Oid, OccurredAt DESC) for
+        // forensic "everything for user X" queries.
+        modelBuilder.Entity<Ato.Copilot.Core.Models.Auth.LoginAuditEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.EventType)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(e => e.ErrorClass)
+                .HasConversion<string>()
+                .HasMaxLength(32);
+            entity.Property(e => e.Surface)
+                .HasConversion<string>()
+                .HasMaxLength(16)
+                .IsRequired();
+
+            entity.Property(e => e.Oid).HasMaxLength(254);
+            entity.Property(e => e.Tid).HasMaxLength(254);
+            entity.Property(e => e.CorrelationId).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.SourceIp).HasMaxLength(45).IsRequired();
+            entity.Property(e => e.UserAgent).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.MetadataJson).HasMaxLength(2000);
+
+            // Primary read path — per-tenant audit query ordered by recency.
+            entity.HasIndex(e => new { e.EffectiveTenantId, e.OccurredAt })
+                .HasDatabaseName("IX_LoginAuditEvents_Tenant_Occurred")
+                .IsDescending(false, true);
+
+            // Secondary read path — daily archive job scans by OccurredAt.
+            entity.HasIndex(e => e.OccurredAt)
+                .HasDatabaseName("IX_LoginAuditEvents_Occurred");
+
+            // Forensic read path — "everything for user X". Filtered index
+            // on SQL Server (Oid is nullable); SQLite ignores HasFilter.
+            entity.HasIndex(e => new { e.Oid, e.OccurredAt })
+                .HasDatabaseName("IX_LoginAuditEvents_Oid")
+                .IsDescending(false, true)
+                .HasFilter("[Oid] IS NOT NULL");
+
+            // FK to Tenant — Cascade so tenant offboarding sweeps hot rows.
+            // Cold archive rows persist independently (FR-036a).
+            entity.HasOne<Tenant>()
+                .WithMany()
+                .HasForeignKey(e => e.EffectiveTenantId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
