@@ -2,6 +2,7 @@ using System.Reflection;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Models.Auth;
+using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Auth;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
@@ -19,8 +20,13 @@ namespace Ato.Copilot.Tests.Unit.Auth;
 /// <list type="bullet">
 ///   <item>Populates <see cref="LoginAuditEvent.Id"/> and
 ///         <see cref="LoginAuditEvent.OccurredAt"/> server-side.</item>
-///   <item>Does NOT call <c>SaveChangesAsync</c> — the caller owns the
-///         transaction (R6 / Feature-050 SRP parity).</item>
+///   <item>Attaches the entity to the caller-provided
+///         <see cref="AtoCopilotContext"/> in <see cref="EntityState.Added"/>
+///         state but does NOT call <c>SaveChangesAsync</c> — the caller
+///         owns the transaction (R6 / Feature-050 SRP parity, mirroring
+///         <c>CapabilityHistoryService.AppendAsync</c>).</item>
+///   <item>A caller that subsequently calls <c>SaveChangesAsync</c>
+///         persists the row.</item>
 ///   <item>Accepts <c>SYSTEM_TENANT_ID</c> (<see cref="Guid.Empty"/>) for
 ///         <see cref="LoginAuditEvent.EffectiveTenantId"/> per
 ///         clarification Q2.</item>
@@ -29,28 +35,21 @@ namespace Ato.Copilot.Tests.Unit.Auth;
 ///         <c>{ AppendAsync, ListAsync, ListSystemTenantAsync }</c>.</item>
 /// </list>
 /// </summary>
-/// <remarks>
-/// Uses a SQLite <c>:memory:</c> connection-backed factory so the
-/// LoginAuditEvents schema is materialised for the post-append zero-count
-/// verification query (matches the
-/// <c>LoginAuditEventModelBuilderTests</c> pattern).
-/// </remarks>
 public sealed class LoginAuditServiceAppendTests : IDisposable
 {
     private readonly SqliteConnection _connection;
-    private readonly TestDbContextFactory _factory;
+    private readonly DbContextOptions<AtoCopilotContext> _options;
 
     public LoginAuditServiceAppendTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         _connection.Open();
 
-        var options = new DbContextOptionsBuilder<AtoCopilotContext>()
+        _options = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseSqlite(_connection)
             .Options;
-        _factory = new TestDbContextFactory(options);
 
-        using var ctx = _factory.CreateDbContext();
+        using var ctx = new AtoCopilotContext(_options);
         ctx.Database.EnsureCreated();
     }
 
@@ -83,11 +82,12 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
     {
         // Arrange
         var sut = NewSut();
+        await using var db = NewContext();
         var draft = NewDraft();
         var before = DateTimeOffset.UtcNow;
 
         // Act
-        var evt = await sut.AppendAsync(draft, CancellationToken.None);
+        var evt = await sut.AppendAsync(db, draft, CancellationToken.None);
         var after = DateTimeOffset.UtcNow;
 
         // Assert
@@ -96,25 +96,52 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
         evt.OccurredAt.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
     }
 
-    // ─── AppendAsync — does NOT call SaveChangesAsync ───────────────────
+    // ─── AppendAsync — adds to caller's context but does NOT save ───────
 
     [Fact]
-    public async Task AppendAsync_DoesNotCallSaveChanges_RowIsNotPersisted()
+    public async Task AppendAsync_TracksEntity_ButDoesNotCallSaveChanges()
     {
         // Arrange
         var sut = NewSut();
+        await using var db = NewContext();
         var draft = NewDraft();
 
         // Act
-        await sut.AppendAsync(draft, CancellationToken.None);
+        var evt = await sut.AppendAsync(db, draft, CancellationToken.None);
 
-        // Assert — the service-owned context disposed without SaveChanges,
-        // so a fresh context (same SQLite connection / shared schema) sees
-        // zero rows. R6 SRP — caller owns the transaction.
-        await using var verify = _factory.CreateDbContext();
+        // Assert — the entity IS tracked on the caller's context …
+        db.Entry(evt).State.Should().Be(EntityState.Added,
+            "AppendAsync attaches the entity to the caller's context for the caller to commit.");
+
+        // … but a fresh context sees zero rows because the service did
+        // not call SaveChangesAsync on the caller's behalf.
+        await using var verify = NewContext();
         var count = await verify.LoginAuditEvents.IgnoreQueryFilters().CountAsync();
         count.Should().Be(0,
             "AppendAsync MUST NOT call SaveChangesAsync per contracts/internal-services.md § 1.3.");
+    }
+
+    [Fact]
+    public async Task AppendAsync_FollowedBySaveChanges_PersistsRow()
+    {
+        // Arrange — seed the FK target so SaveChangesAsync does not trip
+        // the Tenants FK constraint (SQLite enforces FKs by default in
+        // recent EF Core versions).
+        var tenantId = await SeedTenantAsync();
+        var sut = NewSut();
+        await using var db = NewContext();
+        var draft = NewDraft() with { EffectiveTenantId = tenantId };
+
+        // Act — the production flow: caller appends + commits atomically.
+        var evt = await sut.AppendAsync(db, draft, CancellationToken.None);
+        await db.SaveChangesAsync();
+
+        // Assert — row reaches the database when the caller commits.
+        await using var verify = NewContext();
+        var persisted = await verify.LoginAuditEvents.IgnoreQueryFilters().SingleAsync();
+        persisted.Id.Should().Be(evt.Id);
+        persisted.EventType.Should().Be(draft.EventType);
+        persisted.EffectiveTenantId.Should().Be(tenantId);
     }
 
     // ─── AppendAsync — accepts SYSTEM_TENANT_ID (Q2) ────────────────────
@@ -124,10 +151,11 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
     {
         // Arrange
         var sut = NewSut();
+        await using var db = NewContext();
         var draft = NewDraft() with { EffectiveTenantId = Guid.Empty };
 
         // Act
-        var evt = await sut.AppendAsync(draft, CancellationToken.None);
+        var evt = await sut.AppendAsync(db, draft, CancellationToken.None);
 
         // Assert
         evt.EffectiveTenantId.Should().Be(Guid.Empty,
@@ -141,11 +169,12 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
     {
         // Arrange
         var sut = NewSut();
+        await using var db = NewContext();
         var tooLong = new string('a', 255);
         var draft = NewDraft() with { Oid = tooLong };
 
         // Act
-        Func<Task> act = () => sut.AppendAsync(draft, CancellationToken.None);
+        Func<Task> act = () => sut.AppendAsync(db, draft, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentException>()
@@ -157,11 +186,12 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
     {
         // Arrange — boundary case: 254 chars is the documented cap.
         var sut = NewSut();
+        await using var db = NewContext();
         var atCap = new string('a', 254);
         var draft = NewDraft() with { Oid = atCap };
 
         // Act
-        var evt = await sut.AppendAsync(draft, CancellationToken.None);
+        var evt = await sut.AppendAsync(db, draft, CancellationToken.None);
 
         // Assert
         evt.Oid.Should().Be(atCap);
@@ -172,25 +202,40 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
     {
         // Arrange — pre-Entra events (e.g. CertExpired) carry no Oid.
         var sut = NewSut();
+        await using var db = NewContext();
         var draft = NewDraft() with { Oid = null };
 
         // Act
-        var evt = await sut.AppendAsync(draft, CancellationToken.None);
+        var evt = await sut.AppendAsync(db, draft, CancellationToken.None);
 
         // Assert
         evt.Oid.Should().BeNull();
     }
 
-    // ─── AppendAsync — null draft throws ────────────────────────────────
+    // ─── AppendAsync — null arg throws ──────────────────────────────────
+
+    [Fact]
+    public async Task AppendAsync_NullDb_Throws()
+    {
+        // Arrange
+        var sut = NewSut();
+
+        // Act
+        Func<Task> act = () => sut.AppendAsync(null!, NewDraft(), CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
 
     [Fact]
     public async Task AppendAsync_NullDraft_Throws()
     {
         // Arrange
         var sut = NewSut();
+        await using var db = NewContext();
 
         // Act
-        Func<Task> act = () => sut.AppendAsync(null!, CancellationToken.None);
+        Func<Task> act = () => sut.AppendAsync(db, null!, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -227,7 +272,23 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
     // ─── Helpers ────────────────────────────────────────────────────────
 
     private LoginAuditService NewSut()
-        => new(_factory, NullLogger<LoginAuditService>.Instance);
+        => new(NullLogger<LoginAuditService>.Instance);
+
+    private AtoCopilotContext NewContext()
+        => new(_options);
+
+    private async Task<Guid> SeedTenantAsync()
+    {
+        await using var db = NewContext();
+        var tenant = new Tenant
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Test Tenant",
+        };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+        return tenant.Id;
+    }
 
     private static LoginAuditEventDraft NewDraft() => new(
         EventType: LoginAuditEventType.LoginSuccess,
@@ -238,13 +299,4 @@ public sealed class LoginAuditServiceAppendTests : IDisposable
         SourceIp: "10.0.0.1",
         UserAgent: "Mozilla/5.0",
         Surface: LoginSurface.Dashboard);
-
-    private sealed class TestDbContextFactory : IDbContextFactory<AtoCopilotContext>
-    {
-        private readonly DbContextOptions<AtoCopilotContext> _options;
-
-        public TestDbContextFactory(DbContextOptions<AtoCopilotContext> options) => _options = options;
-
-        public AtoCopilotContext CreateDbContext() => new(_options);
-    }
 }

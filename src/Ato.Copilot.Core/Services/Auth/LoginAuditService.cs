@@ -1,7 +1,6 @@
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Models.Auth;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Ato.Copilot.Core.Services.Auth;
@@ -29,20 +28,20 @@ namespace Ato.Copilot.Core.Services.Auth;
 /// </remarks>
 public sealed class LoginAuditService : ILoginAuditService
 {
-    private readonly IDbContextFactory<AtoCopilotContext> _contextFactory;
     private readonly ILogger<LoginAuditService> _logger;
 
-    public LoginAuditService(
-        IDbContextFactory<AtoCopilotContext> contextFactory,
-        ILogger<LoginAuditService> logger)
+    public LoginAuditService(ILogger<LoginAuditService> logger)
     {
-        _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <inheritdoc />
-    public async Task<LoginAuditEvent> AppendAsync(LoginAuditEventDraft draft, CancellationToken ct = default)
+    public async Task<LoginAuditEvent> AppendAsync(
+        AtoCopilotContext db,
+        LoginAuditEventDraft draft,
+        CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(draft);
 
         // Validation mirrors data-model.md § 1.6 — fail fast on the
@@ -94,11 +93,10 @@ public sealed class LoginAuditService : ILoginAuditService
             MetadataJson = draft.MetadataJson,
         };
 
-        await using var db = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
         await db.LoginAuditEvents.AddAsync(entity, ct).ConfigureAwait(false);
-        // Intentionally NO SaveChangesAsync — caller owns the transaction.
-        // Phases 3+ will refactor the endpoint flow to share a DbContext so
-        // the row actually persists; Phase 2 just pins the contract.
+        // Intentionally NO SaveChangesAsync — caller owns the transaction
+        // so the audit row commits atomically with neighbouring state
+        // changes. Same shape as Feature 050's CapabilityHistoryService.
 
         _logger.LogDebug(
             "LoginAuditService.AppendAsync queued {EventType} (Surface={Surface}, Tenant={TenantId})",

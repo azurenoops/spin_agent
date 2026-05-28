@@ -1,3 +1,4 @@
+using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Auth;
 
 namespace Ato.Copilot.Core.Interfaces.Auth;
@@ -19,12 +20,18 @@ namespace Ato.Copilot.Core.Interfaces.Auth;
 public interface ILoginAuditService
 {
     /// <summary>
-    /// Append a new audit row. MUST NOT call <c>SaveChangesAsync</c> —
-    /// the caller controls the transaction (R6 / Feature-050 SRP parity).
-    /// The returned <see cref="LoginAuditEvent"/> has its <c>Id</c> and
-    /// <c>OccurredAt</c> populated.
+    /// Append a new audit row to the caller's <paramref name="db"/>
+    /// instance. MUST NOT call <c>SaveChangesAsync</c> — the caller owns
+    /// the enclosing transaction so the audit row and any neighbouring
+    /// state change commit atomically (R6 / Feature-050 SRP parity, same
+    /// shape as <c>CapabilityHistoryService.AppendAsync</c>). The
+    /// returned <see cref="LoginAuditEvent"/> has its <c>Id</c> and
+    /// <c>OccurredAt</c> populated and is tracked by <paramref name="db"/>.
     /// </summary>
-    Task<LoginAuditEvent> AppendAsync(LoginAuditEventDraft draft, CancellationToken ct = default);
+    Task<LoginAuditEvent> AppendAsync(
+        AtoCopilotContext db,
+        LoginAuditEventDraft draft,
+        CancellationToken ct = default);
 
     /// <summary>
     /// List audit rows for a tenant in reverse chronological order.
