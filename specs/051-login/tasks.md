@@ -372,18 +372,18 @@ fails startup if manifest does not advertise SSO.
 
 ### 9.2 Auth dispatcher
 
-- [ ] T114 [P] [US6] Create [extensions/m365/src/auth/identityStore.ts](extensions/m365/src/auth/identityStore.ts) per [contracts/m365-bot.md § 3.2](specs/051-login/contracts/m365-bot.md) — in-memory `Map` for dev + `IConversationStateManager` adapter for prod
-- [ ] T115 [TDD-Test] [US6] [extensions/m365/test/auth/dispatcher.test.ts](extensions/m365/test/auth/dispatcher.test.ts) — jest: `Mode=Disabled` always returns null (→ OAuthPrompt); `Mode=Optional` + `getUserToken` returns token → returns token; `Mode=Optional` + `getUserToken` returns null → returns null (→ fallback); `Mode=Required` + `getUserToken` throws → re-throws (unreachable case). RED.
-- [ ] T116 [US6] Create [extensions/m365/src/auth/dispatcher.ts](extensions/m365/src/auth/dispatcher.ts) per [contracts/m365-bot.md § 3.1](specs/051-login/contracts/m365-bot.md). GREEN T115.
+- [X] T114 [P] [US6] Create [extensions/m365/src/auth/identityStore.ts](extensions/m365/src/auth/identityStore.ts) per [contracts/m365-bot.md § 3.2](specs/051-login/contracts/m365-bot.md) — in-memory `Map` for dev + `IConversationStateManager` adapter for prod
+- [X] T115 [TDD-Test] [US6] [extensions/m365/test/auth/dispatcher.test.ts](extensions/m365/test/auth/dispatcher.test.ts) — jest: `Mode=Disabled` always returns null (→ OAuthPrompt); `Mode=Optional` + `getUserToken` returns token → returns token; `Mode=Optional` + `getUserToken` returns null → returns null (→ fallback); `Mode=Required` + `getUserToken` throws → re-throws (unreachable case). RED.
+- [X] T116 [US6] Create [extensions/m365/src/auth/dispatcher.ts](extensions/m365/src/auth/dispatcher.ts) per [contracts/m365-bot.md § 3.1](specs/051-login/contracts/m365-bot.md). GREEN T115.
 
 ### 9.3 OAuthPrompt fallback wiring
 
-- [ ] T117 [US6] Modify [extensions/m365/src/bot.ts](extensions/m365/src/bot.ts) — first `@mention` runs `AuthDispatcher.resolveToken`; on null, run existing `OAuthPrompt` dialog with the sign-in Adaptive Card from [contracts/m365-bot.md § 3.3](specs/051-login/contracts/m365-bot.md); persist into `identityStore` on success
-- [ ] T118 [US6] Add intent handler for "sign out" — calls `adapter.signOutUser` + `identityStore.delete` per [contracts/m365-bot.md § 5](specs/051-login/contracts/m365-bot.md)
+- [X] T117 [US6] Modify [extensions/m365/src/bot.ts](extensions/m365/src/bot.ts) — first `@mention` runs `AuthDispatcher.resolveToken`; on null, run existing `OAuthPrompt` dialog with the sign-in Adaptive Card from [contracts/m365-bot.md § 3.3](specs/051-login/contracts/m365-bot.md); persist into `identityStore` on success **— NOTE: actual entrypoint is `extensions/m365/src/index.ts` (Express-based, no separate `bot.ts`). Dispatcher + sign-in card wired into the existing `POST /api/messages` handler. Gate is opt-in via `AUTH_TEAMS_SSO_MODE` env var (defaults to `Disabled` to preserve legacy behavior).**
+- [X] T118 [US6] Add intent handler for "sign out" — calls `adapter.signOutUser` + `identityStore.delete` per [contracts/m365-bot.md § 5](specs/051-login/contracts/m365-bot.md)
 
 ### 9.4 Manual sign-off
 
-- [ ] T119 [US6] Execute [quickstart.md § 9](specs/051-login/quickstart.md)
+- [ ] T119 [US6] Execute [quickstart.md § 9](specs/051-login/quickstart.md) **— Pending live verification (requires deployed Teams app + bot tunnel).**
 
 **Checkpoint US6**: Teams bot SSO + OAuthPrompt fallback works; `Required` mode fails startup correctly.
 

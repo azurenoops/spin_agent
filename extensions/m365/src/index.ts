@@ -16,6 +16,9 @@ import {
   buildErrorCard,
   selectCard,
 } from "./cards";
+import { AuthDispatcher, type GetUserTokenFn, type TeamsSsoMode } from "./auth/dispatcher";
+import { InMemoryIdentityStore } from "./auth/identityStore";
+import { buildSignInCard, buildSignOutConfirmationCard } from "./auth/signInCard";
 
 // --- Configuration validation (FR-048) ---
 
@@ -37,6 +40,57 @@ if (!BOT_PASSWORD) {
   console.warn("WARNING: BOT_PASSWORD not set — Bot Framework authentication disabled.");
 }
 
+// --- Feature 051 Phase 9 — Teams SSO auth dispatcher (FR-021 / FR-022) ---
+//
+// `AUTH_TEAMS_SSO_MODE` defaults to "Disabled" so the existing bot
+// behavior is preserved when the operator has not opted into the new
+// auth flow. Setting it to "Required" or "Optional" enables the
+// AuthDispatcher gate at the top of POST /api/messages. The server-side
+// AuthOptionsValidator (T113) enforces the matching manifest contract.
+const TEAMS_SSO_MODE = ((): TeamsSsoMode => {
+  const raw = (process.env.AUTH_TEAMS_SSO_MODE ?? "Disabled").trim();
+  if (raw === "Required" || raw === "Optional" || raw === "Disabled") return raw;
+  console.warn(
+    `WARNING: AUTH_TEAMS_SSO_MODE="${raw}" is invalid — defaulting to "Disabled".`,
+  );
+  return "Disabled";
+})();
+const TEAMS_SSO_CONNECTION_NAME = process.env.AUTH_TEAMS_SSO_CONNECTION_NAME ?? "";
+
+// In the Express-only deployment we do not have a Bot Framework adapter
+// to call `getUserToken` against. The default callback always returns
+// null so Optional mode falls back to the OAuthPrompt sign-in card. When
+// the bot is later hosted under a real BotFrameworkAdapter, wire it via
+// `setGetUserToken(...)` from the adapter setup module.
+let getUserToken: GetUserTokenFn = async () => null;
+export function setGetUserToken(fn: GetUserTokenFn): void {
+  getUserToken = fn;
+}
+
+// In-memory store is fine for dev / single-replica. Replace with the
+// ConversationStateIdentityStore adapter for production multi-replica
+// deployments (TODO in identityStore.ts).
+const identityStore = new InMemoryIdentityStore();
+
+const authDispatcher = new AuthDispatcher({
+  mode: TEAMS_SSO_MODE,
+  connectionName: TEAMS_SSO_CONNECTION_NAME,
+  identityStore,
+  getUserToken: (ctx, name) => getUserToken(ctx, name),
+});
+
+// Sign-out adapter callback. Default is no-op (no Bot Framework
+// adapter); a real deployment wires `BotFrameworkAdapter.signOutUser`.
+let signOutUser: (teamsTenantId: string, teamsUserId: string, connectionName: string) => Promise<void> =
+  async () => {
+    /* no-op in Express-only deployment */
+  };
+export function setSignOutUser(
+  fn: (teamsTenantId: string, teamsUserId: string, connectionName: string) => Promise<void>,
+): void {
+  signOutUser = fn;
+}
+
 // --- Initialize services ---
 
 const apiClient = new ATOApiClient(ATO_API_URL, ATO_API_KEY || undefined);
@@ -49,12 +103,40 @@ function buildCardForResponse(mcpResponse: McpResponse): Record<string, unknown>
   return selectCard(mcpResponse);
 }
 
+/**
+ * Feature 051 T118 — match "sign out" / "signout" / "log out" / "logout"
+ * as standalone user messages. Matched case-insensitively against the
+ * trimmed text only; do NOT match when the phrase appears inside a
+ * larger sentence (e.g. "how do I sign out my colleague?").
+ */
+function isSignOutIntent(messageText: string): boolean {
+  const normalized = messageText.trim().toLowerCase().replace(/[!.?]+$/, "");
+  return (
+    normalized === "sign out" ||
+    normalized === "signout" ||
+    normalized === "log out" ||
+    normalized === "logout"
+  );
+}
+
+function buildAdaptiveCardResponse(card: Record<string, unknown>): Record<string, unknown> {
+  return {
+    type: "message",
+    attachments: [
+      {
+        contentType: "application/vnd.microsoft.card.adaptive",
+        content: card,
+      },
+    ],
+  };
+}
+
 // --- Endpoints ---
 
 // POST /api/messages (FR-037, FR-014b)
 app.post("/api/messages", async (req: Request, res: Response) => {
   try {
-    const { text, conversation, from, value } = req.body;
+    const { text, conversation, from, value, channelData } = req.body;
 
     // Handle Action.Submit payloads (FR-014b)
     const actionPayload = value as
@@ -92,6 +174,44 @@ app.post("/api/messages", async (req: Request, res: Response) => {
         ],
       });
       return;
+    }
+
+    // Feature 051 T117 / T118 — Teams SSO auth gate + sign-out intent.
+    //
+    // The gate runs ONLY when AUTH_TEAMS_SSO_MODE is "Required" or
+    // "Optional" — Disabled (the default) preserves the legacy bot
+    // behavior so existing deployments are unaffected (FR-021).
+    //
+    // teamsTenantId is from `activity.channelData.tenant.id` per
+    // contracts/m365-bot.md § 3.1; teamsUserId is `activity.from.id`
+    // (FR-022 — identity link is per-(tenant, user) pair).
+    const teamsTenantId: string | undefined = channelData?.tenant?.id;
+    const teamsUserId: string = from?.id ?? "unknown";
+
+    if (TEAMS_SSO_MODE !== "Disabled") {
+      // T118 — sign-out intent. Triggered before any auth check so the
+      // user can always clear their identity even when their token has
+      // expired. Matches contracts/m365-bot.md § 5.
+      if (isSignOutIntent(messageText)) {
+        if (teamsTenantId) {
+          try {
+            await signOutUser(teamsTenantId, teamsUserId, TEAMS_SSO_CONNECTION_NAME);
+          } catch (err) {
+            console.error("[Auth] adapter.signOutUser failed:", err);
+          }
+          await identityStore.delete(teamsTenantId, teamsUserId);
+        }
+        res.json(buildAdaptiveCardResponse(buildSignOutConfirmationCard()));
+        return;
+      }
+
+      // T117 — auth dispatcher. On null token, render the OAuthPrompt
+      // sign-in card per contracts/m365-bot.md § 3.3 and short-circuit.
+      const token = await authDispatcher.resolveToken({ teamsTenantId, teamsUserId });
+      if (token === null) {
+        res.json(buildAdaptiveCardResponse(buildSignInCard()));
+        return;
+      }
     }
 
     const conversationId =
@@ -280,4 +400,4 @@ function gracefulShutdown(signal: string): void {
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
-export { app, server, buildCardForResponse };
+export { app, server, buildCardForResponse, authDispatcher, identityStore };
