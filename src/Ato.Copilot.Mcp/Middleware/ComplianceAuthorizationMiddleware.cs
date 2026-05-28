@@ -57,6 +57,20 @@ public class ComplianceAuthorizationMiddleware
             return;
         }
 
+        // Feature 051: skip the dashboard's first-class login surface. These
+        // endpoints carry their own auth/authorization contract per
+        // specs/051-login/contracts/http-api.md:
+        //   * GET /api/auth/login-config is intentionally public.
+        //   * GET /api/auth/me / POST /api/auth/signout / select-tenant are
+        //     authenticated but ROLE-AGNOSTIC — a user with no compliance
+        //     role must still be able to read their own identity, log out,
+        //     and pick a tenant.
+        if (context.Request.Path.StartsWithSegments("/api/auth"))
+        {
+            await _next(context);
+            return;
+        }
+
         // In development or stdio mode, skip auth
         var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
         if (environment == "Development")

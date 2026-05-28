@@ -97,6 +97,12 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
         Environment.SetEnvironmentVariable("ATO_Deployment__Tenants__AllowSelfOnboarding", "false");
         Environment.SetEnvironmentVariable("ATO_Auth__Impersonation__SigningKey",
             "ato-copilot-tests-impersonation-signing-key-stable-32B!");
+        // Feature 051 T024 wired AuthOptions with .ValidateOnStart(); the
+        // validator demands Auth:Cookie:SigningKey outside Development and
+        // tests run under Environment=Testing. Wire a stable stub so the
+        // host can boot. (Cookie itself isn't issued by any current test.)
+        Environment.SetEnvironmentVariable("ATO_Auth__Cookie__SigningKey",
+            "ato-copilot-tests-cookie-signing-key-stable-32-bytes-min!");
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
 
         // Bypass the production TenantResolutionMiddleware so the FakeTenantContext

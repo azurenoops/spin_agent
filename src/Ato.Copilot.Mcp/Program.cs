@@ -21,6 +21,7 @@ using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Endpoints.Onboarding;
 using Ato.Copilot.Mcp.Endpoints.Csp;
 using Ato.Copilot.Mcp.Endpoints.Tenancy;
+using Ato.Copilot.Mcp.Endpoints.Auth;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Logging;
 using Ato.Copilot.Mcp.Server;
@@ -425,6 +426,11 @@ async Task RunHttpModeAsync(string[] args)
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Auth.ILoginAuditService,
         Ato.Copilot.Core.Services.Auth.LoginAuditService>();
 
+    // Feature 051 (T039): forensic context extractor used by Auth endpoints
+    // to populate SourceIp / UserAgent / CorrelationId on every audit row.
+    // Scoped to match request lifetime (it operates on HttpContext).
+    builder.Services.AddScoped<Ato.Copilot.Mcp.Middleware.LoginAuditContextAccessor>();
+
     // Feature 051 (T032 / FR-034 / FR-035): throttle service + the
     // IDistributedCache backing store. Dev/Test use the in-process
     // distributed memory cache so unit tests need no Redis; non-Development
@@ -553,6 +559,11 @@ async Task RunHttpModeAsync(string[] args)
 
     // Map Dashboard REST API endpoints (Feature 030)
     app.MapDashboardEndpoints();
+
+    // Feature 051 [US1]: dashboard login surface — login-config + me.
+    // The endpoint group lives under /api/auth and is anonymous-by-default
+    // (the GET /me handler enforces its own authentication check).
+    app.MapAuthEndpoints();
 
     // Map Authorization Package & SAR endpoints (Feature 041)
     app.MapPackageEndpoints();

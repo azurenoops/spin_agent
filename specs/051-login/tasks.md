@@ -117,14 +117,14 @@ via the configured method, and reaches their dashboard (deep link preserved).
 
 ### 3.1 Endpoint: GET /api/auth/login-config
 
-- [ ] T041 [TDD-Test] [US1] [tests/Ato.Copilot.Tests.Integration/Auth/LoginConfigEndpointTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/LoginConfigEndpointTests.cs) — `GET /api/auth/login-config` returns 200 with `branding`, `defaultMethod`, `enabledMethods`, `msal`, `cloud`, `idleTimeoutMinutes`, `rememberTenantCookieDays`, `simulation=null` when env=Production; `Cache-Control: no-store`. RED.
-- [ ] T042 [US1] Create [src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs](src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs) — register endpoint group `/api/auth`; implement `GET /login-config` per [contracts/http-api.md § 1](specs/051-login/contracts/http-api.md). GREEN T041.
-- [ ] T043 [US1] Register the endpoint group in [src/Ato.Copilot.Mcp/Program.cs](src/Ato.Copilot.Mcp/Program.cs)
+- [X] T041 [TDD-Test] [US1] [tests/Ato.Copilot.Tests.Integration/Auth/LoginConfigEndpointTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/LoginConfigEndpointTests.cs) — `GET /api/auth/login-config` returns 200 with `branding`, `defaultMethod`, `enabledMethods`, `msal`, `cloud`, `idleTimeoutMinutes`, `rememberTenantCookieDays`, `simulation=null` when env=Production; `Cache-Control: no-store`. RED.
+- [X] T042 [US1] Create [src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs](src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs) — register endpoint group `/api/auth`; implement `GET /login-config` per [contracts/http-api.md § 1](specs/051-login/contracts/http-api.md). GREEN T041.
+- [X] T043 [US1] Register the endpoint group in [src/Ato.Copilot.Mcp/Program.cs](src/Ato.Copilot.Mcp/Program.cs)
 
 ### 3.2 Endpoint: GET /api/auth/me
 
-- [ ] T044 [TDD-Test] [US1] [tests/Ato.Copilot.Tests.Integration/Auth/MeEndpointTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/MeEndpointTests.cs) — `GET /api/auth/me` returns 200 with full `MeResponse` for authenticated user, 401 without bearer, 403 `NO_TENANT_ASSIGNMENT` + writes audit row with `SYSTEM_TENANT_ID` for tenant-less identity, debounced `LoginSuccess` audit row (one per 5-min window). RED.
-- [ ] T045 [US1] Implement `GET /api/auth/me` in [src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs](src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs) per [contracts/http-api.md § 2](specs/051-login/contracts/http-api.md). GREEN T044.
+- [X] T044 [TDD-Test] [US1] [tests/Ato.Copilot.Tests.Integration/Auth/MeEndpointTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/MeEndpointTests.cs) — `GET /api/auth/me` returns 200 with full `MeResponse` for authenticated user, 401 without bearer, 403 `NO_TENANT_ASSIGNMENT` + writes audit row with `SYSTEM_TENANT_ID` for tenant-less identity, debounced `LoginSuccess` audit row (one per 5-min window). RED.
+- [X] T045 [US1] Implement `GET /api/auth/me` in [src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs](src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs) per [contracts/http-api.md § 2](specs/051-login/contracts/http-api.md). GREEN T044.
 
 ### 3.3 Dashboard `LoginPage`
 
