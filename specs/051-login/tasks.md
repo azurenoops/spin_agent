@@ -176,18 +176,18 @@ and emit audit rows. Silent token renewal does NOT reset the idle counter.
 
 ### 4.2 `useIdleTimer` hook
 
-- [ ] T057 [TDD-Test] [P] [US2] [src/Ato.Copilot.Dashboard/src/__tests__/auth/useIdleTimer.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/useIdleTimer.test.tsx) — Vitest fake timers: assert timer resets on `mousemove`/`keydown`/`touchstart`/`'ato:user-input'`; fires `'ato:idle-warning'` 60s before expiry; calls `POST /api/auth/signout {"reason":"idle_timeout"}` on expiry; does NOT reset on a `'ato:user-input'` event tagged `silentRenewal=true`. RED.
-- [ ] T058 [US2] Create [src/Ato.Copilot.Dashboard/src/features/auth/useIdleTimer.ts](src/Ato.Copilot.Dashboard/src/features/auth/useIdleTimer.ts) per [contracts/frontend-types.md § 4.1](specs/051-login/contracts/frontend-types.md). GREEN T057.
+- [X] T057 [TDD-Test] [P] [US2] [src/Ato.Copilot.Dashboard/src/__tests__/auth/useIdleTimer.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/useIdleTimer.test.tsx) — Vitest fake timers: assert timer resets on `mousemove`/`keydown`/`touchstart`/`'ato:user-input'`; fires `'ato:idle-warning'` 60s before expiry; calls `POST /api/auth/signout {"reason":"idle_timeout"}` on expiry; does NOT reset on a `'ato:user-input'` event tagged `silentRenewal=true`. RED.
+- [X] T058 [US2] Create [src/Ato.Copilot.Dashboard/src/features/auth/useIdleTimer.ts](src/Ato.Copilot.Dashboard/src/features/auth/useIdleTimer.ts) per [contracts/frontend-types.md § 4.1](specs/051-login/contracts/frontend-types.md). GREEN T057.
 
 ### 4.3 `IdleWarningModal`
 
-- [ ] T059 [TDD-Test] [P] [US2] [src/Ato.Copilot.Dashboard/src/__tests__/auth/IdleWarningModal.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/IdleWarningModal.test.tsx) — renders on `'ato:idle-warning'`, shows countdown, "Stay signed in" button dispatches `'ato:user-input'`. RED.
-- [ ] T060 [US2] Create [src/Ato.Copilot.Dashboard/src/features/auth/IdleWarningModal.tsx](src/Ato.Copilot.Dashboard/src/features/auth/IdleWarningModal.tsx). GREEN T059.
-- [ ] T061 [US2] Mount `<IdleWarningModal />` + `useIdleTimer(login.idleTimeoutMinutes)` in `<AppShell />` (or equivalent authenticated root) in [src/Ato.Copilot.Dashboard/src/App.tsx](src/Ato.Copilot.Dashboard/src/App.tsx)
+- [X] T059 [TDD-Test] [P] [US2] [src/Ato.Copilot.Dashboard/src/__tests__/auth/IdleWarningModal.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/IdleWarningModal.test.tsx) — renders on `'ato:idle-warning'`, shows countdown, "Stay signed in" button dispatches `'ato:user-input'`. RED.
+- [X] T060 [US2] Create [src/Ato.Copilot.Dashboard/src/features/auth/IdleWarningModal.tsx](src/Ato.Copilot.Dashboard/src/features/auth/IdleWarningModal.tsx). GREEN T059.
+- [X] T061 [US2] Mount `<IdleWarningModal />` + `useIdleTimer(login.idleTimeoutMinutes)` in `<AppShell />` (or equivalent authenticated root) in [src/Ato.Copilot.Dashboard/src/App.tsx](src/Ato.Copilot.Dashboard/src/App.tsx)
 
 ### 4.4 Sign-out wiring
 
-- [ ] T062 [US2] Stub `AccountMenu.tsx` sign-out button — full menu lands in US9; this task adds just the button at the existing header location and wires it to `POST /api/auth/signout` then `msalInstance.logoutRedirect()` (file: [src/Ato.Copilot.Dashboard/src/features/auth/AccountMenu.tsx](src/Ato.Copilot.Dashboard/src/features/auth/AccountMenu.tsx))
+- [X] T062 [US2] Stub `AccountMenu.tsx` sign-out button — full menu lands in US9; this task adds just the button at the existing header location and wires it to `POST /api/auth/signout` then `msalInstance.logoutRedirect()` (file: [src/Ato.Copilot.Dashboard/src/features/auth/AccountMenu.tsx](src/Ato.Copilot.Dashboard/src/features/auth/AccountMenu.tsx))
 
 ### 4.5 FR-008 — Restore unsaved changes on idle sign-out (analysis C1)
 

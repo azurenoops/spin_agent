@@ -8,6 +8,7 @@ import NotificationPanel from '../notifications/NotificationPanel';
 import RoleSwitcher from './RoleSwitcher';
 import TenantPicker from '../../features/tenancy/TenantPicker';
 import ImpersonationBanner from '../../features/tenancy/ImpersonationBanner';
+import AccountMenu from '../../features/auth/AccountMenu';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useCspBranding } from './useCspBranding';
 import spinLogo from '../../assets/2026-04-22_15-58-30.png';
@@ -158,6 +159,12 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
             <div className="ml-2 h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-medium cursor-pointer hover:ring-2 hover:ring-indigo-300" title="User profile">
               JS
             </div>
+            {/* Feature 051 T062 [US2]: AccountMenu stub — currently
+                only the sign-out item. US9 (T140) replaces this with
+                the full menu (name, persona, home tenant, active PIM
+                role). The existing "JS" avatar above is kept until
+                US3 wires `useMe` so the stub has a display name. */}
+            <AccountMenu />
           </div>
         </header>
 

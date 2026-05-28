@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { useIsAuthenticated } from '@azure/msal-react';
 import PortfolioRoute from './pages/PortfolioRoute';
 import SystemsRoute from './pages/SystemsRoute';
 import ComponentsRoute from './pages/ComponentsRoute';
@@ -39,6 +40,9 @@ import ImportedDocumentsView from './features/admin/imported-documents/ImportedD
 import LoginPage from './features/auth/LoginPage';
 import LoginCallbackPage from './features/auth/LoginCallbackPage';
 import RequireAuth from './features/auth/RequireAuth';
+import IdleWarningModal from './features/auth/IdleWarningModal';
+import { useIdleTimer } from './features/auth/useIdleTimer';
+import { useLoginConfig } from './features/auth/LoginConfigContext';
 
 function AppContent() {
   const { panelState, togglePanel, closePanel, setWidth } = useChatPanel();
@@ -57,6 +61,7 @@ function AppContent() {
 
   return (
     <SystemDataProvider>
+      <AuthenticatedSessionGuards />
       <CspOnboardingGuard>
         <TenantOnboardingGuard>
           <Routes>
@@ -123,4 +128,24 @@ export default function App() {
       </ChatPanelProvider>
     </SettingsContext.Provider>
   );
+}
+
+/**
+ * Feature 051 T061 [US2] — mounts the idle-sign-out timer + warning
+ * modal inside the SPA shell. Only active when MSAL reports an
+ * authenticated user, so the public /login and /login/callback routes
+ * do NOT arm the timer. Renders nothing visible until the warning
+ * fires (the modal self-hides). Reads idleTimeoutMinutes from the
+ * bootstrap LoginConfig (FR-007).
+ */
+function AuthenticatedSessionGuards() {
+  const isAuthenticated = useIsAuthenticated();
+  if (!isAuthenticated) return null;
+  return <AuthenticatedSessionGuardsActive />;
+}
+
+function AuthenticatedSessionGuardsActive() {
+  const { idleTimeoutMinutes } = useLoginConfig();
+  useIdleTimer(idleTimeoutMinutes);
+  return <IdleWarningModal />;
 }
