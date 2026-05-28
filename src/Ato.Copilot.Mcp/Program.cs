@@ -418,6 +418,35 @@ async Task RunHttpModeAsync(string[] args)
         Microsoft.Extensions.Options.IValidateOptions<Ato.Copilot.Core.Configuration.Auth.AuthOptions>,
         Ato.Copilot.Core.Configuration.Auth.AuthOptionsValidator>();
 
+    // Feature 051 (T028): the audit-write service. Scoped because it uses
+    // IDbContextFactory<AtoCopilotContext> and follows the F050
+    // CapabilityHistoryService SRP — AppendAsync does not call
+    // SaveChangesAsync (caller owns the transaction).
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Auth.ILoginAuditService,
+        Ato.Copilot.Core.Services.Auth.LoginAuditService>();
+
+    // Feature 051 (T032 / FR-034 / FR-035): throttle service + the
+    // IDistributedCache backing store. Dev/Test use the in-process
+    // distributed memory cache so unit tests need no Redis; non-Development
+    // wires Redis per contracts/internal-services.md § 6 + research § R7.
+    // Per analysis C11 any non-Development environment uses the Production
+    // throttle block + Redis cache.
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Auth.ILoginThrottleService,
+        Ato.Copilot.Core.Services.Auth.LoginThrottleService>();
+    if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+    {
+        builder.Services.AddDistributedMemoryCache();
+    }
+    else
+    {
+        builder.Services.AddStackExchangeRedisCache(o =>
+        {
+            o.Configuration = builder.Configuration.GetConnectionString("Redis")
+                ?? "localhost:6379";
+            o.InstanceName = "ato-throttle:";
+        });
+    }
+
     builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContextAccessor,
         Ato.Copilot.Core.Services.Tenancy.TenantContextAccessor>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext,
