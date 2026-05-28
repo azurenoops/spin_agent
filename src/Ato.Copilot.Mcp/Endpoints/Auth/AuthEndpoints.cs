@@ -215,17 +215,63 @@ public static class AuthEndpoints
         // Resolve the effective tenant via the impersonation cookie (CSP-Admin path).
         var effectiveTenant = homeTenant;
         ImpersonationCookiePayload? impPayload = null;
-        if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue) &&
-            impersonation.Validate(cookieValue) is { } payload)
+        if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue))
         {
-            var target = await db.Tenants
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(t => t.Id == payload.ImpersonatedTenantId, ct);
-            if (target is not null)
+            if (impersonation.Validate(cookieValue) is { } payload)
             {
-                effectiveTenant = target;
-                impPayload = payload;
+                var target = await db.Tenants
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(t => t.Id == payload.ImpersonatedTenantId, ct);
+                if (target is not null)
+                {
+                    effectiveTenant = target;
+                    impPayload = payload;
+                }
             }
+            else if (impersonation.ValidateIgnoringLifetime(cookieValue) is { } expiredPayload)
+            {
+                // Feature 051 T132 [US8] — the cookie's signature + issuer
+                // + audience are valid, but the lifetime claim is in the
+                // past. Treat this as the auto-expiry path: write an
+                // ImpersonationEnd(expired) audit row stamped on the
+                // impersonated tenant, clear the stale cookie, and fall
+                // through to render /me without an impersonation scope.
+                // Tampered cookies (signature failure) take neither
+                // branch — they are silently ignored.
+                try
+                {
+                    var expiryMetadata = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        impersonatedTenantId = expiredPayload.ImpersonatedTenantId.ToString(),
+                        reason = "expired",
+                    });
+                    await audit.AppendAsync(db, new LoginAuditEventDraft(
+                        EventType: LoginAuditEventType.ImpersonationEnd,
+                        Oid: expiredPayload.ImpersonatorOid,
+                        Tid: tid,
+                        EffectiveTenantId: expiredPayload.ImpersonatedTenantId,
+                        CorrelationId: auditCtx.CorrelationId,
+                        SourceIp: auditCtx.SourceIp,
+                        UserAgent: auditCtx.UserAgent,
+                        Surface: LoginSurface.Dashboard,
+                        MetadataJson: expiryMetadata), ct);
+                    await db.SaveChangesAsync(ct);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex,
+                        "ImpersonationEnd(expired) audit write failed during /me; cookie still cleared");
+                }
+
+                http.Response.Cookies.Delete(impersonation.CookieName, new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = true,
+                    SameSite = SameSiteMode.Strict,
+                    Path = "/",
+                });
+            }
+            // else: signature/audience/issuer failure — silently ignore.
         }
 
         // Feature 051 T070 / US3 / FR-013 — when the impersonation cookie
@@ -426,8 +472,18 @@ public static class AuthEndpoints
 
         // Parse optional body { "reason": "manual" | "idle_timeout" }.
         // Empty body ⇒ default "manual". Unknown values ⇒ 400.
+        //
+        // We MUST NOT key the parse on Content-Length — chunked HTTP
+        // requests (and some test client paths) omit the header, which
+        // would silently drop a perfectly valid `{"reason":"idle_timeout"}`
+        // body and write a SignOut row instead of an IdleSignOut row,
+        // breaking the audit chain for idle-driven impersonation closes
+        // (Feature 051 T132). Detect the body via Content-Type instead.
         var eventType = LoginAuditEventType.SignOut;
-        if (http.Request.ContentLength is > 0)
+        var hasJsonBody = !string.IsNullOrEmpty(http.Request.ContentType)
+                          && http.Request.ContentType.Contains("application/json",
+                              StringComparison.OrdinalIgnoreCase);
+        if (hasJsonBody)
         {
             SignOutRequestBody? body;
             try
@@ -471,6 +527,7 @@ public static class AuthEndpoints
         var auditCtx = auditCtxAccessor.FromHttpContext(http);
 
         Guid effectiveTenantId = Guid.Empty;
+        ImpersonationCookiePayload? impersonationPayload = null;
         if (Guid.TryParse(tid, out var tidGuid))
         {
             var homeTenant = await db.Tenants
@@ -491,9 +548,42 @@ public static class AuthEndpoints
                     if (target is not null)
                     {
                         effectiveTenantId = target.Id;
+                        impersonationPayload = payload;
                     }
                 }
             }
+        }
+
+        // Feature 051 T132 [US8] — when sign-out is driven by idle
+        // timeout AND an impersonation cookie is in flight, write the
+        // ImpersonationEnd(idle_timeout) row FIRST so the audit trail
+        // reads in causal order:
+        //   1. ImpersonationEnd(idle_timeout)  // the cross-tenant scope closes
+        //   2. IdleSignOut                     // the session itself ends
+        // The cookie is then deleted by the existing block below; the
+        // SignOut path is otherwise unchanged.
+        if (eventType == LoginAuditEventType.IdleSignOut && impersonationPayload is not null)
+        {
+            var impMetadata = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                impersonatedTenantId = impersonationPayload.ImpersonatedTenantId.ToString(),
+                reason = "idle_timeout",
+            });
+            await audit.AppendAsync(db, new LoginAuditEventDraft(
+                EventType: LoginAuditEventType.ImpersonationEnd,
+                Oid: oid,
+                Tid: tid,
+                EffectiveTenantId: impersonationPayload.ImpersonatedTenantId,
+                CorrelationId: auditCtx.CorrelationId,
+                SourceIp: auditCtx.SourceIp,
+                UserAgent: auditCtx.UserAgent,
+                Surface: LoginSurface.Dashboard,
+                MetadataJson: impMetadata), ct);
+            // Commit the ImpersonationEnd row immediately so its
+            // OccurredAt is strictly earlier than the IdleSignOut row
+            // appended next. Two SaveChangesAsync calls means two
+            // distinct timestamps in monotonic order.
+            await db.SaveChangesAsync(ct);
         }
 
         await audit.AppendAsync(db, new LoginAuditEventDraft(

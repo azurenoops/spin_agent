@@ -1,13 +1,18 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Mcp.Hubs;
+using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Services.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -184,6 +189,15 @@ public static class TenantsEndpoints
     /// POST /api/tenants/{tenantId}/impersonate — CSP-Admin only. Issues the
     /// signed cookie + returns the impersonation envelope. 1-hour expiry.
     /// </summary>
+    /// <remarks>
+    /// Feature 051 Phase 11 T131 [US8] — the existing Feature 048 cookie
+    /// flow is unchanged; this handler additionally writes an
+    /// <see cref="LoginAuditEventType.ImpersonationStart"/> audit row
+    /// stamped on the IMPERSONATED tenant (not the actor's home tenant),
+    /// with <c>MetadataJson = {"impersonatedTenantId":"&lt;guid&gt;",
+    /// "expectedEndAt":"&lt;iso8601&gt;"}</c>, so SOC can correlate
+    /// every cross-tenant action back to the originating session.
+    /// </remarks>
     private static async Task<IResult> StartImpersonationAsync(
         HttpContext http,
         Guid tenantId,
@@ -191,6 +205,9 @@ public static class TenantsEndpoints
         ITenantProvisioningService service,
         ITenantImpersonationService impersonation,
         ITenantContextNotifier notifier,
+        IDbContextFactory<AtoCopilotContext> dbFactory,
+        ILoginAuditService audit,
+        LoginAuditContextAccessor auditCtxAccessor,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
@@ -214,6 +231,40 @@ public static class TenantsEndpoints
             Path = "/",
         });
 
+        // Feature 051 T131 [US8] — ImpersonationStart audit row, stamped
+        // on the IMPERSONATED tenant. The row commits in its own DbContext
+        // because the cookie was already written to the response above;
+        // failing the audit write after the cookie is in flight would be
+        // confusing. We log + swallow the failure so the response stays
+        // 200 (the SignalR fan-out below has the same best-effort posture).
+        var auditCtx = auditCtxAccessor.FromHttpContext(http);
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var metadata = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                impersonatedTenantId = target.Id.ToString(),
+                expectedEndAt = expiresAt.ToString("o"),
+            });
+            await audit.AppendAsync(db, new LoginAuditEventDraft(
+                EventType: LoginAuditEventType.ImpersonationStart,
+                Oid: string.IsNullOrEmpty(actor) || actor == "anonymous" ? null : actor,
+                Tid: http.User.FindFirstValue("tid"),
+                EffectiveTenantId: target.Id,
+                CorrelationId: auditCtx.CorrelationId,
+                SourceIp: auditCtx.SourceIp,
+                UserAgent: auditCtx.UserAgent,
+                Surface: LoginSurface.Dashboard,
+                MetadataJson: metadata), ct);
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception)
+        {
+            // Cookie has already been issued; do not collapse the success
+            // response into an error just because the audit-store write
+            // failed. The SignalR fan-out below follows the same pattern.
+        }
+
         // Feature 048 (T149, SC-005): broadcast the impersonation start so any
         // other dashboard tabs / clients owned by this CSP-Admin update without
         // polling. Best-effort: the cookie is the source of truth.
@@ -231,12 +282,60 @@ public static class TenantsEndpoints
     /// DELETE /api/tenants/impersonation — clears the cookie. Returns 204
     /// even when no cookie was present (idempotent).
     /// </summary>
+    /// <remarks>
+    /// Feature 051 Phase 11 T132 [US8] — when the cookie is present and
+    /// validates, an <see cref="LoginAuditEventType.ImpersonationEnd"/>
+    /// row is written with <c>MetadataJson = {"impersonatedTenantId":
+    /// "&lt;guid&gt;","reason":"manual"}</c>, stamped on the impersonated
+    /// tenant. The audit row writes BEFORE the cookie is cleared so the
+    /// payload is still available; failures are swallowed so the 204
+    /// stays idempotent.
+    /// </remarks>
     private static async Task<IResult> EndImpersonationAsync(
         HttpContext http,
         ITenantImpersonationService impersonation,
         ITenantContextNotifier notifier,
+        IDbContextFactory<AtoCopilotContext> dbFactory,
+        ILoginAuditService audit,
+        LoginAuditContextAccessor auditCtxAccessor,
         CancellationToken ct)
     {
+        // Audit BEFORE we delete the cookie so the payload is still
+        // available. Manual-exit is the only reason this endpoint is
+        // hit (auto-expiry is detected in /me; idle is detected in
+        // /signout). Tampered / missing cookies write no row —
+        // tampered cookies are silently ignored everywhere.
+        if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue) &&
+            impersonation.Validate(cookieValue) is { } payload)
+        {
+            try
+            {
+                var auditCtx = auditCtxAccessor.FromHttpContext(http);
+                await using var db = await dbFactory.CreateDbContextAsync(ct);
+                var metadata = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    impersonatedTenantId = payload.ImpersonatedTenantId.ToString(),
+                    reason = "manual",
+                });
+                await audit.AppendAsync(db, new LoginAuditEventDraft(
+                    EventType: LoginAuditEventType.ImpersonationEnd,
+                    Oid: payload.ImpersonatorOid,
+                    Tid: http.User.FindFirstValue("tid"),
+                    EffectiveTenantId: payload.ImpersonatedTenantId,
+                    CorrelationId: auditCtx.CorrelationId,
+                    SourceIp: auditCtx.SourceIp,
+                    UserAgent: auditCtx.UserAgent,
+                    Surface: LoginSurface.Dashboard,
+                    MetadataJson: metadata), ct);
+                await db.SaveChangesAsync(ct);
+            }
+            catch (Exception)
+            {
+                // Mirror StartImpersonation's posture: never fail the
+                // 204 just because the audit store is unavailable.
+            }
+        }
+
         http.Response.Cookies.Delete(impersonation.CookieName, new CookieOptions
         {
             HttpOnly = true,

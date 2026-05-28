@@ -445,9 +445,9 @@ on expire / sign-out / idle.
 
 ### 11.2 Audit rows for impersonation transitions
 
-- [ ] T130 [TDD-Test] [US8] [tests/Ato.Copilot.Tests.Integration/Auth/ImpersonationAuditTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/ImpersonationAuditTests.cs) — POST to the existing Feature 048 impersonate endpoint writes `ImpersonationStart` audit row; DELETE / Exit writes `ImpersonationEnd` with `reason=manual`; auto-expiry writes `ImpersonationEnd` with `reason=expired`; idle sign-out also closes impersonation with `reason=idle_timeout`. RED.
-- [ ] T131 [US8] Extend the existing Feature 048 impersonation start handler in [src/Ato.Copilot.Mcp/Endpoints/](src/Ato.Copilot.Mcp/Endpoints/) (locate via `grep -rln "Impersonate" src/Ato.Copilot.Mcp/Endpoints/`) to write `ImpersonationStart` via `ILoginAuditService`. GREEN T130 (start).
-- [ ] T132 [US8] Extend the impersonation-end paths (manual + expiry + idle) to write `ImpersonationEnd` with the correct `reason`. GREEN T130 (end).
+- [X] T130 [TDD-Test] [US8] [tests/Ato.Copilot.Tests.Integration/Auth/ImpersonationAuditTests.cs](tests/Ato.Copilot.Tests.Integration/Auth/ImpersonationAuditTests.cs) — POST to the existing Feature 048 impersonate endpoint writes `ImpersonationStart` audit row; DELETE / Exit writes `ImpersonationEnd` with `reason=manual`; auto-expiry writes `ImpersonationEnd` with `reason=expired`; idle sign-out also closes impersonation with `reason=idle_timeout`. RED.
+- [X] T131 [US8] Extend the existing Feature 048 impersonation start handler in [src/Ato.Copilot.Mcp/Endpoints/](src/Ato.Copilot.Mcp/Endpoints/) (locate via `grep -rln "Impersonate" src/Ato.Copilot.Mcp/Endpoints/`) to write `ImpersonationStart` via `ILoginAuditService`. GREEN T130 (start).
+- [X] T132 [US8] Extend the impersonation-end paths (manual + expiry + idle) to write `ImpersonationEnd` with the correct `reason`. GREEN T130 (end).
 
 ### 11.3 Dashboard `ImpersonationBanner`
 

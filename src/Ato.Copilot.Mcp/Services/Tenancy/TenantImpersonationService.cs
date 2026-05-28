@@ -37,6 +37,18 @@ public interface ITenantImpersonationService
     /// claims when valid.
     /// </summary>
     ImpersonationCookiePayload? Validate(string cookieValue);
+
+    /// <summary>
+    /// Feature 051 T132 [US8] — validates an inbound cookie value
+    /// WITHOUT enforcing the lifetime claim. Returns non-null only when
+    /// the signature + issuer + audience are valid; the payload's
+    /// <see cref="ImpersonationCookiePayload.ExpiresAt"/> may be in the
+    /// past. Callers use this to distinguish "expired but otherwise
+    /// trustworthy" (auditable as <c>ImpersonationEnd(expired)</c>)
+    /// from "tampered / malformed" (silently ignored). Tampered
+    /// cookies still return null.
+    /// </summary>
+    ImpersonationCookiePayload? ValidateIgnoringLifetime(string cookieValue);
 }
 
 /// <summary>
@@ -64,6 +76,7 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
 
     private readonly SigningCredentials _signing;
     private readonly TokenValidationParameters _validation;
+    private readonly TokenValidationParameters _validationIgnoringLifetime;
     private readonly JwtSecurityTokenHandler _handler = new() { MapInboundClaims = false };
 
     public string CookieName => "ato-impersonate";
@@ -109,6 +122,19 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromSeconds(30),
         };
+        // Feature 051 T132 — mirror of _validation with lifetime
+        // validation disabled so the /me handler can distinguish an
+        // expired-but-otherwise-trustworthy cookie from a tampered one.
+        _validationIgnoringLifetime = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = IssuerValue,
+            ValidateAudience = true,
+            ValidAudience = AudienceValue,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = symmetricKey,
+            ValidateLifetime = false,
+        };
     }
 
     /// <inheritdoc />
@@ -146,6 +172,15 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
 
     /// <inheritdoc />
     public ImpersonationCookiePayload? Validate(string cookieValue)
+        => ValidateCore(cookieValue, _validation);
+
+    /// <inheritdoc />
+    public ImpersonationCookiePayload? ValidateIgnoringLifetime(string cookieValue)
+        => ValidateCore(cookieValue, _validationIgnoringLifetime);
+
+    private ImpersonationCookiePayload? ValidateCore(
+        string cookieValue,
+        TokenValidationParameters parameters)
     {
         if (string.IsNullOrWhiteSpace(cookieValue))
         {
@@ -154,7 +189,7 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
 
         try
         {
-            var principal = _handler.ValidateToken(cookieValue, _validation, out var validated);
+            var principal = _handler.ValidateToken(cookieValue, parameters, out var validated);
             var jwt = (JwtSecurityToken)validated;
 
             var sub = principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
