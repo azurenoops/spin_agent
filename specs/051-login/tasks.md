@@ -367,8 +367,8 @@ fails startup if manifest does not advertise SSO.
 
 ### 9.1 Manifest validator (startup-fail)
 
-- [ ] T112 [TDD-Test] [US6] [tests/Ato.Copilot.Tests.Unit/Auth/TeamsManifestValidatorTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/TeamsManifestValidatorTests.cs) — `Mode=Required` + manifest with empty `webApplicationInfo.id` → `OptionsValidationException` at `IValidateOptions<AuthOptions>.Validate`; `Mode=Required` + populated manifest → success; `Mode=Optional` regardless of manifest → success. RED.
-- [ ] T113 [US6] Extend [src/Ato.Copilot.Core/Configuration/Auth/AuthOptionsValidator.cs](src/Ato.Copilot.Core/Configuration/Auth/AuthOptionsValidator.cs) to read the Teams manifest (path injected via `IHostEnvironment.ContentRootPath`) and enforce the Required-mode rule per [research.md § R12](specs/051-login/research.md). GREEN T112.
+- [X] T112 [TDD-Test] [US6] [tests/Ato.Copilot.Tests.Unit/Auth/TeamsManifestValidatorTests.cs](tests/Ato.Copilot.Tests.Unit/Auth/TeamsManifestValidatorTests.cs) — `Mode=Required` + manifest with empty `webApplicationInfo.id` → `OptionsValidationException` at `IValidateOptions<AuthOptions>.Validate`; `Mode=Required` + populated manifest → success; `Mode=Optional` regardless of manifest → success. RED.
+- [X] T113 [US6] Extend [src/Ato.Copilot.Core/Configuration/Auth/AuthOptionsValidator.cs](src/Ato.Copilot.Core/Configuration/Auth/AuthOptionsValidator.cs) to read the Teams manifest (path injected via `IHostEnvironment.ContentRootPath`) and enforce the Required-mode rule per [research.md § R12](specs/051-login/research.md). GREEN T112.
 
 ### 9.2 Auth dispatcher
 

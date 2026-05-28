@@ -17,9 +17,17 @@ public class AuthOptionsValidatorTests
 {
     private static AuthOptionsValidator Validator(string environmentName)
     {
+        // Pre-Feature-051-T113 tests cover the non-manifest gates. Inject a
+        // valid-manifest stub so the Required-mode tests below exercise only
+        // the ConnectionName gate; dedicated manifest behavior lives in
+        // TeamsManifestValidatorTests.
+        const string validManifest = """
+        { "manifestVersion": "1.17", "webApplicationInfo": { "id": "11111111-2222-3333-4444-555555555555", "resource": "api://bot.example.com" } }
+        """;
         var envMock = new Mock<IHostEnvironment>();
         envMock.SetupGet(e => e.EnvironmentName).Returns(environmentName);
-        return new AuthOptionsValidator(envMock.Object);
+        envMock.SetupGet(e => e.ContentRootPath).Returns("/tmp/test-content-root");
+        return new AuthOptionsValidator(envMock.Object, () => validManifest);
     }
 
     private static AuthOptions ValidOptions() => new()
