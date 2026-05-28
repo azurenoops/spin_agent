@@ -4,6 +4,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useLoginConfig } from './LoginConfigContext';
 import { DEFAULT_API_SCOPES } from './msalInstance';
 import { useLoginRaceListener } from './useLoginRaceListener';
+import SimulationPanel from './SimulationPanel';
 import type { AuthMethodId } from './types';
 
 /**
@@ -83,20 +84,7 @@ export default function LoginPage() {
           })}
         </div>
 
-        {login.simulation && (
-          <div
-            data-testid="simulation-panel"
-            className="mt-8 border-t border-gray-200 pt-6"
-          >
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">
-              Developer simulation
-            </h2>
-            <p className="text-xs text-gray-500">
-              Simulated identities will be selectable here once Phase 10
-              ships. ({login.simulation.identities.length} configured.)
-            </p>
-          </div>
-        )}
+        {login.simulation && <SimulationPanel />}
 
         {login.branding.supportEmail && (
           <p className="mt-6 text-xs text-gray-500 text-center">

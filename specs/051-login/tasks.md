@@ -418,13 +418,13 @@ non-Development.
 
 ### 10.5 Dashboard: `SimulationPanel`
 
-- [ ] T126 [TDD-Test] [P] [US7] [src/Ato.Copilot.Dashboard/src/__tests__/auth/SimulationPanel.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/SimulationPanel.test.tsx) — when `useLoginConfig().simulation` is null, component returns `null` even if a `force` prop is passed (route guard); when non-null, lists identities + click POSTs to `/api/auth/simulate`. RED.
-- [ ] T127 [US7] Create [src/Ato.Copilot.Dashboard/src/features/auth/SimulationPanel.tsx](src/Ato.Copilot.Dashboard/src/features/auth/SimulationPanel.tsx). GREEN T126.
-- [ ] T128 [US7] Mount `<SimulationPanel />` on `LoginPage` below the Sign In buttons; guard with `useLoginConfig().simulation != null`
+- [X] T126 [TDD-Test] [P] [US7] [src/Ato.Copilot.Dashboard/src/__tests__/auth/SimulationPanel.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/SimulationPanel.test.tsx) — when `useLoginConfig().simulation` is null, component returns `null` even if a `force` prop is passed (route guard); when non-null, lists identities + click POSTs to `/api/auth/simulate`. RED.
+- [X] T127 [US7] Create [src/Ato.Copilot.Dashboard/src/features/auth/SimulationPanel.tsx](src/Ato.Copilot.Dashboard/src/features/auth/SimulationPanel.tsx). GREEN T126.
+- [X] T128 [US7] Mount `<SimulationPanel />` on `LoginPage` below the Sign In buttons; guard with `useLoginConfig().simulation != null`
 
 ### 10.6 Manual sign-off
 
-- [ ] T129 [US7] Execute [quickstart.md § 10](specs/051-login/quickstart.md)
+- [ ] T129 [US7] Execute [quickstart.md § 10](specs/051-login/quickstart.md) **— Pending live verification** (requires Docker MCP stack + dashboard + manual flips of `ASPNETCORE_ENVIRONMENT` to confirm all 3 gates behave as specified in vivo).
 
 **Checkpoint US7**: Simulation panel renders in Development only; all 3 gates active.
 
