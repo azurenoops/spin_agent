@@ -75,14 +75,15 @@ public static class AuthEndpoints
         var sw = Stopwatch.StartNew();
         var auth = authOptions.Value;
 
-        // Branding — Phase 13 polish wires this to a real config service.
-        // Until then emit safe deployment-neutral defaults so the SPA can
-        // render the branded /login page without throwing.
+        // Branding — sourced from `Auth:Branding` per AuthBrandingOptions.
+        // Empty strings fall back to safe deployment-neutral defaults so
+        // the SPA can render the branded /login page without throwing.
+        var b = auth.Branding;
         var branding = new
         {
-            deploymentName = "ATO Copilot",
-            logoUrl = (string?)null,
-            supportEmail = (string?)null,
+            deploymentName = string.IsNullOrWhiteSpace(b.DeploymentName) ? "ATO Copilot" : b.DeploymentName,
+            logoUrl = string.IsNullOrWhiteSpace(b.LogoUrl) ? (string?)null : b.LogoUrl,
+            supportEmail = string.IsNullOrWhiteSpace(b.SupportEmail) ? (string?)null : b.SupportEmail,
         };
 
         // Enabled methods — emit both CAC + Entra unconditionally for now;

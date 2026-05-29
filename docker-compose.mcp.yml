@@ -119,6 +119,12 @@ services:
       # rejects '.' in variable names. .NET binding accepts both forms.
       - ATO_AUTH__ROLECLAIMMAPPINGS__CSPADMIN=${ATO_AUTH__ROLECLAIMMAPPINGS__CSPADMIN}
       - ATO_AUTH__ROLECLAIMMAPPINGS__SOCANALYST=${ATO_AUTH__ROLECLAIMMAPPINGS__SOCANALYST}
+      # Branding shown on the dashboard's /login page. All three are
+      # optional — empty values fall back to "ATO Copilot" / no logo /
+      # no support link.
+      - ATO_AUTH__BRANDING__DEPLOYMENTNAME=${ATO_AUTH__BRANDING__DEPLOYMENTNAME}
+      - ATO_AUTH__BRANDING__LOGOURL=${ATO_AUTH__BRANDING__LOGOURL}
+      - ATO_AUTH__BRANDING__SUPPORTEMAIL=${ATO_AUTH__BRANDING__SUPPORTEMAIL}
 
       # ── Feature flags ─────────────────────────────────────
       # Default ON for the local stack so the dashboard's "Discover from

@@ -32,6 +32,24 @@ public sealed class AuthOptions
     public AuthTeamsSsoOptions TeamsSso { get; set; } = new();
     public AuthArchiveOptions Archive { get; set; } = new();
     public AuthMsalOptions Msal { get; set; } = new();
+    public AuthBrandingOptions Branding { get; set; } = new();
+}
+
+/// <summary>
+/// Branding shown on the dashboard's <c>/login</c> page (FR-002 / FR-003).
+/// All three fields are optional; the SPA falls back to safe defaults
+/// ("ATO Copilot", no logo, no support link) when this section is empty.
+/// </summary>
+public sealed class AuthBrandingOptions
+{
+    /// <summary>Deployment name shown as the &lt;h1&gt; on the login page. Empty → "ATO Copilot".</summary>
+    public string DeploymentName { get; set; } = string.Empty;
+
+    /// <summary>Absolute or relative URL to the deployment logo. Empty → no &lt;img&gt; is rendered.</summary>
+    public string LogoUrl { get; set; } = string.Empty;
+
+    /// <summary>Support email shown in the login-page footer. Empty → no mailto link is rendered.</summary>
+    public string SupportEmail { get; set; } = string.Empty;
 }
 
 /// <summary>Cookie-signing configuration (FR-012).</summary>
