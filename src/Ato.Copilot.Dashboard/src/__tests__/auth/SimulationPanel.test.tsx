@@ -15,12 +15,14 @@ vi.mock('axios', () => {
   return { default: stub, post };
 });
 
-// Spy on window.location.reload so we can assert the success path triggers
-// it without actually navigating away from the test sandbox.
-const { reload } = vi.hoisted(() => ({ reload: vi.fn() }));
+// Spy on window.location.assign so we can assert the success path navigates
+// to the dashboard root (RequireAuth then probes /me, sees the simulation
+// cookies, and promotes the user to authenticated). assign — not reload —
+// because the success flow must LEAVE /login, not re-bootstrap it.
+const { assign } = vi.hoisted(() => ({ assign: vi.fn() }));
 Object.defineProperty(window, 'location', {
   configurable: true,
-  value: { ...window.location, reload },
+  value: { ...window.location, assign },
 });
 
 // Re-assignable LoginConfig — each test sets the simulation descriptor.
@@ -77,7 +79,7 @@ const SAMPLE_SIM: SimulationPanelDescriptor = {
 
 beforeEach(() => {
   post.mockReset();
-  reload.mockReset();
+  assign.mockReset();
 });
 
 describe('SimulationPanel', () => {
@@ -145,7 +147,7 @@ describe('SimulationPanel', () => {
     expect(url).toContain('identityId=dev-cspadmin');
   });
 
-  it('on 204 success reloads the page so the SPA re-bootstraps as the new identity', async () => {
+  it('on 204 success navigates to dashboard root so RequireAuth picks up the simulation session', async () => {
     // Arrange
     currentConfig = makeConfig(SAMPLE_SIM);
     post.mockResolvedValueOnce({ status: 204 });
@@ -155,10 +157,11 @@ describe('SimulationPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /dev isso/i }));
 
     // Assert
-    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    expect(assign).toHaveBeenCalledWith('/');
   });
 
-  it('on network failure surfaces an error message and does not reload', async () => {
+  it('on network failure surfaces an error message and does not navigate', async () => {
     // Arrange
     currentConfig = makeConfig(SAMPLE_SIM);
     post.mockRejectedValueOnce(new Error('boom'));
@@ -171,6 +174,6 @@ describe('SimulationPanel', () => {
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(/could not start simulated session/i),
     );
-    expect(reload).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
   });
 });

@@ -46,9 +46,13 @@ export default function SimulationPanel(_props: SimulationPanelProps = {}) {
     setError(null);
     try {
       await axios.post(`/api/auth/simulate?identityId=${encodeURIComponent(id)}`);
-      // On success the server set the ato-simulation + X-Simulated cookies.
-      // Reload so the SPA re-bootstraps as the new identity.
-      window.location.reload();
+      // On success the server set the ato-simulation + X-Simulated cookies
+      // (both HttpOnly). Navigate to the dashboard root — RequireAuth on
+      // that route probes /api/auth/me, sees the simulation cookies, and
+      // promotes the user to authenticated without bouncing through Entra.
+      // Using window.location.assign (not reload) so we LEAVE /login
+      // instead of re-bootstrapping it and ending up back on the panel.
+      window.location.assign('/');
     } catch {
       setPendingId(null);
       setError(
