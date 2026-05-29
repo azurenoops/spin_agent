@@ -90,6 +90,30 @@ public sealed class TenantStampingSaveChangesInterceptor : SaveChangesIntercepto
                 continue;
             }
 
+            // Some [TenantScoped] entities (e.g. Feature 051 LoginAuditEvent)
+            // deliberately use a domain-specific tenant column name
+            // (EffectiveTenantId) instead of the conventional TenantId, per
+            // their data-model spec. The query-filter installer in
+            // AtoCopilotContext.ApplyTenantQueryFilters silently skips these
+            // by the same metadata check; the stamping interceptor MUST do
+            // the same or every SaveChangesAsync on such an entity throws
+            // before the entity's own writer code can run (which sets the
+            // domain-specific column explicitly).
+            //
+            // FK consistency (ValidateFkConsistency) is also skipped because
+            // it reads `entry.Property("TenantId").CurrentValue` to compare
+            // against parents — without a conventional `TenantId` there's
+            // nothing to validate at the generic interceptor layer. The
+            // entity's writer remains responsible for FK ownership checks.
+            if (entry.Metadata.FindProperty("TenantId") is null)
+            {
+                // Still run actor-attribution stamping against any conventional
+                // columns the entity DOES expose (ActorTenantId /
+                // ImpersonatedTenantId), then move on.
+                StampActorAttributionIfPresent(entry, tenant);
+                continue;
+            }
+
             var tenantIdProp = entry.Property("TenantId");
             if (tenantIdProp is null)
             {
