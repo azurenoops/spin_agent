@@ -6,7 +6,9 @@ import ChatToggle from '../chat/ChatToggle';
 import { useChatPanel } from '../chat/ChatPanelContext';
 import SettingsPanel from '../settings/SettingsPanel';
 import NotificationPanel from '../notifications/NotificationPanel';
-import RoleSwitcher from './RoleSwitcher';
+// Feature 051 cleanup: legacy RoleSwitcher (pre-login DEV persona
+// override) removed. Real identity now comes from /api/auth/me via
+// AccountMenu, so the header no longer needs a persona override.
 import TenantPicker from '../../features/tenancy/TenantPicker';
 // Feature 051 T135 [US8] — the impersonation banner is now mounted at
 // the App shell top (App.tsx > AuthenticatedSessionGuardsActive) so it
@@ -133,7 +135,9 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
             {/* Feature 048 (T076): tenant picker. Self-hides in SingleTenant
                 mode and for non-CSP.Admin callers per FR-041. */}
             <TenantPicker />
-            <RoleSwitcher />
+            {/* Feature 051 cleanup: legacy <RoleSwitcher /> (the orange
+                "DEV ISSM" pre-login persona override) removed — real
+                identity now flows from /api/auth/me via AccountMenu. */}
             <button type="button" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Search" title="Search">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -164,14 +168,11 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
               </svg>
             </button>
-            <div className="ml-2 h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-medium cursor-pointer hover:ring-2 hover:ring-indigo-300" title="User profile">
-              JS
-            </div>
-            {/* Feature 051 T062 [US2]: AccountMenu stub — currently
-                only the sign-out item. US9 (T140) replaces this with
-                the full menu (name, persona, home tenant, active PIM
-                role). The existing "JS" avatar above is kept until
-                US3 wires `useMe` so the stub has a display name. */}
+            {/* Feature 051 T140 [US9]: full AccountMenu (display name,
+                persona, home tenant, active PIM role, sign-out). The
+                legacy hardcoded "JS" avatar that previously sat above
+                this menu has been removed — real identity now flows
+                from /api/auth/me. */}
             <AccountMenu oid={oid} displayName={displayName} />
           </div>
         </header>

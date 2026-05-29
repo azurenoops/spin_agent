@@ -6,6 +6,9 @@ import { DEFAULT_API_SCOPES } from './msalInstance';
 import { useLoginRaceListener } from './useLoginRaceListener';
 import SimulationPanel from './SimulationPanel';
 import type { AuthMethodId } from './types';
+// Default deployment logo, used when AuthBrandingOptions.LogoUrl is empty.
+// Matches the spin logo PageLayout uses in the dashboard chrome.
+import spinLogo from '../../assets/2026-04-22_15-58-30.png';
 
 /**
  * Feature 051 T047 [US1] — branded `/login` page. Renders the deployment
@@ -50,13 +53,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8">
-        {login.branding.logoUrl && (
-          <img
-            src={login.branding.logoUrl}
-            alt={`${login.branding.deploymentName} logo`}
-            className="h-12 mx-auto mb-6"
-          />
-        )}
+        <img
+          src={login.branding.logoUrl || spinLogo}
+          alt={`${login.branding.deploymentName} logo`}
+          className="h-16 mx-auto mb-6"
+        />
         <h1 className="text-2xl font-semibold text-gray-900 text-center mb-2">
           {login.branding.deploymentName}
         </h1>
