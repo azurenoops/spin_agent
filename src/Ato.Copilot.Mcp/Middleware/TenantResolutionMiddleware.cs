@@ -112,6 +112,7 @@ public sealed class TenantResolutionMiddleware
     public async Task InvokeAsync(
         HttpContext context,
         ITenantContext tenantContext,
+        ITenantContextAccessor tenantAccessor,
         ITenantImpersonationService impersonation,
         IOptions<DeploymentOptions> deploymentOptions,
         IOptions<RoleClaimMappingsOptions> roleClaimMappings,
@@ -241,7 +242,16 @@ public sealed class TenantResolutionMiddleware
             return;
         }
 
-        // Stage E — enrich logs with the resolved tenant scope (FR-072).
+        // Stage E — enrich logs with the resolved tenant scope (FR-072) AND
+        // bridge the populated scoped `ITenantContext` into the AsyncLocal
+        // `ITenantContextAccessor` that `AtoCopilotContext`'s global query
+        // filter reads. Without the Push, `TenantFilterDisabled` is always
+        // true and every `[TenantScoped]` query returns rows from ALL
+        // tenants — a silent cross-tenant data leak (Constitution
+        // § Security: Tenant Isolation NON-NEGOTIABLE). The Push must
+        // happen on the same async path that ultimately calls `_next` so
+        // the AsyncLocal flows down through all awaited continuations.
+        using var _tenantScope = tenantAccessor.Push(ctx);
         using (LogContext.PushProperty("TenantId", ctx.TenantId))
         using (LogContext.PushProperty("EffectiveTenantId", ctx.EffectiveTenantId))
         using (LogContext.PushProperty("ImpersonatedTenantId", ctx.ImpersonatedTenantId))

@@ -68,6 +68,7 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
         await mw.InvokeAsync(
             http,
             http.RequestServices.GetRequiredService<ITenantContext>(),
+            http.RequestServices.GetRequiredService<ITenantContextAccessor>(),
             BuildImpersonationStub(),
             Options.Create(BuildDeployment(allowSelfOnboarding: true)),
             Options.Create(new RoleClaimMappingsOptions()),
@@ -96,6 +97,7 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
         await mw.InvokeAsync(
             http,
             http.RequestServices.GetRequiredService<ITenantContext>(),
+            http.RequestServices.GetRequiredService<ITenantContextAccessor>(),
             BuildImpersonationStub(),
             Options.Create(BuildDeployment(allowSelfOnboarding: false)),
             Options.Create(new RoleClaimMappingsOptions()),

@@ -96,6 +96,7 @@ public class TenantResolutionMemoryCacheSizeTests : IAsyncLifetime
         var act = async () => await mw.InvokeAsync(
             http,
             http.RequestServices.GetRequiredService<ITenantContext>(),
+            http.RequestServices.GetRequiredService<ITenantContextAccessor>(),
             BuildImpersonationStub(),
             Options.Create(new DeploymentOptions { Mode = DeploymentMode.MultiTenant }),
             Options.Create(new RoleClaimMappingsOptions()),
@@ -122,6 +123,7 @@ public class TenantResolutionMemoryCacheSizeTests : IAsyncLifetime
         var act = async () => await mw.InvokeAsync(
             http,
             http.RequestServices.GetRequiredService<ITenantContext>(),
+            http.RequestServices.GetRequiredService<ITenantContextAccessor>(),
             BuildImpersonationStub(),
             Options.Create(new DeploymentOptions
             {
