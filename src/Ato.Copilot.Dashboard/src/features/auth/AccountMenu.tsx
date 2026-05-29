@@ -144,11 +144,24 @@ export default function AccountMenu({ oid: oidProp, displayName: displayNameProp
       // call failed so we don't strand the user in an authenticated shell.
     }
 
+    // Dev-simulation sessions (US7) have NO MSAL account — they're a
+    // server-side cookie cleared by the POST above. Calling
+    // logoutRedirect() in that case would bounce the browser to
+    // login.microsoftonline.com/.../oauth2/v2.0/logout (because the SPA
+    // app registration still has a postLogoutRedirectUri) and "sign out"
+    // the user's real Entra session, which is not what a simulated
+    // sign-out should do. So: only invoke MSAL logout when MSAL knows
+    // about an account.
     try {
       const msal = getMsalInstance();
-      await msal.logoutRedirect({
-        postLogoutRedirectUri: '/login?reason=signed_out',
-      });
+      const hasMsalAccount = msal.getAllAccounts().length > 0;
+      if (hasMsalAccount) {
+        await msal.logoutRedirect({
+          postLogoutRedirectUri: '/login?reason=signed_out',
+        });
+      } else {
+        window.location.href = '/login?reason=signed_out';
+      }
     } catch {
       // No MSAL instance — fall back to a hard navigation.
       window.location.href = '/login?reason=signed_out';

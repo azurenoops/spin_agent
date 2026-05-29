@@ -68,11 +68,19 @@ export function useIdleTimer(timeoutMinutes: number): UseIdleTimerResult {
         // Best-effort — server may be unreachable, but we still sign out
         // client-side so the user is not left in a logged-in shell.
       }
+      // Dev-simulation sessions (US7) have NO MSAL account. Calling
+      // logoutRedirect() in that case bounces the browser to Entra's
+      // logout endpoint and ends the user's real Microsoft session.
+      // Only call MSAL logout when MSAL actually holds an account.
       try {
         const msal = getMsalInstance();
-        await msal.logoutRedirect({
-          postLogoutRedirectUri: '/login?reason=idle_timeout',
-        });
+        if (msal.getAllAccounts().length > 0) {
+          await msal.logoutRedirect({
+            postLogoutRedirectUri: '/login?reason=idle_timeout',
+          });
+        } else {
+          window.location.href = '/login?reason=idle_timeout';
+        }
       } catch {
         // No MSAL instance configured (test envs, SSR) — silently no-op.
       }
