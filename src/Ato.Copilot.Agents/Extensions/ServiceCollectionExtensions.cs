@@ -913,14 +913,52 @@ public static class ServiceCollectionExtensions
     /// Register the Document agent and thin adapter tools.
     /// This layer orchestrates existing canonical compliance services and avoids duplicated logic.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="DocumentNarrativeGenerateAdapterTool"/> and <see cref="DocumentAgent"/> declare
+    /// <see cref="IChatClient"/>, <see cref="Microsoft.Graph.GraphServiceClient"/>, and
+    /// <see cref="Azure.AI.Agents.Persistent.PersistentAgentsClient"/> as <c>nullable</c>
+    /// constructor parameters (graceful-degradation contract per
+    /// <see cref="CoreServiceExtensions.RegisterChatClient"/>'s doc-comment — the chat client
+    /// is silently skipped when <c>AzureAi:Endpoint</c> is empty). The default .NET DI
+    /// container does NOT infer that <c>?</c> on a reference type means "optional dependency",
+    /// so <c>WebApplicationBuilder</c>'s <c>ValidateOnBuild = true</c> (default when
+    /// <see cref="Microsoft.Extensions.Hosting.IHostEnvironment.IsDevelopment"/>) treats the
+    /// missing service as fatal.
+    /// </para>
+    /// <para>
+    /// Fix: register the tool and the agent via factory lambdas that resolve optional
+    /// dependencies through <see cref="ServiceProviderServiceExtensions.GetService"/> (which
+    /// returns <c>null</c> when unregistered) rather than the constructor-injection path
+    /// (which goes through <c>GetRequiredService</c> under <c>ValidateOnBuild</c>). All other
+    /// dependencies (<see cref="ISspService"/>, <see cref="IDocumentTemplateService"/>,
+    /// <see cref="IHttpClientFactory"/>, <see cref="ILogger{TCategoryName}"/>) are always
+    /// registered and resolve through <c>GetRequiredService</c> as before.
+    /// </para>
+    /// </remarks>
     public static IServiceCollection AddDocumentAgent(this IServiceCollection services)
     {
         services.AddSingleton<DocumentStatusTool>();
         services.AddSingleton<DocumentContextSourceTool>();
         services.AddSingleton<DocumentTemplateSelectorTool>();
-        services.AddSingleton<DocumentNarrativeGenerateAdapterTool>();
 
-        services.AddSingleton<DocumentAgent>();
+        services.AddSingleton<DocumentNarrativeGenerateAdapterTool>(sp => new DocumentNarrativeGenerateAdapterTool(
+            sspService: sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Compliance.ISspService>(),
+            templateService: sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Compliance.IDocumentTemplateService>(),
+            httpClientFactory: sp.GetService<System.Net.Http.IHttpClientFactory>(),
+            chatClient: sp.GetService<IChatClient>(),
+            graphClient: sp.GetService<GraphServiceClient>(),
+            logger: sp.GetRequiredService<ILogger<DocumentNarrativeGenerateAdapterTool>>()));
+
+        services.AddSingleton<DocumentAgent>(sp => new DocumentAgent(
+            statusTool: sp.GetRequiredService<DocumentStatusTool>(),
+            contextSourceTool: sp.GetRequiredService<DocumentContextSourceTool>(),
+            templateSelectorTool: sp.GetRequiredService<DocumentTemplateSelectorTool>(),
+            narrativeGenerateTool: sp.GetRequiredService<DocumentNarrativeGenerateAdapterTool>(),
+            logger: sp.GetRequiredService<ILogger<DocumentAgent>>(),
+            chatClient: sp.GetService<IChatClient>(),
+            foundryClient: sp.GetService<Azure.AI.Agents.Persistent.PersistentAgentsClient>(),
+            azureAiOptions: sp.GetService<IOptions<Ato.Copilot.Core.Configuration.AzureAiOptions>>()));
         services.AddSingleton<BaseAgent>(sp => sp.GetRequiredService<DocumentAgent>());
 
         return services;

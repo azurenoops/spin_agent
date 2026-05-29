@@ -100,6 +100,26 @@ services:
       # ("Global Reader", "ISSO"); the env-var below adds index 2.
       - ATO_CACAUTH__SIMULATEDIDENTITY__ROLES__2=CSP.Admin
 
+      # ── Feature 051 (Login) ─────────────────────────────
+      # Forwarded from .env so the host can flip Auth:DefaultMethod,
+      # MSAL bootstrap config, cookie HMAC key, role-claim mappings,
+      # and idle / remember-tenant lifetimes without rebuilding.
+      - ATO_AUTH__DEFAULTMETHOD=${ATO_AUTH__DEFAULTMETHOD:-Cac}
+      - ATO_AUTH__CLOUD=${ATO_AUTH__CLOUD:-AzureUSGovernment}
+      - ATO_AUTH__IDLETIMEOUTMINUTES=${ATO_AUTH__IDLETIMEOUTMINUTES:-30}
+      - ATO_AUTH__REMEMBERTENANTCOOKIEDAYS=${ATO_AUTH__REMEMBERTENANTCOOKIEDAYS:-30}
+      - ATO_AUTH__MSAL__CLIENTID=${ATO_AUTH__MSAL__CLIENTID}
+      - ATO_AUTH__MSAL__AUTHORITY=${ATO_AUTH__MSAL__AUTHORITY}
+      - ATO_AUTH__MSAL__REDIRECTURI=${ATO_AUTH__MSAL__REDIRECTURI}
+      - ATO_AUTH__MSAL__POSTLOGOUTREDIRECTURI=${ATO_AUTH__MSAL__POSTLOGOUTREDIRECTURI}
+      - ATO_AUTH__COOKIE__SIGNINGKEY=${ATO_AUTH__COOKIE__SIGNINGKEY}
+      # Role-claim mappings: env-var keys use property names
+      # (CspAdmin / SocAnalyst) instead of the JSON keys (CSP.Admin /
+      # Auth.SocAnalyst) because docker-compose's interpolation parser
+      # rejects '.' in variable names. .NET binding accepts both forms.
+      - ATO_AUTH__ROLECLAIMMAPPINGS__CSPADMIN=${ATO_AUTH__ROLECLAIMMAPPINGS__CSPADMIN}
+      - ATO_AUTH__ROLECLAIMMAPPINGS__SOCANALYST=${ATO_AUTH__ROLECLAIMMAPPINGS__SOCANALYST}
+
       # ── Feature flags ─────────────────────────────────────
       # Default ON for the local stack so the dashboard's "Discover from
       # Entra ID" dialog can call Microsoft Graph. Override to false in

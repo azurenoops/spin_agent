@@ -8,8 +8,10 @@ using System.Text.Json;
 using Ato.Copilot.Channels.Abstractions;
 using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Interfaces;
 using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Services.Tenancy;
+using Ato.Copilot.Core.Services;
 using Ato.Copilot.Chat.Channels;
 using Ato.Copilot.Chat.Data;
 using Ato.Copilot.Chat.Hubs;
@@ -97,6 +99,12 @@ try
 
     // ─── Services ────────────────────────────────────────────────────
 
+    // ChatService depends on IPathSanitizationService for upload-path
+    // safety checks. Chat does not call AddAtoCopilotCore (that pulls in
+    // the full compliance graph), so the dependency is registered
+    // explicitly here. Singleton matches the canonical registration in
+    // CoreServiceExtensions.AddAtoCopilotCore.
+    builder.Services.AddSingleton<IPathSanitizationService, PathSanitizationService>();
     builder.Services.AddScoped<IChatService, ChatService>();
 
     // ─── Channels Adapter Services ───────────────────────────────────

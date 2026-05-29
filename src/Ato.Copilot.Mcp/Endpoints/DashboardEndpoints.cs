@@ -951,7 +951,7 @@ public static class DashboardEndpoints
 
         async Task<IResult> GenerateComponentDescription(
                 GenerateComponentDescriptionRequest body,
-                IChatClient? chatClient,
+                [FromServices] IChatClient? chatClient,
                 CancellationToken ct)
         {
             if (chatClient is null)
@@ -978,7 +978,7 @@ public static class DashboardEndpoints
 
         async Task<IResult> GenerateCapabilityDescription(
                 GenerateCapabilityDescriptionRequest body,
-                IChatClient? chatClient,
+                [FromServices] IChatClient? chatClient,
                 CancellationToken ct)
         {
             if (chatClient is null)
@@ -1005,7 +1005,7 @@ public static class DashboardEndpoints
 
         async Task<IResult> GenerateSystemDescription(
                 GenerateSystemDescriptionRequest body,
-                IChatClient? chatClient,
+                [FromServices] IChatClient? chatClient,
                 CancellationToken ct)
         {
             if (chatClient is null)
