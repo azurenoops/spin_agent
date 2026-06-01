@@ -1,6 +1,7 @@
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Data.Interceptors;
 using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
 using FluentAssertions;
@@ -286,6 +287,81 @@ public class SingleTenantBootstrapTests : IAsyncLifetime
         await act.Should().ThrowAsync<InvalidOperationException>()
             .Where(ex => ex.Message.Contains("MultiTenant", StringComparison.OrdinalIgnoreCase),
                 "FR-071 requires fail-fast in MultiTenant mode when NULL TenantIds remain");
+    }
+
+    /// <summary>
+    /// Regression: a <c>[TenantScoped]</c> entity that deliberately scopes via a
+    /// domain-specific column (Feature 051 <see cref="LoginAuditEvent.EffectiveTenantId"/>)
+    /// and therefore has NO mapped conventional <c>TenantId</c> property must be
+    /// excluded from the MultiTenant boot guard — exactly as the stamping
+    /// interceptor, the query-filter installer, and
+    /// <c>MultiTenantMigrationService.ResolveTenantScopedTables</c> already do.
+    /// </summary>
+    /// <remarks>
+    /// Reproduces the production crash loop: a legacy/orphan nullable
+    /// <c>TenantId</c> column existed on <c>LoginAuditEvents</c> with NULL values
+    /// (pre-session / failed-login rows that EF never stamps because the model
+    /// maps <c>EffectiveTenantId</c> instead). The boot guard discovered the
+    /// table by its <c>[TenantScoped]</c> attribute alone and aborted MultiTenant
+    /// boot on those NULLs, crash-looping the MCP container. The fix adds the
+    /// missing <c>FindProperty("TenantId") is not null</c> clause to the
+    /// discovery filter.
+    /// </remarks>
+    [Fact]
+    public async Task MultiTenantMode_DoesNotFailFast_OnEffectiveTenantIdScopedEntity_WithOrphanNullTenantIdColumn()
+    {
+        // Arrange — recreate the production on-disk state: LoginAuditEvents
+        // carries an orphan nullable TenantId column (EF does NOT map one) and
+        // holds a row written without an ambient tenant context, so TenantId is
+        // NULL while EffectiveTenantId is correctly populated.
+        var tenantId = Guid.NewGuid();
+        await using (var scope = _sp.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+
+            // FK target for EffectiveTenantId.
+            db.Tenants.Add(new Tenant
+            {
+                Id = tenantId,
+                EntraTenantId = tenantId,
+                DisplayName = "Audit Tenant",
+                Status = TenantStatus.Active,
+                OnboardingState = OnboardingState.Active,
+                CreatedAt = DateTimeOffset.UtcNow,
+                CreatedBy = "system",
+                TimeZone = "UTC",
+                DefaultClassificationLevel = ClassificationLevel.Unclassified,
+            });
+            await db.SaveChangesAsync();
+
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"LoginAuditEvents\" ADD COLUMN \"TenantId\" TEXT NULL;");
+
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO "LoginAuditEvents"
+                    ("Id","EventType","EffectiveTenantId","CorrelationId","SourceIp","UserAgent","Surface","OccurredAt","TenantId")
+                VALUES (@p0, 0, @p1, 'corr', '127.0.0.1', 'agent', 0, @p2, NULL);
+                """,
+                Guid.NewGuid().ToString().ToUpperInvariant(),
+                tenantId.ToString().ToUpperInvariant(),
+                DateTimeOffset.UtcNow.ToString("o"));
+        }
+
+        // Act
+        await using var scope2 = _sp.CreateAsyncScope();
+        var db2 = scope2.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var logger = scope2.ServiceProvider.GetRequiredService<ILogger<SingleTenantBootstrapTests>>();
+
+        var act = async () =>
+            await TenantBootstrapService.EnsureDefaultTenantAndBackfillAsync(
+                db2, isSingleTenantMode: false, defaultTenantIdOverride: null, logger);
+
+        // Assert — the EffectiveTenantId-scoped entity must NOT trip the
+        // conventional-TenantId boot guard, so MultiTenant boot proceeds.
+        await act.Should().NotThrowAsync(
+            "LoginAuditEvents scopes via EffectiveTenantId and has no mapped TenantId, " +
+            "so its orphan NULL TenantId column must not abort MultiTenant boot");
     }
 
     /// <summary>Lightweight in-memory <see cref="ILoggerProvider"/> capturing log events for assertion.</summary>

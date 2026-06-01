@@ -230,10 +230,21 @@ public static class TenantBootstrapService
         }
 
         // ─── Discover [TenantScoped] tables via the EF model ────────────
+        // Only tables whose EF model maps a conventional `TenantId` property
+        // participate in the NULL-count guard / backfill. Entities that scope
+        // via a domain-specific column instead (e.g. Feature 051
+        // LoginAuditEvent → EffectiveTenantId) have NO mapped `TenantId`; the
+        // stamping interceptor and the query-filter installer already skip
+        // them by the same `FindProperty("TenantId")` check, and so does
+        // MultiTenantMigrationService.ResolveTenantScopedTables. Without this
+        // clause the guard counts an orphan/legacy `TenantId` column on such a
+        // table and aborts MultiTenant boot on rows it can never legitimately
+        // stamp (pre-session / failed-login audit rows).
         var tenantScopedTables = db.Model.GetEntityTypes()
             .Where(et => et.ClrType.GetCustomAttribute<TenantScopedAttribute>(inherit: false) is not null
                          && !et.IsOwned()
-                         && et.GetTableName() is not null)
+                         && et.GetTableName() is not null
+                         && et.FindProperty("TenantId") is not null)
             .Select(et => et.GetTableName()!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
