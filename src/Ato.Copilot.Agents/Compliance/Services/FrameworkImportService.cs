@@ -152,7 +152,14 @@ public class FrameworkImportService : IFrameworkImportService
             }
             catch (Exception ex)
             {
-                var msg = $"Failed to import {seed.Identifier}: {ex.Message}";
+                // Surface the innermost message too — EF wraps provider faults
+                // (e.g. SqlException "String or binary data would be truncated")
+                // in a generic DbUpdateException, so ex.Message alone hides the
+                // actual cause from the dashboard import result.
+                var detail = ex.InnerException is { } inner
+                    ? $"{ex.Message} ({inner.Message})"
+                    : ex.Message;
+                var msg = $"Failed to import {seed.Identifier}: {detail}";
                 _logger.LogError(ex, "Failed to import framework {Identifier}", seed.Identifier);
                 errors.Add(msg);
             }
@@ -523,19 +530,22 @@ public class FrameworkImportService : IFrameworkImportService
 
         var id = oscalId.Trim().ToUpperInvariant();
 
-        // OSCAL Rev5 uses dot notation for enhancements: "ac-2.1" → "AC-2(1)"
+        // OSCAL Rev5 uses dot notation for enhancements: "ac-2.1" → "AC-2(1)".
         var dotIdx = id.IndexOf('.');
         if (dotIdx > 0 && dotIdx < id.Length - 1)
         {
             var basePart = id[..dotIdx];
             var enhPart = id[(dotIdx + 1)..];
-            // Strip leading zeros: "02" → "2"
+            // Only a single trailing numeric segment is an enhancement. Strip
+            // leading zeros ("02" → "2") and parenthesize. Multi-segment ids
+            // such as NIST 800-171 Rev 3 "sp_800_171_03.01.01" are NOT
+            // enhancements — leaving them intact avoids emitting an unbalanced
+            // paren like "SP_800_171_03(01.01".
             if (int.TryParse(enhPart, out var enhNum))
-                enhPart = enhNum.ToString();
-            return $"{basePart}({enhPart})";
+                return $"{basePart}({enhNum})";
         }
 
-        // Already in parenthetical format or a base control
+        // Already parenthetical, a base control, or a multi-segment id.
         return id;
     }
 
