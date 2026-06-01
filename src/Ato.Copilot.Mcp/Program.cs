@@ -977,6 +977,26 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
 
         IF COL_LENGTH('SystemComponents', 'RmfRoleName') IS NULL
             ALTER TABLE SystemComponents ADD RmfRoleName NVARCHAR(50) NULL;
+
+        -- Feature 044: widen FrameworkControls string columns from the original
+        -- 800-53-sized widths (Family=10, ControlId/Parent/WithdrawnTo=20) to
+        -- nvarchar(50). NIST 800-171 Rev 3 family ids ("SP_800_171_03.01", 16
+        -- chars) and normalized control ids ("SP_800_171_03(01.01", ~19 chars)
+        -- overflow the narrow columns, raising "String or binary data would be
+        -- truncated in column 'Family'" and aborting the 800-171 import.
+        -- EnsureCreated never alters existing columns, so widen them here.
+        -- max_length is in BYTES for nvarchar (2 per char), so 50 chars = 100.
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('FrameworkControls') AND name = 'Family' AND max_length < 100)
+            ALTER TABLE FrameworkControls ALTER COLUMN Family NVARCHAR(50) NOT NULL;
+
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('FrameworkControls') AND name = 'ControlId' AND max_length < 100)
+            ALTER TABLE FrameworkControls ALTER COLUMN ControlId NVARCHAR(50) NOT NULL;
+
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('FrameworkControls') AND name = 'ParentControlId' AND max_length < 100)
+            ALTER TABLE FrameworkControls ALTER COLUMN ParentControlId NVARCHAR(50) NULL;
+
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('FrameworkControls') AND name = 'WithdrawnTo' AND max_length < 100)
+            ALTER TABLE FrameworkControls ALTER COLUMN WithdrawnTo NVARCHAR(50) NULL;
         """;
 
     try

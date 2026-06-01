@@ -2964,11 +2964,17 @@ public class AtoCopilotContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasMaxLength(36);
             entity.Property(e => e.FrameworkId).HasMaxLength(36).IsRequired();
-            entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
-            entity.Property(e => e.Family).HasMaxLength(10).IsRequired();
+            // nvarchar(50) — matches the Feature044 migration and the model's
+            // [MaxLength(50)] annotation. NIST 800-171 Rev 3 needs the width:
+            // Family ids are e.g. "SP_800_171_03.01" (16 chars) and normalized
+            // control ids reach ~19 chars ("SP_800_171_03(01.01"). The earlier
+            // 800-53-sized widths (Family=10, ControlId=20) truncated 800-171
+            // on SQL Server ("String or binary data would be truncated").
+            entity.Property(e => e.ControlId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Family).HasMaxLength(50).IsRequired();
             entity.Property(e => e.Title).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.ParentControlId).HasMaxLength(20);
-            entity.Property(e => e.WithdrawnTo).HasMaxLength(20);
+            entity.Property(e => e.ParentControlId).HasMaxLength(50);
+            entity.Property(e => e.WithdrawnTo).HasMaxLength(50);
 
             entity.HasIndex(e => new { e.FrameworkId, e.ControlId })
                 .IsUnique()
