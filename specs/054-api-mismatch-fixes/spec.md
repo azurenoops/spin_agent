@@ -1,7 +1,7 @@
 # Spec: API Mismatch Fixes
 
-**Feature**: 052-api-mismatch-fixes
-**Branch**: `052-api-mismatch-fixes`
+**Feature**: 054-api-mismatch-fixes
+**Branch**: `054-api-mismatch-fixes`
 **Status**: Ready for implementation
 **Priority**: P0 — Critical (ship-blocking)
 
