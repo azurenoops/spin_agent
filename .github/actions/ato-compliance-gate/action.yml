@@ -17,7 +17,7 @@ inputs:
   mcp-server-url:
     description: 'URL of the ATO Copilot MCP server for risk acceptance lookups'
     required: false
-    default: 'http://localhost:5000'
+    default: 'http://localhost:3001'
   fail-on-error:
     description: 'Whether to fail the action if scanning errors occur'
     required: false
