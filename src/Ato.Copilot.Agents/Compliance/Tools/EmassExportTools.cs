@@ -49,8 +49,6 @@ public class ExportEmassTool : BaseTool
         CancellationToken cancellationToken = default)
     {
         var systemId = GetArg<string>(arguments, "system_id");
-        if (string.IsNullOrWhiteSpace(systemId))
-            return JsonSerializer.Serialize(new { status = "error", error = "system_id is required" });
         var exportType = (GetArg<string>(arguments, "export_type") ?? string.Empty).ToLowerInvariant();
         var sw = Stopwatch.StartNew();
 
