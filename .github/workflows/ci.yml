@@ -87,5 +87,5 @@ jobs:
           severity-threshold: '2'
           # Set this repository variable if you host MCP externally.
           # Defaults to localhost and still produces annotations if unreachable.
-          mcp-server-url: ${{ vars.ATO_MCP_SERVER_URL || 'http://localhost:5000' }}
+          mcp-server-url: ${{ vars.ATO_MCP_SERVER_URL || 'http://localhost:3001' }}
           fail-on-error: 'true'
