@@ -1,7 +1,7 @@
 # Spec: CI/CD Pipeline Hardening
 
-**Feature**: 051-cicd-hardening
-**Branch**: `051-cicd-hardening`
+**Feature**: 053-cicd-hardening
+**Branch**: `053-cicd-hardening`
 **Status**: Ready for implementation
 **Priority**: P0 — Critical
 

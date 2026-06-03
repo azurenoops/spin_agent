@@ -1,7 +1,7 @@
 # Tasks: CI/CD Pipeline Hardening
 
-**Feature**: 051-cicd-hardening
-**Branch**: `051-cicd-hardening`
+**Feature**: 053-cicd-hardening
+**Branch**: `053-cicd-hardening`
 **Input artifacts**: [spec.md](./spec.md)
 
 **Tests**: REQUIRED. Every new CI job must be verified to fail fast on a broken test.
