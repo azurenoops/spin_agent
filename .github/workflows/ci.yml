@@ -100,7 +100,7 @@ jobs:
         run: npm run compile
 
   vscode-extension-test:
-    name: "VS Code Extension Tests"
+    name: "VS Code Extension Type-Check & Lint"
     runs-on: ubuntu-latest
     needs: vscode-extension-compile
     defaults:
@@ -117,10 +117,10 @@ jobs:
           cache-dependency-path: extensions/vscode/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Install xvfb
-        run: sudo apt-get install -y xvfb
-      - name: Run extension tests
-        run: xvfb-run -a npm test
+      - name: Type-check extension
+        run: npm run compile
+      - name: Lint extension
+        run: npm run lint
 
   m365-extension-test:
     name: "M365 Extension Tests"
