@@ -1127,6 +1127,20 @@ public static class CspInheritedComponentEndpoints
     // ─── request DTOs ──────────────────────────────────────────────────
 
     public sealed record CreateComponentRequest(string? Name, string? Description, string? ComponentType);
+    /// <summary>
+    /// Feature 050 FR-001 — body for
+    /// <c>POST /{componentId}/capabilities</c>.
+    /// </summary>
+    /// <param name="Name">Display name (required, ≤ 256 chars).</param>
+    /// <param name="Description">Free-text description (required, ≤ 2000 chars).</param>
+    /// <param name="MappedNistControlIds">Non-empty list of NIST control IDs.</param>
+    /// <param name="MarkMappedImmediately">
+    /// When <c>true</c> the capability is created with
+    /// <c>Status = Mapped</c> and a second <c>Reviewed</c> history row is
+    /// written alongside the <c>Created</c> row in the same transaction.
+    /// Default <c>false</c> leaves the row in <c>NeedsReview</c> so it
+    /// appears in the NeedsReviewQueue for operator sign-off (FR-001).
+    /// </param>
     public sealed record AddCapabilityRequest(
         string? Name,
         string? Description,
