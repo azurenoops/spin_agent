@@ -91,8 +91,12 @@ export async function sendMessage(
   const timeoutId = setTimeout(() => controller.abort(), SSE_TIMEOUT_MS);
 
   try {
+    // T006 (052-api-mismatch-fixes #141): use FormData multipart when attachments present
+    const hasAttachments = request.attachments && request.attachments.length > 0;
+
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      // Do NOT set Content-Type for multipart — browser sets boundary automatically
+      ...(hasAttachments ? {} : { 'Content-Type': 'application/json' }),
       Accept: 'text/event-stream',
     };
 
@@ -102,10 +106,21 @@ export async function sendMessage(
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    let body: BodyInit;
+    if (hasAttachments) {
+      const form = new FormData();
+      form.append('message', request.message);
+      if (request.conversationId) form.append('conversationId', request.conversationId);
+      request.attachments!.forEach((file) => form.append('attachment[]', file));
+      body = form;
+    } else {
+      body = JSON.stringify(request);
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify(request),
+      body,
       signal,
     });
 

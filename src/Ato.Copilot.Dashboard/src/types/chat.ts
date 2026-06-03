@@ -143,4 +143,6 @@ export interface ChatRequest {
   conversationHistory: ConversationHistoryEntry[];
   action: string | null;
   actionContext: Record<string, unknown> | null;
+  /** Files to attach. When present, chatService sends multipart/form-data instead of JSON. (T006, #141) */
+  attachments?: File[];
 }

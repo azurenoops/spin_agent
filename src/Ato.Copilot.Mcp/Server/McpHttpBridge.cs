@@ -179,12 +179,58 @@ public class McpHttpBridge
     }
 
     /// <summary>Handles chat requests with SSE streaming for real-time progress.</summary>
+    // T006 (052-api-mismatch-fixes #141): Allowed MIME types for chat file attachments
+    private static readonly HashSet<string> _allowedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/pdf", "text/plain", "text/csv",
+        "application/json", "application/xml"
+    };
+
     private async Task HandleChatStreamRequestAsync(HttpContext context)
     {
         try
         {
-            var chatRequest = await JsonSerializer.DeserializeAsync<ChatRequest>(
-                context.Request.Body, _jsonOptions);
+            ChatRequest? chatRequest;
+
+            // T006 (052-api-mismatch-fixes #141): detect multipart/form-data for file attachments
+            if (context.Request.ContentType?.StartsWith("multipart/form-data", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                var form = await context.Request.ReadFormAsync(context.RequestAborted);
+
+                // MIME validation
+                if (form.Files.Count > 0)
+                {
+                    var rejected = form.Files
+                        .Where(f => f.Length == 0 || !_allowedMimeTypes.Contains(f.ContentType))
+                        .Select(f => f.FileName)
+                        .ToList();
+
+                    if (rejected.Count > 0)
+                    {
+                        context.Response.StatusCode = 400;
+                        await context.Response.WriteAsJsonAsync(new
+                        {
+                            ok = false,
+                            code = "UNSUPPORTED_ATTACHMENT_TYPE",
+                            message = "One or more attachments have unsupported types or are empty.",
+                            rejectedFiles = rejected
+                        });
+                        return;
+                    }
+                }
+
+                chatRequest = new ChatRequest
+                {
+                    Message = form["message"].FirstOrDefault() ?? string.Empty,
+                    ConversationId = form["conversationId"].FirstOrDefault(),
+                    Attachments = form.Files.Count > 0 ? form.Files : null,
+                };
+            }
+            else
+            {
+                chatRequest = await JsonSerializer.DeserializeAsync<ChatRequest>(
+                    context.Request.Body, _jsonOptions);
+            }
 
             if (chatRequest == null || string.IsNullOrEmpty(chatRequest.Message))
             {
@@ -421,6 +467,8 @@ public class ChatRequest
 {
     public string Message { get; set; } = string.Empty;
     public string? ConversationId { get; set; }
+    /// <summary>Files attached via multipart/form-data. Null when request body is application/json. T006 (#141)</summary>
+    public IFormFileCollection? Attachments { get; set; }
     public Dictionary<string, object>? Context { get; set; }
     public List<ChatMessage>? ConversationHistory { get; set; }
 
