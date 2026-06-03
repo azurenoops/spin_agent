@@ -137,7 +137,7 @@
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
     "pretest": "npm run compile",
-    "test": "node ./dist/test/runTests.js"
+    "test": "npm run compile && mocha"
   },
   "devDependencies": {
     "@types/chai": "^4.3.11",

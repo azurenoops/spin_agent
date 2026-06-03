@@ -1,7 +1,7 @@
 module.exports = {
-  require: ["ts-node/register"],
-  extension: ["ts"],
-  spec: "test/suite/**/*.test.ts",
+  require: ['./test/vscode-register.js'],
+  spec: ['./dist/test/suite/**/*.test.js', './dist/test/auth/**/*.test.js'],
   timeout: 10000,
-  recursive: true,
+  ui: 'bdd',
+  color: true,
 };
