@@ -45,6 +45,15 @@ public sealed class CapabilityHistoryService : ICapabilityHistoryService
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
+    /// <summary>
+    /// Initialises the service.
+    /// </summary>
+    /// <param name="contextFactory">
+    /// Used exclusively by <see cref="ListAsync"/>; <see cref="AppendAsync"/>
+    /// operates on the caller-supplied <c>AtoCopilotContext</c> so the audit
+    /// row commits in the same transaction as the state change (FR-004).
+    /// </param>
+    /// <param name="logger">Structured logger (informational only).</param>
     public CapabilityHistoryService(
         IDbContextFactory<AtoCopilotContext> contextFactory,
         ILogger<CapabilityHistoryService> logger)
