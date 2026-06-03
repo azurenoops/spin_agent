@@ -6314,6 +6314,54 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
             }
         }).WithName("UpdatePoamStatusV2");
 
+        // ── PUT /systems/{systemId}/poam/{poamId}/status — T005 #144 ──────────
+        group.MapPut("/systems/{systemId}/poam/{poamId}/status", async (
+            string systemId,
+            string poamId,
+            Feature039StatusUpdateRequest req,
+            PoamService poamService,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            var owned = await context.PoamItems.AnyAsync(p => p.Id == poamId && p.RegisteredSystemId == systemId, ct);
+            if (!owned)
+                return Results.NotFound(new ErrorResponse { Error = "POAM not found for this system.", ErrorCode = "POAM_NOT_FOUND" });
+
+            if (!Guid.TryParse(req.RowVersion, out var rv))
+                return Results.BadRequest(new ErrorResponse { Error = "Valid rowVersion is required.", ErrorCode = "INVALID_INPUT" });
+
+            if (!Enum.TryParse<PoamStatus>(req.Status, ignoreCase: true, out var newStatus))
+                return Results.BadRequest(new ErrorResponse { Error = $"Invalid status: {req.Status}.", ErrorCode = "INVALID_INPUT" });
+
+            try
+            {
+                var updated = await poamService.UpdateStatusAsync(
+                    poamId, newStatus, rv, "dashboard-user",
+                    req.DelayReason, req.RevisedDate.HasValue ? req.RevisedDate.Value : null,
+                    req.DeviationId, req.Comments, req.CascadeToTask, ct);
+
+                return Results.Ok(new { poam = MapToDetail(updated) });
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                return Results.Conflict(new ErrorResponse { Error = "Concurrency conflict — reload and retry.", ErrorCode = "CONCURRENCY_CONFLICT" });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("CONCURRENCY"))
+            {
+                return Results.Conflict(new ErrorResponse { Error = ex.Message, ErrorCode = "CONCURRENCY_CONFLICT" });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("INVALID_TRANSITION") ||
+                                                       ex.Message.Contains("REQUIRED") ||
+                                                       ex.Message.Contains("DEVIATION"))
+            {
+                return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "POAM_LIFECYCLE_ERROR" });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+            {
+                return Results.NotFound(new ErrorResponse { Error = ex.Message, ErrorCode = "POAM_NOT_FOUND" });
+            }
+        }).WithName("UpdatePoamStatusSystemScoped");
+
         // ── POST /poam/bulk-status — bulk status updates
         group.MapPost("/poam/bulk-status", async (
             Feature039BulkStatusRequest req, PoamService poamService, CancellationToken ct) =>
@@ -6334,6 +6382,27 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                 results = results.Select(r => new { poamId = r.PoamId, success = r.Success, error = r.Error })
             });
         }).WithName("BulkUpdatePoamStatusV2");
+
+        // ── PUT /remediation/poam/bulk-status — T004 #143 alias ───────────────
+        group.MapPut("/remediation/poam/bulk-status", async (
+            Feature039BulkStatusRequest req, PoamService poamService, CancellationToken ct) =>
+        {
+            if (req.PoamIds == null || req.PoamIds.Count == 0)
+                return Results.BadRequest(new ErrorResponse { Error = "At least one poamId is required.", ErrorCode = "INVALID_INPUT" });
+
+            if (!Enum.TryParse<PoamStatus>(req.Status, ignoreCase: true, out var newStatus))
+                return Results.BadRequest(new ErrorResponse { Error = $"Invalid status: {req.Status}.", ErrorCode = "INVALID_INPUT" });
+
+            var results = await poamService.BulkUpdateStatusAsync(
+                req.PoamIds, newStatus, "dashboard-user", req.DelayReason, req.RevisedDate, req.Comments, ct);
+
+            return Results.Ok(new
+            {
+                succeeded = results.Count(r => r.Success),
+                failed = results.Count(r => !r.Success),
+                results = results.Select(r => new { poamId = r.PoamId, success = r.Success, error = r.Error })
+            });
+        }).WithName("BulkUpdatePoamStatusRemediation");
 
         // ── POST /poam/{poamId}/components — link components
         group.MapPost("/poam/{poamId}/components", async (
@@ -7328,6 +7397,127 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                 })
             });
         }).WithName("ListCspProfiles");
+
+        // ── POST /systems/{systemId}/inheritance/apply-profile — T001 #141 ─────
+        group.MapPost("/systems/{systemId}/inheritance/apply-profile", async (
+            string systemId,
+            Feature043ApplyProfileRequest req,
+            IBaselineService baselineService,
+            Ato.Copilot.Mcp.Services.CspProfileService cspProfileService,
+            CancellationToken ct) =>
+        {
+            var baseline = await baselineService.GetBaselineAsync(systemId, includeDetails: true, cancellationToken: ct);
+            if (baseline is null)
+                return Results.NotFound(new ErrorResponse { Error = "Baseline not found for system.", ErrorCode = "BASELINE_NOT_FOUND" });
+
+            var profile = cspProfileService.GetProfile(req.ProfileId);
+            if (profile is null)
+                return Results.NotFound(new ErrorResponse { Error = $"CSP profile not found.", ErrorCode = "PROFILE_NOT_FOUND" });
+
+            var existingDesignations = baseline.Inheritances
+                .ToDictionary(i => i.ControlId, i => i.InheritanceType, StringComparer.OrdinalIgnoreCase);
+
+            var matchResult = cspProfileService.MatchProfile(
+                profile,
+                baseline.ControlIds,
+                existingDesignations,
+                req.ConflictResolution ?? "skip");
+
+            if (req.Preview)
+                return Results.Ok(matchResult);
+
+            var mappings = matchResult.MappingsToApply.Select(m => new InheritanceInput
+            {
+                ControlId = m.ControlId,
+                InheritanceType = m.InheritanceType,
+                Provider = m.Provider,
+                CustomerResponsibility = m.CustomerResponsibility,
+            });
+
+            var result = await baselineService.SetInheritanceAsync(
+                systemId, mappings, "dashboard-user", InheritanceChangeSource.CspProfile, ct);
+
+            return Results.Ok(new
+            {
+                applied = matchResult.MappingsToApply.Count,
+                skipped = matchResult.WillSkipExisting,
+                unmatched = matchResult.UnmatchedControls,
+                profile = new { profile.Name, profile.Provider },
+                baseline = new { result.InheritedCount, result.SharedCount, result.CustomerCount }
+            });
+        }).WithName("ApplyInheritanceProfile");
+
+        // ── POST /systems/{systemId}/inheritance/import/preview — T002 #142 ────
+        group.MapPost("/systems/{systemId}/inheritance/import/preview", async (
+            string systemId,
+            HttpRequest httpRequest,
+            IBaselineService baselineService,
+            Ato.Copilot.Mcp.Services.CrmExportService crmExportService,
+            CancellationToken ct) =>
+        {
+            var baseline = await baselineService.GetBaselineAsync(systemId, cancellationToken: ct);
+            if (baseline is null)
+                return Results.NotFound(new ErrorResponse { Error = "Baseline not found for system.", ErrorCode = "BASELINE_NOT_FOUND" });
+
+            var form = await httpRequest.ReadFormAsync(ct);
+            var file = form.Files.GetFile("file");
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new ErrorResponse { Error = "No file uploaded.", ErrorCode = "FILE_REQUIRED" });
+
+            Ato.Copilot.Mcp.Services.CrmExportService.ImportParseResult parsed;
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            using var stream = file.OpenReadStream();
+            if (ext is ".xlsx" or ".xls")
+                parsed = crmExportService.ParseExcel(stream);
+            else
+                parsed = crmExportService.ParseCsv(stream);
+
+            var token = Guid.NewGuid().ToString("N");
+            ImportPreviewCache[token] = parsed;
+
+            return Results.Ok(new
+            {
+                previewToken = token,
+                fileName = file.FileName,
+                detectedColumns = parsed.Columns,
+                rowCount = parsed.Rows.Count,
+                sampleRows = parsed.SampleRows
+            });
+        })
+        .DisableAntiforgery()
+        .WithName("InheritanceImportPreview");
+
+        // ── POST /systems/{systemId}/inheritance/import/apply — T003 #142 ─────
+        group.MapPost("/systems/{systemId}/inheritance/import/apply", async (
+            string systemId,
+            Feature043ImportApplyRequest req,
+            IBaselineService baselineService,
+            Ato.Copilot.Mcp.Services.CapabilityImportService importService,
+            CancellationToken ct) =>
+        {
+            var baseline = await baselineService.GetBaselineAsync(systemId, cancellationToken: ct);
+            if (baseline is null)
+                return Results.NotFound(new ErrorResponse { Error = "Baseline not found for system.", ErrorCode = "BASELINE_NOT_FOUND" });
+
+            if (!ImportPreviewCache.TryGetValue(req.PreviewToken, out var parsed))
+                return Results.BadRequest(new ErrorResponse { Error = "Preview token not found or expired.", ErrorCode = "INVALID_PREVIEW_TOKEN" });
+
+            ImportPreviewCache.Remove(req.PreviewToken);
+
+            var m = req.ColumnMapping;
+            var rows = parsed.Rows.Select(row => new CrmImportRow
+            {
+                ControlId = row.TryGetValue(m.ControlId, out var cid) ? cid : "",
+                InheritanceType = row.TryGetValue(m.InheritanceType, out var it) ? it : "",
+                Provider = row.TryGetValue(m.Provider, out var pv) ? pv : null,
+                CustomerResponsibility = row.TryGetValue(m.CustomerResponsibility, out var cr) ? cr : null,
+            }).Where(r => !string.IsNullOrWhiteSpace(r.ControlId)).ToList();
+
+            var result = await importService.ImportCrmAsync(
+                "inheritance-import.csv", rows, req.ConflictResolution ?? "overwrite", ct);
+
+            return Results.Ok(result);
+        }).WithName("InheritanceImportApply");
 
         // Feature 045: Old CSP/CRM import endpoints removed — replaced by
         // POST /capabilities/import/csp-profile and POST /capabilities/import/crm
