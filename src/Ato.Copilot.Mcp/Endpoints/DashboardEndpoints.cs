@@ -7415,7 +7415,7 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                 return Results.NotFound(new ErrorResponse { Error = $"CSP profile not found.", ErrorCode = "PROFILE_NOT_FOUND" });
 
             var existingDesignations = baseline.Inheritances
-                .ToDictionary(i => i.ControlId, i => i.InheritanceType, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(i => i.ControlId, i => i.InheritanceType.ToString(), StringComparer.OrdinalIgnoreCase);
 
             var matchResult = cspProfileService.MatchProfile(
                 profile,
@@ -7435,7 +7435,7 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
             });
 
             var result = await baselineService.SetInheritanceAsync(
-                systemId, mappings, "dashboard-user", InheritanceChangeSource.CspProfile, ct);
+                systemId, mappings, "dashboard-user", InheritanceChangeSource.ProfileApply, ct);
 
             return Results.Ok(new
             {
