@@ -1158,5 +1158,13 @@ public static class CspInheritedComponentEndpoints
     /// <summary>
     /// Feature 050 / US2 — body for <c>POST .../capabilities/{capId}/move</c>.
     /// </summary>
+    /// <param name="TargetComponentId">
+    /// Id of the destination <c>CspInheritedComponent</c>. Must be
+    /// non-archived and belong to the caller's tenant. Must differ from the
+    /// source <c>componentId</c> route parameter (same-component → 422
+    /// VALIDATION_ERROR). Reparenting resets the capability to
+    /// <c>Status = NeedsReview</c> and writes one <c>Moved</c> history row
+    /// with <c>{ fromComponentId, toComponentId }</c> metadata (FR-002 / FR-012).
+    /// </param>
     public sealed record MoveCapabilityRequest(Guid TargetComponentId);
 }
