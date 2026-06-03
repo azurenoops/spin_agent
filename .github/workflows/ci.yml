@@ -48,3 +48,26 @@ jobs:
           fi
 
           echo "✅ Linting complete"
+
+  dotnet-integration-tests:
+    name: "🧪 Integration Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build Integration Tests
+        run: dotnet build tests/Ato.Copilot.Tests.Integration/ --configuration Release
+
+      - name: Run Integration Tests
+        run: |
+          dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "github" \
+            --filter 'Category!=RequiresExternalService'
