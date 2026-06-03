@@ -222,13 +222,9 @@ public class EmassExportToolTests
     }
 
     [Fact]
-    public async Task ExportEmass_MissingSystemId_ExportsWithNullId()
+    public async Task ExportEmass_MissingSystemId_ReturnsError()
     {
-        // GetArg returns null when key is missing; tool proceeds with null systemId
-        _mockService
-            .Setup(s => s.ExportControlsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(FakeExcelBytes());
-
+        // system_id is Required=true; guard fires before service call
         var tool = CreateExportTool();
         var args = new Dictionary<string, object?>
         {
@@ -237,7 +233,9 @@ public class EmassExportToolTests
 
         var result = await tool.ExecuteCoreAsync(args);
         var doc = JsonDocument.Parse(result);
-        doc.RootElement.GetProperty("status").GetString().Should().Be("success");
+        doc.RootElement.GetProperty("status").GetString().Should().Be("error");
+        doc.RootElement.GetProperty("errorCode").GetString().Should().Be("MISSING_SYSTEM_ID");
+        doc.RootElement.GetProperty("suggestion").GetString().Should().NotBeNullOrEmpty();
     }
 
     // ═════════════════════════════════════════════════════════════════════════

@@ -50,7 +50,13 @@ public class ExportEmassTool : BaseTool
     {
         var systemId = GetArg<string>(arguments, "system_id");
         if (string.IsNullOrWhiteSpace(systemId))
-            return JsonSerializer.Serialize(new { status = "error", error = "system_id is required" });
+            return JsonSerializer.Serialize(new
+            {
+                status = "error",
+                message = "system_id is required",
+                errorCode = "MISSING_SYSTEM_ID",
+                suggestion = "Provide a valid system GUID, name, or acronym as 'system_id'."
+            });
         var exportType = (GetArg<string>(arguments, "export_type") ?? string.Empty).ToLowerInvariant();
         var sw = Stopwatch.StartNew();
 
