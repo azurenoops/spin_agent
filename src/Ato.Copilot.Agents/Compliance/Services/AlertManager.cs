@@ -358,33 +358,40 @@ public class AlertManager : IAlertManager
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        // Use a transaction for atomic increment
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        try
+        // Use a transaction for atomic increment. SqlServerRetryingExecutionStrategy
+        // requires user-initiated transactions to be wrapped in CreateExecutionStrategy().
+        string alertId = null!;
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            var counter = await db.AlertIdCounters.FindAsync(new object[] { today }, cancellationToken);
-
-            if (counter == null)
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            try
             {
-                counter = new AlertIdCounter { Date = today, LastSequence = 1 };
-                db.AlertIdCounters.Add(counter);
+                var counter = await db.AlertIdCounters.FindAsync(new object[] { today }, cancellationToken);
+
+                if (counter == null)
+                {
+                    counter = new AlertIdCounter { Date = today, LastSequence = 1 };
+                    db.AlertIdCounters.Add(counter);
+                }
+                else
+                {
+                    counter.LastSequence++;
+                }
+
+                await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                // Format: ALT-YYYYMMDDNNNNN
+                alertId = $"ALT-{today:yyyyMMdd}{counter.LastSequence:D5}";
             }
-            else
+            catch
             {
-                counter.LastSequence++;
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
             }
-
-            await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-
-            // Format: ALT-YYYYMMDDNNNNN
-            return $"ALT-{today:yyyyMMdd}{counter.LastSequence:D5}";
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        });
+        return alertId;
     }
 
     /// <inheritdoc />
