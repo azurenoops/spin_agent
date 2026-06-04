@@ -300,35 +300,41 @@ public sealed class OrganizationTemplateService : IOrganizationTemplateService
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
         var supportsTx = db.Database.IsRelational();
-        await using var tx = supportsTx
-            ? await db.Database.BeginTransactionAsync(ct)
-            : null;
-        var target = await db.OrganizationDocumentTemplates
-            .FirstOrDefaultAsync(t => t.TenantId == tenantId && t.Id == templateId, ct)
-            ?? throw new KeyNotFoundException("Template not found.");
 
-        var prevDefaults = await db.OrganizationDocumentTemplates
-            .Where(t => t.TenantId == tenantId
-                     && t.TemplateType == target.TemplateType
-                     && t.IsDefault
-                     && t.Id != target.Id)
-            .ToListAsync(ct);
-        foreach (var p in prevDefaults)
+        OrganizationDocumentTemplate? target = null;
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            p.IsDefault = false;
-            p.UpdatedAt = DateTimeOffset.UtcNow;
-            p.UpdatedBy = actorUserId;
-        }
-        target.IsDefault = true;
-        target.UpdatedAt = DateTimeOffset.UtcNow;
-        target.UpdatedBy = actorUserId;
-        await db.SaveChangesAsync(ct);
-        if (tx is not null) await tx.CommitAsync(ct);
+            await using var tx = supportsTx
+                ? await db.Database.BeginTransactionAsync(ct)
+                : null;
+            target = await db.OrganizationDocumentTemplates
+                .FirstOrDefaultAsync(t => t.TenantId == tenantId && t.Id == templateId, ct)
+                ?? throw new KeyNotFoundException("Template not found.");
+
+            var prevDefaults = await db.OrganizationDocumentTemplates
+                .Where(t => t.TenantId == tenantId
+                         && t.TemplateType == target.TemplateType
+                         && t.IsDefault
+                         && t.Id != target.Id)
+                .ToListAsync(ct);
+            foreach (var p in prevDefaults)
+            {
+                p.IsDefault = false;
+                p.UpdatedAt = DateTimeOffset.UtcNow;
+                p.UpdatedBy = actorUserId;
+            }
+            target.IsDefault = true;
+            target.UpdatedAt = DateTimeOffset.UtcNow;
+            target.UpdatedBy = actorUserId;
+            await db.SaveChangesAsync(ct);
+            if (tx is not null) await tx.CommitAsync(ct);
+        });
 
         await _audit.RecordAsync(
             tenantId, actorUserId, WizardAuditAction.TemplateMarkedDefault,
             $"Template/{templateId:D}", null, null,
-            JsonSerializer.Serialize(new { target.TemplateType, target.Label }),
+            JsonSerializer.Serialize(new { target!.TemplateType, target.Label }),
             null, Guid.NewGuid(), ct);
 
         return target;

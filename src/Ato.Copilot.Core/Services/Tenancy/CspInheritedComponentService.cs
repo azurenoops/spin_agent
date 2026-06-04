@@ -219,42 +219,50 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
         // Begin a transaction so the capability INSERT and the 1–2 history
         // INSERTs commit atomically. SQLite InMemory provider ignores
         // transactions; SqlServer / file-backed SQLite honors them per FR-004.
-        var supportsTransactions = db.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) != true;
-        await using var tx = supportsTransactions
-            ? await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false)
-            : null;
-
-        await db.CspInheritedCapabilities.AddAsync(capability, ct).ConfigureAwait(false);
-
-        // History row #1: Created. Metadata only when the override was used.
-        await _history.AppendAsync(
-            db, capability.Id, tenantId,
-            CapabilityHistoryEventType.Created,
-            actorOid: actor,
-            summary: "Capability manually created.",
-            metadata: markMappedImmediately
-                ? new { markedMappedImmediately = true }
-                : null,
-            ct).ConfigureAwait(false);
-
-        // History row #2: Reviewed — only when the creator opted to skip
-        // review at creation time (FR-001 override path).
-        if (markMappedImmediately)
+        //
+        // SqlServerRetryingExecutionStrategy does not support user-initiated
+        // transactions unless they are wrapped in CreateExecutionStrategy().ExecuteAsync.
+        // See: https://learn.microsoft.com/ef/core/miscellaneous/connection-resiliency
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
+            var supportsTransactions = db.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) != true;
+            await using var tx = supportsTransactions
+                ? await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false)
+                : null;
+
+            await db.CspInheritedCapabilities.AddAsync(capability, ct).ConfigureAwait(false);
+
+            // History row #1: Created. Metadata only when the override was used.
             await _history.AppendAsync(
                 db, capability.Id, tenantId,
-                CapabilityHistoryEventType.Reviewed,
+                CapabilityHistoryEventType.Created,
                 actorOid: actor,
-                summary: "Reviewed and approved at creation time.",
-                metadata: new { reviewerNote = "Mapped on create by creator." },
+                summary: "Capability manually created.",
+                metadata: markMappedImmediately
+                    ? new { markedMappedImmediately = true }
+                    : null,
                 ct).ConfigureAwait(false);
-        }
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        if (tx is not null)
-        {
-            await tx.CommitAsync(ct).ConfigureAwait(false);
-        }
+            // History row #2: Reviewed — only when the creator opted to skip
+            // review at creation time (FR-001 override path).
+            if (markMappedImmediately)
+            {
+                await _history.AppendAsync(
+                    db, capability.Id, tenantId,
+                    CapabilityHistoryEventType.Reviewed,
+                    actorOid: actor,
+                    summary: "Reviewed and approved at creation time.",
+                    metadata: new { reviewerNote = "Mapped on create by creator." },
+                    ct).ConfigureAwait(false);
+            }
+
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            if (tx is not null)
+            {
+                await tx.CommitAsync(ct).ConfigureAwait(false);
+            }
+        }).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Manually added CspInheritedCapability {CapabilityId} ('{Name}') to component {ComponentId} by {Actor}; markMappedImmediately={Override}",
@@ -825,10 +833,10 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
         // SQLite/SqlServer honor transactions; InMemory does not. Keep parity
         // with AddCapabilityAsync so unit tests stay green on InMemory while
         // SQL providers get true atomicity.
-        var supportsTransactions = db.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) != true;
-        await using var tx = supportsTransactions
-            ? await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false)
-            : null;
+        //
+        // SqlServerRetryingExecutionStrategy does not support user-initiated
+        // transactions unless they are wrapped in CreateExecutionStrategy().ExecuteAsync.
+        // See: https://learn.microsoft.com/ef/core/miscellaneous/connection-resiliency
 
         // 1. Target eligibility — tenant-scoped on read via EF query filters
         //    (CspInheritedComponent is [GlobalReference] today, so the actual
@@ -867,25 +875,34 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
         capability.ReviewerNote = null;
         capability.MappingFailureReason = "Moved to a new component; re-review required.";
 
-        // 5. Audit row — same transaction; no SaveChanges inside AppendAsync.
-        await _history.AppendAsync(
-            db, capability.Id, tenantId,
-            CapabilityHistoryEventType.Moved,
-            actorOid: actor,
-            summary: $"Moved from '{fromComponentName}' to '{target.Name}'.",
-            metadata: new
-            {
-                fromComponentId = componentId,
-                toComponentId = targetComponentId,
-            },
-            ct).ConfigureAwait(false);
-
-        // 6. Commit — DbUpdateConcurrencyException bubbles to the endpoint as 412.
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        if (tx is not null)
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            await tx.CommitAsync(ct).ConfigureAwait(false);
-        }
+            var supportsTransactions = db.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) != true;
+            await using var tx = supportsTransactions
+                ? await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false)
+                : null;
+
+            // 5. Audit row — same transaction; no SaveChanges inside AppendAsync.
+            await _history.AppendAsync(
+                db, capability.Id, tenantId,
+                CapabilityHistoryEventType.Moved,
+                actorOid: actor,
+                summary: $"Moved from '{fromComponentName}' to '{target.Name}'.",
+                metadata: new
+                {
+                    fromComponentId = componentId,
+                    toComponentId = targetComponentId,
+                },
+                ct).ConfigureAwait(false);
+
+            // 6. Commit — DbUpdateConcurrencyException bubbles to the endpoint as 412.
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            if (tx is not null)
+            {
+                await tx.CommitAsync(ct).ConfigureAwait(false);
+            }
+        }).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Reparented CspInheritedCapability {CapabilityId} from {FromComponentId} to {ToComponentId} by {Actor}",
