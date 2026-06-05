@@ -39,7 +39,7 @@ function getApprovalStatus(row: OrgControlOverrideDto): OrgControlOverrideApprov
 
 export default function OverrideReviewPage() {
   const { settings } = useSettings();
-  const isScaRole = settings.role === 'SecurityControlAssessor';
+  const isScaRole = (settings.role as string) === 'SecurityControlAssessor';
 
   const [allOverrides, setAllOverrides] = useState<OrgControlOverrideDto[]>([]);
   const [loading, setLoading] = useState(true);

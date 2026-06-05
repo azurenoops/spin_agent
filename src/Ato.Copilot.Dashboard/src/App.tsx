@@ -8,6 +8,8 @@ import CapabilitiesRoute from './pages/CapabilitiesRoute';
 import ControlsRoute from './pages/ControlsRoute';
 import OverrideReviewPage from './pages/OverrideReviewPage';
 import SystemDetail from './pages/SystemDetail';
+import AuthorizationPage from './pages/AuthorizationPage';
+import RolesManagementPage from './pages/RolesManagementPage';
 import Roadmap from './pages/Roadmap';
 import BoundaryManagement from './pages/BoundaryManagement';
 import Documents from './pages/Documents';
@@ -28,6 +30,7 @@ import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
 import { SettingsContext, useSettingsProvider } from './hooks/useSettings';
+import OrgSettingsPage from './pages/settings/OrgSettingsPage';
 import { OrganizationContextProvider } from './hooks/useOrganizationContext';
 import SystemDataProvider from './components/SystemRoute';
 import OnboardingShell from './features/onboarding/OnboardingShell';
@@ -100,6 +103,10 @@ function AppContent() {
             <Route path="inheritance" element={<ControlInheritance />} />
             <Route path="baseline" element={<BaselineManagement />} />
             <Route path="profile/:sectionType" element={<SystemProfile />} />
+            {/* Epic #121 / Task #146 — Authorization phase page */}
+            <Route path="authorize" element={<AuthorizationPage />} />
+            {/* Epic #121 / Task #147 — Roles management page */}
+            <Route path="roles" element={<RolesManagementPage />} />
           </Route>
           <Route path="/capabilities" element={<RequireAuth><CapabilitiesRoute /></RequireAuth>} />
           <Route path="/components" element={<RequireAuth><ComponentsRoute /></RequireAuth>} />
@@ -112,6 +119,8 @@ function AppContent() {
           <Route path="/csp/inherited-components" element={<RequireAuth><CspInheritedComponentsPage /></RequireAuth>} />
           <Route path="/admin/imported-documents" element={<RequireAuth><ImportedDocumentsView /></RequireAuth>} />
           <Route path="/controls" element={<RequireAuth><ControlsRoute /></RequireAuth>} />
+          {/* Epic #208 / Task #250 — Org settings page */}
+          <Route path="/settings/org" element={<RequireAuth><OrgSettingsPage /></RequireAuth>} />
           <Route path="/controls/overrides" element={<RequireAuth><OverrideReviewPage /></RequireAuth>} />
         </Routes>
         </TenantOnboardingGuard>

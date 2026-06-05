@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMsal } from '@azure/msal-react';
 
 export interface UseLoginRaceListenerOptions {
@@ -50,18 +50,26 @@ export function useLoginRaceListener(opts: UseLoginRaceListenerOptions): void {
         channelRef.current = null;
       };
     } else {
-      // Fallback path — localStorage storage events (original implementation)
-      const handler = (e: StorageEvent) => {
-        if (!e.key) return;
-        if (!e.key.startsWith('msal.account.keys')) return;
+      // Fallback path — localStorage storage events (original implementation).
+      // Cast to avoid TS narrowing `window` to `never` in the else branch of
+      // 'BroadcastChannel' in window (TS treats BroadcastChannel as always
+      // present on Window, making the else branch unreachable at the type level).
+      const win = window as unknown as {
+        addEventListener(t: string, l: EventListener): void;
+        removeEventListener(t: string, l: EventListener): void;
+      };
+      const handler = (e: Event) => {
+        const se = e as StorageEvent;
+        if (!se.key) return;
+        if (!se.key.startsWith('msal.account.keys')) return;
         const accounts = instance.getAllAccounts();
         if (accounts.length > 0) {
           onLoginCompletedInAnotherTab();
         }
       };
-      window.addEventListener('storage', handler);
+      win.addEventListener('storage', handler);
       return () => {
-        window.removeEventListener('storage', handler);
+        win.removeEventListener('storage', handler);
       };
     }
   }, [instance, onLoginCompletedInAnotherTab]);
