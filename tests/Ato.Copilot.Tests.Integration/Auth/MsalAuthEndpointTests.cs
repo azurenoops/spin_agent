@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Azure.Identity;
 using Azure.ResourceManager;
@@ -228,8 +229,7 @@ public class MsalAuthEndpointTests : IAsyncLifetime
         // In Development with simulation auto-inject, 200 is acceptable —
         // the important thing is it's never 500 or a data leak.
         response.StatusCode.Should().BeOneOf(
-            HttpStatusCode.OK,
-            HttpStatusCode.Unauthorized,
+            new[] { HttpStatusCode.OK, HttpStatusCode.Unauthorized },
             "unauthenticated /me requests must return 200 (simulated) or 401 (production), never a server error");
     }
 
