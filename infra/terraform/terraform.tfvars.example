@@ -1,0 +1,59 @@
+# =============================================================================
+# terraform.tfvars.example
+# Copy to terraform.tfvars or use environment-specific var files:
+#   terraform apply -var-file="environments/dev.tfvars"
+#
+# IMPORTANT: Never commit terraform.tfvars with real secrets to version control.
+#            Use CI secrets injection or Azure Key Vault references for passwords.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Org identity (azurenoops overlay naming convention)
+# ---------------------------------------------------------------------------
+org_name          = "anoa"
+workload_name     = "ato-cop"
+
+# "public" = Azure Commercial | "usgovernment" = Azure Government / MAG
+environment       = "public"
+deploy_environment = "dev"
+
+# Azure region — use "usgovvirginia" or "usgovarizona" for DoD production
+location = "eastus"
+
+tags = {
+  project     = "ato-copilot"
+  environment = "dev"
+  managed_by  = "terraform"
+}
+
+# ---------------------------------------------------------------------------
+# Key Vault
+# ---------------------------------------------------------------------------
+# Object IDs of principals that need full KV access (deployer SPN, team leads)
+kv_admin_object_ids = [
+  # "00000000-0000-0000-0000-000000000000"  # example: deployer SPN object ID
+]
+
+# ---------------------------------------------------------------------------
+# Azure SQL
+# ---------------------------------------------------------------------------
+sql_admin_login    = "sqladmin"
+# sql_admin_password = "<injected-by-ci>"  # Never hardcode — inject via CI or TF_VAR_ env
+
+# ---------------------------------------------------------------------------
+# Container App
+# ---------------------------------------------------------------------------
+container_image = "mcr.microsoft.com/dotnet/aspnet:9.0"  # Replace with ACR image post-push
+min_replicas    = 0   # scale-to-zero allowed in dev
+max_replicas    = 2
+
+# ---------------------------------------------------------------------------
+# Azure OpenAI (disabled by default)
+# ---------------------------------------------------------------------------
+deploy_openai = false
+
+# ---------------------------------------------------------------------------
+# M365 Bot Channel (disabled by default)
+# ---------------------------------------------------------------------------
+deploy_bot_channel = false
+# bot_app_id = "<azure-ad-app-client-id>"  # Required when deploy_bot_channel = true
