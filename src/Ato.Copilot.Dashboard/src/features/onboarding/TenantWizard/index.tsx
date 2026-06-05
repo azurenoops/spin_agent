@@ -205,6 +205,7 @@ export default function TenantWizard() {
   const stepDef = ORDERED_STEPS.find((s) => s.name === currentStep);
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex flex-col bg-slate-50"
       role="dialog"
@@ -486,5 +487,6 @@ export default function TenantWizard() {
       }}
       onCancel={() => setSkipModalOpen(false)}
     />
+    </>
   );
 }
