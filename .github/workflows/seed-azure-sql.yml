@@ -72,6 +72,22 @@ jobs:
             echo "reenable_required=false" >> "$GITHUB_OUTPUT"
           fi
 
+          # Temporarily disable AAD-only auth so SQL password login works
+          AAD_ONLY=$(az sql server show \
+            --resource-group "$RG" --name "$SQL_SERVER" \
+            --query "administrators.azureAdOnlyAuthentication" -o tsv 2>/dev/null || echo "false")
+          if [ "$AAD_ONLY" = "true" ]; then
+            echo "AAD-only auth is enabled — disabling temporarily..."
+            az sql server ad-only-auth disable \
+              --resource-group "$RG" \
+              --name "$SQL_SERVER" \
+              --output none
+            echo "aad_only_restore=true" >> "$GITHUB_OUTPUT"
+            echo "AAD-only auth disabled."
+          else
+            echo "aad_only_restore=false" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "Adding runner IP $RUNNER_IP to SQL firewall..."
           az sql server firewall-rule create \
             --resource-group "$RG" \
@@ -117,6 +133,15 @@ jobs:
             --name "Allow-GHRunner-Seed" \
             --output none 2>/dev/null || true
           echo "Firewall rule cleaned up."
+
+          if [ "${{ steps.firewall.outputs.aad_only_restore }}" = "true" ]; then
+            echo "Restoring AAD-only authentication..."
+            az sql server ad-only-auth enable \
+              --resource-group "$RG" \
+              --name "$SQL_SERVER" \
+              --output none
+            echo "AAD-only auth restored."
+          fi
 
           if [ "${{ steps.firewall.outputs.reenable_required }}" = "true" ]; then
             echo "Restoring public access to Disabled..."
