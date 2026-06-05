@@ -196,27 +196,34 @@ export default function OrgControlOverridePanel({
                 </select>
               </label>
 
-              <label className="block">
-                <span className="text-sm font-medium text-gray-700">
-                  Justification {hasOverride && <span className="text-red-600">*</span>}
-                </span>
-                <textarea
-                  rows={5}
-                  value={justification}
-                  onChange={(e) => setJustification(e.target.value)}
-                  placeholder={
-                    hasOverride
-                      ? 'Required: why this org diverges from the CSP default.'
-                      : 'Optional unless an override is set.'
-                  }
-                  className={`mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
-                    justificationMissing
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
-                  }`}
-                  disabled={saving}
-                />
-              </label>
+              {/* Justification character count (Issue #243) */}
+                <label className="block">
+                  <span className="text-sm font-medium text-gray-700">
+                    Justification {hasOverride && <span className="text-red-600">*</span>}
+                  </span>
+                  <textarea
+                    rows={5}
+                    value={justification}
+                    onChange={(e) => setJustification(e.target.value)}
+                    placeholder={
+                      hasOverride
+                        ? 'Required: why this org diverges from the CSP default.'
+                        : 'Optional unless an override is set.'
+                    }
+                    className={`mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
+                      justificationMissing
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+                    }`}
+                    disabled={saving}
+                    maxLength={2000}
+                  />
+                  <span className={`mt-0.5 block text-right text-xs ${
+                    justification.length > 1900 ? 'text-amber-600' : 'text-gray-400'
+                  }`}>
+                    {justification.length} / 2000 characters
+                  </span>
+                </label>
 
               {originalRow && (
                 <p className="text-xs text-gray-400">

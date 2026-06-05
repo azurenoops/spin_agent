@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
@@ -889,6 +889,33 @@ export default function ComponentLibrary() {
 
 // ─── Inline Form ─────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ComponentFormInline — create/edit form with:
+//   • Entra user search autocomplete for Person type (Issue #238)
+//   • Type-aware required field validation (Issue #241)
+//   • CSP field tooltips on disabled fields (Issue #240)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Per-type required fields definition (Issue #241) */
+const TYPE_REQUIRED_FIELDS: Record<ComponentType, { field: keyof CreateComponentRequest; label: string }[]> = {
+  Person: [
+    { field: 'name', label: 'Name' },
+    { field: 'email', label: 'Email' },
+  ],
+  Place: [
+    { field: 'name', label: 'Name' },
+    { field: 'subType', label: 'Location / Sub-Type' },
+  ],
+  Thing: [
+    { field: 'name', label: 'Name' },
+    { field: 'description', label: 'Description' },
+  ],
+  Policy: [
+    { field: 'name', label: 'Name' },
+    { field: 'subType', label: 'Policy Type' },
+  ],
+};
+
 function ComponentFormInline({
   initial,
   onSubmit,
@@ -914,6 +941,65 @@ function ComponentFormInline({
   );
   const [capSearch, setCapSearch] = useState('');
 
+  // ─── Entra search state (Issue #238) ───────────────────────────────────────
+  const [entraQuery, setEntraQuery] = useState('');
+  const [entraResults, setEntraResults] = useState<EntraDiscoveryItem[]>([]);
+  const [entraAll, setEntraAll] = useState<EntraDiscoveryItem[]>([]);
+  const [entraLoading, setEntraLoading] = useState(false);
+  const [entraError, setEntraError] = useState<string | null>(null);
+  const [showEntraDropdown, setShowEntraDropdown] = useState(false);
+  const entraDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const entraInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Validation touched state (Issue #241) ─────────────────────────────────
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  // ─── Load Entra directory on Person-type activation ────────────────────────
+  useEffect(() => {
+    if (componentType !== 'Person') return;
+    if (entraAll.length > 0) return; // cached from this session
+    setEntraLoading(true);
+    setEntraError(null);
+    discoverEntraIdUsers()
+      .then((r) => setEntraAll(r.items))
+      .catch(() => setEntraError('Entra ID discovery unavailable — enter name and email manually'))
+      .finally(() => setEntraLoading(false));
+  }, [componentType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Debounced filter of entraAll (300 ms) ─────────────────────────────────
+  useEffect(() => {
+    if (entraDebounceRef.current) clearTimeout(entraDebounceRef.current);
+    if (!entraQuery.trim()) {
+      setEntraResults([]);
+      setShowEntraDropdown(false);
+      return;
+    }
+    entraDebounceRef.current = setTimeout(() => {
+      const q = entraQuery.toLowerCase();
+      const hits = entraAll
+        .filter(
+          (i) =>
+            i.displayName.toLowerCase().includes(q) ||
+            (i.email ?? '').toLowerCase().includes(q),
+        )
+        .slice(0, 8);
+      setEntraResults(hits);
+      setShowEntraDropdown(hits.length > 0);
+    }, 300);
+    return () => {
+      if (entraDebounceRef.current) clearTimeout(entraDebounceRef.current);
+    };
+  }, [entraQuery, entraAll]);
+
+  const selectEntraUser = (item: EntraDiscoveryItem) => {
+    setPersonName(item.displayName);
+    setEmail(item.email ?? '');
+    setEntraQuery(item.displayName);
+    setShowEntraDropdown(false);
+    setTouched((prev) => ({ ...prev, email: true, name: true }));
+  };
+
+  // ─── Capability loading ─────────────────────────────────────────────────────
   useEffect(() => {
     getCapabilities({ pageSize: 200 }).then((r) => setCapabilities(r.items)).catch(() => {});
   }, []);
@@ -930,8 +1016,31 @@ function ComponentFormInline({
     ? capabilities.filter((c) => c.name.toLowerCase().includes(capSearch.toLowerCase()))
     : capabilities;
 
+  // ─── Type-aware validation (Issue #241) ────────────────────────────────────
+  const fieldValues: Record<string, string> = {
+    name,
+    email: componentType === 'Person' ? email : '',
+    subType,
+    description,
+  };
+
+  const requiredFields = TYPE_REQUIRED_FIELDS[componentType] ?? [];
+  const validationErrors: Record<string, string> = {};
+  for (const rf of requiredFields) {
+    const val = (fieldValues[rf.field as string] ?? '').trim();
+    if (!val) validationErrors[rf.field as string] = `${rf.label} is required`;
+  }
+  const isFormValid = Object.keys(validationErrors).length === 0;
+
+  const markTouched = (field: string) => setTouched((prev) => ({ ...prev, [field]: true }));
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Mark all required fields as touched so errors show
+    const allTouched: Record<string, boolean> = {};
+    for (const rf of requiredFields) allTouched[rf.field as string] = true;
+    setTouched((prev) => ({ ...prev, ...allTouched }));
+    if (!isFormValid) return;
     onSubmit({
       name,
       componentType,
@@ -945,50 +1054,195 @@ function ComponentFormInline({
     });
   };
 
+  const fieldError = (field: string) =>
+    touched[field] && validationErrors[field] ? validationErrors[field] : undefined;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      {/* Name — always required */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Name *</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => markTouched('name')}
+          maxLength={200}
+          className={`mt-1 block w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
+            fieldError('name')
+              ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+              : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+          }`}
+        />
+        {fieldError('name') && (
+          <p className="mt-0.5 text-xs text-red-600">{fieldError('name')}</p>
+        )}
       </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700">Type *</label>
-          <select value={componentType} onChange={(e) => setComponentType(e.target.value as ComponentType)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+          <select
+            value={componentType}
+            onChange={(e) => {
+              setComponentType(e.target.value as ComponentType);
+              setTouched({});
+            }}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          >
             {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Status *</label>
-          <select value={status} onChange={(e) => setStatus(e.target.value as ComponentStatus)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ComponentStatus)}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          >
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
       </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Sub-Type</label>
-        <input type="text" value={subType} onChange={(e) => setSubType(e.target.value)} maxLength={100} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Description</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Owner</label>
-        <input type="text" value={owner} onChange={(e) => setOwner(e.target.value)} maxLength={200} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-      </div>
+
+      {/* Person type: Entra search autocomplete (Issue #238) */}
       {componentType === 'Person' && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Person Name</label>
-            <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} maxLength={200} placeholder="e.g. John Smith" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+        <div className="space-y-2 rounded-md border border-indigo-100 bg-indigo-50 p-3">
+          <p className="text-xs font-medium text-indigo-700">Entra ID User</p>
+          {entraLoading && (
+            <p className="text-xs text-indigo-500">Loading directory…</p>
+          )}
+          {entraError && (
+            <p className="text-xs text-amber-700">{entraError}</p>
+          )}
+          <div className="relative">
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
+              Search Entra directory
+            </label>
+            <input
+              ref={entraInputRef}
+              type="text"
+              value={entraQuery}
+              onChange={(e) => setEntraQuery(e.target.value)}
+              onFocus={() => entraResults.length > 0 && setShowEntraDropdown(true)}
+              onBlur={() => setTimeout(() => setShowEntraDropdown(false), 150)}
+              placeholder="Type name or email…"
+              className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            {showEntraDropdown && (
+              <ul className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto text-sm">
+                {entraResults.map((item) => (
+                  <li
+                    key={item.entraObjectId}
+                    onMouseDown={() => selectEntraUser(item)}
+                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-indigo-50"
+                  >
+                    <span className="font-medium text-gray-900">{item.displayName}</span>
+                    <span className="text-xs text-gray-500 ml-2 truncate">{item.email}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} placeholder="e.g. john@example.com" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                Person Name *
+              </label>
+              <input
+                type="text"
+                value={personName}
+                onChange={(e) => setPersonName(e.target.value)}
+                onBlur={() => markTouched('personName')}
+                maxLength={200}
+                placeholder="Auto-filled from search"
+                className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                Email *
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => markTouched('email')}
+                maxLength={200}
+                placeholder="Auto-filled from search"
+                className={`block w-full rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+                  fieldError('email')
+                    ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+                }`}
+              />
+              {fieldError('email') && (
+                <p className="mt-0.5 text-xs text-red-600">{fieldError('email')}</p>
+              )}
+            </div>
           </div>
         </div>
       )}
+
+      {/* Sub-Type — label changes per type; required for Place and Policy (Issue #241) */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">
+          {componentType === 'Place'
+            ? 'Location / Sub-Type *'
+            : componentType === 'Policy'
+            ? 'Policy Type *'
+            : 'Sub-Type'}
+        </label>
+        <input
+          type="text"
+          value={subType}
+          onChange={(e) => setSubType(e.target.value)}
+          onBlur={() => markTouched('subType')}
+          maxLength={100}
+          className={`mt-1 block w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
+            fieldError('subType')
+              ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+              : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+          }`}
+        />
+        {fieldError('subType') && (
+          <p className="mt-0.5 text-xs text-red-600">{fieldError('subType')}</p>
+        )}
+      </div>
+
+      {/* Description — required for Thing (Issue #241) */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">
+          {componentType === 'Thing' ? 'Description *' : 'Description'}
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          onBlur={() => markTouched('description')}
+          maxLength={2000}
+          rows={3}
+          className={`mt-1 block w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
+            fieldError('description')
+              ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+              : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+          }`}
+        />
+        {fieldError('description') && (
+          <p className="mt-0.5 text-xs text-red-600">{fieldError('description')}</p>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Owner</label>
+        <input
+          type="text"
+          value={owner}
+          onChange={(e) => setOwner(e.target.value)}
+          maxLength={200}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+      </div>
+
       {/* Capability Picker */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1022,12 +1276,25 @@ function ComponentFormInline({
           )}
         </div>
       </div>
+
       <div className="flex justify-end gap-2 pt-2">
-        <button type="button" onClick={onCancel} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-        <button type="submit" disabled={submitting || !name} className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={submitting || !isFormValid}
+          title={!isFormValid ? Object.values(validationErrors).join('; ') : undefined}
+          className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           {submitting ? 'Saving...' : (initial ? 'Update' : 'Create')}
         </button>
       </div>
     </form>
   );
 }
+
