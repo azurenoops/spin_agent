@@ -115,13 +115,13 @@ jobs:
           for attempt in 1 2 3; do
             echo "Attempt $attempt/3..."
             if sqlcmd \
-              -S "${SQL_FQDN}" \
-              --authentication-method=ActiveDirectoryServicePrincipal \
-              --user "${{ secrets.AZURE_CLIENT_ID }}" \
-              --password "${AZURE_CLIENT_SECRET}" \
-              -d "${{ github.event.inputs.sql_database_name }}" \
-              -i scripts/seed-azure-progress.sql \
-              --exit-on-error; then
+                -S "${SQL_FQDN}" \
+                --authentication-method=ActiveDirectoryServicePrincipal \
+                -U "${{ secrets.AZURE_CLIENT_ID }}" \
+                -P "${AZURE_CLIENT_SECRET}" \
+                -d "${{ github.event.inputs.sql_database_name }}" \
+                -i scripts/seed-azure-progress.sql \
+                --exit-on-error; then
               echo "Seed completed successfully."
               break
             fi
