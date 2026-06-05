@@ -78,11 +78,10 @@ jobs:
       - name: Install sqlcmd
         shell: bash
         run: |
-          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-          curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
-          sudo apt-get update -qq
-          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev 2>&1 | tail -5
-          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+          # Use the go-sqlcmd binary — no GPG/tty issues
+          curl -fsSL https://github.com/microsoft/go-sqlcmd/releases/download/v1.8.0/sqlcmd-linux-amd64.tar.bz2 \
+            | sudo tar -xj -C /usr/local/bin sqlcmd
+          sqlcmd --version
 
       - name: Run seed-azure-progress.sql
         shell: bash
