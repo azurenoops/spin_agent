@@ -248,9 +248,7 @@ public class MsalAuthEndpointTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/api/auth/signout", new { reason = "manual" });
 
         response.StatusCode.Should().BeOneOf(
-            HttpStatusCode.NoContent,
-            HttpStatusCode.OK,
-            HttpStatusCode.Unauthorized,
+            new[] { HttpStatusCode.NoContent, HttpStatusCode.OK, HttpStatusCode.Unauthorized },
             "signout must return 204 (success) or 401 (no session to sign out from)");
     }
 
@@ -286,9 +284,7 @@ public class MsalAuthEndpointTests : IAsyncLifetime
             new { tenantId = Guid.NewGuid().ToString() });
 
         response.StatusCode.Should().BeOneOf(
-            HttpStatusCode.BadRequest,
-            HttpStatusCode.NotFound,
-            HttpStatusCode.Unauthorized,
+            new[] { HttpStatusCode.BadRequest, HttpStatusCode.NotFound, HttpStatusCode.Unauthorized },
             "unknown tenantId must produce a client-error response, not a server error");
     }
 
@@ -306,8 +302,7 @@ public class MsalAuthEndpointTests : IAsyncLifetime
             new { tenantId = Guid.NewGuid().ToString() });
 
         response.StatusCode.Should().BeOneOf(
-            HttpStatusCode.Unauthorized,
-            HttpStatusCode.BadRequest, // may fail body validation before auth check
+            new[] { HttpStatusCode.Unauthorized, HttpStatusCode.BadRequest }, // may fail body validation before auth check
             "unauthenticated select-tenant must not succeed");
     }
 }
