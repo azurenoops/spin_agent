@@ -1,0 +1,12 @@
+# Build output
+dist/
+node_modules/
+
+# Pre-built Teams app package — never commit; regenerate with: npm run package
+# The manifest must be rendered with real botId at deploy time.
+ato-copilot-m365.zip
+*.zip
+
+# Env files
+.env
+.env.local
