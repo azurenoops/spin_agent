@@ -83,7 +83,8 @@ jobs:
               --name "$SQL_SERVER" \
               --output none
             echo "aad_only_restore=true" >> "$GITHUB_OUTPUT"
-            echo "AAD-only auth disabled."
+            echo "AAD-only auth disabled. Waiting 45s for Azure SQL to propagate..."
+            sleep 45
           else
             echo "aad_only_restore=false" >> "$GITHUB_OUTPUT"
           fi
@@ -112,13 +113,27 @@ jobs:
         run: |
           set -euo pipefail
           SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
-          sqlcmd \
-            -S "${SQL_FQDN}" \
-            -U "${{ github.event.inputs.sql_admin_login }}" \
-            -P "${SQL_PASSWORD}" \
-            -d "${{ github.event.inputs.sql_database_name }}" \
-            -i scripts/seed-azure-progress.sql \
-            --exit-on-error
+          # Retry up to 3 times — AAD-only auth propagation can take an extra few seconds
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt/3..."
+            if sqlcmd \
+              -S "${SQL_FQDN}" \
+              -U "${{ github.event.inputs.sql_admin_login }}" \
+              -P "${SQL_PASSWORD}" \
+              -d "${{ github.event.inputs.sql_database_name }}" \
+              -i scripts/seed-azure-progress.sql \
+              --exit-on-error; then
+              echo "Seed completed successfully."
+              break
+            fi
+            if [ $attempt -lt 3 ]; then
+              echo "Login failed — waiting 20s before retry..."
+              sleep 20
+            else
+              echo "All attempts failed."
+              exit 1
+            fi
+          done
 
       - name: Remove firewall rule and restore public access
         if: always()
