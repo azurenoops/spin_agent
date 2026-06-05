@@ -71,7 +71,9 @@ public class BaselineService : IBaselineService
         if (applyOverlay)
         {
             var impactLevel = categorization.DoDImpactLevel;
-            var overlayEntries = _referenceData.GetOverlayEntries(impactLevel);
+            var overlayEntries = string.IsNullOrEmpty(impactLevel)
+                ? []
+                : _referenceData.GetOverlayEntries(impactLevel);
 
             if (overlayEntries.Count > 0)
             {
