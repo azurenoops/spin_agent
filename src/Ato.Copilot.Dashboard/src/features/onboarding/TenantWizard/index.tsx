@@ -476,7 +476,7 @@ export default function TenantWizard() {
     <SkipStepModal
       open={skipModalOpen}
       stepName={ORDERED_STEPS.find((s) => s.name === currentStep)?.title ?? currentStep}
-      onConfirm={async (reason) => {
+      onConfirm={async (reason: string) => {
         await onboarding.skipStep(currentStep as Parameters<typeof onboarding.skipStep>[0]);
         void reason; // reason is sent by SkipStepModal internally via the API
         setSkipModalOpen(false);

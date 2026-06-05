@@ -159,3 +159,55 @@ jobs:
           # Defaults to localhost and still produces annotations if unreachable.
           mcp-server-url: ${{ vars.ATO_MCP_SERVER_URL || 'http://localhost:5000' }}
           fail-on-error: 'true'
+
+  # ---------------------------------------------------------------------------
+  # Dashboard production bundle audit — Epic #207 / Task #235
+  # Builds the React dashboard in production mode and verifies that simulation
+  # mode strings (SimulationPanel, simulate, PostSimulate) are ABSENT from the
+  # output bundle. A feature flag that is merely "off" is insufficient for
+  # FedRAMP; the code path must be excluded at build time.
+  # ---------------------------------------------------------------------------
+  dashboard-bundle-audit:
+    name: Dashboard Production Bundle Audit (FedRAMP Sim-Mode Gate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Ato.Copilot.Dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/Ato.Copilot.Dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build (NODE_ENV=production)
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Audit bundle — simulation mode must be absent
+        # Fail if any of the simulation-mode identifiers survive tree-shaking.
+        # These strings must only exist in dev builds. Their presence in the
+        # production bundle is a FedRAMP violation (Epic #207 explicit constraint).
+        run: |
+          echo "Scanning dist/ for simulation-mode identifiers..."
+          FOUND=0
+          for PATTERN in "SimulationPanel" "PostSimulate" "simulate?identityId" "SimulationMode"; do
+            if grep -r --include="*.js" "$PATTERN" dist/ 2>/dev/null | grep -v "//"; then
+              echo "❌ FAIL: found '$PATTERN' in production bundle — simulation code was not tree-shaken"
+              FOUND=1
+            fi
+          done
+          if [ "$FOUND" -eq 0 ]; then
+            echo "✅ PASS: no simulation-mode identifiers found in production bundle"
+          else
+            exit 1
+          fi

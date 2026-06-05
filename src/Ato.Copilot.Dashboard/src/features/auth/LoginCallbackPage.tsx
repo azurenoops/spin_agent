@@ -38,6 +38,21 @@ export default function LoginCallbackPage() {
       try {
         const result = await instance.handleRedirectPromise();
         if (cancelled) return;
+
+        // Epic #207 / Task #245 — broadcast login_complete so sibling tabs
+        // (still on /login) can advance without requiring the user to click
+        // "Sign in" a second time. BroadcastChannel is preferred; the storage-
+        // event fallback in useLoginRaceListener handles browsers without it.
+        if (result?.account && 'BroadcastChannel' in window) {
+          try {
+            const ch = new BroadcastChannel('ato-login');
+            ch.postMessage({ type: 'login_complete' });
+            ch.close();
+          } catch {
+            // Non-critical — best effort broadcast.
+          }
+        }
+
         const target =
           (result?.state && typeof result.state === 'string' ? result.state : '') ||
           '/';

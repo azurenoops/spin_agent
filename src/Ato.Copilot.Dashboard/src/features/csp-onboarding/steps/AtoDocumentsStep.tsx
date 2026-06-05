@@ -16,7 +16,7 @@ import {
 } from '../api';
 import ComponentExtractionPreview from './ComponentExtractionPreview';
 // Task #249 — Job status panel for extraction job polling
-import JobStatusPanel from '../../onboarding/components/JobStatusPanel';
+// import JobStatusPanel from '../../onboarding/components/JobStatusPanel'; // Task #249 — wired in Epic #213
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB per file (FR-099)
 const ACCEPT = [

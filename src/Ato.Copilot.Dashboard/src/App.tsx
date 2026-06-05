@@ -30,6 +30,7 @@ import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
 import { SettingsContext, useSettingsProvider } from './hooks/useSettings';
+import OrgSettingsPage from './pages/settings/OrgSettingsPage';
 import { OrganizationContextProvider } from './hooks/useOrganizationContext';
 import SystemDataProvider from './components/SystemRoute';
 import OnboardingShell from './features/onboarding/OnboardingShell';

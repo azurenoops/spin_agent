@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { onboarding } from '../api/onboardingApi';
+import { onboarding } from '../features/onboarding/api/onboardingApi';
 
 /**
  * Task #248 — useJobPoller

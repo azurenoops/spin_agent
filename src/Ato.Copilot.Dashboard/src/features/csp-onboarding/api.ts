@@ -214,8 +214,6 @@ export interface AtoUploadResponse {
   aiMappingAvailable: boolean;
   aiMappingFailureReason?: string | null;
   files: AtoUploadFileResult[];
-  /** Task #249: background extraction job ID, if the server launched one. */
-  batchJobId?: string | null;
 }
 
 /** Per-document entry inside `AtoStepState.documents`. */
@@ -244,28 +242,16 @@ export interface AtoStepState {
  * Uploads one or more ATO source documents (PDF SSP, DOCX, OSCAL JSON, XLSX,
  * eMASS ZIP) during the CSP-onboarding wizard's ATO Documents step.
  * Multipart, max 50 MB per file (enforced both client-side and server-side).
- *
- * Task #249: `onUploadProgress` callback added for progress tracking.
  */
 export async function postCspOnboardingAtosUpload(
   files: File[],
-  onUploadProgress?: (percent: number) => void,
 ): Promise<AtoUploadResponse> {
   const form = new FormData();
   for (const f of files) form.append('files', f, f.name);
   const { data } = await cspClient.post<Envelope<AtoUploadResponse>>(
     '/csp/onboarding/atos/upload',
     form,
-    {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: onUploadProgress
-        ? (evt) => {
-            if (evt.total && evt.total > 0) {
-              onUploadProgress(Math.round((evt.loaded / evt.total) * 100));
-            }
-          }
-        : undefined,
-    },
+    { headers: { 'Content-Type': 'multipart/form-data' } },
   );
   return unwrap(data);
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { useLoginRaceListener } from '../../features/auth/useLoginRaceListener';
 
@@ -21,9 +21,121 @@ beforeEach(() => {
   getAllAccounts.mockReset();
 });
 
-// ─── Tests ──────────────────────────────────────────────────────────────
+// ─── BroadcastChannel tests (primary path) ──────────────────────────────
 
-describe('useLoginRaceListener', () => {
+describe('useLoginRaceListener — BroadcastChannel path', () => {
+  let mockChannel: {
+    onmessage: ((e: MessageEvent) => void) | null;
+    close: ReturnType<typeof vi.fn>;
+    postMessage: ReturnType<typeof vi.fn>;
+  };
+  let BroadcastChannelSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockChannel = { onmessage: null, close: vi.fn(), postMessage: vi.fn() };
+    BroadcastChannelSpy = vi.fn(() => mockChannel);
+    Object.defineProperty(window, 'BroadcastChannel', {
+      configurable: true,
+      writable: true,
+      value: BroadcastChannelSpy,
+    });
+  });
+
+  afterEach(() => {
+    // Restore to test isolation
+    Object.defineProperty(window, 'BroadcastChannel', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+  });
+
+  it('fires callback when login_complete message arrives and accounts are non-empty', () => {
+    getAllAccounts.mockReturnValue([{ homeAccountId: 'oid-1' }]);
+    const onLogin = vi.fn();
+    render(<Harness onLogin={onLogin} />);
+
+    act(() => {
+      if (mockChannel.onmessage) {
+        mockChannel.onmessage(
+          new MessageEvent('message', { data: { type: 'login_complete' } }),
+        );
+      }
+    });
+
+    expect(onLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT fire for a message with wrong type', () => {
+    getAllAccounts.mockReturnValue([{ homeAccountId: 'oid-1' }]);
+    const onLogin = vi.fn();
+    render(<Harness onLogin={onLogin} />);
+
+    act(() => {
+      if (mockChannel.onmessage) {
+        mockChannel.onmessage(
+          new MessageEvent('message', { data: { type: 'logout' } }),
+        );
+      }
+    });
+
+    expect(onLogin).not.toHaveBeenCalled();
+  });
+
+  it('does NOT fire when accounts are empty (cross-tab logout)', () => {
+    getAllAccounts.mockReturnValue([]);
+    const onLogin = vi.fn();
+    render(<Harness onLogin={onLogin} />);
+
+    act(() => {
+      if (mockChannel.onmessage) {
+        mockChannel.onmessage(
+          new MessageEvent('message', { data: { type: 'login_complete' } }),
+        );
+      }
+    });
+
+    expect(onLogin).not.toHaveBeenCalled();
+  });
+
+  it('closes the channel on unmount', () => {
+    getAllAccounts.mockReturnValue([{ homeAccountId: 'oid-1' }]);
+    const onLogin = vi.fn();
+    const { unmount } = render(<Harness onLogin={onLogin} />);
+
+    unmount();
+
+    expect(mockChannel.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens a BroadcastChannel named ato-login', () => {
+    getAllAccounts.mockReturnValue([]);
+    render(<Harness onLogin={vi.fn()} />);
+    expect(BroadcastChannelSpy).toHaveBeenCalledWith('ato-login');
+  });
+});
+
+// ─── localStorage fallback tests (BroadcastChannel not available) ───────
+
+describe('useLoginRaceListener — localStorage storage-event fallback', () => {
+  beforeEach(() => {
+    // Remove BroadcastChannel to force the fallback path
+    Object.defineProperty(window, 'BroadcastChannel', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+  });
+
+  afterEach(() => {
+    // Restore real BroadcastChannel if the environment has it
+    Object.defineProperty(window, 'BroadcastChannel', {
+      configurable: true,
+      writable: true,
+      value: (globalThis as unknown as { BroadcastChannel?: unknown }).BroadcastChannel,
+    });
+  });
+
   it('fires onLoginCompletedInAnotherTab when a msal account key writes and accounts are non-empty', () => {
     getAllAccounts.mockReturnValue([{ homeAccountId: 'oid-1' }]);
     const onLogin = vi.fn();
@@ -58,7 +170,7 @@ describe('useLoginRaceListener', () => {
     expect(onLogin).not.toHaveBeenCalled();
   });
 
-  it('does NOT fire when the storage event has no accounts in the cache (logout cross-tab)', () => {
+  it('does NOT fire when accounts are empty (logout cross-tab)', () => {
     getAllAccounts.mockReturnValue([]);
     const onLogin = vi.fn();
     render(<Harness onLogin={onLogin} />);

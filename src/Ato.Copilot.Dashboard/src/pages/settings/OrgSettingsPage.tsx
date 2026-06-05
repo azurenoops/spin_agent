@@ -61,7 +61,7 @@ export default function OrgSettingsPage() {
         organizationName: fields.organizationName,
         branch: fields.branch,
         classificationPosture: fields.classificationPosture,
-      } as Parameters<typeof onboarding.upsertOrganizationContext>[0]);
+      } as unknown as Parameters<typeof onboarding.upsertOrganizationContext>[0]);
       setSuccess('Organization settings saved.');
     } catch {
       setError('Failed to save organization settings. Please try again.');

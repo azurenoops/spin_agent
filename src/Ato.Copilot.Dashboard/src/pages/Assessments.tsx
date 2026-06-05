@@ -1,18 +1,17 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import * as signalR from '@microsoft/signalr';
 import { usePolling } from '../hooks/usePolling';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { getAssessments, runAssessment, getAssessmentDetail } from '../api/assessments';
 import { getAssessmentComponentRisks } from '../api/components';
 import { generateSap, getLatestSap, finalizeSap } from '../api/sap';
-import { createSar, getLatestSar, editSarSection, submitSarForReview, reviewSar, exportSarWord } from '../api/sar';
+import { createSar, getLatestSar } from '../api/sar';
 import type { AssessmentListItem, AssessmentDetail, AssessmentFinding } from '../api/assessments';
 import type { AssessmentComponentRisks, ComponentRiskSummary } from '../types/dashboard';
 import type { SapResponse } from '../api/sap';
-import type { SarResponse, SarSectionSummary } from '../api/sar';
+import type { SarResponse } from '../api/sar';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -89,39 +88,9 @@ export default function Assessments() {
   const [sarError, setSarError] = useState<string | null>(null);
   const [sarData, setSarData] = useState<SarResponse | null>(null);
 
-  // Epic #211 — SAR workflow: section editing, submit, review, export
-  const [sarEditSection, setSarEditSection] = useState<SarSectionSummary | null>(null);
-  const [sarEditContent, setSarEditContent] = useState('');
-  const [sarEditLoading, setSarEditLoading] = useState(false);
-  const [sarEditError, setSarEditError] = useState<string | null>(null);
-  const [sarSubmitLoading, setSarSubmitLoading] = useState(false);
-  const [sarSubmitError, setSarSubmitError] = useState<string | null>(null);
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewDecision, setReviewDecision] = useState<'approve' | 'request_revision'>('approve');
-  const [reviewComment, setReviewComment] = useState('');
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewError, setReviewError] = useState<string | null>(null);
-  const [exportLoading, setExportLoading] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
-
   // View detail modals
   const [showSapView, setShowSapView] = useState(false);
   const [showSarView, setShowSarView] = useState(false);
-
-  // Epic #121 / Task #148 — SignalR real-time assessment progress
-  const [progressSteps, setProgressSteps] = useState<string[]>([]);
-  const [assessmentRunning, setAssessmentRunning] = useState(false);
-  const hubRef = useRef<signalR.HubConnection | null>(null);
-
-  // Disconnect hub on unmount
-  useEffect(() => {
-    return () => {
-      if (hubRef.current) {
-        void hubRef.current.stop();
-        hubRef.current = null;
-      }
-    };
-  }, []);
 
   const fetchAssessments = useCallback(() => getAssessments(), []);
   const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
@@ -147,68 +116,11 @@ export default function Assessments() {
   const handleRunAssessment = async () => {
     setRunLoading(true);
     setRunError(null);
-    setProgressSteps([]);
-    setAssessmentRunning(true);
     try {
-      const result = await runAssessment(systemId);
+      await runAssessment(systemId);
       setShowRunDialog(false);
-
-      // Epic #121 / Task #148 — connect to PackageHub for real-time progress.
-      // PackageHub groups by packageId; `runAssessment` returns assessmentId which
-      // serves as the correlator for the hub subscription. If SignalR is unavailable
-      // the polling fallback (every 30 s via usePolling above) continues to work.
-      try {
-        const hubUrl = `${window.location.origin}/hubs/package`;
-        const connection = new signalR.HubConnectionBuilder()
-          .withUrl(hubUrl)
-          .withAutomaticReconnect()
-          .configureLogging(signalR.LogLevel.Warning)
-          .build();
-
-        // Register event handlers before starting
-        connection.on('PackageStatusChanged', (payload: { packageId: string; status: string }) => {
-          setProgressSteps((prev) => [...prev, `Status: ${payload.status}`]);
-          if (['completed', 'failed'].includes(payload.status.toLowerCase())) {
-            setAssessmentRunning(false);
-            void connection.stop();
-            hubRef.current = null;
-            refresh();
-          }
-        });
-        connection.on('PackageArtifactGenerated', (payload: { artifactType: string }) => {
-          setProgressSteps((prev) => [...prev, `Artifact generated: ${payload.artifactType}`]);
-        });
-        connection.on('PackageValidationComplete', (payload: { isValid: boolean; violationCount: number }) => {
-          setProgressSteps((prev) => [
-            ...prev,
-            `Validation ${payload.isValid ? 'passed' : `failed (${payload.violationCount} violation${payload.violationCount !== 1 ? 's' : ''})`}`,
-          ]);
-        });
-        connection.on('PackageComplete', () => {
-          setProgressSteps((prev) => [...prev, 'Assessment complete.']);
-          setAssessmentRunning(false);
-          void connection.stop();
-          hubRef.current = null;
-          refresh();
-        });
-        connection.on('PackageFailed', (payload: { error: string }) => {
-          setProgressSteps((prev) => [...prev, `Failed: ${payload.error}`]);
-          setAssessmentRunning(false);
-          void connection.stop();
-          hubRef.current = null;
-          refresh();
-        });
-
-        await connection.start();
-        await connection.invoke('SubscribeToPackage', result.assessmentId);
-        hubRef.current = connection;
-      } catch {
-        // SignalR connection failed — fall through to 30 s polling silently.
-        setAssessmentRunning(false);
-        refresh();
-      }
+      refresh();
     } catch (err: unknown) {
-      setAssessmentRunning(false);
       if (err && typeof err === 'object' && 'response' in err) {
         const axiosErr = err as { response?: { data?: { error?: string } } };
         setRunError(axiosErr.response?.data?.error ?? 'Assessment failed');
@@ -274,103 +186,6 @@ export default function Assessments() {
       }
     } finally {
       setSarLoading(false);
-    }
-  };
-
-  // Epic #211 — SAR section edit handler
-  const handleSaveSarSection = async () => {
-    if (!sarData || !sarEditSection) return;
-    setSarEditLoading(true);
-    setSarEditError(null);
-    try {
-      await editSarSection(systemId, sarData.sarId, sarEditSection.sectionType, sarEditContent);
-      // Refresh SAR to get updated section status
-      const updated = await getLatestSar(systemId);
-      setSarData(updated);
-      setSarEditSection(null);
-      setSarEditContent('');
-    } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { error?: string } } };
-        setSarEditError(axiosErr.response?.data?.error ?? 'Save failed');
-      } else {
-        setSarEditError(err instanceof Error ? err.message : 'Save failed');
-      }
-    } finally {
-      setSarEditLoading(false);
-    }
-  };
-
-  // Epic #211 — SAR submit for review handler
-  const handleSubmitSar = async () => {
-    if (!sarData) return;
-    setSarSubmitLoading(true);
-    setSarSubmitError(null);
-    try {
-      const updated = await submitSarForReview(systemId, sarData.sarId);
-      setSarData(updated);
-    } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { error?: string } } };
-        setSarSubmitError(axiosErr.response?.data?.error ?? 'Submit failed');
-      } else {
-        setSarSubmitError(err instanceof Error ? err.message : 'Submit failed');
-      }
-    } finally {
-      setSarSubmitLoading(false);
-    }
-  };
-
-  // Epic #211 — SAR review (approve/reject) handler
-  const handleReviewSar = async () => {
-    if (!sarData) return;
-    if (reviewDecision === 'request_revision' && !reviewComment.trim()) {
-      setReviewError('Comments are required when requesting revision.');
-      return;
-    }
-    setReviewLoading(true);
-    setReviewError(null);
-    try {
-      const updated = await reviewSar(systemId, sarData.sarId, { decision: reviewDecision, comments: reviewComment || undefined });
-      setSarData(updated);
-      setShowReviewModal(false);
-      setReviewComment('');
-    } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { error?: string } } };
-        setReviewError(axiosErr.response?.data?.error ?? 'Review action failed');
-      } else {
-        setReviewError(err instanceof Error ? err.message : 'Review action failed');
-      }
-    } finally {
-      setReviewLoading(false);
-    }
-  };
-
-  // Epic #211 — SAR Word export handler
-  const handleExportSarWord = async () => {
-    if (!sarData) return;
-    setExportLoading(true);
-    setExportError(null);
-    try {
-      const blob = await exportSarWord(systemId, sarData.sarId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `SAR_${sarData.title.replace(/\s+/g, '_')}.docx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { error?: string } } };
-        setExportError(axiosErr.response?.data?.error ?? 'Export failed');
-      } else {
-        setExportError(err instanceof Error ? err.message : 'Export failed');
-      }
-    } finally {
-      setExportLoading(false);
     }
   };
 
@@ -1019,48 +834,6 @@ export default function Assessments() {
           </div>
         )}
 
-        {/* Epic #121 / Task #148 — Real-time assessment progress panel */}
-        {(assessmentRunning || progressSteps.length > 0) && (
-          <div className="fixed bottom-6 right-6 z-40 w-80 rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between bg-indigo-600 px-4 py-3">
-              <span className="text-sm font-semibold text-white">
-                {assessmentRunning ? 'Assessment Running…' : 'Assessment Complete'}
-              </span>
-              {!assessmentRunning && (
-                <button
-                  type="button"
-                  onClick={() => setProgressSteps([])}
-                  className="text-indigo-200 hover:text-white text-xs"
-                  aria-label="Dismiss progress"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-            <ul className="max-h-48 overflow-y-auto px-4 py-3 space-y-1">
-              {progressSteps.length === 0 ? (
-                <li className="text-xs text-gray-500 italic">Connecting to assessment service…</li>
-              ) : (
-                progressSteps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
-                    <span className="mt-0.5 flex-shrink-0 h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                    {step}
-                  </li>
-                ))
-              )}
-              {assessmentRunning && (
-                <li className="flex items-center gap-2 text-xs text-indigo-600">
-                  <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                  </svg>
-                  In progress…
-                </li>
-              )}
-            </ul>
-          </div>
-        )}
-
         {/* Generate SAP Dialog */}
         {showSapDialog && (
           <div
@@ -1581,7 +1354,6 @@ export default function Assessments() {
                             <th className="px-3 py-2 text-left font-medium text-gray-500">Section</th>
                             <th className="px-3 py-2 text-center font-medium text-gray-500">Source</th>
                             <th className="px-3 py-2 text-center font-medium text-gray-500">Status</th>
-                            <th className="px-3 py-2 text-center font-medium text-gray-500">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
@@ -1600,16 +1372,6 @@ export default function Assessments() {
                                   <span className="inline-flex items-center rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Complete</span>
                                 ) : (
                                   <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Needs content</span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                {['Draft', 'NotStarted'].includes(sarData.status) && (
-                                  <button
-                                    onClick={() => { setSarEditSection(s); setSarEditContent(''); setSarEditError(null); }}
-                                    className="inline-flex items-center rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
-                                  >
-                                    Edit
-                                  </button>
                                 )}
                               </td>
                             </tr>
@@ -1655,109 +1417,8 @@ export default function Assessments() {
                 </div>
               </div>
 
-              {/* Epic #211 — Inline SAR section editor */}
-              {sarEditSection && (
-                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h5 className="text-sm font-semibold text-indigo-900">Edit: {sarEditSection.title}</h5>
-                    <button onClick={() => { setSarEditSection(null); setSarEditContent(''); }} className="text-xs text-gray-500 hover:text-gray-700">✕ Cancel</button>
-                  </div>
-                  <textarea
-                    value={sarEditContent}
-                    onChange={e => setSarEditContent(e.target.value)}
-                    rows={6}
-                    className="w-full rounded-md border border-indigo-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Enter section content..."
-                  />
-                  {sarEditError && <p className="mt-1 text-xs text-red-600">{sarEditError}</p>}
-                  <div className="mt-2 flex justify-end">
-                    <button
-                      onClick={() => void handleSaveSarSection()}
-                      disabled={sarEditLoading || !sarEditContent.trim()}
-                      className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                    >
-                      {sarEditLoading ? 'Saving...' : 'Save Section'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Epic #211 — Review modal */}
-              {showReviewModal && (
-                <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
-                  <h5 className="text-sm font-semibold text-gray-900 mb-3">SAR Review Decision</h5>
-                  <div className="space-y-3">
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="radio" name="decision" value="approve" checked={reviewDecision === 'approve'} onChange={() => setReviewDecision('approve')} />
-                        <span className="font-medium text-green-700">Approve</span>
-                      </label>
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="radio" name="decision" value="request_revision" checked={reviewDecision === 'request_revision'} onChange={() => setReviewDecision('request_revision')} />
-                        <span className="font-medium text-amber-700">Request Revision</span>
-                      </label>
-                    </div>
-                    <textarea
-                      value={reviewComment}
-                      onChange={e => setReviewComment(e.target.value)}
-                      rows={3}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder={reviewDecision === 'request_revision' ? 'Comments required for revision request...' : 'Optional comments...'}
-                    />
-                    {reviewError && <p className="text-xs text-red-600">{reviewError}</p>}
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => { setShowReviewModal(false); setReviewComment(''); setReviewError(null); }} className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>
-                      <button
-                        onClick={() => void handleReviewSar()}
-                        disabled={reviewLoading || (reviewDecision === 'request_revision' && !reviewComment.trim())}
-                        className={`inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 transition-colors ${reviewDecision === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'}`}
-                      >
-                        {reviewLoading ? 'Submitting...' : reviewDecision === 'approve' ? 'Approve SAR' : 'Request Revision'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Footer — Epic #211 actions */}
-              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex items-center justify-between flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  {/* Export Word — Task #264 */}
-                  <button
-                    onClick={() => void handleExportSarWord()}
-                    disabled={exportLoading}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-white border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    {exportLoading ? 'Exporting...' : 'Export Word'}
-                  </button>
-                  {exportError && <p className="text-xs text-red-600">{exportError}</p>}
-
-                  {/* Submit SAR — Task #263 */}
-                  {sarData.status === 'Draft' && (
-                    <button
-                      onClick={() => void handleSubmitSar()}
-                      disabled={sarSubmitLoading || !sarData.sections?.every(s => s.hasContent)}
-                      title={!sarData.sections?.every(s => s.hasContent) ? 'All sections must have content before submitting' : 'Submit SAR for review'}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                    >
-                      {sarSubmitLoading ? 'Submitting...' : 'Submit for Review'}
-                    </button>
-                  )}
-                  {sarSubmitError && <p className="text-xs text-red-600">{sarSubmitError}</p>}
-
-                  {/* Review SAR — Task #263 (Assessor/ISSM) */}
-                  {sarData.status === 'Submitted' && (
-                    <button
-                      onClick={() => { setShowReviewModal(true); setReviewError(null); }}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
-                    >
-                      Review SAR
-                    </button>
-                  )}
-                </div>
+              {/* Footer */}
+              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowSarView(false)}

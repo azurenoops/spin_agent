@@ -78,34 +78,6 @@ export async function listOrgControlOverrides(): Promise<OrgControlOverrideDto[]
   return data.data ?? [];
 }
 
-export async function getOrgControlOverride(controlId: string): Promise<OrgControlOverrideDto | null> {
-  try {
-    const { data } = await orgsClient.get<ApiEnvelope<OrgControlOverrideDto>>(
-      `/control-overrides/${controlId}`,
-    );
-    return data.data ?? null;
-  } catch (err: any) {
-    if (err?.response?.status === 404) return null;
-    throw err;
-  }
-}
-
-export async function upsertOrgControlOverride(
-  controlId: string,
-  body: OrgControlOverrideRequest,
-): Promise<OrgControlOverrideDto> {
-  const { data } = await orgsClient.put<ApiEnvelope<OrgControlOverrideDto>>(
-    `/control-overrides/${controlId}`,
-    body,
-  );
-  if (!data.data) throw new Error(data.message ?? 'Upsert failed');
-  return data.data;
-}
-
-export async function deleteOrgControlOverride(controlId: string): Promise<void> {
-  await orgsClient.delete(`/control-overrides/${controlId}`);
-}
-
 // ─── SCA Review Workflow (Issue #244) ────────────────────────────────────────
 
 export type OrgControlOverrideApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
