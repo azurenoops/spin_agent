@@ -139,7 +139,7 @@ module "acr" {
 # ---------------------------------------------------------------------------
 module "sql" {
   source  = "azurenoops/overlays-azsql/azurerm"
-  version = "~> 3.0"
+  version = "~> 2.0"
 
   org_name           = var.org_name
   environment        = var.environment
@@ -195,7 +195,7 @@ resource "azurerm_key_vault_secret" "sql_connection_string" {
 module "openai" {
   count   = var.deploy_openai ? 1 : 0
   source  = "azurenoops/overlays-openai-cognitive-account/azurerm"
-  version = "~> 2.0"
+  version = "~> 1.0"
 
   org_name           = var.org_name
   environment        = var.environment
