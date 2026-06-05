@@ -258,7 +258,6 @@ public class AcceptRiskTool : BaseTool
         id = d.Id,
         deviation_type = d.DeviationType.ToString(),
         status = d.Status.ToString(),
-        is_active = d.IsActive,
         control_id = d.ControlId,
         cat_severity = d.CatSeverity.ToString(),
         justification = d.Justification,

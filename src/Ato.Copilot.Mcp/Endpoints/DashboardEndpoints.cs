@@ -5433,6 +5433,8 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                     });
 
                 var categoryStr = form["artifactCategory"].ToString();
+                if (string.IsNullOrWhiteSpace(categoryStr))
+                    categoryStr = form["category"].ToString();
                 if (string.IsNullOrWhiteSpace(categoryStr) ||
                     !Enum.TryParse<ArtifactCategory>(categoryStr, ignoreCase: true, out var category))
                     return Results.BadRequest(new ErrorResponse
@@ -5483,7 +5485,7 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                         collectionMethod,
                         ct);
 
-                    return Results.Created($"/api/dashboard/systems/{systemId}/evidence/{artifact.Id}", new
+                    return Results.Ok(new
                     {
                         artifact.Id,
                         artifact.FileName,

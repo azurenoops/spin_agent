@@ -278,8 +278,9 @@ public class BaselineService : IBaselineService
 
         // ─── Feature 044: Propagate org-level inheritance defaults ─────────
         var baselineControlIdSet = new HashSet<string>(controlIds, StringComparer.OrdinalIgnoreCase);
-        var propagation = await _orgInheritanceService.PropagateToSystemAsync(
-            systemId, baseline.Id, baselineControlIdSet, selectedBy, cancellationToken);
+        var propagation = await (_orgInheritanceService.PropagateToSystemAsync(
+            systemId, baseline.Id, baselineControlIdSet, selectedBy, cancellationToken)
+            ?? Task.FromResult(new OrgPropagationResult(0, 0, [])));
 
         if (propagation.PropagatedCount > 0)
         {
