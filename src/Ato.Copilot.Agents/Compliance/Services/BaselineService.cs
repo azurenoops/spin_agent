@@ -146,15 +146,16 @@ public class BaselineService : IBaselineService
         // Look up capability mappings for new controls so we can set SecurityCapabilityId
         var newControlIds = controlIds.Where(c => !existingSet.Contains(c)).ToList();
         var capabilityMappings = newControlIds.Count > 0
-            ? await context.CapabilityControlMappings
+            ? (await context.CapabilityControlMappings
                 .Where(m => newControlIds.Contains(m.ControlId)
                     && (m.RegisteredSystemId == null || m.RegisteredSystemId == systemId))
-                .GroupBy(m => m.ControlId)
-                .ToDictionaryAsync(
+                .Select(m => new { m.ControlId, m.SecurityCapabilityId })
+                .ToListAsync(cancellationToken))
+                .GroupBy(m => m.ControlId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
                     g => g.Key,
                     g => g.First().SecurityCapabilityId,
-                    StringComparer.OrdinalIgnoreCase,
-                    cancellationToken)
+                    StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var newImplementations = new List<ControlImplementation>();
