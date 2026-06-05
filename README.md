@@ -93,13 +93,15 @@ cp .env.example .env
 docker compose -f docker-compose.mcp.yml up --build
 ```
 
-This starts three services:
+This starts five services:
 
 | Service | Port | Description |
 |---------|------|-------------|
-| `ato-copilot-mcp` | 3001 | MCP server with 130 compliance tools |
-| `ato-copilot-chat` | 5001 | Web chat application |
 | `ato-copilot-sql` | 1433 | SQL Server 2022 database |
+| `ato-copilot-redis` | 6379 | Redis (session throttle counters) |
+| `ato-copilot-mcp` | 3001 | MCP server with 130+ compliance tools |
+| `ato-copilot-chat` | 5001 | Web chat application |
+| `ato-copilot-dashboard` | 5173 | Compliance dashboard (React / nginx) |
 
 ### Build & Test
 
