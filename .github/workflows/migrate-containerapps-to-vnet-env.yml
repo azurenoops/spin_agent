@@ -1,3 +1,6 @@
+# DEPRECATED — superseded by Terraform IaC (Epic #123, Task #157)
+# VNet integration is handled by the Terraform root module (infra/terraform/).
+# This workflow is retained for reference only and will be removed in a future cleanup PR.
 name: Migrate Container Apps To VNet Environment
 
 on:

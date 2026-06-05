@@ -1,0 +1,17 @@
+# Terraform working directory artifacts — never commit
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Local var files with real values — use environments/ dir for committed examples
+terraform.tfvars
+*.auto.tfvars

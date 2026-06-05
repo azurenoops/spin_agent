@@ -1,3 +1,7 @@
+# DEPRECATED — superseded by Terraform IaC (Epic #123, Task #156)
+# Use infra/terraform/ with environments/dev.tfvars or environments/prod.tfvars instead.
+# See infra/README.md for deployment instructions.
+# This workflow is retained for reference only and will be removed in a future cleanup PR.
 name: Bootstrap Azure Container App Infra
 
 on:

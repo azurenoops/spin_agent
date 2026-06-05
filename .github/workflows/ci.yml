@@ -71,6 +71,76 @@ jobs:
       - name: Compile extension
         run: npm run compile
 
+  # ---------------------------------------------------------------------------
+  # Terraform lint — fmt check + validate on every PR touching infra/**
+  # Epic #123 (Task #156)
+  # ---------------------------------------------------------------------------
+  terraform-lint:
+    name: Terraform Lint
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       contains(toJson(github.event.pull_request.changed_files), 'infra/'))
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7"
+
+      - name: terraform fmt --check
+        run: terraform fmt --check -recursive
+        working-directory: infra/terraform
+
+      - name: terraform init (no backend)
+        run: terraform init -backend=false
+        working-directory: infra/terraform
+
+      - name: terraform validate
+        run: terraform validate
+        working-directory: infra/terraform
+
+  # ---------------------------------------------------------------------------
+  # M365 Teams Extension — build + mocha tests on every PR touching extensions/m365/**
+  # Epic #129 (T061-01)
+  # ---------------------------------------------------------------------------
+  m365-test:
+    name: M365 Teams Extension
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       contains(toJson(github.event.pull_request.changed_files), 'extensions/m365/'))
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: extensions/m365/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: extensions/m365
+
+      - name: Build (TypeScript compile)
+        run: npm run build
+        working-directory: extensions/m365
+
+      - name: Run tests
+        run: npm test
+        working-directory: extensions/m365
+
   ato-compliance-gate:
     name: ATO Compliance Gate
     if: github.event_name == 'pull_request'
