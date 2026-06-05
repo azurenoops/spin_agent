@@ -112,6 +112,8 @@ function AppContent() {
           <Route path="/csp/inherited-components" element={<RequireAuth><CspInheritedComponentsPage /></RequireAuth>} />
           <Route path="/admin/imported-documents" element={<RequireAuth><ImportedDocumentsView /></RequireAuth>} />
           <Route path="/controls" element={<RequireAuth><ControlsRoute /></RequireAuth>} />
+          {/* Epic #208 / Task #250 — Org settings page */}
+          <Route path="/settings/org" element={<RequireAuth><OrgSettingsPage /></RequireAuth>} />
           <Route path="/controls/overrides" element={<RequireAuth><OverrideReviewPage /></RequireAuth>} />
         </Routes>
         </TenantOnboardingGuard>
