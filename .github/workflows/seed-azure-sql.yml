@@ -88,14 +88,16 @@ jobs:
         run: |
           set -euo pipefail
           SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
+          # Azure AD-only auth enabled — use access token from the logged-in service principal
+          ACCESS_TOKEN=$(az account get-access-token \
+            --resource "https://database.windows.net/" \
+            --query accessToken -o tsv)
           sqlcmd \
-            -S "tcp:${SQL_FQDN},1433" \
-            -U "${{ github.event.inputs.sql_admin_login }}" \
-            -P "${{ secrets.ATO_SQL_ADMIN_PASSWORD }}" \
+            -S "${SQL_FQDN}" \
+            --authentication-method=ActiveDirectoryDefault \
             -d "${{ github.event.inputs.sql_database_name }}" \
-            -C -N \
             -i scripts/seed-azure-progress.sql \
-            -b
+            --exit-on-error
 
       - name: Remove SQL firewall rule
         if: always() && steps.firewall.outputs.vnet_mode == 'false'
