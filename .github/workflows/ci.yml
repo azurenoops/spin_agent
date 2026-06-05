@@ -141,6 +141,60 @@ jobs:
         run: npm test
         working-directory: extensions/m365
 
+  # ---------------------------------------------------------------------------
+  # OSCAL 1.1.2 Schema Validation Gate — Epic #122 (Task #153)
+  # Runs OscalValidationService unit tests + integration OSCAL export tests.
+  # Fails the build if any OSCAL SSP export regresses against the bundled
+  # NIST OSCAL 1.1.2 schema (oscal_ssp_schema.json).
+  # ---------------------------------------------------------------------------
+  oscal-schema-validation:
+    name: OSCAL 1.1.2 Schema Validation
+    runs-on: ubuntu-latest
+    needs: [dotnet-build-test]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Ato.Copilot.sln
+
+      - name: Build
+        run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
+
+      - name: Run OSCAL schema validation unit tests
+        run: >
+          dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj
+          -c Release --no-build -nologo
+          --filter "FullyQualifiedName~OscalValidationService|FullyQualifiedName~OscalSspExport"
+          --logger trx
+        env:
+          OSCAL_VALIDATION_FAIL_ON_VIOLATIONS: "true"
+
+      - name: Run OSCAL integration tests (export + schema validation)
+        run: >
+          dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj
+          -c Release --no-build -nologo
+          --filter "FullyQualifiedName~SspToolsIntegration|FullyQualifiedName~OscalSchemaValidation"
+          --logger trx
+        env:
+          OSCAL_VALIDATION_FAIL_ON_VIOLATIONS: "true"
+
+      - name: Upload OSCAL validation test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oscal-validation-results
+          path: |
+            tests/**/TestResults/*.trx
+          if-no-files-found: ignore
+
+
   ato-compliance-gate:
     name: ATO Compliance Gate
     if: github.event_name == 'pull_request'
