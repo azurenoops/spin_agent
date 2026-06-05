@@ -6,9 +6,11 @@
 
 - [Deployment Options](#deployment-options)
 - [Docker Deployment](#docker-deployment)
+  - [4-Service Stack](#4-service-stack)
   - [Build the Image](#build-the-image)
   - [Docker Compose](#docker-compose)
   - [Environment Variables](#environment-variables)
+  - [Deployment Mode: SingleTenant vs MultiTenant](#deployment-mode-singletenant-vs-multitenant)
 - [Azure Deployment](#azure-deployment)
   - [Azure Container Apps](#azure-container-apps)
   - [Azure App Service](#azure-app-service)
@@ -20,6 +22,7 @@
 - [Security Configuration](#security-configuration)
   - [Azure AD / Entra ID](#azure-ad--entra-id)
   - [CAC/PIV Authentication](#cacpiv-authentication)
+  - [CAC Simulation Mode Warning](#cac-simulation-mode-warning)
   - [Azure Key Vault](#azure-key-vault)
   - [CORS](#cors)
 - [Compliance Framework Settings](#compliance-framework-settings)
@@ -46,6 +49,20 @@
 ---
 
 ## Docker Deployment
+
+### 4-Service Stack
+
+The `docker-compose.mcp.yml` file defines the complete production-equivalent stack:
+
+| Service | Container | Host Port | Health Endpoint |
+|---|---|---|---|
+| SQL Server 2022 | `ato-copilot-sql` | `$SQL_PORT` (1433) | sqlcmd `SELECT 1` |
+| Redis 7.4 | `ato-copilot-redis` | `$REDIS_PORT` (6379) | `redis-cli PING` |
+| MCP Server | `ato-copilot-mcp` | `$ATO_SERVER_PORT` (3001) | `GET /health` |
+| Web Chat App | `ato-copilot-chat` | `$CHAT_PORT` (5001) | `GET /health` |
+| Dashboard (nginx) | `ato-copilot-dashboard` | `$DASHBOARD_PORT` (5173) | `GET /` |
+
+Start-up dependency chain: `sqlserver` → `redis` → `ato-copilot` → `ato-chat` / `ato-copilot-dashboard`.
 
 ### Build the Image
 
@@ -77,9 +94,54 @@ docker compose -f docker-compose.mcp.yml up --build
 - Restart policy: `unless-stopped`
 - Isolated network: `ato-network`
 
+### Deployment Mode: SingleTenant vs MultiTenant
+
+Set `ATO_DEPLOYMENT__MODE` in `.env` to control how the MCP Server handles tenant context:
+
+| Mode | Use Case | Effect |
+|---|---|---|
+| `MultiTenant` (default) | CSP-hosted, multi-agency DoD SaaS | Tenant picker UI, CSP Admin onboarding wizard, RLS enforced across all tenants |
+| `SingleTenant` | Self-hosted agency deployment | No tenant picker, single agency context, simplified auth |
+
+```bash
+# .env
+ATO_DEPLOYMENT__MODE=SingleTenant   # self-hosted / agency evaluation
+ATO_DEPLOYMENT__MODE=MultiTenant    # CSP-hosted production
+```
+
+> **For Wave 2 and beyond:** MultiTenant mode is required to exercise the CSP onboarding wizard (US7), CSP inherited-components surface (US9), and RLS cross-tenant isolation tests.
+
 ### Environment Variables
 
-All configuration can be overridden via `ATO_`-prefixed environment variables:
+All configuration is passed via environment variables with `ATO_` prefix. See `.env.example` for the full list. Key variables:
+
+**Required (production):**
+
+| Variable | Description |
+|---|---|
+| `SQL_SA_PASSWORD` | SQL Server SA password (meets complexity: 8+ chars, upper+lower+digit+symbol) |
+| `ATO_AZUREAD__TENANTID` | Azure AD / Entra ID tenant GUID |
+| `ATO_AZUREAD__CLIENTID` | App registration client ID |
+| `ATO_AZUREAD__CLIENTSECRET` | App registration secret (load from Key Vault in prod) |
+| `ATO_AUTH__COOKIE__SIGNINGKEY` | Cookie HMAC signing key (32+ random bytes, base64-encoded) |
+
+**Optional with production defaults:**
+
+| Variable | Default | Description |
+|---|---|---|
+| `ATO_RUN_MODE` | `http` | Server mode (`http` / `stdio`) |
+| `ATO_DEPLOYMENT__MODE` | `MultiTenant` | `SingleTenant` or `MultiTenant` |
+| `ATO_SERVER_PORT` | `3001` | MCP Server host port |
+| `CHAT_PORT` | `5001` | Chat App host port |
+| `DASHBOARD_PORT` | `5173` | Dashboard host port |
+| `SQL_PORT` | `1433` | SQL Server host port |
+| `REDIS_PORT` | `6379` | Redis host port |
+| `ASPNETCORE_ENVIRONMENT` | `Production` | Set to `Development` for CAC simulation |
+| `ATO_AZUREAD__CLOUDENVIRONMENT` | `AzureUSGovernment` | Azure cloud (`AzureCloud` for commercial) |
+| `ATO_DATABASE__PROVIDER` | `SqlServer` | `SQLite` (dev) or `SqlServer` (prod) |
+| `ATO_AZUREAI__ENABLED` | `false` | Enable AI-assisted recommendations |
+| `ATO_AUTH__IDLETIMEOUTMINUTES` | `30` | Session idle timeout (FedRAMP: must be ≤ 15) |
+| `ATO_AUTH__DEFAULTMETHOD` | `Cac` | Auth method: `Cac` (DoD) or `Msal` (Azure AD) |
 
 **Required:**
 
@@ -291,6 +353,25 @@ For local development without a physical smart card, add simulation config to `a
 
 !!! warning "Production safety"
     Simulation mode is ignored in non-Development environments. Never add `SimulationMode` or `SimulatedIdentity` keys to `appsettings.json`.
+
+### CAC Simulation Mode Warning
+
+> ⚠️ **CAC simulation mode is strictly Development-only.**
+
+The `docker-compose.mcp.yml` file sets `ASPNETCORE_ENVIRONMENT=Development` so that `appsettings.Development.json` is loaded and the CAC simulation identity is active. This allows local development without a physical smart card.
+
+**Production deployments MUST:**
+- Set `ASPNETCORE_ENVIRONMENT=Production` (or omit the variable — defaults to `Production`)
+- Remove any `CacAuth:SimulationMode` / `CacAuth:SimulatedIdentity` configuration from non-Development `appsettings.*.json` files
+- Never pass `ATO_CACAUTH__SIMULATEDIDENTITY__*` env vars to production containers
+
+A production container that inadvertently runs with `ASPNETCORE_ENVIRONMENT=Development` will accept any simulated identity without real certificate validation — **this is a critical authentication bypass.**
+
+```bash
+# Verify the running environment
+docker exec ato-copilot-mcp printenv ASPNETCORE_ENVIRONMENT
+# Must return: Production
+```
 
 ### Azure Key Vault
 
@@ -513,6 +594,18 @@ Use standard SQL Server backup strategies (full, differential, log). The schema 
 ---
 
 ## Operational Runbook
+
+> **See [`docs/operations/runbook.md`](operations/runbook.md) for the complete day-2 operations guide.**
+
+The runbook covers:
+- How to run EF migrations manually (`dotnet ef database update`)
+- How to view service logs (`docker compose logs`)
+- How to restart a specific service
+- How to verify health endpoints for all 4 services
+- How to seed dev data
+- Common failure scenarios and resolutions
+
+The sections below are retained for quick reference.
 
 ### Startup Sequence
 
