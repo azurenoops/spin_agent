@@ -69,6 +69,8 @@ export interface FileAttachment {
   size: number;
   type: FileAttachmentType;
   content?: string;
+  /** Raw File handle — populated by FileAttachment component, consumed by ChatInput.onSend */
+  file?: File;
 }
 
 export interface Message {
