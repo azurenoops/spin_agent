@@ -1,14 +1,26 @@
-import { useMemo } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import { useMsal } from '@azure/msal-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useLoginConfig } from './LoginConfigContext';
 import { DEFAULT_API_SCOPES } from './msalInstance';
 import { useLoginRaceListener } from './useLoginRaceListener';
-import SimulationPanel from './SimulationPanel';
 import type { AuthMethodId } from './types';
-// Default deployment logo, used when AuthBrandingOptions.LogoUrl is empty.
-// Matches the spin logo PageLayout uses in the dashboard chrome.
 import spinLogo from '../../assets/2026-04-22_15-58-30.png';
+
+// Epic #207 / Task #235 — Build-time simulation mode exclusion.
+//
+// import.meta.env.DEV is statically `false` in production builds. Vite's
+// dead-code eliminator removes the lazy() call AND the entire SimulationPanel
+// module from the production bundle — the code is ABSENT, not merely
+// unreachable via a flag. This satisfies the FedRAMP constraint from Epic #207:
+// "a feature flag that is merely 'off' is insufficient; the code path must be
+// excluded at build time."
+//
+// lazy() + Suspense is used rather than a top-level await import so this file
+// remains a standard synchronous module (compatible with SSR and test runners).
+const SimulationPanel = import.meta.env.DEV
+  ? lazy(() => import('./SimulationPanel'))
+  : null;
 
 /**
  * Feature 051 T047 [US1] — branded `/login` page. Renders the deployment
@@ -16,8 +28,7 @@ import spinLogo from '../../assets/2026-04-22_15-58-30.png';
  * triggers `loginRedirect({ scopes, state })` where `state` carries the
  * deep-link (`?return=/foo`) so post-callback navigation can resume.
  *
- * The simulation panel is a placeholder (`data-testid="simulation-panel"`)
- * for now — Phase 10 (US7) ships the real interactive panel.
+ * The simulation panel is only present in development builds (see above).
  */
 export default function LoginPage() {
   const login = useLoginConfig();
@@ -34,9 +45,8 @@ export default function LoginPage() {
     return '/';
   }, [searchParams]);
 
-  // T053c [US1]: when a sibling tab completes sign-in (MSAL writes its
-  // account keys to localStorage), advance THIS tab to the deep link
-  // without forcing a second user click.
+  // T053c [US1]: when a sibling tab completes sign-in, advance THIS tab to
+  // the deep link without forcing a second user click.
   useLoginRaceListener({
     onLoginCompletedInAnotherTab: () => navigate(returnPath, { replace: true }),
   });
@@ -85,7 +95,12 @@ export default function LoginPage() {
           })}
         </div>
 
-        {login.simulation && <SimulationPanel />}
+        {/* Simulation panel — only present in DEV builds; null in production */}
+        {SimulationPanel !== null && login.simulation && (
+          <Suspense fallback={null}>
+            <SimulationPanel />
+          </Suspense>
+        )}
 
         {login.branding.supportEmail && (
           <p className="mt-6 text-xs text-gray-500 text-center">
