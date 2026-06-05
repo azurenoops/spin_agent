@@ -91,12 +91,15 @@ jobs:
 
       - name: Run seed-azure-progress.sql
         shell: bash
+        env:
+          SQL_PASSWORD: ${{ secrets.ATO_SQL_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
           SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
           sqlcmd \
             -S "${SQL_FQDN}" \
-            --authentication-method=ActiveDirectoryDefault \
+            -U "${{ github.event.inputs.sql_admin_login }}" \
+            -P "${SQL_PASSWORD}" \
             -d "${{ github.event.inputs.sql_database_name }}" \
             -i scripts/seed-azure-progress.sql \
             --exit-on-error
