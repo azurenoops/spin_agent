@@ -39,9 +39,14 @@ public class RlsPolicyInstallerIdempotencyTests
     /// succeed and must NOT log a warning. The fixture already applies
     /// the installer once during <c>InitializeAsync</c>, so a single
     /// call here is the second invocation against this database.
+    ///
+    /// Wave 2 (Epic #125 / Task #164): the expanded [TenantScoped] surface
+    /// now includes OrgInheritanceDefault, SecurityCapability,
+    /// CapabilityControlMapping, SapTeamMember, and CapabilityHistoryEvent.
+    /// The installer must handle all of them idempotently.
     /// </summary>
     [SkippableFact]
-    public async Task ApplyAsync_SecondInvocation_DoesNotLogWarning()
+    public async Task ApplyAsync_SecondInvocation_DoesNotLogWarning_IncludingWave2Tables()
     {
         Skip.IfNot(_fx.DockerAvailable, _fx.SkipReason ?? "Docker not available — skipping RLS testcontainer test.");
 
