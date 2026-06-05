@@ -18,11 +18,6 @@ on:
         required: true
         default: AtoCopilot
         type: string
-      sql_admin_login:
-        description: SQL admin username
-        required: true
-        default: atoadmin
-        type: string
 
 permissions:
   id-token: write
@@ -43,13 +38,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Enable public access and whitelist runner IP
-        id: firewall
+      - name: Enable public access and ensure SP is AAD admin
+        id: setup
         shell: bash
         run: |
           set -euo pipefail
           RUNNER_IP=$(curl -sf https://api.ipify.org)
-          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
           RG="${{ github.event.inputs.resource_group }}"
           SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
           RULE="Allow-GHRunner-Seed"
@@ -60,44 +54,46 @@ jobs:
             --query publicNetworkAccess -o tsv 2>/dev/null || echo "Unknown")
 
           if [ "$PUBLIC" = "Disabled" ]; then
-            echo "Public access is Disabled — enabling temporarily for seed..."
+            echo "Public access is Disabled — enabling temporarily..."
             az sql server update \
-              --resource-group "$RG" \
-              --name "$SQL_SERVER" \
-              --enable-public-network true \
-              --output none
+              --resource-group "$RG" --name "$SQL_SERVER" \
+              --enable-public-network true --output none
             echo "reenable_required=true" >> "$GITHUB_OUTPUT"
-            echo "Public access re-enabled."
           else
             echo "reenable_required=false" >> "$GITHUB_OUTPUT"
           fi
 
-          # Temporarily disable AAD-only auth so SQL password login works
-          AAD_ONLY=$(az sql server show \
-            --resource-group "$RG" --name "$SQL_SERVER" \
-            --query "administrators.azureAdOnlyAuthentication" -o tsv 2>/dev/null || echo "false")
-          if [ "$AAD_ONLY" = "true" ]; then
-            echo "AAD-only auth is enabled — disabling temporarily..."
-            az sql server ad-only-auth disable \
-              --resource-group "$RG" \
-              --name "$SQL_SERVER" \
+          # Ensure SP is set as AAD admin on the SQL server so it can connect
+          SP_OID=$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" --query id -o tsv)
+          SP_NAME=$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" --query displayName -o tsv)
+          echo "SP OID: $SP_OID  Name: $SP_NAME"
+
+          EXISTING_ADMIN=$(az sql server ad-admin show \
+            --resource-group "$RG" --server "$SQL_SERVER" \
+            --query login -o tsv 2>/dev/null || echo "none")
+          echo "Current AAD admin: $EXISTING_ADMIN"
+          echo "existing_admin=${EXISTING_ADMIN}" >> "$GITHUB_OUTPUT"
+
+          if [ "$EXISTING_ADMIN" != "$SP_NAME" ]; then
+            echo "Setting SP as AAD admin..."
+            az sql server ad-admin create \
+              --resource-group "$RG" --server "$SQL_SERVER" \
+              --display-name "$SP_NAME" --object-id "$SP_OID" \
               --output none
-            echo "aad_only_restore=true" >> "$GITHUB_OUTPUT"
-            echo "AAD-only auth disabled. Waiting 45s for Azure SQL to propagate..."
-            sleep 45
+            echo "sp_was_admin=false" >> "$GITHUB_OUTPUT"
           else
-            echo "aad_only_restore=false" >> "$GITHUB_OUTPUT"
+            echo "SP is already AAD admin."
+            echo "sp_was_admin=true" >> "$GITHUB_OUTPUT"
           fi
 
+          # Add runner IP to firewall
           echo "Adding runner IP $RUNNER_IP to SQL firewall..."
           az sql server firewall-rule create \
-            --resource-group "$RG" \
-            --server "$SQL_SERVER" \
+            --resource-group "$RG" --server "$SQL_SERVER" \
             --name "$RULE" \
-            --start-ip-address "$RUNNER_IP" \
-            --end-ip-address "$RUNNER_IP" \
+            --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP" \
             --output none
-          echo "Firewall rule '$RULE' added for $RUNNER_IP"
+          echo "Firewall rule added for $RUNNER_IP"
 
       - name: Install sqlcmd
         shell: bash
@@ -109,17 +105,20 @@ jobs:
       - name: Run seed-azure-progress.sql
         shell: bash
         env:
-          SQL_PASSWORD: ${{ secrets.ATO_SQL_ADMIN_PASSWORD }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           set -euo pipefail
           SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
-          # Retry up to 3 times — AAD-only auth propagation can take an extra few seconds
+
+          # Use service principal auth — works with AAD-only auth enabled,
+          # and SP is now the AAD admin so it can connect to any database.
           for attempt in 1 2 3; do
             echo "Attempt $attempt/3..."
             if sqlcmd \
               -S "${SQL_FQDN}" \
-              -U "${{ github.event.inputs.sql_admin_login }}" \
-              -P "${SQL_PASSWORD}" \
+              --authentication-method=ActiveDirectoryServicePrincipal \
+              --user "${{ secrets.AZURE_CLIENT_ID }}" \
+              --password "${AZURE_CLIENT_SECRET}" \
               -d "${{ github.event.inputs.sql_database_name }}" \
               -i scripts/seed-azure-progress.sql \
               --exit-on-error; then
@@ -127,7 +126,7 @@ jobs:
               break
             fi
             if [ $attempt -lt 3 ]; then
-              echo "Login failed — waiting 20s before retry..."
+              echo "Failed — waiting 20s before retry..."
               sleep 20
             else
               echo "All attempts failed."
@@ -135,35 +134,36 @@ jobs:
             fi
           done
 
-      - name: Remove firewall rule and restore public access
+      - name: Cleanup — firewall, AAD admin, public access
         if: always()
         shell: bash
         run: |
           RG="${{ github.event.inputs.resource_group }}"
           SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
 
+          # Remove firewall rule
           az sql server firewall-rule delete \
-            --resource-group "$RG" \
-            --server "$SQL_SERVER" \
+            --resource-group "$RG" --server "$SQL_SERVER" \
             --name "Allow-GHRunner-Seed" \
             --output none 2>/dev/null || true
-          echo "Firewall rule cleaned up."
+          echo "Firewall rule removed."
 
-          if [ "${{ steps.firewall.outputs.aad_only_restore }}" = "true" ]; then
-            echo "Restoring AAD-only authentication..."
-            az sql server ad-only-auth enable \
-              --resource-group "$RG" \
-              --name "$SQL_SERVER" \
-              --output none
-            echo "AAD-only auth restored."
+          # Restore previous AAD admin if we replaced it
+          if [ "${{ steps.setup.outputs.sp_was_admin }}" = "false" ]; then
+            PREV="${{ steps.setup.outputs.existing_admin }}"
+            if [ "$PREV" != "none" ] && [ -n "$PREV" ]; then
+              echo "Note: previous AAD admin was '$PREV' — it has been replaced by the SP."
+              echo "Restore it manually if needed via: az sql server ad-admin create ..."
+            else
+              echo "No previous AAD admin to restore — SP admin entry left in place."
+            fi
           fi
 
-          if [ "${{ steps.firewall.outputs.reenable_required }}" = "true" ]; then
+          # Restore public network access
+          if [ "${{ steps.setup.outputs.reenable_required }}" = "true" ]; then
             echo "Restoring public access to Disabled..."
             az sql server update \
-              --resource-group "$RG" \
-              --name "$SQL_SERVER" \
-              --enable-public-network false \
-              --output none
+              --resource-group "$RG" --name "$SQL_SERVER" \
+              --enable-public-network false --output none
             echo "Public access restored to Disabled."
           fi
