@@ -6,6 +6,10 @@ import ProfileSectionForm from '../components/forms/ProfileSectionForm';
 import { getProfileSection, saveProfileSection, submitSections, withdrawSections, reviewSection } from '../api/systemProfile';
 import { getProfileCompleteness } from '../api/systemProfile';
 import { formatProfileSectionLabel } from '../utils/profileSections';
+import { StatusBadge } from '../components/systems/StatusBadge';
+import BatchApprovePanel from '../components/systems/BatchApprovePanel';
+import PtaPanel from '../components/systems/PtaPanel';
+import PiaPanel from '../components/systems/PiaPanel';
 import type {
   ProfileSectionDetail,
   ProfileSectionType,
@@ -13,18 +17,8 @@ import type {
   ProfileCompletenessResponse,
 } from '../types/dashboard';
 
-// ─── Governance badge color mapping ─────────────────────────────────────────
-
-function approvalVariant(status: GovernanceStatus) {
-  switch (status) {
-    case 'NotStarted': return 'bg-gray-100 text-gray-600';
-    case 'Draft': return 'bg-amber-100 text-amber-700';
-    case 'UnderReview': return 'bg-indigo-100 text-indigo-700';
-    case 'Approved': return 'bg-green-100 text-green-700';
-    case 'NeedsRevision': return 'bg-red-100 text-red-700';
-    default: return 'bg-gray-100 text-gray-600';
-  }
-}
+// ─── Re-export StatusBadge so SystemLayout.tsx sidebar can import it ─────────
+export { StatusBadge };
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
@@ -40,10 +34,27 @@ export default function SystemProfile() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Privacy analysis state — updated by PtaPanel
+  const [ptaCompleted, setPtaCompleted] = useState(false);
+
   const sectionType = sectionParam as ProfileSectionType;
   const systemId = detail.systemId;
+  const callerRole = settings.role || null;
+
   const isReadOnly = section?.governanceStatus === 'UnderReview'
     || settings.role !== 'MissionOwner';
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /** Refresh completeness after any mutation. */
+  const refreshCompleteness = useCallback(async () => {
+    try {
+      const comp = await getProfileCompleteness(systemId);
+      setCompleteness(comp);
+    } catch {
+      // non-critical; swallow
+    }
+  }, [systemId]);
 
   const fetchSection = useCallback(async () => {
     try {
@@ -66,6 +77,8 @@ export default function SystemProfile() {
     fetchSection();
   }, [fetchSection]);
 
+  // ── Mutation handlers ────────────────────────────────────────────────────
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSave = async (content: string, childItems?: Record<string, any>[]) => {
     setSaving(true);
@@ -75,6 +88,7 @@ export default function SystemProfile() {
       const result = await saveProfileSection(systemId, sectionType, { content, childItems });
       setSection(result);
       setSuccessMsg('Section saved as Draft.');
+      await refreshCompleteness();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -90,6 +104,7 @@ export default function SystemProfile() {
       await submitSections(systemId, { action: 'submit', sectionTypes: [sectionType] });
       setSuccessMsg('Section submitted for review.');
       await fetchSection();
+      await refreshCompleteness();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Submit failed');
     } finally {
@@ -106,6 +121,7 @@ export default function SystemProfile() {
       await withdrawSections(systemId, [sectionType]);
       setSuccessMsg('Section withdrawn from review.');
       await fetchSection();
+      await refreshCompleteness();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Withdraw failed');
     } finally {
@@ -122,6 +138,7 @@ export default function SystemProfile() {
       setSection(result);
       setSuccessMsg('Section approved.');
       await fetchSection();
+      await refreshCompleteness();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Approve failed');
     } finally {
@@ -140,12 +157,33 @@ export default function SystemProfile() {
       setSection(result);
       setSuccessMsg('Revision requested.');
       await fetchSection();
+      await refreshCompleteness();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Review failed');
     } finally {
       setSaving(false);
     }
   };
+
+  // ── BatchApprovePanel helpers ────────────────────────────────────────────
+
+  /** Called by BatchApprovePanel after any approval to sync state. */
+  const handleBatchApproved = useCallback(async () => {
+    await fetchSection();
+    await refreshCompleteness();
+  }, [fetchSection, refreshCompleteness]);
+
+  // Build sections list for BatchApprovePanel from completeness data
+  const batchSections = completeness?.incompleteSections.map((s) => ({
+    sectionType: s.sectionType as string,
+    status: s.status as string,
+    label: formatProfileSectionLabel(s.sectionType),
+  })) ?? [];
+
+  // ── Derived state ────────────────────────────────────────────────────────
+
+  // A section is "saved" if at least one is in Draft or beyond
+  const hasDraftOrBeyond = section !== null && section.governanceStatus !== 'NotStarted';
 
   // Map section types to their child item arrays
   const getChildItems = () => {
@@ -194,9 +232,7 @@ export default function SystemProfile() {
       {/* Section Header */}
       <div className="flex items-center gap-3">
         <h1 className="text-xl font-bold text-gray-900">{label}</h1>
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${approvalVariant(status)}`}>
-          {status}
-        </span>
+        <StatusBadge status={status} />
         {isReadOnly && settings.role && settings.role !== 'MissionOwner' && (
           <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
             Read-only
@@ -236,6 +272,29 @@ export default function SystemProfile() {
           onRequestRevision={handleRequestRevision}
         />
       </div>
+
+      {/* ISSM / SystemOwner: BatchApprovePanel — never shown to MissionOwner */}
+      {callerRole !== 'MissionOwner' && (
+        <BatchApprovePanel
+          systemId={systemId}
+          sections={batchSections}
+          callerRole={callerRole}
+          onApproved={handleBatchApproved}
+        />
+      )}
+
+      {/* PTA — shown to all roles once at least one section is saved */}
+      <PtaPanel
+        systemId={systemId}
+        sectionsSaved={hasDraftOrBeyond}
+        onPtaComplete={setPtaCompleted}
+      />
+
+      {/* PIA — shown below PTA; gated on ptaCompleted state */}
+      <PiaPanel
+        systemId={systemId}
+        ptaCompleted={ptaCompleted}
+      />
     </div>
   );
 }
