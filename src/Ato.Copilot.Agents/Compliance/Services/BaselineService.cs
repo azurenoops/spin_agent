@@ -181,7 +181,7 @@ public class BaselineService : IBaselineService
                 SecurityCapabilityId = capabilityId,
                 ImplementationStatus = ImplementationStatus.Planned,
                 ApprovalStatus = SspSectionStatus.NotStarted,
-                Narrative = SspService.GenerateCustomerNarrativeTemplate(family, controlId, system),
+                Narrative = SspService.GenerateCustomerNarrativeTemplate(family, controlId, system) ?? string.Empty,
                 IsAutoPopulated = true,
                 AiSuggested = true,
                 AuthoredBy = selectedBy,

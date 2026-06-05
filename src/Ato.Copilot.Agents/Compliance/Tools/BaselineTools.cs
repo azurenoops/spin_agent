@@ -73,7 +73,7 @@ public class SelectBaselineTool : BaseTool
         catch (Exception ex)
         {
             Logger.LogError(ex, "compliance_select_baseline failed for '{SystemId}'", systemId);
-            return Error("BASELINE_SELECTION_FAILED", ex.Message);
+            return Error("BASELINE_SELECTION_FAILED", ex.ToString());
         }
     }
 
