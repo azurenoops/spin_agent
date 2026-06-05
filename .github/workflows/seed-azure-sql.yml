@@ -104,21 +104,18 @@ jobs:
 
       - name: Run seed-azure-progress.sql
         shell: bash
-        env:
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           set -euo pipefail
           SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
 
-          # Use service principal auth — works with AAD-only auth enabled,
-          # and SP is now the AAD admin so it can connect to any database.
+          # SP is now the AAD admin on the SQL server.
+          # ActiveDirectoryDefault picks up the OIDC ambient credential
+          # set by azure/login@v2 — no client secret needed.
           for attempt in 1 2 3; do
             echo "Attempt $attempt/3..."
             if sqlcmd \
                 -S "${SQL_FQDN}" \
-                --authentication-method=ActiveDirectoryServicePrincipal \
-                -U "${{ secrets.AZURE_CLIENT_ID }}" \
-                -P "${AZURE_CLIENT_SECRET}" \
+                --authentication-method=ActiveDirectoryDefault \
                 -d "${{ github.event.inputs.sql_database_name }}" \
                 -i scripts/seed-azure-progress.sql \
                 --exit-on-error; then
