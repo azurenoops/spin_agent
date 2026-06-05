@@ -51,6 +51,7 @@ export default function FileAttachment({ attachments, onAdd, onRemove, disabled 
           size: file.size,
           type: detectFileType(file.name),
           content: reader.result as string,
+          file,
         });
       };
       reader.readAsText(file);

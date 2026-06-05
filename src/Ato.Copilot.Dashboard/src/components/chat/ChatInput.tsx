@@ -30,7 +30,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
     // T006 (052-api-mismatch-fixes #141): extract File objects and pass to onSend
-    const files = attachments.map((a) => a.file);
+    const files = attachments.map((a) => a.file).filter((f): f is File => f !== undefined);
     onSend(trimmed, files.length > 0 ? files : undefined);
     setValue('');
     setAttachments([]);
