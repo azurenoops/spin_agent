@@ -111,6 +111,7 @@ public class RmfLifecycleService : IRmfLifecycleService
             .Include(s => s.SecurityCategorization)
                 .ThenInclude(sc => sc!.InformationTypes)
             .Include(s => s.ControlBaseline)
+            .Include(s => s.AuthorizationBoundaries)
             .Include(s => s.AuthorizationBoundaryDefinitions)
                 .ThenInclude(d => d.ComponentAssignments)
             .Include(s => s.RmfRoleAssignments)

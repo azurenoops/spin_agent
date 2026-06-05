@@ -9,7 +9,10 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Services;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Services;
 
@@ -41,8 +44,12 @@ public class BoundaryGapAnalysisTests : IAsyncLifetime
 
         builder.Services.AddDbContext<AtoCopilotContext>(options =>
             options.UseInMemoryDatabase(dbName));
-        builder.Services.AddScoped<CapabilityService>();
+        builder.Services.AddDbContextFactory<AtoCopilotContext>(options =>
+            options.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
+        builder.Services.AddScoped<IOrgInheritanceService, OrgInheritanceService>();
+        builder.Services.AddScoped<IDeviationService, DeviationService>();
         builder.Services.AddScoped<NarrativeTemplateService>();
+        builder.Services.AddScoped<CapabilityService>();
         builder.Services.AddLogging();
 
         builder.WebHost.UseTestServer();

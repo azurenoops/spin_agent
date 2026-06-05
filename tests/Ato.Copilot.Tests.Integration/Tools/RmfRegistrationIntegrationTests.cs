@@ -128,6 +128,9 @@ public class RmfRegistrationIntegrationTests : IDisposable
         roleJson.RootElement.GetProperty("status").GetString().Should().Be("success");
 
         // Step 4b: Satisfy Gate 3 (Privacy) and Gate 4 (Interconnections)
+        // Also satisfy Gate 2 (Boundary): Feature 040 changed the gate to count
+        // BoundaryComponentAssignments; add a component scoped to the boundary so
+        // the gate sees ≥ 1 in-scope component.
         using (var scope = _serviceProvider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
@@ -139,6 +142,28 @@ public class RmfRegistrationIntegrationTests : IDisposable
                 Determination = PtaDetermination.PiaNotRequired,
                 AnalyzedBy = "integration-test"
             };
+
+            // Wire up Gate 2: Feature 040 gate counts BoundaryComponentAssignments, not
+            // AuthorizationBoundaries. Create an AuthorizationBoundaryDefinition + SystemComponent +
+            // BoundaryComponentAssignment so the gate sees ≥ 1 in-scope component.
+            var boundaryDef = new AuthorizationBoundaryDefinition
+            {
+                RegisteredSystemId = systemId,
+                Name = "Primary Boundary",
+                BoundaryType = BoundaryDefinitionType.Logical,
+                CreatedBy = "integration-test"
+            };
+            db.AuthorizationBoundaryDefinitions.Add(boundaryDef);
+            var component = new SystemComponent { Name = "integration-test-component" };
+            db.SystemComponents.Add(component);
+            db.BoundaryComponentAssignments.Add(new BoundaryComponentAssignment
+            {
+                SystemComponentId = component.Id,
+                AuthorizationBoundaryDefinitionId = boundaryDef.Id,
+                IsInScope = true,
+                CreatedBy = "integration-test"
+            });
+
             await db.SaveChangesAsync();
         }
 

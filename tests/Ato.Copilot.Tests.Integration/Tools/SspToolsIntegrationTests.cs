@@ -703,6 +703,11 @@ public class SspToolsIntegrationTests : IDisposable
         });
 
         var json = JsonDocument.Parse(result);
-        json.RootElement.GetProperty("status").GetString().Should().Be("success");
+        var status = json.RootElement.GetProperty("status").GetString();
+        if (status != "success")
+        {
+            var msg = json.RootElement.TryGetProperty("message", out var m) ? m.GetString() : result;
+            throw new InvalidOperationException($"SelectBaseline failed: {msg}");
+        }
     }
 }

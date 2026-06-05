@@ -35,7 +35,11 @@ namespace Ato.Copilot.Tests.Integration.ApiMismatch;
 /// T012 — chat stream accepts multipart/form-data with attachment (GAP-014, issue #145)
 /// T013 — chat stream rejects disallowed MIME type with 400 UNSUPPORTED_ATTACHMENT_TYPE
 /// </summary>
-[Collection("IntegrationTests")]
+// ApiMismatchRouteTests uses IAsyncLifetime and boots its own WebApplication.
+// It must NOT share the IntegrationTests collection because its DisposeAsync
+// disposes shared singletons while sibling IClassFixture tests are still running,
+// causing ObjectDisposedException on ImpersonationAuditTests/SignOutEndpointTests.
+[Collection("ApiMismatchRouteTests")]
 public class ApiMismatchRouteTests : IAsyncLifetime
 {
     private WebApplication _app = null!;
