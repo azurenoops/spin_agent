@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import * as signalR from '@microsoft/signalr';
 import { usePolling } from '../hooks/usePolling';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { getAssessments, runAssessment, getAssessmentDetail } from '../api/assessments';
@@ -92,6 +93,21 @@ export default function Assessments() {
   const [showSapView, setShowSapView] = useState(false);
   const [showSarView, setShowSarView] = useState(false);
 
+  // Epic #121 / Task #148 — SignalR real-time assessment progress
+  const [progressSteps, setProgressSteps] = useState<string[]>([]);
+  const [assessmentRunning, setAssessmentRunning] = useState(false);
+  const hubRef = useRef<signalR.HubConnection | null>(null);
+
+  // Disconnect hub on unmount
+  useEffect(() => {
+    return () => {
+      if (hubRef.current) {
+        void hubRef.current.stop();
+        hubRef.current = null;
+      }
+    };
+  }, []);
+
   const fetchAssessments = useCallback(() => getAssessments(), []);
   const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
 
@@ -116,11 +132,68 @@ export default function Assessments() {
   const handleRunAssessment = async () => {
     setRunLoading(true);
     setRunError(null);
+    setProgressSteps([]);
+    setAssessmentRunning(true);
     try {
-      await runAssessment(systemId);
+      const result = await runAssessment(systemId);
       setShowRunDialog(false);
-      refresh();
+
+      // Epic #121 / Task #148 — connect to PackageHub for real-time progress.
+      // PackageHub groups by packageId; `runAssessment` returns assessmentId which
+      // serves as the correlator for the hub subscription. If SignalR is unavailable
+      // the polling fallback (every 30 s via usePolling above) continues to work.
+      try {
+        const hubUrl = `${window.location.origin}/hubs/package`;
+        const connection = new signalR.HubConnectionBuilder()
+          .withUrl(hubUrl)
+          .withAutomaticReconnect()
+          .configureLogging(signalR.LogLevel.Warning)
+          .build();
+
+        // Register event handlers before starting
+        connection.on('PackageStatusChanged', (payload: { packageId: string; status: string }) => {
+          setProgressSteps((prev) => [...prev, `Status: ${payload.status}`]);
+          if (['completed', 'failed'].includes(payload.status.toLowerCase())) {
+            setAssessmentRunning(false);
+            void connection.stop();
+            hubRef.current = null;
+            refresh();
+          }
+        });
+        connection.on('PackageArtifactGenerated', (payload: { artifactType: string }) => {
+          setProgressSteps((prev) => [...prev, `Artifact generated: ${payload.artifactType}`]);
+        });
+        connection.on('PackageValidationComplete', (payload: { isValid: boolean; violationCount: number }) => {
+          setProgressSteps((prev) => [
+            ...prev,
+            `Validation ${payload.isValid ? 'passed' : `failed (${payload.violationCount} violation${payload.violationCount !== 1 ? 's' : ''})`}`,
+          ]);
+        });
+        connection.on('PackageComplete', () => {
+          setProgressSteps((prev) => [...prev, 'Assessment complete.']);
+          setAssessmentRunning(false);
+          void connection.stop();
+          hubRef.current = null;
+          refresh();
+        });
+        connection.on('PackageFailed', (payload: { error: string }) => {
+          setProgressSteps((prev) => [...prev, `Failed: ${payload.error}`]);
+          setAssessmentRunning(false);
+          void connection.stop();
+          hubRef.current = null;
+          refresh();
+        });
+
+        await connection.start();
+        await connection.invoke('SubscribeToPackage', result.assessmentId);
+        hubRef.current = connection;
+      } catch {
+        // SignalR connection failed — fall through to 30 s polling silently.
+        setAssessmentRunning(false);
+        refresh();
+      }
     } catch (err: unknown) {
+      setAssessmentRunning(false);
       if (err && typeof err === 'object' && 'response' in err) {
         const axiosErr = err as { response?: { data?: { error?: string } } };
         setRunError(axiosErr.response?.data?.error ?? 'Assessment failed');
@@ -831,6 +904,48 @@ export default function Assessments() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Epic #121 / Task #148 — Real-time assessment progress panel */}
+        {(assessmentRunning || progressSteps.length > 0) && (
+          <div className="fixed bottom-6 right-6 z-40 w-80 rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between bg-indigo-600 px-4 py-3">
+              <span className="text-sm font-semibold text-white">
+                {assessmentRunning ? 'Assessment Running…' : 'Assessment Complete'}
+              </span>
+              {!assessmentRunning && (
+                <button
+                  type="button"
+                  onClick={() => setProgressSteps([])}
+                  className="text-indigo-200 hover:text-white text-xs"
+                  aria-label="Dismiss progress"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <ul className="max-h-48 overflow-y-auto px-4 py-3 space-y-1">
+              {progressSteps.length === 0 ? (
+                <li className="text-xs text-gray-500 italic">Connecting to assessment service…</li>
+              ) : (
+                progressSteps.map((step, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                    <span className="mt-0.5 flex-shrink-0 h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                    {step}
+                  </li>
+                ))
+              )}
+              {assessmentRunning && (
+                <li className="flex items-center gap-2 text-xs text-indigo-600">
+                  <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  In progress…
+                </li>
+              )}
+            </ul>
           </div>
         )}
 

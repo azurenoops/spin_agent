@@ -8,6 +8,8 @@ import CapabilitiesRoute from './pages/CapabilitiesRoute';
 import ControlsRoute from './pages/ControlsRoute';
 import OverrideReviewPage from './pages/OverrideReviewPage';
 import SystemDetail from './pages/SystemDetail';
+import AuthorizationPage from './pages/AuthorizationPage';
+import RolesManagementPage from './pages/RolesManagementPage';
 import Roadmap from './pages/Roadmap';
 import BoundaryManagement from './pages/BoundaryManagement';
 import Documents from './pages/Documents';
@@ -100,6 +102,10 @@ function AppContent() {
             <Route path="inheritance" element={<ControlInheritance />} />
             <Route path="baseline" element={<BaselineManagement />} />
             <Route path="profile/:sectionType" element={<SystemProfile />} />
+            {/* Epic #121 / Task #146 — Authorization phase page */}
+            <Route path="authorize" element={<AuthorizationPage />} />
+            {/* Epic #121 / Task #147 — Roles management page */}
+            <Route path="roles" element={<RolesManagementPage />} />
           </Route>
           <Route path="/capabilities" element={<RequireAuth><CapabilitiesRoute /></RequireAuth>} />
           <Route path="/components" element={<RequireAuth><ComponentsRoute /></RequireAuth>} />
