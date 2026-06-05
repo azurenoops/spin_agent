@@ -179,7 +179,8 @@ public class OscalSspExportServiceTests
         var impactLevel = result["security-impact-level"] as Dictionary<string, string>;
         impactLevel!["security-objective-confidentiality"].Should().Be("low");
 
-        warnings.Should().ContainSingle().Which.Should().Contain("No security categorization");
+        warnings.Should().Contain(w => w.Contains("No security categorization"));
+        warnings.Should().Contain(w => w.Contains("§11 Authorization boundary"));
     }
 
     [Fact]
