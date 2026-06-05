@@ -251,3 +251,15 @@ User Story 1 alone delivers the core workflow: ISSO authors sections, ISSM revie
 | `tests/Ato.Copilot.Tests.Unit/Services/OscalValidationServiceTests.cs` | **New** | 6 |
 | `tests/Ato.Copilot.Tests.Unit/Tools/SspAuthoringToolTests.cs` | Modified | 3 |
 | `tests/Ato.Copilot.Tests.Integration/Tools/SspToolsIntegrationTests.cs` | **New** | 8 |
+
+---
+
+## Wave 4 — Epic #122 Hardening Tasks (Tasks #150–#153)
+
+These tasks address gaps identified post-Feature-022 implementation.
+
+- [x] #150: Add `TenantId` column to `SspSections` EF migration + update model snapshot. Migration: `20260605000001_Feature122_SspSectionTenantId.cs`
+- [x] #151: Auto-populate OSCAL SSP sections 7 (interconnections), 9 (baseline), 10 (legal/FISMA), 11 (boundary) from live entity data when `SspSection.Content` is empty. Updated `OscalSspExportService.BuildSystemCharacteristics`.
+- [x] #152: `import-profile`, `system-implementation`, `back-matter` structural nodes verified complete; §9/§10 entity-data auto-populate added to `BuildSystemCharacteristics`.
+- [x] #153: OSCAL 1.1.2 schema validation CI gate added to `.github/workflows/ci.yml` (`oscal-schema-validation` job). Runs `OscalValidationService` + `SspToolsIntegration` tests.
+

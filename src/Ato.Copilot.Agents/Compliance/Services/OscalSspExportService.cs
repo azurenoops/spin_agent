@@ -132,7 +132,7 @@ public class OscalSspExportService : IOscalSspExportService
         // Build each OSCAL section
         var metadata = BuildMetadata(system, roles, partyMap, warnings);
         var importProfile = BuildImportProfile(baseline, warnings);
-        var systemChars = BuildSystemCharacteristics(system, categorization, sectionMap, warnings);
+        var systemChars = BuildSystemCharacteristics(system, categorization, sectionMap, interconnections, baseline, boundaries, roles, warnings);
         var systemImpl = BuildSystemImplementation(boundaries, roles, baseline, componentMap, partyMap, warnings);
         var controlImpl = BuildControlImplementation(system, implementations, baseline, componentMap, deviations, warnings);
 
@@ -285,6 +285,10 @@ public class OscalSspExportService : IOscalSspExportService
         RegisteredSystem system,
         SecurityCategorization? categorization,
         Dictionary<int, SspSection> sectionMap,
+        List<SystemInterconnection> interconnections,
+        ControlBaseline? baseline,
+        List<AuthorizationBoundary> boundaries,
+        List<RmfRoleAssignment> roles,
         List<string> warnings)
     {
         var sc = new Dictionary<string, object>
@@ -348,21 +352,94 @@ public class OscalSspExportService : IOscalSspExportService
             };
         }
 
-        // Authorization boundary from §11
+        // ── §11 Authorization Boundary — SspSection authored content OR entity data fallback ──
         if (sectionMap.TryGetValue(11, out var s11) && !string.IsNullOrWhiteSpace(s11.Content))
+        {
             sc["authorization-boundary"] = new Dictionary<string, string> { ["description"] = s11.Content };
+        }
+        else if (boundaries.Count > 0)
+        {
+            // Task #151: auto-populate §11 from AuthorizationBoundary entities
+            var inBoundary = boundaries.Where(b => b.IsInBoundary).ToList();
+            var boundaryDesc = inBoundary.Count > 0
+                ? $"Authorization boundary includes {inBoundary.Count} in-scope resource(s): " +
+                  string.Join("; ", inBoundary.Take(10).Select(b => $"{b.ResourceType}/{b.ResourceName ?? b.ResourceId}"))
+                : "Authorization boundary not yet defined.";
+            sc["authorization-boundary"] = new Dictionary<string, string> { ["description"] = boundaryDesc };
+        }
         else
+        {
+            warnings.Add("§11 Authorization boundary: no SspSection content and no AuthorizationBoundary entities found.");
             sc["authorization-boundary"] = new Dictionary<string, string> { ["description"] = "Authorization boundary not yet defined." };
+        }
 
-        // Network architecture from §6
+        // ── §7 System Interconnections — SspSection authored content OR entity data fallback ──
+        if (sectionMap.TryGetValue(7, out var s7) && !string.IsNullOrWhiteSpace(s7.Content))
+        {
+            sc["data-flow"] = new Dictionary<string, string> { ["description"] = s7.Content };
+        }
+        else if (interconnections.Count > 0)
+        {
+            // Task #151: auto-populate §7 from SystemInterconnection entities
+            var icDesc = $"System has {interconnections.Count} active interconnection(s): " +
+                         string.Join("; ", interconnections.Take(10)
+                             .Select(ic => $"{ic.TargetSystemName} ({ic.InterconnectionType}, {ic.DataFlowDirection})"));
+            sc["data-flow"] = new Dictionary<string, string> { ["description"] = icDesc };
+        }
+
+        // ── §9 Minimum Security Controls — auto-populate from ControlBaseline (Task #151) ──
+        if (sectionMap.TryGetValue(9, out var s9) && !string.IsNullOrWhiteSpace(s9.Content))
+        {
+            sc["remarks"] = s9.Content; // OSCAL 1.1.2: section 9 maps to system-characteristics remarks
+        }
+        else if (baseline != null)
+        {
+            var baselineDesc = $"Baseline: NIST SP 800-53 Rev 5 {baseline.BaselineLevel ?? "Moderate"}.";
+            if (baseline.Inheritances != null && baseline.Inheritances.Any())
+                baselineDesc += $" {baseline.Inheritances.Count()} inherited control(s) from upstream providers.";
+            sc["remarks"] = baselineDesc;
+        }
+
+        // ── §10 Legal Authorities — auto-populate from system metadata (Task #151) ──
+        // OSCAL maps §10 to system-characteristics props (legal authorities as properties)
+        if (sectionMap.TryGetValue(10, out var s10) && !string.IsNullOrWhiteSpace(s10.Content))
+        {
+            if (!sc.ContainsKey("props"))
+                sc["props"] = new List<Dictionary<string, string>>();
+            ((List<Dictionary<string, string>>)sc["props"]).Add(new Dictionary<string, string>
+            {
+                ["name"] = "legal-authority",
+                ["ns"] = "https://fedramp.gov/ns/oscal",
+                ["value"] = s10.Content
+            });
+        }
+        else
+        {
+            // Auto-populate from system legal/regulatory context via responsible roles
+            var legalPersonnel = roles
+                .Where(r => r.RmfRole is RmfRole.AuthorizingOfficial or RmfRole.Issm)
+                .Select(r => r.RmfRole == RmfRole.AuthorizingOfficial ? "FISMA (44 U.S.C. § 3551 et seq.)" : null)
+                .Where(s => s != null)
+                .FirstOrDefault();
+
+            if (legalPersonnel != null)
+            {
+                if (!sc.ContainsKey("props"))
+                    sc["props"] = new List<Dictionary<string, string>>();
+                ((List<Dictionary<string, string>>)sc["props"]).Add(new Dictionary<string, string>
+                {
+                    ["name"] = "legal-authority",
+                    ["ns"] = "https://fedramp.gov/ns/oscal",
+                    ["value"] = legalPersonnel
+                });
+            }
+        }
+
+        // ── §6 Network Architecture — SspSection authored content ──
         if (sectionMap.TryGetValue(6, out var s6) && !string.IsNullOrWhiteSpace(s6.Content))
             sc["network-architecture"] = new Dictionary<string, string> { ["description"] = s6.Content };
 
-        // Data flow from §7
-        if (sectionMap.TryGetValue(7, out var s7) && !string.IsNullOrWhiteSpace(s7.Content))
-            sc["data-flow"] = new Dictionary<string, string> { ["description"] = s7.Content };
-
-        // Status
+        // ── Operational Status ──
         sc["status"] = new Dictionary<string, string>
         {
             ["state"] = system.OperationalStatus switch

@@ -5484,6 +5484,9 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("ReviewedAt")
                         .HasColumnType("TEXT");
 
@@ -5516,6 +5519,9 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_SspSection_Status");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("IX_SspSections_TenantId");
 
                     b.HasIndex("RegisteredSystemId", "SectionNumber")
                         .IsUnique()

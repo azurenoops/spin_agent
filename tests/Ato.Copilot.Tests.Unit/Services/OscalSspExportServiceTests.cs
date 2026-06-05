@@ -144,7 +144,7 @@ public class OscalSspExportServiceTests
         var warnings = new List<string>();
 
         var result = OscalSspExportService.BuildSystemCharacteristics(
-            system, categorization, sectionMap, warnings);
+            system, categorization, sectionMap, new List<SystemInterconnection>(), null, new List<AuthorizationBoundary>(), new List<RmfRoleAssignment>(), warnings);
 
         result["system-name"].Should().Be("Test System");
         result["system-name-short"].Should().Be("TS");
@@ -172,14 +172,15 @@ public class OscalSspExportServiceTests
         var warnings = new List<string>();
 
         var result = OscalSspExportService.BuildSystemCharacteristics(
-            system, null, new Dictionary<int, SspSection>(), warnings);
+            system, null, new Dictionary<int, SspSection>(), new List<SystemInterconnection>(), null, new List<AuthorizationBoundary>(), new List<RmfRoleAssignment>(), warnings);
 
         result["security-sensitivity-level"].Should().Be("not-yet-determined");
 
         var impactLevel = result["security-impact-level"] as Dictionary<string, string>;
         impactLevel!["security-objective-confidentiality"].Should().Be("low");
 
-        warnings.Should().ContainSingle().Which.Should().Contain("No security categorization");
+        warnings.Should().Contain(w => w.Contains("No security categorization"));
+        warnings.Should().Contain(w => w.Contains("§11 Authorization boundary"));
     }
 
     [Fact]
@@ -195,7 +196,7 @@ public class OscalSspExportServiceTests
         var warnings = new List<string>();
 
         var result = OscalSspExportService.BuildSystemCharacteristics(
-            system, null, sectionMap, warnings);
+            system, null, sectionMap, new List<SystemInterconnection>(), null, new List<AuthorizationBoundary>(), new List<RmfRoleAssignment>(), warnings);
 
         var boundary = result["authorization-boundary"] as Dictionary<string, string>;
         boundary!["description"].Should().Be("Boundary description");
@@ -219,7 +220,7 @@ public class OscalSspExportServiceTests
         var warnings = new List<string>();
 
         var result = OscalSspExportService.BuildSystemCharacteristics(
-            system, null, new Dictionary<int, SspSection>(), warnings);
+            system, null, new Dictionary<int, SspSection>(), new List<SystemInterconnection>(), null, new List<AuthorizationBoundary>(), new List<RmfRoleAssignment>(), warnings);
 
         var statusObj = result["status"] as Dictionary<string, string>;
         statusObj!["state"].Should().Be(expected);
