@@ -68,10 +68,11 @@ module "rg" {
   source  = "azurenoops/overlays-resource-group/azurerm"
   version = "~> 1.0"
 
-  org_name      = var.org_name
-  environment   = var.environment
-  workload_name = var.workload_name
-  location      = module.mod_location.location_short
+  org_name                = var.org_name
+  environment             = var.environment
+  workload_name           = var.workload_name
+  location                = module.mod_location.location_short
+  use_location_short_name = true
 
   add_tags = var.tags
 }
