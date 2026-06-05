@@ -12,6 +12,11 @@ import AoStep from './steps/AoStep';
 import PrimaryPocStep from './steps/PrimaryPocStep';
 import OrgProfileStep from './steps/OrgProfileStep';
 import ReviewStep from './steps/ReviewStep';
+// Epic #208 / Task #247
+import SkipStepModal from '../components/SkipStepModal';
+// Epic #208 / Task #248
+import JobStatusPanel from '../components/JobStatusPanel';
+import { onboarding } from '../api/onboardingApi';
 
 interface StepDef {
   name: TenantWizardStep;
@@ -128,12 +133,12 @@ export default function TenantWizard() {
   const [busy, setBusy] = useState(false);
   const [currentStep, setCurrentStep] = useState<TenantWizardStep>('Tenant.LegalEntity');
   const [activatedThisSession, setActivatedThisSession] = useState(false);
-  // Tracks whether the tenant was already `Active` on initial load. If yes,
-  // we keep the wizard open for free navigation (the admin returned to edit).
-  // If no, the first transition to `Active` (i.e. the user clicked
-  // "Activate tenant" on the Review step) auto-navigates home — matching the
-  // Feature 047 org wizard's behavior on final completion.
   const [initiallyActive, setInitiallyActive] = useState<boolean | null>(null);
+  // Epic #208 / Task #247 — skip modal
+  const [skipModalOpen, setSkipModalOpen] = useState(false);
+  // Epic #208 / Task #248 — job status polling for AO step background job
+  const [aoJobId, setAoJobId] = useState<string | null>(null);
+  // we keep the wizard open for free navigation (the admin returned to edit).
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -383,6 +388,15 @@ export default function TenantWizard() {
                       onError={onError}
                     />
                   )}
+                  {/* Skip affordance for HqAddress (optional step) */}
+                  {currentStep === 'Tenant.HqAddress' && !busy && (
+                    <div className="mt-3 text-center">
+                      <button type="button" onClick={() => setSkipModalOpen(true)}
+                        className="text-sm text-slate-500 underline hover:text-slate-700">
+                        Skip this step
+                      </button>
+                    </div>
+                  )}
                   {currentStep === 'Tenant.Classification' && (
                     <ClassificationStep
                       busy={busy}
@@ -391,13 +405,39 @@ export default function TenantWizard() {
                       onError={onError}
                     />
                   )}
+                  {/* Skip affordance for Classification (optional step) */}
+                  {currentStep === 'Tenant.Classification' && !busy && (
+                    <div className="mt-3 text-center">
+                      <button type="button" onClick={() => setSkipModalOpen(true)}
+                        className="text-sm text-slate-500 underline hover:text-slate-700">
+                        Skip this step
+                      </button>
+                    </div>
+                  )}
                   {currentStep === 'Tenant.Ao' && (
                     <AoStep
                       busy={busy}
                       beforeSubmit={beforeSubmit}
-                      onAdvance={onAdvance}
+                      onAdvance={(next) => {
+                        // Epic #208 / Task #248: AoStep may trigger a background
+                        // job. If the progress response includes a jobId, start polling.
+                        if ((next as unknown as { jobId?: string }).jobId) {
+                          setAoJobId((next as unknown as { jobId: string }).jobId);
+                        }
+                        onAdvance(next);
+                      }}
                       onError={onError}
                     />
+                  )}
+                  {/* Epic #208 / Task #248: job status panel for AO background job */}
+                  {currentStep === 'Tenant.Ao' && aoJobId && (
+                    <div className="mt-4">
+                      <JobStatusPanel
+                        jobId={aoJobId}
+                        onComplete={() => setAoJobId(null)}
+                        onError={() => setAoJobId(null)}
+                      />
+                    </div>
                   )}
                   {currentStep === 'Tenant.PrimaryPoc' && (
                     <PrimaryPocStep
@@ -430,5 +470,21 @@ export default function TenantWizard() {
         </main>
       </div>
     </div>
+
+    {/* Epic #208 / Task #247 — skip-step modal */}
+    <SkipStepModal
+      open={skipModalOpen}
+      stepName={ORDERED_STEPS.find((s) => s.name === currentStep)?.title ?? currentStep}
+      onConfirm={async (reason) => {
+        await onboarding.skipStep(currentStep as Parameters<typeof onboarding.skipStep>[0]);
+        void reason; // reason is sent by SkipStepModal internally via the API
+        setSkipModalOpen(false);
+        // Advance to next step
+        const idx = ORDERED_STEPS.findIndex((s) => s.name === currentStep);
+        const nextStep = ORDERED_STEPS[idx + 1];
+        if (nextStep) setCurrentStep(nextStep.name);
+      }}
+      onCancel={() => setSkipModalOpen(false)}
+    />
   );
 }
