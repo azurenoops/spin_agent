@@ -43,7 +43,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Get runner public IP and whitelist on SQL firewall
+      - name: Enable public access and whitelist runner IP
         id: firewall
         shell: bash
         run: |
@@ -54,31 +54,37 @@ jobs:
           SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
           RULE="Allow-GHRunner-Seed"
 
-          # Check if public access is disabled (VNet-only)
+          # Re-enable public network access if currently disabled
           PUBLIC=$(az sql server show \
             --resource-group "$RG" --name "$SQL_SERVER" \
             --query publicNetworkAccess -o tsv 2>/dev/null || echo "Unknown")
 
           if [ "$PUBLIC" = "Disabled" ]; then
-            echo "::warning::SQL server public network access is Disabled. Seed will attempt anyway — may fail if runner has no VNet path."
-            echo "vnet_mode=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Adding runner IP $RUNNER_IP to SQL firewall..."
-            az sql server firewall-rule create \
+            echo "Public access is Disabled — enabling temporarily for seed..."
+            az sql server update \
               --resource-group "$RG" \
-              --server "$SQL_SERVER" \
-              --name "$RULE" \
-              --start-ip-address "$RUNNER_IP" \
-              --end-ip-address "$RUNNER_IP" \
+              --name "$SQL_SERVER" \
+              --enable-public-network true \
               --output none
-            echo "vnet_mode=false" >> "$GITHUB_OUTPUT"
-            echo "Firewall rule '$RULE' added for $RUNNER_IP"
+            echo "reenable_required=true" >> "$GITHUB_OUTPUT"
+            echo "Public access re-enabled."
+          else
+            echo "reenable_required=false" >> "$GITHUB_OUTPUT"
           fi
+
+          echo "Adding runner IP $RUNNER_IP to SQL firewall..."
+          az sql server firewall-rule create \
+            --resource-group "$RG" \
+            --server "$SQL_SERVER" \
+            --name "$RULE" \
+            --start-ip-address "$RUNNER_IP" \
+            --end-ip-address "$RUNNER_IP" \
+            --output none
+          echo "Firewall rule '$RULE' added for $RUNNER_IP"
 
       - name: Install sqlcmd
         shell: bash
         run: |
-          # Use the go-sqlcmd binary — no GPG/tty issues
           curl -fsSL https://github.com/microsoft/go-sqlcmd/releases/download/v1.8.0/sqlcmd-linux-amd64.tar.bz2 \
             | sudo tar -xj -C /usr/local/bin sqlcmd
           sqlcmd --version
@@ -88,10 +94,6 @@ jobs:
         run: |
           set -euo pipefail
           SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
-          # Azure AD-only auth enabled — use access token from the logged-in service principal
-          ACCESS_TOKEN=$(az account get-access-token \
-            --resource "https://database.windows.net/" \
-            --query accessToken -o tsv)
           sqlcmd \
             -S "${SQL_FQDN}" \
             --authentication-method=ActiveDirectoryDefault \
@@ -99,13 +101,26 @@ jobs:
             -i scripts/seed-azure-progress.sql \
             --exit-on-error
 
-      - name: Remove SQL firewall rule
-        if: always() && steps.firewall.outputs.vnet_mode == 'false'
+      - name: Remove firewall rule and restore public access
+        if: always()
         shell: bash
         run: |
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+
           az sql server firewall-rule delete \
-            --resource-group "${{ github.event.inputs.resource_group }}" \
-            --server "${{ github.event.inputs.sql_server_name }}" \
+            --resource-group "$RG" \
+            --server "$SQL_SERVER" \
             --name "Allow-GHRunner-Seed" \
             --output none 2>/dev/null || true
           echo "Firewall rule cleaned up."
+
+          if [ "${{ steps.firewall.outputs.reenable_required }}" = "true" ]; then
+            echo "Restoring public access to Disabled..."
+            az sql server update \
+              --resource-group "$RG" \
+              --name "$SQL_SERVER" \
+              --enable-public-network false \
+              --output none
+            echo "Public access restored to Disabled."
+          fi
