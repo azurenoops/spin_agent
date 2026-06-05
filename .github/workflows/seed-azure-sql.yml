@@ -1,0 +1,110 @@
+name: Seed Azure SQL Progress Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Resource group containing Azure SQL
+        required: true
+        default: rg-ato-copilot
+        type: string
+      sql_server_name:
+        description: Azure SQL server name
+        required: true
+        default: azsql-ato-copilot-04152047-902
+        type: string
+      sql_database_name:
+        description: Azure SQL database name
+        required: true
+        default: AtoCopilot
+        type: string
+      sql_admin_login:
+        description: SQL admin username
+        required: true
+        default: atoadmin
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get runner public IP and whitelist on SQL firewall
+        id: firewall
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP=$(curl -sf https://api.ipify.org)
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          RULE="Allow-GHRunner-Seed"
+
+          # Check if public access is disabled (VNet-only)
+          PUBLIC=$(az sql server show \
+            --resource-group "$RG" --name "$SQL_SERVER" \
+            --query publicNetworkAccess -o tsv 2>/dev/null || echo "Unknown")
+
+          if [ "$PUBLIC" = "Disabled" ]; then
+            echo "::warning::SQL server public network access is Disabled. Seed will attempt anyway — may fail if runner has no VNet path."
+            echo "vnet_mode=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Adding runner IP $RUNNER_IP to SQL firewall..."
+            az sql server firewall-rule create \
+              --resource-group "$RG" \
+              --server "$SQL_SERVER" \
+              --name "$RULE" \
+              --start-ip-address "$RUNNER_IP" \
+              --end-ip-address "$RUNNER_IP" \
+              --output none
+            echo "vnet_mode=false" >> "$GITHUB_OUTPUT"
+            echo "Firewall rule '$RULE' added for $RUNNER_IP"
+          fi
+
+      - name: Install sqlcmd
+        shell: bash
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update -qq
+          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev 2>&1 | tail -5
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+
+      - name: Run seed-azure-progress.sql
+        shell: bash
+        run: |
+          set -euo pipefail
+          SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
+          sqlcmd \
+            -S "tcp:${SQL_FQDN},1433" \
+            -U "${{ github.event.inputs.sql_admin_login }}" \
+            -P "${{ secrets.ATO_SQL_ADMIN_PASSWORD }}" \
+            -d "${{ github.event.inputs.sql_database_name }}" \
+            -C -N \
+            -i scripts/seed-azure-progress.sql \
+            -b
+
+      - name: Remove SQL firewall rule
+        if: always() && steps.firewall.outputs.vnet_mode == 'false'
+        shell: bash
+        run: |
+          az sql server firewall-rule delete \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --server "${{ github.event.inputs.sql_server_name }}" \
+            --name "Allow-GHRunner-Seed" \
+            --output none 2>/dev/null || true
+          echo "Firewall rule cleaned up."
