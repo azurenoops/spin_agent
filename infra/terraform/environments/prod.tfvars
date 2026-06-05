@@ -10,16 +10,16 @@
 
 org_name           = "anoa"
 workload_name      = "ato-cop"
-environment        = "usgovernment"  # Azure Government / MAG
+environment        = "usgovernment" # Azure Government / MAG
 deploy_environment = "prod"
 location           = "usgovvirginia"
 
 tags = {
-  project      = "ato-copilot"
-  environment  = "prod"
-  managed_by   = "terraform"
-  owner        = "<replace>"       # Team / individual owner for cost tracking
-  cost_center  = "<replace>"       # Finance cost center code
+  project     = "ato-copilot"
+  environment = "prod"
+  managed_by  = "terraform"
+  owner       = "<replace>" # Team / individual owner for cost tracking
+  cost_center = "<replace>" # Finance cost center code
 }
 
 # Key Vault
@@ -52,5 +52,5 @@ openai_model_capacity        = 30
 
 # M365 Bot Channel — enable after Teams app registration
 deploy_bot_channel = true
-bot_app_id         = "<replace>"  # Azure AD → App registrations → Application (client) ID
+bot_app_id         = "<replace>" # Azure AD → App registrations → Application (client) ID
 bot_display_name   = "ATO Copilot"

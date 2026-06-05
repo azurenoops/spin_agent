@@ -68,10 +68,11 @@ module "rg" {
   source  = "azurenoops/overlays-resource-group/azurerm"
   version = "~> 1.0"
 
-  org_name      = var.org_name
-  environment   = var.environment
-  workload_name = var.workload_name
-  location      = module.mod_location.location_short
+  org_name                = var.org_name
+  environment             = var.environment
+  workload_name           = var.workload_name
+  location                = module.mod_location.location_short
+  use_location_short_name = true
 
   add_tags = var.tags
 }
@@ -83,17 +84,17 @@ module "kv" {
   source  = "azurenoops/overlays-key-vault/azurerm"
   version = "~> 2.0"
 
-  org_name          = var.org_name
-  environment       = var.environment
-  workload_name     = var.workload_name
+  org_name           = var.org_name
+  environment        = var.environment
+  workload_name      = var.workload_name
   deploy_environment = var.deploy_environment
-  location          = module.mod_location.location_cli
+  location           = module.mod_location.location_cli
 
   existing_resource_group_name = module.rg.resource_group_name
 
-  sku_name                = "standard"
+  sku_name                   = "standard"
   rbac_authorization_enabled = true
-  enable_purge_protection = var.deploy_environment == "prod" ? true : false
+  enable_purge_protection    = var.deploy_environment == "prod" ? true : false
   soft_delete_retention_days = var.deploy_environment == "prod" ? 90 : 7
 
   # Network — allow Azure services; tighten to private endpoint in prod
@@ -118,11 +119,11 @@ module "acr" {
   source  = "azurenoops/overlays-container-registry/azurerm"
   version = "~> 2.0"
 
-  org_name          = var.org_name
-  environment       = var.environment
-  workload_name     = var.workload_name
+  org_name           = var.org_name
+  environment        = var.environment
+  workload_name      = var.workload_name
   deploy_environment = var.deploy_environment
-  location          = module.mod_location.location_cli
+  location           = module.mod_location.location_cli
 
   existing_resource_group_name = module.rg.resource_group_name
 
@@ -139,13 +140,13 @@ module "acr" {
 # ---------------------------------------------------------------------------
 module "sql" {
   source  = "azurenoops/overlays-azsql/azurerm"
-  version = "~> 3.0"
+  version = "~> 2.0"
 
-  org_name          = var.org_name
-  environment       = var.environment
-  workload_name     = var.workload_name
+  org_name           = var.org_name
+  environment        = var.environment
+  workload_name      = var.workload_name
   deploy_environment = var.deploy_environment
-  location          = module.mod_location.location_cli
+  location           = module.mod_location.location_cli
 
   existing_resource_group_name = module.rg.resource_group_name
 
@@ -162,7 +163,7 @@ module "sql" {
   ]
 
   # Allow Azure services (Container App egress IPs added post-deploy)
-  enable_firewall_rules    = true
+  enable_firewall_rules         = true
   public_network_access_enabled = true
   firewall_rules = [
     {
@@ -193,15 +194,15 @@ resource "azurerm_key_vault_secret" "sql_connection_string" {
 # Azure OpenAI (optional)
 # ---------------------------------------------------------------------------
 module "openai" {
-  count  = var.deploy_openai ? 1 : 0
-  source = "azurenoops/overlays-openai-cognitive-account/azurerm"
-  version = "~> 2.0"
+  count   = var.deploy_openai ? 1 : 0
+  source  = "azurenoops/overlays-openai-cognitive-account/azurerm"
+  version = "~> 1.0"
 
-  org_name          = var.org_name
-  environment       = var.environment
-  workload_name     = "${var.workload_name}-oai"
+  org_name           = var.org_name
+  environment        = var.environment
+  workload_name      = "${var.workload_name}-oai"
   deploy_environment = var.deploy_environment
-  location          = module.mod_location.location_cli
+  location           = module.mod_location.location_cli
 
   existing_resource_group_name = module.rg.resource_group_name
   custom_subdomain_name        = "oai-${var.org_name}-${var.workload_name}-${var.deploy_environment}"
@@ -351,19 +352,19 @@ resource "azurerm_container_app" "mcp" {
       }
 
       liveness_probe {
-        path             = "/health"
-        port             = 8080
-        transport        = "HTTP"
-        initial_delay    = 15
-        interval_seconds = 30
+        path                    = "/health"
+        port                    = 8080
+        transport               = "HTTP"
+        initial_delay           = 15
+        interval_seconds        = 30
         failure_count_threshold = 3
       }
 
       readiness_probe {
-        path             = "/health"
-        port             = 8080
-        transport        = "HTTP"
-        interval_seconds = 10
+        path                    = "/health"
+        port                    = 8080
+        transport               = "HTTP"
+        interval_seconds        = 10
         failure_count_threshold = 3
       }
     }
@@ -408,8 +409,8 @@ resource "azurerm_bot_service_azure_bot" "mcp_bot" {
   sku                 = var.deploy_environment == "prod" ? "S1" : "F0"
   microsoft_app_id    = var.bot_app_id
 
-  display_name      = var.bot_display_name
-  endpoint          = "https://${azurerm_container_app.mcp.ingress[0].fqdn}/api/messages"
+  display_name                          = var.bot_display_name
+  endpoint                              = "https://${azurerm_container_app.mcp.ingress[0].fqdn}/api/messages"
   developer_app_insights_api_key        = null
   developer_app_insights_application_id = null
 
@@ -425,8 +426,8 @@ resource "azurerm_bot_channel_ms_teams" "mcp_teams" {
   location            = azurerm_bot_service_azure_bot.mcp_bot[0].location
   resource_group_name = module.rg.resource_group_name
 
-  calling_web_hook   = null
-  enable_calling     = false
+  calling_web_hook = null
+  enable_calling   = false
 
   depends_on = [azurerm_bot_service_azure_bot.mcp_bot]
 }
