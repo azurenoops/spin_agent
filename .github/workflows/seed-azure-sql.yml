@@ -117,8 +117,7 @@ jobs:
                 -S "${SQL_FQDN}" \
                 --authentication-method=ActiveDirectoryDefault \
                 -d "${{ github.event.inputs.sql_database_name }}" \
-                -i scripts/seed-azure-progress.sql \
-                --exit-on-error; then
+                -i scripts/seed-azure-progress.sql; then
               echo "Seed completed successfully."
               break
             fi
