@@ -8,11 +8,11 @@ import { useSystemContext } from '../components/layout/SystemLayout';
 import { getAssessments, runAssessment, getAssessmentDetail } from '../api/assessments';
 import { getAssessmentComponentRisks } from '../api/components';
 import { generateSap, getLatestSap, finalizeSap } from '../api/sap';
-import { createSar, getLatestSar } from '../api/sar';
+import { createSar, getLatestSar, editSarSection, submitSarForReview, reviewSar, exportSarWord } from '../api/sar';
 import type { AssessmentListItem, AssessmentDetail, AssessmentFinding } from '../api/assessments';
 import type { AssessmentComponentRisks, ComponentRiskSummary } from '../types/dashboard';
 import type { SapResponse } from '../api/sap';
-import type { SarResponse } from '../api/sar';
+import type { SarResponse, SarSectionSummary } from '../api/sar';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -88,6 +88,21 @@ export default function Assessments() {
   const [sarLoading, setSarLoading] = useState(false);
   const [sarError, setSarError] = useState<string | null>(null);
   const [sarData, setSarData] = useState<SarResponse | null>(null);
+
+  // Epic #211 — SAR workflow: section editing, submit, review, export
+  const [sarEditSection, setSarEditSection] = useState<SarSectionSummary | null>(null);
+  const [sarEditContent, setSarEditContent] = useState('');
+  const [sarEditLoading, setSarEditLoading] = useState(false);
+  const [sarEditError, setSarEditError] = useState<string | null>(null);
+  const [sarSubmitLoading, setSarSubmitLoading] = useState(false);
+  const [sarSubmitError, setSarSubmitError] = useState<string | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewDecision, setReviewDecision] = useState<'approve' | 'request_revision'>('approve');
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // View detail modals
   const [showSapView, setShowSapView] = useState(false);
@@ -259,6 +274,103 @@ export default function Assessments() {
       }
     } finally {
       setSarLoading(false);
+    }
+  };
+
+  // Epic #211 — SAR section edit handler
+  const handleSaveSarSection = async () => {
+    if (!sarData || !sarEditSection) return;
+    setSarEditLoading(true);
+    setSarEditError(null);
+    try {
+      await editSarSection(systemId, sarData.sarId, sarEditSection.sectionType, sarEditContent);
+      // Refresh SAR to get updated section status
+      const updated = await getLatestSar(systemId);
+      setSarData(updated);
+      setSarEditSection(null);
+      setSarEditContent('');
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: string } } };
+        setSarEditError(axiosErr.response?.data?.error ?? 'Save failed');
+      } else {
+        setSarEditError(err instanceof Error ? err.message : 'Save failed');
+      }
+    } finally {
+      setSarEditLoading(false);
+    }
+  };
+
+  // Epic #211 — SAR submit for review handler
+  const handleSubmitSar = async () => {
+    if (!sarData) return;
+    setSarSubmitLoading(true);
+    setSarSubmitError(null);
+    try {
+      const updated = await submitSarForReview(systemId, sarData.sarId);
+      setSarData(updated);
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: string } } };
+        setSarSubmitError(axiosErr.response?.data?.error ?? 'Submit failed');
+      } else {
+        setSarSubmitError(err instanceof Error ? err.message : 'Submit failed');
+      }
+    } finally {
+      setSarSubmitLoading(false);
+    }
+  };
+
+  // Epic #211 — SAR review (approve/reject) handler
+  const handleReviewSar = async () => {
+    if (!sarData) return;
+    if (reviewDecision === 'request_revision' && !reviewComment.trim()) {
+      setReviewError('Comments are required when requesting revision.');
+      return;
+    }
+    setReviewLoading(true);
+    setReviewError(null);
+    try {
+      const updated = await reviewSar(systemId, sarData.sarId, { decision: reviewDecision, comments: reviewComment || undefined });
+      setSarData(updated);
+      setShowReviewModal(false);
+      setReviewComment('');
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: string } } };
+        setReviewError(axiosErr.response?.data?.error ?? 'Review action failed');
+      } else {
+        setReviewError(err instanceof Error ? err.message : 'Review action failed');
+      }
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  // Epic #211 — SAR Word export handler
+  const handleExportSarWord = async () => {
+    if (!sarData) return;
+    setExportLoading(true);
+    setExportError(null);
+    try {
+      const blob = await exportSarWord(systemId, sarData.sarId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `SAR_${sarData.title.replace(/\s+/g, '_')}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: string } } };
+        setExportError(axiosErr.response?.data?.error ?? 'Export failed');
+      } else {
+        setExportError(err instanceof Error ? err.message : 'Export failed');
+      }
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -1469,6 +1581,7 @@ export default function Assessments() {
                             <th className="px-3 py-2 text-left font-medium text-gray-500">Section</th>
                             <th className="px-3 py-2 text-center font-medium text-gray-500">Source</th>
                             <th className="px-3 py-2 text-center font-medium text-gray-500">Status</th>
+                            <th className="px-3 py-2 text-center font-medium text-gray-500">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
@@ -1487,6 +1600,16 @@ export default function Assessments() {
                                   <span className="inline-flex items-center rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Complete</span>
                                 ) : (
                                   <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Needs content</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {['Draft', 'NotStarted'].includes(sarData.status) && (
+                                  <button
+                                    onClick={() => { setSarEditSection(s); setSarEditContent(''); setSarEditError(null); }}
+                                    className="inline-flex items-center rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                  >
+                                    Edit
+                                  </button>
                                 )}
                               </td>
                             </tr>
@@ -1532,8 +1655,109 @@ export default function Assessments() {
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end flex-shrink-0">
+              {/* Epic #211 — Inline SAR section editor */}
+              {sarEditSection && (
+                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h5 className="text-sm font-semibold text-indigo-900">Edit: {sarEditSection.title}</h5>
+                    <button onClick={() => { setSarEditSection(null); setSarEditContent(''); }} className="text-xs text-gray-500 hover:text-gray-700">✕ Cancel</button>
+                  </div>
+                  <textarea
+                    value={sarEditContent}
+                    onChange={e => setSarEditContent(e.target.value)}
+                    rows={6}
+                    className="w-full rounded-md border border-indigo-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Enter section content..."
+                  />
+                  {sarEditError && <p className="mt-1 text-xs text-red-600">{sarEditError}</p>}
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      onClick={() => void handleSaveSarSection()}
+                      disabled={sarEditLoading || !sarEditContent.trim()}
+                      className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                      {sarEditLoading ? 'Saving...' : 'Save Section'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Epic #211 — Review modal */}
+              {showReviewModal && (
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+                  <h5 className="text-sm font-semibold text-gray-900 mb-3">SAR Review Decision</h5>
+                  <div className="space-y-3">
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="radio" name="decision" value="approve" checked={reviewDecision === 'approve'} onChange={() => setReviewDecision('approve')} />
+                        <span className="font-medium text-green-700">Approve</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="radio" name="decision" value="request_revision" checked={reviewDecision === 'request_revision'} onChange={() => setReviewDecision('request_revision')} />
+                        <span className="font-medium text-amber-700">Request Revision</span>
+                      </label>
+                    </div>
+                    <textarea
+                      value={reviewComment}
+                      onChange={e => setReviewComment(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder={reviewDecision === 'request_revision' ? 'Comments required for revision request...' : 'Optional comments...'}
+                    />
+                    {reviewError && <p className="text-xs text-red-600">{reviewError}</p>}
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setShowReviewModal(false); setReviewComment(''); setReviewError(null); }} className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>
+                      <button
+                        onClick={() => void handleReviewSar()}
+                        disabled={reviewLoading || (reviewDecision === 'request_revision' && !reviewComment.trim())}
+                        className={`inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 transition-colors ${reviewDecision === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+                      >
+                        {reviewLoading ? 'Submitting...' : reviewDecision === 'approve' ? 'Approve SAR' : 'Request Revision'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer — Epic #211 actions */}
+              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  {/* Export Word — Task #264 */}
+                  <button
+                    onClick={() => void handleExportSarWord()}
+                    disabled={exportLoading}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {exportLoading ? 'Exporting...' : 'Export Word'}
+                  </button>
+                  {exportError && <p className="text-xs text-red-600">{exportError}</p>}
+
+                  {/* Submit SAR — Task #263 */}
+                  {sarData.status === 'Draft' && (
+                    <button
+                      onClick={() => void handleSubmitSar()}
+                      disabled={sarSubmitLoading || !sarData.sections?.every(s => s.hasContent)}
+                      title={!sarData.sections?.every(s => s.hasContent) ? 'All sections must have content before submitting' : 'Submit SAR for review'}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                    >
+                      {sarSubmitLoading ? 'Submitting...' : 'Submit for Review'}
+                    </button>
+                  )}
+                  {sarSubmitError && <p className="text-xs text-red-600">{sarSubmitError}</p>}
+
+                  {/* Review SAR — Task #263 (Assessor/ISSM) */}
+                  {sarData.status === 'Submitted' && (
+                    <button
+                      onClick={() => { setShowReviewModal(true); setReviewError(null); }}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
+                    >
+                      Review SAR
+                    </button>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowSarView(false)}
