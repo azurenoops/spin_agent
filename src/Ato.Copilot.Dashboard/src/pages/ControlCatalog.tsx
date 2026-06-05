@@ -295,6 +295,22 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
   const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<{ tone: 'success' | 'warning' | 'error'; text: string } | null>(null);
+
+  // ─── Per-identifier import modal (Issue #242) ──────────────────────────────
+  const KNOWN_FRAMEWORKS = [
+    { label: 'NIST SP 800-53 Rev. 5', identifier: 'NIST-800-53-R5' },
+    { label: 'NIST SP 800-53 Rev. 4', identifier: 'NIST-800-53-R4' },
+    { label: 'FedRAMP High Rev. 5',    identifier: 'FedRAMP-HIGH-R5' },
+    { label: 'FedRAMP Moderate Rev. 5', identifier: 'FedRAMP-MODERATE-R5' },
+    { label: 'FedRAMP Low Rev. 5',     identifier: 'FedRAMP-LOW-R5' },
+  ] as const;
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importIdentifier, setImportIdentifier] = useState('NIST-800-53-R5');
+  const [importCustomId, setImportCustomId] = useState('');
+  const [importConfirmExisting, setImportConfirmExisting] = useState(false);
+  const [importingIdentifier, setImportingIdentifier] = useState(false);
+  const [importIdentifierMessage, setImportIdentifierMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [defaultSaved, setDefaultSaved] = useState(false);
 
   // Org-level overrides (Feature 048 follow-up — user ask #2). Map by
@@ -488,6 +504,50 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
     }
   };
 
+  // ─── Per-identifier import handler (Issue #242) ────────────────────────────
+  const handleImportFrameworkById = async () => {
+    const id = (importCustomId.trim() || importIdentifier).trim();
+    if (!id) return;
+
+    // Guard: warn if already imported
+    const alreadyImported = frameworks.some(
+      (f) => f.identifier.toLowerCase() === id.toLowerCase(),
+    );
+    if (alreadyImported && !importConfirmExisting) {
+      setImportConfirmExisting(true);
+      return;
+    }
+
+    setImportingIdentifier(true);
+    setImportIdentifierMessage(null);
+    setImportConfirmExisting(false);
+    try {
+      const { data } = await apiClient.post<{ identifier: string; controlsImported: number }>(
+        `/frameworks/${encodeURIComponent(id)}/import`,
+      );
+      const fws = await fetchFrameworks();
+      setFrameworks(fws);
+      setImportIdentifierMessage({
+        tone: 'success',
+        text: `Imported "${data.identifier}" — ${data.controlsImported.toLocaleString()} controls`,
+      });
+      // Dismiss modal after short delay
+      setTimeout(() => {
+        setShowImportModal(false);
+        setImportIdentifierMessage(null);
+      }, 2000);
+    } catch (err: unknown) {
+      const msg =
+        typeof err === 'object' && err !== null && 'response' in err
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (err as any)?.response?.data?.error ?? 'Import failed'
+          : 'Import failed';
+      setImportIdentifierMessage({ tone: 'error', text: msg });
+    } finally {
+      setImportingIdentifier(false);
+    }
+  };
+
   return (
     <PageLayout title="Control Catalog">
       <PageHero
@@ -526,7 +586,13 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
               disabled={importing}
               className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
             >
-              {importing ? 'Importing...' : 'Import Frameworks'}
+              {importing ? 'Importing...' : 'Import All Frameworks'}
+            </button>
+            <button
+              onClick={() => { setShowImportModal(true); setImportIdentifierMessage(null); setImportConfirmExisting(false); }}
+              className="rounded-md border border-amber-500 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50"
+            >
+              Import by ID…
             </button>
           </div>
         )}
@@ -821,8 +887,85 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
               }
               return next;
             });
+            setOverrideControl(null);
           }}
         />
+      )}
+
+      {/* Per-identifier import modal (Issue #242) */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">Import Framework by Identifier</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Import a specific framework from the OSCAL repository using its identifier.
+            </p>
+
+            <label className="block mb-3">
+              <span className="block text-sm font-medium text-gray-700 mb-1">Known Frameworks</span>
+              <select
+                value={importIdentifier}
+                onChange={(e) => { setImportIdentifier(e.target.value); setImportCustomId(''); }}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                {KNOWN_FRAMEWORKS.map((f) => (
+                  <option key={f.identifier} value={f.identifier}>{f.label} ({f.identifier})</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block mb-3">
+              <span className="block text-sm font-medium text-gray-700 mb-1">
+                Or enter a custom identifier
+              </span>
+              <input
+                type="text"
+                value={importCustomId}
+                onChange={(e) => setImportCustomId(e.target.value)}
+                placeholder="e.g. CNSSI-1253"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </label>
+
+            {/* Re-import warning */}
+            {importConfirmExisting && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                This framework is already imported. Re-importing may overwrite existing control data.
+                Click <strong>Import</strong> again to confirm.
+              </div>
+            )}
+
+            {/* Result message */}
+            {importIdentifierMessage && (
+              <div className={`mb-4 rounded-md border px-3 py-2 text-sm ${
+                importIdentifierMessage.tone === 'error'
+                  ? 'border-red-200 bg-red-50 text-red-700'
+                  : 'border-green-200 bg-green-50 text-green-700'
+              }`}>
+                {importIdentifierMessage.text}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowImportModal(false); setImportConfirmExisting(false); setImportIdentifierMessage(null); }}
+                disabled={importingIdentifier}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleImportFrameworkById()}
+                disabled={importingIdentifier || (!importCustomId.trim() && !importIdentifier)}
+                className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {importingIdentifier ? 'Importing…' : importConfirmExisting ? 'Confirm Import' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </PageLayout>
   );

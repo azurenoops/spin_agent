@@ -6,6 +6,7 @@ import SystemsRoute from './pages/SystemsRoute';
 import ComponentsRoute from './pages/ComponentsRoute';
 import CapabilitiesRoute from './pages/CapabilitiesRoute';
 import ControlsRoute from './pages/ControlsRoute';
+import OverrideReviewPage from './pages/OverrideReviewPage';
 import SystemDetail from './pages/SystemDetail';
 import Roadmap from './pages/Roadmap';
 import BoundaryManagement from './pages/BoundaryManagement';
@@ -111,6 +112,7 @@ function AppContent() {
           <Route path="/csp/inherited-components" element={<RequireAuth><CspInheritedComponentsPage /></RequireAuth>} />
           <Route path="/admin/imported-documents" element={<RequireAuth><ImportedDocumentsView /></RequireAuth>} />
           <Route path="/controls" element={<RequireAuth><ControlsRoute /></RequireAuth>} />
+          <Route path="/controls/overrides" element={<RequireAuth><OverrideReviewPage /></RequireAuth>} />
         </Routes>
         </TenantOnboardingGuard>
       </CspOnboardingGuard>

@@ -78,6 +78,74 @@ export async function listOrgControlOverrides(): Promise<OrgControlOverrideDto[]
   return data.data ?? [];
 }
 
+export async function getOrgControlOverride(controlId: string): Promise<OrgControlOverrideDto | null> {
+  try {
+    const { data } = await orgsClient.get<ApiEnvelope<OrgControlOverrideDto>>(
+      `/control-overrides/${controlId}`,
+    );
+    return data.data ?? null;
+  } catch (err: any) {
+    if (err?.response?.status === 404) return null;
+    throw err;
+  }
+}
+
+export async function upsertOrgControlOverride(
+  controlId: string,
+  body: OrgControlOverrideRequest,
+): Promise<OrgControlOverrideDto> {
+  const { data } = await orgsClient.put<ApiEnvelope<OrgControlOverrideDto>>(
+    `/control-overrides/${controlId}`,
+    body,
+  );
+  if (!data.data) throw new Error(data.message ?? 'Upsert failed');
+  return data.data;
+}
+
+export async function deleteOrgControlOverride(controlId: string): Promise<void> {
+  await orgsClient.delete(`/control-overrides/${controlId}`);
+}
+
+// ─── SCA Review Workflow (Issue #244) ────────────────────────────────────────
+
+export type OrgControlOverrideApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface OrgControlOverrideReviewRequest {
+  comment?: string;
+}
+
+/**
+ * Approve a pending org control override. Requires SecurityControlAssessor role.
+ * Calls POST /api/orgs/control-overrides/{controlId}/approve
+ */
+export async function approveOrgControlOverride(
+  controlId: string,
+  comment?: string,
+): Promise<OrgControlOverrideDto> {
+  const { data } = await orgsClient.post<ApiEnvelope<OrgControlOverrideDto>>(
+    `/control-overrides/${controlId}/approve`,
+    { comment: comment ?? null },
+  );
+  if (!data.data) throw new Error(data.message ?? 'Approval failed');
+  return data.data;
+}
+
+/**
+ * Reject a pending org control override. Requires SecurityControlAssessor role.
+ * Calls POST /api/orgs/control-overrides/{controlId}/reject
+ */
+export async function rejectOrgControlOverride(
+  controlId: string,
+  comment: string,
+): Promise<OrgControlOverrideDto> {
+  const { data } = await orgsClient.post<ApiEnvelope<OrgControlOverrideDto>>(
+    `/control-overrides/${controlId}/reject`,
+    { comment },
+  );
+  if (!data.data) throw new Error(data.message ?? 'Rejection failed');
+  return data.data;
+}
+
 /**
  * Fetch the override for a single control id, or null when none exists
  * (the underlying GET returns 404; we coerce that to null because the
