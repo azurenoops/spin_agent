@@ -113,9 +113,13 @@ public class XccdfParser : IXccdfParser
         var results = new List<ParsedXccdfResult>();
 
         bool insideTestResult = false;
+        bool foundTestResult  = false;   // track whether we ever entered one
         bool insideTargetFacts = false;
         string? pendingFactName = null;
 
+        // XmlReader starts before the document; advance to the first node.
+        // The root element may BE the TestResult, so check each node including
+        // the very first Element node we land on.
         while (reader.Read())
         {
             if (reader.NodeType == XmlNodeType.Element)
@@ -126,8 +130,11 @@ public class XccdfParser : IXccdfParser
                 if (localName == "TestResult")
                 {
                     insideTestResult = true;
+                    foundTestResult  = true;
                     startTime = ParseTimestamp(reader.GetAttribute("start-time"));
                     endTime   = ParseTimestamp(reader.GetAttribute("end-time"));
+                    // If TestResult is an empty element there are no rule-results
+                    if (reader.IsEmptyElement) insideTestResult = false;
                     continue;
                 }
 
@@ -151,6 +158,11 @@ public class XccdfParser : IXccdfParser
 
                     case "target-address":
                         targetAddress = reader.IsEmptyElement ? null : reader.ReadElementContentAsString().Trim();
+                        break;
+
+                    case "identity":
+                        // Informational only — skip
+                        if (!reader.IsEmptyElement) reader.Skip();
                         break;
 
                     case "target-facts":
@@ -200,7 +212,7 @@ public class XccdfParser : IXccdfParser
             }
         }
 
-        if (results.Count == 0 && !insideTestResult)
+        if (!foundTestResult)
             throw new XccdfParseException(fileName, "No <TestResult> element found in XCCDF XML.");
 
         _logger.LogInformation(

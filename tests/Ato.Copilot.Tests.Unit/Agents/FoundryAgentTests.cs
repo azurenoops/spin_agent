@@ -331,7 +331,7 @@ public class TestableFoundryAgent : BaseAgent
 
     public Task<AgentResponse?> InvokeTryProcessWithFoundryAsync(
         string message, AgentConversationContext context, CancellationToken ct = default)
-        => base.TryProcessWithFoundryAsync(message, context, ct);
+        => TryProcessWithFoundryAsync(message, context, ct);  // virtual dispatch — hits the override counter
 
     public Task InvokeProvisionFoundryAgentAsync(CancellationToken ct = default)
         => ProvisionFoundryAgentAsync(ct);

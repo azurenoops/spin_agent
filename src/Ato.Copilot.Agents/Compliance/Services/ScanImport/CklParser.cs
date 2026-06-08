@@ -217,9 +217,6 @@ public class CklParser : ICklParser
         string? status = null, findingDetails = null, comments = null,
                 severityOverride = null, severityJustification = null;
 
-        // STIG_DATA state machine: name element comes before data element
-        string? pendingAttrName = null;
-
         while (reader.Read())
         {
             if (reader.NodeType == XmlNodeType.EndElement && reader.Name == "VULN")
@@ -229,25 +226,9 @@ public class CklParser : ICklParser
 
             switch (reader.Name)
             {
-                case "VULN_ATTRIBUTE":
-                    pendingAttrName = ReadElementText(reader);
-                    break;
-
-                case "ATTRIBUTE_DATA":
-                    var attrData = ReadElementText(reader) ?? string.Empty;
-                    if (!string.IsNullOrEmpty(pendingAttrName))
-                    {
-                        if (string.Equals(pendingAttrName, "CCI_REF", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (!string.IsNullOrWhiteSpace(attrData))
-                                cciRefs.Add(attrData);
-                        }
-                        else
-                        {
-                            attributes[pendingAttrName] = attrData;
-                        }
-                        pendingAttrName = null;
-                    }
+                case "STIG_DATA":
+                    // STIG_DATA contains VULN_ATTRIBUTE followed by ATTRIBUTE_DATA
+                    ParseStigData(reader, attributes, cciRefs);
                     break;
 
                 case "STATUS":               status               = ReadElementText(reader); break;
@@ -275,6 +256,54 @@ public class CklParser : ICklParser
             SeverityJustification: NullIfEmpty(severityJustification),
             CciRefs:              cciRefs,
             GroupTitle:           attributes.GetValueOrDefault("Group_Title"));
+    }
+
+    /// <summary>
+    /// Reads the content of a single STIG_DATA element which contains:
+    ///   <VULN_ATTRIBUTE>attributeName</VULN_ATTRIBUTE>
+    ///   <ATTRIBUTE_DATA>attributeValue</ATTRIBUTE_DATA>
+    /// Mutates <paramref name="attributes"/> and <paramref name="cciRefs"/> in place.
+    /// </summary>
+    private static void ParseStigData(
+        XmlReader reader,
+        Dictionary<string, string> attributes,
+        List<string> cciRefs)
+    {
+        if (reader.IsEmptyElement) return;
+
+        string? attrName = null;
+
+        while (reader.Read())
+        {
+            if (reader.NodeType == XmlNodeType.EndElement && reader.Name == "STIG_DATA")
+                break;
+
+            if (reader.NodeType != XmlNodeType.Element) continue;
+
+            switch (reader.Name)
+            {
+                case "VULN_ATTRIBUTE":
+                    attrName = ReadElementText(reader);
+                    break;
+
+                case "ATTRIBUTE_DATA":
+                    var attrData = ReadElementText(reader) ?? string.Empty;
+                    if (!string.IsNullOrEmpty(attrName))
+                    {
+                        if (string.Equals(attrName, "CCI_REF", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!string.IsNullOrWhiteSpace(attrData))
+                                cciRefs.Add(attrData);
+                        }
+                        else
+                        {
+                            attributes[attrName] = attrData;
+                        }
+                        attrName = null;
+                    }
+                    break;
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────

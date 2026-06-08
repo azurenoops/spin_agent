@@ -289,7 +289,7 @@ public class FoundryIntegrationTestAgent : BaseAgent
 
     public Task<AgentResponse?> InvokeTryProcessWithFoundryAsync(
         string message, AgentConversationContext context, CancellationToken ct = default)
-        => base.TryProcessWithFoundryAsync(message, context, ct);
+        => TryProcessWithFoundryAsync(message, context, ct);  // virtual dispatch — hits override counter
 
     /// <summary>
     /// Returns true when the Foundry agent ID has not been provisioned.
