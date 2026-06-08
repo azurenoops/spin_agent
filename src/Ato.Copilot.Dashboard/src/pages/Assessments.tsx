@@ -93,8 +93,8 @@ export default function Assessments() {
   const [showSapView, setShowSapView] = useState(false);
   const [showSarView, setShowSarView] = useState(false);
 
-  // Create Remediation Task modal (Issue #294)
-  const [createTaskFinding, setCreateTaskFinding] = useState<AssessmentFinding | null>(null);
+  // Create Remediation Task modal state
+  const [taskModalFinding, setTaskModalFinding] = useState<AssessmentFinding | null>(null);
 
   const fetchAssessments = useCallback(() => getAssessments(), []);
   const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
@@ -703,17 +703,12 @@ export default function Assessments() {
                                                 {f.deviationType === 'FalsePositive' ? 'False Positive' : 'Risk Accepted'}
                                               </span>
                                             )}
-                                            {/* Create Task button — Issue #294 */}
                                             <button
                                               type="button"
-                                              onClick={() => setCreateTaskFinding(f)}
-                                              className="ml-auto inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
-                                              title="Create a remediation task for this finding"
+                                              onClick={() => setTaskModalFinding(f)}
+                                              className="ml-auto inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
                                             >
-                                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                              </svg>
-                                              Create Task
+                                              + Create Task
                                             </button>
                                           </div>
                                           <p className="mt-1 text-gray-500 pl-1">{f.description}</p>
@@ -1210,258 +1205,17 @@ export default function Assessments() {
           );
         })()}
 
-        {/* SAR Detail View Modal */}
-        {showSarView && sarData && (() => {
-          const complianceRate = sarData.totalControlsAssessed > 0 ? Math.round((sarData.satisfiedCount / sarData.totalControlsAssessed) * 100) : 0;
-          const emptySections = sarData.sections?.filter(s => !s.hasContent) ?? [];
-
-          return (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            onClick={(e) => { if (e.target === e.currentTarget) setShowSarView(false); }}
-          >
-            <div className="w-full max-w-3xl max-h-[90vh] rounded-xl bg-white shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 pt-5 pb-3 flex-shrink-0">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Security Assessment Report</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">{sarData.title}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    sarData.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                    sarData.status === 'UnderReview' ? 'bg-indigo-100 text-indigo-700' :
-                    'bg-amber-100 text-amber-700'
-                  }`}>
-                    {sarData.status === 'UnderReview' ? 'Under Review' : sarData.status}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowSarView(false)}
-                    className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                    aria-label="Close"
-                  >
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div className="border-t border-gray-100" />
-
-              {/* Body */}
-              <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
-                {/* Explainer */}
-                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3">
-                  <p className="text-xs text-indigo-800">
-                    The <strong>Security Assessment Report (SAR)</strong> documents the results of your security assessment (RMF Step 4).
-                    It aggregates findings from all completed assessments, showing which controls are satisfied and which have gaps that need remediation.
-                  </p>
-                </div>
-
-                {/* Next Steps */}
-                <div className={`rounded-md border p-3 ${sarData.status === 'Approved' ? 'border-green-200 bg-green-50' : 'border-emerald-200 bg-emerald-50'}`}>
-                  <p className="text-xs font-semibold text-gray-700 mb-1.5">Next Steps</p>
-                  {sarData.status === 'Draft' ? (
-                    <ul className="text-xs text-gray-600 space-y-1.5">
-                      {sarData.notSatisfiedCount > 0 && (
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-red-500 mt-0.5">⚠</span>
-                          <span>
-                            <strong>{sarData.notSatisfiedCount} controls</strong> are not satisfied.
-                            <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/remediation`); }} className="text-indigo-600 hover:underline ml-1 font-medium">Go to Remediation →</button>
-                          </span>
-                        </li>
-                      )}
-                      {emptySections.length > 0 && (
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-amber-500 mt-0.5">✎</span>
-                          <span>
-                            <strong>{emptySections.length} section{emptySections.length !== 1 ? 's' : ''}</strong> need content ({emptySections.map(s => s.title).join(', ')}).
-                            Use the chat to author them with the <code className="text-[10px] bg-gray-100 rounded px-1">compliance_edit_sar_section</code> tool.
-                          </span>
-                        </li>
-                      )}
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-emerald-500 mt-0.5">1</span>
-                        <span>Review the findings summary and complete any manual sections above.</span>
-                      </li>
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-emerald-500 mt-0.5">2</span>
-                        <span>Submit the SAR for review via the chat tool <code className="text-[10px] bg-gray-100 rounded px-1">compliance_submit_sar</code>.</span>
-                      </li>
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-emerald-500 mt-0.5">3</span>
-                        <span>
-                          Once approved, the SAR will be included when you
-                          <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/documents`); }} className="text-indigo-600 hover:underline ml-1 font-medium">generate the authorization package →</button>
-                        </span>
-                      </li>
-                    </ul>
-                  ) : sarData.status === 'UnderReview' ? (
-                    <ul className="text-xs text-gray-600 space-y-1.5">
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-indigo-500 mt-0.5">⏳</span>
-                        <span>SAR is under review. The AO or ISSO will approve or request revisions.</span>
-                      </li>
-                    </ul>
-                  ) : (
-                    <ul className="text-xs text-gray-600 space-y-1.5">
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-green-500 mt-0.5">✓</span>
-                        <span>SAR is approved. It will be included in the authorization package.</span>
-                      </li>
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-green-500 mt-0.5">→</span>
-                        <span>
-                          <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/documents`); }} className="text-indigo-600 hover:underline font-medium">Go to Documents →</button>
-                          {' '}to generate and export the full authorization package.
-                        </span>
-                      </li>
-                    </ul>
-                  )}
-                </div>
-
-                {/* Metrics cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Assessed</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">{sarData.totalControlsAssessed}</p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Satisfied</p>
-                    <p className="mt-1 text-2xl font-bold text-green-600">{sarData.satisfiedCount}</p>
-                    <p className="text-[10px] text-gray-400">Controls passing</p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Not Satisfied</p>
-                    <p className="mt-1 text-2xl font-bold text-red-600">{sarData.notSatisfiedCount}</p>
-                    <p className="text-[10px] text-gray-400">
-                      {sarData.notSatisfiedCount > 0 ? (
-                        <button onClick={() => { setShowSarView(false); navigate(`/systems/${systemId}/poam`); }} className="text-indigo-600 hover:underline">View POA&Ms →</button>
-                      ) : 'None'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Compliance Rate</p>
-                    <p className={`mt-1 text-2xl font-bold ${complianceRate >= 80 ? 'text-green-600' : complianceRate >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
-                      {complianceRate}%
-                    </p>
-                    <p className="text-[10px] text-gray-400">{complianceRate >= 80 ? 'Strong' : complianceRate >= 60 ? 'Needs work' : 'At risk'}</p>
-                  </div>
-                </div>
-
-                {/* Pending controls */}
-                {sarData.totalControlsPending > 0 && (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                    <strong>{sarData.totalControlsPending}</strong> control{sarData.totalControlsPending !== 1 ? 's' : ''} pending assessment.
-                    Run another assessment to include them.
-                  </div>
-                )}
-
-                {/* Sections */}
-                {sarData.sections && sarData.sections.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Report Sections</h4>
-                    <div className="overflow-hidden rounded-lg border border-gray-200">
-                      <table className="min-w-full divide-y divide-gray-200 text-xs">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-3 py-2 text-left font-medium text-gray-500">Section</th>
-                            <th className="px-3 py-2 text-center font-medium text-gray-500">Source</th>
-                            <th className="px-3 py-2 text-center font-medium text-gray-500">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 bg-white">
-                          {sarData.sections.map(s => (
-                            <tr key={s.sectionType} className="hover:bg-gray-50">
-                              <td className="px-3 py-2 font-medium text-gray-800">{s.title}</td>
-                              <td className="px-3 py-2 text-center">
-                                {s.isAutoGenerated ? (
-                                  <span className="inline-flex items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">Auto-generated</span>
-                                ) : (
-                                  <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">Manual entry</span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                {s.hasContent ? (
-                                  <span className="inline-flex items-center rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Complete</span>
-                                ) : (
-                                  <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Needs content</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Lifecycle / Metadata */}
-                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">SAR ID</span>
-                    <span className="font-mono text-gray-600">{sarData.sarId.substring(0, 8)}...</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Created By</span>
-                    <span className="font-medium text-gray-800">{sarData.createdBy}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Created</span>
-                    <span className="font-medium text-gray-800">{formatDate(sarData.createdAt)}</span>
-                  </div>
-                  {sarData.modifiedBy && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Last Modified</span>
-                      <span className="font-medium text-gray-800">{sarData.modifiedBy} — {formatDate(sarData.modifiedAt)}</span>
-                    </div>
-                  )}
-                  {sarData.reviewedBy && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Reviewed By</span>
-                      <span className="font-medium text-gray-800">{sarData.reviewedBy} — {formatDate(sarData.reviewedAt)}</span>
-                    </div>
-                  )}
-                  {sarData.approvedBy && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Approved By</span>
-                      <span className="font-medium text-gray-800">{sarData.approvedBy} — {formatDate(sarData.approvedAt)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowSarView(false)}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-          );
-        })()}
-
-        {/* Create Remediation Task Modal — Issue #294 */}
-        {createTaskFinding && (
-          <CreateRemediationTaskModal
-            systemId={systemId}
-            initialTitle={createTaskFinding.title}
-            initialSeverity={createTaskFinding.severity}
-            initialControlId={createTaskFinding.controlId ?? ''}
-            findingId={createTaskFinding.findingId}
-            onClose={() => setCreateTaskFinding(null)}
-            onCreated={() => {
-              setCreateTaskFinding(null);
-            }}
-          />
-        )}
+      {/* Create Remediation Task Modal */}
+      {taskModalFinding && (
+        <CreateRemediationTaskModal
+          systemId={systemId}
+          findingId={taskModalFinding.findingId}
+          findingTitle={taskModalFinding.title}
+          findingSeverity={taskModalFinding.severity}
+          onClose={() => setTaskModalFinding(null)}
+          onCreated={() => setTaskModalFinding(null)}
+        />
+      )}
     </div>
   );
 }

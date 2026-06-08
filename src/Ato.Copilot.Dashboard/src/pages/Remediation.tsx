@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { useSettings } from '../hooks/useSettings';
 import { useSystemContext } from '../components/layout/SystemLayout';
-import { getRemediationSummary, getRemediationTasks, moveTask, exportTasksCsv } from '../api/remediation';
+import { getRemediationSummary, getRemediationTasks, moveTask, exportTasks } from '../api/remediation';
 import { linkTask as poamLinkTask } from '../api/poam';
 import { listPoamItems } from '../api/poam';
 import { getDeviations } from '../api/deviations';
@@ -66,8 +66,8 @@ function SeverityBadge({ severity }: { severity: string }) {
 export default function Remediation() {
   const { detail } = useSystemContext();
   const systemId = detail.systemId;
-  const { settings } = useSettings();
   const navigate = useNavigate();
+  const { settings } = useSettings();
   const [searchText, setSearchText] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>(settings.defaultRemediationView);
   const [selectedTask, setSelectedTask] = useState<RemediationTask | null>(null);
@@ -231,29 +231,6 @@ export default function Remediation() {
     }
   };
 
-  // Issue #295 — Configure Ticketing navigation
-  const handleConfigureTicketing = () => {
-    navigate(`/systems/${systemId}/poam`);
-  };
-
-  // Issue #295 — Export tasks as CSV download
-  const handleExport = async () => {
-    try {
-      const csv = await exportTasksCsv(systemId);
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `remediation-tasks-${systemId ?? 'all'}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch {
-      // Silent fail — export is non-critical
-    }
-  };
-
   return (
     <div className="space-y-6">
         {/* Header */}
@@ -263,27 +240,6 @@ export default function Remediation() {
             <p className="mt-1 text-sm text-gray-500">Track remediation tasks and manage task lifecycle.</p>
           </div>
           <div className="flex items-center gap-3">
-            {/* Issue #295 — Configure Ticketing */}
-            <button
-              onClick={handleConfigureTicketing}
-              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-            >
-              <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Configure Ticketing
-            </button>
-            {/* Issue #295 — Export */}
-            <button
-              onClick={() => void handleExport()}
-              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-            >
-              <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Export
-            </button>
             {/* Search */}
             <input
               type="text"
@@ -307,6 +263,28 @@ export default function Remediation() {
                 Kanban
               </button>
             </div>
+            {/* Ticketing cross-link */}
+            <button
+              type="button"
+              onClick={() => navigate(`/systems/${systemId}/poam`)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Ticketing
+            </button>
+            {/* Export CSV */}
+            <button
+              type="button"
+              onClick={() => void exportTasks(systemId)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export CSV
+            </button>
           </div>
         </div>
 

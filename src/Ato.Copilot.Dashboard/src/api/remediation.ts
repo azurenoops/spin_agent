@@ -163,38 +163,62 @@ export async function bulkUpdatePoamStatus(
   return data;
 }
 
-export interface CreateRemediationTaskRequest {
+export interface CreateTaskBody {
   title: string;
-  description: string;
-  severity: string;
-  controlId?: string;
+  description?: string;
   findingId?: string;
-  systemId?: string;
+  severity?: string;
+  controlId?: string;
   dueDate?: string;
 }
 
 export async function createTask(
-  request: CreateRemediationTaskRequest,
+  systemId: string,
+  body: CreateTaskBody,
 ): Promise<RemediationTask> {
-  const { data } = await apiClient.post<RemediationTask>('/remediation/tasks', request);
+  const { data } = await apiClient.post<RemediationTask>('/remediation/tasks', {
+    ...body,
+    systemId,
+  });
   return data;
 }
 
-export async function exportTasksCsv(systemId?: string): Promise<string> {
-  const params: Record<string, string> = {};
-  if (systemId) params.systemId = systemId;
-  const { data } = await apiClient.get<RemediationTasksResponse>('/remediation/tasks', { params });
+export async function exportTasks(systemId: string): Promise<void> {
+  const { data } = await apiClient.get<RemediationTasksResponse>('/remediation/tasks', {
+    params: { systemId, limit: 10000 },
+  });
   const tasks = data.items;
-  const header = [
-    'Task #', 'Title', 'Control ID', 'Severity', 'CAT Severity', 'Status',
-    'Assignee', 'Due Date', 'Component', 'Created At',
-  ].join(',');
-  const esc = (v: string | null | undefined) =>
-    v == null ? '' : `"${v.replace(/"/g, '""')}"`;
-  const rows = tasks.map(t => [
-    esc(t.taskNumber), esc(t.title), esc(t.controlId), esc(t.severity),
-    esc(t.catSeverity), esc(t.status), esc(t.assigneeName),
-    esc(t.dueDate), esc(t.componentName), esc(t.createdAt),
-  ].join(','));
-  return [header, ...rows].join('\n');
+  if (tasks.length === 0) return;
+
+  const headers = [
+    'taskNumber', 'title', 'controlId', 'controlFamily', 'severity',
+    'catSeverity', 'status', 'assigneeName', 'dueDate', 'isOverdue',
+    'findingId', 'poamItemId', 'componentName', 'createdAt',
+  ];
+
+  const escape = (v: string | number | boolean | null | undefined): string => {
+    if (v == null) return '';
+    const s = String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  const rows = [
+    headers.join(','),
+    ...tasks.map(t =>
+      headers.map(h => escape((t as unknown as Record<string, unknown>)[h])).join(',')
+    ),
+  ].join('\r\n');
+
+  const blob = new Blob([rows], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `remediation-tasks-${systemId}-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
