@@ -11,7 +11,7 @@
  *   PUT   /api/onboarding/imports/ssp-pdf/{sessionId}/corrections         → save corrections
  *   POST  /api/onboarding/imports/ssp-pdf/{sessionId}/import              → commit
  */
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
