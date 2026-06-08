@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Mcp.Hubs;
+using Ato.Copilot.Mcp.Services;
 
 namespace Ato.Copilot.Mcp.Workers;
 
