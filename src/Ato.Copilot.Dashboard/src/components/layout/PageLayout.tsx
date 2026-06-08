@@ -27,6 +27,8 @@ const navItems = [
   { to: '/components', label: 'Components' },
   { to: '/capabilities', label: 'Capabilities' },
   { to: '/controls', label: 'Controls' },
+  // Wave 6 GAP-016
+  { to: '/audit', label: 'Audit Log' },
 ];
 
 interface PageLayoutProps {

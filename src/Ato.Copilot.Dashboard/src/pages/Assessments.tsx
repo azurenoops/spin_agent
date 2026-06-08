@@ -99,9 +99,6 @@ export default function Assessments() {
   // #296: state for deviation creation modal
   const [deviationModalFinding, setDeviationModalFinding] = useState<AssessmentFinding | null>(null);
 
-  // Create Remediation Task modal state
-  const [taskModalFinding, setTaskModalFinding] = useState<AssessmentFinding | null>(null);
-
   const fetchAssessments = useCallback(() => getAssessments(), []);
   const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
 
@@ -1217,7 +1214,6 @@ export default function Assessments() {
           </div>
           );
         })()}
-    </div>
 
       {deviationModalFinding && (
         <AddDeviationDialog
@@ -1240,5 +1236,6 @@ export default function Assessments() {
           onCreated={() => setTaskModalFinding(null)}
         />
       )}
+    </div>
   );
 }

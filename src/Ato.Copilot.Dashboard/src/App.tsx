@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useIsAuthenticated, useMsal } from '@azure/msal-react';
 import PortfolioRoute from './pages/PortfolioRoute';
 import SystemsRoute from './pages/SystemsRoute';
@@ -43,6 +43,10 @@ import CspInheritedComponentsPage from './features/csp-inherited-components/CspI
 import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
 import TemplatesAdminPage from './pages/TemplatesAdminPage';
 import AzureSettingsPage from './pages/AzureSettingsPage';
+// Wave 6 GAP-006/GAP-016/GAP-017
+import GapAnalysis from './pages/GapAnalysis';
+import AuditLogPage from './pages/AuditLogPage';
+import AdminMigrationPage from './pages/AdminMigrationPage';
 import LoginPage from './features/auth/LoginPage';
 import LoginCallbackPage from './features/auth/LoginCallbackPage';
 import TenantPickerPage from './features/auth/TenantPickerPage';
@@ -109,6 +113,8 @@ function AppContent() {
             <Route path="authorize" element={<AuthorizationPage />} />
             {/* Epic #121 / Task #147 — Roles management page */}
             <Route path="roles" element={<RolesManagementPage />} />
+            {/* Wave 6 GAP-006: Gap Analysis */}
+            <Route path="gap-analysis" element={<GapAnalysis />} />
           </Route>
           <Route path="/capabilities" element={<RequireAuth><CapabilitiesRoute /></RequireAuth>} />
           <Route path="/components" element={<RequireAuth><ComponentsRoute /></RequireAuth>} />
@@ -121,6 +127,14 @@ function AppContent() {
           <Route path="/csp/inherited-components" element={<RequireAuth><CspInheritedComponentsPage /></RequireAuth>} />
           <Route path="/admin/imported-documents" element={<RequireAuth><ImportedDocumentsView /></RequireAuth>} />
           <Route path="/admin/templates" element={<RequireAuth><TemplatesAdminPage /></RequireAuth>} />
+          {/* Wave 6 GAP-007: retired /csp-dashboard redirect */}
+          <Route path="/csp-dashboard" element={<Navigate to="/" replace />} />
+          {/* Wave 6 GAP-008: /portfolio named route */}
+          <Route path="/portfolio" element={<RequireAuth><PortfolioRoute /></RequireAuth>} />
+          {/* Wave 6 GAP-016: Audit Log */}
+          <Route path="/audit" element={<RequireAuth><AuditLogPage /></RequireAuth>} />
+          {/* Wave 6 GAP-017: Admin Migration */}
+          <Route path="/admin/migration" element={<RequireAuth><AdminMigrationPage /></RequireAuth>} />
           <Route path="/controls" element={<RequireAuth><ControlsRoute /></RequireAuth>} />
           {/* Epic #208 / Task #250 — Org settings page */}
           <Route path="/settings/org" element={<RequireAuth><OrgSettingsPage /></RequireAuth>} />

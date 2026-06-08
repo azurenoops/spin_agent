@@ -3,6 +3,8 @@ import { requestExport, downloadExportUrl, listTemplates } from '../api/exports'
 import type { ExportSummary, TemplateInfo } from '../api/exports';
 import * as signalR from '@microsoft/signalr';
 import { acquireBearer } from '../features/auth/msalInstance';
+// Wave 6 GAP-018
+import apiClient from '../api/client';
 
 interface ExportSspDialogProps {
   systemId: string;
@@ -23,6 +25,28 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const connectionRef = useRef<signalR.HubConnection | null>(null);
+  // Wave 6 GAP-018
+  const [oscalExporting, setOscalExporting] = useState<string | null>(null);
+  const [oscalError, setOscalError] = useState<string | null>(null);
+
+  const handleOscalDownload = useCallback(async (artifactType: 'oscal-poam' | 'oscal-assessment-results' | 'oscal-sap') => {
+    setOscalExporting(artifactType);
+    setOscalError(null);
+    try {
+      const response = await apiClient.get(`/api/v1/systems/${systemId}/packages/${artifactType}`, { responseType: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([response.data as BlobPart]));
+      a.download = `${artifactType}-${systemId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    } catch (e: unknown) {
+      setOscalError(`${artifactType} export failed: ${(e as Error).message ?? 'Unknown error'}`);
+    } finally {
+      setOscalExporting(null);
+    }
+  }, [systemId]);
 
   // Close on Escape
   useEffect(() => {
@@ -258,6 +282,37 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
           {status === 'failed' && error && (
             <div className="rounded-lg bg-red-50 border border-red-200 p-3">
               <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* Wave 6 GAP-018: OSCAL direct downloads */}
+          {(status === 'idle' || status === 'completed') && (
+            <div className="border-t border-gray-100 pt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Additional OSCAL Exports</p>
+              <div className="space-y-2">
+                {([
+                  { type: 'oscal-poam' as const, label: 'OSCAL POA&M', icon: '📋' },
+                  { type: 'oscal-assessment-results' as const, label: 'OSCAL Assessment Results', icon: '📊' },
+                  { type: 'oscal-sap' as const, label: 'OSCAL SAP', icon: '📝' },
+                ] as const).map(({ type, label, icon }) => (
+                  <button key={type} onClick={() => void handleOscalDownload(type)} disabled={oscalExporting !== null}
+                    className="flex w-full items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                    <span className="text-base">{icon}</span>
+                    <span className="flex-1 text-left">{label}</span>
+                    {oscalExporting === type ? (
+                      <svg className="h-4 w-4 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {oscalError && <div className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">{oscalError}</div>}
             </div>
           )}
         </div>
