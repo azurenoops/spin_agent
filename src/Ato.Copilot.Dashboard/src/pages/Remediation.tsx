@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { useSettings } from '../hooks/useSettings';
 import { useSystemContext } from '../components/layout/SystemLayout';
-import { getRemediationSummary, getRemediationTasks, moveTask } from '../api/remediation';
+import { getRemediationSummary, getRemediationTasks, moveTask, exportTasks } from '../api/remediation';
 import { linkTask as poamLinkTask } from '../api/poam';
 import { listPoamItems } from '../api/poam';
 import { getDeviations } from '../api/deviations';
@@ -66,6 +66,7 @@ function SeverityBadge({ severity }: { severity: string }) {
 export default function Remediation() {
   const { detail } = useSystemContext();
   const systemId = detail.systemId;
+  const navigate = useNavigate();
   const { settings } = useSettings();
   const [searchText, setSearchText] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>(settings.defaultRemediationView);
@@ -262,6 +263,28 @@ export default function Remediation() {
                 Kanban
               </button>
             </div>
+            {/* Ticketing cross-link */}
+            <button
+              type="button"
+              onClick={() => navigate(`/systems/${systemId}/poam`)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Ticketing
+            </button>
+            {/* Export CSV */}
+            <button
+              type="button"
+              onClick={() => void exportTasks(systemId)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export CSV
+            </button>
           </div>
         </div>
 
