@@ -97,6 +97,7 @@ public class CklParser : ICklParser
         CklAssetInfo? asset = null;
         CklStigInfo? stigInfo = null;
         var entries = new List<ParsedCklEntry>();
+        bool foundStigsElement = false;
 
         while (reader.Read())
         {
@@ -106,6 +107,9 @@ public class CklParser : ICklParser
             {
                 case "ASSET":
                     asset = ParseAsset(reader);
+                    break;
+                case "STIGS":
+                    foundStigsElement = true;
                     break;
                 case "STIG_INFO":
                     stigInfo = ParseStigInfo(reader);
@@ -120,6 +124,10 @@ public class CklParser : ICklParser
 
         asset    ??= new CklAssetInfo(null, null, null, null, null, null);
         stigInfo ??= new CklStigInfo(null, null, null, null);
+
+        if (!foundStigsElement)
+            throw new CklParseException(fileName,
+                "Missing <STIGS>/<iSTIG> element. The CKL file must contain a STIGS/iSTIG structure.");
 
         _logger.LogDebug(
             "Parsed CKL file {FileName}: {EntryCount} VULN entries, benchmark={BenchmarkId}",

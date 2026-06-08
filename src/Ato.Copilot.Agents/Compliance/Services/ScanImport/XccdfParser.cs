@@ -123,7 +123,9 @@ public class XccdfParser : IXccdfParser
                 {
                     case "benchmark":
                         benchmarkHref = reader.GetAttribute("href");
-                        if (!reader.IsEmptyElement) reader.Skip();
+                        // Consume element with ReadTextContent (ignore content) so reader
+                        // lands ON </benchmark>; outer loop's Read() → next sibling correctly.
+                        ReadTextContent(reader);
                         break;
 
                     case "title":
@@ -139,7 +141,10 @@ public class XccdfParser : IXccdfParser
                         break;
 
                     case "identity":
-                        if (!reader.IsEmptyElement) reader.Skip();
+                        // Informational only — consume with ReadTextContent so reader
+                        // lands ON </identity> and the outer loop's Read() advances
+                        // correctly to the next sibling (NOT Skip() which advances past it).
+                        ReadTextContent(reader);
                         break;
 
                     case "target-facts":
@@ -191,7 +196,10 @@ public class XccdfParser : IXccdfParser
         }
 
         if (!foundTestResult)
-            throw new XccdfParseException(fileName, "No <TestResult> element found in XCCDF XML.");
+            throw new XccdfParseException(fileName,
+                "No <TestResult> element found in XCCDF XML. " +
+                "Verify the file uses a recognized XCCDF namespace " +
+                "(http://checklists.nist.gov/xccdf/1.1 or /1.2) or no namespace.");
 
         _logger.LogInformation(
             "Parsed XCCDF file '{FileName}': {ResultCount} rule-results, target={Target}, score={Score}/{MaxScore}",
