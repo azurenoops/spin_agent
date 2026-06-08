@@ -208,7 +208,7 @@ export async function exportTasks(systemId: string): Promise<void> {
   const rows = [
     headers.join(','),
     ...tasks.map(t =>
-      headers.map(h => escape((t as unknown as Record<string, unknown>)[h] as string | number | boolean | null | undefined)).join(',')
+      headers.map(h => escape((t as unknown as Record<string, unknown>)[h])).join(',')
     ),
   ].join('\r\n');
 
