@@ -285,6 +285,71 @@ services:
 
 ---
 
+## AI Provider Selection — `ATO_AZUREAI__PROVIDER`
+
+> **Added:** Task #177 / Epic #132
+
+The platform supports two AI backends. Select based on workload characteristics:
+
+### `Provider=OpenAi` (default)
+
+Direct Azure OpenAI chat completions via `IChatClient`. Recommended for most deployments.
+
+**Configuration:**
+```
+ATO_AZUREAI__ENABLED=true
+ATO_AZUREAI__PROVIDER=OpenAi
+ATO_AZUREAI__ENDPOINT=https://<resource>.openai.azure.us/
+ATO_AZUREAI__DEPLOYMENTNAME=gpt-4o
+ATO_AZUREAI__APIKEY=<key>          # or UseManagedIdentity=true
+```
+
+**Trade-offs:**
+
+| | OpenAi |
+|-|--------|
+| Latency | Lower — single HTTP round-trip per message |
+| Thread management | Client-side (in-memory `ConcurrentDictionary`) |
+| Tool execution | Local — tools run inside the MCP process |
+| Foundry features | Not available (code interpreter, file search, vector stores) |
+| Startup validation | Requires `ATO_AZUREAI__ENDPOINT` |
+
+---
+
+### `Provider=Foundry`
+
+Azure AI Foundry Agents via `PersistentAgentsClient`. Use when server-side thread
+persistence, code interpreter, or Foundry-managed tool execution is required.
+
+**Configuration:**
+```
+ATO_AZUREAI__ENABLED=true
+ATO_AZUREAI__PROVIDER=Foundry
+ATO_AZUREAI__ENDPOINT=https://<resource>.openai.azure.us/
+ATO_AZUREAI__FOUNDRYPROJECTENDPOINT=https://<resource>.services.ai.azure.com/api/projects/<project>
+ATO_AZUREAI__DEPLOYMENTNAME=gpt-4o
+```
+
+**Trade-offs:**
+
+| | Foundry |
+|-|---------|
+| Latency | Higher — Foundry run polling adds 2–10s overhead |
+| Thread management | Server-side (Foundry threads persist across container restarts) |
+| Tool execution | Local — tools still run inside the MCP process |
+| Foundry features | Code interpreter, file search, Foundry-hosted runs |
+| Startup validation | **Fails fast** if `FOUNDRYPROJECTENDPOINT` is empty (`InvalidOperationException`) |
+
+**Startup fail-fast:** If `Provider=Foundry` is set but `FOUNDRYPROJECTENDPOINT` is
+empty or missing, `Program.cs::ValidateFoundryConfig()` throws at startup rather
+than failing silently on the first tool call.
+
+**Fallback chain:** `Foundry → IChatClient → deterministic`. If the Foundry run
+returns null or throws, the agent falls back to the IChatClient path without
+surfacing the error to the caller.
+
+---
+
 ## Cross-Cutting Concerns
 
 | Concern | Implementation |
