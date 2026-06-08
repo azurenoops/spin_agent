@@ -58,6 +58,7 @@ function makeTenant(overrides: Partial<TenantSummary> = {}): TenantSummary {
     displayName: 'Acme Corp',
     status: 'Active',
     onboardingState: 'Active',
+    organizationCount: 2,
     systemCount: 3,
     atoStatusCounts: { authorized: 1, inProcess: 1, denied: 0 },
     openFindingCount: 5,
