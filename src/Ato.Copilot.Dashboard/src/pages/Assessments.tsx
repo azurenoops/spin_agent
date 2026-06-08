@@ -12,6 +12,7 @@ import type { AssessmentListItem, AssessmentDetail, AssessmentFinding } from '..
 import type { AssessmentComponentRisks, ComponentRiskSummary } from '../types/dashboard';
 import type { SapResponse } from '../api/sap';
 import type { SarResponse } from '../api/sar';
+import CreateRemediationTaskModal from '../components/remediation/CreateRemediationTaskModal';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -91,6 +92,9 @@ export default function Assessments() {
   // View detail modals
   const [showSapView, setShowSapView] = useState(false);
   const [showSarView, setShowSarView] = useState(false);
+
+  // Create Remediation Task modal (Issue #294)
+  const [createTaskFinding, setCreateTaskFinding] = useState<AssessmentFinding | null>(null);
 
   const fetchAssessments = useCallback(() => getAssessments(), []);
   const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
@@ -699,6 +703,18 @@ export default function Assessments() {
                                                 {f.deviationType === 'FalsePositive' ? 'False Positive' : 'Risk Accepted'}
                                               </span>
                                             )}
+                                            {/* Create Task button — Issue #294 */}
+                                            <button
+                                              type="button"
+                                              onClick={() => setCreateTaskFinding(f)}
+                                              className="ml-auto inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                                              title="Create a remediation task for this finding"
+                                            >
+                                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                              </svg>
+                                              Create Task
+                                            </button>
                                           </div>
                                           <p className="mt-1 text-gray-500 pl-1">{f.description}</p>
                                           {f.remediationGuidance && (
@@ -1431,6 +1447,21 @@ export default function Assessments() {
           </div>
           );
         })()}
+
+        {/* Create Remediation Task Modal — Issue #294 */}
+        {createTaskFinding && (
+          <CreateRemediationTaskModal
+            systemId={systemId}
+            initialTitle={createTaskFinding.title}
+            initialSeverity={createTaskFinding.severity}
+            initialControlId={createTaskFinding.controlId ?? ''}
+            findingId={createTaskFinding.findingId}
+            onClose={() => setCreateTaskFinding(null)}
+            onCreated={() => {
+              setCreateTaskFinding(null);
+            }}
+          />
+        )}
     </div>
   );
 }

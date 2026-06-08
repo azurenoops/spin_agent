@@ -116,6 +116,12 @@ public static class AtoCopilotMcpServiceExtensions
             services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.DeviationExpirationService>();
         }
 
+        // ConMon BackgroundService (Epic #210 — Issue #292)
+        if (includeHostedServices)
+        {
+            services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.AtoExpiryMonitorService>();
+        }
+
         // SSP Export services (Feature 037)
         services.Configure<ExportSettings>(configuration.GetSection(ExportSettings.SectionName));
         // Feature flags (Feature 040)
