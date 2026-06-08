@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import EmassImportWizard from './EmassImportWizard';
+import SspPdfImportWizard from './SspPdfImportWizard';
 
 interface ImportedArtifactRow {
   id: string;
@@ -55,6 +56,7 @@ export default function ImportedDocumentsView() {
   const [busy, setBusy] = useState(false);
   // T273: eMASS import wizard state
   const [showEmassWizard, setShowEmassWizard] = useState(false);
+  const [showSspWizard, setShowSspWizard] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -242,6 +244,9 @@ export default function ImportedDocumentsView() {
     {/* T273: eMASS import wizard */}
     {showEmassWizard && (
       <EmassImportWizard onClose={() => { setShowEmassWizard(false); void refresh(); }} />
+    )}
+    {showSspWizard && (
+      <SspPdfImportWizard onClose={() => { setShowSspWizard(false); void refresh(); }} />
     )}
     </>
   );
