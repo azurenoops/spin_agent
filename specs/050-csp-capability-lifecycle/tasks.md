@@ -367,3 +367,34 @@ All four tracks converge at Phase 8 for a single PR.
 - **US5**: Open drawer with mixed NeedsReview + Mapped capabilities → assert chip rendered with correct N; reload with zero NeedsReview → assert chip suppressed.
 
 **Format validation**: Every task above is `- [ ] T###` with optional `[P]` parallelism marker, `[US?]` story label for Phase 3–7 tasks (omitted for Setup/Foundational/Polish), and a concrete file path.
+
+---
+
+## Phase 9 — Trust Chain Gap Closures (Epic #223)
+
+> These tasks extend spec-050 to close the 8 critical trust-chain gaps documented in Epic #223. They run as a follow-on implementation wave after T001–T054 are complete.
+
+- [ ] **T055** `src/Ato.Copilot.Core/Models/Compliance/SecurityCapability.cs` — Add `public Guid? SourceCapabilityId { get; set; }` nullable FK → `CspInheritedCapability.Id` ([GlobalReference], no EF navigation property); update `src/Ato.Copilot.Core/Data/Context/AtoCopilotContext.cs` EF config to add index `IX_SecurityCapability_SourceCapabilityId`; add EF migration; populate `SourceCapabilityId` on CSP import and re-import in `src/Ato.Copilot.Mcp/Services/CapabilityImportService.cs` — once set, treat as immutable (#223)
+
+- [ ] **T056** `src/Ato.Copilot.Mcp/Endpoints/DashboardEndpoints.cs` (or equivalent apply-profile endpoint) — Trace and wire `CspProfile` apply-profile endpoints to resolve profile members from `CspInheritedComponent` catalog; confirm FK path; add integration test confirming applied profile capabilities resolve to real `CspInheritedComponent` rows (#223)
+
+- [ ] **T057** `src/Ato.Copilot.Agents/Compliance/Services/` (new file: `CspCapabilityChangeNotificationService.cs`) — Implement change-propagation background job: when `CspInheritedCapability` is updated and published (via `PublishAsync` in `CspInheritedComponentService.cs`), enqueue async notification to all orgs where `SecurityCapability.SourceCapabilityId = capabilityId`; notification must be fire-and-forget (must not block publish action); deliver in-app notification per org admin (#223) — depends on T055
+
+- [ ] **T058** `src/Ato.Copilot.Dashboard/src/pages/CapabilityCoverage.tsx` + `src/Ato.Copilot.Dashboard/src/pages/ControlInheritance.tsx` — Add cross-reference panel to `CapabilityCoverage.tsx` showing which `ControlInheritance` records each capability satisfies; add inverse cross-reference entry in `ControlInheritance.tsx` showing which capability satisfies each inherited control row; panel loads on row expand (not on page load) (#223)
+
+- [ ] **T059** `src/Ato.Copilot.Dashboard/src/pages/ControlInheritance.tsx` — Wire `OrgControlOverride` read/write inline: call `GET /api/orgs/control-overrides/{controlId}` per row to render override badge; add inline "Apply Override" / "Clear Override" action calling `PUT /api/orgs/control-overrides/{controlId}` and `DELETE /api/orgs/control-overrides/{controlId}` respectively; API already exists at `OrgControlOverrideEndpoints.cs` — frontend wiring only (#223)
+
+- [ ] **T060** `src/Ato.Copilot.Agents/Compliance/Services/NarrativeTemplateService.cs` (or equivalent AI context builder) — Include `CspInheritedCapability.description` in narrative prompt context when `SecurityCapability.SourceCapabilityId` is set; retrieve description by loading `CspInheritedCapability` via `SourceCapabilityId` at context-assembly time; benchmark confirms < 500 ms additional latency per control (#223) — depends on T055
+
+- [ ] **T061** `src/Ato.Copilot.Dashboard/src/features/csp-inherited-components/CspInheritedComponentsPage.tsx` + remap endpoint — Locate reviewer note field in `MoveCapabilityDialog.tsx`; trace submission path through `RemapAsync` in `CspInheritedComponentService.cs`; if `ReviewerNote` is discarded, update `RemapAsync` to persist the note in the remap history record; add integration test confirming note round-trips — fixes T045 deviation (#223)
+
+- [ ] **T062** `src/Ato.Copilot.Mcp/Endpoints/Csp/CspInheritedComponentEndpoints.cs` — Add `POST /api/csp/inherited-components/{id}/unarchive` and `POST /api/csp/inherited-components/{id}/capabilities/{capId}/unarchive`; implement `UnarchiveAsync` on `ICspInheritedComponentService` + `CspInheritedComponentService.cs`; gate on CSP-Admin (403 for all others); emit audit row on each unarchive; add "Unarchive" button in `CspInheritedComponentsPage.tsx` archive list view (#223)
+
+---
+
+### Phase 9 Dependencies
+
+- T055 (provenance FK) is prerequisite for T057 (propagation) and T060 (narrative AI injection)
+- T059 (OrgControlOverride UI wiring) has no backend dependency — API already exists
+- T061 (reviewer notes) and T062 (unarchive) are independent of all other Phase 9 tasks
+- T058 (cross-reference panel) is independent; can proceed any time
