@@ -1,0 +1,12 @@
+{
+  "system": {
+    "name": "SCA Journey Test System",
+    "acronym": "SJTS",
+    "description": "Synthetic system for SCA persona E2E journey test",
+    "impactLevel": "Moderate",
+    "phase": "Operations/Maintenance"
+  },
+  "scanFile": "sample-crm-import.csv",
+  "poamCount": 3,
+  "narrativeControlId": "AC-1"
+}
