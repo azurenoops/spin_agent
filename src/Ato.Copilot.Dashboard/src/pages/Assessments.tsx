@@ -13,6 +13,7 @@ import type { AssessmentComponentRisks, ComponentRiskSummary } from '../types/da
 import type { SapResponse } from '../api/sap';
 import type { SarResponse } from '../api/sar';
 import CreateRemediationTaskModal from '../components/remediation/CreateRemediationTaskModal';
+import AddDeviationDialog from '../components/AddDeviationDialog';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -95,6 +96,8 @@ export default function Assessments() {
 
   // Create Remediation Task modal state
   const [taskModalFinding, setTaskModalFinding] = useState<AssessmentFinding | null>(null);
+  // #296: state for deviation creation modal
+  const [deviationModalFinding, setDeviationModalFinding] = useState<AssessmentFinding | null>(null);
 
   const fetchAssessments = useCallback(() => getAssessments(), []);
   const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
@@ -710,6 +713,13 @@ export default function Assessments() {
                                             >
                                               + Create Task
                                             </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setDeviationModalFinding(f)}
+                                              className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700 hover:bg-purple-100 transition-colors"
+                                            >
+                                              + Create Deviation
+                                            </button>
                                           </div>
                                           <p className="mt-1 text-gray-500 pl-1">{f.description}</p>
                                           {f.remediationGuidance && (
@@ -1205,6 +1215,16 @@ export default function Assessments() {
           );
         })()}
 
+      {deviationModalFinding && (
+        <AddDeviationDialog
+          systemId={systemId}
+          initialFindingId={deviationModalFinding.findingId}
+          initialControlId={deviationModalFinding.controlId ?? undefined}
+          initialTitle={deviationModalFinding.title}
+          onClose={() => setDeviationModalFinding(null)}
+          onCreated={() => { setDeviationModalFinding(null); refresh(); }}
+        />
+      )}
       {/* Create Remediation Task Modal */}
       {taskModalFinding && (
         <CreateRemediationTaskModal

@@ -7,6 +7,12 @@ interface Props {
   systemId: string;
   onClose: () => void;
   onCreated: () => void;
+  /** Pre-fill finding ID from assessment context — field becomes read-only. */
+  initialFindingId?: string;
+  /** Pre-fill control reference from assessment context. */
+  initialControlId?: string;
+  /** Pre-fill title/description from assessment context. */
+  initialTitle?: string;
 }
 
 const DEVIATION_TYPES = [
@@ -33,15 +39,15 @@ function defaultExpiration(): string {
   return d.toISOString().split('T')[0] ?? '';
 }
 
-export default function AddDeviationDialog({ systemId, onClose, onCreated }: Props) {
+export default function AddDeviationDialog({ systemId, onClose, onCreated, initialFindingId, initialControlId, initialTitle: _initialTitle }: Props) {  // eslint-disable-line @typescript-eslint/no-unused-vars
   const [deviationType, setDeviationType] = useState('');
-  const [controlId, setControlId] = useState('');
+  const [controlId, setControlId] = useState(initialControlId ?? '');
   const [catSeverity, setCatSeverity] = useState('');
   const [justification, setJustification] = useState('');
   const [compensatingControls, setCompensatingControls] = useState('');
   const [expirationDate, setExpirationDate] = useState(defaultExpiration());
   const [reviewCycle, setReviewCycle] = useState('90');
-  const [findingId, setFindingId] = useState('');
+  const [findingId, setFindingId] = useState(initialFindingId ?? '');
   const [poamEntryId, setPoamEntryId] = useState('');
   const [poamSearch, setPoamSearch] = useState('');
   const [poamResults, setPoamResults] = useState<{ id: string; controlId: string; weakness: string }[]>([]);
@@ -143,9 +149,10 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated }: Pro
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Control ID *</label>
               <input
-                type="text"
-                value={controlId}
-                onChange={(e) => setControlId(e.target.value)}
+                            type="text"
+                            value={controlId}
+                            onChange={(e) => setControlId(e.target.value)}
+                            disabled={!!initialControlId}
                 placeholder="e.g. AC-2, IA-5(1)"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               />
@@ -259,9 +266,10 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated }: Pro
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Finding ID</label>
             <input
-              type="text"
-              value={findingId}
-              onChange={(e) => setFindingId(e.target.value)}
+                          type="text"
+                          value={findingId}
+                          onChange={(e) => setFindingId(e.target.value)}
+                          disabled={!!initialFindingId}
               placeholder="e.g. finding UUID or scan reference"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             />
