@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ComponentSection } from '../components/cards/ComponentSection';
 import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
@@ -8,6 +8,7 @@ import { getComponents, createComponent, updateComponent, deleteComponent, disco
 import type { OrgComponentDto } from '../api/components';
 import { fetchBoundaryDefinitions } from '../api/boundaries';
 import apiClient from '../api/client';
+import { onboarding } from '../features/onboarding/api/onboardingApi';
 import type { SystemComponentDto, CreateComponentRequest, ComponentType, BoundaryDefinitionDto, DiscoveredResource } from '../types/dashboard';
 
 const SECTIONS: { title: string; type: ComponentType }[] = [
@@ -50,6 +51,7 @@ export default function ComponentInventory() {
   const [selectedResources, setSelectedResources] = useState<Set<string>>(new Set());
   const [importLoading, setImportLoading] = useState(false);
   const [failedGroups, setFailedGroups] = useState<string[]>([]);
+  const [noAzureSubscriptions, setNoAzureSubscriptions] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!systemId) return;
@@ -309,7 +311,15 @@ export default function ComponentInventory() {
           + Add Component
         </button>
         <button
-          onClick={() => { setShowDiscover(true); setDiscoverError(null); }}
+          onClick={() => {
+            setShowDiscover(true);
+            setDiscoverError(null);
+            onboarding.listAzureRegistrations().then((regs) => {
+              setNoAzureSubscriptions(regs.length === 0);
+            }).catch(() => {
+              setNoAzureSubscriptions(false);
+            });
+          }}
           className="px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700"
         >
           Discover from Azure
@@ -446,6 +456,15 @@ export default function ComponentInventory() {
               <h2 className="text-lg font-semibold">Discover Azure Resources</h2>
               <button onClick={() => { setShowDiscover(false); setDiscovered([]); }} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
             </div>
+
+            {noAzureSubscriptions && (
+              <div className="rounded border border-amber-300 bg-amber-50 p-3 mb-4 text-sm text-amber-900">
+                No Azure subscriptions registered.{' '}
+                <Link to="/settings/azure-subscriptions" className="font-medium underline hover:text-amber-700">
+                  Configure Azure Settings
+                </Link>
+              </div>
+            )}
 
             <div className="flex gap-2 mb-4">
               <input
