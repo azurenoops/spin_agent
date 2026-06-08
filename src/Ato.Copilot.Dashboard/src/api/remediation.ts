@@ -162,3 +162,39 @@ export async function bulkUpdatePoamStatus(
   const { data } = await apiClient.put('/remediation/poam/bulk-status', { poamIds, status });
   return data;
 }
+
+export interface CreateRemediationTaskRequest {
+  title: string;
+  description: string;
+  severity: string;
+  controlId?: string;
+  findingId?: string;
+  systemId?: string;
+  dueDate?: string;
+}
+
+export async function createTask(
+  request: CreateRemediationTaskRequest,
+): Promise<RemediationTask> {
+  const { data } = await apiClient.post<RemediationTask>('/remediation/tasks', request);
+  return data;
+}
+
+export async function exportTasksCsv(systemId?: string): Promise<string> {
+  const params: Record<string, string> = {};
+  if (systemId) params.systemId = systemId;
+  const { data } = await apiClient.get<RemediationTasksResponse>('/remediation/tasks', { params });
+  const tasks = data.items;
+  const header = [
+    'Task #', 'Title', 'Control ID', 'Severity', 'CAT Severity', 'Status',
+    'Assignee', 'Due Date', 'Component', 'Created At',
+  ].join(',');
+  const esc = (v: string | null | undefined) =>
+    v == null ? '' : `"${v.replace(/"/g, '""')}"`;
+  const rows = tasks.map(t => [
+    esc(t.taskNumber), esc(t.title), esc(t.controlId), esc(t.severity),
+    esc(t.catSeverity), esc(t.status), esc(t.assigneeName),
+    esc(t.dueDate), esc(t.componentName), esc(t.createdAt),
+  ].join(','));
+  return [header, ...rows].join('\n');
+}
