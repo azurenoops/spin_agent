@@ -201,6 +201,8 @@ async Task RunHttpModeAsync(string[] args)
 
     // Validate CAC simulation mode configuration
     ValidateCacSimulationConfig(builder.Configuration, builder.Environment.EnvironmentName);
+    // Validate Foundry provider configuration (Task #177 / Epic #132)
+    ValidateFoundryConfig(builder.Configuration);
     builder.Services.AddHealthChecks()
         .AddCheck<AgentHealthCheck>("compliance-agent")
         .AddCheck<Ato.Copilot.Agents.Observability.NistControlsHealthCheck>("nist-controls");
@@ -1272,6 +1274,40 @@ void ValidateCacSimulationConfig(IConfiguration configuration, string environmen
         Log.Warning(
             "CacAuth:SimulationMode is enabled but environment is {Environment}. Simulation mode will be ignored.",
             environmentName);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Azure AI Foundry Provider Startup Validation  (Task #177 / Epic #132)
+// ────────────────────────────────────────────────────────────────
+/// <summary>
+/// Fails fast at startup when AzureAi:Provider is Foundry but
+/// AzureAi:FoundryProjectEndpoint is not configured.
+/// Prevents silent first-call failures in production.
+/// </summary>
+void ValidateFoundryConfig(IConfiguration configuration)
+{
+    var aiOptions = configuration.GetSection(Ato.Copilot.Core.Configuration.AzureAiOptions.SectionName)
+                                 .Get<Ato.Copilot.Core.Configuration.AzureAiOptions>();
+
+    if (aiOptions is null) return;
+    if (!aiOptions.Enabled)  return;
+
+    if (aiOptions.Provider == Ato.Copilot.Core.Configuration.AiProvider.Foundry
+        && string.IsNullOrWhiteSpace(aiOptions.FoundryProjectEndpoint))
+    {
+        throw new InvalidOperationException(
+            "AzureAi:Provider is set to 'Foundry' but AzureAi:FoundryProjectEndpoint is empty. " +
+            "Set ATO_AZUREAI__FOUNDRYPROJECTENDPOINT to your Azure AI Foundry project endpoint " +
+            "(e.g. https://<resource>.services.ai.azure.com/api/projects/<project>) " +
+            "or change ATO_AZUREAI__PROVIDER to 'OpenAi'.");
+    }
+
+    if (aiOptions.Provider == Ato.Copilot.Core.Configuration.AiProvider.Foundry)
+    {
+        Log.Information(
+            "Azure AI Foundry provider active. Project endpoint: {FoundryProjectEndpoint}",
+            aiOptions.FoundryProjectEndpoint);
     }
 }
 

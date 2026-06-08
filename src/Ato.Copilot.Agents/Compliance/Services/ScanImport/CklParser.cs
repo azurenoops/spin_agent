@@ -2,10 +2,14 @@
 // Feature 017 — SCAP/STIG Viewer Import: CKL XML Parser
 // Parses DISA STIG Viewer .ckl files into typed ParsedCklFile DTOs.
 // See specs/017-scap-stig-import/spec.md §3.1 for CKL format documentation.
+//
+// Task #175 (Epic #131): Refactored from XDocument to XmlReader streaming so
+// that 5,000-entry CKL files are processed without loading the full DOM into
+// memory. Memory footprint is proportional to a single VULN entry, not the
+// entire file.
 // ═══════════════════════════════════════════════════════════════════════════
 
 using System.Xml;
-using System.Xml.Linq;
 using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.Extensions.Logging;
 
@@ -49,7 +53,9 @@ public class CklParseException : Exception
 
 /// <summary>
 /// Parses DISA STIG Viewer CKL XML files into typed <see cref="ParsedCklFile"/> DTOs.
-/// Uses <see cref="XDocument"/> for XML parsing with descriptive error handling.
+/// Uses <see cref="XmlReader"/> streaming to handle enterprise-scale CKL files (5,000+
+/// VULN entries) without loading the full DOM into memory. Memory usage is proportional
+/// to a single VULN entry rather than the entire file.
 /// </summary>
 public class CklParser : ICklParser
 {
@@ -63,68 +69,138 @@ public class CklParser : ICklParser
     /// <inheritdoc />
     public ParsedCklFile Parse(byte[] fileContent, string fileName)
     {
-        XDocument doc;
+        if (fileContent is null || fileContent.Length == 0)
+            throw new CklParseException(fileName, "File is empty.");
+
+        var settings = new XmlReaderSettings
+        {
+            IgnoreWhitespace = true,
+            IgnoreComments = true,
+            DtdProcessing = DtdProcessing.Ignore,   // CKL files reference DISA DTDs not on classpath
+        };
+
         try
         {
             using var stream = new MemoryStream(fileContent);
-            doc = XDocument.Load(stream);
+            using var reader = XmlReader.Create(stream, settings);
+
+            return ParseChecklist(reader, fileName);
+        }
+        catch (CklParseException)
+        {
+            throw;
         }
         catch (XmlException ex)
         {
             _logger.LogWarning(ex, "Malformed XML in CKL file {FileName}", fileName);
-            throw new CklParseException(fileName, $"Malformed XML at line {ex.LineNumber}, position {ex.LinePosition}: {ex.Message}", ex);
+            throw new CklParseException(fileName,
+                $"Malformed XML at line {ex.LineNumber}, position {ex.LinePosition}: {ex.Message}", ex);
         }
+    }
 
-        var checklist = doc.Element("CHECKLIST");
-        if (checklist is null)
+    // ─────────────────────────────────────────────────────────────────────
+    // Core streaming parser
+    // ─────────────────────────────────────────────────────────────────────
+
+    private ParsedCklFile ParseChecklist(XmlReader reader, string fileName)
+    {
+        // Advance to root element
+        while (reader.Read() && reader.NodeType != XmlNodeType.Element) { }
+
+        if (reader.Name != "CHECKLIST")
             throw new CklParseException(fileName, "Missing root <CHECKLIST> element.");
 
-        var asset = ParseAsset(checklist.Element("ASSET"));
-        var iStig = checklist.Element("STIGS")?.Element("iSTIG");
-        if (iStig is null)
-            throw new CklParseException(fileName, "Missing <STIGS>/<iSTIG> element.");
+        CklAssetInfo? asset = null;
+        CklStigInfo? stigInfo = null;
+        var entries = new List<ParsedCklEntry>();
 
-        var stigInfo = ParseStigInfo(iStig.Element("STIG_INFO"));
-        var entries = ParseVulnEntries(iStig.Elements("VULN"));
+        while (reader.Read())
+        {
+            if (reader.NodeType != XmlNodeType.Element) continue;
 
-        _logger.LogDebug("Parsed CKL file {FileName}: {EntryCount} VULN entries, benchmark={BenchmarkId}",
+            switch (reader.Name)
+            {
+                case "ASSET":
+                    asset = ParseAsset(reader);
+                    break;
+
+                case "STIG_INFO":
+                    stigInfo = ParseStigInfo(reader);
+                    break;
+
+                case "VULN":
+                    var entry = ParseVuln(reader);
+                    if (entry is not null)
+                        entries.Add(entry);
+                    break;
+            }
+        }
+
+        asset ??= new CklAssetInfo(null, null, null, null, null, null);
+        stigInfo ??= new CklStigInfo(null, null, null, null);
+
+        _logger.LogDebug(
+            "Parsed CKL file {FileName}: {EntryCount} VULN entries, benchmark={BenchmarkId}",
             fileName, entries.Count, stigInfo.StigId);
 
         return new ParsedCklFile(asset, stigInfo, entries);
     }
 
-    /// <summary>
-    /// Parses the ASSET element into a <see cref="CklAssetInfo"/> DTO.
-    /// </summary>
-    private static CklAssetInfo ParseAsset(XElement? assetElement)
+    private static CklAssetInfo ParseAsset(XmlReader reader)
     {
-        if (assetElement is null)
-            return new CklAssetInfo(null, null, null, null, null, null);
+        string? hostName = null, hostIp = null, hostFqdn = null,
+                hostMac = null, assetType = null, targetKey = null;
 
-        return new CklAssetInfo(
-            HostName: GetElementValue(assetElement, "HOST_NAME"),
-            HostIp: GetElementValue(assetElement, "HOST_IP"),
-            HostFqdn: GetElementValue(assetElement, "HOST_FQDN"),
-            HostMac: GetElementValue(assetElement, "HOST_MAC"),
-            AssetType: GetElementValue(assetElement, "ASSET_TYPE"),
-            TargetKey: GetElementValue(assetElement, "TARGET_KEY"));
+        // Read until </ASSET>
+        while (reader.Read())
+        {
+            if (reader.NodeType == XmlNodeType.EndElement && reader.Name == "ASSET")
+                break;
+
+            if (reader.NodeType != XmlNodeType.Element) continue;
+
+            switch (reader.Name)
+            {
+                case "HOST_NAME":    hostName   = ReadElementText(reader); break;
+                case "HOST_IP":      hostIp     = ReadElementText(reader); break;
+                case "HOST_FQDN":   hostFqdn   = ReadElementText(reader); break;
+                case "HOST_MAC":     hostMac    = ReadElementText(reader); break;
+                case "ASSET_TYPE":   assetType  = ReadElementText(reader); break;
+                case "TARGET_KEY":   targetKey  = ReadElementText(reader); break;
+            }
+        }
+
+        return new CklAssetInfo(hostName, hostIp, hostFqdn, hostMac, assetType, targetKey);
     }
 
-    /// <summary>
-    /// Parses the STIG_INFO element's SI_DATA children into a <see cref="CklStigInfo"/> DTO.
-    /// </summary>
-    private static CklStigInfo ParseStigInfo(XElement? stigInfoElement)
+    private static CklStigInfo ParseStigInfo(XmlReader reader)
     {
-        if (stigInfoElement is null)
-            return new CklStigInfo(null, null, null, null);
-
         var siData = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var si in stigInfoElement.Elements("SI_DATA"))
+
+        string? currentName = null;
+
+        while (reader.Read())
         {
-            var name = si.Element("SID_NAME")?.Value;
-            var data = si.Element("SID_DATA")?.Value;
-            if (!string.IsNullOrEmpty(name))
-                siData[name] = data ?? string.Empty;
+            if (reader.NodeType == XmlNodeType.EndElement && reader.Name == "STIG_INFO")
+                break;
+
+            if (reader.NodeType != XmlNodeType.Element) continue;
+
+            switch (reader.Name)
+            {
+                case "SID_NAME":
+                    currentName = ReadElementText(reader);
+                    break;
+
+                case "SID_DATA":
+                    var data = ReadElementText(reader) ?? string.Empty;
+                    if (!string.IsNullOrEmpty(currentName))
+                    {
+                        siData[currentName] = data;
+                        currentName = null;
+                    }
+                    break;
+            }
         }
 
         return new CklStigInfo(
@@ -134,73 +210,88 @@ public class CklParser : ICklParser
             Title: siData.GetValueOrDefault("title"));
     }
 
-    /// <summary>
-    /// Parses all VULN elements into a list of <see cref="ParsedCklEntry"/> DTOs.
-    /// </summary>
-    private static List<ParsedCklEntry> ParseVulnEntries(IEnumerable<XElement> vulnElements)
+    private static ParsedCklEntry? ParseVuln(XmlReader reader)
     {
-        var entries = new List<ParsedCklEntry>();
+        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var cciRefs = new List<string>();
+        string? status = null, findingDetails = null, comments = null,
+                severityOverride = null, severityJustification = null;
 
-        foreach (var vuln in vulnElements)
+        // STIG_DATA state machine: name element comes before data element
+        string? pendingAttrName = null;
+
+        while (reader.Read())
         {
-            // Parse STIG_DATA attributes into a dictionary; CCI_REF can appear multiple times
-            var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var cciRefs = new List<string>();
+            if (reader.NodeType == XmlNodeType.EndElement && reader.Name == "VULN")
+                break;
 
-            foreach (var stigData in vuln.Elements("STIG_DATA"))
+            if (reader.NodeType != XmlNodeType.Element) continue;
+
+            switch (reader.Name)
             {
-                var attrName = stigData.Element("VULN_ATTRIBUTE")?.Value;
-                var attrData = stigData.Element("ATTRIBUTE_DATA")?.Value ?? string.Empty;
+                case "VULN_ATTRIBUTE":
+                    pendingAttrName = ReadElementText(reader);
+                    break;
 
-                if (string.IsNullOrEmpty(attrName))
-                    continue;
+                case "ATTRIBUTE_DATA":
+                    var attrData = ReadElementText(reader) ?? string.Empty;
+                    if (!string.IsNullOrEmpty(pendingAttrName))
+                    {
+                        if (string.Equals(pendingAttrName, "CCI_REF", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!string.IsNullOrWhiteSpace(attrData))
+                                cciRefs.Add(attrData);
+                        }
+                        else
+                        {
+                            attributes[pendingAttrName] = attrData;
+                        }
+                        pendingAttrName = null;
+                    }
+                    break;
 
-                if (string.Equals(attrName, "CCI_REF", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!string.IsNullOrWhiteSpace(attrData))
-                        cciRefs.Add(attrData);
-                }
-                else
-                {
-                    attributes[attrName] = attrData;
-                }
+                case "STATUS":               status               = ReadElementText(reader); break;
+                case "FINDING_DETAILS":      findingDetails       = ReadElementText(reader); break;
+                case "COMMENTS":             comments             = ReadElementText(reader); break;
+                case "SEVERITY_OVERRIDE":    severityOverride     = ReadElementText(reader); break;
+                case "SEVERITY_JUSTIFICATION": severityJustification = ReadElementText(reader); break;
             }
-
-            var vulnId = attributes.GetValueOrDefault("Vuln_Num") ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(vulnId))
-                continue; // Skip VULN entries without a VulnId
-
-            entries.Add(new ParsedCklEntry(
-                VulnId: vulnId,
-                RuleId: attributes.GetValueOrDefault("Rule_ID"),
-                StigVersion: attributes.GetValueOrDefault("Rule_Ver"),
-                RuleTitle: attributes.GetValueOrDefault("Rule_Title"),
-                Severity: attributes.GetValueOrDefault("Severity") ?? string.Empty,
-                Status: vuln.Element("STATUS")?.Value ?? string.Empty,
-                FindingDetails: NullIfEmpty(vuln.Element("FINDING_DETAILS")?.Value),
-                Comments: NullIfEmpty(vuln.Element("COMMENTS")?.Value),
-                SeverityOverride: NullIfEmpty(vuln.Element("SEVERITY_OVERRIDE")?.Value),
-                SeverityJustification: NullIfEmpty(vuln.Element("SEVERITY_JUSTIFICATION")?.Value),
-                CciRefs: cciRefs,
-                GroupTitle: attributes.GetValueOrDefault("Group_Title")));
         }
 
-        return entries;
+        var vulnId = attributes.GetValueOrDefault("Vuln_Num") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(vulnId))
+            return null; // Skip VULN entries without a VulnId
+
+        return new ParsedCklEntry(
+            VulnId:               vulnId,
+            RuleId:               attributes.GetValueOrDefault("Rule_ID"),
+            StigVersion:          attributes.GetValueOrDefault("Rule_Ver"),
+            RuleTitle:            attributes.GetValueOrDefault("Rule_Title"),
+            Severity:             attributes.GetValueOrDefault("Severity") ?? string.Empty,
+            Status:               status ?? string.Empty,
+            FindingDetails:       NullIfEmpty(findingDetails),
+            Comments:             NullIfEmpty(comments),
+            SeverityOverride:     NullIfEmpty(severityOverride),
+            SeverityJustification: NullIfEmpty(severityJustification),
+            CciRefs:              cciRefs,
+            GroupTitle:           attributes.GetValueOrDefault("Group_Title"));
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────
+
     /// <summary>
-    /// Gets the text value of a child element, or null if empty/missing.
+    /// Reads the text content of the current element, then advances past its end tag.
+    /// Returns null if the element is empty or contains only whitespace.
     /// </summary>
-    private static string? GetElementValue(XElement parent, string elementName)
+    private static string? ReadElementText(XmlReader reader)
     {
-        return NullIfEmpty(parent.Element(elementName)?.Value);
+        if (reader.IsEmptyElement) return null;
+        var text = reader.ReadElementContentAsString();
+        return string.IsNullOrWhiteSpace(text) ? null : text.Trim();
     }
 
-    /// <summary>
-    /// Returns null if the string is null, empty, or whitespace; otherwise returns the trimmed value.
-    /// </summary>
     private static string? NullIfEmpty(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? null : value;
-    }
+        => string.IsNullOrWhiteSpace(value) ? null : value;
 }
