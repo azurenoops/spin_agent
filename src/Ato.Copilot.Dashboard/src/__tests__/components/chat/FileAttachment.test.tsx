@@ -70,7 +70,7 @@ describe('useChat — attachment validation (T260)', () => {
     const [request] = mockSendMessage.mock.calls[0] as [{ attachments?: File[] }];
     expect(request.attachments).toBeDefined();
     expect(request.attachments).toHaveLength(1);
-    expect(request.attachments![0].name).toBe('policy.pdf');
+    expect(request.attachments![0]!.name).toBe('policy.pdf');
   });
 
   it('excludes invalid files from ChatRequest attachments', async () => {
@@ -84,7 +84,7 @@ describe('useChat — attachment validation (T260)', () => {
 
     const [request] = mockSendMessage.mock.calls[0] as [{ attachments?: File[] }];
     expect(request.attachments).toHaveLength(1);
-    expect(request.attachments![0].name).toBe('report.png');
+    expect(request.attachments![0]!.name).toBe('report.png');
   });
 
   it('adds an inline error message when invalid files are present', async () => {
