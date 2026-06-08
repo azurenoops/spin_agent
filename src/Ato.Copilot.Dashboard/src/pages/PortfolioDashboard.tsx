@@ -3,6 +3,7 @@ import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
 import SystemSummaryRow from '../components/cards/SystemSummaryRow';
 import IntakeWizard from '../components/wizard/IntakeWizard';
+import AoPendingDecisionsWidget from '../components/portfolio/AoPendingDecisionsWidget';
 import { usePolling } from '../hooks/usePolling';
 import { useIntakeWizard } from '../hooks/useIntakeWizard';
 import { getPortfolio, getPortfolioLegacy, updateSystem, generateSystemDescription } from '../api/portfolio';
@@ -122,6 +123,9 @@ export default function PortfolioDashboard() {
         title="Systems"
         description="Register, manage, and monitor all information systems in your portfolio."
       />
+
+      {/* AO Pending Decisions — shown when authorizations are expiring or overdue */}
+      <AoPendingDecisionsWidget />
 
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-center gap-3">

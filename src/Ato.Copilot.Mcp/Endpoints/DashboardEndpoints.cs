@@ -4417,6 +4417,56 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
         })
         .WithName("IssueAuthorization");
 
+        // ─── AO Pending Decisions ─────────────────────────────────────────────
+        // GET /api/dashboard/ao/pending-decisions
+        // Returns authorization decisions expiring within 30 days or already expired.
+        app.MapGet("/api/dashboard/ao/pending-decisions", async (
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            var now = DateTime.UtcNow;
+            var threshold = now.AddDays(30);
+
+            var decisions = await context.AuthorizationDecisions
+                .Where(d => d.ExpirationDate != null &&
+                            (d.ExpirationDate <= threshold || d.ExpirationDate < now))
+                .OrderBy(d => d.ExpirationDate)
+                .Select(d => new
+                {
+                    d.RegisteredSystemId,
+                    d.DecisionType,
+                    d.ExpirationDate,
+                })
+                .ToListAsync(ct);
+
+            var systemIds = decisions.Select(d => d.RegisteredSystemId).Distinct().ToList();
+            var systems = await context.RegisteredSystems
+                .Where(s => systemIds.Contains(s.Id))
+                .Select(s => new { s.Id, s.Name })
+                .ToListAsync(ct);
+
+            var nameMap = systems.ToDictionary(s => s.Id, s => s.Name);
+
+            var result = decisions.Select(d =>
+            {
+                var daysUntil = d.ExpirationDate.HasValue
+                    ? (int)(d.ExpirationDate.Value.Date - now.Date).TotalDays
+                    : 0;
+                return new
+                {
+                    systemId = d.RegisteredSystemId,
+                    systemName = nameMap.TryGetValue(d.RegisteredSystemId, out var n) ? n : d.RegisteredSystemId,
+                    decisionType = d.DecisionType.ToString(),
+                    expirationDate = d.ExpirationDate,
+                    daysUntilExpiration = daysUntil,
+                    isOverdue = daysUntil < 0,
+                };
+            }).ToList();
+
+            return Results.Ok(result);
+        })
+        .WithName("GetAoPendingDecisions");
+
         // ─── Accept Risk ─────────────────────────────────────────────────────
         app.MapPost("/api/dashboard/systems/{systemId}/risk-acceptances", async (
             string systemId,
