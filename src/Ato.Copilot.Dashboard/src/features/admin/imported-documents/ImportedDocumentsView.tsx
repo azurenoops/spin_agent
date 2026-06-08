@@ -107,6 +107,7 @@ export default function ImportedDocumentsView() {
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
   return (
+    <>
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Imported Documents</h1>
@@ -242,5 +243,6 @@ export default function ImportedDocumentsView() {
     {showSspWizard && (
       <SspPdfImportWizard onClose={() => { setShowSspWizard(false); void refresh(); }} />
     )}
+    </>
   );
 }
