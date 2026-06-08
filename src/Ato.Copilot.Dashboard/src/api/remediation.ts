@@ -196,7 +196,7 @@ export async function exportTasks(systemId: string): Promise<void> {
     'findingId', 'poamItemId', 'componentName', 'createdAt',
   ];
 
-  const escape = (v: string | number | boolean | null | undefined): string => {
+  const escape = (v: unknown): string => {
     if (v == null) return '';
     const s = String(v);
     if (s.includes(',') || s.includes('"') || s.includes('\n')) {
