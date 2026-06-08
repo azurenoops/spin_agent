@@ -29,6 +29,8 @@ const navItems = [
   { to: '/controls', label: 'Controls' },
   // Wave 6 GAP-016
   { to: '/audit', label: 'Audit Log' },
+  // Epic #134 NIST Knowledge Base
+  { to: '/admin/knowledge-base', label: '📚 Knowledge Base' },
 ];
 
 interface PageLayoutProps {

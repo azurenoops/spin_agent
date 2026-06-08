@@ -47,6 +47,7 @@ import AzureSettingsPage from './pages/AzureSettingsPage';
 import GapAnalysis from './pages/GapAnalysis';
 import AuditLogPage from './pages/AuditLogPage';
 import AdminMigrationPage from './pages/AdminMigrationPage';
+import KnowledgeBaseManagementPage from './pages/KnowledgeBaseManagementPage';
 import LoginPage from './features/auth/LoginPage';
 import LoginCallbackPage from './features/auth/LoginCallbackPage';
 import TenantPickerPage from './features/auth/TenantPickerPage';
@@ -135,6 +136,8 @@ function AppContent() {
           <Route path="/audit" element={<RequireAuth><AuditLogPage /></RequireAuth>} />
           {/* Wave 6 GAP-017: Admin Migration */}
           <Route path="/admin/migration" element={<RequireAuth><AdminMigrationPage /></RequireAuth>} />
+          {/* Epic #134: NIST Knowledge Base */}
+          <Route path="/admin/knowledge-base" element={<RequireAuth><KnowledgeBaseManagementPage /></RequireAuth>} />
           <Route path="/controls" element={<RequireAuth><ControlsRoute /></RequireAuth>} />
           {/* Epic #208 / Task #250 — Org settings page */}
           <Route path="/settings/org" element={<RequireAuth><OrgSettingsPage /></RequireAuth>} />

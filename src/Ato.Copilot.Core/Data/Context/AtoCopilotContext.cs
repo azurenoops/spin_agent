@@ -98,6 +98,9 @@ public class AtoCopilotContext : DbContext
     /// <summary>NIST 800-53 Rev 5 controls loaded from OSCAL catalog.</summary>
     public DbSet<NistControl> NistControls => Set<NistControl>();
 
+    /// <summary>Command-specific overlay documents that extend NIST 800-53 baseline guidance.</summary>
+    public DbSet<OverlayDocument> OverlayDocuments => Set<OverlayDocument>();
+
     /// <summary>Audit log entries for all compliance actions (730-day retention).</summary>
     public DbSet<AuditLogEntry> AuditLogs => Set<AuditLogEntry>();
 
