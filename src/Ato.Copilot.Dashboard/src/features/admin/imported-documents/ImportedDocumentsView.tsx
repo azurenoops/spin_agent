@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import EmassImportWizard from './EmassImportWizard';
 import SspPdfImportWizard from './SspPdfImportWizard';
@@ -114,6 +115,13 @@ export default function ImportedDocumentsView() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Imported Documents</h1>
         <div className="flex gap-2">
+          {/* Epic #222 — Manage Templates & Seeds link */}
+          <Link
+            to="/admin/templates"
+            className="inline-flex items-center gap-1.5 rounded border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+          >
+            Manage Templates
+          </Link>
           {/* T273: Import from eMASS CTA */}
           <button
             onClick={() => setShowEmassWizard(true)}

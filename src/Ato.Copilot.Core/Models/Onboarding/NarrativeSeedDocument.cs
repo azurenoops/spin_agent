@@ -30,6 +30,29 @@ public class NarrativeSeedDocument
     /// <summary>FK → indexing <see cref="WizardJobStatus.Id"/>.</summary>
     public Guid? IndexJobId { get; set; }
 
+    // ── Indexing pipeline results ─────────────────────────────────────────────
+    // NOTE: Fields below require an EF migration (AddMigration feat222_NarrativeSeedIndexing)
+    // before they can be persisted. Until then the job handler writes them transiently
+    // and they are silently dropped by EF if the columns don't exist.
+
+    /// <summary>
+    /// UTC timestamp when indexing completed (Indexed or Failed).
+    /// Requires EF migration: Add-Migration feat222_NarrativeSeedIndexingFields.
+    /// </summary>
+    public DateTime? IndexedAt { get; set; }
+
+    /// <summary>
+    /// Number of ~500-word chunks extracted during indexing.
+    /// Requires EF migration: Add-Migration feat222_NarrativeSeedIndexingFields.
+    /// </summary>
+    public int? IndexedChunkCount { get; set; }
+
+    /// <summary>
+    /// Error message recorded when IndexingStatus == Failed.
+    /// Requires EF migration: Add-Migration feat222_NarrativeSeedIndexingFields.
+    /// </summary>
+    public string? IndexingError { get; set; }
+
     /// <summary>Lifecycle status (separate from indexing).</summary>
     public NarrativeSeedStatus Status { get; set; } = NarrativeSeedStatus.Active;
 
