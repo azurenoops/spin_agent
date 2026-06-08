@@ -40,6 +40,8 @@ import TenantOnboardingGuard from './features/onboarding/TenantWizard/TenantOnbo
 import CspWizard from './features/csp-onboarding/CspWizard';
 import CspOnboardingGuard from './features/csp-onboarding/CspOnboardingGuard';
 import CspInheritedComponentsPage from './features/csp-inherited-components/CspInheritedComponentsPage';
+import OrgCapabilityLibraryPage from './pages/OrgCapabilityLibraryPage';
+import OrgCapabilityDetailPage from './pages/OrgCapabilityDetailPage';
 import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
 import TemplatesAdminPage from './pages/TemplatesAdminPage';
 import AzureSettingsPage from './pages/AzureSettingsPage';
@@ -125,6 +127,9 @@ function AppContent() {
               resolves at `/` via PortfolioRoute for CSP-Admins. The standalone
               `/csp-dashboard` route has been retired. */}
           <Route path="/csp/inherited-components" element={<RequireAuth><CspInheritedComponentsPage /></RequireAuth>} />
+          {/* UF-CSP-01: Org-user capability library (spec-070) */}
+          <Route path="/capability-library" element={<RequireAuth><OrgCapabilityLibraryPage /></RequireAuth>} />
+          <Route path="/capability-library/:capabilityId" element={<RequireAuth><OrgCapabilityDetailPage /></RequireAuth>} />
           <Route path="/admin/imported-documents" element={<RequireAuth><ImportedDocumentsView /></RequireAuth>} />
           <Route path="/admin/templates" element={<RequireAuth><TemplatesAdminPage /></RequireAuth>} />
           {/* Wave 6 GAP-007: retired /csp-dashboard redirect */}

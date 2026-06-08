@@ -666,6 +666,9 @@ async Task RunHttpModeAsync(string[] args)
     // Feature 048 follow-up (user ask #2): per-org NIST control override surface.
     app.MapOrgControlOverrideEndpoints();
 
+    // UF-CSP-01/02/03 — Org-user capability library & subscriptions (spec-070)
+    app.MapCapabilitySubscriptionEndpoints();
+
     // Map SignalR notification hub
     app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications");
     app.MapHub<Ato.Copilot.Mcp.Hubs.PackageHub>("/hubs/package");
