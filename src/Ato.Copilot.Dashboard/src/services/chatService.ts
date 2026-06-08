@@ -3,6 +3,7 @@ import type {
   SseProgressEvent,
   SseResultEvent,
   SseErrorEvent,
+  SseMcpToolEvent,
 } from '../types/chat';
 import { acquireBearer } from '../features/auth/msalInstance';
 
@@ -67,10 +68,13 @@ const SSE_TIMEOUT_MS = 120_000;
  *
  * POST to /mcp/chat/stream with ChatRequest body.
  * Dispatches parsed SSE events to the provided callbacks.
+ *
+ * T270: Added onToolEvent callback for MCP tool start/end chips.
  */
 export async function sendMessage(
   request: ChatRequest,
   onProgress: (event: SseProgressEvent) => void,
+  onToolEvent: (event: SseMcpToolEvent) => void,
   onResult: (event: SseResultEvent) => void,
   onError: (error: SseErrorEvent | Error) => void,
   abortSignal?: AbortSignal,
@@ -144,7 +148,7 @@ export async function sendMessage(
       if (done) {
         // Process remaining buffer
         if (buffer.trim()) {
-          processBuffer(buffer, onProgress, onResult, onError);
+          processBuffer(buffer, onProgress, onToolEvent, onResult, onError);
         }
         return;
       }
@@ -157,7 +161,7 @@ export async function sendMessage(
 
       for (const part of parts) {
         if (part.trim()) {
-          processBuffer(part + '\n\n', onProgress, onResult, onError);
+          processBuffer(part + '\n\n', onProgress, onToolEvent, onResult, onError);
         }
       }
     }
@@ -179,6 +183,7 @@ export async function sendMessage(
 function processBuffer(
   chunk: string,
   onProgress: (event: SseProgressEvent) => void,
+  onToolEvent: (event: SseMcpToolEvent) => void,
   onResult: (event: SseResultEvent) => void,
   onError: (error: SseErrorEvent | Error) => void,
 ): void {
@@ -191,6 +196,14 @@ function processBuffer(
       switch (eventType) {
         case 'progress':
           onProgress(parsed as SseProgressEvent);
+          break;
+        case 'tool_start':
+          // T270: MCP tool invocation start chip
+          onToolEvent({ phase: 'start', toolName: parsed.toolName ?? parsed.tool ?? 'tool' });
+          break;
+        case 'tool_end':
+          // T270: MCP tool invocation end — remove chip
+          onToolEvent({ phase: 'end', toolName: parsed.toolName ?? parsed.tool ?? 'tool' });
           break;
         case 'result':
           // Server wraps result as { type: "result", data: {...} }
