@@ -41,6 +41,7 @@ import CspWizard from './features/csp-onboarding/CspWizard';
 import CspOnboardingGuard from './features/csp-onboarding/CspOnboardingGuard';
 import CspInheritedComponentsPage from './features/csp-inherited-components/CspInheritedComponentsPage';
 import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
+import TemplatesAdminPage from './pages/TemplatesAdminPage';
 import AzureSettingsPage from './pages/AzureSettingsPage';
 import LoginPage from './features/auth/LoginPage';
 import LoginCallbackPage from './features/auth/LoginCallbackPage';
@@ -119,6 +120,7 @@ function AppContent() {
               `/csp-dashboard` route has been retired. */}
           <Route path="/csp/inherited-components" element={<RequireAuth><CspInheritedComponentsPage /></RequireAuth>} />
           <Route path="/admin/imported-documents" element={<RequireAuth><ImportedDocumentsView /></RequireAuth>} />
+          <Route path="/admin/templates" element={<RequireAuth><TemplatesAdminPage /></RequireAuth>} />
           <Route path="/controls" element={<RequireAuth><ControlsRoute /></RequireAuth>} />
           {/* Epic #208 / Task #250 — Org settings page */}
           <Route path="/settings/org" element={<RequireAuth><OrgSettingsPage /></RequireAuth>} />
