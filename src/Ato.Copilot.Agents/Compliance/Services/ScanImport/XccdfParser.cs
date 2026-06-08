@@ -5,9 +5,19 @@
 // Task #175 (Epic #131): Refactored from XDocument to XmlReader streaming so
 // that 5,000-entry XCCDF files are processed without loading the full DOM into
 // memory. Supports XCCDF 1.1 and 1.2 namespace variants via local-name matching.
+//
+// XmlReader positioning contract:
+//   All methods in this file follow a consistent Read() loop convention where
+//   ReadTextContent() is used instead of ReadElementContentAsString() in the
+//   main parse loops. ReadTextContent() leaves the reader ON the closing tag;
+//   the outer while(reader.Read()) then advances to the next sibling correctly.
+//   ReadElementContentAsString() advances PAST the closing tag, which causes
+//   the outer loop's Read() to skip the next sibling — that bug is avoided
+//   by using ReadTextContent() everywhere in outer loops.
 // ═══════════════════════════════════════════════════════════════════════════
 
 using System.Globalization;
+using System.Text;
 using System.Xml;
 using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.Extensions.Logging;
@@ -23,47 +33,29 @@ public interface IXccdfParser
     /// <summary>
     /// Parse XCCDF TestResult XML bytes into a <see cref="ParsedXccdfFile"/>.
     /// </summary>
-    /// <param name="content">Raw XML bytes.</param>
-    /// <param name="fileName">Original file name (for error messages).</param>
-    /// <returns>Parsed XCCDF file with all rule-results.</returns>
-    /// <exception cref="XccdfParseException">File is not valid XCCDF XML.</exception>
     ParsedXccdfFile Parse(byte[] content, string fileName);
 }
 
-/// <summary>
-/// Exception thrown when XCCDF parsing fails.
-/// </summary>
+/// <summary>Exception thrown when XCCDF parsing fails.</summary>
 public class XccdfParseException : Exception
 {
     public string FileName { get; }
 
     public XccdfParseException(string fileName, string message)
-        : base($"XCCDF parse error in '{fileName}': {message}")
-    {
-        FileName = fileName;
-    }
+        : base($"XCCDF parse error in '{fileName}': {message}") => FileName = fileName;
 
     public XccdfParseException(string fileName, string message, Exception inner)
-        : base($"XCCDF parse error in '{fileName}': {message}", inner)
-    {
-        FileName = fileName;
-    }
+        : base($"XCCDF parse error in '{fileName}': {message}", inner) => FileName = fileName;
 }
 
 /// <summary>
-/// Implementation of <see cref="IXccdfParser"/>. Uses <see cref="XmlReader"/> streaming
-/// to support XCCDF 1.1 (<c>http://checklists.nist.gov/xccdf/1.1</c>) and
-/// XCCDF 1.2 (<c>http://checklists.nist.gov/xccdf/1.2</c>) without loading the
-/// entire XML DOM into memory.
+/// XmlReader-streaming XCCDF parser. Memory O(single rule-result) regardless of file size.
 /// </summary>
 public class XccdfParser : IXccdfParser
 {
     private readonly ILogger<XccdfParser> _logger;
 
-    public XccdfParser(ILogger<XccdfParser> logger)
-    {
-        _logger = logger;
-    }
+    public XccdfParser(ILogger<XccdfParser> logger) => _logger = logger;
 
     public ParsedXccdfFile Parse(byte[] content, string fileName)
     {
@@ -81,13 +73,9 @@ public class XccdfParser : IXccdfParser
         {
             using var stream = new MemoryStream(content);
             using var reader = XmlReader.Create(stream, settings);
-
             return ParseFile(reader, fileName);
         }
-        catch (XccdfParseException)
-        {
-            throw;
-        }
+        catch (XccdfParseException) { throw; }
         catch (XmlException ex)
         {
             throw new XccdfParseException(fileName, $"Invalid XML: {ex.Message}", ex);
@@ -95,73 +83,62 @@ public class XccdfParser : IXccdfParser
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Core streaming parser
+    // ParseFile — top-level streaming state machine
     // ─────────────────────────────────────────────────────────────────────
 
     private ParsedXccdfFile ParseFile(XmlReader reader, string fileName)
     {
-        // State accumulated across elements
-        string? benchmarkHref = null;
-        string? title = null;
-        string? target = null;
-        string? targetAddress = null;
-        DateTime? startTime = null;
-        DateTime? endTime = null;
-        decimal? score = null;
-        decimal? maxScore = null;
+        string? benchmarkHref = null, title = null, target = null, targetAddress = null;
+        DateTime? startTime = null, endTime = null;
+        decimal? score = null, maxScore = null;
         var targetFacts = new Dictionary<string, string>();
-        var results = new List<ParsedXccdfResult>();
+        var results     = new List<ParsedXccdfResult>();
 
-        bool insideTestResult = false;
-        bool foundTestResult  = false;   // track whether we ever entered one
+        bool insideTestResult  = false;
+        bool foundTestResult   = false;
         bool insideTargetFacts = false;
-        string? pendingFactName = null;
 
-        // XmlReader starts before the document; advance to the first node.
-        // The root element may BE the TestResult, so check each node including
-        // the very first Element node we land on.
         while (reader.Read())
         {
+            // ── Element open ─────────────────────────────────────────────
             if (reader.NodeType == XmlNodeType.Element)
             {
-                var localName = reader.LocalName;
+                var ln = reader.LocalName;
 
-                // Enter TestResult (may be root or inside Benchmark)
-                if (localName == "TestResult")
+                if (ln == "TestResult")
                 {
                     insideTestResult = true;
                     foundTestResult  = true;
                     startTime = ParseTimestamp(reader.GetAttribute("start-time"));
                     endTime   = ParseTimestamp(reader.GetAttribute("end-time"));
-                    // If TestResult is an empty element there are no rule-results
                     if (reader.IsEmptyElement) insideTestResult = false;
-                    continue;
+                    continue; // do not fall through to the insideTestResult guard
                 }
 
                 if (!insideTestResult) continue;
 
-                switch (localName)
+                // All elements below require ReadTextContent() — NOT ReadElementContentAsString()
+                // because we are inside a while(reader.Read()) loop (see file header comment).
+                switch (ln)
                 {
                     case "benchmark":
                         benchmarkHref = reader.GetAttribute("href");
-                        if (!reader.IsEmptyElement)
-                            reader.Skip(); // no child content needed
+                        if (!reader.IsEmptyElement) reader.Skip();
                         break;
 
                     case "title":
-                        title = reader.IsEmptyElement ? null : reader.ReadElementContentAsString().Trim();
+                        title = ReadTextContent(reader); // leaves reader ON </title>
                         break;
 
                     case "target":
-                        target = reader.IsEmptyElement ? null : reader.ReadElementContentAsString().Trim();
+                        target = ReadTextContent(reader);
                         break;
 
                     case "target-address":
-                        targetAddress = reader.IsEmptyElement ? null : reader.ReadElementContentAsString().Trim();
+                        targetAddress = ReadTextContent(reader);
                         break;
 
                     case "identity":
-                        // Informational only — skip
                         if (!reader.IsEmptyElement) reader.Skip();
                         break;
 
@@ -170,19 +147,18 @@ public class XccdfParser : IXccdfParser
                         break;
 
                     case "fact" when insideTargetFacts:
-                        pendingFactName = reader.GetAttribute("name");
-                        if (!reader.IsEmptyElement && pendingFactName is not null)
-                        {
-                            var factValue = reader.ReadElementContentAsString();
-                            targetFacts[pendingFactName] = factValue;
-                        }
+                        var factName = reader.GetAttribute("name");
+                        if (!reader.IsEmptyElement && factName is not null)
+                            targetFacts[factName] = ReadTextContent(reader) ?? string.Empty;
+                        else if (!reader.IsEmptyElement)
+                            reader.Skip();
                         break;
 
                     case "score":
-                        var maxAttr = reader.GetAttribute("maximum");
                         if (!reader.IsEmptyElement)
                         {
-                            var scoreText = reader.ReadElementContentAsString();
+                            var maxAttr = reader.GetAttribute("maximum");
+                            var scoreText = ReadTextContent(reader) ?? string.Empty;
                             if (decimal.TryParse(scoreText, NumberStyles.Any, CultureInfo.InvariantCulture, out var s))
                                 score = s;
                             if (decimal.TryParse(maxAttr, NumberStyles.Any, CultureInfo.InvariantCulture, out var m))
@@ -191,19 +167,21 @@ public class XccdfParser : IXccdfParser
                         break;
 
                     case "rule-result":
+                        // ParseRuleResult has its OWN while(reader.Read()) loop and
+                        // leaves the reader ON </rule-result>. The outer loop's next
+                        // Read() correctly advances to the next sibling.
                         var rr = ParseRuleResult(reader);
-                        if (rr is not null)
-                            results.Add(rr);
+                        if (rr is not null) results.Add(rr);
                         break;
                 }
             }
+            // ── Element close ────────────────────────────────────────────
             else if (reader.NodeType == XmlNodeType.EndElement)
             {
                 switch (reader.LocalName)
                 {
                     case "target-facts":
                         insideTargetFacts = false;
-                        pendingFactName = null;
                         break;
                     case "TestResult":
                         insideTestResult = false;
@@ -220,17 +198,14 @@ public class XccdfParser : IXccdfParser
             fileName, results.Count, target ?? "(unknown)", score, maxScore);
 
         return new ParsedXccdfFile(
-            BenchmarkHref: benchmarkHref,
-            Title:         title,
-            Target:        target,
-            TargetAddress: targetAddress,
-            StartTime:     startTime,
-            EndTime:       endTime,
-            Score:         score,
-            MaxScore:      maxScore,
-            TargetFacts:   targetFacts,
-            Results:       results);
+            BenchmarkHref: benchmarkHref, Title: title, Target: target,
+            TargetAddress: targetAddress, StartTime: startTime, EndTime: endTime,
+            Score: score, MaxScore: maxScore, TargetFacts: targetFacts, Results: results);
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // ParseRuleResult — sub-parser with its own read loop
+    // ─────────────────────────────────────────────────────────────────────
 
     private static ParsedXccdfResult? ParseRuleResult(XmlReader reader)
     {
@@ -238,17 +213,15 @@ public class XccdfParser : IXccdfParser
         var severity = reader.GetAttribute("severity") ?? "unknown";
 
         decimal weight = 0;
-        if (decimal.TryParse(reader.GetAttribute("weight"), NumberStyles.Any, CultureInfo.InvariantCulture, out var w))
+        if (decimal.TryParse(reader.GetAttribute("weight"), NumberStyles.Any,
+                CultureInfo.InvariantCulture, out var w))
             weight = w;
 
         var timestamp = ParseTimestamp(reader.GetAttribute("time"));
 
-        if (reader.IsEmptyElement)
-            return null;
+        if (reader.IsEmptyElement) return null;
 
-        string? result  = null;
-        string? message = null;
-        string? checkRef = null;
+        string? result = null, message = null, checkRef = null;
 
         while (reader.Read())
         {
@@ -260,29 +233,16 @@ public class XccdfParser : IXccdfParser
             switch (reader.LocalName)
             {
                 case "result":
-                    result = reader.IsEmptyElement ? null : reader.ReadElementContentAsString().Trim();
+                    result = ReadTextContent(reader);
                     break;
 
                 case "message":
-                    message = reader.IsEmptyElement ? null : reader.ReadElementContentAsString().Trim();
+                    message = ReadTextContent(reader);
                     break;
 
                 case "check":
-                    // look for check-content-ref inside
                     if (!reader.IsEmptyElement)
-                    {
-                        while (reader.Read())
-                        {
-                            if (reader.NodeType == XmlNodeType.EndElement && reader.LocalName == "check")
-                                break;
-                            if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "check-content-ref")
-                            {
-                                checkRef = reader.GetAttribute("name");
-                                if (!reader.IsEmptyElement)
-                                    reader.Skip();
-                            }
-                        }
-                    }
+                        checkRef = ParseCheckRef(reader);
                     break;
             }
         }
@@ -290,19 +250,56 @@ public class XccdfParser : IXccdfParser
         if (string.IsNullOrEmpty(idref)) return null;
 
         return new ParsedXccdfResult(
-            RuleIdRef:      idref,
+            RuleIdRef:       idref,
             ExtractedRuleId: ExtractRuleId(idref),
-            Result:         (result ?? "unknown").ToLowerInvariant(),
-            Severity:       severity.ToLowerInvariant(),
-            Weight:         weight,
-            Timestamp:      timestamp,
-            Message:        string.IsNullOrWhiteSpace(message) ? null : message,
-            CheckRef:       checkRef);
+            Result:          (result ?? "unknown").ToLowerInvariant(),
+            Severity:        severity.ToLowerInvariant(),
+            Weight:          weight,
+            Timestamp:       timestamp,
+            Message:         string.IsNullOrWhiteSpace(message) ? null : message,
+            CheckRef:        checkRef);
+    }
+
+    private static string? ParseCheckRef(XmlReader reader)
+    {
+        string? name = null;
+        while (reader.Read())
+        {
+            if (reader.NodeType == XmlNodeType.EndElement && reader.LocalName == "check")
+                break;
+            if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "check-content-ref")
+            {
+                name = reader.GetAttribute("name");
+                if (!reader.IsEmptyElement) reader.Skip();
+            }
+        }
+        return name;
     }
 
     // ─────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Reads text content of the current element by manually walking Text/CDATA nodes.
+    /// On return the reader is positioned ON the element's closing tag, so the calling
+    /// while(reader.Read()) loop will advance to the NEXT sibling correctly.
+    /// Returns null if empty or whitespace-only.
+    /// </summary>
+    private static string? ReadTextContent(XmlReader reader)
+    {
+        if (reader.IsEmptyElement) return null;
+
+        var sb = new StringBuilder();
+        while (reader.Read())
+        {
+            if (reader.NodeType == XmlNodeType.EndElement) break;
+            if (reader.NodeType is XmlNodeType.Text or XmlNodeType.CDATA)
+                sb.Append(reader.Value);
+        }
+        var text = sb.ToString().Trim();
+        return string.IsNullOrEmpty(text) ? null : text;
+    }
 
     /// <summary>
     /// Extract DISA rule ID from XCCDF idref.
@@ -311,14 +308,11 @@ public class XccdfParser : IXccdfParser
     internal static string ExtractRuleId(string idref)
     {
         if (string.IsNullOrEmpty(idref)) return string.Empty;
-
         const string prefix = "xccdf_mil.disa.stig_rule_";
         if (idref.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             return idref[prefix.Length..];
-
         if (idref.StartsWith("SV-", StringComparison.OrdinalIgnoreCase))
             return idref;
-
         return idref;
     }
 
@@ -327,7 +321,6 @@ public class XccdfParser : IXccdfParser
         if (string.IsNullOrWhiteSpace(value)) return null;
         return DateTime.TryParse(value, CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dt)
-            ? dt
-            : null;
+            ? dt : null;
     }
 }
