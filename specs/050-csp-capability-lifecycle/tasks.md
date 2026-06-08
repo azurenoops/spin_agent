@@ -204,6 +204,32 @@ All paths below match the verified structure on the `050-csp-capability-lifecycl
 
 ---
 
+## Phase 9: Trust-Chain Gap Closure (Epic #223)
+
+**Purpose**: Eight targeted fixes closing trust-chain gaps identified in Epic #223. T055 (DB migration) blocks T060. All other tasks are independent unless noted.
+
+**Epic:** #223
+
+---
+
+- [ ] **T055** `src/Ato.Copilot.Core/Models/Tenancy/CspInheritedCapability.cs` + EF migration — Add `SourceOrgCapabilityId Guid?` nullable FK. Add index on `(TenantId, SourceOrgCapabilityId)`. Generate: `dotnet ef migrations add Feature050_CapabilityProvenanceFK --project src/Ato.Copilot.Core --startup-project src/Ato.Copilot.Mcp`. **Blocks T060.**
+
+- [ ] **T056** `src/Ato.Copilot.Core/Interfaces/Tenancy/ICspInheritedComponentService.cs` — Add `UnarchiveCapabilityAsync(Guid componentId, Guid capabilityId, string actorOid, CancellationToken ct)` mirroring `ArchiveCapabilityAsync`.
+
+- [ ] **T057** `src/Ato.Copilot.Core/Services/Tenancy/CspInheritedComponentService.cs` — Implement `UnarchiveCapabilityAsync`: load (404 if not found or Status != Archived), set `Status = NeedsReview`, append `CapabilityHistoryEvent` with `EventType = Unarchived`, save. Depends on T056.
+
+- [ ] **T058** `src/Ato.Copilot.Mcp/Endpoints/Csp/CspInheritedComponentEndpoints.cs` — Add `POST .../capabilities/{capId}/unarchive` (CSP-Admin only, same policy as archive DELETE). Returns 200 + updated DTO; 404 if not found; 409 if not Archived. Depends on T056 + T057.
+
+- [ ] **T059** `src/Ato.Copilot.Dashboard/src/pages/ControlInheritance.tsx` + `src/Ato.Copilot.Dashboard/src/api/orgControlOverrides.ts` (create if absent) — Wire `GET /api/orgs/control-overrides` into ControlInheritance: fetch on mount, render "Org override" badge per row, add "Edit override" action via `PUT /api/orgs/control-overrides/{controlId}`. Backend endpoint exists at `OrgControlOverrideEndpoints.cs`; frontend wiring is the only missing piece.
+
+- [ ] **T060** `src/Ato.Copilot.Core/Services/NarrativeTemplateService.cs` + `IControlNarrativeService.cs` — Add optional `IReadOnlyList<string>? referenceChunks` to `GenerateNarrativeWithAiAsync`. When non-empty, append "Reference Documents" section to user prompt. Callers pass `null`; backward-compatible. **Gated on T055.**
+
+- [ ] **T061** `ComponentDetailDrawer.tsx` + remap endpoint + service — Close T045 deviation: extend `POST .../capabilities/{capId}/remap` body with optional `reviewerNote: string?`, persist to `CspInheritedCapability.ReviewerNote`, forward value from `RemapConfirmDialog` to API call. Mark T045 `[X]` when done. Note is already captured in drawer state; only API call + backend signature need updating.
+
+- [ ] **T062** `src/Ato.Copilot.Dashboard/src/features/csp-inherited-components/ComponentDetailDrawer.tsx` — Add "Unarchive" button (CSP-Admin only, shown when `capability.status === 'Archived'`). Wire to T058 endpoint. On success refresh capability list and show confirmation. Depends on T058.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

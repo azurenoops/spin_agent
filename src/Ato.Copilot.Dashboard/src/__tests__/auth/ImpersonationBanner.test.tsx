@@ -191,20 +191,45 @@ describe('ImpersonationBanner (Feature 051 T133–T135)', () => {
     expect(banner.getAttribute('aria-live')).toBe('polite');
   });
 
-  it('Exit button calls the Feature 048 end endpoint and refetches /me', async () => {
-    // Arrange
+  it('Exit button opens confirmation dialog (Wave 6 GAP-221-B)', () => {
+    currentMe = makeMe();
+    renderBanner();
+    fireEvent.click(screen.getByRole('button', { name: /exit/i }));
+    expect(screen.getByTestId('impersonation-exit-confirm')).toBeInTheDocument();
+    expect(endImpersonation).not.toHaveBeenCalled();
+  });
+
+  it('Exit confirm dialog: Stay closes without calling end endpoint', () => {
     endImpersonation.mockResolvedValue(undefined);
     currentMe = makeMe();
     renderBanner();
-
-    // Act
     fireEvent.click(screen.getByRole('button', { name: /exit/i }));
+    expect(screen.getByTestId('impersonation-exit-confirm')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /stay/i }));
+    expect(screen.queryByTestId('impersonation-exit-confirm')).not.toBeInTheDocument();
+    expect(endImpersonation).not.toHaveBeenCalled();
+  });
 
-    // Assert
+  it('Exit confirm dialog: confirm calls end endpoint and refetches /me', async () => {
+    endImpersonation.mockResolvedValue(undefined);
+    currentMe = makeMe();
+    renderBanner();
+    fireEvent.click(screen.getByRole('button', { name: /exit/i }));
+    expect(screen.getByTestId('impersonation-exit-confirm')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('impersonation-exit-confirm-btn'));
     await waitFor(() => {
       expect(endImpersonation).toHaveBeenCalledTimes(1);
       expect(refetch).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('confirmation dialog contains the impersonated tenant name', () => {
+    currentMe = makeMe();
+    renderBanner();
+    fireEvent.click(screen.getByRole('button', { name: /exit/i }));
+    const dialog = screen.getByTestId('impersonation-exit-confirm');
+    // makeMe() uses 'Coastal Watch' as the displayName
+    expect(dialog.textContent).toContain('Coastal Watch');
   });
 
   it('Exit navigates to getPreImpersonationUrl() value when one is stored (FR-029)', async () => {
@@ -214,8 +239,9 @@ describe('ImpersonationBanner (Feature 051 T133–T135)', () => {
     currentMe = makeMe();
     renderBanner();
 
-    // Act
+    // Act: open confirm dialog, then confirm (Wave 6 GAP-221-B two-step)
     fireEvent.click(screen.getByRole('button', { name: /exit/i }));
+    fireEvent.click(screen.getByTestId('impersonation-exit-confirm-btn'));
 
     // Assert — FR-029: return to the pre-impersonation URL.
     await waitFor(() => {
@@ -235,8 +261,9 @@ describe('ImpersonationBanner (Feature 051 T133–T135)', () => {
     currentMe = makeMe(); // persona = CspAdmin
     renderBanner();
 
-    // Act
+    // Act: open confirm dialog, then confirm (Wave 6 GAP-221-B two-step)
     fireEvent.click(screen.getByRole('button', { name: /exit/i }));
+    fireEvent.click(screen.getByTestId('impersonation-exit-confirm-btn'));
 
     // Assert — falls back to `/` (the CSP-Admin's persona-default landing).
     await waitFor(() => {
