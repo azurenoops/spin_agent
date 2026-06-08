@@ -42,6 +42,7 @@ import CspOnboardingGuard from './features/csp-onboarding/CspOnboardingGuard';
 import CspInheritedComponentsPage from './features/csp-inherited-components/CspInheritedComponentsPage';
 import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
 import AzureSettingsPage from './pages/AzureSettingsPage';
+import TemplatesAdminPage from './pages/TemplatesAdminPage';
 import LoginPage from './features/auth/LoginPage';
 import LoginCallbackPage from './features/auth/LoginCallbackPage';
 import TenantPickerPage from './features/auth/TenantPickerPage';
@@ -119,10 +120,14 @@ function AppContent() {
               `/csp-dashboard` route has been retired. */}
           <Route path="/csp/inherited-components" element={<RequireAuth><CspInheritedComponentsPage /></RequireAuth>} />
           <Route path="/admin/imported-documents" element={<RequireAuth><ImportedDocumentsView /></RequireAuth>} />
+          {/* Epic #215 / Task T001 — Admin Azure settings page at canonical /admin/azure-settings */}
+          <Route path="/admin/azure-settings" element={<RequireAuth><AzureSettingsPage /></RequireAuth>} />
+          {/* Epic #222 / Task T001 — Admin templates & narrative seed page */}
+          <Route path="/admin/templates" element={<RequireAuth><TemplatesAdminPage /></RequireAuth>} />
           <Route path="/controls" element={<RequireAuth><ControlsRoute /></RequireAuth>} />
           {/* Epic #208 / Task #250 — Org settings page */}
           <Route path="/settings/org" element={<RequireAuth><OrgSettingsPage /></RequireAuth>} />
-          {/* Epic #215 / Task #293 — Azure subscription settings page */}
+          {/* Epic #215 / Task #293 — Legacy alias: /settings/azure-subscriptions → same page */}
           <Route path="/settings/azure-subscriptions" element={<RequireAuth><AzureSettingsPage /></RequireAuth>} />
           <Route path="/controls/overrides" element={<RequireAuth><OverrideReviewPage /></RequireAuth>} />
         </Routes>

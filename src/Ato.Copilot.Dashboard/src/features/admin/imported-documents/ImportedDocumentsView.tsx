@@ -114,6 +114,23 @@ export default function ImportedDocumentsView() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Imported Documents</h1>
         <div className="flex gap-2">
+          {/* Epic #215 / T004 — Admin nav: Azure Settings */}
+          <Link
+            to="/admin/azure-settings"
+            className="inline-flex items-center gap-1.5 rounded border border-sky-300 bg-white px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+            </svg>
+            Azure Settings
+          </Link>
+          {/* Epic #222 / T004 — Admin nav: Templates & Seeds */}
+          <Link
+            to="/admin/templates"
+            className="inline-flex items-center gap-1.5 rounded border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+          >
+            Manage Templates
+          </Link>
           {/* T273: Import from eMASS CTA */}
           <button
             onClick={() => setShowEmassWizard(true)}

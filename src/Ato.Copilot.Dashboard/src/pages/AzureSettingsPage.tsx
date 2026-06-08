@@ -4,16 +4,21 @@ import { onboarding } from '../features/onboarding/api/onboardingApi';
 import type { AzureSubscriptionRegistrationDto } from '../features/onboarding/api/onboardingApi';
 
 /**
- * Epic #215 / Task #293 — Azure subscription settings page at /settings/azure-subscriptions.
+ * Epic #215 / Task T001 — Admin Azure subscription settings page at /admin/azure-settings.
+ * Also served at the legacy /settings/azure-subscriptions alias (Task #293).
  *
  * Provides a persistent management surface for reviewing, registering, and removing
- * Azure subscription registrations. Uses onboarding.listAzureRegistrations,
- * onboarding.putAzureRegistrations, and onboarding.removeAzureRegistration.
+ * Azure subscription registrations. Guarded by OnboardingAdministratorRequirement on the
+ * backend; frontend shows an inline 403 banner if the caller lacks admin rights (T003).
+ *
+ * Uses onboarding.listAzureRegistrations, onboarding.putAzureRegistrations, and
+ * onboarding.removeAzureRegistration.
  */
 export default function AzureSettingsPage() {
   const [registrations, setRegistrations] = useState<AzureSubscriptionRegistrationDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
   const [newSubId, setNewSubId] = useState('');
@@ -25,12 +30,19 @@ export default function AzureSettingsPage() {
   async function loadRegistrations() {
     setLoading(true);
     setError(null);
+    setAccessDenied(false);
     try {
       const regs = await onboarding.listAzureRegistrations();
       setRegistrations(regs);
     } catch (e: unknown) {
-      const err = e as { message?: string };
-      setError(err.message ?? 'Failed to load Azure registrations.');
+      // T003: 401/403 → inline access-denied gate (backend is guarded by OnboardingAdministratorRequirement)
+      const status = (e as { response?: { status?: number } }).response?.status;
+      if (status === 401 || status === 403) {
+        setAccessDenied(true);
+      } else {
+        const err = e as { message?: string };
+        setError(err.message ?? 'Failed to load Azure registrations.');
+      }
     } finally {
       setLoading(false);
     }
@@ -82,6 +94,24 @@ export default function AzureSettingsPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      </div>
+    );
+  }
+
+  // T003: Admin role gate — backend returns 403 for non-OnboardingAdministrator callers
+  if (accessDenied) {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+          <h2 className="text-lg font-semibold text-red-800 mb-2">Access Denied</h2>
+          <p className="text-sm text-red-700">
+            This page requires the <strong>Onboarding Administrator</strong> role.
+            Contact your system administrator to request access.
+          </p>
+          <Link to="/" className="mt-4 inline-block text-sm text-indigo-600 hover:underline">
+            ← Return to dashboard
+          </Link>
+        </div>
       </div>
     );
   }
