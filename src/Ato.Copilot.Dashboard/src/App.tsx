@@ -41,6 +41,7 @@ import CspWizard from './features/csp-onboarding/CspWizard';
 import CspOnboardingGuard from './features/csp-onboarding/CspOnboardingGuard';
 import CspInheritedComponentsPage from './features/csp-inherited-components/CspInheritedComponentsPage';
 import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
+import AzureSettingsPage from './pages/AzureSettingsPage';
 import LoginPage from './features/auth/LoginPage';
 import LoginCallbackPage from './features/auth/LoginCallbackPage';
 import TenantPickerPage from './features/auth/TenantPickerPage';
@@ -121,6 +122,8 @@ function AppContent() {
           <Route path="/controls" element={<RequireAuth><ControlsRoute /></RequireAuth>} />
           {/* Epic #208 / Task #250 — Org settings page */}
           <Route path="/settings/org" element={<RequireAuth><OrgSettingsPage /></RequireAuth>} />
+          {/* Epic #215 / Task #293 — Azure subscription settings page */}
+          <Route path="/settings/azure-subscriptions" element={<RequireAuth><AzureSettingsPage /></RequireAuth>} />
           <Route path="/controls/overrides" element={<RequireAuth><OverrideReviewPage /></RequireAuth>} />
         </Routes>
         </TenantOnboardingGuard>
