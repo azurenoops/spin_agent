@@ -82,6 +82,8 @@ export interface EvidenceUploadParams {
   securityCapabilityId?: string;
   description?: string;
   collectionMethod?: CollectionMethod;
+  /** T280: Optional control ID for the control-linked column in the evidence table. */
+  controlId?: string;
 }
 
 export interface EvidenceListParams {

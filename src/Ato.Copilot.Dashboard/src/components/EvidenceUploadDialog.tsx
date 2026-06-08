@@ -1,6 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { uploadEvidence } from '../api/evidence';
+import apiClient from '../api/client';
 import type { ArtifactCategory, CollectionMethod } from '../types/evidence';
+
+interface SystemControl {
+  controlId: string;
+  controlTitle: string;
+}
 
 interface Props {
   systemId: string;
@@ -57,13 +63,47 @@ export default function EvidenceUploadDialog({
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // T280: Searchable Control dropdown
+  const [controls, setControls] = useState<SystemControl[]>([]);
+  const [controlSearch, setControlSearch] = useState('');
+  const [selectedControlId, setSelectedControlId] = useState<string>('');
+  const [controlDropdownOpen, setControlDropdownOpen] = useState(false);
+  const controlInputRef = useRef<HTMLInputElement>(null);
+
+  // Load system controls on mount
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .get<SystemControl[] | { items: SystemControl[] }>(`/systems/${systemId}/controls`)
+      .then(({ data }) => {
+        if (!cancelled) {
+          const list = Array.isArray(data) ? data : (data as { items: SystemControl[] }).items ?? [];
+          setControls(list);
+        }
+      })
+      .catch(() => {
+        // Controls load is non-blocking; upload still works without it
+      });
+    return () => { cancelled = true; };
+  }, [systemId]);
+
+  const filteredControls = useCallback(() => {
+    const q = controlSearch.toLowerCase();
+    return controls.filter(
+      (c) => c.controlId.toLowerCase().includes(q) || c.controlTitle.toLowerCase().includes(q),
+    ).slice(0, 50);
+  }, [controls, controlSearch]);
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !uploading) onClose();
+      if (e.key === 'Escape' && !uploading) {
+        if (controlDropdownOpen) setControlDropdownOpen(false);
+        else onClose();
+      }
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose, uploading]);
+  }, [onClose, uploading, controlDropdownOpen]);
 
   const handleBackdrop = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && !uploading) onClose();
@@ -98,8 +138,6 @@ export default function EvidenceUploadDialog({
     setError(null);
     setProgress(0);
     try {
-      // Simulate progress since Axios doesn't natively expose upload progress
-      // in all configurations. Show indeterminate progress.
       setProgress(30);
       await uploadEvidence({
         systemId,
@@ -109,7 +147,9 @@ export default function EvidenceUploadDialog({
         securityCapabilityId: securityCapabilityId ?? undefined,
         description: description.trim() || undefined,
         collectionMethod,
-      });
+        // T280: pass selected controlId if present
+        ...(selectedControlId ? { controlId: selectedControlId } : {}),
+      } as Parameters<typeof uploadEvidence>[0]);
       setProgress(100);
       onUploaded();
     } catch (err: unknown) {
@@ -121,6 +161,7 @@ export default function EvidenceUploadDialog({
   };
 
   const isValid = file !== null;
+  const selectedControl = controls.find((c) => c.controlId === selectedControlId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={handleBackdrop}>
@@ -199,6 +240,65 @@ export default function EvidenceUploadDialog({
             </select>
           </div>
 
+          {/* T280: Searchable Control dropdown */}
+          <div className="relative">
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Link to Control <span className="text-xs font-normal text-gray-400">(optional)</span>
+            </label>
+            <div className="relative">
+              <input
+                ref={controlInputRef}
+                type="text"
+                placeholder={selectedControl ? `${selectedControl.controlId} — ${selectedControl.controlTitle}` : 'Search controls…'}
+                value={controlSearch}
+                onFocus={() => setControlDropdownOpen(true)}
+                onChange={(e) => { setControlSearch(e.target.value); setControlDropdownOpen(true); }}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 pr-8 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+              {selectedControlId && (
+                <button
+                  type="button"
+                  onClick={() => { setSelectedControlId(''); setControlSearch(''); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Clear control selection"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {controlDropdownOpen && (
+              <div
+                className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                {filteredControls().length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-400">
+                    {controls.length === 0 ? 'Loading controls…' : 'No controls match.'}
+                  </div>
+                ) : (
+                  filteredControls().map((ctrl) => (
+                    <button
+                      key={ctrl.controlId}
+                      type="button"
+                      onClick={() => {
+                        setSelectedControlId(ctrl.controlId);
+                        setControlSearch('');
+                        setControlDropdownOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-indigo-50 ${
+                        selectedControlId === ctrl.controlId ? 'bg-indigo-50 font-medium' : ''
+                      }`}
+                    >
+                      <span className="shrink-0 font-mono text-xs text-indigo-700">{ctrl.controlId}</span>
+                      <span className="truncate text-gray-700">{ctrl.controlTitle}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Collection Method */}
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Collection Method</label>
@@ -219,43 +319,43 @@ export default function EvidenceUploadDialog({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              maxLength={2000}
               rows={3}
-              placeholder="Describe what this evidence demonstrates..."
+              placeholder="Optional description of this evidence artifact…"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             />
-            <p className="mt-1 text-xs text-gray-400">{description.length}/2000</p>
           </div>
 
           {/* Upload progress */}
           {uploading && (
-            <div className="space-y-1">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                <div
-                  className="h-full rounded-full bg-indigo-600 transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-500">Uploading...</p>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-indigo-500 transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 border-t px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t px-6 py-4">
           <button
             onClick={onClose}
             disabled={uploading}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!isValid || uploading}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {uploading ? 'Uploading...' : 'Upload Evidence'}
+            {uploading ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Uploading…
+              </>
+            ) : 'Upload Evidence'}
           </button>
         </div>
       </div>

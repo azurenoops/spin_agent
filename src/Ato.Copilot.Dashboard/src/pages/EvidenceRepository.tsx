@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
-import { listEvidence, getEvidenceSummary, downloadEvidence, deleteEvidence } from '../api/evidence';
+import { listEvidence, getEvidenceSummary, downloadEvidence, deleteEvidence, collectEvidence } from '../api/evidence';
 import type { EvidenceArtifactDto, EvidenceSummaryDto, ArtifactCategory, EvidenceSource } from '../types/evidence';
 import EvidenceUploadDialog from '../components/EvidenceUploadDialog';
 import EvidenceDetailPanel from '../components/EvidenceDetailPanel';
@@ -63,6 +63,9 @@ export default function EvidenceRepository() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showUpload, setShowUpload] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // T282: Collect Evidence — track busy state per controlId
+  const [collectingControlId, setCollectingControlId] = useState<string | null>(null);
+  const [collectError, setCollectError] = useState<string | null>(null);
 
   const PAGE_SIZE = 50;
 
@@ -88,7 +91,28 @@ export default function EvidenceRepository() {
     return getEvidenceSummary(systemId);
   }, [systemId]);
 
-  const { data: summary } = usePolling<EvidenceSummaryDto | null>(fetchSummary, 60000);
+  // T282: usePolling with 30s refresh; manual refresh after upload/collection
+  const { data: summary, refresh: refreshSummary } = usePolling<EvidenceSummaryDto | null>(fetchSummary, 30000);
+
+  // T282: Collect Evidence handler — calls POST .../controls/{controlId}/collect-evidence
+  const handleCollectEvidence = useCallback(
+    async (controlId: string) => {
+      if (!systemId) return;
+      setCollectingControlId(controlId);
+      setCollectError(null);
+      try {
+        await collectEvidence(systemId, controlId);
+        // Refresh both evidence list and summary after collection
+        refresh();
+        refreshSummary();
+      } catch (e: unknown) {
+        setCollectError((e as Error).message ?? 'Evidence collection failed.');
+      } finally {
+        setCollectingControlId(null);
+      }
+    },
+    [systemId, refresh, refreshSummary],
+  );
 
   const items: EvidenceArtifactDto[] = evidenceData?.items ?? [];
   const totalCount = evidenceData?.totalCount ?? 0;
@@ -153,6 +177,14 @@ export default function EvidenceRepository() {
           Upload Evidence
         </button>
       </div>
+
+      {/* T282: Collect Evidence inline error */}
+      {collectError && (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          Collection failed: {collectError}
+          <button onClick={() => setCollectError(null)} className="ml-2 text-red-500 hover:text-red-700">✕</button>
+        </div>
+      )}
 
       {/* Summary Bar */}
       {summary && (
@@ -280,6 +312,27 @@ export default function EvidenceRepository() {
                         </svg>
                       </button>
                     )}
+                    {/* T282: Collect Evidence button — only for items with a controlId */}
+                    {item.controlId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleCollectEvidence(item.controlId!);
+                        }}
+                        disabled={collectingControlId === item.controlId}
+                        className="rounded p-1 text-gray-400 hover:bg-emerald-100 hover:text-emerald-600 disabled:opacity-50"
+                        title="Collect Evidence"
+                        aria-label="Collect automated evidence for this control"
+                      >
+                        {collectingControlId === item.controlId ? (
+                          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+                        ) : (
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
                     {item.source === 'Manual' && (
                       <button
                         onClick={async (e) => {
@@ -287,6 +340,7 @@ export default function EvidenceRepository() {
                           if (!confirm(`Delete "${item.fileName ?? 'this evidence'}"?`)) return;
                           await deleteEvidence(systemId, item.id);
                           refresh();
+                          refreshSummary();
                         }}
                         className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
                         title="Delete"
@@ -337,6 +391,8 @@ export default function EvidenceRepository() {
           onUploaded={() => {
             setShowUpload(false);
             refresh();
+            // T282: refresh summary after upload so widget updates
+            refreshSummary();
           }}
         />
       )}

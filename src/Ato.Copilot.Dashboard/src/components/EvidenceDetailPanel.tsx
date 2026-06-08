@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getEvidence, downloadEvidence, deleteEvidence, replaceEvidence, downloadEvidenceVersion } from '../api/evidence';
+import { getEvidence, downloadEvidence, deleteEvidence, replaceEvidence, downloadEvidenceVersion, getEvidenceVersions } from '../api/evidence';
 import type { EvidenceArtifactDto, EvidenceVersionDto } from '../types/evidence';
 
 interface Props {
@@ -54,6 +54,9 @@ const CATEGORY_COLORS: Record<string, string> = {
   Other: 'bg-gray-100 text-gray-600',
 };
 
+// T281: Tab identifiers
+type DetailTab = 'details' | 'versions';
+
 export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onActionComplete }: Props) {
   const [detail, setDetail] = useState<EvidenceArtifactDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,6 +66,12 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
   const [showReplace, setShowReplace] = useState(false);
   const [replaceFile, setReplaceFile] = useState<File | null>(null);
   const [replacing, setReplacing] = useState(false);
+
+  // T281: Version history tab state
+  const [activeTab, setActiveTab] = useState<DetailTab>('details');
+  const [versions, setVersions] = useState<EvidenceVersionDto[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [versionsError, setVersionsError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +89,25 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
       });
     return () => { cancelled = true; };
   }, [systemId, evidenceId]);
+
+  // T281: Load version history when versions tab is selected
+  useEffect(() => {
+    if (activeTab !== 'versions') return;
+    let cancelled = false;
+    setVersionsLoading(true);
+    setVersionsError(null);
+    getEvidenceVersions(systemId, evidenceId)
+      .then((data) => {
+        if (!cancelled) setVersions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setVersionsError('Failed to load version history.');
+      })
+      .finally(() => {
+        if (!cancelled) setVersionsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeTab, systemId, evidenceId]);
 
   const handleDownload = async () => {
     if (!detail?.fileName) return;
@@ -122,9 +150,12 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
       await replaceEvidence({ systemId, evidenceId, file: replaceFile });
       setShowReplace(false);
       setReplaceFile(null);
-      // Reload detail to show updated file + version history
       const data = await getEvidence(systemId, evidenceId);
       setDetail(data);
+      if (activeTab === 'versions') {
+        const vData = await getEvidenceVersions(systemId, evidenceId);
+        setVersions(vData);
+      }
       onActionComplete();
     } catch {
       setError('Failed to replace evidence.');
@@ -166,11 +197,30 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
         </button>
       </div>
 
+      {/* T281: Tab navigation */}
+      <div className="sticky top-[73px] z-10 flex border-b bg-white px-6">
+        {(['details', 'versions'] as DetailTab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`mr-4 border-b-2 py-3 text-sm font-medium transition-colors ${
+              activeTab === tab
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab === 'details' ? 'Details' : 'Version History'}
+          </button>
+        ))}
+      </div>
+
       {/* Body */}
       <div className="space-y-6 px-6 py-4">
         {loading && <p className="text-sm text-gray-400">Loading...</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {detail && (
+
+        {/* ── Details tab ─────────────────────────────────────────────── */}
+        {activeTab === 'details' && detail && (
           <>
             {/* Preview */}
             {isPreviewable && detail.source === 'Manual' && (
@@ -302,44 +352,74 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
                 </div>
               </Section>
             )}
+          </>
+        )}
 
-            {/* Version History */}
-            {detail.versions && detail.versions.length > 0 && (
-              <Section title="Version History">
-                <div className="space-y-2">
-                  {detail.versions.map((v: EvidenceVersionDto) => (
-                    <div key={v.id} className="rounded-md border border-gray-200 px-3 py-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-900">{v.fileName}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500">{formatBytes(v.fileSizeBytes)}</span>
-                          {!v.isFilePurged && (
-                            <button
-                              onClick={() => handleVersionDownload(v.id, v.fileName)}
-                              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                              title="Download this version"
-                            >
-                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
+        {/* ── Version History tab (T281) ───────────────────────────────── */}
+        {activeTab === 'versions' && (
+          <Section title="Version History">
+            {versionsLoading && (
+              <div className="py-6 text-center text-sm text-gray-400">
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent mr-2" />
+                Loading versions…
+              </div>
+            )}
+            {versionsError && <p className="text-sm text-red-600">{versionsError}</p>}
+            {!versionsLoading && !versionsError && versions.length === 0 && (
+              <div className="py-6 text-center text-sm text-gray-400">
+                No previous versions. This is the only version.
+              </div>
+            )}
+            {!versionsLoading && versions.length > 0 && (
+              <div className="space-y-2">
+                {/* Current version */}
+                <div className="flex items-center justify-between rounded-md border-2 border-indigo-300 bg-indigo-50 px-3 py-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-indigo-800">{detail?.fileName ?? 'Current'}</span>
+                    <span className="rounded-full bg-indigo-200 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                      Current
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-indigo-600">
+                    <span>{formatBytes(detail?.fileSizeBytes ?? null)}</span>
+                    {detail?.uploadedAt && <span>{formatDate(detail.uploadedAt)}</span>}
+                  </div>
+                </div>
+
+                {/* Previous versions — numbered from newest to oldest */}
+                {versions.map((v, idx) => (
+                  <div key={v.id} className="rounded-md border border-gray-200 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-gray-400">v{versions.length - idx}</span>
+                        <span className="text-gray-700">{v.fileName}</span>
                       </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                        <span>Replaced by {v.replacedBy}</span>
-                        <span>&middot;</span>
-                        <span>{formatDate(v.replacedAt)}</span>
-                        {v.isFilePurged && (
-                          <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-600">Purged</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">{formatBytes(v.fileSizeBytes)}</span>
+                        {v.isFilePurged ? (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-600">Purged</span>
+                        ) : (
+                          <button
+                            onClick={() => handleVersionDownload(v.id, v.fileName)}
+                            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-indigo-600"
+                            title={`Download version ${versions.length - idx}`}
+                            aria-label={`Download version ${versions.length - idx}`}
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </button>
                         )}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </Section>
+                    <div className="mt-1 text-xs text-gray-500">
+                      Replaced by {v.replacedBy} · {formatDate(v.replacedAt)}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
-          </>
+          </Section>
         )}
       </div>
     </div>

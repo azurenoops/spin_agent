@@ -21,6 +21,8 @@ export async function uploadEvidence(params: EvidenceUploadParams): Promise<Evid
   if (params.securityCapabilityId) formData.append('securityCapabilityId', params.securityCapabilityId);
   if (params.description) formData.append('description', params.description);
   if (params.collectionMethod) formData.append('collectionMethod', params.collectionMethod);
+  // T280: forward controlId when user selects one from the dropdown
+  if (params.controlId) formData.append('controlId', params.controlId);
 
   const { data } = await apiClient.post<EvidenceArtifactDto>(
     `/systems/${params.systemId}/evidence`,
