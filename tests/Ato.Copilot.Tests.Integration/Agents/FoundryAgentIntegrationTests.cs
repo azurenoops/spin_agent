@@ -211,7 +211,7 @@ public class FoundryAgentIntegrationTests
         var result  = await agent.InvokeTryProcessWithFoundryAsync("query", context);
 
         result.Should().BeNull("unprovisioneed agent ID should yield null, not an exception");
-        agent.GetFoundryAgentId().Should().BeNull();
+        agent.IsFoundryAgentIdNull().Should().BeTrue();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -291,5 +291,14 @@ public class FoundryIntegrationTestAgent : BaseAgent
         string message, AgentConversationContext context, CancellationToken ct = default)
         => base.TryProcessWithFoundryAsync(message, context, ct);
 
-    public string? GetFoundryAgentId() => _foundryAgentId;
+    /// <summary>
+    /// Returns true when the Foundry agent ID has not been provisioned.
+    /// Uses reflection because _foundryAgentId is private-protected in BaseAgent.
+    /// </summary>
+    public bool IsFoundryAgentIdNull()
+    {
+        var field = typeof(BaseAgent).GetField("_foundryAgentId",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return field?.GetValue(this) is null;
+    }
 }
