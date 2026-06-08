@@ -186,6 +186,19 @@ export function activate(context: vscode.ExtensionContext): void {
     )
   );
 
+  // RMF Overview panel command (GAP-009 T170)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('ato.openRmfOverview', () => {
+      const panel = vscode.window.createWebviewPanel(
+        'rmfOverview',
+        'RMF Overview',
+        vscode.ViewColumn.One,
+        { enableScripts: false }
+      );
+      panel.webview.html = getRmfOverviewHtml();
+    })
+  );
+
   // Refresh client when settings change
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
@@ -219,6 +232,22 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   outputChannel.appendLine("ATO Copilot extension activated");
+}
+
+function getRmfOverviewHtml(): string {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>RMF Overview</title>
+  <style>body{font-family:var(--vscode-font-family);padding:16px;color:var(--vscode-foreground);background:var(--vscode-editor-background)}
+  h1{color:var(--vscode-textLink-foreground)}table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--vscode-panel-border);padding:6px 10px;text-align:left}
+  th{background:var(--vscode-editor-selectionBackground)}</style></head>
+  <body><h1>NIST RMF Steps</h1>
+  <table><tr><th>Step</th><th>Name</th><th>Purpose</th></tr>
+  <tr><td>1</td><td>Categorize</td><td>Determine system impact level (Low/Moderate/High)</td></tr>
+  <tr><td>2</td><td>Select</td><td>Choose NIST 800-53 control baseline</td></tr>
+  <tr><td>3</td><td>Implement</td><td>Document control implementations in SSP</td></tr>
+  <tr><td>4</td><td>Assess</td><td>Test controls for effectiveness</td></tr>
+  <tr><td>5</td><td>Authorize</td><td>AO issues Authorization Decision</td></tr>
+  <tr><td>6</td><td>Monitor</td><td>Continuous monitoring and ConMon reporting</td></tr>
+  </table></body></html>`;
 }
 
 export function deactivate(): void {
