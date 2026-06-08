@@ -1204,7 +1204,6 @@ export default function Assessments() {
           </div>
           );
         })()}
-    </div>
 
       {/* Create Remediation Task Modal */}
       {taskModalFinding && (
@@ -1217,5 +1216,6 @@ export default function Assessments() {
           onCreated={() => setTaskModalFinding(null)}
         />
       )}
+    </div>
   );
 }
