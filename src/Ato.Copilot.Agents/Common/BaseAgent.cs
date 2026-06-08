@@ -18,7 +18,7 @@ public abstract class BaseAgent
     private readonly IChatClient? _chatClient;
     private protected readonly AzureAiOptions? _azureAiOptions;
     private protected readonly PersistentAgentsClient? _foundryClient;
-    private protected string? _foundryAgentId;
+    protected string? _foundryAgentId;
     private readonly ConcurrentDictionary<string, string> _threadMap = new();
 
     protected BaseAgent(ILogger logger)
