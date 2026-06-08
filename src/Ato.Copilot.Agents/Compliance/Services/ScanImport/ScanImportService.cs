@@ -514,11 +514,31 @@ public class ScanImportService : IScanImportService
         if (!dryRun)
         {
             ctx.ScanImportRecords.Add(importRecord);
-            ctx.ScanImportFindings.AddRange(importFindings);
-            ctx.Findings.AddRange(newFindings);
             ctx.Evidence.Add(evidence);
-            // Updated findings are already tracked by EF change tracker
-            await ctx.SaveChangesAsync(ct);
+
+            // Batch-insert in 100-record chunks to avoid SQL Server parameter limits
+            // and keep memory pressure proportional (Task #175 / Epic #131).
+            const int BatchSize = 100;
+            foreach (var batch in importFindings.Chunk(BatchSize))
+            {
+                ctx.ScanImportFindings.AddRange(batch);
+                await ctx.SaveChangesAsync(ct);
+                ctx.ChangeTracker.Clear();
+            }
+            if (newFindings.Count > 0)
+            {
+                foreach (var batch in newFindings.Chunk(BatchSize))
+                {
+                    ctx.Findings.AddRange(batch);
+                    await ctx.SaveChangesAsync(ct);
+                    ctx.ChangeTracker.Clear();
+                }
+            }
+            else
+            {
+                // Updated findings tracked by EF change tracker — flush
+                await ctx.SaveChangesAsync(ct);
+            }
         }
 
         sw.Stop();
@@ -963,10 +983,29 @@ public class ScanImportService : IScanImportService
         if (!dryRun)
         {
             ctx.ScanImportRecords.Add(importRecord);
-            ctx.ScanImportFindings.AddRange(importFindings);
-            ctx.Findings.AddRange(newFindings);
             ctx.Evidence.Add(evidence);
-            await ctx.SaveChangesAsync(ct);
+
+            // Batch-insert in 100-record chunks (Task #175 / Epic #131).
+            const int BatchSize = 100;
+            foreach (var batch in importFindings.Chunk(BatchSize))
+            {
+                ctx.ScanImportFindings.AddRange(batch);
+                await ctx.SaveChangesAsync(ct);
+                ctx.ChangeTracker.Clear();
+            }
+            if (newFindings.Count > 0)
+            {
+                foreach (var batch in newFindings.Chunk(BatchSize))
+                {
+                    ctx.Findings.AddRange(batch);
+                    await ctx.SaveChangesAsync(ct);
+                    ctx.ChangeTracker.Clear();
+                }
+            }
+            else
+            {
+                await ctx.SaveChangesAsync(ct);
+            }
         }
 
         sw.Stop();

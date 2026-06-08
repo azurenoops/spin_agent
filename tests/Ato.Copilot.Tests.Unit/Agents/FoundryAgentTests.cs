@@ -211,6 +211,71 @@ public class FoundryAgentTests
         agent2.GetThreadMapping("conv-X").Should().BeNull(
             "provider switch (restart) should lose in-memory thread mapping, forcing new thread creation");
     }
+
+    // ── Task #177 (Epic #132) — Error Path Expansion ─────────────────────
+
+    /// <summary>
+    /// T177-EP1: TryProcessWithBackendAsync does not throw when AI is enabled
+    /// but Foundry endpoint config is absent (graceful null return).
+    /// </summary>
+    [Fact]
+    public async Task TryProcessWithBackendAsync_FoundryEnabled_NoClient_NoException()
+    {
+        var agent = new TestableFoundryAgent(
+            _loggerMock.Object,
+            azureAiOptions: new AzureAiOptions
+            {
+                Enabled  = true,
+                Provider = AiProvider.Foundry,
+                FoundryProjectEndpoint = "https://mock.foundry/api/projects/test",
+            },
+            foundryClient: null);
+
+        var context = new AgentConversationContext { ConversationId = "ep-1" };
+        var act = async () => await agent.InvokeTryProcessWithBackendAsync("hello", context);
+
+        await act.Should().NotThrowAsync(
+            "missing Foundry client should degrade gracefully, never surface an exception to callers");
+    }
+
+    /// <summary>
+    /// T177-EP2: When Foundry returns null (no client), FoundryCallCount is incremented
+    /// proving the path was entered and exited cleanly.
+    /// </summary>
+    [Fact]
+    public async Task TryProcessWithFoundryAsync_NullClient_IncrementsCallCount_ThenReturnsNull()
+    {
+        var agent = new TestableFoundryAgent(
+            _loggerMock.Object,
+            azureAiOptions: new AzureAiOptions { Enabled = true, Provider = AiProvider.Foundry },
+            foundryClient: null);
+
+        var context = new AgentConversationContext { ConversationId = "ep-2" };
+        var result  = await agent.InvokeTryProcessWithFoundryAsync("test", context);
+
+        result.Should().BeNull();
+        agent.FoundryCallCount.Should().Be(1,
+            "TryProcessWithFoundryAsync should be called once even when client is null");
+    }
+
+    /// <summary>
+    /// T177-EP3: Provider=Foundry with Enabled=false — backend returns null without
+    /// attempting Foundry (deterministic path).
+    /// </summary>
+    [Fact]
+    public async Task TryProcessWithBackendAsync_AiDisabled_SkipsFoundryPath()
+    {
+        var agent = new TestableFoundryAgent(
+            _loggerMock.Object,
+            azureAiOptions: new AzureAiOptions { Enabled = false, Provider = AiProvider.Foundry },
+            foundryClient: null);
+
+        var context = new AgentConversationContext { ConversationId = "ep-3" };
+        await agent.InvokeTryProcessWithBackendAsync("hello", context);
+
+        agent.FoundryCallCount.Should().Be(0,
+            "disabled AI should not invoke Foundry regardless of provider setting");
+    }
 }
 
 /// <summary>
@@ -266,7 +331,7 @@ public class TestableFoundryAgent : BaseAgent
 
     public Task<AgentResponse?> InvokeTryProcessWithFoundryAsync(
         string message, AgentConversationContext context, CancellationToken ct = default)
-        => base.TryProcessWithFoundryAsync(message, context, ct);
+        => TryProcessWithFoundryAsync(message, context, ct);  // virtual dispatch — hits the override counter
 
     public Task InvokeProvisionFoundryAgentAsync(CancellationToken ct = default)
         => ProvisionFoundryAgentAsync(ct);

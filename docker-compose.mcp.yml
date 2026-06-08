@@ -69,6 +69,14 @@ services:
 
       # ── Unified AI Configuration (AzureAi) ──────────────────
       - ATO_AZUREAI__ENABLED=${ATO_AZUREAI__ENABLED:-false}
+      # ATO_AZUREAI__PROVIDER selects the AI backend:
+      #   OpenAi  (default) — Direct Azure OpenAI chat completions via IChatClient.
+      #               Requires ATO_AZUREAI__ENDPOINT + ATO_AZUREAI__APIKEY (or managed identity).
+      #               Use for most deployments; lower latency, no per-agent thread management.
+      #   Foundry — Azure AI Foundry Agents with server-side threads and runs.
+      #               Requires ATO_AZUREAI__FOUNDRYPROJECTENDPOINT in addition to the above.
+      #               Use when you need persistent agent threads, code interpreter, or
+      #               Foundry-hosted tool execution. Startup will fail fast if endpoint is unset.
       - ATO_AZUREAI__PROVIDER=${ATO_AZUREAI__PROVIDER:-OpenAi}
       - ATO_AZUREAI__ENDPOINT=${ATO_AZUREAI__ENDPOINT}
       - ATO_AZUREAI__DEPLOYMENTNAME=${ATO_AZUREAI__DEPLOYMENTNAME:-gpt-4o}

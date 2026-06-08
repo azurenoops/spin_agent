@@ -156,8 +156,8 @@ public class ScanImportPerformanceTests : IDisposable
     public void Dispose() => _serviceProvider.Dispose();
 
     // ═════════════════════════════════════════════════════════════════════
-    // CKL Performance: 500 VULNs < 10 seconds
-    // ═════════════════════════════════════════════════════════════════════
+        // CKL Performance: 500 VULNs < 10 seconds (existing)
+        // ═════════════════════════════════════════════════════════════════════
 
     [Fact]
     public async Task ImportCkl_500Vulns_CompletesWithin10Seconds()
@@ -262,5 +262,110 @@ public class ScanImportPerformanceTests : IDisposable
         result.TotalEntries.Should().Be(500);
         sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5),
             $"Import took {sw.ElapsedMilliseconds}ms, expected < 5000ms");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // Task #176 (Epic #131) — 1K and 5K benchmarks (XmlReader streaming)
+    // p99 target: CKL 5K < 10s, XCCDF 5K < 10s
+    // ═════════════════════════════════════════════════════════════════════
+
+    [Theory]
+    [InlineData(1_000)]
+    [InlineData(5_000)]
+    public async Task ImportCkl_LargeFile_CompletesWithin10Seconds(int entryCount)
+    {
+        // Arrange
+        var entries = Enumerable.Range(300_000, entryCount).Select(i =>
+        {
+            var statuses  = new[] { "Open", "NotAFinding", "Not_Applicable", "Not_Reviewed" };
+            var severities = new[] { "high", "medium", "low" };
+            return new ParsedCklEntry(
+                VulnId:    $"V-{i}",
+                RuleId:    $"SV-{i}r1_rule",
+                StigVersion: $"WN22-TEST-{i:D6}",
+                RuleTitle: $"Streaming Test Rule V-{i}",
+                Severity:  severities[i % 3],
+                Status:    statuses[i % 4],
+                FindingDetails: $"XmlReader-streamed finding {i}",
+                Comments:  null,
+                SeverityOverride: null,
+                SeverityJustification: null,
+                CciRefs:   new List<string> { $"CCI-{i % 9999:D6}" },
+                GroupTitle: "SRG-OS-000003-GPOS-00004");
+        }).ToList();
+
+        var parsed = new ParsedCklFile(
+            Asset:    new CklAssetInfo("stream-server", "10.0.2.1", "stream.example.mil", "BB:CC:DD:EE:FF:AA", "Computing", "8888"),
+            StigInfo: new CklStigInfo("Streaming_Test_STIG", "1", "Release: 1", "Streaming Performance STIG"),
+            Entries:  entries);
+
+        _cklParserMock.Setup(p => p.Parse(It.IsAny<byte[]>(), It.IsAny<string>())).Returns(parsed);
+
+        // Act
+        var sw = Stopwatch.StartNew();
+        var result = await _service.ImportCklAsync(
+            TestSystemId, TestAssessmentId,
+            "perf-ckl-content"u8.ToArray(), $"perf_{entryCount}.ckl",
+            ImportConflictResolution.Skip, false, "perf-user");
+        sw.Stop();
+
+        // Assert
+        _output.WriteLine($"CKL {entryCount} VULNs import completed in {sw.ElapsedMilliseconds}ms");
+        result.Status.Should().NotBe(ScanImportStatus.Failed,
+            $"Import failed with: {result.ErrorMessage}");
+        result.TotalEntries.Should().Be(entryCount);
+        sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(10),
+            $"CKL {entryCount} import took {sw.ElapsedMilliseconds}ms, expected < 10s");
+    }
+
+    [Theory]
+    [InlineData(1_000)]
+    [InlineData(5_000)]
+    public async Task ImportXccdf_LargeFile_CompletesWithin10Seconds(int entryCount)
+    {
+        // Arrange
+        var outcomes   = new[] { "pass", "fail", "notapplicable", "error" };
+        var severities = new[] { "high", "medium", "low" };
+        var results = Enumerable.Range(400_000, entryCount).Select(i =>
+            new ParsedXccdfResult(
+                RuleIdRef:      $"xccdf_mil.disa.stig_rule_SV-{i}r1_rule",
+                ExtractedRuleId: $"SV-{i}r1_rule",
+                Result:         outcomes[i % 4],
+                Severity:       severities[i % 3],
+                Weight:         10.0m,
+                Timestamp:      DateTime.UtcNow,
+                Message:        null,
+                CheckRef:       null)
+        ).ToList();
+
+        var parsedXccdf = new ParsedXccdfFile(
+            BenchmarkHref: "xccdf_mil.disa.stig_benchmark_Streaming_Test_STIG",
+            Title:         "Streaming Performance Test STIG",
+            Target:        "stream-server",
+            TargetAddress: "10.0.2.1",
+            StartTime:     DateTime.UtcNow.AddMinutes(-10),
+            EndTime:       DateTime.UtcNow,
+            Score:         80.0m,
+            MaxScore:      100.0m,
+            TargetFacts:   new Dictionary<string, string> { ["os"] = "Windows Server 2022" },
+            Results:       results);
+
+        _xccdfParserMock.Setup(p => p.Parse(It.IsAny<byte[]>(), It.IsAny<string>())).Returns(parsedXccdf);
+
+        // Act
+        var sw = Stopwatch.StartNew();
+        var result = await _service.ImportXccdfAsync(
+            TestSystemId, TestAssessmentId,
+            "perf-xccdf-content"u8.ToArray(), $"perf_{entryCount}.xccdf",
+            ImportConflictResolution.Skip, false, "perf-user");
+        sw.Stop();
+
+        // Assert
+        _output.WriteLine($"XCCDF {entryCount} rule-results import completed in {sw.ElapsedMilliseconds}ms");
+        result.Status.Should().NotBe(ScanImportStatus.Failed,
+            $"Import failed with: {result.ErrorMessage}");
+        result.TotalEntries.Should().Be(entryCount);
+        sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(10),
+            $"XCCDF {entryCount} import took {sw.ElapsedMilliseconds}ms, expected < 10s");
     }
 }
