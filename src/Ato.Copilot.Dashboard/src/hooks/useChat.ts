@@ -23,11 +23,28 @@ const DEFAULT_PANEL_STATE: ChatPanelState = {
   activeConversationId: null,
 };
 
+// T260: Allowed file types for attachment (PDF, DOCX, XLSX, PNG, JPEG up to 20 MB)
+const ALLOWED_ATTACHMENT_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/png',
+  'image/jpeg',
+];
+const MAX_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
+
+export interface AttachmentValidationError {
+  fileName: string;
+  reason: string;
+}
+
 export interface UseChatReturn {
   conversations: Conversation[];
   activeConversation: Conversation | null;
   isProcessing: boolean;
   progressSteps: SseProgressEvent[];
+  /** T270: Active MCP tool chips (toolName → start epoch ms) */
+  activeToolChips: Map<string, number>;
   panelState: ChatPanelState;
   context: ReturnType<typeof useChatContext>;
   sendMessage: (content: string, attachments?: File[]) => Promise<void>;
@@ -36,6 +53,7 @@ export interface UseChatReturn {
   deleteConversation: (id: string) => void;
   cancelStream: () => void;
   setPanelState: (state: ChatPanelState | ((prev: ChatPanelState) => ChatPanelState)) => void;
+  validateAttachments: (files: File[]) => AttachmentValidationError[];
 }
 
 function generateId(): string {
@@ -49,36 +67,19 @@ function generateTitle(content: string): string {
 export function useChat(): UseChatReturn {
   const [conversations, setConversations] = useLocalStorage<Conversation[]>(CONVERSATIONS_KEY, []);
   const [panelState, setPanelState] = useLocalStorage<ChatPanelState>(PANEL_STATE_KEY, DEFAULT_PANEL_STATE);
-  const { isStreaming, progressSteps, cancel, stream } = useSseStream();
   const context = useChatContext();
+  const { isStreaming, progressSteps, activeToolChips, cancel, stream } = useSseStream();
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === panelState.activeConversationId) ?? null,
     [conversations, panelState.activeConversationId],
   );
 
+  const isProcessing = isStreaming;
+
   const newConversation = useCallback(() => {
-    const conv: Conversation = {
-      id: generateId(),
-      title: 'New Conversation',
-      messages: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      context,
-    };
-
-    setConversations((prev) => {
-      const updated = [conv, ...prev];
-      // LRU eviction: keep only MAX_CONVERSATIONS, sorted by updatedAt
-      if (updated.length > MAX_CONVERSATIONS) {
-        updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-        return updated.slice(0, MAX_CONVERSATIONS);
-      }
-      return updated;
-    });
-
-    setPanelState((prev) => ({ ...prev, activeConversationId: conv.id }));
-  }, [context, setConversations, setPanelState]);
+    setPanelState((prev) => ({ ...prev, activeConversationId: null }));
+  }, [setPanelState]);
 
   const selectConversation = useCallback(
     (id: string) => {
@@ -90,12 +91,10 @@ export function useChat(): UseChatReturn {
   const deleteConversation = useCallback(
     (id: string) => {
       setConversations((prev) => prev.filter((c) => c.id !== id));
-      setPanelState((prev) => {
-        if (prev.activeConversationId === id) {
-          return { ...prev, activeConversationId: null };
-        }
-        return prev;
-      });
+      setPanelState((prev) => ({
+        ...prev,
+        activeConversationId: prev.activeConversationId === id ? null : prev.activeConversationId,
+      }));
     },
     [setConversations, setPanelState],
   );
@@ -104,8 +103,27 @@ export function useChat(): UseChatReturn {
     cancel();
   }, [cancel]);
 
+  // T260: Validate files before sending — returns list of errors (empty = valid)
+  const validateAttachments = useCallback((files: File[]): AttachmentValidationError[] => {
+    const errors: AttachmentValidationError[] = [];
+    for (const file of files) {
+      if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
+        errors.push({
+          fileName: file.name,
+          reason: `Unsupported type (${file.type || 'unknown'}). Allowed: PDF, DOCX, XLSX, PNG, JPEG.`,
+        });
+      } else if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+        errors.push({
+          fileName: file.name,
+          reason: `File exceeds the 20 MB limit (${(file.size / 1024 / 1024).toFixed(1)} MB).`,
+        });
+      }
+    }
+    return errors;
+  }, []);
+
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, attachments?: File[]) => {
       // T035: Cancel in-flight stream before sending new message
       if (isStreaming) {
         cancel();
@@ -152,12 +170,31 @@ export function useChat(): UseChatReturn {
         setPanelState((prev) => ({ ...prev, activeConversationId: conv.id }));
       }
 
+      // T260: Build attachment error chips for invalid files; only forward valid files
+      const validFiles: File[] = [];
+      const attachmentErrors: string[] = [];
+      if (attachments && attachments.length > 0) {
+        const validationErrors = validateAttachments(attachments);
+        const errorNames = new Set(validationErrors.map((e) => e.fileName));
+        for (const file of attachments) {
+          if (errorNames.has(file.name)) {
+            attachmentErrors.push(`${file.name}: ${validationErrors.find((e) => e.fileName === file.name)!.reason}`);
+          } else {
+            validFiles.push(file);
+          }
+        }
+      }
+
       const userMessage: Message = {
         id: generateId(),
         role: 'user',
         content,
         status: 'sending',
         timestamp: new Date().toISOString(),
+        // T260: Attach file metadata for display
+        attachments: validFiles.length > 0
+          ? validFiles.map((f) => ({ name: f.name, size: f.size, type: f.type }))
+          : undefined,
       };
 
       const assistantMessage: Message = {
@@ -168,12 +205,23 @@ export function useChat(): UseChatReturn {
         timestamp: new Date().toISOString(),
       };
 
-      // Add user message and placeholder assistant message
+      // T260: If any attachments were invalid, prepend an error message
+      const extraMessages: Message[] = attachmentErrors.length > 0
+        ? [{
+            id: generateId(),
+            role: 'assistant' as const,
+            content: `⚠️ **Attachment error(s):** The following files could not be uploaded:\n\n${attachmentErrors.map((e) => `- ${e}`).join('\n')}`,
+            status: 'complete' as const,
+            timestamp: new Date().toISOString(),
+          }]
+        : [];
+
+      // Add user message (+ optional error chips) and placeholder assistant message
       const targetConvId = convId;
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id !== targetConvId) return c;
-          const updatedMessages = [...c.messages, userMessage, assistantMessage];
+          const updatedMessages = [...c.messages, ...extraMessages, userMessage, assistantMessage];
           return {
             ...c,
             messages: updatedMessages,
@@ -201,6 +249,8 @@ export function useChat(): UseChatReturn {
         conversationHistory: ConversationHistory,
         action: null,
         actionContext: null,
+        // T260: forward valid file attachments via multipart
+        attachments: validFiles.length > 0 ? validFiles : undefined,
       };
 
       stream(
@@ -239,8 +289,7 @@ export function useChat(): UseChatReturn {
         (error: SseErrorEvent | Error) => {
           const errorDetail = error instanceof Error
             ? { errorCode: 'NETWORK_ERROR', message: error.message, suggestion: 'Check your connection and try again.' }
-            : { errorCode: error.errorCode, message: error.message, suggestion: error.suggestion ?? null };
-
+            : error;
           setConversations((prev) =>
             prev.map((c) => {
               if (c.id !== targetConvId) return c;
@@ -250,13 +299,9 @@ export function useChat(): UseChatReturn {
                   if (m.id === assistantMessage.id) {
                     return {
                       ...m,
-                      content: errorDetail.message,
                       status: 'error' as const,
                       errors: [errorDetail],
                     };
-                  }
-                  if (m.id === userMessage.id) {
-                    return { ...m, status: 'complete' as const };
                   }
                   return m;
                 }),
@@ -266,14 +311,25 @@ export function useChat(): UseChatReturn {
         },
       );
     },
-    [panelState.activeConversationId, conversations, context, setConversations, setPanelState, stream, isStreaming, cancel],
+    [
+      isStreaming,
+      cancel,
+      panelState.activeConversationId,
+      conversations,
+      context,
+      setConversations,
+      setPanelState,
+      stream,
+      validateAttachments,
+    ],
   );
 
   return {
     conversations,
     activeConversation,
-    isProcessing: isStreaming,
+    isProcessing,
     progressSteps,
+    activeToolChips,
     panelState,
     context,
     sendMessage,
@@ -282,5 +338,6 @@ export function useChat(): UseChatReturn {
     deleteConversation,
     cancelStream,
     setPanelState,
+    validateAttachments,
   };
 }

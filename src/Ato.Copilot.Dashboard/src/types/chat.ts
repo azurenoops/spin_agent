@@ -57,20 +57,29 @@ export interface PageData {
   expiringDeviations?: number;
   catIDeviations?: number;
   deviationsMissingEvidence?: number;
+  // Outstanding-info urgency triggers (T272, Feature 035 — T023)
+  catIWithoutDeviationOrRemediation?: number;
+  draftSspSections?: number;
   missingDocDueDates?: number;
   poamMissingCompletionDates?: number;
-  draftSspSections?: number;
   authDecisionMissingExpiry?: number;
-  catIWithoutDeviationOrRemediation?: number;
+}
+
+/** T260: Lightweight file metadata for rendering in the chat thread. */
+export interface AttachedFileInfo {
+  name: string;
+  size: number;
+  type: string;
 }
 
 export interface FileAttachment {
-  name: string;
-  size: number;
-  type: FileAttachmentType;
-  content?: string;
-  /** Raw File handle — populated by FileAttachment component, consumed by ChatInput.onSend */
+  id: string;
   file?: File;
+  fileName: string;
+  fileSize: number;
+  fileType: FileAttachmentType;
+  uploadedAt: string;
+  url?: string;
 }
 
 export interface Message {
@@ -79,14 +88,15 @@ export interface Message {
   content: string;
   status: MessageStatus;
   timestamp: string;
-  agentName?: string | null;
-  intentType?: string | null;
-  processingTimeMs?: number | null;
+  agentName?: string;
+  intentType?: string;
+  processingTimeMs?: number;
   toolsExecuted?: ToolExecution[];
   errors?: ErrorDetail[];
   suggestedActions?: SuggestedAction[];
   requiresFollowUp?: boolean;
-  attachments?: FileAttachment[];
+  /** T260: Files attached to this user message for display purposes. */
+  attachments?: AttachedFileInfo[];
 }
 
 export interface Conversation {
@@ -95,7 +105,7 @@ export interface Conversation {
   messages: Message[];
   createdAt: string;
   updatedAt: string;
-  context?: ChatContext | null;
+  context: ChatContext | null;
 }
 
 export interface ChatPanelState {
@@ -110,6 +120,12 @@ export interface SseProgressEvent {
   step: string;
   detail: string;
   timestamp: string;
+}
+
+/** T270: MCP tool invocation event — emitted by server as tool_start / tool_end SSE events. */
+export interface SseMcpToolEvent {
+  phase: 'start' | 'end';
+  toolName: string;
 }
 
 export interface SseResultEvent {

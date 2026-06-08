@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useCallback, useEffect, type ReactNode } from 'react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import type { ChatPanelState } from '../../types/chat';
 
@@ -31,6 +31,18 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
   const setWidth = useCallback((width: number) => {
     setPanelState((prev) => ({ ...prev, width }));
   }, [setPanelState]);
+
+  // T271: Ctrl+Shift+C global keyboard shortcut — must work from any route
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+        e.preventDefault();
+        togglePanel();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [togglePanel]);
 
   return (
     <ChatPanelContext.Provider value={{ panelState, togglePanel, closePanel, setWidth }}>
