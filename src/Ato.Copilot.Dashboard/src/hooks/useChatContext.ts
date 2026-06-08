@@ -5,13 +5,18 @@ import type { ChatContext } from '../types/chat';
 
 const PAGE_MAP: Record<string, string> = {
   '/': 'portfolio',
+  '/portfolio': 'portfolio',
   '/capabilities': 'capabilities',
   '/assessments': 'assessments',
   '/remediation': 'remediation',
+  '/audit': 'audit',
+  '/admin/migration': 'admin-migration',
 };
 
 function resolvePageName(pathname: string): string {
   if (PAGE_MAP[pathname]) return PAGE_MAP[pathname];
+  // Wave 6 GAP-006
+  if (pathname.includes('/gap-analysis')) return 'gap-analysis';
   if (pathname.includes('/boundaries')) return 'boundaries';
   if (pathname.includes('/components')) return 'components';
   if (pathname.includes('/gaps')) return 'gap-analysis';
