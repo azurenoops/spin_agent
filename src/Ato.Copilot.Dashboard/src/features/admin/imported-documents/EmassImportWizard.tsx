@@ -413,11 +413,6 @@ function StepLogReview({ sessionId, onNext }: { sessionId: string; onNext: () =>
 
 // ── Step 4: Commit ───────────────────────────────────────────────────────────
 
-interface CommitSummaryProps {
-  sessionId: string;
-  log: LogEntry[];
-}
-
 function StepCommit({ sessionId }: { sessionId: string }) {
   const navigate = useNavigate();
   const [committing, setCommitting] = useState(false);
