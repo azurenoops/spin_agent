@@ -2,14 +2,20 @@
   "name": "ato-copilot-vscode",
   "displayName": "ATO Copilot",
   "description": "GitHub Copilot Chat participant for ATO compliance assessments, NIST 800-53 controls, and infrastructure-as-code generation",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "ato-copilot",
+  "categories": [
+    "Chat",
+    "Other"
+  ],
+  "keywords": ["ato", "compliance", "nist", "rmf", "fedramp", "dod", "fisma", "stig", "oscal"],
+  "icon": "media/icon.png",
+  "galleryBanner": { "color": "#1e3a5f", "theme": "dark" },
+  "repository": { "type": "git", "url": "https://github.com/azurenoops/ato-copilot" },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"
   },
-  "categories": [
-    "Chat"
-  ],
   "activationEvents": [
     "onChatParticipant:ato"
   ],
@@ -84,6 +90,17 @@
         "command": "ato.requestFalsePositive",
         "title": "ATO Copilot: Request False Positive",
         "category": "ATO Copilot"
+      },
+      {
+        "command": "ato.saveTemplate",
+        "title": "ATO Copilot: Save Template",
+        "category": "ATO Copilot"
+      },
+      {
+        "command": "ato.openRmfOverview",
+        "title": "ATO Copilot: Open RMF Overview",
+        "category": "ATO Copilot",
+        "icon": "$(book)"
       }
     ],
     "menus": {
@@ -92,6 +109,18 @@
           "command": "ato.requestFalsePositive",
           "when": "editorTextFocus",
           "group": "ATO Copilot"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "ato.openRmfOverview",
+          "when": "editorIsOpen",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "ato.openRmfOverview"
         }
       ]
     },

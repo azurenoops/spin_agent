@@ -1,0 +1,46 @@
+name: Release VS Code Extension
+
+on:
+  push:
+    tags:
+      - 'vscode-v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extensions/vscode
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: extensions/vscode/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile extension
+        run: npm run compile
+
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+
+      - name: Package extension
+        run: vsce package --out ato-copilot-${{ github.ref_name }}.vsix
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ato-copilot-vsix
+          path: extensions/vscode/ato-copilot-${{ github.ref_name }}.vsix
+          retention-days: 90
+
+      - name: Publish to Marketplace
+        if: ${{ !contains(github.ref_name, '-rc') }}
+        run: vsce publish --packagePath ato-copilot-${{ github.ref_name }}.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
