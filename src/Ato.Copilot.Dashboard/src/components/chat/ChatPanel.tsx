@@ -5,6 +5,8 @@ import ChatInput from './ChatInput';
 import ConversationList from './ConversationList';
 import WelcomeMessage from './WelcomeMessage';
 import QuickActions from './QuickActions';
+import AiHealthBanner from './AiHealthBanner';
+import McpToolChips from './McpToolChips';
 import { useChat } from '../../hooks/useChat';
 import { useSettings } from '../../hooks/useSettings';
 
@@ -40,6 +42,18 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
   const isDraggingRef = useRef(false);
 
+  // T272: Health check state — trigger on panel open
+  const [healthCheckTrigger, setHealthCheckTrigger] = useState(0);
+  const prevIsOpen = useRef(isOpen);
+
+  useEffect(() => {
+    if (isOpen && !prevIsOpen.current) {
+      // Panel just opened — trigger health check
+      setHealthCheckTrigger((n) => n + 1);
+    }
+    prevIsOpen.current = isOpen;
+  }, [isOpen]);
+
   // T030: Keyboard shortcut — Escape to close
   useEffect(() => {
     if (!isOpen) return;
@@ -52,7 +66,7 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // T032: Focus management
+  // T032 / T271: Focus management — focus message input when panel opens
   useEffect(() => {
     if (isOpen) {
       previousFocusRef.current = document.activeElement;
@@ -106,6 +120,15 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // T272: trigger health check before send
+  const handleSend = useCallback(
+    async (content: string, attachments?: File[]) => {
+      setHealthCheckTrigger((n) => n + 1);
+      await sendMessage(content, attachments);
+    },
+    [sendMessage],
+  );
+
   const panelWidth = isMobile ? '100vw' : `${width}px`;
 
   return (
@@ -136,6 +159,9 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
         context={context}
       />
 
+      {/* T272: Non-blocking degraded-mode banner */}
+      <AiHealthBanner triggerCheck={healthCheckTrigger > 0} />
+
       {conversations.length > 0 && (
         <ConversationList
           conversations={conversations}
@@ -156,12 +182,15 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
         <WelcomeMessage context={context} onSendExample={sendMessage} />
       )}
 
+      {/* T270: MCP tool execution chips — shown during streaming */}
+      <McpToolChips />
+
       {settings.showQuickActions && (
         <QuickActions context={context} onSend={sendMessage} disabled={isProcessing} />
       )}
 
       <ChatInput
-        onSend={sendMessage}
+        onSend={handleSend}
         onCancel={cancelStream}
         isProcessing={isProcessing}
         disabled={false}

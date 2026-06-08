@@ -6,8 +6,8 @@ import type { Conversation } from '../../../types/chat';
 
 describe('ConversationList', () => {
   const conversations: Conversation[] = [
-    { id: '1', title: 'First conversation', messages: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: '2', title: 'Second conversation', messages: [], createdAt: new Date().toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
+    { id: '1', title: 'First conversation', messages: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), context: null },
+    { id: '2', title: 'Second conversation', messages: [], createdAt: new Date().toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString(), context: null },
   ];
 
   it('renders conversation titles', () => {

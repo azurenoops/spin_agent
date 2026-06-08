@@ -54,7 +54,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
           <FileAttachmentComponent
             attachments={attachments}
             onAdd={(a) => setAttachments((prev) => [...prev, a])}
-            onRemove={(name) => setAttachments((prev) => prev.filter((a) => a.name !== name))}
+            onRemove={(id) => setAttachments((prev) => prev.filter((a) => a.id !== id))}
             disabled={disabled}
           />
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import EmassImportWizard from './EmassImportWizard';
 import SspPdfImportWizard from './SspPdfImportWizard';
 
 interface ImportedArtifactRow {
@@ -53,7 +54,8 @@ export default function ImportedDocumentsView() {
   const [error, setError] = useState<string | null>(null);
   const [openDeps, setOpenDeps] = useState<{ id: string; rows: DependencyRow[] } | null>(null);
   const [busy, setBusy] = useState(false);
-  // T276: SSP PDF import wizard state
+  // T273: eMASS import wizard state
+  const [showEmassWizard, setShowEmassWizard] = useState(false);
   const [showSspWizard, setShowSspWizard] = useState(false);
 
   async function refresh() {
@@ -112,15 +114,15 @@ export default function ImportedDocumentsView() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Imported Documents</h1>
         <div className="flex gap-2">
-          {/* T276: Import SSP PDF CTA */}
+          {/* T273: Import from eMASS CTA */}
           <button
-            onClick={() => setShowSspWizard(true)}
+            onClick={() => setShowEmassWizard(true)}
             className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
-            Import SSP PDF
+            Import from eMASS
           </button>
           {[
             { v: '', label: 'All' },
@@ -239,7 +241,10 @@ export default function ImportedDocumentsView() {
         </div>
       )}
     </div>
-    {/* T276: SSP PDF import wizard */}
+    {/* T273: eMASS import wizard */}
+    {showEmassWizard && (
+      <EmassImportWizard onClose={() => { setShowEmassWizard(false); void refresh(); }} />
+    )}
     {showSspWizard && (
       <SspPdfImportWizard onClose={() => { setShowSspWizard(false); void refresh(); }} />
     )}
