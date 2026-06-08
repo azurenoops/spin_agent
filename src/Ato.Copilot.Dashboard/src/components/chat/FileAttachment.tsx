@@ -21,7 +21,7 @@ function isAllowedExtension(name: string): boolean {
 export interface FileAttachmentProps {
   attachments: FileAttachmentType[];
   onAdd: (attachment: FileAttachmentType) => void;
-  onRemove: (name: string) => void;
+  onRemove: (id: string) => void;
   disabled: boolean;
 }
 
@@ -47,10 +47,11 @@ export default function FileAttachment({ attachments, onAdd, onRemove, disabled 
       const reader = new FileReader();
       reader.onload = () => {
         onAdd({
-          name: file.name,
-          size: file.size,
-          type: detectFileType(file.name),
-          content: reader.result as string,
+          id: crypto.randomUUID(),
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: detectFileType(file.name),
+          uploadedAt: new Date().toISOString(),
           file,
         });
       };
@@ -91,16 +92,16 @@ export default function FileAttachment({ attachments, onAdd, onRemove, disabled 
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pb-2">
           {attachments.map((a) => (
-            <span key={a.name} className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+            <span key={a.id} className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
               </svg>
-              {a.name}
+              {a.fileName}
               <button
                 type="button"
-                onClick={() => onRemove(a.name)}
+                onClick={() => onRemove(a.id)}
                 className="ml-0.5 text-gray-400 hover:text-red-500"
-                aria-label={`Remove ${a.name}`}
+                aria-label={`Remove ${a.fileName}`}
               >
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

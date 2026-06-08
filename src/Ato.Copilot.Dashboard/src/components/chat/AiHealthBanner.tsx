@@ -87,7 +87,7 @@ export default function AiHealthBanner({ triggerCheck, onCheckComplete }: AiHeal
           }}
           className="rounded px-2 py-1 text-xs font-medium bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors"
         >
-          {status === 'checking' ? 'Checking…' : 'Retry'}
+          {'Retry'}
         </button>
         <button
           onClick={() => setDismissed(true)}

@@ -46,8 +46,8 @@ describe('useChat — attachment validation (T260)', () => {
     const file = makeFile('data.csv', 'text/csv', 1024);
     const errors = result.current.validateAttachments([file]);
     expect(errors).toHaveLength(1);
-    expect(errors[0].fileName).toBe('data.csv');
-    expect(errors[0].reason).toMatch(/unsupported type/i);
+    expect(errors[0]!.fileName).toBe('data.csv');
+    expect(errors[0]!.reason).toMatch(/unsupported type/i);
   });
 
   it('returns an error for a file exceeding 20 MB', () => {
@@ -55,7 +55,7 @@ describe('useChat — attachment validation (T260)', () => {
     const file = makeFile('huge.pdf', 'application/pdf', 21 * 1024 * 1024);
     const errors = result.current.validateAttachments([file]);
     expect(errors).toHaveLength(1);
-    expect(errors[0].reason).toMatch(/20 MB/i);
+    expect(errors[0]!.reason).toMatch(/20 MB/i);
   });
 
   it('passes valid files as attachments in the ChatRequest', async () => {

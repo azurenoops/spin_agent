@@ -57,6 +57,12 @@ export interface PageData {
   expiringDeviations?: number;
   catIDeviations?: number;
   deviationsMissingEvidence?: number;
+  // Outstanding-info urgency triggers (T272, Feature 035 — T023)
+  catIWithoutDeviationOrRemediation?: number;
+  draftSspSections?: number;
+  missingDocDueDates?: number;
+  poamMissingCompletionDates?: number;
+  authDecisionMissingExpiry?: number;
 }
 
 /** T260: Lightweight file metadata for rendering in the chat thread. */

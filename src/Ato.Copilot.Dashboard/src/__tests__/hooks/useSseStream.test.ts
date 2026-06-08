@@ -62,7 +62,7 @@ describe('useSseStream', () => {
     const onResult = vi.fn();
     const resultData = { success: true, response: 'answer', conversationId: 'c1', agentUsed: 'a', intentType: 'q', processingTimeMs: 100, toolsExecuted: [], errors: [], suggestedActions: [], requiresFollowUp: false };
 
-    mockSendMessage.mockImplementation((_req, _onProgress, onRes) => {
+    mockSendMessage.mockImplementation((_req, _onProgress, _onTool, onRes) => {
       onRes(resultData);
       return Promise.resolve();
     });
@@ -86,7 +86,7 @@ describe('useSseStream', () => {
     const onError = vi.fn();
     const error = new Error('Network failed');
 
-    mockSendMessage.mockImplementation((_req, _onProgress, _onResult, onErr) => {
+    mockSendMessage.mockImplementation((_req, _onProgress, _onTool, _onResult, onErr) => {
       onErr(error);
       return Promise.resolve();
     });
