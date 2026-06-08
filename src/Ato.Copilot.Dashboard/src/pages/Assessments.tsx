@@ -91,7 +91,7 @@ export default function Assessments() {
 
   // View detail modals
   const [showSapView, setShowSapView] = useState(false);
-  const [showSarView, setShowSarView] = useState(false);
+  const [_showSarView, setShowSarView] = useState(false);  // eslint-disable-line @typescript-eslint/no-unused-vars
 
   // Create Remediation Task modal state
   const [taskModalFinding, setTaskModalFinding] = useState<AssessmentFinding | null>(null);
