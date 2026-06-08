@@ -55,8 +55,8 @@ public static class CapabilitySubscriptionEndpoints
                     id = c.Id,
                     name = c.Name,
                     description = c.Description,
-                    provider = c.Component != null ? c.CspInheritedComponent.ComponentType : "Unknown",
-                    componentName = c.Component != null ? c.CspInheritedComponent.Name : "",
+                    provider = c.CspInheritedComponent != null ? c.CspInheritedComponent.ComponentType : "Unknown",
+                    componentName = c.CspInheritedComponent != null ? c.CspInheritedComponent.Name : "",
                     status = c.Status,
                     controlCount = c.ControlMappings != null ? c.ControlMappings.Count : 0,
                 })
@@ -97,7 +97,7 @@ public static class CapabilitySubscriptionEndpoints
             CancellationToken ct) =>
         {
             var capability = await db.CspInheritedCapabilities
-                .Include(c => c.Component)
+                .Include(c => c.CspInheritedComponent)
                 .Include(c => c.ControlMappings)
                 .FirstOrDefaultAsync(c => c.Id == id, ct);
 
@@ -109,8 +109,8 @@ public static class CapabilitySubscriptionEndpoints
                 id = capability.Id,
                 name = capability.Name,
                 description = capability.Description,
-                provider = capability.Component?.ComponentType ?? "Unknown",
-                componentName = capability.Component?.Name ?? "",
+                provider = capability.CspInheritedComponent?.ComponentType ?? "Unknown",
+                componentName = capability.CspInheritedComponent?.Name ?? "",
                 status = capability.Status,
                 controlMappings = capability.ControlMappings?.Select(m => new
                 {
@@ -208,7 +208,7 @@ public static class CapabilitySubscriptionEndpoints
         {
             var subs = await db.CapabilitySubscriptions
                 .Include(s => s.Capability)
-                    .ThenInclude(c => c!.Component)
+                    .ThenInclude(c => c!.CspInheritedComponent)
                 .Where(s => s.RegisteredSystemId == systemId && s.IsActive)
                 .OrderBy(s => s.SubscribedAt)
                 .Select(s => new
@@ -216,8 +216,8 @@ public static class CapabilitySubscriptionEndpoints
                     id = s.Id,
                     capabilityId = s.CspInheritedCapabilityId,
                     capabilityName = s.Capability != null ? s.Capability.Name : s.CspInheritedCapabilityId,
-                    provider = s.Capability != null && s.Capability.Component != null
-                        ? s.Capability.Component.ComponentType
+                    provider = s.Capability != null && s.Capability.CspInheritedComponent != null
+                        ? s.Capability.CspInheritedComponent.ComponentType
                         : "Unknown",
                     subscribedBy = s.SubscribedBy,
                     subscribedAt = s.SubscribedAt,
