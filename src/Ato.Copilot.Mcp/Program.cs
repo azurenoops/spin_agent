@@ -668,8 +668,6 @@ async Task RunHttpModeAsync(string[] args)
     app.MapAdminMigrationEndpoints();
     // Feature 048 (T135, FR-081/FR-082): CSP-Admin cross-tenant baseline publish/unpublish surface.
     app.MapGlobalBaselineEndpoints();
-    // UF-CSP-01/02/03 — Org-user capability library & subscriptions (spec-070)
-    app.MapCapabilitySubscriptionEndpoints();
 
     // UF-005 — SCAP/STIG scan import REST API (spec-063 Phase 3)
     app.MapScanImportEndpoints();
