@@ -124,18 +124,20 @@ const tenancyClient = axios.create({
   withCredentials: true, // impersonation cookie is HttpOnly + cross-path
 });
 
-tenancyClient.interceptors.request.use((config) => {
-  try {
-    const raw = localStorage.getItem('ato-dashboard-settings');
-    if (raw) {
-      const settings = JSON.parse(raw) as { role?: string };
-      if (settings.role) config.headers['X-Simulated-Role'] = settings.role;
+if (import.meta.env.DEV) {
+  tenancyClient.interceptors.request.use((config) => {
+    try {
+      const raw = localStorage.getItem('ato-dashboard-settings');
+      if (raw) {
+        const settings = JSON.parse(raw) as { role?: string };
+        if (settings.role) config.headers['X-Simulated-Role'] = settings.role;
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
-  }
-  return config;
-});
+    return config;
+  });
+}
 
 // Feature 051 T053: MSAL bearer injection (silent renewal + 401 retry).
 attachAuthInterceptor(tenancyClient, getMsalInstance, DEFAULT_API_SCOPES);

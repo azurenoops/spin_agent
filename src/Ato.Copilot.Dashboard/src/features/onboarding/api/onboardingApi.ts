@@ -13,21 +13,23 @@ const onboardingApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-onboardingApi.interceptors.request.use((config) => {
-  // Dev-only role spoofing for the dashboard (FR-048 parity).
-  try {
-    const raw = localStorage.getItem('ato-dashboard-settings');
-    if (raw) {
-      const settings = JSON.parse(raw) as { role?: string };
-      if (settings.role) {
-        config.headers['X-Simulated-Role'] = settings.role;
+if (import.meta.env.DEV) {
+  onboardingApi.interceptors.request.use((config) => {
+    // Dev-only role spoofing for the dashboard (FR-048 parity).
+    try {
+      const raw = localStorage.getItem('ato-dashboard-settings');
+      if (raw) {
+        const settings = JSON.parse(raw) as { role?: string };
+        if (settings.role) {
+          config.headers['X-Simulated-Role'] = settings.role;
+        }
       }
+    } catch {
+      // ignore parse errors
     }
-  } catch {
-    // ignore parse errors
-  }
-  return config;
-});
+    return config;
+  });
+}
 
 // Feature 051 T053: MSAL bearer injection (silent renewal + 401 retry).
 attachAuthInterceptor(onboardingApi, getMsalInstance, DEFAULT_API_SCOPES);
