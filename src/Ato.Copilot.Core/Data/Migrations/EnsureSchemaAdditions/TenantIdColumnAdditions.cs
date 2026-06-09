@@ -55,10 +55,17 @@ public static class TenantIdColumnAdditions
         // Walk the model and collect every [TenantScoped] entity type +
         // its mapped table name. Entities created fresh by EnsureCreatedAsync
         // already have the column; the per-statement guards handle that.
+        // Entities that scope via a domain-specific column instead (e.g.
+        // LoginAuditEvent → EffectiveTenantId) have NO mapped `TenantId`
+        // property in the EF model. Adding a DB column for them would produce
+        // a NULL-write on every INSERT and block MultiTenant boot. Skip them
+        // here — the stamping interceptor and query-filter installer already
+        // apply the same `FindProperty("TenantId")` guard consistently.
         var targets = db.Model.GetEntityTypes()
             .Where(et => et.ClrType.GetCustomAttribute<TenantScopedAttribute>(inherit: false) is not null
                          && !et.IsOwned()
-                         && et.GetTableName() is not null)
+                         && et.GetTableName() is not null
+                         && et.FindProperty("TenantId") is not null)
             .Select(et => new
             {
                 Table = et.GetTableName()!,
@@ -67,6 +74,21 @@ public static class TenantIdColumnAdditions
             })
             .Distinct()
             .ToList();
+
+        // Log entities that are [TenantScoped] but excluded (no TenantId model property).
+        var excluded = db.Model.GetEntityTypes()
+            .Where(et => et.ClrType.GetCustomAttribute<TenantScopedAttribute>(inherit: false) is not null
+                         && !et.IsOwned()
+                         && et.GetTableName() is not null
+                         && et.FindProperty("TenantId") is null)
+            .Select(et => et.ClrType.Name)
+            .ToList();
+        foreach (var name in excluded)
+        {
+            logger.LogDebug(
+                "TenantIdColumnAdditions: skipping {Entity} — [TenantScoped] but no TenantId model property (uses domain-specific tenant column)",
+                name);
+        }
 
         if (targets.Count == 0)
         {
