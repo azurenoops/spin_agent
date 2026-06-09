@@ -101,14 +101,14 @@ export default function OrgCapabilityDetailPage() {
 
   if (loading)
     return (
-      <PageLayout>
+      <PageLayout title="Capability Detail">
         <div className="py-16 text-center text-sm text-gray-500">Loading capability…</div>
       </PageLayout>
     );
 
   if (notFound || !capability)
     return (
-      <PageLayout>
+      <PageLayout title="Capability Not Found">
         <div className="py-16 text-center">
           <p className="text-sm text-gray-500">Capability not found.</p>
           <Link
@@ -122,7 +122,7 @@ export default function OrgCapabilityDetailPage() {
     );
 
   return (
-    <PageLayout>
+    <PageLayout title={capability?.name ?? "Capability Detail"}>
       {/* Breadcrumb */}
       <div className="mb-4">
         <Link

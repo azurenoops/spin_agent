@@ -42,7 +42,7 @@ const PROVIDER_OPTIONS = ['Infrastructure', 'Platform', 'Service', 'Identity'];
 function controlFamilies(controls: string[]): string[] {
   const families = new Set<string>();
   for (const c of controls) {
-    const family = c.split('-')[0].toUpperCase();
+    const family = c.split('-')[0]?.toUpperCase();
     if (family) families.add(family);
   }
   return Array.from(families).sort();
@@ -211,7 +211,7 @@ export default function OrgCapabilityLibraryPage() {
   ).sort();
 
   return (
-    <PageLayout>
+    <PageLayout title="Capability Library">
       <PageHero
         title="Capability Library"
         description="Browse CSP-published capabilities and subscribe to add inherited controls to your system's SSP."
