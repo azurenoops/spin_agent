@@ -243,6 +243,34 @@ public static class DashboardEndpoints
             })
             .WithName("UpdateSystem");
 
+        // ── DELETE /systems/{systemId} — soft-delete ──────────────────────────────
+        group.MapDelete("/systems/{systemId}", async (
+            string systemId,
+            AtoCopilotContext db,
+            CancellationToken ct) =>
+        {
+            var system = await db.RegisteredSystems
+                .FirstOrDefaultAsync(s => s.Id == systemId && s.IsActive, ct);
+
+            if (system is null)
+                return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "SYSTEM_NOT_FOUND" });
+
+            system.IsActive = false;
+
+            db.DashboardActivities.Add(new DashboardActivity
+            {
+                RegisteredSystemId = systemId,
+                EventType          = "SystemDeleted",
+                Actor              = "dashboard-user",
+                Summary            = $"System '{system.Name}' soft-deleted",
+                RelatedEntityType  = "RegisteredSystem",
+                RelatedEntityId    = systemId,
+            });
+            await db.SaveChangesAsync(ct);
+
+            return Results.NoContent();
+        }).WithName("DeleteSystem");
+
         // ─── RMF Role Assignments ────────────────────────────────────────────
         group.MapGet("/systems/{systemId}/roles", async (
                 string systemId,

@@ -5,30 +5,39 @@
  * Accessible at /audit (RequireAuth + CSP.Admin / Auditor).
  */
 import { useState, useCallback } from 'react';
+import axios from 'axios';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
-import apiClient from '../api/client';
+import { attachAuthInterceptor } from '../features/auth/interceptors';
+import { getMsalInstance, DEFAULT_API_SCOPES } from '../features/auth/msalInstance';
 import { usePolling } from '../hooks/usePolling';
+
+// Dedicated client for /api/audit — separate from apiClient whose baseURL is /api/dashboard.
+const auditClient = axios.create({
+  baseURL: '/api/audit',
+  headers: { 'Content-Type': 'application/json' },
+});
+attachAuthInterceptor(auditClient, getMsalInstance, DEFAULT_API_SCOPES);
 
 interface AuditLogEntry {
   id: string;
-  tenantId: string | null;
-  actorUserId: string | null;
-  actorDisplayName: string | null;
-  action: string;
-  entityType: string | null;
-  entityId: string | null;
-  detail: string | null;
-  impersonatedTenantName: string | null;
   timestamp: string;
-  ipAddress: string | null;
+  actorOid: string | null;
+  actorTenantId: string | null;
+  effectiveTenantId: string | null;
+  impersonatedTenantId: string | null;
+  action: string;
+  resource: string | null;
+  outcome: string | null;
+  correlationId: string | null;
+  details: string | null;
 }
 
-interface AuditLogPage {
+interface AuditLogPageData {
   items: AuditLogEntry[];
   page: number;
   pageSize: number;
-  totalCount: number;
+  total: number;
 }
 
 const PAGE_SIZE = 50;
@@ -63,7 +72,7 @@ export default function AuditLogPage() {
   const [page, setPage] = useState(1);
   const [actionFilter, setActionFilter] = useState('');
   const [tenantFilter, setTenantFilter] = useState('');
-  const [data, setData] = useState<AuditLogPage | null>(null);
+  const [data, setData] = useState<AuditLogPageData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,8 +83,8 @@ export default function AuditLogPage() {
       const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
       if (actionFilter) query.set('action', actionFilter);
       if (tenantFilter) query.set('tenantId', tenantFilter);
-      const { data: result } = await apiClient.get<AuditLogPage>(`/audit?${query}`);
-      setData(result);
+      const { data: envelope } = await auditClient.get<{ status: string; data: AuditLogPageData }>(`/?${query}`);
+      setData(envelope.data);
     } catch (e: unknown) {
       setError((e as Error).message ?? 'Failed to load audit log.');
     } finally {
@@ -88,7 +97,7 @@ export default function AuditLogPage() {
     30000,
   );
 
-  const totalPages = Math.max(1, Math.ceil((data?.totalCount ?? 0) / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
   return (
     <PageLayout title="Audit Log">
@@ -127,7 +136,7 @@ export default function AuditLogPage() {
         </button>
         {data && (
           <span className="text-xs text-gray-400 ml-auto">
-            {data.totalCount.toLocaleString()} events · page {page}/{totalPages}
+            {data.total.toLocaleString()} events · page {page}/{totalPages}
           </span>
         )}
       </div>
@@ -143,15 +152,14 @@ export default function AuditLogPage() {
               <th className="px-4 py-3 text-left">Timestamp</th>
               <th className="px-4 py-3 text-left">Action</th>
               <th className="px-4 py-3 text-left">Actor</th>
-              <th className="px-4 py-3 text-left">Entity</th>
-              <th className="px-4 py-3 text-left">Detail</th>
-              <th className="px-4 py-3 text-left">IP</th>
+              <th className="px-4 py-3 text-left">Resource</th>
+              <th className="px-4 py-3 text-left">Details</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
                   <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent mr-2" />
                   Loading audit log…
                 </td>
@@ -159,7 +167,7 @@ export default function AuditLogPage() {
             )}
             {!loading && data?.items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">No events match your filters.</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">No events match your filters.</td>
               </tr>
             )}
             {!loading && data?.items.map((entry) => (
@@ -171,19 +179,16 @@ export default function AuditLogPage() {
                   <ActionBadge action={entry.action} />
                 </td>
                 <td className="px-4 py-2 max-w-[200px] truncate text-gray-700">
-                  {entry.actorDisplayName ?? entry.actorUserId ?? '—'}
-                  {entry.impersonatedTenantName && (
-                    <span className="ml-1 text-xs text-violet-600">(impersonating {entry.impersonatedTenantName})</span>
+                  {entry.actorOid ?? '—'}
+                  {entry.impersonatedTenantId && (
+                    <span className="ml-1 text-xs text-violet-600">(impersonating {entry.impersonatedTenantId})</span>
                   )}
                 </td>
                 <td className="px-4 py-2 text-xs text-gray-500">
-                  {entry.entityType ? `${entry.entityType} ${entry.entityId ?? ''}` : '—'}
+                  {entry.resource ?? '—'}
                 </td>
                 <td className="px-4 py-2 max-w-[280px] truncate text-gray-600 text-xs">
-                  {entry.detail ?? '—'}
-                </td>
-                <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-gray-400">
-                  {entry.ipAddress ?? '—'}
+                  {entry.details ?? '—'}
                 </td>
               </tr>
             ))}
