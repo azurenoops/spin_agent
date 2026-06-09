@@ -518,6 +518,7 @@ public class DashboardService
                 Overall = system.SecurityCategorization.OverallCategorization.ToString(),
                 FormalNotation = system.SecurityCategorization.FormalNotation,
                 DodImpactLevel = system.SecurityCategorization.DoDImpactLevel,
+                IsNationalSecuritySystem = system.SecurityCategorization.IsNationalSecuritySystem,
                 InformationTypes = system.SecurityCategorization.InformationTypes.Select(it => new InfoTypeDto
                 {
                     Name = it.Name,

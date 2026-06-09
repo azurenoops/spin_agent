@@ -116,6 +116,7 @@ export interface CategorizationInfo {
   formalNotation: string;
   dodImpactLevel: string;
   informationTypes: InfoTypeInfo[];
+  isNationalSecuritySystem: boolean;
 }
 
 export interface InfoTypeInfo {
