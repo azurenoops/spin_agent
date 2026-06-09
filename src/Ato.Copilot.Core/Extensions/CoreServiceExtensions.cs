@@ -256,6 +256,15 @@ public static class CoreServiceExtensions
                 options.AddInterceptors(stamper);
             }
 
+            // Issue #100 follow-up: defense-in-depth query guard — fails fast
+            // when an HTTP-scoped query has no ambient tenant context, catching
+            // scope-to-AsyncLocal bridge bugs before they silently leak rows.
+            var tenantGuard = sp.GetService<Ato.Copilot.Core.Data.Interceptors.TenantScopedQueryGuardInterceptor>();
+            if (tenantGuard is not null)
+            {
+                options.AddInterceptors(tenantGuard);
+            }
+
             // Feature 048 (T107 / T108): SQL Server SESSION_CONTEXT publisher —
             // wires the current TenantId / IsCspAdmin claims into every
             // connection so the Row-Level Security FILTER + BLOCK predicates
