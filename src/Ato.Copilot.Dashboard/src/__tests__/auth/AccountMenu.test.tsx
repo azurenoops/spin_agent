@@ -16,7 +16,10 @@ vi.mock('axios', () => ({
 }));
 
 vi.mock('../../features/auth/msalInstance', () => ({
-  getMsalInstance: () => ({ logoutRedirect: logoutRedirectMock }),
+  getMsalInstance: () => ({
+    logoutRedirect: logoutRedirectMock,
+    getAllAccounts: () => [{ homeAccountId: 'test-account' }],
+  }),
 }));
 
 vi.mock('../../features/auth/useIdleFormStateBackup', () => ({

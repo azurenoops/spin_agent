@@ -78,8 +78,24 @@ export function useChat(): UseChatReturn {
   const isProcessing = isStreaming;
 
   const newConversation = useCallback(() => {
-    setPanelState((prev) => ({ ...prev, activeConversationId: null }));
-  }, [setPanelState]);
+    const conv: Conversation = {
+      id: generateId(),
+      title: 'New Conversation',
+      messages: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      context,
+    };
+    setConversations((prev) => {
+      const updated = [conv, ...prev];
+      if (updated.length > MAX_CONVERSATIONS) {
+        updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        return updated.slice(0, MAX_CONVERSATIONS);
+      }
+      return updated;
+    });
+    setPanelState((prev) => ({ ...prev, activeConversationId: conv.id }));
+  }, [context, setConversations, setPanelState]);
 
   const selectConversation = useCallback(
     (id: string) => {

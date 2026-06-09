@@ -4,6 +4,7 @@ import {
   createCspDashboardTenant,
   getCspDashboardTenants,
   isUnavailable,
+  updateTenantStatus,
   type ListTenantsParams,
   type TenantsPage,
   type TenantsSortField,
@@ -77,6 +78,26 @@ export default function OrgsTable({
   const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
+
+  // Wave 6 GAP-221-A: pending status action (Suspend / Disable / Reinstate)
+  const [statusAction, setStatusAction] = useState<{
+    tenantId: string;
+    displayName: string;
+    action: TenantStatus;
+  } | null>(null);
+
+  const handleStatusConfirm = async () => {
+    if (!statusAction) return;
+    try {
+      await updateTenantStatus(statusAction.tenantId, statusAction.action, undefined);
+      setStatusAction(null);
+      setRefreshNonce((n) => n + 1);
+    } catch (err: unknown) {
+      setStatusAction(null);
+      const msg = err instanceof Error ? err.message : 'Status update failed.';
+      setError(msg);
+    }
+  };
 
   const params = useMemo<ListTenantsParams>(
     () => ({
@@ -250,13 +271,14 @@ export default function OrgsTable({
                 order={order}
                 onClick={() => handleSortToggle('lastActivityTimestamp')}
               />
+              <th className="px-3 py-2 text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   className="px-3 py-6 text-center text-sm text-gray-500"
                   data-testid="orgs-loading"
                 >
@@ -267,7 +289,7 @@ export default function OrgsTable({
             {!loading && data && data.items.length === 0 && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   className="px-3 py-6 text-center text-sm text-gray-500"
                   data-testid="orgs-empty"
                 >
@@ -330,6 +352,44 @@ export default function OrgsTable({
                         ? new Date(o.lastActivityTimestamp).toLocaleString()
                         : '—'}
                     </td>
+                    {/* Wave 6 GAP-221-A: status lifecycle action buttons */}
+                    <td
+                      className="whitespace-nowrap px-3 py-2 text-xs"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center gap-1">
+                        {o.status === 'Active' && (
+                          <>
+                            <button
+                              type="button"
+                              data-testid={`org-suspend-${o.tenantId}`}
+                              onClick={() => setStatusAction({ tenantId: o.tenantId, displayName: o.displayName, action: 'Suspended' })}
+                              className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+                            >
+                              Suspend
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`org-disable-${o.tenantId}`}
+                              onClick={() => setStatusAction({ tenantId: o.tenantId, displayName: o.displayName, action: 'Disabled' })}
+                              className="rounded border border-slate-300 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                              Disable
+                            </button>
+                          </>
+                        )}
+                        {(o.status === 'Suspended' || o.status === 'Disabled') && (
+                          <button
+                            type="button"
+                            data-testid={`org-reinstate-${o.tenantId}`}
+                            onClick={() => setStatusAction({ tenantId: o.tenantId, displayName: o.displayName, action: 'Active' })}
+                            className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+                          >
+                            Reinstate
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -377,6 +437,49 @@ export default function OrgsTable({
             setRefreshNonce((n) => n + 1);
           }}
         />
+      )}
+
+      {/* Wave 6 GAP-221-A: status action confirmation dialog */}
+      {statusAction && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="status-action-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setStatusAction(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-gray-900">
+              {statusAction.action === 'Suspended'
+                ? 'Suspend'
+                : statusAction.action === 'Disabled'
+                ? 'Disable'
+                : 'Reinstate'}{' '}
+              organization
+            </h3>
+            <p className="mt-1 text-sm text-gray-600">{statusAction.displayName}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setStatusAction(null)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="status-action-confirm"
+                onClick={() => void handleStatusConfirm()}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

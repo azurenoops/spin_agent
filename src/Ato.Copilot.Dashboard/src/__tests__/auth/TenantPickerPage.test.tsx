@@ -184,7 +184,7 @@ describe('TenantPickerPage', () => {
     fireEvent.click(cspViewBtn);
 
     await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith('/csp/dashboard', expect.anything());
+      expect(navigate).toHaveBeenCalledWith('/', expect.anything()); // fix #361;
     });
     expect(post).not.toHaveBeenCalled();
   });
@@ -213,5 +213,14 @@ describe('TenantPickerPage', () => {
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith('/', expect.anything());
     });
+  });
+
+  it('regression #361: CSP-Admin All Tenants does NOT navigate to /csp/dashboard (retired route)', async () => {
+    currentMe = baseMe({ isCspAdmin: true, tenantMemberships: [tenant('a', 'Active Org', 'Active')] });
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /all tenants.*csp view/i }));
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const targets = (navigate.mock.calls as Array<[string, ...unknown[]]>).map(([p]) => p);
+    expect(targets).not.toContain('/csp/dashboard');
   });
 });
