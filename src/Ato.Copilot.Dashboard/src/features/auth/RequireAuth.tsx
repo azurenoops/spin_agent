@@ -65,8 +65,8 @@ export default function RequireAuth({ children }: { children: ReactNode }) {
           });
         } else if (status === 403) {
           // Authenticated Entra identity but no SPIN Agent tenant assignment.
-          // Fix #362: previously treated 403 same as 401 → loginRedirect →
-          // user re-authenticates → gets 403 again → infinite loop.
+          // Redirecting back to MSAL login would cause an infinite loop
+          // (user re-authenticates → gets 403 again → loops forever).
           // Navigate to the error page instead so the user gets actionable copy.
           setState('redirecting');
           navigate('/login/error?errorClass=NoTenantAssignment', { replace: true });

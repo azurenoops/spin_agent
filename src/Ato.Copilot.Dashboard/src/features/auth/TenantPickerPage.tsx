@@ -85,7 +85,9 @@ export default function TenantPickerPage() {
 
   const handleCspViewAll = () => {
     // FR-011 — bypass /select-tenant; the CSP dashboard binds its own scope.
-    navigate("/", { replace: true }); // fix #361: /csp/dashboard retired
+    // Route is the portfolio root — PortfolioRoute handles the CSP-Admin view.
+    // (The former /csp/dashboard route was retired; see App.tsx lines 127-129.)
+    navigate('/', { replace: true });
   };
 
   return (

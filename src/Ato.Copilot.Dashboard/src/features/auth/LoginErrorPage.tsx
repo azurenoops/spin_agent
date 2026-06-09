@@ -15,10 +15,6 @@ import type { ErrorClass } from './types';
  * For `ConditionalAccessBlock` errors, FR-015 mandates surfacing the
  * Entra-provided remediation URL when present — we accept it as a
  * `?remediationUrl=` query param and render it as the primary CTA.
- *
- * Fix #363 (CRIT/SECURITY): `remediationUrl` is restricted to `https://`
- * only. This route is public (no `RequireAuth`), so an unvalidated `href`
- * allows `javascript:` XSS via a crafted link sent to any user.
  */
 export default function LoginErrorPage() {
   const [searchParams] = useSearchParams();
@@ -27,8 +23,10 @@ export default function LoginErrorPage() {
 
   const rawClass = searchParams.get('errorClass');
   const correlationId = searchParams.get('correlationId') ?? '';
-  // Security fix #363: only allow https:// remediationUrls.
-  // javascript:, data:, http:, and any other scheme are silently discarded.
+  // Security: only allow https:// remediationUrls. Any other scheme
+  // (javascript:, data:, http:, etc.) is silently discarded so the
+  // public /login/error route cannot be weaponised for XSS via a
+  // crafted link. (Issue #363 — CRIT/SECURITY).
   const rawRemediationUrl = searchParams.get('remediationUrl');
   const remediationUrl = rawRemediationUrl?.startsWith('https://') ? rawRemediationUrl : null;
 
