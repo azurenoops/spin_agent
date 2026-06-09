@@ -398,31 +398,6 @@ public class AlertOptions
 }
 
 /// <summary>
-/// Configuration for alert notification delivery.
-/// Bound from the "Notifications" configuration section.
-/// </summary>
-public class NotificationOptions
-{
-    /// <summary>Configuration section name for binding.</summary>
-    public const string SectionName = "Notifications";
-
-    /// <summary>Maximum notifications per minute per channel. Default 10.</summary>
-    public int MaxPerMinutePerChannel { get; set; } = 10;
-
-    /// <summary>Whether to enable email notifications. Default false.</summary>
-    public bool EnableEmail { get; set; }
-
-    /// <summary>Whether to enable webhook notifications. Default false.</summary>
-    public bool EnableWebhook { get; set; }
-
-    /// <summary>Daily digest delivery hour (UTC 0–23). Default 8 (08:00 UTC).</summary>
-    public int DigestHourUtc { get; set; } = 8;
-
-    /// <summary>Bounded channel capacity for async notification dispatch. Default 500.</summary>
-    public int ChannelCapacity { get; set; } = 500;
-}
-
-/// <summary>
 /// Configuration for alert escalation behavior.
 /// Bound from the "Escalation" configuration section.
 /// </summary>

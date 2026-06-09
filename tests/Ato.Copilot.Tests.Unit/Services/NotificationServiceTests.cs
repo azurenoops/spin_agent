@@ -1,9 +1,11 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 using FluentAssertions;
 using Ato.Copilot.Agents.Compliance.Services;
+using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Interfaces.Kanban;
 using Ato.Copilot.Core.Models.Kanban;
 
@@ -20,7 +22,7 @@ public class NotificationServiceTests : IDisposable
 
     public NotificationServiceTests()
     {
-        _service = new NotificationService(_loggerMock.Object);
+        _service = new NotificationService(_loggerMock.Object, Options.Create(new NotificationOptions()));
     }
 
     public void Dispose()
@@ -73,7 +75,7 @@ public class NotificationServiceTests : IDisposable
     [Fact]
     public void Dispose_CompletesGracefully()
     {
-        var svc = new NotificationService(Mock.Of<ILogger<NotificationService>>());
+        var svc = new NotificationService(Mock.Of<ILogger<NotificationService>>(), Options.Create(new NotificationOptions()));
 
         var act = () => svc.Dispose();
 

@@ -320,8 +320,11 @@ async Task RunHttpModeAsync(string[] args)
         Ato.Copilot.Mcp.Hubs.CspDashboardNotifier>();
 
     // Onboarding wizard (Feature 047) — bind options + register policy / services / hosted job worker.
-    builder.Services.Configure<Ato.Copilot.Core.Configuration.OnboardingOptions>(
-        builder.Configuration.GetSection(Ato.Copilot.Core.Configuration.OnboardingOptions.SectionName));
+        // UF-016 (#200): Notification delivery channel options (Email/Teams/Slack)
+        builder.Services.Configure<Ato.Copilot.Core.Configuration.NotificationOptions>(
+            builder.Configuration.GetSection(Ato.Copilot.Core.Configuration.NotificationOptions.SectionName));
+        builder.Services.Configure<Ato.Copilot.Core.Configuration.OnboardingOptions>(
+            builder.Configuration.GetSection(Ato.Copilot.Core.Configuration.OnboardingOptions.SectionName));
 
     // Register a default authentication scheme that surfaces the principal already
     // populated by CacAuthenticationMiddleware. Required so AuthorizationMiddleware
