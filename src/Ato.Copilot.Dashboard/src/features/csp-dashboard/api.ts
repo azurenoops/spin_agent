@@ -373,3 +373,17 @@ export async function createCspDashboardTenant(
   );
   return unwrap(data);
 }
+
+/**
+ * PATCH /api/csp/dashboard/tenants/{tenantId}/status — update tenant lifecycle status.
+ *
+ * Wave 6 GAP-221-A: CSP-Admin suspension / reinstatement / disable actions.
+ * `reason` is optional free-text audit note (≤500 chars).
+ */
+export async function updateTenantStatus(
+  tenantId: string,
+  status: TenantStatus,
+  reason: string | undefined,
+): Promise<void> {
+  await cspDashboardClient.patch(`/csp/dashboard/tenants/${tenantId}/status`, { status, reason });
+}

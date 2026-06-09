@@ -51,6 +51,7 @@ export default function ImpersonationBanner() {
   const { data: me, refetch } = useMe();
   const navigate = useNavigate();
   const [exiting, setExiting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   // Track "now" in state so the countdown re-renders deterministically;
   // a counter would work too but explicitly storing the timestamp keeps
   // the test surface easy to reason about under fake timers.
@@ -95,7 +96,7 @@ export default function ImpersonationBanner() {
     return () => window.removeEventListener('ato:tenant-changed', handler);
   }, [refetch]);
 
-  const handleExit = useCallback(async () => {
+  const handleConfirm = useCallback(async () => {
     if (exiting) return;
     setExiting(true);
     // Read + clear the pre-impersonation URL BEFORE any await so the
@@ -112,6 +113,7 @@ export default function ImpersonationBanner() {
     } finally {
       refetch();
       setExiting(false);
+      setShowConfirm(false);
       navigate(returnUrl ?? '/');
     }
   }, [exiting, refetch, navigate]);
@@ -129,7 +131,7 @@ export default function ImpersonationBanner() {
       role="status"
       aria-live="polite"
       data-testid="impersonation-banner-051"
-      className="sticky top-0 z-50 flex items-center justify-between gap-3 border-l-4 border-yellow-500 bg-yellow-100 px-4 py-3 text-sm text-yellow-900 shadow-sm"
+      className="relative sticky top-0 z-50 flex items-center justify-between gap-3 border-l-4 border-yellow-500 bg-yellow-100 px-4 py-3 text-sm text-yellow-900 shadow-sm"
     >
       <div className="flex min-w-0 items-center gap-2">
         <svg
@@ -163,12 +165,47 @@ export default function ImpersonationBanner() {
       </div>
       <button
         type="button"
-        onClick={handleExit}
+        onClick={() => setShowConfirm(true)}
         disabled={exiting}
         className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border border-yellow-600 bg-white px-3 py-1 text-xs font-semibold text-yellow-900 transition-colors hover:bg-yellow-50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {exiting ? 'Exiting…' : 'Exit'}
       </button>
+
+      {showConfirm && (
+        <div
+          data-testid="impersonation-exit-confirm"
+          role="dialog"
+          aria-modal="true"
+          className="absolute right-0 top-full mt-1 w-72 rounded-lg border border-yellow-300 bg-white p-4 shadow-xl z-50"
+        >
+          <p className="text-sm font-medium text-gray-900">
+            Exit impersonation of{' '}
+            <span className="font-semibold">{tenant.displayName}</span>?
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            You will be returned to your CSP-Admin view.
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowConfirm(false)}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Stay
+            </button>
+            <button
+              type="button"
+              data-testid="impersonation-exit-confirm-btn"
+              onClick={() => void handleConfirm()}
+              disabled={exiting}
+              className="rounded-md bg-yellow-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-700 disabled:opacity-60"
+            >
+              {exiting ? 'Exiting…' : 'Exit'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
