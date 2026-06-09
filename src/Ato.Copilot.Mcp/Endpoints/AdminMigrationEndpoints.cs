@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Ato.Copilot.Core.Configuration.Auth;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
 using Microsoft.AspNetCore.Builder;
@@ -80,7 +81,7 @@ public static class AdminMigrationEndpoints
         ITenantContext tenant,
         MultiTenantMigrationService service,
         [FromBody] MigrateRequest? body,
-        IOptions<Configuration.Auth.AuthOptions> authOptions,
+        IOptions<AuthOptions> authOptions,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
