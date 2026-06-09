@@ -57,6 +57,9 @@ public class CategorizationDto
     public required string FormalNotation { get; init; }
     public required string DodImpactLevel { get; init; }
     public required IReadOnlyList<InfoTypeDto> InformationTypes { get; init; }
+
+    /// <summary>Whether the system is designated a National Security System (affects IL derivation).</summary>
+    public bool IsNationalSecuritySystem { get; init; }
 }
 
 /// <summary>

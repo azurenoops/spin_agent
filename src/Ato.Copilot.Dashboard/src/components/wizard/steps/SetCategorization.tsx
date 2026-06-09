@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import apiClient from '../../../api/client';
-import { selectBaseline } from '../../../api/systemDetail';
+import { selectBaseline, getSystemDetail } from '../../../api/systemDetail';
 import type { Sp80060InfoType } from '../../../types/dashboard';
 import infoTypesData from '../../../data/sp800-60-information-types.json';
 
@@ -64,6 +64,28 @@ export default function SetCategorization({ systemId, onNext, onErrors }: SetCat
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search, allTypes]);
+
+  // Hydrate NSS flag and previously-selected information types from existing categorization
+  useEffect(() => {
+    let cancelled = false;
+    getSystemDetail(systemId).then((detail) => {
+      if (cancelled || !detail.categorization) return;
+      const cat = detail.categorization;
+      setIsNSS(cat.isNationalSecuritySystem);
+      if (cat.informationTypes && cat.informationTypes.length > 0) {
+        setSelected(cat.informationTypes.map((it) => ({
+          sp80060Id: it.name, // InfoTypeInfo uses name; sp80060Id maps from lookup if available
+          name: it.name,
+          category: '',
+          confidentialityImpact: it.confidentiality,
+          integrityImpact: it.integrity,
+          availabilityImpact: it.availability,
+          usesProvisional: false,
+        })));
+      }
+    }).catch(() => { /* silently ignore — fresh wizard pass */ });
+    return () => { cancelled = true; };
+  }, [systemId]);
 
   const selectedIds = new Set(selected.map((s) => s.sp80060Id));
 
@@ -357,7 +379,7 @@ export default function SetCategorization({ systemId, onNext, onErrors }: SetCat
       {/* Options */}
       <div className="space-y-3 mb-6">
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isNSS} onChange={(e) => setIsNSS(e.target.checked)} className="rounded" />
+          <input type="checkbox" checked={isNSS} onChange={(e) => setIsNSS(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
           National Security System
         </label>
         <div>
