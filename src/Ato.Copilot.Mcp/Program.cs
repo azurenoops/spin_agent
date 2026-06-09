@@ -481,6 +481,11 @@ async Task RunHttpModeAsync(string[] args)
     }
     builder.Services.AddHostedService<Ato.Copilot.Core.Services.Auth.LoginAuditArchiveService>();
 
+    // UF-005 (spec-063 Phase 3+4): SCAP/STIG background import worker + queue + tracker
+    builder.Services.AddSingleton<Ato.Copilot.Mcp.Services.ScanImportQueue>();
+    builder.Services.AddSingleton<Ato.Copilot.Mcp.Services.ScanImportStatusTracker>();
+    builder.Services.AddHostedService<Ato.Copilot.Mcp.Workers.ScanImportBackgroundWorker>();
+
     // Feature 051 (T032 / FR-034 / FR-035): throttle service + the
     // IDistributedCache backing store. Dev/Test use the in-process
     // distributed memory cache so unit tests need no Redis; non-Development
@@ -663,12 +668,15 @@ async Task RunHttpModeAsync(string[] args)
     app.MapAdminMigrationEndpoints();
     // Feature 048 (T135, FR-081/FR-082): CSP-Admin cross-tenant baseline publish/unpublish surface.
     app.MapGlobalBaselineEndpoints();
-    // Feature 048 follow-up (user ask #2): per-org NIST control override surface.
-    app.MapOrgControlOverrideEndpoints();
+
+    // UF-005 — SCAP/STIG scan import REST API (spec-063 Phase 3)
+    app.MapScanImportEndpoints();
 
     // Map SignalR notification hub
     app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications");
     app.MapHub<Ato.Copilot.Mcp.Hubs.PackageHub>("/hubs/package");
+    // UF-005 (spec-063 Phase 4): SCAP/STIG import progress hub
+    app.MapHub<Ato.Copilot.Mcp.Hubs.ImportProgressHub>("/hubs/import-progress");
     // Feature 048 (T149): tenant impersonation fan-out for connected dashboards.
     app.MapHub<Ato.Copilot.Mcp.Hubs.TenantContextHub>("/hubs/tenant-context");
     // Feature 048 (T187, US8/SC-005): CSP cross-tenant dashboard fan-out for
