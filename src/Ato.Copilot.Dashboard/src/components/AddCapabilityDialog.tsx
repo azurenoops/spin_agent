@@ -17,6 +17,7 @@ const ROLES: { value: CapabilityMappingRole; label: string; description: string 
 
 export default function AddCapabilityDialog({ systemId, existingCapabilityIds, onClose, onAdded }: Props) {
   const [capabilities, setCapabilities] = useState<SecurityCapabilityDto[]>([]);
+  const [totalOrgCapabilities, setTotalOrgCapabilities] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -30,6 +31,7 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
       try {
         const result = await getCapabilities({ pageSize: 200 });
         if (!cancelled) {
+          setTotalOrgCapabilities(result.items.length);
           setCapabilities(result.items.filter((c) => !existingCapabilityIds.includes(c.id)));
         }
       } catch {
@@ -148,11 +150,30 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
             <p className="text-sm text-gray-500 text-center py-8">Loading capabilities...</p>
           ) : filtered.length === 0 ? (
             <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
-              <p className="text-sm text-gray-500">
-                {capabilities.length === 0
-                  ? 'All capabilities are already linked to this system.'
-                  : 'No capabilities match your search.'}
-              </p>
+              {totalOrgCapabilities === 0 ? (
+                // No capabilities exist in this org yet — direct to Capabilities Hub
+                <div>
+                  <p className="text-sm font-medium text-gray-700">No capabilities in your organization yet.</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Create capabilities in the{' '}
+                    <a
+                      href="/capabilities"
+                      className="text-indigo-600 underline hover:text-indigo-800"
+                    >
+                      Capabilities Hub
+                    </a>{' '}
+                    before linking them to a system.
+                  </p>
+                </div>
+              ) : capabilities.length === 0 ? (
+                // Org has caps but every one is already linked to this system
+                <p className="text-sm text-gray-500">
+                  All capabilities are already linked to this system.
+                </p>
+              ) : (
+                // Org has unlinked caps but none match the current search query
+                <p className="text-sm text-gray-500">No capabilities match your search.</p>
+              )}
             </div>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
