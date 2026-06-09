@@ -522,6 +522,9 @@ async Task RunHttpModeAsync(string[] args)
     // policy installed by RlsPolicyInstaller can enforce defense-in-depth
     // tenancy at the database layer (FR-030 / FR-031). No-op on SQLite.
     builder.Services.AddSingleton<Ato.Copilot.Core.Data.Interceptors.SqlServerSessionContextConnectionInterceptor>();
+    // Issue #100 follow-up: query guard interceptor — fails fast when an HTTP
+    // request executes a query with no ambient ITenantContextAccessor.Current.
+    builder.Services.AddSingleton<Ato.Copilot.Core.Data.Interceptors.TenantScopedQueryGuardInterceptor>();
     // T066: tenant provisioning surface for /api/tenants endpoints.
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ITenantProvisioningService,
         Ato.Copilot.Core.Services.Tenancy.TenantProvisioningService>();
