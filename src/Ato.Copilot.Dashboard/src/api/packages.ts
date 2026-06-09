@@ -1,4 +1,5 @@
 import apiClient from './client';
+import type { PackageDetail } from './package';
 
 export interface PackageJob {
   packageId: string;
@@ -6,17 +7,6 @@ export interface PackageJob {
   message: string;
 }
 
-export interface PackageDetail {
-  packageId: string;
-  systemId: string;
-  status: string;
-  evidenceMode: string;
-  fileSize?: number;
-  generatedAt?: string;
-  completedAt?: string;
-  expiresAt?: string;
-  failureReason?: string;
-}
 
 /** Enqueue a package generation job. Returns packageId + status. */
 export async function enqueuePackage(
