@@ -1,20 +1,18 @@
 /**
  * RequireAuth — regression tests for #362 (infinite MSAL redirect loop).
  *
- * Source-level tests only — jsdom + React Strict Mode + window.location.assign
- * causes environment hangs. The source text assertions are sufficient to
- * verify the fix: the diff is a single conditional split and CI type-check
- * catches structural breakage.
+ * Source-level tests only — reads RequireAuth.tsx text and asserts structural
+ * invariants. Uses process.cwd() so the path works on any CI runner.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-const SRC_DIR = join(
-  'C:', 'Users', 'zeus_bot', 'ato-copilot-upstream',
-  'src', 'Ato.Copilot.Dashboard', 'src', 'features', 'auth',
+const SRC = join(
+  process.cwd(),
+  'src', 'features', 'auth', 'RequireAuth.tsx',
 );
-const SOURCE = readFileSync(join(SRC_DIR, 'RequireAuth.tsx'), 'utf-8');
+const SOURCE = readFileSync(SRC, 'utf-8');
 
 describe('RequireAuth source — fix #362 contract', () => {
   it('imports useNavigate from react-router-dom', () => {
