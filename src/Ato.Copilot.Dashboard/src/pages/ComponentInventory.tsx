@@ -37,6 +37,7 @@ export default function ComponentInventory() {
   // Add Component dialog mode
   const [addMode, setAddMode] = useState<'create' | 'existing'>('create');
   const [orgComponents, setOrgComponents] = useState<OrgComponentDto[]>([]);
+  const [totalOrgComponents, setTotalOrgComponents] = useState(0);
   const [orgSearch, setOrgSearch] = useState('');
   const [orgLoading, setOrgLoading] = useState(false);
   const [orgAssignError, setOrgAssignError] = useState<string | null>(null);
@@ -143,6 +144,7 @@ export default function ComponentInventory() {
     setFormError(null);
     setAddMode('create');
     setOrgComponents([]);
+    setTotalOrgComponents(0);
     setOrgSearch('');
     setOrgAssignError(null);
   };
@@ -155,6 +157,7 @@ export default function ComponentInventory() {
       const res = await listComponents({ pageSize: 200 });
       // Filter out components already shown in this system
       const currentIds = new Set(components.map((c) => c.id));
+      setTotalOrgComponents(res.items.length);
       setOrgComponents(res.items.filter((c) => !currentIds.has(c.id)));
     } catch {
       setOrgAssignError('Failed to load org components');
@@ -172,6 +175,7 @@ export default function ComponentInventory() {
       setShowForm(false);
       setAddMode('create');
       setOrgComponents([]);
+      setTotalOrgComponents(0);
       setOrgSearch('');
       await fetchData();
     } catch (err: unknown) {
@@ -382,8 +386,28 @@ export default function ComponentInventory() {
                 )}
                 {orgLoading ? (
                   <div className="text-center text-sm text-gray-500 py-8">Loading org components…</div>
+                ) : orgComponents.length === 0 && orgSearch.trim() ? (
+                  // (C) Unassigned components exist but search has no match
+                  <div className="py-8 text-center">
+                    <p className="text-sm text-gray-400">No components match your search.</p>
+                  </div>
+                ) : totalOrgComponents === 0 ? (
+                  // (A) No org-level components exist at all → guide to Components library
+                  <div className="py-8 text-center space-y-2">
+                    <p className="text-sm text-gray-400">No org-level components available to assign.</p>
+                    <p className="text-xs text-gray-400">
+                      Create components in the{' '}
+                      <a href="/components" className="text-indigo-600 hover:text-indigo-500 underline">
+                        Components library
+                      </a>{' '}
+                      first, then assign them here.
+                    </p>
+                  </div>
                 ) : orgComponents.length === 0 ? (
-                  <div className="text-center text-sm text-gray-400 py-8">No unassigned org-level components found.</div>
+                  // (B) Org has components but all are already assigned to this system
+                  <div className="py-8 text-center">
+                    <p className="text-sm text-gray-400">All org-level components are already assigned to this system.</p>
+                  </div>
                 ) : (
                   <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                     {orgComponents
