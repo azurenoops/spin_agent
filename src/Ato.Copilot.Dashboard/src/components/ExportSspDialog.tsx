@@ -5,6 +5,7 @@ import * as signalR from '@microsoft/signalr';
 import { acquireBearer } from '../features/auth/msalInstance';
 // Wave 6 GAP-018
 import apiClient from '../api/client';
+import { enqueuePackage, getPackageStatus, getPackageDownloadUrl } from '../api/packages';
 
 interface ExportSspDialogProps {
   systemId: string;
@@ -28,6 +29,10 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
   // Wave 6 GAP-018
   const [oscalExporting, setOscalExporting] = useState<string | null>(null);
   const [oscalError, setOscalError] = useState<string | null>(null);
+  // #180: PDF/XLSX/eMASS package export state
+  const [pkgExporting, setPkgExporting] = useState<string | null>(null);
+  const [pkgError, setPkgError] = useState<string | null>(null);
+  const pkgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleOscalDownload = useCallback(async (artifactType: 'oscal-poam' | 'oscal-assessment-results' | 'oscal-sap') => {
     setOscalExporting(artifactType);
@@ -47,6 +52,53 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
       setOscalExporting(null);
     }
   }, [systemId]);
+
+  const handlePackageExport = useCallback(async (format: 'pdf' | 'xlsx' | 'emass-xlsx') => {
+    setPkgExporting(format);
+    setPkgError(null);
+    try {
+      const job = await enqueuePackage(systemId, format === 'emass-xlsx' ? 'full' : 'inline');
+      // Poll until complete then trigger download
+      const poll = setInterval(async () => {
+        try {
+          const detail = await getPackageStatus(systemId, job.packageId);
+          if (detail.status === 'Completed') {
+            clearInterval(poll);
+            pkgPollRef.current = null;
+            // Trigger download
+            const a = document.createElement('a');
+            a.href = getPackageDownloadUrl(systemId, job.packageId);
+            a.download = `ato-package-${format}-${systemId.slice(0, 8)}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setPkgExporting(null);
+          } else if (detail.status === 'Failed') {
+            clearInterval(poll);
+            pkgPollRef.current = null;
+            setPkgError(detail.failureReason ?? 'Package generation failed');
+            setPkgExporting(null);
+          }
+        } catch {
+          clearInterval(poll);
+          pkgPollRef.current = null;
+          setPkgError('Failed to poll package status');
+          setPkgExporting(null);
+        }
+      }, 3000);
+      pkgPollRef.current = poll;
+    } catch (e: unknown) {
+      setPkgError(`${format} export failed: ${(e as Error).message ?? 'Unknown error'}`);
+      setPkgExporting(null);
+    }
+  }, [systemId]);
+
+  // Cleanup poll on unmount
+  useEffect(() => {
+    return () => {
+      if (pkgPollRef.current) clearInterval(pkgPollRef.current);
+    };
+  }, []);
 
   // Close on Escape
   useEffect(() => {
@@ -282,6 +334,42 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
           {status === 'failed' && error && (
             <div className="rounded-lg bg-red-50 border border-red-200 p-3">
               <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* #180: ATO Package exports — PDF, XLSX, eMASS */}
+          {(status === 'idle' || status === 'completed') && (
+            <div className="border-t border-gray-100 pt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">ATO Package Downloads</p>
+              <div className="space-y-2">
+                {([
+                  { fmt: 'pdf' as const, label: 'ATO Package PDF', icon: '📕', tooltip: 'Full ATO package as PDF for submission' },
+                  { fmt: 'xlsx' as const, label: 'ATO Package XLSX', icon: '📊', tooltip: 'Full ATO package as Excel workbook' },
+                  { fmt: 'emass-xlsx' as const, label: 'eMASS-Ready XLSX', icon: '🏛️', tooltip: 'eMASS-formatted XLSX for direct eMASS import' },
+                ]).map(({ fmt, label, icon, tooltip }) => (
+                  <button
+                    key={fmt}
+                    onClick={() => void handlePackageExport(fmt)}
+                    disabled={pkgExporting !== null}
+                    title={tooltip}
+                    className="flex w-full items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="text-base">{icon}</span>
+                    <span className="flex-1 text-left">{label}</span>
+                    {pkgExporting === fmt ? (
+                      <svg className="h-4 w-4 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {pkgError && <div className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">{pkgError}</div>}
             </div>
           )}
 
