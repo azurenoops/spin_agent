@@ -81,18 +81,20 @@ const cspClient = axios.create({
   withCredentials: true,
 });
 
-cspClient.interceptors.request.use((config) => {
-  try {
-    const raw = localStorage.getItem('ato-dashboard-settings');
-    if (raw) {
-      const settings = JSON.parse(raw) as { role?: string };
-      if (settings.role) config.headers['X-Simulated-Role'] = settings.role;
+if (import.meta.env.DEV) {
+  cspClient.interceptors.request.use((config) => {
+    try {
+      const raw = localStorage.getItem('ato-dashboard-settings');
+      if (raw) {
+        const settings = JSON.parse(raw) as { role?: string };
+        if (settings.role) config.headers['X-Simulated-Role'] = settings.role;
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
-  }
-  return config;
-});
+    return config;
+  });
+}
 // Feature 051 T053: MSAL bearer injection (silent renewal + 401 retry).
 attachAuthInterceptor(cspClient, getMsalInstance, DEFAULT_API_SCOPES);
 function unwrap<T>(envelope: Envelope<T>): T {
