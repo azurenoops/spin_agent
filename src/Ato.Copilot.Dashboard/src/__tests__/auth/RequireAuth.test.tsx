@@ -1,18 +1,13 @@
 /**
  * RequireAuth — regression tests for #362 (infinite MSAL redirect loop).
  *
- * Source-level tests only — reads RequireAuth.tsx text and asserts structural
- * invariants. Uses process.cwd() so the path works on any CI runner.
+ * Structural source assertions using ?raw import (Vite/Vitest raw asset import).
+ * This avoids Node.js fs/path imports which are not in the dashboard tsconfig lib.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
-const SRC = join(
-  process.cwd(),
-  'src', 'features', 'auth', 'RequireAuth.tsx',
-);
-const SOURCE = readFileSync(SRC, 'utf-8');
+// ?raw import: Vite transforms the file into its source text string.
+// Vitest uses the same Vite transform pipeline so this works in tests.
+import SOURCE from '../../features/auth/RequireAuth.tsx?raw';
 
 describe('RequireAuth source — fix #362 contract', () => {
   it('imports useNavigate from react-router-dom', () => {
