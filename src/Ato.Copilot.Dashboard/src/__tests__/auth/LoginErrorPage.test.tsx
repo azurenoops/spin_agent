@@ -156,4 +156,22 @@ describe('LoginErrorPage', () => {
 
     expect(loginRedirect).toHaveBeenCalledTimes(1);
   });
+
+  // ─── Security regressions for #363 ─────────────────────────────────────
+  it("security #363: does NOT render a link for javascript: remediationUrl", () => {
+    renderPage("?errorClass=ConditionalAccessBlock&correlationId=c&remediationUrl=javascript%3Aalert(document.cookie)");
+    expect(screen.queryByRole("link", { name: /remediat|open/i })).not.toBeInTheDocument();
+  });
+  it("security #363: does NOT render a link for data: remediationUrl", () => {
+    renderPage("?errorClass=ConditionalAccessBlock&correlationId=c&remediationUrl=data%3Atext%2Fhtml%2C%3Cscript%3Ealert(1)%3C%2Fscript%3E");
+    expect(screen.queryByRole("link", { name: /remediat|open/i })).not.toBeInTheDocument();
+  });
+  it("security #363: does NOT render a link for http: remediationUrl", () => {
+    renderPage("?errorClass=ConditionalAccessBlock&correlationId=c&remediationUrl=http%3A%2F%2Fevil.example.com%2Fsteal");
+    expect(screen.queryByRole("link", { name: /remediat|open/i })).not.toBeInTheDocument();
+  });
+  it("security #363: accepts a well-formed https:// remediationUrl", () => {
+    renderPage("?errorClass=ConditionalAccessBlock&correlationId=c&remediationUrl=https%3A%2F%2Faka.ms%2Fconditional-access");
+    expect(screen.getByRole("link", { name: /remediat|open/i })).toHaveAttribute("href", "https://aka.ms/conditional-access");
+  });
 });

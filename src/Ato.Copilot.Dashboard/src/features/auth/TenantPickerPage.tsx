@@ -85,7 +85,7 @@ export default function TenantPickerPage() {
 
   const handleCspViewAll = () => {
     // FR-011 — bypass /select-tenant; the CSP dashboard binds its own scope.
-    navigate('/csp/dashboard', { replace: true });
+    navigate("/", { replace: true }); // fix #361: /csp/dashboard retired
   };
 
   return (
