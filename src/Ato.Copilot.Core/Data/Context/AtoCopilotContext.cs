@@ -522,6 +522,12 @@ public class AtoCopilotContext : DbContext
     /// </summary>
     public DbSet<OrgControlOverride> OrgControlOverrides => Set<OrgControlOverride>();
 
+    /// <summary>
+    /// Org-user subscriptions to Published CSP capabilities
+    /// (UF-CSP-01/02/03 — spec-070).
+    /// </summary>
+    public DbSet<CapabilitySubscription> CapabilitySubscriptions => Set<CapabilitySubscription>();
+
     //
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -3623,6 +3629,22 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => new { e.TenantId, e.ControlId })
                 .IsUnique()
                 .HasDatabaseName("IX_OrgControlOverride_TenantId_ControlId");
+        });
+
+        // ─── CapabilitySubscription (UF-CSP-01/02/03 — spec-070) ────────────
+        // Org-user subscriptions to Mapped CSP capabilities.
+        // Soft-delete pattern: IsActive=false instead of row deletion.
+        // Index on (RegisteredSystemId, CspInheritedCapabilityId) for the
+        // duplicate-check and per-system list queries.
+        modelBuilder.Entity<CapabilitySubscription>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.CspInheritedCapabilityId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.SubscribedBy).HasMaxLength(254);
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.CspInheritedCapabilityId })
+                .HasDatabaseName("IX_CapabilitySubscription_System_Capability");
         });
     }
 
