@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useMsal } from '@azure/msal-react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { DEFAULT_API_SCOPES } from './msalInstance';
 
@@ -30,6 +31,7 @@ import { DEFAULT_API_SCOPES } from './msalInstance';
  */
 export default function RequireAuth({ children }: { children: ReactNode }) {
   const { instance } = useMsal();
+  const navigate = useNavigate();
   const [state, setState] = useState<'probing' | 'authenticated' | 'redirecting'>('probing');
 
   useEffect(() => {
@@ -50,9 +52,10 @@ export default function RequireAuth({ children }: { children: ReactNode }) {
             ? (err as { response?: { status?: number } }).response?.status
             : undefined;
 
-        if (status === 401 || status === 403) {
-          // Not authenticated AND not a simulation session. Punt to
-          // Entra via MSAL with the deep-link state preserved.
+        if (status === 401) {
+          // Not authenticated. Punt to Entra via MSAL with the deep-link
+          // state preserved so the post-login callback returns the user
+          // to the page they requested.
           setState('redirecting');
           const deepLink =
             window.location.pathname + window.location.search + window.location.hash;
@@ -60,6 +63,13 @@ export default function RequireAuth({ children }: { children: ReactNode }) {
             scopes: DEFAULT_API_SCOPES,
             state: deepLink,
           });
+        } else if (status === 403) {
+          // Authenticated Entra identity but no SPIN Agent tenant assignment.
+          // Fix #362: previously treated 403 same as 401 → loginRedirect →
+          // user re-authenticates → gets 403 again → infinite loop.
+          // Navigate to the error page instead so the user gets actionable copy.
+          setState('redirecting');
+          navigate('/login/error?errorClass=NoTenantAssignment', { replace: true });
         } else {
           // Network / server error — show the login page so the user
           // can retry rather than spinning indefinitely.
