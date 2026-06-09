@@ -253,7 +253,7 @@ public static class TenantBootstrapService
         if (!isSingleTenantMode)
         {
             var nullCount = await CountNullTenantIdRowsAsync(
-                db, tenantScopedTables, isSqlServer, cancellationToken);
+                    db, tenantScopedTables, isSqlServer, logger, cancellationToken);
 
             if (nullCount > 0)
             {
@@ -278,7 +278,7 @@ public static class TenantBootstrapService
         var created = await EnsureDefaultTenantRowAsync(db, defaultId, logger, cancellationToken);
 
         var (rowsBackfilled, tablesTouched) = await BackfillNullTenantIdRowsAsync(
-            db, tenantScopedTables, defaultId, isSqlServer, cancellationToken);
+            db, tenantScopedTables, defaultId, isSqlServer, logger, cancellationToken);
 
         if (rowsBackfilled > 0)
         {
@@ -386,6 +386,7 @@ public static class TenantBootstrapService
         AtoCopilotContext db,
         IReadOnlyList<string> tables,
         bool isSqlServer,
+        ILogger logger,
         CancellationToken ct)
     {
         long total = 0;
@@ -398,11 +399,14 @@ public static class TenantBootstrapService
                     : $"SELECT COUNT(*) FROM \"{table}\" WHERE \"TenantId\" IS NULL";
                 total += await ExecuteScalarLongAsync(db, sql, ct);
             }
-            catch
+            catch (Exception ex)
             {
                 // Table may not have a TenantId column on this DB yet (test
                 // EnsureCreated may have used the model schema, in which case
                 // the column is non-NULL by EF default). Treat as 0 NULLs.
+                logger.LogWarning(ex,
+                    "CountNullTenantIdRowsAsync: error querying table {Table} — treated as 0 NULLs",
+                    table);
             }
         }
         return total;
@@ -414,6 +418,7 @@ public static class TenantBootstrapService
             IReadOnlyList<string> tables,
             Guid defaultId,
             bool isSqlServer,
+            ILogger logger,
             CancellationToken ct)
     {
         var touched = new List<string>();
@@ -433,9 +438,12 @@ public static class TenantBootstrapService
                     touched.Add(table);
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 // Best-effort — table or column may not exist yet on this DB.
+                logger.LogWarning(ex,
+                    "BackfillNullTenantIdRowsAsync: error updating table {Table} — skipping",
+                    table);
             }
         }
 
