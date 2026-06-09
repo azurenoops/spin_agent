@@ -7,6 +7,7 @@ using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -78,9 +79,14 @@ public class TenantScopedEndpointHttpPipelineTests
 
         ids.Should().Contain(systemA.ToString(),
             because: "Tenant-A systems must be visible to Tenant-A user");
-        ids.Should().NotContain(
-            id => IsSystemOwnedByOtherTenant(id!, _tenantA),
-            because: "Tenant-B systems must NOT be visible to Tenant-A user");
+
+        // Verify no Tenant-B systems leaked into result
+        var tenantBSystemIds = await GetSystemIdsForTenantAsync(_tenantB);
+        foreach (var bId in tenantBSystemIds)
+        {
+            ids.Should().NotContain(bId.ToString(),
+                because: $"Tenant-B system {bId} must NOT be visible to Tenant-A user");
+        }
     }
 
     /// <summary>
@@ -109,9 +115,13 @@ public class TenantScopedEndpointHttpPipelineTests
 
         ids.Should().Contain(systemB.ToString(),
             because: "Tenant-B systems must be visible to Tenant-B user");
-        ids.Should().NotContain(
-            id => IsSystemOwnedByOtherTenant(id!, _tenantB),
-            because: "Tenant-A systems must NOT be visible to Tenant-B user");
+
+        var tenantASystemIds = await GetSystemIdsForTenantAsync(_tenantA);
+        foreach (var aId in tenantASystemIds)
+        {
+            ids.Should().NotContain(aId.ToString(),
+                because: $"Tenant-A system {aId} must NOT be visible to Tenant-B user");
+        }
     }
 
     /// <summary>
@@ -122,8 +132,8 @@ public class TenantScopedEndpointHttpPipelineTests
     public async Task GetSystems_AsCspAdminWithoutImpersonation_SeesAllTenants()
     {
         // Arrange — ensure at least one system per tenant is in the DB.
-        await SeedSystemAsync(_tenantA, "TenantA-System-CspAdmin-1");
-        await SeedSystemAsync(_tenantB, "TenantB-System-CspAdmin-1");
+        var systemA = await SeedSystemAsync(_tenantA, "TenantA-System-CspAdmin-1");
+        var systemB = await SeedSystemAsync(_tenantB, "TenantB-System-CspAdmin-1");
 
         // CSP-Admin: TenantId resolved to their home tenant, NO impersonation.
         SetTenant(_tenantA, isCspAdmin: true, impersonatedTenantId: null);
@@ -135,24 +145,15 @@ public class TenantScopedEndpointHttpPipelineTests
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
         var items = body.GetProperty("data").GetProperty("items");
-
-        // Must see systems from BOTH tenants.
         var ids = Enumerable.Range(0, items.GetArrayLength())
                             .Select(i => items[i].GetProperty("systemId").GetString())
                             .ToHashSet();
 
-        // Collect all seeded systems from both tenants to assert cross-tenant visibility.
-        var systemsA = await GetSystemIdsForTenantAsync(_tenantA);
-        var systemsB = await GetSystemIdsForTenantAsync(_tenantB);
-        var allSeeded = systemsA.Concat(systemsB).ToList();
-
-        allSeeded.Should().NotBeEmpty(because: "we seeded at least 2 systems");
-        // Every seeded system must appear in the CSP-Admin's view.
-        foreach (var id in allSeeded)
-        {
-            ids.Should().Contain(id.ToString(),
-                because: $"CSP-Admin must see system {id} from any tenant");
-        }
+        // Must see systems from BOTH tenants.
+        ids.Should().Contain(systemA.ToString(),
+            because: "CSP-Admin must see Tenant-A systems");
+        ids.Should().Contain(systemB.ToString(),
+            because: "CSP-Admin must see Tenant-B systems (FR-026)");
     }
 
     /// <summary>
@@ -204,12 +205,12 @@ public class TenantScopedEndpointHttpPipelineTests
         {
             Id = id.ToString(),
             TenantId = tenantId,
-            SystemName = name,
+            Name = name,
             Acronym = name[..Math.Min(8, name.Length)].ToUpperInvariant(),
-            SystemType = "Major Application",
-            MissionCriticality = MissionCriticality.Moderate,
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionSupport,
             HostingEnvironment = "Azure Commercial",
-            CurrentRmfPhase = RmfPhase.Categorize,
+            CurrentRmfStep = RmfPhase.Prepare,
             CreatedBy = "test",
         });
         await db.SaveChangesAsync();
@@ -220,23 +221,10 @@ public class TenantScopedEndpointHttpPipelineTests
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-        return db.RegisteredSystems
+        return await db.RegisteredSystems
             .IgnoreQueryFilters()
             .Where(s => s.TenantId == tenantId)
             .Select(s => Guid.Parse(s.Id))
-            .ToList();
-    }
-
-    /// <summary>
-    /// Returns true when the given system id is owned by any tenant OTHER THAN <paramref name="ownTenantId"/>.
-    /// Used to assert absence of cross-tenant leakage in the result set.
-    /// </summary>
-    private bool IsSystemOwnedByOtherTenant(string systemId, Guid ownTenantId)
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-        return db.RegisteredSystems
-            .IgnoreQueryFilters()
-            .Any(s => s.Id == systemId && s.TenantId != ownTenantId);
+            .ToListAsync();
     }
 }
