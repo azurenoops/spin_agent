@@ -25,6 +25,20 @@
 # ────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
+# ── Resolve Python interpreter (python3 not in PATH on Windows/MSYS) ───────
+# Prefer python3 if present; fall back to the Hermes venv python; then plain python.
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON="python3"
+elif [ -f "/c/Users/zeus_bot/AppData/Local/hermes/hermes-agent/venv/Scripts/python" ]; then
+  PYTHON="/c/Users/zeus_bot/AppData/Local/hermes/hermes-agent/venv/Scripts/python"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON="python"
+else
+  echo "✗ No Python interpreter found. Install Python 3 or set up the Hermes venv." >&2
+  exit 2
+fi
+echo "Using Python: $PYTHON ($($PYTHON --version 2>&1))"
+
 if [ -z "${ATO_BASE_URL:-}" ]; then
   if [ -z "${ATO_SERVER_PORT:-}" ] && [ -f "$(dirname "$0")/../.env" ]; then
     # shellcheck disable=SC1090,SC2046
@@ -66,7 +80,7 @@ preflight() {
 # ── Lookup an existing component by exact name (echo GUID or "") ──────────
 find_component_id() {
   local name="$1"
-  python3 - "$name" "$BASE" <<'PY' 2>/dev/null || true
+  $PYTHON - "$name" "$BASE" <<'PY' 2>/dev/null || true
 import json, sys, urllib.request, urllib.error
 name, base = sys.argv[1], sys.argv[2]
 try:
@@ -90,13 +104,13 @@ create_or_get_component() {
     echo "$existing"; return 0
   fi
   local body
-  body=$(python3 -c '
+  body=$($PYTHON -c '
 import json, sys
 print(json.dumps({"name": sys.argv[1], "description": sys.argv[2], "componentType": sys.argv[3]}))
 ' "$name" "$desc" "$ctype")
   local resp
   resp=$(curl -sS -X POST "$BASE" -H "$H_CT" -d "$body")
-  echo "$resp" | python3 -c '
+  echo "$resp" | $PYTHON -c '
 import json, sys
 env = json.load(sys.stdin)
 if env.get("status") != "success":
@@ -109,7 +123,7 @@ print(env["data"]["id"])
 # ── Lookup an existing capability by exact name (echo GUID or "") ─────────
 find_capability_id() {
   local cid="$1"; local cap_name="$2"
-  python3 - "$BASE" "$cid" "$cap_name" <<'PY' 2>/dev/null || true
+  $PYTHON - "$BASE" "$cid" "$cap_name" <<'PY' 2>/dev/null || true
 import json, sys, urllib.request
 base, cid, name = sys.argv[1], sys.argv[2], sys.argv[3]
 try:
@@ -134,7 +148,7 @@ add_capability() {
     return 0
   fi
   local body
-  body=$(python3 -c '
+  body=$($PYTHON -c '
 import json, sys
 print(json.dumps({
   "name": sys.argv[1],
@@ -145,7 +159,7 @@ print(json.dumps({
   local resp
   resp=$(curl -sS -X POST "$BASE/$cid/capabilities" -H "$H_CT" -d "$body")
   local newid
-  newid=$(echo "$resp" | python3 -c '
+  newid=$(echo "$resp" | $PYTHON -c '
 import json, sys
 env = json.load(sys.stdin)
 if env.get("status") != "success":
@@ -179,6 +193,8 @@ preflight
 
 echo "=== Creating CSP-inherited components + capabilities (idempotent) ==="
 
+# ── IDENTITY & ACCESS ─────────────────────────────────────────────────────
+
 seed "Microsoft Entra ID" "Identity" \
   "Cloud identity & access management — SSO, MFA, conditional access, PIM." \
   "Multi-Factor Authentication" \
@@ -187,6 +203,26 @@ seed "Microsoft Entra ID" "Identity" \
   "Role-Based Access Control" \
     "Least-privilege access via Entra ID RBAC roles + PIM just-in-time elevation with periodic access reviews." \
     "AC-2,AC-3,AC-6"
+
+seed "Microsoft Entra ID P2" "Identity" \
+  "Premium identity protection — risk-based conditional access, Identity Protection, and advanced PIM governance." \
+  "Identity Risk Detection" \
+    "ML-driven sign-in and user risk policies that block or step-up authentication on anomalous events." \
+    "AC-7,IA-2,SI-4" \
+  "Access Reviews & Governance" \
+    "Automated periodic access reviews for privileged and group memberships with auto-removal of stale access." \
+    "AC-2,AC-6,AU-6"
+
+seed "Privileged Identity Management" "Identity" \
+  "Just-in-time privileged access with approval workflows, time-limited role activation, and full audit trail." \
+  "Just-in-Time Privileged Access" \
+    "Eligible role assignments require MFA + manager approval; sessions expire automatically after set duration." \
+    "AC-2,AC-3,AC-6" \
+  "Privileged Access Audit Trail" \
+    "All PIM activations, approvals, and denials logged to Entra audit logs and forwarded to Sentinel." \
+    "AU-2,AU-9,AU-12"
+
+# ── SECURITY ──────────────────────────────────────────────────────────────
 
 seed "Microsoft Sentinel" "Service" \
   "Cloud-native SIEM/SOAR — log aggregation, correlation, and automated incident response." \
@@ -206,8 +242,104 @@ seed "Microsoft Defender for Cloud" "Service" \
     "Continuous OS / container / app vulnerability scanning prioritized by exploitability and asset criticality." \
     "RA-5,SI-2"
 
-seed "Azure Key Vault" "Service" \
-  "Secrets / keys / certificate management — FIPS 140-2 Level 2 HSMs, fully audit-logged." \
+seed "Microsoft Defender for Endpoint" "Service" \
+  "Enterprise endpoint EDR — detection, automated investigation, attack-surface reduction, TVM." \
+  "Endpoint Detection & Response" \
+    "Real-time endpoint threat detection + automated investigation across Windows, Linux, and macOS endpoints." \
+    "SI-3,SI-4" \
+  "Attack Surface Reduction" \
+    "Hardware-based isolation, application control, exploit protection, and controlled folder access policies." \
+    "CM-7,SI-3"
+
+seed "Microsoft Defender for Identity" "Service" \
+  "Identity threat detection using Active Directory signals — lateral movement, pass-the-hash, golden ticket." \
+  "Active Directory Threat Detection" \
+    "Behavioral analytics on on-prem AD traffic detect reconnaissance, credential theft, and lateral movement." \
+    "SI-4,AU-6,IR-4" \
+  "Compromised Account Response" \
+    "Automated account disable and password-reset playbooks triggered on high-confidence identity compromise alerts." \
+    "IR-4,IR-5,AC-2"
+
+seed "Microsoft Defender for Office 365" "Service" \
+  "Email & collaboration threat protection — anti-phishing, safe links, safe attachments, attack simulation." \
+  "Anti-Phishing & Email Security" \
+    "AI-based anti-phishing, impersonation protection, and spoof intelligence for all inbound mail." \
+    "SI-3,SC-7" \
+  "Attack Simulation Training" \
+    "Tenant-wide phishing simulation campaigns with automated training assignment for susceptible users." \
+    "AT-2,AT-3"
+
+# ── INFRASTRUCTURE ────────────────────────────────────────────────────────
+
+seed "Azure Policy Engine" "Platform" \
+  "Policy-as-code — deny / audit / auto-remediation enforced at every resource deployment." \
+  "Infrastructure Policy Enforcement" \
+    "Centrally authored guardrails enforced on every ARM/Bicep deployment with drift auto-remediation." \
+    "CM-2,CM-6" \
+  "Regulatory Compliance Initiative" \
+    "Built-in NIST SP 800-53 R5, DoD IL5, and FedRAMP High policy initiatives with continuous compliance scoring." \
+    "CA-2,CA-7,CM-6"
+
+seed "Azure Blueprints" "Platform" \
+  "Repeatable governance packages — subscriptions are deployed with pre-approved RBAC, policies, and resources." \
+  "Subscription Governance Scaffolding" \
+    "Blueprint assignments lock resource groups, apply deny-policies, and pre-provision Log Analytics workspaces." \
+    "CM-2,CM-6,AC-3" \
+  "Artifact Version Control" \
+    "Blueprint definitions are version-controlled and promoted through dev → staging → prod with change approval." \
+    "CM-3,CM-5"
+
+seed "Azure Monitor & Log Analytics" "Service" \
+  "Full-stack observability — metrics, logs, distributed tracing, and alerting across Azure and hybrid workloads." \
+  "Centralized Log Collection" \
+    "All Azure resource diagnostic logs, activity logs, and custom app logs streamed to a central Log Analytics workspace." \
+    "AU-2,AU-3,AU-12" \
+  "Alerting & Anomaly Detection" \
+    "Metric alerts, log-query alerts, and smart anomaly detection with PagerDuty / Teams / email notification routing." \
+    "AU-6,SI-4"
+
+# ── NETWORK ───────────────────────────────────────────────────────────────
+
+seed "Azure Firewall Premium" "Network" \
+  "Cloud-native L3-L7 firewall with threat intelligence, TLS inspection, IDPS, and centralized policy management." \
+  "Network Segmentation & Filtering" \
+    "Defense-in-depth with NSGs, private endpoints, and deny-by-default rules; centrally authored policy." \
+    "SC-7,AC-4" \
+  "TLS Inspection & IDPS" \
+    "Premium tier deep-packet inspection with signature-based IDPS and TLS termination for east-west traffic." \
+    "SC-7,SC-8,SI-4"
+
+seed "Azure DDoS Protection" "Network" \
+  "Always-on DDoS mitigation tuned to Azure workloads — volumetric, protocol, and application-layer attack defense." \
+  "Volumetric Attack Mitigation" \
+    "Automatic traffic profiling and real-time mitigation for L3/L4 floods with SLA-backed response guarantees." \
+    "SC-5,SC-7" \
+  "DDoS Telemetry & Rapid Response" \
+    "Detailed attack telemetry integrated into Azure Monitor with access to DDoS Rapid Response expert team." \
+    "IR-4,SI-4"
+
+seed "Azure Private DNS & Private Endpoints" "Network" \
+  "Private DNS zones + Private Endpoints eliminate public exposure of PaaS services inside the virtual network." \
+  "Private Connectivity to PaaS" \
+    "Storage, SQL, Key Vault, and Container Registry accessed over private IP only — no public endpoints." \
+    "SC-7,AC-4" \
+  "DNS Security" \
+    "Private DNS zones prevent DNS hijacking; custom resolvers enforce split-horizon DNS for hybrid workloads." \
+    "SC-7,SC-20"
+
+seed "Azure Front Door Premium" "Network" \
+  "Global anycast load balancer with WAF, DDoS, caching, and private-origin connectivity for internet-facing apps." \
+  "Web Application Firewall" \
+    "Managed and custom WAF rule sets block OWASP Top-10 and bot traffic at the edge before reaching origin." \
+    "SC-7,SI-3" \
+  "Global Traffic Acceleration & HA" \
+    "Anycast routing with health probes and automatic failover delivers sub-100ms latency SLA globally." \
+    "SC-5,CP-7"
+
+# ── DATA PROTECTION ───────────────────────────────────────────────────────
+
+seed "Azure Key Vault Premium" "Service" \
+  "Secrets / keys / certificate management — FIPS 140-3 Level 3 HSMs, fully audit-logged." \
   "Certificate-Based Authentication" \
     "X.509 and TLS certificate lifecycle management with HSM-backed keys, automated rotation, and expiry alerts." \
     "IA-5,SC-12" \
@@ -215,35 +347,83 @@ seed "Azure Key Vault" "Service" \
     "Customer-managed encryption keys + TLS 1.2+ enforcement across storage, SQL TDE, and service bus." \
     "SC-8,SC-13,SC-28"
 
-seed "Azure Firewall" "Network" \
-  "Cloud-native L3-L7 firewall with threat intelligence, TLS inspection, and centralized policy management." \
-  "Network Segmentation & Filtering" \
-    "Defense-in-depth with NSGs, private endpoints, and deny-by-default rules; centrally authored policy." \
-    "SC-7,AC-4"
+seed "Microsoft Purview" "Service" \
+  "Unified data governance — data classification, sensitivity labeling, data loss prevention, and audit." \
+  "Data Classification & Labeling" \
+    "Automatic and user-applied sensitivity labels on files, emails, and Teams messages based on content patterns." \
+    "MP-3,SC-28,AC-16" \
+  "Data Loss Prevention" \
+    "DLP policies block or warn on exfiltration of CUI, PII, and classified content across M365 and endpoints." \
+    "AC-4,SC-8,SI-12"
 
-seed "Microsoft Defender for Endpoint" "Service" \
-  "Enterprise endpoint EDR — detection, automated investigation, attack-surface reduction, TVM." \
-  "Endpoint Detection & Response" \
-    "Real-time endpoint threat detection + automated investigation across Windows, Linux, and macOS endpoints." \
-    "SI-3,SI-4"
+seed "Azure Information Protection" "Service" \
+  "Rights-based document protection — encryption and access policies travel with files outside the tenant boundary." \
+  "Persistent Document Encryption" \
+    "AIP labels apply persistent AES-256 encryption; access is revoked server-side even after document distribution." \
+    "SC-13,SC-28,AC-4" \
+  "External Sharing Controls" \
+    "B2B guest access and external sharing governed by AIP + Entra Conditional Access with expiry and audit." \
+    "AC-3,AC-20,AU-2"
+
+# ── COMPUTE ───────────────────────────────────────────────────────────────
+
+seed "Azure Kubernetes Service (AKS)" "Compute" \
+  "Managed Kubernetes for containerized workloads — private clusters, RBAC, network policies, and image scanning." \
+  "Container Workload Isolation" \
+    "Private AKS clusters with Azure CNI, network policies, and pod identity enforce workload micro-segmentation." \
+    "SC-7,AC-4,CM-7" \
+  "Container Image Security" \
+    "Defender for Containers scans images in ACR and at runtime; admission control blocks non-compliant images." \
+    "RA-5,CM-7,SI-3"
+
+seed "Azure App Service (PaaS)" "Compute" \
+  "Managed web application hosting — private endpoints, managed identity, TLS, and deployment slot governance." \
+  "Secure Web Application Hosting" \
+    "App Service Environments (ASE) in VNet with private endpoints, managed identity, and Key Vault integration." \
+    "SC-7,IA-3,SC-28" \
+  "Deployment Governance" \
+    "Deployment slots with traffic split, rollback capability, and CI/CD gate approvals via Azure DevOps." \
+    "CM-3,CM-5"
+
+# ── STORAGE & DISASTER RECOVERY ───────────────────────────────────────────
 
 seed "Azure Backup & Site Recovery" "Service" \
   "Automated backup + geo-redundant disaster recovery — cross-region failover, RPO < 15m, RTO < 1h." \
   "Backup & Disaster Recovery" \
     "Policy-driven backup with geo-redundant storage and quarterly DR-failover tests." \
-    "CP-9,CP-10"
+    "CP-9,CP-10" \
+  "Ransomware-Resistant Backup" \
+    "Soft-delete, immutable vault policies, and MUA (multi-user authorization) prevent backup tampering." \
+    "CP-9,SI-3"
 
-seed "Azure Policy Engine" "Platform" \
-  "Policy-as-code — deny / audit / auto-remediation enforced at every resource deployment." \
-  "Infrastructure Policy Enforcement" \
-    "Centrally authored guardrails enforced on every ARM/Bicep deployment with drift auto-remediation." \
-    "CM-2,CM-6"
+seed "Azure Storage (GRS/RA-GZRS)" "Storage" \
+  "Object, file, and block storage with geo-redundant replication, encryption, and immutability policies." \
+  "Geo-Redundant Data Durability" \
+    "Read-access geo-zone-redundant storage (RA-GZRS) replicates data across paired regions for 16-nines durability." \
+    "CP-6,CP-9" \
+  "Immutable Storage & Compliance" \
+    "WORM (write-once-read-many) policies on Blob Storage for audit log and evidence immutability." \
+    "AU-9,AU-10,CP-9"
+
+# ── COMPLIANCE & GOVERNANCE ───────────────────────────────────────────────
+
+seed "Microsoft Compliance Manager" "Service" \
+  "Risk-based compliance score, control mapping to NIST/CMMC/FedRAMP, and assessment workflow management." \
+  "Compliance Score & Gap Analysis" \
+    "Automated evidence collection from M365 and Azure services mapped to NIST SP 800-53 controls with score trending." \
+    "CA-2,CA-7,PL-2" \
+  "Assessment Action Management" \
+    "Improvement actions assigned to owners with due dates, evidence upload, and status tracking in Compliance Manager." \
+    "CA-2,CA-5,PM-6"
 
 seed "Azure Government Cloud Region" "Infrastructure" \
   "FedRAMP High / DoD IL5 accredited hosting infrastructure (US Gov Virginia, Texas, Arizona regions)." \
   "Physical & Environmental Protection" \
     "Tier-IV data-centers with biometric access, redundant power/cooling, and DoD-cleared personnel." \
-    "PE-2,PE-3,PE-13"
+    "PE-2,PE-3,PE-13" \
+  "Sovereign Data Residency" \
+    "All data at rest and in transit remains within US Government cloud boundary; screened US persons only." \
+    "SA-9,SC-28,AC-20"
 
 echo ""
 echo "=== Done ==="
