@@ -755,7 +755,16 @@ async Task MigrateDatabaseAsync(IServiceProvider services)
 
     try
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var dbOptions = scope.ServiceProvider
+            .GetService<Microsoft.Extensions.Options.IOptions<Ato.Copilot.Core.Configuration.DatabaseOptions>>()?.Value
+            ?? new Ato.Copilot.Core.Configuration.DatabaseOptions();
+
+        // Use configurable migration timeout (default 300 s).
+        // The previous hardcoded 60 s was insufficient on Azure Container Apps with
+        // Managed Identity SQL auth: cold-start token acquisition alone takes 20–30 s,
+        // leaving less than 30 s for EnsureCreatedAsync + schema additions.
+        // Root cause of revision ActivationFailed (issue #386).
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(dbOptions.MigrationTimeoutSeconds));
         var provider = scope.ServiceProvider.GetRequiredService<IConfiguration>()
             .GetValue<string>("Database:Provider") ?? "SQLite";
 
