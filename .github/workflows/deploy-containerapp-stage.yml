@@ -240,11 +240,18 @@ jobs:
           ENV_ARGS_BASE=""
           if [ "${{ inputs.include_mcp_env_vars }}" = "true" ]; then
             ENV_ARGS_BASE="ASPNETCORE_URLS=http://+:3001 ATO_RUN_MODE=http"
-            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_GATEWAY__AZURE__CLOUDENVIRONMENT=${{ vars.ATO_GATEWAY_AZURE_CLOUDENVIRONMENT || 'AzureGovernment' }}"
-            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENABLED=${{ vars.ATO_AZUREAI_ENABLED || 'false' }}"
+            # ATO_GATEWAY_AZURE_CLOUDENVIRONMENT: repo var (required). Safe fallback is AzureCloud
+            # (this deployment targets Azure Commercial, not Azure Government).
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_GATEWAY__AZURE__CLOUDENVIRONMENT=${{ vars.ATO_GATEWAY_AZURE_CLOUDENVIRONMENT || 'AzureCloud' }}"
+            # ATO_AZUREAI_ENABLED: repo var (required). Safe fallback is true — AI is needed for
+            # all MCP tool invocations. false causes startup to bypass AI client registration
+            # but the revision still activates; the real issue is empty endpoint + enabled=true.
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENABLED=${{ vars.ATO_AZUREAI_ENABLED || 'true' }}"
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__PROVIDER=${{ vars.ATO_AZUREAI_PROVIDER || 'OpenAi' }}"
-            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENDPOINT=${{ vars.ATO_AZUREAI_ENDPOINT || '' }}"
-            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-4o' }}"
+            # ATO_AZUREAI_ENDPOINT: repo var (required). Must be set — empty value prevents
+            # AI client registration and causes revision activation failure.
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENDPOINT=${{ vars.ATO_AZUREAI_ENDPOINT }}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-5.4-mini' }}"
           elif [ "${{ inputs.workload }}" = "dashboard" ]; then
             MCP_OVERRIDE="${{ inputs.mcp_base_url_override }}"
             if [ -n "$MCP_OVERRIDE" ]; then
