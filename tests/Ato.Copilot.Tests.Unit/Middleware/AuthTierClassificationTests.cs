@@ -16,6 +16,13 @@ namespace Ato.Copilot.Tests.Unit.Middleware;
 /// T080: IsTier2() returns true for all Tier 2 tools, false for Tier 1 tools.
 /// T085: Verify two-tier classification with AUTH_REQUIRED envelope and Tier 1 pass-through.
 /// </summary>
+/// <remarks>
+/// [Collection("MiddlewareEnvTests")] — shares a sequential xUnit collection with
+/// <see cref="SimulatedRoleHeaderStripTests"/> and <see cref="CacAuthenticationMiddlewareTests"/>.
+/// All three classes mutate the process-wide ASPNETCORE_ENVIRONMENT env var;
+/// sequential execution prevents race conditions.
+/// </remarks>
+[Collection("MiddlewareEnvTests")]
 public class AuthTierClassificationTests
 {
     // ─── Tier 2 tools should return true ─────────────────────────────────────
