@@ -49,4 +49,14 @@ public class DatabaseOptions
     /// </summary>
     [Range(1, 300)]
     public int MaxRetryDelay { get; set; } = 30;
+
+    /// <summary>
+    /// Overall timeout in seconds for the startup database migration / schema-ensure
+    /// operation (the <c>CancellationTokenSource</c> wrapping <c>MigrateDatabaseAsync</c>).
+    /// On Azure Container Apps with Managed Identity SQL auth, cold-start token acquisition
+    /// can take 20–30 s before the first connection attempt, so this must be well above
+    /// <c>CommandTimeoutSeconds × MaxRetryCount</c>. Default: 300 s (5 minutes).
+    /// </summary>
+    [Range(30, 1800)]
+    public int MigrationTimeoutSeconds { get; set; } = 300;
 }
