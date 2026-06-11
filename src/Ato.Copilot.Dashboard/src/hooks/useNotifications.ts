@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as signalR from '@microsoft/signalr';
 import apiClient from '../api/client';
+import { getMsalInstance, DEFAULT_API_SCOPES } from '../features/auth/msalInstance';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -86,8 +87,28 @@ export function useNotifications(userId: string = 'dashboard-user') {
     const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/dashboard', '') || '';
     const hubUrl = `${baseUrl}/hubs/notifications`;
 
+    // Issue #368 — accessTokenFactory wires MSAL bearer into the SignalR
+    // WebSocket upgrade handshake (and reconnects). Without it the hub's
+    // [Authorize] attribute returns 401 on the negotiate request, silently
+    // falling back to the no-op error path and never receiving real-time
+    // push events (Feature 051 § 3.3, FR-005).
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl)
+      .withUrl(hubUrl, {
+        accessTokenFactory: async () => {
+          try {
+            const msal = getMsalInstance();
+            const accounts = msal.getAllAccounts();
+            if (!accounts.length) return '';
+            const result = await msal.acquireTokenSilent({
+              scopes: DEFAULT_API_SCOPES,
+              account: accounts[0]!,
+            });
+            return result.accessToken;
+          } catch {
+            return '';
+          }
+        },
+      })
       .withAutomaticReconnect()
       .build();
 

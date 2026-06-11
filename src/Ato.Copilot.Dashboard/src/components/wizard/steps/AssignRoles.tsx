@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { fetchRoles, assignRole } from '../../../api/roles';
-import type { RoleAssignment } from '../../../api/roles';
+// Issue #366 — migrate from deprecated fetchRoles/assignRole to rolesApi
+// (FR-008 / FR-010 unified role endpoints, Feature 049).
+import { rolesApi } from '../../../api/roles';
+import type { ResolvedRoleAssignment, RmfRole } from '../../../types/roles';
 import apiClient from '../../../api/client';
 
 const RMF_ROLES = [
@@ -32,12 +34,14 @@ interface AssignRolesProps {
 }
 
 export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesProps) {
-  const [assignments, setAssignments] = useState<RoleAssignment[]>([]);
+  const [assignments, setAssignments] = useState<ResolvedRoleAssignment[]>([]);
   const [persons, setPersons] = useState<PersonOption[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchRoles(systemId).then(setAssignments).catch(() => {});
+    rolesApi.getSystemRoles(systemId)
+      .then((res) => setAssignments(res.roles.filter((r) => r.source !== 'not-assigned')))
+      .catch(() => {});
     apiClient.get('/components', { params: { type: 'Person', pageSize: 200 } })
       .then((res) => setPersons(res.data.items ?? []))
       .catch(() => {});
@@ -48,12 +52,16 @@ export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesP
   const handleAssign = async (role: string, person: PersonOption) => {
     setSaving(role);
     try {
-      const result = await assignRole(systemId, {
-        role,
-        userId: person.id,
-        userDisplayName: person.personName || person.name,
+      const result = await rolesApi.assignSystemRole(systemId, {
+        role: role as RmfRole,
+        personId: person.id,
       });
-      setAssignments((prev) => [...prev.filter((a) => a.role !== role), result]);
+      if (result.status === 'error') {
+        onErrors({ [role]: [result.error?.message ?? 'Failed to assign role'] });
+        return;
+      }
+      const updated = await rolesApi.getSystemRoles(systemId);
+      setAssignments(updated.roles.filter((r) => r.source !== 'not-assigned'));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to assign role';
       onErrors({ [role]: [msg] });
@@ -76,14 +84,14 @@ export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesP
                 <div className="text-sm font-medium text-gray-900">{ROLE_LABELS[role]}</div>
                 {current ? (
                   <div className="text-xs text-green-600 mt-0.5">
-                    Assigned to: {current.userDisplayName ?? current.userId}
+                    Assigned to: {current.person?.displayName ?? '—'}
                   </div>
                 ) : (
                   <div className="text-xs text-gray-400 mt-0.5">Unassigned</div>
                 )}
               </div>
               <select
-                value={current?.userId ?? ''}
+                value={current?.person?.id ?? ''}
                 onChange={(e) => {
                   const person = persons.find((p) => p.id === e.target.value);
                   if (person) handleAssign(role, person);

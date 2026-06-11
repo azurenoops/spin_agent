@@ -1,7 +1,12 @@
 /**
  * Wave 6 — GAP-016: Audit Log page.
+ * Wave 8 — Feature 051 / US10: Login event audit trail (FR-032–FR-038).
  *
  * Surfaces GET /api/audit with filterable, sortable, paginated event table.
+ * Login-specific event types (LoginSuccess, LoginFailure, IdleSignOut,
+ * SimulationBlocked, ImpersonationStart, ImpersonationEnd, TenantSwitch)
+ * include surface + correlationId columns per FR-032.
+ *
  * Accessible at /audit (RequireAuth + CSP.Admin / Auditor).
  */
 import { useState, useCallback } from 'react';
@@ -22,6 +27,9 @@ interface AuditLogEntry {
   impersonatedTenantName: string | null;
   timestamp: string;
   ipAddress: string | null;
+  // Feature 051 / US10 (FR-032) — login-event-specific fields.
+  surface: string | null;
+  correlationId: string | null;
 }
 
 interface AuditLogPage {
@@ -33,14 +41,22 @@ interface AuditLogPage {
 
 const PAGE_SIZE = 50;
 
+// Feature 051 / US10 — expanded to cover all login event types (FR-032, FR-035).
 const ACTION_COLORS: Record<string, string> = {
   Impersonation: 'bg-violet-100 text-violet-800',
   ImpersonationEnd: 'bg-violet-100 text-violet-600',
+  ImpersonationStart: 'bg-violet-100 text-violet-800',
   TenantStatusChange: 'bg-amber-100 text-amber-800',
+  TenantSwitch: 'bg-amber-100 text-amber-700',
   Login: 'bg-green-100 text-green-700',
+  LoginSuccess: 'bg-green-100 text-green-700',
+  LoginFailure: 'bg-red-100 text-red-700',
+  IdleSignOut: 'bg-orange-100 text-orange-700',
   Logout: 'bg-gray-100 text-gray-600',
   Export: 'bg-indigo-100 text-indigo-700',
   Migration: 'bg-red-100 text-red-700',
+  SimulationBlocked: 'bg-rose-100 text-rose-800',
+  SimulatedLogin: 'bg-yellow-100 text-yellow-800',
 };
 
 function ActionBadge({ action }: { action: string }) {
@@ -143,15 +159,17 @@ export default function AuditLogPage() {
               <th className="px-4 py-3 text-left">Timestamp</th>
               <th className="px-4 py-3 text-left">Action</th>
               <th className="px-4 py-3 text-left">Actor</th>
+              <th className="px-4 py-3 text-left">Surface</th>
               <th className="px-4 py-3 text-left">Entity</th>
               <th className="px-4 py-3 text-left">Detail</th>
+              <th className="px-4 py-3 text-left">Correlation ID</th>
               <th className="px-4 py-3 text-left">IP</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
                   <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent mr-2" />
                   Loading audit log…
                 </td>
@@ -159,7 +177,7 @@ export default function AuditLogPage() {
             )}
             {!loading && data?.items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">No events match your filters.</td>
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">No events match your filters.</td>
               </tr>
             )}
             {!loading && data?.items.map((entry) => (
@@ -176,11 +194,17 @@ export default function AuditLogPage() {
                     <span className="ml-1 text-xs text-violet-600">(impersonating {entry.impersonatedTenantName})</span>
                   )}
                 </td>
+                <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-500">
+                  {entry.surface ?? '—'}
+                </td>
                 <td className="px-4 py-2 text-xs text-gray-500">
                   {entry.entityType ? `${entry.entityType} ${entry.entityId ?? ''}` : '—'}
                 </td>
                 <td className="px-4 py-2 max-w-[280px] truncate text-gray-600 text-xs">
                   {entry.detail ?? '—'}
+                </td>
+                <td className="px-4 py-2 font-mono text-xs text-gray-400 max-w-[140px] truncate" title={entry.correlationId ?? ''}>
+                  {entry.correlationId ? entry.correlationId.substring(0, 8) + '…' : '—'}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-gray-400">
                   {entry.ipAddress ?? '—'}

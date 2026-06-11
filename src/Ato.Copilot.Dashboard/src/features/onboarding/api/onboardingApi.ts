@@ -11,6 +11,11 @@ import { getMsalInstance, DEFAULT_API_SCOPES } from '../../auth/msalInstance';
 const onboardingApi = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL_ONBOARDING || '/api/onboarding',
   headers: { 'Content-Type': 'application/json' },
+  // Issue #365 — withCredentials must be true so that the browser sends the
+  // MSAL session cookie alongside the Authorization: Bearer header in
+  // cross-origin configurations. Without this the backend 401s on CORS
+  // pre-flight + credentialed request pairs (FR-005, Feature 051 § 3.3).
+  withCredentials: true,
 });
 
 if (import.meta.env.DEV) {
