@@ -1,0 +1,152 @@
+name: Bootstrap CSP + Tenant Data (One-Shot)
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Resource group containing Azure SQL
+        required: true
+        default: rg-ato-copilot
+        type: string
+      sql_server_name:
+        description: Azure SQL server name (without .database.windows.net)
+        required: true
+        default: azsql-ato-copilot-04152047-902
+        type: string
+      sql_database_name:
+        description: Azure SQL database name
+        required: true
+        default: AtoCopilot
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Enable SQL public access + ensure SP is AAD admin
+        id: setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+
+          # Enable public network access
+          CURRENT=$(az sql server show -g "$RG" -n "$SQL_SERVER" \
+            --query publicNetworkAccess -o tsv)
+          if [ "$CURRENT" = "Disabled" ]; then
+            az sql server update -g "$RG" -n "$SQL_SERVER" \
+              --enable-public-network true --output none
+            echo "reenable_required=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reenable_required=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Add firewall rule for GitHub Actions runner IP
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          az sql server firewall-rule create \
+            --resource-group "$RG" --server "$SQL_SERVER" \
+            --name Allow-GHRunner-Bootstrap \
+            --start-ip-address "$RUNNER_IP" \
+            --end-ip-address "$RUNNER_IP" \
+            --output none
+          echo "Firewall rule added for $RUNNER_IP"
+
+          # Set SP as AAD admin
+          SP_OID=$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" \
+            --query id -o tsv 2>/dev/null || true)
+          EXISTING=$(az sql server ad-admin list -g "$RG" -n "$SQL_SERVER" \
+            --query "[0].login" -o tsv 2>/dev/null || true)
+          echo "existing_admin=$EXISTING" >> "$GITHUB_OUTPUT"
+          if [ "$EXISTING" != "${{ secrets.AZURE_CLIENT_ID }}" ]; then
+            az sql server ad-admin create \
+              -g "$RG" -s "$SQL_SERVER" \
+              --display-name "GH-Actions-SP" \
+              --object-id "$SP_OID" \
+              --output none
+            echo "sp_was_admin=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "sp_was_admin=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install go-sqlcmd
+        shell: bash
+        run: |
+          curl -fsSL https://github.com/microsoft/go-sqlcmd/releases/download/v1.8.0/sqlcmd-linux-amd64.tar.bz2 \
+            | sudo tar -xj -C /usr/local/bin sqlcmd
+          sqlcmd --version
+
+      - name: Run bootstrap-csp-and-tenants.sql
+        shell: bash
+        run: |
+          set -euo pipefail
+          SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
+
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt/3..."
+            if sqlcmd \
+                -S "${SQL_FQDN}" \
+                --authentication-method=ActiveDirectoryDefault \
+                -d "${{ github.event.inputs.sql_database_name }}" \
+                -i scripts/bootstrap-csp-and-tenants.sql; then
+              echo "Bootstrap SQL completed successfully."
+              break
+            fi
+            if [ $attempt -lt 3 ]; then
+              echo "Failed — waiting 20s before retry..."
+              sleep 20
+            else
+              echo "All attempts failed."
+              exit 1
+            fi
+          done
+
+      - name: Cleanup — firewall + AAD admin + public access
+        if: always()
+        shell: bash
+        run: |
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+
+          az sql server firewall-rule delete \
+            --resource-group "$RG" --server "$SQL_SERVER" \
+            --name Allow-GHRunner-Bootstrap \
+            --output none 2>/dev/null || true
+          echo "Firewall rule removed."
+
+          # Restore MI as AAD admin
+          MI_OID=$(az identity show \
+            --name id-ato-copilot-mcp \
+            --resource-group "$RG" \
+            --query principalId -o tsv 2>/dev/null || true)
+          if [ -n "$MI_OID" ]; then
+            az sql server ad-admin create \
+              -g "$RG" -s "$SQL_SERVER" \
+              --display-name "id-ato-copilot-mcp" \
+              --object-id "$MI_OID" \
+              --output none 2>/dev/null || true
+            echo "SQL AAD admin restored to id-ato-copilot-mcp."
+          fi
+
+          if [ "${{ steps.setup.outputs.reenable_required }}" = "true" ]; then
+            az sql server update \
+              -g "$RG" -n "$SQL_SERVER" \
+              --enable-public-network false --output none 2>/dev/null || true
+            echo "Public network access restored to Disabled."
+          fi
