@@ -401,7 +401,7 @@ public static class DashboardEndpoints
             .WithName("GetHeatmapControls");
 
         // ─── Gap Analysis (US4) ──────────────────────────────────────────────
-        group.MapGet("/systems/{systemId}/gaps", async (
+        group.MapGet("/systems/{systemId}/gap-analysis", async (
                 string systemId,
                 string? boundaryDefinitionId,
                 CapabilityService capService,
@@ -4329,7 +4329,7 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
                         }
                         else if (gateLower.Contains("baseline"))
                         {
-                            actionLink = $"/systems/{systemId}/gaps";
+                            actionLink = $"/systems/{systemId}/gap-analysis";
                             actionLabel = "Select Baseline";
                         }
                         else if (gateLower.Contains("narrative"))

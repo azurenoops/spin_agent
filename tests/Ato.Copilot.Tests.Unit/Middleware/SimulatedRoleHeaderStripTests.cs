@@ -19,6 +19,15 @@ namespace Ato.Copilot.Tests.Unit.Middleware;
 ///
 /// Reference: docs/architecture/adr-002-simulated-role-header-scope.md (PR #376).
 /// </summary>
+/// <remarks>
+/// [Collection("MiddlewareEnvTests")] — this test class and
+/// <see cref="AuthTierClassificationTests"/> / <see cref="CacAuthenticationMiddlewareTests"/>
+/// mutate the process-wide ASPNETCORE_ENVIRONMENT env var. xUnit runs all classes in the
+/// same named Collection sequentially (no parallelism), preventing race conditions where
+/// a "Production" env-var set by a sibling test bleeds into BuildServer("Development")
+/// and causes Development_PreservesHeader_WhenPresent to strip the header incorrectly.
+/// </remarks>
+[Collection("MiddlewareEnvTests")]
 public class SimulatedRoleHeaderStripTests
 {
     private const string HeaderName = "X-Simulated-Role";

@@ -1568,6 +1568,94 @@ public class CapabilityService
         var totalCovered = controlIds.Count(c => effectiveSet.Contains(c));
         var totalWaived = controlIds.Count(c => waivedSet.Contains(c));
 
+        // ─── Build per-control gap items for the GapAnalysis dashboard page ──
+        // Query existing ControlImplementation records for the unmapped controls
+        // so we can distinguish NoNarrative vs NotImplemented gaps.
+        var unmappedImplsByControlId = await _db.ControlImplementations
+            .Where(ci => ci.RegisteredSystemId == systemId && unmappedIds.Contains(ci.ControlId))
+            .AsNoTracking()
+            .ToDictionaryAsync(ci => ci.ControlId, cancellationToken);
+
+        // Resolve SecurityCapability owners for unmapped controls that have an impl linked
+        var capIdsForUnmapped = unmappedImplsByControlId.Values
+            .Where(ci => ci.SecurityCapabilityId != null)
+            .Select(ci => ci.SecurityCapabilityId!)
+            .Distinct()
+            .ToList();
+
+        var capOwnersByCapId = capIdsForUnmapped.Count > 0
+            ? await _db.SecurityCapabilities
+                .Where(c => capIdsForUnmapped.Contains(c.Id))
+                .AsNoTracking()
+                .ToDictionaryAsync(c => c.Id, c => c.Owner, cancellationToken)
+            : new Dictionary<string, string>();
+
+        var gapItems = new List<GapItemDto>();
+
+        foreach (var controlId in unmappedIds)
+        {
+            var nist = nistControls.GetValueOrDefault(controlId);
+            var controlTitle = nist?.Title ?? controlId;
+            var family = controlId.Contains('-')
+                ? controlId.Split('-')[0].ToUpperInvariant()
+                : controlId.ToUpperInvariant();
+
+            // Map NistControl.ImpactLevel → frontend severity bucket
+            var severity = (nist?.ImpactLevel ?? string.Empty).ToLowerInvariant() switch
+            {
+                "high"     => "Critical",
+                "moderate" => "High",
+                "low"      => "Moderate",
+                _          => "Low",
+            };
+
+            string gapType;
+            string detail;
+            string? responsible = null;
+
+            if (unmappedImplsByControlId.TryGetValue(controlId, out var impl))
+            {
+                // ControlImplementation exists — check narrative state
+                if (string.IsNullOrWhiteSpace(impl.Narrative))
+                {
+                    gapType = "NoNarrative";
+                    detail = "No implementation narrative has been written for this control.";
+                }
+                else
+                {
+                    // Narrative exists but control is still unmapped (no capability mapping) —
+                    // treat as NotImplemented since the capability coverage gap drives ATO risk.
+                    gapType = "NotImplemented";
+                    detail = "Control has a narrative but is not covered by any security capability mapping.";
+                }
+
+                if (impl.SecurityCapabilityId != null)
+                    responsible = capOwnersByCapId.GetValueOrDefault(impl.SecurityCapabilityId);
+            }
+            else
+            {
+                gapType = "NotImplemented";
+                detail = "No security capability mapping or implementation exists for this control.";
+            }
+
+            gapItems.Add(new GapItemDto
+            {
+                ControlId = controlId.ToUpperInvariant(),
+                ControlTitle = controlTitle,
+                GapType = gapType,
+                Severity = severity,
+                Detail = detail,
+                Responsible = responsible,
+                Family = family,
+            });
+        }
+
+        // Sort: Critical first, then by ControlId
+        gapItems = gapItems
+            .OrderBy(i => i.Severity switch { "Critical" => 0, "High" => 1, "Moderate" => 2, _ => 3 })
+            .ThenBy(i => i.ControlId)
+            .ToList();
+
         // Build per-boundary comparison when no boundary filter is specified
         List<BoundaryComparisonItemDto>? boundaryComparison = null;
         if (boundaryDefinitionId is null)
@@ -1618,6 +1706,12 @@ public class CapabilityService
                 ? Math.Round(100.0 * totalCovered / totalControls, 1) : 0,
             FamilyBreakdown = familyBreakdown,
             BoundaryComparison = boundaryComparison,
+            Items = gapItems,
+            TotalGaps = gapItems.Count,
+            CriticalCount = gapItems.Count(i => i.Severity == "Critical"),
+            HighCount = gapItems.Count(i => i.Severity == "High"),
+            ModerateCount = gapItems.Count(i => i.Severity == "Moderate"),
+            LowCount = gapItems.Count(i => i.Severity == "Low"),
         };
     }
 

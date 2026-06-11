@@ -17,6 +17,65 @@ public class GapAnalysisDto
     /// Per-boundary comparison summary. Populated when no boundaryDefinitionId filter is specified.
     /// </summary>
     public List<BoundaryComparisonItemDto>? BoundaryComparison { get; init; }
+
+    // ─── Frontend-facing per-control gap shape (US4 / GapAnalysis.tsx) ───────
+
+    /// <summary>Total number of per-control gap items (equals Items.Count).</summary>
+    public int TotalGaps { get; set; }
+
+    /// <summary>Count of items with Severity == "Critical".</summary>
+    public int CriticalCount { get; set; }
+
+    /// <summary>Count of items with Severity == "High".</summary>
+    public int HighCount { get; set; }
+
+    /// <summary>Count of items with Severity == "Moderate".</summary>
+    public int ModerateCount { get; set; }
+
+    /// <summary>Count of items with Severity == "Low".</summary>
+    public int LowCount { get; set; }
+
+    /// <summary>Per-control gap items for the Gap Analysis dashboard table.</summary>
+    public List<GapItemDto> Items { get; set; } = [];
+}
+
+/// <summary>
+/// A single per-control gap item surfaced on the Gap Analysis dashboard page.
+/// </summary>
+public class GapItemDto
+{
+    /// <summary>NIST control identifier (e.g. "AC-2").</summary>
+    public string ControlId { get; set; } = string.Empty;
+
+    /// <summary>Human-readable control title.</summary>
+    public string ControlTitle { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Reason this control is a gap:
+    ///   NoNarrative   — ControlImplementation exists but Narrative is empty/null
+    ///   NoEvidence    — Narrative present but no evidence attachments
+    ///   FailingFinding — Open/failing scan finding exists for this control
+    ///   NotImplemented — No ControlImplementation record at all
+    /// </summary>
+    public string GapType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Derived from NistControl.ImpactLevel:
+    ///   High      → Critical
+    ///   Moderate  → High
+    ///   Low       → Moderate
+    ///   (unknown) → Low
+    /// </summary>
+    public string Severity { get; set; } = string.Empty;
+
+    /// <summary>Short human-readable explanation of the gap.</summary>
+    public string Detail { get; set; } = string.Empty;
+
+    /// <summary>Responsible owner from the linked SecurityCapability, if any.</summary>
+    public string? Responsible { get; set; }
+
+    /// <summary>NIST control family code (e.g. "AC").</summary>
+    public string Family { get; set; } = string.Empty;
 }
 
 /// <summary>

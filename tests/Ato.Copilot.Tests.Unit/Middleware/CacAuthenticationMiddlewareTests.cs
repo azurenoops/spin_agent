@@ -16,6 +16,13 @@ using Ato.Copilot.Mcp.Middleware;
 
 namespace Ato.Copilot.Tests.Unit.Middleware;
 
+/// <remarks>
+/// [Collection("MiddlewareEnvTests")] — shares a sequential xUnit collection with
+/// <see cref="SimulatedRoleHeaderStripTests"/> and <see cref="AuthTierClassificationTests"/>.
+/// All three classes mutate the process-wide ASPNETCORE_ENVIRONMENT env var;
+/// sequential execution prevents race conditions.
+/// </remarks>
+[Collection("MiddlewareEnvTests")]
 public class CacAuthenticationMiddlewareTests
 {
     private readonly Mock<ILogger<CacAuthenticationMiddleware>> _logger;
