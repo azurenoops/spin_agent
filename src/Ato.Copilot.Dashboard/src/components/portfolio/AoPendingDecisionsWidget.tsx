@@ -66,7 +66,12 @@ export default function AoPendingDecisionsWidget() {
   }, []);
 
   // Hidden while loading or when there are no pending decisions
-  if (loading || decisions.length === 0) return null;
+  if (loading) {
+    return (
+      <div className="mb-6 h-24 animate-pulse rounded-lg border border-amber-200 bg-amber-50" />
+    );
+  }
+  if (decisions.length === 0) return null;
 
   return (
     <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 shadow-sm">
