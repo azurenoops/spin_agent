@@ -448,6 +448,7 @@ function BoundaryComponentsTab({
   const [editingScope, setEditingScope] = useState<string | null>(null);
   const [editRationale, setEditRationale] = useState('');
   const [editProvider, setEditProvider] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Fetch boundary-component assignments (Feature 040)
   const fetchAssignments = useCallback(async () => {
@@ -471,7 +472,7 @@ function BoundaryComponentsTab({
 
   useEffect(() => {
     if (showAdd && allComponents.length === 0) {
-      listComponents({ pageSize: 200 }).then((r) => setAllComponents(r.items)).catch(() => {});
+      listComponents({ pageSize: 200 }).then((r) => setAllComponents(r.items)).catch(() => setLoadError('Failed to load components'));
     }
   }, [showAdd, allComponents.length]);
 
@@ -572,6 +573,11 @@ function BoundaryComponentsTab({
 
   return (
     <div>
+      {/* Load error banner */}
+      {loadError && (
+        <p className="mb-2 text-sm text-red-600">{loadError}</p>
+      )}
+
       {/* Lock status banner */}
       {lockStatus?.locked && !hasLock && (
         <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">

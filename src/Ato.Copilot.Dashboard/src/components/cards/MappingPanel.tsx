@@ -51,7 +51,7 @@ export function MappingPanel({ capabilityId, systemId }: MappingPanelProps) {
   useEffect(() => {
     fetchMappings();
     if (systemId) {
-      fetchBoundaryDefinitions(systemId).then(setBoundaries).catch(() => {});
+      fetchBoundaryDefinitions(systemId).then(setBoundaries).catch(() => setError('Failed to load boundary definitions'));
     }
   }, [capabilityId, systemId]);
 
@@ -297,11 +297,12 @@ function ControlPickerDialog({ existingControlIds, baselineLevel, boundaries, on
   const [boundaryId, setBoundaryId] = useState('');
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     apiClient.get('/controls', { params: { pageSize: 2000 } })
       .then(res => setControls(res.data.items))
-      .catch(() => {})
+      .catch(() => setLoadError('Failed to load controls'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -359,6 +360,9 @@ function ControlPickerDialog({ existingControlIds, baselineLevel, boundaries, on
 
         {/* Filters */}
         <div className="flex items-center gap-3 border-b px-6 py-3">
+          {loadError && (
+            <p className="w-full text-sm text-red-600">{loadError}</p>
+          )}
           <div className="relative flex-1">
             <svg className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

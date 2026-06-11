@@ -940,6 +940,7 @@ function ComponentFormInline({
     new Set(initial?.capabilityLinks.map((cl) => cl.capabilityId) ?? []),
   );
   const [capSearch, setCapSearch] = useState('');
+  const [capLoadError, setCapLoadError] = useState<string | null>(null);
 
   // ─── Entra search state (Issue #238) ───────────────────────────────────────
   const [entraQuery, setEntraQuery] = useState('');
@@ -1001,7 +1002,7 @@ function ComponentFormInline({
 
   // ─── Capability loading ─────────────────────────────────────────────────────
   useEffect(() => {
-    getCapabilities({ pageSize: 200 }).then((r) => setCapabilities(r.items)).catch(() => {});
+    getCapabilities({ pageSize: 200 }).then((r) => setCapabilities(r.items)).catch(() => setCapLoadError('Failed to load capabilities'));
   }, []);
 
   const toggleCap = (id: string) => {
@@ -1256,7 +1257,9 @@ function ComponentFormInline({
           className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-1 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <div className="max-h-36 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 p-2 space-y-1">
-          {filteredCaps.length === 0 ? (
+          {capLoadError ? (
+            <p className="text-xs text-red-500 italic py-1">{capLoadError}</p>
+          ) : filteredCaps.length === 0 ? (
             <p className="text-xs text-gray-400 italic py-1">
               {capabilities.length === 0 ? 'Loading...' : 'No matching capabilities'}
             </p>

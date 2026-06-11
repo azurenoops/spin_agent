@@ -14,6 +14,7 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
   const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
   const [form, setForm] = useState<CreateBoundaryDefinitionRequest>({ name: '', boundaryType: 'Logical', description: '', isPrimary: false });
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Component assignment state
   const [selectedBoundary, setSelectedBoundary] = useState<string | null>(null);
@@ -25,8 +26,8 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchBoundaryDefinitions(systemId).then(setBoundaries).catch(() => {});
-    getComponents(systemId).then((res) => setSystemComponents(res.items)).catch(() => {});
+    fetchBoundaryDefinitions(systemId).then(setBoundaries).catch(() => setLoadError('Failed to load boundary definitions'));
+    getComponents(systemId).then((res) => setSystemComponents(res.items)).catch(() => setLoadError('Failed to load system components'));
   }, [systemId]);
 
   // Load already-assigned components when a boundary is selected
@@ -51,7 +52,7 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
     if (compTab === 'org') {
       listComponents({ search: compSearch || undefined, pageSize: 50 })
         .then((res) => setOrgComponents(res.items))
-        .catch(() => {});
+        .catch(() => setLoadError('Failed to load organization components'));
     }
   }, [compTab, compSearch]);
 
@@ -91,7 +92,12 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
         resourceId: componentId,
         resourceType: componentType,
         resourceName: componentName,
-      }).catch(() => {}); // Ignore 409 duplicates
+      }).catch((err: unknown) => {
+        const status = err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { status?: number } }).response?.status
+          : undefined;
+        if (status !== 409) onErrors({ _form: ['Failed to assign component'] });
+      }); // Ignore 409 duplicates
       // Update local tracking immediately
       setAssignedComponentIds((prev) => new Set([...prev, componentId]));
       // Refresh boundaries to update counts
@@ -107,6 +113,9 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
 
   return (
     <div>
+      {loadError && (
+        <p className="mb-2 text-sm text-red-600">{loadError}</p>
+      )}
       <h2 className="text-xl font-semibold text-gray-900 mb-1">Step 4: Authorization Boundaries</h2>
       <p className="text-sm text-gray-500 mb-6">Define authorization boundaries and assign components to them.</p>
 
