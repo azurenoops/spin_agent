@@ -59,4 +59,15 @@ public class DatabaseOptions
     /// </summary>
     [Range(30, 1800)]
     public int MigrationTimeoutSeconds { get; set; } = 300;
+
+    /// <summary>
+    /// Client ID of the user-assigned Managed Identity to use for SQL Server authentication
+    /// (<c>Authentication=Active Directory Managed Identity</c>).
+    /// When set, this value is injected as <c>User Id=…</c> into the connection string,
+    /// ensuring <c>Microsoft.Data.SqlClient</c> selects the correct identity on hosts
+    /// that have both system-assigned and user-assigned identities (e.g. Azure Container Apps).
+    /// Leave empty for SQLite or when the connection string already includes <c>User Id</c>.
+    /// Bound from <c>Database:ManagedIdentityClientId</c>.
+    /// </summary>
+    public string? ManagedIdentityClientId { get; set; }
 }

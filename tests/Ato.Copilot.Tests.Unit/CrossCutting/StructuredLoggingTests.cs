@@ -186,12 +186,16 @@ public class StructuredLoggingTests
         // Act
         await middleware.InvokeAsync(context, _tenantContext);
 
-        // Assert — second log should include status code
+        // Assert — second log should include status code.
+        // Use "Status: 200" rather than bare "200" to avoid a false-positive
+        // match against the request-phase log whose ReqId (12-char hex) can
+        // contain the substring "200" (e.g. "0200d9d1c880"). Times.Once()
+        // would then see two matches and fail. See issue #401.
         _loggerMock.Verify(
             x => x.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("200")),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Status: 200")),
                 null,
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once());

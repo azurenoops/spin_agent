@@ -252,6 +252,12 @@ jobs:
             # AI client registration and causes revision activation failure.
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENDPOINT=${{ vars.ATO_AZUREAI_ENDPOINT }}"
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-5.4-mini' }}"
+            # ATO_DATABASE__MANAGEDIDENTITYCLIENTID: user-assigned MI client ID for SQL Server auth.
+            # Without this, SqlClient falls back to the system-assigned identity on ACA hosts that
+            # have both identity types — causing Error 18456 (Login failed). Set via repo variable.
+            if [ -n "${{ vars.ATO_DATABASE__MANAGEDIDENTITYCLIENTID || '' }}" ]; then
+              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_DATABASE__MANAGEDIDENTITYCLIENTID=${{ vars.ATO_DATABASE__MANAGEDIDENTITYCLIENTID }}"
+            fi
           elif [ "${{ inputs.workload }}" = "dashboard" ]; then
             MCP_OVERRIDE="${{ inputs.mcp_base_url_override }}"
             if [ -n "$MCP_OVERRIDE" ]; then
