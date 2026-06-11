@@ -123,13 +123,10 @@ jobs:
           set -euo pipefail
           bash scripts/seed-dashboard.sh
 
-      - name: Phase 2 — API seed (seed-distribute-systems.sh)
-        shell: bash
-        env:
-          ATO_BASE_URL: ${{ github.event.inputs.api_base_url }}
-        run: |
-          set -euo pipefail
-          bash scripts/seed-distribute-systems.sh || true
+      # NOTE: seed-distribute-systems.sh is intentionally skipped here.
+      # It creates additional tenant-scoped copies of systems that seed-systems.sh
+      # already created, resulting in duplicates. The 5 canonical systems live under
+      # the PEO-790 CSP home tenant and are accessible to all impersonated tenants.
 
       - name: Phase 2 — API seed (seed-csp-inherited.sh)
         shell: bash
