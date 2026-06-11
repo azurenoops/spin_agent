@@ -672,6 +672,8 @@ async Task RunHttpModeAsync(string[] args)
     app.MapAuditQueryEndpoints();
     // Feature 048 (T124, FR-073..FR-076): CSP-Admin migration utility surface.
     app.MapAdminMigrationEndpoints();
+    // Feature #134 / Issue #202: NIST KB overlay document CRUD surface.
+    app.MapOverlayDocumentEndpoints();
     // Feature 048 (T135, FR-081/FR-082): CSP-Admin cross-tenant baseline publish/unpublish surface.
     app.MapGlobalBaselineEndpoints();
 

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Ato.Copilot.Core.Data.Seed;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Models.Auth;
@@ -3913,6 +3914,23 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => new { e.TenantId, e.Timestamp })
                 .HasDatabaseName("IX_WizardAudit_Tenant_TimestampDesc")
                 .IsDescending(false, true);
+        });
+
+        // OverlayDocument — Issue #202 / Feature #134: NIST KB overlay CRUD
+        modelBuilder.Entity<OverlayDocument>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Type).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.Title).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.ControlId).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.SourceReference).HasMaxLength(512);
+            entity.Property(e => e.CreatedBy).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.ModifiedBy).HasMaxLength(256);
+            entity.HasIndex(e => new { e.ControlId, e.Type })
+                .HasDatabaseName("IX_OverlayDocument_ControlId_Type");
+            entity.HasIndex(e => e.IsActive)
+                .HasDatabaseName("IX_OverlayDocument_IsActive");
+            entity.HasData(OverlayDocumentSeed.GetSeedData());
         });
     }
 

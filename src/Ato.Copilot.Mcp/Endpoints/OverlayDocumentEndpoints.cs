@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -19,13 +20,18 @@ public static class OverlayDocumentEndpoints
             .WithTags("OverlayDocuments")
             .RequireAuthorization("AdminOnly");
 
+        // GET /api/v1/admin/overlay-documents
         group.MapGet("/", async (
                 string? controlId,
                 string? type,
+                bool? includeInactive,
                 AtoCopilotContext db,
                 CancellationToken ct) =>
         {
-            var query = db.OverlayDocuments.Where(o => o.IsActive);
+            var query = db.OverlayDocuments.AsQueryable();
+            // By default only return active documents; opt-in to include inactive.
+            if (!(includeInactive ?? false))
+                query = query.Where(o => o.IsActive);
             if (!string.IsNullOrEmpty(controlId))
                 query = query.Where(o => o.ControlId == controlId.ToUpperInvariant());
             if (!string.IsNullOrEmpty(type))
@@ -38,6 +44,7 @@ public static class OverlayDocumentEndpoints
             return Results.Ok(items);
         }).WithName("ListOverlayDocuments");
 
+        // GET /api/v1/admin/overlay-documents/{id}
         group.MapGet("/{id:guid}", async (
                 Guid id,
                 AtoCopilotContext db,
@@ -47,11 +54,17 @@ public static class OverlayDocumentEndpoints
             return doc is null ? Results.NotFound() : Results.Ok(new OverlayDocumentDto(doc));
         }).WithName("GetOverlayDocument");
 
+        // POST /api/v1/admin/overlay-documents
         group.MapPost("/", async (
                 CreateOverlayDocumentRequest req,
+                HttpContext httpContext,
                 AtoCopilotContext db,
                 CancellationToken ct) =>
         {
+            var actor = httpContext.User.FindFirstValue("oid")
+                     ?? httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? "system";
+
             var doc = new OverlayDocument
             {
                 Type = req.Type,
@@ -61,41 +74,55 @@ public static class OverlayDocumentEndpoints
                 SourceReference = req.SourceReference,
                 TenantId = req.TenantId,
                 IsActive = true,
-                CreatedBy = "admin"
+                CreatedBy = actor
             };
             db.OverlayDocuments.Add(doc);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/v1/admin/overlay-documents/{doc.Id}", new OverlayDocumentDto(doc));
         }).WithName("CreateOverlayDocument");
 
+        // PUT /api/v1/admin/overlay-documents/{id}
         group.MapPut("/{id:guid}", async (
                 Guid id,
                 UpdateOverlayDocumentRequest req,
+                HttpContext httpContext,
                 AtoCopilotContext db,
                 CancellationToken ct) =>
         {
             var doc = await db.OverlayDocuments.FindAsync([id], ct);
             if (doc is null) return Results.NotFound();
 
+            var actor = httpContext.User.FindFirstValue("oid")
+                     ?? httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? "system";
+
             doc.Title = req.Title ?? doc.Title;
             doc.Content = req.Content ?? doc.Content;
             doc.SourceReference = req.SourceReference ?? doc.SourceReference;
             doc.IsActive = req.IsActive ?? doc.IsActive;
-            doc.ModifiedBy = "admin";
+            doc.ModifiedBy = actor;
             doc.ModifiedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync(ct);
             return Results.Ok(new OverlayDocumentDto(doc));
         }).WithName("UpdateOverlayDocument");
 
+        // DELETE /api/v1/admin/overlay-documents/{id}  (soft delete)
         group.MapDelete("/{id:guid}", async (
                 Guid id,
+                HttpContext httpContext,
                 AtoCopilotContext db,
                 CancellationToken ct) =>
         {
             var doc = await db.OverlayDocuments.FindAsync([id], ct);
             if (doc is null) return Results.NotFound();
+
+            var actor = httpContext.User.FindFirstValue("oid")
+                     ?? httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? "system";
+
             doc.IsActive = false;
+            doc.ModifiedBy = actor;
             doc.ModifiedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
