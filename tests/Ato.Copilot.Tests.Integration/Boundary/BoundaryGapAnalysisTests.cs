@@ -58,7 +58,7 @@ public class BoundaryGapAnalysisTests : IAsyncLifetime
 
         var group = _app.MapGroup("/api/dashboard");
 
-        group.MapGet("/systems/{systemId}/gaps", async (
+        group.MapGet("/systems/{systemId}/gap-analysis", async (
                 string systemId,
                 string? boundaryDefinitionId,
                 CapabilityService capService,
@@ -181,7 +181,7 @@ public class BoundaryGapAnalysisTests : IAsyncLifetime
     [Fact]
     public async Task GapAnalysis_NoFilter_ReturnsAllCovered()
     {
-        var response = await _client.GetAsync($"/api/dashboard/systems/{SystemId}/gaps");
+        var response = await _client.GetAsync($"/api/dashboard/systems/{SystemId}/gap-analysis");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
@@ -197,7 +197,7 @@ public class BoundaryGapAnalysisTests : IAsyncLifetime
     public async Task GapAnalysis_PrimaryBoundary_IncludesOrgWide()
     {
         var response = await _client.GetAsync(
-            $"/api/dashboard/systems/{SystemId}/gaps?boundaryDefinitionId={PrimaryBoundaryId}");
+            $"/api/dashboard/systems/{SystemId}/gap-analysis?boundaryDefinitionId={PrimaryBoundaryId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
@@ -211,7 +211,7 @@ public class BoundaryGapAnalysisTests : IAsyncLifetime
     public async Task GapAnalysis_DevBoundary_IncludesOrgWide()
     {
         var response = await _client.GetAsync(
-            $"/api/dashboard/systems/{SystemId}/gaps?boundaryDefinitionId={DevBoundaryId}");
+            $"/api/dashboard/systems/{SystemId}/gap-analysis?boundaryDefinitionId={DevBoundaryId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
@@ -224,7 +224,7 @@ public class BoundaryGapAnalysisTests : IAsyncLifetime
     [Fact]
     public async Task GapAnalysis_NoFilter_IncludesBoundaryComparison()
     {
-        var response = await _client.GetAsync($"/api/dashboard/systems/{SystemId}/gaps");
+        var response = await _client.GetAsync($"/api/dashboard/systems/{SystemId}/gap-analysis");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
@@ -250,7 +250,7 @@ public class BoundaryGapAnalysisTests : IAsyncLifetime
     public async Task GapAnalysis_WithFilter_ExcludesBoundaryComparison()
     {
         var response = await _client.GetAsync(
-            $"/api/dashboard/systems/{SystemId}/gaps?boundaryDefinitionId={PrimaryBoundaryId}");
+            $"/api/dashboard/systems/{SystemId}/gap-analysis?boundaryDefinitionId={PrimaryBoundaryId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
@@ -263,7 +263,7 @@ public class BoundaryGapAnalysisTests : IAsyncLifetime
     [Fact]
     public async Task GapAnalysis_InvalidSystem_Returns404()
     {
-        var response = await _client.GetAsync("/api/dashboard/systems/non-existent/gaps");
+        var response = await _client.GetAsync("/api/dashboard/systems/non-existent/gap-analysis");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
