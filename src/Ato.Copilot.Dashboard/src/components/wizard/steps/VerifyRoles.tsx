@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { fetchRoles } from '../../../api/roles';
-import type { RoleAssignment } from '../../../api/roles';
+// Issue #366 — migrate from deprecated fetchRoles to rolesApi
+// (FR-008 unified role endpoints, Feature 049).
+import { rolesApi } from '../../../api/roles';
+import type { ResolvedRoleAssignment } from '../../../types/roles';
 
 const ROLE_LABELS: Record<string, string> = {
   AuthorizingOfficial: 'Authorizing Official (AO)',
@@ -16,12 +18,12 @@ interface VerifyRolesProps {
 }
 
 export default function VerifyRoles({ systemId, onNext }: VerifyRolesProps) {
-  const [assignments, setAssignments] = useState<RoleAssignment[]>([]);
+  const [assignments, setAssignments] = useState<ResolvedRoleAssignment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchRoles(systemId)
-      .then(setAssignments)
+    rolesApi.getSystemRoles(systemId)
+      .then((res) => setAssignments(res.roles.filter((r) => r.source !== 'not-assigned')))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [systemId]);
@@ -44,20 +46,20 @@ export default function VerifyRoles({ systemId, onNext }: VerifyRolesProps) {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Role</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Assigned Person</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Assignment Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Source</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {assignments.map((a) => (
-                <tr key={a.id}>
+                <tr key={`${a.role}:${a.person?.id ?? 'none'}`}>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">
                     {ROLE_LABELS[a.role] ?? a.role}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
-                    {a.userDisplayName ?? a.userId}
+                    {a.person?.displayName ?? '—'}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500">
-                    {new Date(a.assignedAt).toLocaleDateString()}
+                    {a.source}
                   </td>
                 </tr>
               ))}
