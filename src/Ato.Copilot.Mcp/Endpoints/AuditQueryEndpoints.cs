@@ -90,7 +90,7 @@ public static class AuditQueryEndpoints
         var data = new
         {
             items = items.Select(Project).ToArray(),
-            total,
+            totalCount = total,
             page = p,
             pageSize = ps,
         };
@@ -99,22 +99,40 @@ public static class AuditQueryEndpoints
 
     /// <summary>
     /// Project an <see cref="AuditLogEntry"/> onto the OpenAPI <c>AuditEntry</c>
-    /// shape. Note <c>effectiveTenantId</c> reads from <see cref="AuditLogEntry.TenantId"/>
-    /// per the entity contract: the home tenant of an audit row IS its effective tenant.
+    /// shape. Field names are aligned to the frontend <c>AuditLogEntry</c>
+    /// interface in <c>AuditLogPage.tsx</c> (fix #198).
+    /// <para>
+    /// TODO(#198): <c>actorDisplayName</c> currently falls back to the actor OID
+    /// until a UPN/display-name lookup service is wired in.
+    /// </para>
+    /// <para>
+    /// TODO(#198): <c>ipAddress</c> and <c>surface</c> are not yet persisted on
+    /// <see cref="AuditLogEntry"/> (Feature 051 / FR-032). Add
+    /// <c>IpAddress</c> and <c>Surface</c> properties to the entity and create an
+    /// EF migration (<c>Feature198_AuditLogIpAndSurface</c>) before populating
+    /// these fields.
+    /// </para>
     /// </summary>
     private static object Project(AuditLogEntry e) => new
     {
         id = e.Id,
         timestamp = e.Timestamp,
-        actorOid = string.IsNullOrEmpty(e.UserId) ? null : e.UserId,
+        actorUserId = string.IsNullOrEmpty(e.UserId) ? null : e.UserId,
+        // Fallback: use OID as display name until UPN lookup is added (TODO #198).
+        actorDisplayName = string.IsNullOrEmpty(e.UserId) ? null : e.UserId,
         actorTenantId = e.ActorTenantId,
-        effectiveTenantId = e.TenantId,
+        tenantId = e.TenantId,
         impersonatedTenantId = e.ImpersonatedTenantId,
         action = e.Action,
-        resource = e.AffectedResources.Count > 0 ? e.AffectedResources[0] : null,
+        // Full resource string goes into entityType; entityId split deferred (TODO #198).
+        entityType = e.AffectedResources.Count > 0 ? e.AffectedResources[0] : null,
+        entityId = (string?)null,
         outcome = e.Outcome.ToString(),
         correlationId = e.CorrelationId,
-        details = string.IsNullOrEmpty(e.Details) ? null : e.Details,
+        detail = string.IsNullOrEmpty(e.Details) ? null : e.Details,
+        // TODO(#198): Add IpAddress and Surface to AuditLogEntry entity + migration.
+        ipAddress = (string?)null,
+        surface = (string?)null,
     };
 
     private static IResult Success(Stopwatch sw, object data) =>
