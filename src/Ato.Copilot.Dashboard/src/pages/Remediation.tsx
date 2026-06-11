@@ -88,7 +88,7 @@ export default function Remediation() {
         }
         setDeviationsByPoam(map);
       })
-      .catch(() => {});
+      .catch(() => setDeviationsByPoam(new Map()));
   }, [systemId]);
 
   // Main data — always scoped to current system

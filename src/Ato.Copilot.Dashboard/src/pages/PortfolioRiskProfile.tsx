@@ -50,7 +50,7 @@ export default function PortfolioRiskProfile() {
   usePolling(fetchData);
 
   useEffect(() => {
-    getCoverage(false, false).then(res => setCoveragePct(res.orgWide.coveragePercent)).catch(() => {});
+    getCoverage(false, false).then(res => setCoveragePct(res.orgWide.coveragePercent)).catch(() => setCoveragePct(null));
   }, []);
 
   // ─── Aggregations ───────────────────────────────────────────────────────────

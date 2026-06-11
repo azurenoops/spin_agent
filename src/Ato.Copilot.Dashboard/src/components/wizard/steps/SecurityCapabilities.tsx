@@ -28,7 +28,7 @@ export default function SecurityCapabilities({ systemId, onNext, onErrors }: Sec
 
   // Load existing links on mount
   useEffect(() => {
-    getCapabilityLinks(systemId).then((res) => setLinkedItems(res.items)).catch(() => {});
+    getCapabilityLinks(systemId).then((res) => setLinkedItems(res.items)).catch(() => onErrors({ _form: ['Failed to load capability links'] }));
   }, [systemId]);
 
   // Debounced search

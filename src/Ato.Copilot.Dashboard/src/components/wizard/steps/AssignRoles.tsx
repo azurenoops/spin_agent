@@ -37,14 +37,15 @@ export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesP
   const [assignments, setAssignments] = useState<ResolvedRoleAssignment[]>([]);
   const [persons, setPersons] = useState<PersonOption[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     rolesApi.getSystemRoles(systemId)
       .then((res) => setAssignments(res.roles.filter((r) => r.source !== 'not-assigned')))
-      .catch(() => {});
+      .catch(() => setLoadError('Failed to load role assignments'));
     apiClient.get('/components', { params: { type: 'Person', pageSize: 200 } })
       .then((res) => setPersons(res.data.items ?? []))
-      .catch(() => {});
+      .catch(() => setLoadError('Failed to load personnel'));
   }, [systemId]);
 
   const getAssignment = (role: string) => assignments.find((a) => a.role === role);
@@ -72,6 +73,9 @@ export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesP
 
   return (
     <div>
+      {loadError && (
+        <p className="mb-2 text-sm text-red-600">{loadError}</p>
+      )}
       <h2 className="text-xl font-semibold text-gray-900 mb-1">Step 5: Assign RMF Roles</h2>
       <p className="text-sm text-gray-500 mb-6">Assign personnel to standard RMF roles from existing Person components.</p>
 

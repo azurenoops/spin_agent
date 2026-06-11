@@ -33,7 +33,7 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
   const [assigning, setAssigning] = useState<string | null>(null);
 
   useEffect(() => {
-    getComponents(systemId).then((res) => setComponents(res.items)).catch(() => {});
+    getComponents(systemId).then((res) => setComponents(res.items)).catch(() => onErrors({ _form: ['Failed to load system components'] }));
   }, [systemId]);
 
   // Load org components on tab switch or search
@@ -42,7 +42,7 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
     setOrgLoading(true);
     listComponents({ search: orgSearch || undefined, pageSize: 50 })
       .then((res) => setOrgComponents(res.items))
-      .catch(() => {})
+      .catch(() => onErrors({ _form: ['Failed to load organization components'] }))
       .finally(() => setOrgLoading(false));
   }, [activeTab, orgSearch]);
 

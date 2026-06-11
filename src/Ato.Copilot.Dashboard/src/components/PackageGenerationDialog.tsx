@@ -233,7 +233,7 @@ export default function PackageGenerationDialog({
       connection
         .start()
         .then(() => connection.invoke('SubscribeToPackage', pkgId))
-        .catch(() => {});
+        .catch(() => setError('Real-time progress unavailable. Please refresh to check status.'));
 
       connectionRef.current = connection;
     },

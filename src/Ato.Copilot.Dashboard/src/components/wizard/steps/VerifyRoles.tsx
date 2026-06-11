@@ -20,11 +20,12 @@ interface VerifyRolesProps {
 export default function VerifyRoles({ systemId, onNext }: VerifyRolesProps) {
   const [assignments, setAssignments] = useState<ResolvedRoleAssignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     rolesApi.getSystemRoles(systemId)
       .then((res) => setAssignments(res.roles.filter((r) => r.source !== 'not-assigned')))
-      .catch(() => {})
+      .catch(() => setLoadError('Failed to load role assignments'))
       .finally(() => setLoading(false));
   }, [systemId]);
 
@@ -35,6 +36,10 @@ export default function VerifyRoles({ systemId, onNext }: VerifyRolesProps) {
 
       {loading ? (
         <p className="text-sm text-gray-500">Loading role assignments...</p>
+      ) : loadError ? (
+        <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {loadError}
+        </div>
       ) : assignments.length === 0 ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
           No roles assigned. You can go back to Step 5 to assign roles, or continue.
