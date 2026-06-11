@@ -6,7 +6,13 @@ interface DeviationSummaryCardsProps {
 }
 
 export default function DeviationSummaryCards({ summary }: DeviationSummaryCardsProps) {
-  if (!summary) return null;
+  if (!summary) {
+    return (
+      <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        Unable to load deviation summary.
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

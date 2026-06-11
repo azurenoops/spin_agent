@@ -70,7 +70,14 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
     );
   }
 
-  if (error || !data || data.items.length === 0) return null;
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+        Unable to load tasks. Please refresh.
+      </div>
+    );
+  }
+  if (!data || data.items.length === 0) return null;
 
   const arrow = (
     <svg className="h-4 w-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

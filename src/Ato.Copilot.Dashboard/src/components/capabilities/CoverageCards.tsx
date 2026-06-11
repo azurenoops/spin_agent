@@ -33,7 +33,17 @@ export default function CoverageCards({ coverage, loading }: CoverageCardsProps)
     );
   }
 
-  if (!coverage) return null;
+  if (!coverage) {
+    return (
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="rounded-lg border border-red-100 bg-red-50 p-4 text-xs text-red-500">
+            Failed to load
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   const gapControls = coverage.unmappedControls;
   const coveragePct = coverage.coveragePercent;
