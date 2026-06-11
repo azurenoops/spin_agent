@@ -23,15 +23,22 @@ const DEFAULT_PANEL_STATE: ChatPanelState = {
   activeConversationId: null,
 };
 
-// T260: Allowed file types for attachment (PDF, DOCX, XLSX, PNG, JPEG up to 20 MB)
-const ALLOWED_ATTACHMENT_TYPES = [
+// #201: Canonical MIME allowlist — reconciled across FileAttachment.tsx / useChat.ts / McpHttpBridge.cs
+// NOTE: text/plain covers .txt; text/csv covers .csv; text/xml is an alternate MIME for XML.
+// Binary formats (PDF, DOCX, XLSX) are accepted; backend extracts text with StreamReader (may produce
+// garbled output for binary, but is better than silent drop — see McpHttpBridge.cs).
+const ALLOWED_ATTACHMENT_TYPES = new Set([
   'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'image/png',
-  'image/jpeg',
-];
-const MAX_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
+  'text/plain',
+  'text/csv',
+  'application/json',
+  'application/xml',
+  'text/xml',
+  // SCAP/STIG formats
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  // .xlsx
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  // .docx
+]);
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB (unified with FileAttachment.tsx)
 
 export interface AttachmentValidationError {
   fileName: string;
@@ -119,19 +126,19 @@ export function useChat(): UseChatReturn {
     cancel();
   }, [cancel]);
 
-  // T260: Validate files before sending — returns list of errors (empty = valid)
+  // T260/#201: Validate files before sending — returns list of errors (empty = valid)
   const validateAttachments = useCallback((files: File[]): AttachmentValidationError[] => {
     const errors: AttachmentValidationError[] = [];
     for (const file of files) {
-      if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
+      if (!ALLOWED_ATTACHMENT_TYPES.has(file.type)) {
         errors.push({
           fileName: file.name,
-          reason: `Unsupported type (${file.type || 'unknown'}). Allowed: PDF, DOCX, XLSX, PNG, JPEG.`,
+          reason: `Unsupported type (${file.type || 'unknown'}). Allowed: PDF, TXT, CSV, JSON, XML, DOCX, XLSX.`,
         });
       } else if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
         errors.push({
           fileName: file.name,
-          reason: `File exceeds the 20 MB limit (${(file.size / 1024 / 1024).toFixed(1)} MB).`,
+          reason: `File exceeds the 10 MB limit (${(file.size / 1024 / 1024).toFixed(1)} MB).`,
         });
       }
     }

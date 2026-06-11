@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
 import type { FileAttachment as FileAttachmentType, FileAttachmentType as AttachmentExt } from '../../types/chat';
 
-const ALLOWED_EXTENSIONS = ['.ckl', '.xccdf', '.xml', '.csv', '.nessus'];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// #201: canonical extension list — matches backend MIME allowlist
+const ALLOWED_EXTENSIONS = ['.pdf', '.txt', '.csv', '.json', '.xml', '.docx', '.xlsx', '.ckl', '.xccdf'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB (unified with useChat.ts)
 
 function detectFileType(name: string): AttachmentExt {
   const lower = name.toLowerCase();
@@ -132,7 +133,7 @@ export default function FileAttachment({ attachments, onAdd, onRemove, disabled 
             browse
           </button>
         </p>
-        <p className="mt-0.5 text-gray-300">.ckl, .xccdf, .xml, .csv, .nessus (max 10MB)</p>
+        <p className="mt-0.5 text-gray-300">.pdf, .txt, .csv, .json, .xml, .docx, .xlsx, .ckl, .xccdf (max 10 MB)</p>
       </div>
 
       {error && (

@@ -179,11 +179,17 @@ public class McpHttpBridge
     }
 
     /// <summary>Handles chat requests with SSE streaming for real-time progress.</summary>
-    // T006 (052-api-mismatch-fixes #141): Allowed MIME types for chat file attachments
+    // T006 (#141) / #201: Allowed MIME types for chat file attachments — reconciled with frontend
     private static readonly HashSet<string> _allowedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "application/pdf", "text/plain", "text/csv",
-        "application/json", "application/xml"
+        "application/pdf",
+        "text/plain",
+        "text/csv",
+        "application/json",
+        "application/xml",
+        "text/xml",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  // .xlsx
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  // .docx
     };
 
     private async Task HandleChatStreamRequestAsync(HttpContext context)
@@ -288,8 +294,41 @@ public class McpHttpBridge
                 catch { /* client disconnected */ }
             });
 
+            // #201: Extract text content from uploaded files and inject into the message before the LLM call.
+            // StreamReader works correctly for plain-text formats (csv, json, xml, txt, ckl, xccdf).
+            // For binary formats (pdf, docx, xlsx) the output will be garbled UTF-8 from raw bytes;
+            // this is still better than silently dropping the attachment. A proper implementation
+            // would use a dedicated parser (e.g. PdfPig for PDF, DocumentFormat.OpenXml for DOCX/XLSX)
+            // but that is out of scope for this fix. See GitHub Issue #201 for follow-up work.
+            string messageWithAttachments = chatRequest.Message;
+            if (chatRequest.Attachments != null && chatRequest.Attachments.Count > 0)
+            {
+                var attachmentTexts = new List<string>();
+                foreach (var file in chatRequest.Attachments)
+                {
+                    try
+                    {
+                        using var stream = file.OpenReadStream();
+                        using var reader = new StreamReader(stream, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                        var content = await reader.ReadToEndAsync();
+                        // Truncate to 50 KB per file to stay within token limits
+                        if (content.Length > 51200)
+                            content = content[..51200] + "\n[... content truncated ...]";
+                        attachmentTexts.Add($"<attachment name=\"{file.FileName}\" type=\"{file.ContentType}\">\n{content}\n</attachment>");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to read attachment {FileName}", file.FileName);
+                    }
+                }
+                if (attachmentTexts.Count > 0)
+                {
+                    messageWithAttachments = $"{chatRequest.Message}\n\n--- Attached Files ---\n{string.Join("\n\n", attachmentTexts)}";
+                }
+            }
+
             var result = await _mcpServer.ProcessChatRequestAsync(
-                chatRequest.Message,
+                messageWithAttachments,
                 conversationId,
                 chatRequest.Context,
                 chatRequest.ConversationHistory?.Select(m => (m.Role, m.Content)).ToList(),
