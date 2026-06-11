@@ -59,12 +59,25 @@ public class TenantScopedQueryGuardGlobalReferenceTests : IAsyncLifetime
         services.AddLogging();
         services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         services.AddSingleton(_httpContextAccessorMock.Object);
-        services.AddSingleton<TenantScopedQueryGuardInterceptor>();
+
+        // Register the factory FIRST so TenantScopedQueryGuardInterceptor (singleton,
+        // resolved lazily) can inject IDbContextFactory<AtoCopilotContext> to eagerly
+        // seed its [GlobalReference] table map at construction time.
+        // NOTE: the factory registration does NOT add the interceptor itself — that
+        // would create a circular dependency (factory → interceptor → factory).
+        // The interceptor is wired via AddDbContext below so EF Core gets it.
+        services.AddDbContextFactory<AtoCopilotContext>(opt =>
+            opt.UseSqlite(_connection));
+
+        // Also register as AddDbContext so test code that resolves AtoCopilotContext
+        // directly (via scope) gets the interceptor attached.
         services.AddDbContext<AtoCopilotContext>((sp, opt) =>
         {
             opt.UseSqlite(_connection);
             opt.AddInterceptors(sp.GetRequiredService<TenantScopedQueryGuardInterceptor>());
         });
+
+        services.AddSingleton<TenantScopedQueryGuardInterceptor>();
 
         _sp = services.BuildServiceProvider();
         _accessor = (TenantContextAccessor)_sp.GetRequiredService<ITenantContextAccessor>();
