@@ -1,0 +1,173 @@
+name: Full Wipe + Reseed (One-Shot)
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Resource group containing Azure SQL
+        required: true
+        default: rg-ato-copilot
+        type: string
+      sql_server_name:
+        description: Azure SQL server name
+        required: true
+        default: azsql-ato-copilot-04152047-902
+        type: string
+      sql_database_name:
+        description: Azure SQL database name
+        required: true
+        default: AtoCopilot
+        type: string
+      api_base_url:
+        description: Dashboard API base URL (including /api/dashboard)
+        required: true
+        default: https://ca-ato-copilot-mcp-v2.blackwater-9393aa1a.centralus.azurecontainerapps.io/api/dashboard
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  wipe-and-reseed:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Enable public access + add firewall rule
+        id: setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP=$(curl -sf https://api.ipify.org)
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          RULE="Allow-GHRunner-Wipe"
+
+          PUBLIC=$(az sql server show --resource-group "$RG" --name "$SQL_SERVER" \
+            --query publicNetworkAccess -o tsv 2>/dev/null || echo "Unknown")
+          if [ "$PUBLIC" = "Disabled" ]; then
+            az sql server update --resource-group "$RG" --name "$SQL_SERVER" \
+              --enable-public-network true --output none
+            echo "reenable_required=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reenable_required=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          SP_OID=$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" --query id -o tsv)
+          SP_NAME=$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" --query displayName -o tsv)
+          EXISTING_ADMIN=$(az sql server ad-admin show --resource-group "$RG" --server "$SQL_SERVER" \
+            --query login -o tsv 2>/dev/null || echo "none")
+          echo "existing_admin=${EXISTING_ADMIN}" >> "$GITHUB_OUTPUT"
+          if [ "$EXISTING_ADMIN" != "$SP_NAME" ]; then
+            az sql server ad-admin create --resource-group "$RG" --server "$SQL_SERVER" \
+              --display-name "$SP_NAME" --object-id "$SP_OID" --output none
+            echo "sp_was_admin=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "sp_was_admin=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          az sql server firewall-rule create --resource-group "$RG" --server "$SQL_SERVER" \
+            --name "$RULE" --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP" \
+            --output none
+          echo "Firewall rule added for $RUNNER_IP"
+
+      - name: Install sqlcmd
+        shell: bash
+        run: |
+          curl -fsSL https://github.com/microsoft/go-sqlcmd/releases/download/v1.8.0/sqlcmd-linux-amd64.tar.bz2 \
+            | sudo tar -xj -C /usr/local/bin sqlcmd
+          sqlcmd --version
+
+      # ── Phase 1: Wipe ────────────────────────────────────────────────────────
+      - name: Phase 1 — Wipe all seed data
+        shell: bash
+        run: |
+          set -euo pipefail
+          SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
+          for attempt in 1 2 3; do
+            echo "Wipe attempt $attempt/3..."
+            if sqlcmd -S "${SQL_FQDN}" --authentication-method=ActiveDirectoryDefault \
+                -d "${{ github.event.inputs.sql_database_name }}" \
+                -i scripts/wipe-seed-data.sql; then
+              echo "Wipe completed."
+              break
+            fi
+            [ $attempt -lt 3 ] && sleep 20 || (echo "Wipe failed after 3 attempts." && exit 1)
+          done
+
+      # ── Phase 2: API seed (creates systems + capabilities + components) ──────
+      - name: Phase 2 — API seed (seed-systems.sh)
+        shell: bash
+        env:
+          ATO_BASE_URL: ${{ github.event.inputs.api_base_url }}
+        run: |
+          set -euo pipefail
+          bash scripts/seed-systems.sh
+
+      - name: Phase 2 — API seed (seed-dashboard.sh)
+        shell: bash
+        env:
+          ATO_BASE_URL: ${{ github.event.inputs.api_base_url }}
+        run: |
+          set -euo pipefail
+          bash scripts/seed-dashboard.sh
+
+      - name: Phase 2 — API seed (seed-distribute-systems.sh)
+        shell: bash
+        env:
+          ATO_BASE_URL: ${{ github.event.inputs.api_base_url }}
+        run: |
+          set -euo pipefail
+          bash scripts/seed-distribute-systems.sh || true
+
+      - name: Phase 2 — API seed (seed-csp-inherited.sh)
+        shell: bash
+        env:
+          ATO_BASE_URL: ${{ github.event.inputs.api_base_url }}
+        run: |
+          set -euo pipefail
+          bash scripts/seed-csp-inherited.sh || true
+
+      # ── Phase 3: SQL progress seed (RMF lifecycle data) ──────────────────────
+      - name: Phase 3 — SQL seed RMF lifecycle (seed-azure-progress.sql)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SQL_FQDN="${{ github.event.inputs.sql_server_name }}.database.windows.net"
+          for attempt in 1 2 3; do
+            echo "Progress seed attempt $attempt/3..."
+            if sqlcmd -S "${SQL_FQDN}" --authentication-method=ActiveDirectoryDefault \
+                -d "${{ github.event.inputs.sql_database_name }}" \
+                -i scripts/seed-azure-progress.sql; then
+              echo "Progress seed completed."
+              break
+            fi
+            [ $attempt -lt 3 ] && sleep 20 || (echo "Progress seed failed after 3 attempts." && exit 1)
+          done
+
+      # ── Cleanup ───────────────────────────────────────────────────────────────
+      - name: Cleanup — firewall + public access
+        if: always()
+        shell: bash
+        run: |
+          RG="${{ github.event.inputs.resource_group }}"
+          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          az sql server firewall-rule delete --resource-group "$RG" --server "$SQL_SERVER" \
+            --name "Allow-GHRunner-Wipe" --output none 2>/dev/null || true
+          echo "Firewall rule removed."
+          if [ "${{ steps.setup.outputs.reenable_required }}" = "true" ]; then
+            az sql server update --resource-group "$RG" --name "$SQL_SERVER" \
+              --enable-public-network false --output none
+            echo "Public access restored to Disabled."
+          fi
