@@ -56,6 +56,15 @@ on:
         required: false
         default: false
         type: boolean
+      extra_env_vars:
+        description: |
+          Additional space-separated env var KEY=VALUE pairs to append to the container
+          app's env vars. Used to pass deployment-specific flags such as
+          FORCE_SINGLE_TENANT=true for org-only dashboard instances (Feature 411).
+          Values must not contain spaces. Example: "FORCE_SINGLE_TENANT=true FOO=bar"
+        required: false
+        default: ""
+        type: string
       min_replicas:
         description: "Minimum replica count. Set to 1+ to disable cold-start (scale-to-zero)."
         required: false
@@ -286,6 +295,12 @@ jobs:
           fi
 
           ENV_ARGS_WITH_SECRETS="${ENV_ARGS_BASE}${SECRETREF_ARGS}"
+          # Feature 411: append caller-supplied extra vars (e.g. FORCE_SINGLE_TENANT=true).
+          EXTRA="${{ inputs.extra_env_vars }}"
+          if [ -n "${EXTRA}" ]; then
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ${EXTRA}"
+            ENV_ARGS_WITH_SECRETS="${ENV_ARGS_WITH_SECRETS} ${EXTRA}"
+          fi
           echo "base=${ENV_ARGS_BASE}" >> "$GITHUB_OUTPUT"
           echo "with_secrets=${ENV_ARGS_WITH_SECRETS}" >> "$GITHUB_OUTPUT"
 

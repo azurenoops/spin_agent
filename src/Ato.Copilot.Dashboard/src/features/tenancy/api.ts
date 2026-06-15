@@ -161,8 +161,20 @@ function unwrap<T>(envelope: Envelope<T>): T {
  * Returns deployment mode. Falls back to `SingleTenant` if the endpoint is
  * unreachable (e.g. T084 has not yet been deployed) so callers can render
  * defensively without a try/catch.
+ *
+ * Feature 411: If nginx injected `window.__FORCE_SINGLE_TENANT__ === "true"`
+ * at container start time (org-only deployment), short-circuit immediately
+ * without hitting the network. This lets a single image serve both CSP and
+ * org-only deployments purely via env var, with no extra backend round-trip.
  */
 export async function getDeploymentMode(): Promise<DeploymentModeResponse> {
+  // Runtime override — set by nginx sub_filter for org-only (non-CSP) Container App
+  // instances (Feature 411). "true" is the only truthy value; empty string or absent
+  // means the normal network probe runs.
+  if (typeof window !== 'undefined' && window.__FORCE_SINGLE_TENANT__ === 'true') {
+    return { mode: 'SingleTenant' };
+  }
+
   try {
     const { data } = await tenancyClient.get<Envelope<DeploymentModeResponse>>(
       '/deployment/mode',

@@ -8,3 +8,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Feature 411: runtime mode override injected by nginx sub_filter.
+// nginx sets window.__FORCE_SINGLE_TENANT__ = "true" for org-only deployments;
+// it is empty string or absent for CSP/MultiTenant deployments.
+interface Window {
+  __FORCE_SINGLE_TENANT__?: string;
+}
