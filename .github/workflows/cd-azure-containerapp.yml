@@ -225,3 +225,27 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  # Feature 411: Org-only (non-CSP) dashboard — same image, same MCP backend,
+  # FORCE_SINGLE_TENANT=true forces SingleTenant mode at runtime via nginx
+  # sub_filter injection of window.__FORCE_SINGLE_TENANT__. This eliminates
+  # the CSP portfolio view, TenantPicker, and ImpersonationBanner for tenants
+  # that do not need CSP features.
+  deploy-production-dashboard-org:
+    needs: [deploy-production-dashboard, build-image]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: production
+      workload: dashboard
+      containerapp_name: ca-ato-copilot-dashboard-org-v2
+      image: ${{ needs.build-image.outputs.dashboard_image }}
+      target_port: "8080"
+      health_path: /
+      include_mcp_env_vars: false
+      assign_managed_identity: false
+      inject_runtime_secrets: false
+      extra_env_vars: "FORCE_SINGLE_TENANT=true"
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
