@@ -30,6 +30,7 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
   const [orgSearch, setOrgSearch] = useState('');
   const [orgComponents, setOrgComponents] = useState<OrgComponentDto[]>([]);
   const [orgLoading, setOrgLoading] = useState(false);
+  const [orgError, setOrgError] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,9 +41,19 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
   useEffect(() => {
     if (activeTab !== 'org') return;
     setOrgLoading(true);
+    setOrgError(null);
     listComponents({ search: orgSearch || undefined, pageSize: 50 })
-      .then((res) => setOrgComponents(res.items))
-      .catch(() => onErrors({ _form: ['Failed to load organization components'] }))
+      .then((res) => {
+        // Guard against unexpected shape — backend returns { items, totalCount, page, pageSize }
+        const items = res?.items ?? [];
+        setOrgComponents(items);
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('[SystemComponents] Failed to load org components:', err);
+        setOrgError(msg || 'Failed to load organization components.');
+        setOrgComponents([]);
+      })
       .finally(() => setOrgLoading(false));
   }, [activeTab, orgSearch]);
 
@@ -137,6 +148,11 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
           />
           {orgLoading ? (
             <p className="text-sm text-gray-400">Loading...</p>
+          ) : orgError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <span className="font-medium">Failed to load organization components.</span>
+              {' '}{orgError}
+            </div>
           ) : orgComponents.length === 0 ? (
             <p className="text-sm text-gray-400">No organization components found.</p>
           ) : (
