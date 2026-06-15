@@ -377,17 +377,35 @@ public class RmfLifecycleService : IRmfLifecycleService
         // Feature 040 introduced BoundaryComponentAssignments as the source of truth
         // for boundary composition. Keep a legacy fallback count for older rows that
         // still rely on ComponentSystemAssignments.AuthorizationBoundaryDefinitionId.
+        //
+        // Issue #408 fix: also count CSAs where AuthorizationBoundaryDefinitionId IS NULL.
+        // When a component is assigned via the wizard or boundary page without an explicit
+        // boundary ID (null), it is treated as a system-wide / primary-boundary assignment.
+        // This mirrors the logic in GetComponentsByBoundaryAsync (includeNullBoundary = true
+        // for the primary boundary). Without this, a single-component system always fails
+        // the "Authorization Boundary Defined" gate even though the component is visible in
+        // the boundary UI.
         var inScopeBoundaryComponents = await context.BoundaryComponentAssignments
             .CountAsync(bca => bca.AuthorizationBoundaryDefinition!.RegisteredSystemId == system.Id
                             && bca.IsInScope,
                         cancellationToken);
 
-        var legacyInScopeComponents = await context.ComponentSystemAssignments
+        // Count explicit-boundary CSAs (original legacy path)
+        var legacyExplicitBoundaryComponents = await context.ComponentSystemAssignments
             .CountAsync(csa => csa.RegisteredSystemId == system.Id
                             && csa.AuthorizationBoundaryDefinitionId != null,
                         cancellationToken);
 
-        var inScopeComponents = inScopeBoundaryComponents + legacyInScopeComponents;
+        // Count null-boundary CSAs — assigned to the system without a specific boundary,
+        // which maps to the primary / system-wide boundary (same as the display path).
+        var legacyNullBoundaryComponents = await context.ComponentSystemAssignments
+            .CountAsync(csa => csa.RegisteredSystemId == system.Id
+                            && csa.AuthorizationBoundaryDefinitionId == null,
+                        cancellationToken);
+
+        var inScopeComponents = inScopeBoundaryComponents
+                              + legacyExplicitBoundaryComponents
+                              + legacyNullBoundaryComponents;
 
         results.Add(new GateCheckResult
         {
