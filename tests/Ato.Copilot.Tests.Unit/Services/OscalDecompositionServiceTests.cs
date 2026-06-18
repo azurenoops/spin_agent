@@ -89,78 +89,63 @@ public class OscalDecompositionServiceTests
     // ── IOscalSspImportService ────────────────────────────────────────────────
 
     [Fact]
-    public void IOscalSspImportService_HasRequiredMethods()
+    public void IOscalSspImportService_HasImportAsyncMethod()
     {
         var type = typeof(IOscalSspImportService);
-        type.GetMethod("PreviewAsync").Should().NotBeNull();
         type.GetMethod("ImportAsync").Should().NotBeNull();
     }
 
     [Fact]
-    public void OscalImportPreview_SchemaInvalid_CarriesErrors()
+    public void OscalImportResult_DefaultCounts_AreZero()
     {
-        var preview = new OscalImportPreview(
-            SchemaValid: false,
-            ValidationErrors: ["Missing required field: system-id"],
-            ValidationWarnings: [],
-            DetectedOscalVersion: "1.1.2",
-            Counts: new OscalImportEntityCounts(0, 0, 0, 0, 0),
-            ControlSummaries: []);
+        var result = new OscalImportResult();
 
-        preview.SchemaValid.Should().BeFalse();
-        preview.ValidationErrors.Should().HaveCount(1);
-        preview.ValidationErrors[0].Should().Contain("system-id");
+        result.ControlsCreated.Should().Be(0);
+        result.ControlsUpdated.Should().Be(0);
+        result.ControlsSkipped.Should().Be(0);
+        result.ControlsFailed.Should().Be(0);
+        result.ValidationErrors.Should().BeEmpty();
+        result.Preview.Should().BeEmpty();
     }
 
     [Fact]
-    public void OscalImportRunResult_TracksCounts()
+    public void OscalImportResult_TracksCounts()
     {
-        var result = new OscalImportRunResult(
-            ImportRunId: "run-001",
-            SystemId: "sys-001",
-            ImportedAt: DateTimeOffset.UtcNow,
-            ImportedBy: "user-001",
-            SchemaValid: true,
-            ControlsCreated: 150,
-            ControlsUpdated: 10,
-            ControlsSkipped: 5,
-            ControlsFailed: 0,
-            Warnings: ["AC-1 narrative truncated"],
-            Errors: []);
+        var result = new OscalImportResult
+        {
+            RunId = "run-001",
+            Mode = ImportMode.Full,
+            ControlsCreated = 150,
+            ControlsUpdated = 10,
+            ControlsSkipped = 5,
+            ControlsFailed = 0,
+            ValidationErrors = ["AC-1 narrative truncated"],
+        };
 
         result.ControlsCreated.Should().Be(150);
         result.ControlsUpdated.Should().Be(10);
         result.ControlsFailed.Should().Be(0);
-        result.SchemaValid.Should().BeTrue();
-        result.Warnings.Should().HaveCount(1);
-        result.Errors.Should().BeEmpty();
+        result.ValidationErrors.Should().HaveCount(1);
     }
 
     [Fact]
-    public void OscalControlImportSummary_ActionValues()
+    public void OscalImportPreviewItem_ActionValues()
     {
-        var create = new OscalControlImportSummary("ac-1", "create", null, "Incoming narrative");
-        var update = new OscalControlImportSummary("ac-2", "update", "Old narrative", "New narrative");
-        var skip = new OscalControlImportSummary("ac-3", "skip", "Unchanged", "Unchanged");
+        var create = new OscalImportPreviewItem { ControlId = "ac-1", Action = "create", CurrentNarrative = null, NewNarrative = "Incoming narrative" };
+        var update = new OscalImportPreviewItem { ControlId = "ac-2", Action = "update", CurrentNarrative = "Old narrative", NewNarrative = "New narrative" };
+        var skip   = new OscalImportPreviewItem { ControlId = "ac-3", Action = "skip",   CurrentNarrative = "Unchanged",    NewNarrative = "Unchanged" };
 
         create.Action.Should().Be("create");
-        create.ExistingNarrative.Should().BeNull();
-        update.ExistingNarrative.Should().Be("Old narrative");
+        create.CurrentNarrative.Should().BeNull();
+        update.CurrentNarrative.Should().Be("Old narrative");
         skip.Action.Should().Be("skip");
     }
 
     [Fact]
-    public void OscalImportEntityCounts_AllPropertiesAccessible()
+    public void ImportMode_Enum_HasExpectedValues()
     {
-        var counts = new OscalImportEntityCounts(
-            ControlsToCreate: 50,
-            ControlsToUpdate: 10,
-            ControlsToSkip: 5,
-            ComponentsToCreate: 3,
-            InventoryItemsToCreate: 12);
-
-        counts.ControlsToCreate.Should().Be(50);
-        counts.ComponentsToCreate.Should().Be(3);
-        counts.InventoryItemsToCreate.Should().Be(12);
+        ImportMode.Preview.Should().Be(ImportMode.Preview);
+        ImportMode.Full.Should().Be(ImportMode.Full);
+        Enum.GetValues<ImportMode>().Should().HaveCount(2);
     }
 }
