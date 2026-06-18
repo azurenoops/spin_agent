@@ -229,7 +229,7 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
         var draft = await db.OscalDecompositionDrafts
             .AsNoTracking()
             .Include(d => d.Fragments)
-            .Where(d => d.TenantId == tenantId
+            .Where(d => d.TenantId == Guid.Parse(tenantId)
                      && d.RegisteredSystemId == systemId
                      && d.ControlId == controlId
                      && d.Status == DecompositionStatus.Pending)
@@ -255,7 +255,7 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
 
         var draft = await db.OscalDecompositionDrafts
             .Include(d => d.Fragments)
-            .Where(d => d.TenantId == tenantId
+            .Where(d => d.TenantId == Guid.Parse(tenantId)
                      && d.RegisteredSystemId == systemId
                      && d.ControlId == controlId
                      && d.Status == DecompositionStatus.Pending)
@@ -321,7 +321,7 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         var draft = await db.OscalDecompositionDrafts
-            .Where(d => d.TenantId == tenantId
+            .Where(d => d.TenantId == Guid.Parse(tenantId)
                      && d.RegisteredSystemId == systemId
                      && d.ControlId == controlId
                      && d.Status == DecompositionStatus.Pending)
