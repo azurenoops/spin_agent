@@ -187,8 +187,8 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
             TenantId = Guid.Parse(tenantId),
             RegisteredSystemId = systemId,
             ControlId = controlId,
-            Status = DecompositionStatus.Pending,
-            GeneratedAt = generatedAt,
+            Status = DecompositionDraftStatus.Pending,
+            GeneratedAt = generatedAt.UtcDateTime,
             GeneratedBy = requestedBy,
         };
 
@@ -232,7 +232,7 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
             .Where(d => d.TenantId == Guid.Parse(tenantId)
                      && d.RegisteredSystemId == systemId
                      && d.ControlId == controlId
-                     && d.Status == DecompositionStatus.Pending)
+                     && d.Status == DecompositionDraftStatus.Pending)
             .OrderByDescending(d => d.GeneratedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -258,16 +258,16 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
             .Where(d => d.TenantId == Guid.Parse(tenantId)
                      && d.RegisteredSystemId == systemId
                      && d.ControlId == controlId
-                     && d.Status == DecompositionStatus.Pending)
+                     && d.Status == DecompositionDraftStatus.Pending)
             .OrderByDescending(d => d.GeneratedAt)
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException(
                 $"No pending decomposition draft found for system={systemId}, control={controlId}.");
 
         // Mark draft Approved
-        draft.Status = DecompositionStatus.Approved;
+        draft.Status = DecompositionDraftStatus.Approved;
         draft.ApprovedBy = approvedBy;
-        draft.ApprovedAt = DateTimeOffset.UtcNow;
+        draft.ApprovedAt = DateTime.UtcNow;
 
         var approvedAt = DateTimeOffset.UtcNow;
         var fragmentCount = draft.Fragments.Count;
@@ -324,13 +324,13 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
             .Where(d => d.TenantId == Guid.Parse(tenantId)
                      && d.RegisteredSystemId == systemId
                      && d.ControlId == controlId
-                     && d.Status == DecompositionStatus.Pending)
+                     && d.Status == DecompositionDraftStatus.Pending)
             .OrderByDescending(d => d.GeneratedAt)
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException(
                 $"No pending decomposition draft found for system={systemId}, control={controlId}.");
 
-        draft.Status = DecompositionStatus.Discarded;
+        draft.Status = DecompositionDraftStatus.Discarded;
         await db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
@@ -376,7 +376,7 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
             DraftId: draft.Id,
             ControlId: draft.ControlId,
             Status: draft.Status.ToString(),
-            GeneratedAt: draft.GeneratedAt,
+            GeneratedAt: new DateTimeOffset(draft.GeneratedAt, TimeSpan.Zero),
             GeneratedBy: draft.GeneratedBy,
             Fragments: fragmentDtos);
     }
