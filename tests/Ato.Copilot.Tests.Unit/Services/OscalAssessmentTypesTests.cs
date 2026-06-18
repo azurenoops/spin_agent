@@ -39,11 +39,11 @@ public class OscalAssessmentTypesTests
 
         var json = JsonSerializer.Serialize(root, OscalOpts);
 
-        json.Should().Contain(""assessment-results"");
-        json.Should().Contain(""oscal-version":"1.1.2"");
-        json.Should().Contain(""last-modified":");
-        json.Should().NotContain(""assessmentResults"");    // must be kebab-case
-        json.Should().NotContain(""lastModified"");         // must be kebab-case
+        json.Should().Contain("\"assessment-results\"");
+        json.Should().Contain("\"oscal-version\":\"1.1.2\"");
+        json.Should().Contain("\"last-modified\":");
+        json.Should().NotContain("\"assessmentResults\"");    // must be kebab-case
+        json.Should().NotContain("\"lastModified\"");         // must be kebab-case
     }
 
     [Fact]
@@ -60,9 +60,9 @@ public class OscalAssessmentTypesTests
 
         var json = JsonSerializer.Serialize(obs, OscalOpts);
 
-        json.Should().Contain(""methods":["INTERVIEW","EXAMINE"]");
-        json.Should().Contain(""types":["finding"]");
-        json.Should().Contain(""collected":");
+        json.Should().Contain("\"methods\":[\"INTERVIEW\",\"EXAMINE\"]");
+        json.Should().Contain("\"types\":[\"finding\"]");
+        json.Should().Contain("\"collected\":");
     }
 
     [Fact]
@@ -77,9 +77,9 @@ public class OscalAssessmentTypesTests
 
         var json = JsonSerializer.Serialize(facet, OscalOpts);
 
-        json.Should().Contain(""system":"https://fedramp.gov/ns/oscal"");
-        json.Should().Contain(""name":"likelihood"");
-        json.Should().Contain(""value":"moderate"");
+        json.Should().Contain("\"system\":\"https://fedramp.gov/ns/oscal\"");
+        json.Should().Contain("\"name\":\"likelihood\"");
+        json.Should().Contain("\"value\":\"moderate\"");
     }
 
     [Fact]
@@ -100,9 +100,9 @@ public class OscalAssessmentTypesTests
 
         var json = JsonSerializer.Serialize(finding, OscalOpts);
 
-        json.Should().Contain(""target-id":"ac-1_smt.a"");
-        json.Should().Contain(""state":"not-satisfied"");
-        json.Should().Contain(""type":"statement-id"");
+        json.Should().Contain("\"target-id\":\"ac-1_smt.a\"");
+        json.Should().Contain("\"state\":\"not-satisfied\"");
+        json.Should().Contain("\"type\":\"statement-id\"");
     }
 
     // ─── POA&M serialization ─────────────────────────────────────────────────
@@ -122,9 +122,9 @@ public class OscalAssessmentTypesTests
 
         var json = JsonSerializer.Serialize(root, OscalOpts);
 
-        json.Should().Contain(""plan-of-action-and-milestones"");
-        json.Should().NotContain(""planOfActionAndMilestones"");
-        json.Should().Contain(""poam-items":[]");
+        json.Should().Contain("\"plan-of-action-and-milestones\"");
+        json.Should().NotContain("\"planOfActionAndMilestones\"");
+        json.Should().Contain("\"poam-items\":[]");
     }
 
     [Fact]
@@ -148,10 +148,10 @@ public class OscalAssessmentTypesTests
 
         var json = JsonSerializer.Serialize(item, OscalOpts);
 
-        json.Should().Contain(""related-findings"");
-        json.Should().Contain(""finding-uuid":");
-        json.Should().Contain(""related-risks"");
-        json.Should().Contain(""risk-uuid":");
+        json.Should().Contain("\"related-findings\"");
+        json.Should().Contain("\"finding-uuid\":");
+        json.Should().Contain("\"related-risks\"");
+        json.Should().Contain("\"risk-uuid\":");
     }
 
     [Fact]
@@ -166,8 +166,8 @@ public class OscalAssessmentTypesTests
 
         var json = JsonSerializer.Serialize(prop, OscalOpts);
 
-        json.Should().Contain(""ns":"https://fedramp.gov/ns/oscal"");
-        json.Should().Contain(""vendor-dependency"");
+        json.Should().Contain("\"ns\":\"https://fedramp.gov/ns/oscal\"");
+        json.Should().Contain("\"vendor-dependency\"");
     }
 
     // ─── Shared types ────────────────────────────────────────────────────────
@@ -183,8 +183,8 @@ public class OscalAssessmentTypesTests
 
         var json = JsonSerializer.Serialize(hash, OscalOpts);
 
-        json.Should().Contain(""algorithm":"SHA-256"");
-        json.Should().Contain(""value":"a3f5b2c1");
+        json.Should().Contain("\"algorithm\":\"SHA-256\"");
+        json.Should().Contain("\"value\":\"a3f5b2c1");
     }
 
     [Fact]
@@ -210,8 +210,8 @@ public class OscalAssessmentTypesTests
 
         var json = JsonSerializer.Serialize(task, OscalOpts);
 
-        json.Should().Contain(""type":"milestone"");
-        json.Should().Contain(""on-date"");
-        json.Should().Contain(""date":"2026-09-30"");
+        json.Should().Contain("\"type\":\"milestone\"");
+        json.Should().Contain("\"on-date\"");
+        json.Should().Contain("\"date\":\"2026-09-30\"");
     }
 }
