@@ -5,6 +5,7 @@ namespace Ato.Copilot.Core.Models.Compliance;
 
 // ─── Enumerations ─────────────────────────────────────────────────────────────
 
+/// <summary>Import mode for OSCAL SSP import operations.</summary>
 public enum OscalImportMode { Preview, Full }
 
 // ─── OscalImportRun ───────────────────────────────────────────────────────────
