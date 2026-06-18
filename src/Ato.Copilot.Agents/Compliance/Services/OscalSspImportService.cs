@@ -83,9 +83,7 @@ public class OscalSspImportService : IOscalSspImportService
                         break;
                     }
 
-            incoming.Add((controlId.ToUpperInvariant(), string.Join("
-
-", parts), status));
+            incoming.Add((controlId.ToUpperInvariant(), string.Join("\n\n", parts), status));
         }
 
         using var scope = _scopeFactory.CreateScope();
