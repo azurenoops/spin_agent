@@ -529,6 +529,17 @@ public class AtoCopilotContext : DbContext
     /// </summary>
     public DbSet<CapabilitySubscription> CapabilitySubscriptions => Set<CapabilitySubscription>();
 
+    // ─── OSCAL Feature 076 (T009 / T012) ─────────────────────────────────────
+
+    /// <summary>OSCAL SSP import run log (Feature 076 — T009).</summary>
+    public DbSet<OscalImportRun> OscalImportRuns => Set<OscalImportRun>();
+
+    /// <summary>AI decomposition drafts pending human approval (Feature 076 — T012).</summary>
+    public DbSet<OscalDecompositionDraft> OscalDecompositionDrafts => Set<OscalDecompositionDraft>();
+
+    /// <summary>Statement-level fragments within a decomposition draft (Feature 076 — T012).</summary>
+    public DbSet<OscalDecompositionFragment> OscalDecompositionFragments => Set<OscalDecompositionFragment>();
+
     //
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
