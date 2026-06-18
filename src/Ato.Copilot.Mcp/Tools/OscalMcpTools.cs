@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.Extensions.Logging;
@@ -44,7 +45,7 @@ public class OscalMcpTools
 
     // ── Tool 1: oscal_export_ssp ─────────────────────────────────────────────
 
-    [McpServerTool, Description(
+    [Description(
         "Generate and return OSCAL 1.1.2 System Security Plan (SSP) JSON for a registered system. " +
         "Returns the full OSCAL document with metadata, system characteristics, and control implementations. " +
         "Use mode='strict' to fail on schema violations, 'advisory' to return with warnings.")]
@@ -66,7 +67,7 @@ public class OscalMcpTools
 
     // ── Tool 2: oscal_export_sar ─────────────────────────────────────────────
 
-    [McpServerTool, Description(
+    [Description(
         "Generate OSCAL 1.1.2 Assessment Results (SAR) JSON from the most recent completed compliance " +
         "assessment for a system. Returns findings, observations, and risk characterizations.")]
     public async Task<object> OscalExportSar(
@@ -86,7 +87,7 @@ public class OscalMcpTools
 
     // ── Tool 3: oscal_export_poam ────────────────────────────────────────────
 
-    [McpServerTool, Description(
+    [Description(
         "Generate OSCAL 1.1.2 POA&M JSON from active plan-of-action-and-milestones items for a system. " +
         "Includes risk characterizations, remediation tasks, and milestone schedules.")]
     public async Task<object> OscalExportPoam(
@@ -105,7 +106,7 @@ public class OscalMcpTools
 
     // ── Tool 4: oscal_import_ssp ─────────────────────────────────────────────
 
-    [McpServerTool, Description(
+    [Description(
         "Import an OSCAL 1.1.2 SSP JSON document into a registered system's control implementations. " +
         "Use mode='preview' (default) for a diff without saving, or mode='full' to upsert controls. " +
         "Import is idempotent — unchanged narratives are skipped.")]
@@ -123,7 +124,7 @@ public class OscalMcpTools
 
     // ── Tool 5: oscal_validate ───────────────────────────────────────────────
 
-    [McpServerTool, Description(
+    [Description(
         "Validate an OSCAL JSON document against the NIST 1.1.2 JSON Schema and FedRAMP advisory rules. " +
         "documentType: ssp | sar | poam | sap")]
     public async Task<object> OscalValidate(
@@ -145,7 +146,7 @@ public class OscalMcpTools
 
     // ── Tool 6: oscal_emass_transform ───────────────────────────────────────
 
-    [McpServerTool, Description(
+    [Description(
         "Transform SPIN Agent control implementations into eMASS API v3.22 JSON payloads. " +
         "Set dryRun=true (default) to preview without calling eMASS. " +
         "Narratives exceeding 2,000 characters are automatically truncated.")]
