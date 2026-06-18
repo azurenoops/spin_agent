@@ -195,6 +195,85 @@ jobs:
           if-no-files-found: ignore
 
 
+
+  # ---------------------------------------------------------------------------
+  # OSCAL Metaschema Constraint Validation — Feature 076 / T004
+  # Runs oscal-cli Docker image to validate generated OSCAL SSP, POA&M, and SAR
+  # against NIST Metaschema constraints (beyond JSON Schema — cross-ref integrity,
+  # allowed values, conditional required fields).
+  # Only triggers when OSCAL service files change.
+  # ---------------------------------------------------------------------------
+  oscal-cli-metaschema-validation:
+    name: OSCAL Metaschema Validation (oscal-cli)
+    runs-on: ubuntu-latest
+    needs: [oscal-schema-validation]
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       (contains(toJson(github.event.pull_request.changed_files), 'OscalSsp') ||
+        contains(toJson(github.event.pull_request.changed_files), 'OscalPoam') ||
+        contains(toJson(github.event.pull_request.changed_files), 'OscalSar') ||
+        contains(toJson(github.event.pull_request.changed_files), 'OscalAssessment')))
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Ato.Copilot.sln
+
+      - name: Build
+        run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
+
+      - name: Generate OSCAL test artifacts for validation
+        run: >
+          dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj
+          -c Release --no-build -nologo
+          --filter "FullyQualifiedName~OscalSspExport|FullyQualifiedName~OscalValidation"
+          --logger trx
+          -- RunConfiguration.TestOutputDir=/tmp/oscal-artifacts
+        env:
+          OSCAL_EXPORT_ARTIFACTS_DIR: /tmp/oscal-artifacts
+          OSCAL_VALIDATION_FAIL_ON_VIOLATIONS: "true"
+
+      - name: Pull oscal-cli Docker image
+        run: docker pull ghcr.io/metaschema-framework/oscal-cli:latest
+
+      - name: Validate generated OSCAL artifacts with oscal-cli (Metaschema constraints)
+        run: |
+          ARTIFACTS_DIR=/tmp/oscal-artifacts
+          EXIT_CODE=0
+
+          if ls ${ARTIFACTS_DIR}/*.json 2>/dev/null; then
+            for artifact in ${ARTIFACTS_DIR}/*.json; do
+              echo "--- Validating: $artifact ---"
+              docker run --rm                 -v "${ARTIFACTS_DIR}:/data"                 ghcr.io/metaschema-framework/oscal-cli:latest                 validate "/data/$(basename $artifact)" 2>&1
+              if [ $? -ne 0 ]; then
+                echo "METASCHEMA VALIDATION FAILED: $artifact"
+                EXIT_CODE=1
+              fi
+            done
+          else
+            echo "No OSCAL JSON artifacts found in ${ARTIFACTS_DIR} — skipping metaschema validation."
+            echo "This is expected when no systems with full compliance data exist in test DB."
+          fi
+
+          exit $EXIT_CODE
+
+      - name: Upload OSCAL CLI validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oscal-cli-validation-results
+          path: /tmp/oscal-artifacts/
+          if-no-files-found: ignore
+
   ato-compliance-gate:
     name: ATO Compliance Gate
     if: github.event_name == 'pull_request'
