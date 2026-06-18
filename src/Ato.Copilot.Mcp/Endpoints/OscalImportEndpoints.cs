@@ -32,19 +32,25 @@ public static class OscalImportEndpoints
                 IOscalSspImportService service,
                 CancellationToken ct) =>
             {
-                if (!TryGetTenantId(http.User, out var tenantId)) return Forbidden();
-                if (!TryGetSubject(http.User, out var actorId)) return Forbidden();
-
                 if (!http.Request.HasFormContentType)
-                    return Envelope.Failure("OSCAL_UPLOAD_INVALID",
-                        "Upload must be multipart/form-data.",
-                        "POST with Content-Type: multipart/form-data and a 'file' part containing the OSCAL JSON.");
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        errorCode = "OSCAL_UPLOAD_INVALID",
+                        message = "Upload must be multipart/form-data.",
+                        suggestion = "POST with Content-Type: multipart/form-data and a 'file' part containing the OSCAL JSON.",
+                    }, statusCode: StatusCodes.Status400BadRequest);
 
                 var form = await http.Request.ReadFormAsync(ct);
                 var file = form.Files.GetFile("file");
 
                 if (file is null || file.Length == 0)
-                    return Envelope.Failure("OSCAL_UPLOAD_MISSING", "A 'file' part is required.");
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        errorCode = "OSCAL_UPLOAD_MISSING",
+                        message = "A 'file' part is required.",
+                    }, statusCode: StatusCodes.Status400BadRequest);
 
                 if (file.Length > MaxImportBytes)
                     return Results.Json(new
@@ -66,31 +72,22 @@ public static class OscalImportEndpoints
                 using var reader = new StreamReader(file.OpenReadStream());
                 var oscalJson = await reader.ReadToEndAsync(ct);
 
-                var isPreview = string.Equals(mode, "preview", StringComparison.OrdinalIgnoreCase);
+                var importMode = string.Equals(mode, "full", StringComparison.OrdinalIgnoreCase)
+                    ? ImportMode.Full
+                    : ImportMode.Preview;
 
-                if (isPreview)
-                {
-                    var preview = await service.PreviewAsync(tenantId.ToString(), systemId, oscalJson, ct);
+                var result = await service.ImportAsync(systemId, oscalJson, importMode, ct);
 
-                    if (!preview.SchemaValid && preview.ValidationErrors.Count > 0)
-                        return Results.Json(new
-                        {
-                            ok = false,
-                            errorCode = "OSCAL_SCHEMA_INVALID",
-                            message = "The uploaded file does not conform to the OSCAL 1.1.2 SSP JSON Schema.",
-                            errors = preview.ValidationErrors,
-                            warnings = preview.ValidationWarnings,
-                        }, statusCode: StatusCodes.Status422UnprocessableEntity);
+                if (result.ValidationErrors.Count > 0 && importMode == ImportMode.Preview)
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        errorCode = "OSCAL_SCHEMA_INVALID",
+                        message = "The uploaded file does not conform to the OSCAL 1.1.2 SSP JSON Schema.",
+                        errors = result.ValidationErrors,
+                    }, statusCode: StatusCodes.Status422UnprocessableEntity);
 
-                    return Results.Ok(new { ok = true, data = preview });
-                }
-                else
-                {
-                    var result = await service.ImportAsync(
-                        tenantId.ToString(), systemId, oscalJson, actorId.ToString(), ct);
-
-                    return Results.Ok(new { ok = true, data = result });
-                }
+                return Results.Ok(new { ok = true, data = result });
             })
             .WithName("ImportOscalSsp")
             .Accepts<IFormFile>("multipart/form-data");
@@ -102,22 +99,4 @@ public static class OscalImportEndpoints
 
         return app;
     }
-
-    private static bool TryGetTenantId(ClaimsPrincipal user, out Guid tenantId)
-    {
-        var raw = user.FindFirstValue("tid")
-            ?? user.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid");
-        return Guid.TryParse(raw, out tenantId);
-    }
-
-    private static bool TryGetSubject(ClaimsPrincipal user, out Guid subjectId)
-    {
-        var raw = user.FindFirstValue("oid") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(raw, out subjectId);
-    }
-
-    private static IResult Forbidden() => Envelope.Failure(
-        WizardErrorCodes.AuthForbidden,
-        "You do not have permission to import OSCAL documents.",
-        suggestion: "Sign in with an account that holds the Administrator role for your tenant.");
 }
