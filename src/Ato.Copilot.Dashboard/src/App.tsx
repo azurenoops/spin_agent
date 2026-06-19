@@ -110,7 +110,11 @@ function AppContent() {
             <Route path="poam" element={<PoamManagement />} />
             <Route path="capability-coverage" element={<CapabilityCoverage />} />
             <Route path="inheritance" element={<ControlInheritance />} />
+            {/* Alias: Oracle E2E tests and direct links use /control-inheritance → redirect to /inheritance */}
+            <Route path="control-inheritance" element={<Navigate to="../inheritance" replace />} />
             <Route path="baseline" element={<BaselineManagement />} />
+            {/* Alias: Oracle E2E tests and direct links use /categorization → redirect to /baseline */}
+            <Route path="categorization" element={<Navigate to="../baseline" replace />} />
             <Route path="profile/:sectionType" element={<SystemProfile />} />
             {/* Epic #121 / Task #146 — Authorization phase page */}
             <Route path="authorize" element={<AuthorizationPage />} />
