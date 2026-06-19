@@ -83,16 +83,9 @@ public sealed record WebhookIngestionLogDto
     public string? ErrorMessage { get; init; }
 }
 
-/// <summary>Generic offset-paged result wrapper.</summary>
-public sealed record PagedResult<T>
-{
-    public IReadOnlyList<T> Items { get; init; } = [];
-    public int TotalCount { get; init; }
-    public int Take { get; init; }
-    public int Skip { get; init; }
-    /// <summary>Computed — true when additional pages exist.</summary>
-    public bool HasMore => Skip + Items.Count < TotalCount;
-}
+// PagedResult<T> is defined in Ato.Copilot.Core.Interfaces.Kanban.
+// Use Ato.Copilot.Core.Interfaces.Kanban.PagedResult<T> to avoid namespace ambiguity.
+// (Issue #422: removed duplicate declaration that caused CS0104 in KanbanService)
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  DTOs — SARIF
@@ -239,7 +232,7 @@ public interface IPipelineWebhookService
     /// <param name="skip">Records to skip for offset pagination. Must be non-negative.</param>
     /// <exception cref="SystemNotFoundException">System not found.</exception>
     /// <exception cref="ArgumentOutOfRangeException">take outside [1,100] or skip negative.</exception>
-    Task<PagedResult<WebhookIngestionLogDto>> GetIngestionHistoryAsync(
+    Task<Ato.Copilot.Core.Interfaces.Kanban.PagedResult<WebhookIngestionLogDto>> GetIngestionHistoryAsync(
         Guid systemId,
         int take = 25,
         int skip = 0,
