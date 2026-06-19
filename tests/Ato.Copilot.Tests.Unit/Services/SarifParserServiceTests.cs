@@ -433,7 +433,9 @@ public sealed class SarifParserServiceTests
     {
         var rulesArr = string.Join(",", rules);
         var resultsArr = string.Join(",", results);
-        return $$"""{"tool":{"driver":{"name":"{{toolName}}","rules":[{{rulesArr}}]}},"results":[{{resultsArr}}]}""";
+        return @"{""tool"":{""driver"":{""name"":""" + toolName
+            + @""",""rules"":[" + rulesArr + @"]}},"
+            + @"""results"":[" + resultsArr + "]}";
     }
 
     private static JsonDocument BuildSarifDoc(string version, string[] runs)
