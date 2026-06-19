@@ -346,7 +346,6 @@ public sealed class AtoPostureServiceTests : IDisposable
         {
             Id = Guid.NewGuid().ToString(),
             TenantId = TenantId,
-            RegisteredSystemId = SystemId.ToString(),
             ControlId = "AC-2",
             Title = "Critical Finding",
             Severity = FindingSeverity.Critical,
@@ -400,7 +399,6 @@ public sealed class AtoPostureServiceTests : IDisposable
         {
             Id = Guid.NewGuid().ToString(),
             TenantId = TenantId,
-            RegisteredSystemId = SystemId.ToString(),
             ControlId = controlId,
             Title = $"Finding {controlId}",
             Severity = FindingSeverity.High,
