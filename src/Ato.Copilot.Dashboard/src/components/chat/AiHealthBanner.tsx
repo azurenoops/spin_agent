@@ -28,8 +28,12 @@ export function useAiHealthCheck() {
   const check = useCallback(async (): Promise<boolean> => {
     setStatus('checking');
     try {
-      const baseUrl = import.meta.env.VITE_MCP_BASE_URL || '/api';
-      const url = `${baseUrl}/mcp/health`;
+      // fix/425: The MCP server exposes health at /health (root), not /mcp/health.
+      // nginx proxies /api/health → ${MCP_BASE_URL}/health so the dashboard can
+      // reach it without CORS issues. VITE_MCP_BASE_URL is only used in dev/vscode
+      // where the server is accessed directly; the nginx proxy is used in staging/prod.
+      const baseUrl = import.meta.env.VITE_MCP_BASE_URL || '';
+      const url = `${baseUrl}/api/health`;
       const token = await acquireBearer();
       const headers: Record<string, string> = { Accept: 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
