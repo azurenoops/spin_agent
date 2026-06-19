@@ -387,13 +387,30 @@ public class AuthorizationService : IAuthorizationService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
-        // Verify system exists
-        _ = await db.RegisteredSystems.FindAsync([systemId], cancellationToken)
+        // fix/434: Retrieve the system AND its TenantId using AsNoTracking so EF does
+        // not load navigations (ControlBaseline) into the change tracker. The
+        // TenantStampingSaveChangesInterceptor walks loaded reference navigations and
+        // rejects a PoamItem insert when the ambient ITenantContextAccessor has no
+        // active HTTP request (its EffectiveTenantId falls back to Guid.Empty /
+        // DefaultTenantId=00000000-0000-0000-0000-000000000001) while the referenced
+        // ControlBaseline carries the real user tenant id. By setting TenantId
+        // explicitly from the system record the interceptor accepts the insert without
+        // a cross-tenant FK walk.
+        var system = await db.RegisteredSystems
+            .Where(s => s.Id == systemId)
+            .Select(s => new { s.Id, s.TenantId })
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
 
         var poam = new PoamItem
         {
             RegisteredSystemId = systemId,
+            // fix/434: Stamp TenantId from the system record so the
+            // TenantStampingSaveChangesInterceptor does not fall back to the
+            // ambient (empty) scope tenant when the call originates from an
+            // agent tool rather than an HTTP request.
+            TenantId = system.TenantId,
             FindingId = findingId,
             Weakness = weakness,
             WeaknessSource = findingId != null ? "SCA Assessment" : "Manual",
