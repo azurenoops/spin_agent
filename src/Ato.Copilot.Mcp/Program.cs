@@ -683,6 +683,10 @@ async Task RunHttpModeAsync(string[] args)
     // UF-CSP-01/02/03 — Org-user capability library & subscriptions (spec-070)
     app.MapCapabilitySubscriptionEndpoints();
 
+    // Issue #422 — AO Posture API + CI/CD Webhook (W10 cATO Gap Closure)
+    // Phase 2: GET /api/systems/{id}/ato-posture
+    app.MapAtoPostureEndpoints();
+
     // Map SignalR notification hub
     app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications");
     app.MapHub<Ato.Copilot.Mcp.Hubs.PackageHub>("/hubs/package");
