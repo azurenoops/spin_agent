@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
 import { usePolling } from '../hooks/usePolling';
@@ -34,6 +34,7 @@ function complianceBadge(score: number) {
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function PortfolioRiskProfile() {
+  const navigate = useNavigate();
   const [systems, setSystems] = useState<PortfolioSystemSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [coveragePct, setCoveragePct] = useState<number | null>(null);
