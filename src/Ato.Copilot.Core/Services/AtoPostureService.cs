@@ -114,11 +114,21 @@ public sealed class AtoPostureService : IAtoPostureService
             throw new SystemNotFoundException(systemId);
 
         // Criterion 1 — zero open CatI findings
-        var catICount = await db.Findings
+        // NOTE: ComplianceFinding has NO RegisteredSystemId FK — must join via latest Assessment.
+        var latestAssessmentIdForCrit = await db.Assessments
             .AsNoTracking()
-            .CountAsync(f => f.RegisteredSystemId == systemId.ToString() &&
-                             f.CatSeverity == CatSeverity.CatI &&
-                             f.Status == FindingStatus.Open, cancellationToken);
+            .Where(a => a.RegisteredSystemId == systemId.ToString() && a.Status == AssessmentStatus.Completed)
+            .OrderByDescending(a => a.CompletedAt)
+            .Select(a => a.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var catICount = latestAssessmentIdForCrit is not null
+            ? await db.Findings
+                .AsNoTracking()
+                .CountAsync(f => f.AssessmentId == latestAssessmentIdForCrit &&
+                                 f.CatSeverity == CatSeverity.CatI &&
+                                 f.Status == FindingStatus.Open, cancellationToken)
+            : 0;
 
         // Criterion 2 — zero overdue POA&M items
         var now = DateTime.UtcNow;
@@ -239,24 +249,40 @@ public sealed class AtoPostureService : IAtoPostureService
         };
 
         // ── Findings summary ──
-        var findingCounts = await db.Findings
+        // NOTE: ComplianceFinding has NO RegisteredSystemId FK — join via latest Assessment.
+        var latestAssessmentIdForPosture = await db.Assessments
             .AsNoTracking()
-            .Where(f => f.RegisteredSystemId == systemIdStr && f.Status == FindingStatus.Open)
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                CatI   = g.Count(f => f.CatSeverity == CatSeverity.CatI),
-                CatII  = g.Count(f => f.CatSeverity == CatSeverity.CatII),
-                CatIII = g.Count(f => f.CatSeverity == CatSeverity.CatIII),
-            })
+            .Where(a => a.RegisteredSystemId == systemIdStr && a.Status == AssessmentStatus.Completed)
+            .OrderByDescending(a => a.CompletedAt)
+            .Select(a => a.Id)
             .FirstOrDefaultAsync(ct);
 
-        var findingsSummary = new FindingsSummaryDto
+        FindingsSummaryDto findingsSummary;
+        if (latestAssessmentIdForPosture is not null)
         {
-            CatI   = findingCounts?.CatI   ?? 0,
-            CatII  = findingCounts?.CatII  ?? 0,
-            CatIII = findingCounts?.CatIII ?? 0,
-        };
+            var findingCounts = await db.Findings
+                .AsNoTracking()
+                .Where(f => f.AssessmentId == latestAssessmentIdForPosture && f.Status == FindingStatus.Open)
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    CatI   = g.Count(f => f.CatSeverity == CatSeverity.CatI),
+                    CatII  = g.Count(f => f.CatSeverity == CatSeverity.CatII),
+                    CatIII = g.Count(f => f.CatSeverity == CatSeverity.CatIII),
+                })
+                .FirstOrDefaultAsync(ct);
+
+            findingsSummary = new FindingsSummaryDto
+            {
+                CatI   = findingCounts?.CatI   ?? 0,
+                CatII  = findingCounts?.CatII  ?? 0,
+                CatIII = findingCounts?.CatIII ?? 0,
+            };
+        }
+        else
+        {
+            findingsSummary = new FindingsSummaryDto { CatI = 0, CatII = 0, CatIII = 0 };
+        }
 
         // ── POA&M summary ──
         var now = DateTime.UtcNow;
