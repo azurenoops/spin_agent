@@ -91,7 +91,15 @@ export default function PortfolioRiskProfile() {
             <KpiCard label="CAT I Findings" value={stats.totalCatI} valueColor={stats.totalCatI > 0 ? 'text-red-600' : undefined} />
             <KpiCard label="CAT II Findings" value={stats.totalCatII} valueColor={stats.totalCatII > 0 ? 'text-amber-600' : undefined} />
             <KpiCard label="ATO At Risk" value={stats.expiredOrExpiring} valueColor={stats.expiredOrExpiring > 0 ? 'text-red-600' : undefined} />
-            <KpiCard label="Coverage %" value={coveragePct != null ? `${coveragePct.toFixed(1)}%` : 'N/A'} valueColor={coveragePct != null && coveragePct >= 80 ? 'text-green-600' : coveragePct != null ? 'text-amber-600' : 'text-gray-400'} />
+            {/* fix/429: coveragePct null means no capabilities configured — show 0% with
+                  a neutral color (gray) rather than 'N/A' which implies a calculation error.
+                  Include a title tooltip to explain the state to the user. */}
+            <KpiCard
+              label="Coverage %"
+              value={coveragePct != null ? `${coveragePct.toFixed(1)}%` : '0%'}
+              valueColor={coveragePct != null && coveragePct >= 80 ? 'text-green-600' : coveragePct != null && coveragePct > 0 ? 'text-amber-600' : 'text-gray-400'}
+              title={coveragePct == null ? 'No security capabilities configured yet' : undefined}
+            />
           </div>
 
           {/* Compliance by System */}
@@ -259,9 +267,9 @@ export default function PortfolioRiskProfile() {
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, valueColor }: { label: string; value: string | number; valueColor?: string }) {
+function KpiCard({ label, value, valueColor, title }: { label: string; value: string | number; valueColor?: string; title?: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3" title={title}>
       <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
       <p className={`text-2xl font-bold mt-1 ${valueColor || 'text-gray-900'}`}>{value}</p>
     </div>
