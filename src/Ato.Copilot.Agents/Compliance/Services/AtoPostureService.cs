@@ -236,7 +236,7 @@ public sealed class AtoPostureService : IAtoPostureService
                 && a.CompletedAt != null
                 && a.CompletedAt >= cutoff)
             .Select(a => a.Id)
-            .ToListAsync(ct);
+            .ToListAsync(cancellationToken);
 
         if (recentPipelineAssessments.Count == 0)
         {
@@ -245,7 +245,7 @@ public sealed class AtoPostureService : IAtoPostureService
                 .AsNoTracking()
                 .Where(a => a.RegisteredSystemId == systemId.ToString() && a.Status == AssessmentStatus.Completed)
                 .Select(a => a.Id)
-                .ToListAsync(ct);
+                .ToListAsync(cancellationToken);
 
             if (allSystemAssessments.Count == 0)
                 return PillarComplianceStatus.Unknown;
