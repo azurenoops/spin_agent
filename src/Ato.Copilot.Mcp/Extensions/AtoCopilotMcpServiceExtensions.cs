@@ -226,6 +226,13 @@ public static class AtoCopilotMcpServiceExtensions
             services.AddHostedService<Ato.Copilot.Mcp.Workers.OrganizationRoleFanoutWorker>();
         }
 
+        // Issue #422 — AO Posture API + CI/CD Webhook (W10 cATO Gap Closure)
+        // Phase 2: AtoPostureService (Scoped — uses IDbContextFactory per request)
+        // Phase 3+: IPipelineWebhookService, ISarifParserService registered when Phase 3/4 land
+        services.AddScoped<
+            Ato.Copilot.Core.Interfaces.Compliance.IAtoPostureService,
+            Ato.Copilot.Agents.Compliance.Services.AtoPostureService>();
+
         return services;
     }
 }
