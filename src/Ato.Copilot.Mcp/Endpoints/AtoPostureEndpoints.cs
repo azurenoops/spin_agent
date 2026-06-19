@@ -1,203 +1,154 @@
 // =============================================================================
 //  AtoPostureEndpoints.cs
 //  Ato.Copilot.Mcp — Endpoints
-//  Issue #422 — AO Posture API (Phase 2, W10 cATO Gap Closure)
+//  Issue #422 — AO Posture API (W10 cATO Gap Closure)
 //
-//  GET /api/systems/{id}/ato-posture
-//  Headers: X-Cache-Hit, X-Snapshot-Age-Seconds
-//  Auth: JWT bearer, minimum Viewer role
-//  Role-gated fields: authorizingOfficial, csrmcPillarStatus (AuthorizingOfficial only)
-//  forceRefresh: requires ISSM+ role → ForbiddenException → 403
+//  GET /api/systems/{systemId}/ato-posture
+//  Response: AtoPostureDto with X-Cache-Hit + X-Snapshot-Age-Seconds headers.
+//  RFC 7807 ProblemDetails on all errors.
 // =============================================================================
 
+#nullable enable
+
 using System.Security.Claims;
+using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Services.Roles;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Ato.Copilot.Core.Interfaces.Compliance;
+using Microsoft.Extensions.Logging;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
 /// <summary>
-/// Maps <c>GET /api/systems/{id}/ato-posture</c> — AO Posture snapshot endpoint.
+/// ATO Posture REST endpoints (Issue #422 — W10 cATO Gap Closure).
+///
+/// <para>
+/// <b>GET /api/systems/{systemId}/ato-posture</b> — machine-readable ATO posture snapshot.
+/// Minimum role: authenticated (Viewer). Role-gated fields require AuthorizingOfficial.
+/// forceRefresh query param requires ISSM+.
+/// </para>
 /// </summary>
 public static class AtoPostureEndpoints
 {
-    // Roles allowed to call forceRefresh=true (mirrors IAtoPostureService.RefreshRoles)
-    private static readonly HashSet<string> IssmmPlusRoles = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "ISSM", "ISSO", "SCA", "AuthorizingOfficial", "AO",
-        "Compliance.Administrator", "Compliance.SecurityLead"
-    };
-
-    /// <summary>
-    /// Registers the ATO posture endpoint group.
-    /// </summary>
     public static IEndpointRouteBuilder MapAtoPostureEndpoints(this IEndpointRouteBuilder app)
     {
-        // Note: /api/systems is an existing group — this endpoint extends it.
-        // Route convention matches existing /api/systems/{id}/* pattern.
-        app.MapGet("/api/systems/{id}/ato-posture", HandleGetAtoPosture)
-            .WithTags("AO Posture")
+        var group = app.MapGroup("/api/systems")
+            .RequireAuthorization(); // Minimum: authenticated caller
+
+        // ─── GET /api/systems/{systemId}/ato-posture ─────────────────────────
+        group.MapGet("/{systemId}/ato-posture", GetAtoPostureAsync)
             .WithName("GetAtoPosture")
             .WithSummary("Get ATO posture snapshot")
-            .WithDescription("""
-                Aggregated, machine-readable ATO posture snapshot for the specified system.
-                Cached 5 minutes per system ID. Use ?refresh=true to bypass (requires ISSM+).
-                Role-gated fields: authorization.authorizingOfficial and catoEligibility.csrmcPillarStatus
-                require AuthorizingOfficial role.
-                """)
-            .RequireAuthorization();
+            .WithDescription(
+                "Aggregated, machine-readable ATO posture snapshot for the specified system. " +
+                "Cached 5 minutes per system. Use ?refresh=true to bypass (requires ISSM+).");
 
         return app;
     }
 
-    private static async Task<IResult> HandleGetAtoPosture(
-        string id,
-        bool? refresh,
-        IAtoPostureService postureService,
+    private static async Task<IResult> GetAtoPostureAsync(
+        string systemId,
         HttpContext httpContext,
-        CancellationToken ct)
+        IAtoPostureService postureService,
+        ICallerEffectiveRoleResolver roleResolver,
+        ILogger<AtoPostureEndpoints_> logger,
+        bool refresh = false,
+        CancellationToken ct = default)
     {
-        // Parse system ID
-        if (!Guid.TryParse(id, out var systemId))
+        // ── Parse systemId ──
+        if (!Guid.TryParse(systemId, out var systemGuid))
         {
             return Results.Problem(
+                detail: $"'{systemId}' is not a valid system identifier.",
                 title: "Invalid System ID",
-                detail: $"'{id}' is not a valid GUID.",
-                statusCode: 400,
-                type: "https://spinagent.io/errors/bad-request");
+                statusCode: StatusCodes.Status400BadRequest,
+                type: "https://httpstatuses.com/400");
         }
 
-        // Extract caller roles from JWT claims
-        var callerRoles = ExtractRoles(httpContext.User);
+        // ── Resolve caller roles ──
+        var callerRoles = ExtractCallerRoles(httpContext.User);
 
-        var forceRefresh = refresh ?? false;
+        var snapshotCapturedAt = DateTimeOffset.UtcNow; // populated from response after call
 
         try
         {
             var posture = await postureService.GetPostureAsync(
-                systemId, callerRoles, forceRefresh, ct);
+                systemGuid, callerRoles, forceRefresh: refresh, cancellationToken: ct);
 
             if (posture is null)
             {
                 return Results.Problem(
+                    detail: $"Registered system '{systemId}' was not found or is inactive.",
                     title: "System Not Found",
-                    detail: $"Registered system '{systemId}' was not found.",
-                    statusCode: 404,
-                    type: "https://spinagent.io/errors/system-not-found");
+                    statusCode: StatusCodes.Status404NotFound,
+                    type: "https://httpstatuses.com/404");
             }
 
-            // Attach cache headers per OpenAPI spec
-            httpContext.Response.Headers["X-Cache-Hit"] =
-                posture.ServedFromCache.ToString().ToLowerInvariant();
-            httpContext.Response.Headers["X-Snapshot-Age-Seconds"] =
-                posture.ServedFromCache
-                    ? ((int)(DateTimeOffset.UtcNow - posture.RetrievedAt).TotalSeconds).ToString()
-                    : "0";
+            // ── Set response headers ──
+            httpContext.Response.Headers["X-Cache-Hit"] = posture.ServedFromCache ? "true" : "false";
 
-            // Shape the response to match OpenAPI contract
-            return Results.Ok(new
-            {
-                systemId = posture.SystemId,
-                systemName = posture.SystemName,
-                snapshotTimestamp = posture.RetrievedAt,
-                servedFromCache = posture.ServedFromCache,
-                authorization = posture.AuthorizationStatus is null ? null : new
-                {
-                    status = GetAuthStatusString(posture.AuthorizationStatus),
-                    type = posture.AuthorizationStatus.DecisionType?.ToString(),
-                    decisionDate = posture.AuthorizationStatus.DecisionDate,
-                    expirationDate = posture.AuthorizationStatus.ExpirationDate,
-                    daysUntilExpiration = posture.AuthorizationStatus.DaysUntilExpiration,
-                    authorizingOfficial = posture.AuthorizationStatus.AuthorizingOfficial,
-                    residualRisk = (string?)null    // populated in Phase 5 (OSCAL import)
-                },
-                compliance = new
-                {
-                    score = posture.ComplianceSummary.ComplianceScore,
-                    totalControls = posture.ComplianceSummary.TotalControls,
-                    satisfied = posture.ComplianceSummary.Satisfied,
-                    otherThanSatisfied = posture.ComplianceSummary.OtherThanSatisfied,
-                    notAssessed = posture.ComplianceSummary.NotAssessed
-                },
-                findings = new
-                {
-                    total = posture.FindingsSummary.Total,
-                    catI = posture.FindingsSummary.CatI,
-                    catII = posture.FindingsSummary.CatII,
-                    catIII = posture.FindingsSummary.CatIII
-                },
-                poam = new
-                {
-                    open = posture.PoamSummary.Open,
-                    overdue = posture.PoamSummary.Overdue,
-                    completed = posture.PoamSummary.Completed,
-                    riskAccepted = posture.PoamSummary.RiskAccepted
-                },
-                conmon = new
-                {
-                    enabled = posture.ConMonSummary.IsEnabled,
-                    lastCheck = posture.ConMonSummary.LastReportDate,
-                    assessmentFrequency = posture.ConMonSummary.AssessmentFrequency,
-                    latestComplianceScore = posture.ConMonSummary.LatestComplianceScore,
-                    authorizedBaselineScore = posture.ConMonSummary.AuthorizedBaselineScore
-                },
-                catoEligibility = (object?)null,    // populated via separate EvaluateCatoEligibility call
-                csrmcPillarStatus = posture.CsrmcPillarStatus is null ? null : new
-                {
-                    pillar1_reciprocity = posture.CsrmcPillarStatus.Pillar1Status.ToString().ToLowerInvariant(),
-                    pillar2_automation = posture.CsrmcPillarStatus.Pillar2Status.ToString().ToLowerInvariant(),
-                    pillar3_devsecops = posture.CsrmcPillarStatus.Pillar3Status.ToString().ToLowerInvariant(),
-                    evaluatedAt = posture.CsrmcPillarStatus.EvaluatedAt
-                }
-            });
+            var ageSeconds = (int)(DateTimeOffset.UtcNow - posture.RetrievedAt).TotalSeconds;
+            httpContext.Response.Headers["X-Snapshot-Age-Seconds"] = Math.Max(0, ageSeconds).ToString();
+
+            return Results.Ok(posture);
         }
         catch (ForbiddenException ex)
         {
+            logger.LogWarning(ex,
+                "Forbidden: caller lacks required role for forceRefresh on system {SystemId}", systemId);
+
             return Results.Problem(
-                title: "Forbidden",
                 detail: ex.Message,
-                statusCode: 403,
-                type: "https://spinagent.io/errors/forbidden");
+                title: "Forbidden",
+                statusCode: StatusCodes.Status403Forbidden,
+                type: "https://httpstatuses.com/403");
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (SystemNotFoundException ex)
         {
             return Results.Problem(
+                detail: ex.Message,
+                title: "System Not Found",
+                statusCode: StatusCodes.Status404NotFound,
+                type: "https://httpstatuses.com/404");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Unexpected error retrieving ATO posture for system {SystemId}", systemId);
+
+            return Results.Problem(
+                detail: "An unexpected error occurred while retrieving ATO posture.",
                 title: "Internal Server Error",
-                detail: "An unexpected error occurred while retrieving the ATO posture snapshot.",
-                statusCode: 500,
-                type: "https://spinagent.io/errors/internal-server-error");
+                statusCode: StatusCodes.Status500InternalServerError,
+                type: "https://httpstatuses.com/500");
         }
     }
 
-    private static IReadOnlySet<string> ExtractRoles(ClaimsPrincipal user)
+    /// <summary>
+    /// Extracts normalized role names from the authenticated caller's ClaimsPrincipal.
+    /// Unions role claims with the SPIN Agent-specific "spin-role" claim type.
+    /// </summary>
+    private static IReadOnlySet<string> ExtractCallerRoles(ClaimsPrincipal user)
     {
         var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Standard role claim types
+        // Standard "roles" / ClaimTypes.Role
         foreach (var claim in user.Claims)
         {
-            if (claim.Type is ClaimTypes.Role or "roles" or "role")
+            if (claim.Type == ClaimTypes.Role ||
+                claim.Type == "roles" ||
+                claim.Type == "role" ||
+                claim.Type == "spin-role")
             {
                 roles.Add(claim.Value);
             }
         }
 
-        // SPIN Agent simulation header (dev/test only — stripped in production by SimulationGate)
-        // Role short codes per the SPIN Agent RBAC table
-        var simRole = user.FindFirstValue("X-Simulated-Role");
-        if (!string.IsNullOrWhiteSpace(simRole))
-            roles.Add(simRole);
-
         return roles;
     }
-
-    private static string GetAuthStatusString(AuthorizationStatusDto auth)
-    {
-        if (!auth.IsActive && auth.DecisionType is null) return "None";
-        if (auth.IsExpired) return "Expired";
-        if (auth.IsActive) return "Active";
-        return "None";
-    }
 }
+
+/// <summary>Marker type for logger category — avoids generics in MapGet lambda.</summary>
+file sealed class AtoPostureEndpoints_ { }

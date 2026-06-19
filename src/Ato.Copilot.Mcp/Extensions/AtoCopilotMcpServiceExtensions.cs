@@ -227,11 +227,14 @@ public static class AtoCopilotMcpServiceExtensions
         }
 
         // Issue #422 — AO Posture API + CI/CD Webhook (W10 cATO Gap Closure)
-        // Phase 2: AtoPostureService (Scoped — uses IDbContextFactory per request)
-        // Phase 3+: IPipelineWebhookService, ISarifParserService registered when Phase 3/4 land
+        // AtoPostureService: Scoped — uses IDbContextFactory<AtoCopilotContext> per request
+        // SarifParserService: Singleton — stateless (static maps + compiled regex patterns)
         services.AddScoped<
             Ato.Copilot.Core.Interfaces.Compliance.IAtoPostureService,
-            Ato.Copilot.Agents.Compliance.Services.AtoPostureService>();
+            Ato.Copilot.Core.Services.AtoPostureService>();
+        services.AddSingleton<
+            Ato.Copilot.Core.Interfaces.Compliance.ISarifParserService,
+            Ato.Copilot.Agents.Compliance.Services.ScanImport.SarifParserService>();
 
         return services;
     }
