@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import type { ReactElement } from 'react';
 import type { PortfolioSystemSummary } from '../../types/dashboard';
 import AtoCountdown from './AtoCountdown';
 
@@ -17,8 +18,35 @@ const rmfBadgeColor: Record<string, string> = {
   Monitor: 'bg-teal-100 text-teal-700',
 };
 
+// fix/433: Systems in early RMF phases (Prepare, Categorize) legitimately lack
+// a baseline, boundary, and role assignments. The amber "Setup Incomplete" badge
+// is misleading — these systems ARE correctly set up for their phase. We use a
+// phase-aware label: Prepare/Categorize → "Phase Setup" (informational, gray),
+// later phases → "Setup Incomplete" (amber, calls for action).
+function setupBadge(phase: string, isSetupComplete: boolean): ReactElement | null {
+  if (isSetupComplete) return null;
+  const earlyPhase = phase === 'Prepare' || phase === 'Categorize';
+  if (earlyPhase) {
+    return (
+      <span className="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+        In Setup
+      </span>
+    );
+  }
+  return (
+    <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+      Setup Incomplete
+    </span>
+  );
+}
+
 export default function SystemSummaryRow({ system, onEdit }: SystemSummaryRowProps) {
   const navigate = useNavigate();
+
+  // fix/433: ImpactLevel === 'Unknown' means no baseline configured. Render
+  // 'Not Configured' to avoid confusion with a genuine data-retrieval failure.
+  const displayImpactLevel =
+    system.impactLevel === 'Unknown' ? 'Not Configured' : system.impactLevel;
 
   return (
     <tr
@@ -27,13 +55,9 @@ export default function SystemSummaryRow({ system, onEdit }: SystemSummaryRowPro
     >
       <td className="py-3 pl-4 pr-3">
         <span className="font-medium text-gray-900">{system.name}</span>
-        {system.isSetupComplete === false && (
-          <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-            Setup Incomplete
-          </span>
-        )}
+        {setupBadge(system.currentRmfPhase, system.isSetupComplete)}
       </td>
-      <td className="px-3 py-3 text-sm text-gray-500">{system.impactLevel}</td>
+      <td className="px-3 py-3 text-sm text-gray-500">{displayImpactLevel}</td>
       <td className="px-3 py-3">
         <span
           className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${rmfBadgeColor[system.currentRmfPhase] ?? 'bg-gray-100 text-gray-700'}`}
