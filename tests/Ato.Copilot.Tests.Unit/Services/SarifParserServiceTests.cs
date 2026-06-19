@@ -420,7 +420,7 @@ public sealed class SarifParserServiceTests
     {
         var fpKey = fingerprintKey ?? "primaryLocationLineHash/v1";
         var fpJson = fingerprint is not null
-            ? $",\"fingerprints\":{\"{fpKey}\":\"{fingerprint}\"}"
+            ? $$""","fingerprints":{"{{fpKey}}":"{{fingerprint}}"}"""
             : string.Empty;
 
         return $$"""{"ruleId":"{{ruleId}}","level":"{{level}}","message":{"text":"Test message"}{{fpJson}}}""";
