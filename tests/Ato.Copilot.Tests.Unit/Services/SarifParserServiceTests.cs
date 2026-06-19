@@ -8,7 +8,7 @@
 // =============================================================================
 
 using System.Text.Json;
-using Ato.Copilot.Agents.Compliance.Services;
+using Ato.Copilot.Agents.Compliance.Services.ScanImport;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using FluentAssertions;
