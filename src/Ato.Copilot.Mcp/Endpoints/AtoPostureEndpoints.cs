@@ -53,7 +53,7 @@ public static class AtoPostureEndpoints
         HttpContext httpContext,
         IAtoPostureService postureService,
         ICallerEffectiveRoleResolver roleResolver,
-        ILogger<AtoPostureEndpoints> logger,
+        ILogger<AtoPostureEndpoints.LogMarker> logger,
         bool refresh = false,
         CancellationToken ct = default)
     {
@@ -125,6 +125,9 @@ public static class AtoPostureEndpoints
                 type: "https://httpstatuses.com/500");
         }
     }
+
+    /// <summary>Non-static marker class for ILogger&lt;T&gt; category (static classes cannot be type arguments).</summary>
+    public sealed class LogMarker { }
 
     /// <summary>
     /// Extracts normalized role names from the authenticated caller's ClaimsPrincipal.
