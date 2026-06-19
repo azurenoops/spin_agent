@@ -36,6 +36,41 @@ public static class DashboardEndpoints
         var group = app.MapGroup("/api/dashboard")
             .WithTags("Dashboard");
 
+        // fix/432: Root /api/dashboard path redirected to metrics summary so that
+        // GET /api/dashboard and GET /dashboard (proxied via nginx) return useful
+        // data rather than 404. The dashboard UI called this path in early versions;
+        // external tooling (Playwright E2E, Oracle QA) uses it as a smoke-check.
+        group.MapGet("", async (
+                [AsParameters] PortfolioQuery query,
+                DashboardService service,
+                CancellationToken ct) =>
+            {
+                var result = await service.GetPortfolioAsync(query, ct);
+                var items = result.Items ?? [];
+                var avgCompliance = items.Count > 0
+                    ? Math.Round(items.Average(i => i.ComplianceScore), 1)
+                    : 0;
+                var configuredSystems = items.Count(i => i.IsSetupComplete);
+                var coveragePercent = items.Count > 0
+                    ? Math.Round(100.0 * configuredSystems / items.Count, 1)
+                    : (double?)null;
+                return Results.Ok(new
+                {
+                    totalSystems = result.TotalCount,
+                    avgCompliance,
+                    openPoams = items.Sum(i => i.OpenPoamCount),
+                    overduePoams = items.Sum(i => i.OverduePoamCount),
+                    catIFindings = items.Sum(i => i.CatICounts),
+                    catIIFindings = items.Sum(i => i.CatIICounts),
+                    atoAtRisk = items.Count(i =>
+                        string.Equals(i.AtoSeverity, "red", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(i.AtoSeverity, "expired", StringComparison.OrdinalIgnoreCase)),
+                    coveragePercent,
+                    _links = new { portfolio = "/api/dashboard/portfolio", metrics = "/api/dashboard/metrics" },
+                });
+            })
+            .WithName("GetDashboardRoot");
+
         // ─── Portfolio (US1) ─────────────────────────────────────────────────
         group.MapGet("/portfolio", async (
                 [AsParameters] PortfolioQuery query,
