@@ -445,12 +445,21 @@ public sealed class SarifParserService : ISarifParserService
         // Tier 2 — tag pattern matching
         if (rule?.Tags is { Count: > 0 })
         {
+            var tier2Patterns = new Func<Regex>[]
+            {
+                SarifTagPatterns.NistDotted,
+                SarifTagPatterns.NistColon,
+                SarifTagPatterns.ControlColon,
+                SarifTagPatterns.Dashed800,
+                SarifTagPatterns.NistDefenderFormat,
+                SarifTagPatterns.DirectId,
+            };
             var tier2 = new List<string>();
             foreach (var tag in rule.Tags)
             {
-                foreach (var pat in SarifTagPatterns.Tier2Patterns)
+                foreach (var getPattern in tier2Patterns)
                 {
-                    var m = pat.Match(tag);
+                    var m = getPattern().Match(tag);
                     if (!m.Success) continue;
                     var id = NormalizeControlId(m.Groups[1].Value);
                     if (NistControlIdPattern.IsMatch(id)) tier2.Add(id);
@@ -503,7 +512,7 @@ public sealed class SarifParserService : ISarifParserService
 
         if (rule?.Tags is { Count: > 0 })
             foreach (var tag in rule.Tags)
-                foreach (Match m in SarifTagPatterns.CweInTag.Matches(tag))
+                foreach (Match m in SarifTagPatterns.CweInTag().Matches(tag))
                     set.Add($"CWE-{m.Groups[1].Value}");
 
         return [.. set];
