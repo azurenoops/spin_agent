@@ -100,10 +100,11 @@ export default function PortfolioRiskProfile() {
               <h2 className="text-base font-semibold text-gray-900 mb-4">Compliance by System</h2>
               <div className="space-y-3">
                 {[...systems].sort((a, b) => a.complianceScore - b.complianceScore).map(s => (
-                  <div key={s.systemId} className="flex items-center gap-3">
-                    <Link to={`/systems/${s.systemId}`} className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
+                  <div key={s.systemId} className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/systems/${s.systemId}`)}
+                    role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && navigate(`/systems/${s.systemId}`)}>
+                    <span className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
                       {s.acronym || s.name}
-                    </Link>
+                    </span>
                     <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
                       <div className={`h-5 rounded-full ${complianceColor(s.complianceScore)} flex items-center justify-end pr-2`} style={{ width: `${Math.max(s.complianceScore, 5)}%` }}>
                         <span className="text-[11px] font-semibold text-white">{s.complianceScore}%</span>
@@ -121,10 +122,11 @@ export default function PortfolioRiskProfile() {
                 {systems.filter(s => s.catICounts + s.catIICounts + s.catIIICounts > 0).sort((a, b) => (b.catICounts * 100 + b.catIICounts * 10 + b.catIIICounts) - (a.catICounts * 100 + a.catIICounts * 10 + a.catIIICounts)).map(s => {
                   const total = s.catICounts + s.catIICounts + s.catIIICounts;
                   return (
-                    <div key={s.systemId} className="flex items-center gap-3">
-                      <Link to={`/systems/${s.systemId}`} className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
+                    <div key={s.systemId} className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/systems/${s.systemId}`)}
+                      role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && navigate(`/systems/${s.systemId}`)}>
+                      <span className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
                         {s.acronym || s.name}
-                      </Link>
+                      </span>
                       <div className="flex-1 flex gap-0.5 h-5 rounded-full overflow-hidden">
                         {s.catICounts > 0 && <div className="bg-red-500 h-5 flex items-center justify-center" style={{ width: `${s.catICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catICounts}</span></div>}
                         {s.catIICounts > 0 && <div className="bg-amber-500 h-5 flex items-center justify-center" style={{ width: `${s.catIICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catIICounts}</span></div>}
@@ -176,10 +178,11 @@ export default function PortfolioRiskProfile() {
               <h2 className="text-base font-semibold text-gray-900 mb-4">ATO Status</h2>
               <div className="space-y-2">
                 {systems.map(s => (
-                  <div key={s.systemId} className="flex items-center justify-between py-1.5">
-                    <Link to={`/systems/${s.systemId}`} className="text-sm text-indigo-600 hover:underline truncate max-w-[200px]" title={s.name}>
+                  <div key={s.systemId} className="flex items-center justify-between py-1.5 cursor-pointer" onClick={() => navigate(`/systems/${s.systemId}`)}
+                    role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && navigate(`/systems/${s.systemId}`)}>
+                    <span className="text-sm text-indigo-600 hover:underline truncate max-w-[200px]" title={s.name}>
                       {s.acronym || s.name}
-                    </Link>
+                    </span>
                     <div className="flex items-center gap-3">
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${severityColor(s.atoSeverity)}`}>
                         {s.atoStatus || 'Not Set'}
