@@ -349,9 +349,9 @@ public sealed class AtoPostureServiceTests : IDisposable
             Id = assessmentId,
             TenantId = TenantId,
             RegisteredSystemId = SystemId.ToString(),
-            AssessmentType = "Internal",
             Status = AssessmentStatus.Completed,
             CompletedAt = DateTime.UtcNow.AddDays(-1),
+            InitiatedBy = "unit-test",
         });
         db.SaveChanges();
     }
