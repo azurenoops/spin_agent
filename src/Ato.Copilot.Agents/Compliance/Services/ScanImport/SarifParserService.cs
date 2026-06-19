@@ -220,6 +220,11 @@ public sealed class SarifParserService : ISarifParserService
         }
         else
         {
+            // One SarifFindingDto row per NIST control — multi-control expansion
+            // findingsImported was already incremented once above; add (nistIds.Count - 1) more
+            if (isNew && nistIds.Count > 1)
+                findingsImported += nistIds.Count - 1;
+
             foreach (var controlId in nistIds)
             {
                 allFindings.Add(new SarifFindingDto

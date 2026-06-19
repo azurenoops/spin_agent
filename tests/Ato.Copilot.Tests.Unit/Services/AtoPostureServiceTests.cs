@@ -201,10 +201,11 @@ public sealed class AtoPostureServiceTests : IDisposable
         result.HasZeroCatIFindings.Should().BeTrue();
         result.HasZeroOverduePOAMs.Should().BeTrue();
         result.IsConMonEnabled.Should().BeTrue();
-        result.IneligibilityReasons.Should().BeEmpty("all criteria met");
-        // Pillar 3 = Unknown in Phase 1 → not compliant → IsEligible=false
+        // Pillar 3 = Unknown in Phase 1 → adds an ineligibility reason → IsEligible=false
         result.IsEligible.Should().BeFalse(
             "Pillar 3 is Unknown in Phase 1 — cATO eligibility requires all 4 criteria");
+        result.IneligibilityReasons.Should().ContainMatch("*Pillar 3*",
+            "Pillar 3 gap should be reported in Phase 1");
     }
 
     [Fact]
@@ -339,8 +340,25 @@ public sealed class AtoPostureServiceTests : IDisposable
         db.SaveChanges();
     }
 
+
+    private void SeedCompletedAssessment(string assessmentId = "test-assessment-findings")
+    {
+        using var db = _dbFactory.CreateDbContext();
+        db.Assessments.Add(new ComplianceAssessment
+        {
+            Id = assessmentId,
+            TenantId = TenantId,
+            RegisteredSystemId = SystemId.ToString(),
+            AssessmentType = "Internal",
+            Status = AssessmentStatus.Completed,
+            CompletedAt = DateTime.UtcNow.AddDays(-1),
+        });
+        db.SaveChanges();
+    }
+
     private void SeedOpenCatIFinding()
     {
+        SeedCompletedAssessment("test-assessment-1");
         using var db = _dbFactory.CreateDbContext();
         db.Findings.Add(new ComplianceFinding
         {
@@ -377,9 +395,9 @@ public sealed class AtoPostureServiceTests : IDisposable
 
     private void SeedFindings(int catI, int catII, int catIII)
     {
-        using var db = _dbFactory.CreateDbContext();
-
         var assessmentId = "test-assessment-findings";
+        SeedCompletedAssessment(assessmentId);
+        using var db = _dbFactory.CreateDbContext();
         var findings = new List<ComplianceFinding>();
 
         for (var i = 0; i < catI; i++)
