@@ -165,8 +165,13 @@ export default function EvidenceUploadDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={handleBackdrop}>
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
+      <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+      <div
+        className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Upload Evidence"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Attach Evidence</h2>
