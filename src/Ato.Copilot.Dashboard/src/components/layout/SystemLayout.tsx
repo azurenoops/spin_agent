@@ -161,7 +161,7 @@ export default function SystemLayout() {
     );
   }
 
-  const basePath = `/systems/${detail.systemId}`;
+  const basePath = `/systems/${id}`;
 
   // Count incomplete profile sections for notification badge on details tab
   const profileActionCount = profileCompleteness
