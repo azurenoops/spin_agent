@@ -53,7 +53,7 @@ public static class AtoPostureEndpoints
         HttpContext httpContext,
         IAtoPostureService postureService,
         ICallerEffectiveRoleResolver roleResolver,
-        ILogger<AtoPostureEndpoints_> logger,
+        ILogger<AtoPostureEndpoints> logger,
         bool refresh = false,
         CancellationToken ct = default)
     {
@@ -150,5 +150,3 @@ public static class AtoPostureEndpoints
     }
 }
 
-/// <summary>Marker type for logger category — avoids generics in MapGet lambda.</summary>
-file sealed class AtoPostureEndpoints_ { }
