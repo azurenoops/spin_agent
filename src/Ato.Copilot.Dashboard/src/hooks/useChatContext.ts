@@ -20,9 +20,22 @@ function resolvePageName(pathname: string): string {
   if (pathname.includes('/boundaries')) return 'boundaries';
   if (pathname.includes('/components')) return 'components';
   if (pathname.includes('/gaps')) return 'gap-analysis';
-  if (pathname.includes('/roadmap')) return 'roadmap';
+  if (pathname.includes('/roadmap') || pathname.includes('/implementation-roadmap')) return 'roadmap';
   if (pathname.includes('/documents')) return 'documents';
   if (pathname.includes('/narratives')) return 'narratives';
+  if (pathname.includes('/legal') || pathname.includes('/legal-regulatory')) return 'legal';
+  if (pathname.includes('/conmon')) return 'conmon';
+  if (pathname.includes('/deviations')) return 'deviations';
+  if (pathname.includes('/assessments')) return 'assessments';
+  if (pathname.includes('/remediation')) return 'remediation';
+  if (pathname.includes('/evidence')) return 'evidence';
+  if (pathname.includes('/poam')) return 'poam';
+  if (pathname.includes('/inheritance') || pathname.includes('/control-inheritance')) return 'inheritance';
+  if (pathname.includes('/baseline') || pathname.includes('/categorization')) return 'baseline';
+  if (pathname.includes('/capability-coverage') || pathname.includes('/capabilities')) return 'capabilities';
+  if (pathname.includes('/profile/')) return 'system-profile';
+  if (pathname.includes('/authorize')) return 'authorize';
+  if (pathname.includes('/roles')) return 'roles';
   if (pathname.match(/^\/systems\/[^/]+$/)) return 'system-detail';
   return 'unknown';
 }

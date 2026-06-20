@@ -131,7 +131,12 @@ export default function IntakeWizard({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Register New System"
+      className="fixed inset-0 z-50 flex flex-col bg-white"
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200">
         <h1 className="text-lg font-semibold text-gray-900">Register New System</h1>

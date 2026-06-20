@@ -115,6 +115,27 @@ function AppContent() {
             <Route path="baseline" element={<BaselineManagement />} />
             {/* Alias: Oracle E2E tests and direct links use /categorization → redirect to /baseline */}
             <Route path="categorization" element={<Navigate to="../baseline" replace />} />
+            {/* Wave 9 #438 — URL slug aliases for blank-page fixes.
+                Oracle QA sweep and sidebar nav use these slugs; the canonical
+                routes use shorter/different names. Redirect to the real route. */}
+            {/* Sidebar nav: capability-coverage, but direct links use /capabilities */}
+            <Route path="capabilities" element={<Navigate to="../capability-coverage" replace />} />
+            {/* Sidebar nav: profile/MissionAndPurpose, but direct links use /mission-purpose */}
+            <Route path="mission-purpose" element={<Navigate to="../profile/MissionAndPurpose" replace />} />
+            {/* Sidebar nav: profile/UsersAndAccess, but direct links use /users-access */}
+            <Route path="users-access" element={<Navigate to="../profile/UsersAndAccess" replace />} />
+            {/* Sidebar nav: profile/EnvironmentAndDeployment, but direct links use /environment */}
+            <Route path="environment" element={<Navigate to="../profile/EnvironmentAndDeployment" replace />} />
+            {/* Sidebar nav: profile/DataTypes, but direct links use /data-types */}
+            <Route path="data-types" element={<Navigate to="../profile/DataTypes" replace />} />
+            {/* Sidebar nav: profile/PortsProtocolsAndServices, but direct links use /ports-protocols */}
+            <Route path="ports-protocols" element={<Navigate to="../profile/PortsProtocolsAndServices" replace />} />
+            {/* Sidebar nav: profile/LeveragedAuthorizations, but direct links use /leveraged-auth */}
+            <Route path="leveraged-auth" element={<Navigate to="../profile/LeveragedAuthorizations" replace />} />
+            {/* Sidebar nav: legal, but direct links use /legal-regulatory */}
+            <Route path="legal-regulatory" element={<Navigate to="../legal" replace />} />
+            {/* Sidebar nav: roadmap, but direct links use /implementation-roadmap */}
+            <Route path="implementation-roadmap" element={<Navigate to="../roadmap" replace />} />
             <Route path="profile/:sectionType" element={<SystemProfile />} />
             {/* Epic #121 / Task #146 — Authorization phase page */}
             <Route path="authorize" element={<AuthorizationPage />} />
