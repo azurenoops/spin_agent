@@ -68,8 +68,9 @@ public class CacAuthenticationMiddleware
         ILoginAuditService? loginAudit = null,
         LoginAuditContextAccessor? auditContextAccessor = null)
     {
-        // Skip auth for health checks
-        if (context.Request.Path.StartsWithSegments("/health"))
+        // Skip auth for health checks and SignalR hub endpoints (#439)
+        if (context.Request.Path.StartsWithSegments("/health") ||
+            context.Request.Path.StartsWithSegments("/hubs"))
         {
             await _next(context);
             return;

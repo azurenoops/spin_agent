@@ -65,6 +65,7 @@ public sealed class TenantResolutionMiddleware
         "/swagger",
         "/_metrics",
         "/.well-known",
+        "/hubs",   // SignalR hub negotiate/connect (#439)
     };
 
     /// <summary>
