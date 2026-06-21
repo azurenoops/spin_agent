@@ -706,12 +706,13 @@ public class CapabilityImportService
             }
         }
 
+        // Issue #466: return 0.0 instead of null so frontend shows 0% not N/A
         double? coveragePercent = baselineControlCount > 0
             ? Math.Round((double)mappedControls / baselineControlCount.Value * 100, 1)
-            : null;
+            : 0.0;
         int? unmappedControls = baselineControlCount.HasValue
             ? baselineControlCount.Value - mappedControls
-            : null;
+            : 0;
 
         // Per-family breakdown
         var perFamily = new List<FamilyCoverage>();
