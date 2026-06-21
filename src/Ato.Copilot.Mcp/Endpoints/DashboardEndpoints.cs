@@ -53,7 +53,7 @@ public static class DashboardEndpoints
                 var configuredSystems = items.Count(i => i.IsSetupComplete);
                 var coveragePercent = items.Count > 0
                     ? Math.Round(100.0 * configuredSystems / items.Count, 1)
-                    : (double?)null;
+                    : 0.0;  // Issue #466: return 0 instead of null so frontend shows 0% not N/A
                 return Results.Ok(new
                 {
                     totalSystems = result.TotalCount,
@@ -112,7 +112,7 @@ public static class DashboardEndpoints
                 var configuredSystems = items.Count(i => i.IsSetupComplete);
                 var coveragePercent = items.Count > 0
                     ? Math.Round(100.0 * configuredSystems / items.Count, 1)
-                    : (double?)null;
+                    : 0.0;  // Issue #466: return 0 instead of null so frontend shows 0% not N/A
 
                 return Results.Ok(new
                 {
@@ -139,7 +139,7 @@ public static class DashboardEndpoints
                 var configuredSystems = items.Count(i => i.IsSetupComplete);
                 var coveragePercent = items.Count > 0
                     ? Math.Round(100.0 * configuredSystems / items.Count, 1)
-                    : (double?)null;
+                    : 0.0;  // Issue #466: return 0 instead of null so frontend shows 0% not N/A
 
                 return Results.Ok(new
                 {
