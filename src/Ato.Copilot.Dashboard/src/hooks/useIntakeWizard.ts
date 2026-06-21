@@ -1,8 +1,10 @@
 import { useReducer, useCallback } from 'react';
 import { WizardStep } from '../types/dashboard';
 import type { WizardState, WizardStepData } from '../types/dashboard';
+// Issue #459 — import discardSystem for cancel cleanup
+import { discardSystem } from '../api/portfolio';
 
-// ─── Actions ───────────────────────────────────────────────────────────────────
+// --- Actions ---------------------------------------------------------------
 
 type WizardAction =
   | { type: 'OPEN' }
@@ -17,7 +19,7 @@ type WizardAction =
   | { type: 'CLEAR_VALIDATION_ERRORS' }
   | { type: 'FINISH' };
 
-// ─── Initial state ─────────────────────────────────────────────────────────────
+// --- Initial state ---------------------------------------------------------
 
 const initialStepData: WizardStepData = {
   registration: {
@@ -57,7 +59,7 @@ const initialState: WizardState = {
   isOpen: false,
 };
 
-// ─── Reducer ───────────────────────────────────────────────────────────────────
+// --- Reducer ---------------------------------------------------------------
 
 function wizardReducer(state: WizardState, action: WizardAction): WizardState {
   switch (action.type) {
@@ -145,12 +147,29 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
   }
 }
 
-// ─── Hook ──────────────────────────────────────────────────────────────────────
+// --- Hook -----------------------------------------------------------------
 
 export function useIntakeWizard() {
   const [state, dispatch] = useReducer(wizardReducer, initialState);
 
   const open = useCallback(() => dispatch({ type: 'OPEN' }), []);
+
+  // Issue #459: cancelWithCleanup soft-deletes the draft system (if created on
+  // Step 1) before resetting wizard state. The API call is fire-and-forget so
+  // that a network failure doesn't block the modal from closing. Orphaned draft
+  // records are excluded from all dashboard queries by IsActive = false.
+  const cancelWithCleanup = useCallback(async (systemId: string | null): Promise<void> => {
+    if (systemId) {
+      try {
+        await discardSystem(systemId);
+      } catch {
+        // Best-effort: do not block wizard close on network error
+      }
+    }
+    dispatch({ type: 'CANCEL' });
+  }, []);
+
+  // Kept for backward compat (used by FINISH / step completion without cleanup)
   const cancel = useCallback(() => dispatch({ type: 'CANCEL' }), []);
   const reset = useCallback(() => dispatch({ type: 'RESET' }), []);
 
@@ -188,6 +207,7 @@ export function useIntakeWizard() {
     state,
     open,
     cancel,
+    cancelWithCleanup,
     reset,
     nextStep,
     prevStep,

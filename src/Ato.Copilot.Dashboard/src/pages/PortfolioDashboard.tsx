@@ -175,7 +175,7 @@ export default function PortfolioDashboard() {
           onPrev={wizard.prevStep}
           onSkip={wizard.skipStep}
           onGoToStep={wizard.goToStep}
-          onCancel={() => { wizard.cancel(); fetchPortfolio(); }}
+          onCancel={() => { void wizard.cancelWithCleanup(wizard.state.systemId); fetchPortfolio(); }}
           onFinish={wizard.finish}
           onSystemId={wizard.setSystemId}
           onValidationErrors={wizard.setValidationErrors}
