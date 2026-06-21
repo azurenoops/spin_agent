@@ -6,7 +6,7 @@ import type { ResolvedRoleAssignment, RmfRole } from '../../../types/roles';
 // Issue #469 — fix persons fetch: use onboarding persons API (not /api/dashboard/components)
 // /api/onboarding/persons returns Person records created during the wizard;
 // /api/dashboard/components?type=Person returns org-level SystemComponents (different table).
-import onboardingApi, { type PersonDto } from '../../../features/onboarding/api/onboardingApi';
+import { onboarding, type PersonDto } from '../../../features/onboarding/api/onboardingApi';
 
 const RMF_ROLES = [
   'AuthorizingOfficial',
@@ -42,7 +42,7 @@ export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesP
       .catch(() => setLoadError('Failed to load role assignments'));
     // Fix #469: fetch from /api/onboarding/persons (wizard Person records)
     // rather than /api/dashboard/components?type=Person (org SystemComponents).
-    onboardingApi.listPersons()
+    onboarding.listPersons()
       .then((data) => setPersons(data))
       .catch(() => setLoadError('Failed to load personnel'));
   }, [systemId]);
