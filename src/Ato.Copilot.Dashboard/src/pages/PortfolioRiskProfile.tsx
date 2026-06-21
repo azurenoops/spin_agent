@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
 import { usePolling } from '../hooks/usePolling';
@@ -34,7 +34,6 @@ function complianceBadge(score: number) {
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function PortfolioRiskProfile() {
-  const navigate = useNavigate();
   const [systems, setSystems] = useState<PortfolioSystemSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [coveragePct, setCoveragePct] = useState<number | null>(null);
@@ -109,8 +108,7 @@ export default function PortfolioRiskProfile() {
               <h2 className="text-base font-semibold text-gray-900 mb-4">Compliance by System</h2>
               <div className="space-y-3">
                 {[...systems].sort((a, b) => a.complianceScore - b.complianceScore).map(s => (
-                  <div key={s.systemId} className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/systems/${s.systemId}`)}
-                    role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && navigate(`/systems/${s.systemId}`)}>
+                  <Link key={s.systemId} to={`/systems/${s.systemId}`} className="flex items-center gap-3">
                     <span className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
                       {s.acronym || s.name}
                     </span>
@@ -119,7 +117,7 @@ export default function PortfolioRiskProfile() {
                         <span className="text-[11px] font-semibold text-white">{s.complianceScore}%</span>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -131,8 +129,7 @@ export default function PortfolioRiskProfile() {
                 {systems.filter(s => s.catICounts + s.catIICounts + s.catIIICounts > 0).sort((a, b) => (b.catICounts * 100 + b.catIICounts * 10 + b.catIIICounts) - (a.catICounts * 100 + a.catIICounts * 10 + a.catIIICounts)).map(s => {
                   const total = s.catICounts + s.catIICounts + s.catIIICounts;
                   return (
-                    <div key={s.systemId} className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/systems/${s.systemId}`)}
-                      role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && navigate(`/systems/${s.systemId}`)}>
+                    <Link key={s.systemId} to={`/systems/${s.systemId}`} className="flex items-center gap-3">
                       <span className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
                         {s.acronym || s.name}
                       </span>
@@ -142,7 +139,7 @@ export default function PortfolioRiskProfile() {
                         {s.catIIICounts > 0 && <div className="bg-indigo-400 h-5 flex items-center justify-center" style={{ width: `${s.catIIICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catIIICounts}</span></div>}
                       </div>
                       <span className="text-xs text-gray-500 w-8 text-right">{total}</span>
-                    </div>
+                    </Link>
                   );
                 })}
                 {systems.every(s => s.catICounts + s.catIICounts + s.catIIICounts === 0) && (
@@ -187,8 +184,7 @@ export default function PortfolioRiskProfile() {
               <h2 className="text-base font-semibold text-gray-900 mb-4">ATO Status</h2>
               <div className="space-y-2">
                 {systems.map(s => (
-                  <div key={s.systemId} className="flex items-center justify-between py-1.5 cursor-pointer" onClick={() => navigate(`/systems/${s.systemId}`)}
-                    role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && navigate(`/systems/${s.systemId}`)}>
+                  <Link key={s.systemId} to={`/systems/${s.systemId}`} className="flex items-center justify-between py-1.5">
                     <span className="text-sm text-indigo-600 hover:underline truncate max-w-[200px]" title={s.name}>
                       {s.acronym || s.name}
                     </span>
@@ -202,7 +198,7 @@ export default function PortfolioRiskProfile() {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
