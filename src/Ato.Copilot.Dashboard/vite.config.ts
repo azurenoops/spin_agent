@@ -44,6 +44,11 @@ export default defineConfig({
         target: apiProxyTarget,
         changeOrigin: true,
       },
+      '/hubs': {
+        target: apiProxyTarget,
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
   build: {
