@@ -90,5 +90,14 @@ export async function generateSystemDescription(
   return data.description;
 }
 
+
+/**
+ * Soft-deletes a system created during the intake wizard but never submitted.
+ * Used by wizard cancel cleanup (Issue #459).
+ */
+export async function discardSystem(systemId: string): Promise<void> {
+  await apiClient.delete(`/systems/${systemId}`);
+}
+
 // Feature 045: Re-export coverage KPI for Portfolio Risk Profile page
 export { getCoverage } from './capabilities';
