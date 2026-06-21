@@ -278,6 +278,39 @@ public static class DashboardEndpoints
             })
             .WithName("UpdateSystem");
 
+        // ─── Discard Draft System (wizard cancel cleanup) — #459 ─────────────
+        // Soft-deletes a system that was created during the intake wizard but
+        // never fully submitted. Sets IsActive = false so the record is excluded
+        // from all dashboard queries without cascading hard-deletes on child rows.
+        group.MapDelete("/systems/{systemId}", async (
+                string systemId,
+                AtoCopilotContext db,
+                CancellationToken ct) =>
+            {
+                var system = await db.RegisteredSystems
+                    .FirstOrDefaultAsync(s => s.Id == systemId && s.IsActive, ct);
+
+                if (system is null)
+                    return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "SYSTEM_NOT_FOUND" });
+
+                system.IsActive = false;
+                system.ModifiedAt = DateTime.UtcNow;
+
+                db.DashboardActivities.Add(new DashboardActivity
+                {
+                    RegisteredSystemId = systemId,
+                    EventType = "SystemDiscarded",
+                    Actor = "dashboard-user",
+                    Summary = $"System '{system.Name}' discarded (wizard cancelled)",
+                    RelatedEntityType = "RegisteredSystem",
+                    RelatedEntityId = systemId,
+                });
+                await db.SaveChangesAsync(ct);
+
+                return Results.Ok(new { id = systemId, discarded = true });
+            })
+            .WithName("DiscardSystem");
+
         // ─── RMF Role Assignments ────────────────────────────────────────────
         group.MapGet("/systems/{systemId}/roles", async (
                 string systemId,
