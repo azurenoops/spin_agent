@@ -1,5 +1,5 @@
 import { useState, useCallback, createContext, useContext } from 'react';
-import { useParams, Link, NavLink, Outlet } from 'react-router-dom';
+import { useParams, Link, Outlet, useLocation } from 'react-router-dom';
 import PageLayout from './PageLayout';
 import TodoPanel from '../cards/TodoPanel';
 import { usePolling } from '../../hooks/usePolling';
@@ -121,7 +121,12 @@ export default function SystemLayout() {
   }, []);
 
   const fetchData = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      // id comes from useParams; if somehow absent on first render, unblock the
+      // loading state so the UI doesn't hang. (#458)
+      setLoading(false);
+      return;
+    }
     try {
       const [d, comp, todoList] = await Promise.all([
         withTimeout(getSystemDetail(id), 8000),
@@ -143,7 +148,7 @@ export default function SystemLayout() {
     }
   }, [id, withTimeout]);
 
-  usePolling(fetchData);
+  usePolling(fetchData, undefined, !!id);
 
   if (loading) {
     return (
@@ -162,6 +167,7 @@ export default function SystemLayout() {
   }
 
   const basePath = `/systems/${id}`;
+  const location = useLocation();
 
   // Count incomplete profile sections for notification badge on details tab
   const profileActionCount = profileCompleteness
@@ -340,26 +346,30 @@ export default function SystemLayout() {
               </div>
             )}
             <div className="space-y-0.5">
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={`${basePath}${item.path ? `/${item.path}` : ''}`}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+              {group.items.map((item) => {
+                const to = `${basePath}${item.path ? `/${item.path}` : ''}`;
+                const isActive = item.end
+                  ? location.pathname === to
+                  : location.pathname === to || location.pathname.startsWith(`${to}/`);
+                return (
+                  <Link
+                    key={item.path}
+                    to={to}
+                    data-testid={`nav-${item.path || 'overview'}`}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                       isActive
                         ? 'bg-indigo-50 text-indigo-700 font-medium'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    } ${navCollapsed ? 'justify-center' : ''}`
-                  }
-                  title={navCollapsed ? item.label : undefined}
-                >
-                  <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d={item.d} />
-                  </svg>
-                  {!navCollapsed && <span className="truncate">{item.label}</span>}
-                </NavLink>
-              ))}
+                    } ${navCollapsed ? 'justify-center' : ''}`}
+                    title={navCollapsed ? item.label : undefined}
+                  >
+                    <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={item.d} />
+                    </svg>
+                    {!navCollapsed && <span className="truncate">{item.label}</span>}
+                  </Link>
+                );
+              })}
             </div>
           </div>
           );

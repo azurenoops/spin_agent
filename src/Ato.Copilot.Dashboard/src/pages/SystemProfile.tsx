@@ -43,7 +43,7 @@ export default function SystemProfile() {
   const sectionType = sectionParam as ProfileSectionType;
   const systemId = detail.systemId;
   const isReadOnly = section?.governanceStatus === 'UnderReview'
-    || settings.role !== 'MissionOwner';
+    || (!!settings.role && settings.role !== 'MissionOwner');
 
   const fetchSection = useCallback(async () => {
     try {

@@ -96,7 +96,7 @@ export async function generateSystemDescription(
  * Used by wizard cancel cleanup (Issue #459).
  */
 export async function discardSystem(systemId: string): Promise<void> {
-  await apiClient.delete();
+  await apiClient.delete(`/systems/${systemId}`);
 }
 
 // Feature 045: Re-export coverage KPI for Portfolio Risk Profile page
