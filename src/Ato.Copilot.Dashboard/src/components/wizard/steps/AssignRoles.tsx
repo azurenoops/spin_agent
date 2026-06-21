@@ -3,7 +3,10 @@ import { useState, useEffect } from 'react';
 // (FR-008 / FR-010 unified role endpoints, Feature 049).
 import { rolesApi } from '../../../api/roles';
 import type { ResolvedRoleAssignment, RmfRole } from '../../../types/roles';
-import apiClient from '../../../api/client';
+// Issue #469 — fix persons fetch: use onboarding persons API (not /api/dashboard/components)
+// /api/onboarding/persons returns Person records created during the wizard;
+// /api/dashboard/components?type=Person returns org-level SystemComponents (different table).
+import onboardingApi, { type PersonDto } from '../../../features/onboarding/api/onboardingApi';
 
 const RMF_ROLES = [
   'AuthorizingOfficial',
@@ -21,12 +24,6 @@ const ROLE_LABELS: Record<string, string> = {
   SystemOwner: 'System Owner',
 };
 
-interface PersonOption {
-  id: string;
-  name: string;
-  personName: string;
-}
-
 interface AssignRolesProps {
   systemId: string;
   onNext: () => void;
@@ -35,7 +32,7 @@ interface AssignRolesProps {
 
 export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesProps) {
   const [assignments, setAssignments] = useState<ResolvedRoleAssignment[]>([]);
-  const [persons, setPersons] = useState<PersonOption[]>([]);
+  const [persons, setPersons] = useState<PersonDto[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -43,14 +40,16 @@ export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesP
     rolesApi.getSystemRoles(systemId)
       .then((res) => setAssignments(res.roles.filter((r) => r.source !== 'not-assigned')))
       .catch(() => setLoadError('Failed to load role assignments'));
-    apiClient.get('/components', { params: { type: 'Person', pageSize: 200 } })
-      .then((res) => setPersons(res.data.items ?? []))
+    // Fix #469: fetch from /api/onboarding/persons (wizard Person records)
+    // rather than /api/dashboard/components?type=Person (org SystemComponents).
+    onboardingApi.listPersons()
+      .then((data) => setPersons(data))
       .catch(() => setLoadError('Failed to load personnel'));
   }, [systemId]);
 
   const getAssignment = (role: string) => assignments.find((a) => a.role === role);
 
-  const handleAssign = async (role: string, person: PersonOption) => {
+  const handleAssign = async (role: string, person: PersonDto) => {
     setSaving(role);
     try {
       const result = await rolesApi.assignSystemRole(systemId, {
@@ -77,7 +76,7 @@ export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesP
         <p className="mb-2 text-sm text-red-600">{loadError}</p>
       )}
       <h2 className="text-xl font-semibold text-gray-900 mb-1">Step 5: Assign RMF Roles</h2>
-      <p className="text-sm text-gray-500 mb-6">Assign personnel to standard RMF roles from existing Person components.</p>
+      <p className="text-sm text-gray-500 mb-6">Assign personnel to standard RMF roles from existing Person records.</p>
 
       <div className="space-y-4">
         {RMF_ROLES.map((role) => {
@@ -106,7 +105,7 @@ export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesP
                 <option value="">Select person...</option>
                 {persons.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.personName || p.name}
+                    {p.displayName}
                   </option>
                 ))}
               </select>
