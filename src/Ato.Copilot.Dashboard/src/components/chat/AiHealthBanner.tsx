@@ -41,6 +41,12 @@ export function useAiHealthCheck() {
       if (resp.ok) {
         setStatus('healthy');
         return true;
+      } else if (resp.status === 401 || resp.status === 403) {
+        // Auth issue, not provider issue — MSAL token may not be cached yet.
+        // Don't show the degraded banner; treat as unknown and let the user
+        // retry once the session is fully authenticated.
+        setStatus('unknown');
+        return true;
       } else {
         setStatus('degraded');
         return false;

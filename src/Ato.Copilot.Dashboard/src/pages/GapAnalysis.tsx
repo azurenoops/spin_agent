@@ -55,7 +55,7 @@ export default function GapAnalysis() {
     }
   }, [systemId]);
 
-  const { data: summary, refresh } = usePolling(fetchGaps, 60000);
+  const { data: summary, loading: gapLoading, refresh } = usePolling(fetchGaps, 60000);
 
   if (!systemId) return null;
 
@@ -93,9 +93,14 @@ export default function GapAnalysis() {
         </div>
       )}
 
-      {!summary ? (
+      {gapLoading && !summary ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center text-gray-400">
           <p className="text-sm">Loading gap analysis…</p>
+        </div>
+      ) : !summary ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center text-gray-400">
+          <p className="text-sm">No gap analysis data available. The endpoint may not be configured yet.</p>
+          <button onClick={() => void refresh()} className="mt-3 text-sm text-indigo-600 hover:underline">Retry</button>
         </div>
       ) : summary.items.length === 0 ? (
         <div className="rounded-lg border border-green-200 bg-green-50 p-8 text-center">
