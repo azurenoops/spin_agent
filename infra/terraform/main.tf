@@ -307,7 +307,11 @@ resource "azurerm_container_app" "mcp" {
   ingress {
     external_enabled = true
     target_port      = 8080
-    transport        = "http"
+    transport        = "auto" # "auto" enables HTTP + WebSocket upgrade (required for SignalR)
+
+    sticky_sessions {
+      affinity = "sticky" # Required for SignalR: connection IDs are server-local; without sticky sessions, negotiate lands on replica A and WebSocket connect hits replica B -> 404
+    }
 
     traffic_weight {
       percentage      = 100
