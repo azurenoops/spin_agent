@@ -6209,9 +6209,140 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
             })
             .WithName("GetEvidenceSettings");
 
+        // ─── Issue #418 — Enhanced Evidence Automation Endpoints ──────────────
+
+        // POST /evidence/correlate — map an evidence source to a NIST control
+        group.MapPost("/evidence/correlate", async (
+                [FromBody] EvidenceCorrelateRequest req,
+                IEvidenceCorrelationEngine correlationEngine,
+                HttpContext httpContext,
+                CancellationToken ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(req.ControlId) || string.IsNullOrWhiteSpace(req.EvidenceReferenceId))
+                    return Results.BadRequest(new ErrorResponse { Error = "ControlId and EvidenceReferenceId are required", ErrorCode = "VALIDATION_ERROR" });
+
+                var actor = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var mapping = await correlationEngine.CorrelateEvidenceAsync(
+                    req.ControlId,
+                    req.SubscriptionId ?? string.Empty,
+                    req.EvidenceReferenceId,
+                    req.SourceType,
+                    actor,
+                    req.Note,
+                    ct);
+
+                return Results.Created($"/evidence/{req.SubscriptionId}/mappings/{req.ControlId}", new
+                {
+                    mapping.Id,
+                    mapping.ControlId,
+                    mapping.SubscriptionId,
+                    mapping.EvidenceReferenceId,
+                    SourceType = mapping.EvidenceSourceType.ToString(),
+                    mapping.CorrelationScore,
+                    mapping.MappingNote,
+                    mapping.MappedBy,
+                    mapping.MappedAt
+                });
+            })
+            .WithName("CorrelateEvidence");
+
+        // GET /evidence/{subscriptionId}/mappings/{controlId} — all evidence for a control
+        group.MapGet("/evidence/{subscriptionId}/mappings/{controlId}", async (
+                string subscriptionId,
+                string controlId,
+                IEvidenceCorrelationEngine correlationEngine,
+                CancellationToken ct) =>
+            {
+                var mappings = await correlationEngine.GetMappingsForControlAsync(controlId, subscriptionId, ct);
+                return Results.Ok(mappings.Select(m => new
+                {
+                    m.Id,
+                    m.ControlId,
+                    m.SubscriptionId,
+                    m.EvidenceReferenceId,
+                    SourceType = m.EvidenceSourceType.ToString(),
+                    m.CorrelationScore,
+                    m.MappingNote,
+                    m.MappedBy,
+                    m.MappedAt
+                }));
+            })
+            .WithName("GetControlEvidenceMappings");
+
+        // GET /evidence/{subscriptionId}/stale — stale evidence requiring re-collection
+        group.MapGet("/evidence/{subscriptionId}/stale", async (
+                string subscriptionId,
+                IEvidenceFreshnessService freshnessService,
+                CancellationToken ct) =>
+            {
+                var stale = await freshnessService.GetStaleEvidenceAsync(subscriptionId, ct);
+                return Results.Ok(stale.Select(r => new
+                {
+                    r.Id,
+                    r.ControlId,
+                    r.SubscriptionId,
+                    r.LastCollectedAt,
+                    r.FreshnessWindowHours,
+                    StaleAfter = r.LastCollectedAt.AddHours(r.FreshnessWindowHours),
+                    IsStale = true,
+                    SourceType = r.EvidenceSourceType.ToString()
+                }));
+            })
+            .WithName("GetStaleEvidence");
+
+        // GET /evidence/{subscriptionId}/freshness/{controlId} — freshness record
+        group.MapGet("/evidence/{subscriptionId}/freshness/{controlId}", async (
+                string subscriptionId,
+                string controlId,
+                IEvidenceFreshnessService freshnessService,
+                CancellationToken ct) =>
+            {
+                var record = await freshnessService.GetFreshnessAsync(controlId, subscriptionId, ct);
+                if (record is null)
+                    return Results.NotFound(new ErrorResponse { Error = "No freshness record found", ErrorCode = "NOT_FOUND" });
+
+                return Results.Ok(new
+                {
+                    record.Id,
+                    record.ControlId,
+                    record.SubscriptionId,
+                    record.LastCollectedAt,
+                    record.FreshnessWindowHours,
+                    StaleAfter = record.LastCollectedAt.AddHours(record.FreshnessWindowHours),
+                    record.IsStale,
+                    SourceType = record.EvidenceSourceType.ToString()
+                });
+            })
+            .WithName("GetEvidenceFreshness");
+
+        // GET /evidence/{subscriptionId}/audit-trail — queryable audit trail
+        group.MapGet("/evidence/{subscriptionId}/audit-trail", async (
+                string subscriptionId,
+                [FromQuery] string? controlId,
+                [FromQuery] int days,
+                IEvidenceAuditService auditService,
+                CancellationToken ct) =>
+            {
+                if (days <= 0) days = 30;
+                var events = await auditService.GetAuditTrailAsync(controlId, subscriptionId, days, ct);
+                return Results.Ok(events.Select(e => new
+                {
+                    e.Id,
+                    EventType = e.EventType.ToString(),
+                    e.ControlId,
+                    e.SubscriptionId,
+                    e.ActorId,
+                    e.Description,
+                    e.OccurredAt,
+                    e.Metadata
+                }));
+            })
+            .WithName("GetEvidenceAuditTrail");
+
         // ═══════════════════════════════════════════════════════════════════════
         // POA&M Management Endpoints (Feature 039)
         // ═══════════════════════════════════════════════════════════════════════
+
 
         // ── GET /systems/{systemId}/poam — list POA&M items (paginated, filtered)
         group.MapGet("/systems/{systemId}/poam", async (
@@ -8492,4 +8623,12 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
     private record Feature044RevertRequest(
         List<string> ControlIds,
         string? RevertedBy = null);
+
+    // Issue #418 — Enhanced Evidence Automation request types
+    private record EvidenceCorrelateRequest(
+        string ControlId,
+        string EvidenceReferenceId,
+        EvidenceSourceType SourceType,
+        string? SubscriptionId = null,
+        string? Note = null);
 }
