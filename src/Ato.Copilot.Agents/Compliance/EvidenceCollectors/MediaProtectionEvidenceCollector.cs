@@ -64,7 +64,7 @@ public class MediaProtectionEvidenceCollector : BaseEvidenceCollector
         // Evidence 2 — Policy: Policy compliance for storage encryption (MP-4 Media Storage)
         try
         {
-            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, ct: cancellationToken);
+            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, cancellationToken: cancellationToken);
 
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {
