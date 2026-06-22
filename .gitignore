@@ -63,3 +63,5 @@ coverage/
 
 # MkDocs output
 site/
+# Playwright test results
+src/Ato.Copilot.Dashboard/test-results/

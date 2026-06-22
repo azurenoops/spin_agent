@@ -10,6 +10,7 @@ import { getDeviations } from '../api/deviations';
 import type { RemediationSummary, RemediationTask } from '../api/remediation';
 import type { DeviationListItem } from '../types/dashboard';
 import SyncIndicator from '../components/poam/SyncIndicator';
+import CreateRemediationTaskModal from '../components/remediation/CreateRemediationTaskModal';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,8 @@ export default function Remediation() {
   const [linkPoamResults, setLinkPoamResults] = useState<{ id: string; controlId: string; weakness: string; status: string; hasTask: boolean }[]>([]);
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+  // fix(#441): standalone Create Task modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Deviation map: poamEntryId → deviation info for badge display
   const [deviationsByPoam, setDeviationsByPoam] = useState<Map<string, DeviationListItem>>(new Map());
@@ -240,6 +243,17 @@ export default function Remediation() {
             <p className="mt-1 text-sm text-gray-500">Track remediation tasks and manage task lifecycle.</p>
           </div>
           <div className="flex items-center gap-3">
+            {/* fix(#441): Create Task button — standalone task creation */}
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Create Task
+            </button>
             {/* Search */}
             <input
               type="text"
@@ -714,6 +728,19 @@ export default function Remediation() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* fix(#441): Standalone Create Remediation Task modal */}
+        {showCreateModal && (
+          <CreateRemediationTaskModal
+            systemId={systemId}
+            onClose={() => setShowCreateModal(false)}
+            onCreated={() => {
+              setShowCreateModal(false);
+              refreshTasks();
+              refresh();
+            }}
+          />
         )}
     </div>
   );

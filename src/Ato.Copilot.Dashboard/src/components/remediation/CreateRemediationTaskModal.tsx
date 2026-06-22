@@ -3,12 +3,17 @@ import { createTask } from '../../api/remediation';
 
 interface Props {
   systemId: string;
-  findingTitle: string;
-  findingId: string;
-  findingSeverity: string;
+  /** When launched from a finding, pre-populates title/severity/findingId.
+   *  When launched standalone from the Remediation page, these are omitted
+   *  and the user fills them in manually. fix(#441) */
+  findingTitle?: string;
+  findingId?: string;
+  findingSeverity?: string;
   onClose: () => void;
   onCreated?: () => void;
 }
+
+const SEVERITY_OPTIONS = ['Critical', 'High', 'Medium', 'Low'];
 
 export default function CreateRemediationTaskModal({
   systemId,
@@ -18,8 +23,13 @@ export default function CreateRemediationTaskModal({
   onClose,
   onCreated,
 }: Props) {
-  const [title, setTitle] = useState(findingTitle);
+  const isStandalone = !findingId;
+
+  const [title, setTitle] = useState(findingTitle ?? '');
   const [description, setDescription] = useState('');
+  const [controlId, setControlId] = useState('');
+  const [severity, setSeverity] = useState(findingSeverity ?? 'Medium');
+  const [dueDate, setDueDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,8 +43,10 @@ export default function CreateRemediationTaskModal({
       await createTask(systemId, {
         title: title.trim(),
         description: description.trim() || undefined,
-        findingId,
-        severity: findingSeverity,
+        findingId: findingId || undefined,
+        severity,
+        controlId: controlId.trim() || undefined,
+        dueDate: dueDate || undefined,
       });
       onCreated?.();
       onClose();
@@ -51,14 +63,16 @@ export default function CreateRemediationTaskModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Create Remediation Task">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full max-w-lg rounded-lg bg-white shadow-xl mx-4">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Create Remediation Task</h3>
-            <p className="text-sm text-gray-500">Create a task from this finding</p>
+            <p className="text-sm text-gray-500">
+              {isStandalone ? 'Create a new remediation task for this system' : 'Create a task from this finding'}
+            </p>
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-500">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -75,13 +89,37 @@ export default function CreateRemediationTaskModal({
             </div>
           )}
 
-          {/* Severity (read-only) */}
+          {/* Severity — select when standalone, badge when from finding */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Severity</label>
-            <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 capitalize">
-              {findingSeverity}
-            </span>
+            {isStandalone ? (
+              <select
+                value={severity}
+                onChange={(e) => setSeverity(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                {SEVERITY_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            ) : (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 capitalize">
+                {findingSeverity}
+              </span>
+            )}
           </div>
+
+          {/* Control ID — only shown in standalone mode */}
+          {isStandalone && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Control ID</label>
+              <input
+                type="text"
+                value={controlId}
+                onChange={(e) => setControlId(e.target.value)}
+                placeholder="e.g. AC-2"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          )}
 
           {/* Title */}
           <div>
@@ -90,6 +128,7 @@ export default function CreateRemediationTaskModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              placeholder="Describe the remediation task"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             />
           </div>
@@ -106,8 +145,23 @@ export default function CreateRemediationTaskModal({
             />
           </div>
 
-          {/* Finding ID (informational) */}
-          <p className="text-xs text-gray-400">Finding ID: <span className="font-mono">{findingId}</span></p>
+          {/* Due Date — only shown in standalone mode */}
+          {isStandalone && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          )}
+
+          {/* Finding ID (informational) — only when launched from finding */}
+          {findingId && (
+            <p className="text-xs text-gray-400">Finding ID: <span className="font-mono">{findingId}</span></p>
+          )}
         </div>
 
         {/* Footer */}
