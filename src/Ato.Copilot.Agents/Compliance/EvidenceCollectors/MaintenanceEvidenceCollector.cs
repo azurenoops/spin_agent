@@ -89,7 +89,7 @@ public class MaintenanceEvidenceCollector : BaseEvidenceCollector
         // Evidence 3 — Policy: Policy compliance for patching (MA-3 Maintenance Tools)
         try
         {
-            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, ct: cancellationToken);
+            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, cancellationToken: cancellationToken);
 
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {

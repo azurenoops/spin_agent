@@ -43,7 +43,7 @@ public class PhysicalEnvironmentalEvidenceCollector : BaseEvidenceCollector
 
             // Group resources by location to demonstrate geographic distribution
             var locationGroups = allResources?
-                .GroupBy(r => r.Location ?? "unknown")
+                .GroupBy(r => r.Data.Location.Name ?? "unknown")
                 .Select(g => new { Location = g.Key, ResourceCount = g.Count() })
                 .ToList();
 
@@ -70,7 +70,7 @@ public class PhysicalEnvironmentalEvidenceCollector : BaseEvidenceCollector
         // Evidence 2 — Policy: Policy compliance for geo-redundancy (PE-17 Alternate Work Site)
         try
         {
-            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, ct: cancellationToken);
+            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, cancellationToken: cancellationToken);
 
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {

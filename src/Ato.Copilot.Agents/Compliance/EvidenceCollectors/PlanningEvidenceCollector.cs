@@ -41,7 +41,7 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
             var allResources = await _azureResourceService.GetResourcesAsync(
                 subscriptionId, resourceGroup, null, cancellationToken);
 
-            var taggedCount = allResources?.Count(r => r.Tags != null && r.Tags.Count > 0) ?? 0;
+            var taggedCount = allResources?.Count(r => r.Data.Tags != null && r.Data.Tags.Count > 0) ?? 0;
             var totalCount = allResources?.Count ?? 0;
             var untaggedCount = totalCount - taggedCount;
 
@@ -70,7 +70,7 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
         // Evidence 2 — Policy: Policy compliance state for planning policies (PL-1 Policy and Procedures)
         try
         {
-            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, ct: cancellationToken);
+            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, cancellationToken: cancellationToken);
 
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {
@@ -129,7 +129,7 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
 
             // Group by resource type for boundary clarity
             var resourceTypeSummary = allResources?
-                .GroupBy(r => r.Type ?? "unknown")
+                .GroupBy(r => r.Data.ResourceType.ToString() ?? "unknown")
                 .Select(g => new { ResourceType = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .ToList();
@@ -162,7 +162,7 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
 
             // Extract distinct role definition IDs to represent defined security roles
             var distinctRoles = roleAssignments?
-                .Select(r => r.RoleDefinitionId)
+                .Select(r => r.Data.RoleDefinitionId)
                 .Distinct()
                 .ToList();
 
