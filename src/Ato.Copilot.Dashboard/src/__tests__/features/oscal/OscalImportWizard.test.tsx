@@ -1,13 +1,20 @@
 /**
- * Issue #419 — Unit tests for OscalImportWizard (Feature 076 T011)
- * Covers: step-1 file validation (accept/reject), CTA rendering, cancel behaviour
+ * Issue #419 — Unit tests for OscalImportWizard (contract-aligned)
+ *
+ * Contract: specs/077-enhanced-evidence-automation/oscal-api-contract.md
+ *
+ * Covers:
+ *   - File validation: accept, reject (.xml, .yaml, empty, > 10MB warn, > 50MB block)
+ *   - CTA label matches new button text ("Upload File")
+ *   - Commit blocked when validationStatus.errors present (surfaced in Step 2 → Step 3 gate)
+ *   - Cancel behaviour
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import OscalImportWizard from '../../../features/oscal/OscalImportWizard';
 
-// Minimal axios mock — tests only exercise Step 1 (no network calls)
-vi.mock('axios', () => ({
+// Minimal apiClient mock — tests only exercise Step 1 (no network calls)
+vi.mock('../../../api/client', () => ({
   default: {
     post: vi.fn(),
     get: vi.fn(),
@@ -15,7 +22,6 @@ vi.mock('axios', () => ({
 }));
 
 const defaultProps = {
-  systemId: 'sys-unit-test',
   onClose: vi.fn(),
   onImportComplete: vi.fn(),
 };
@@ -25,19 +31,17 @@ describe('OscalImportWizard — Step 1 (Upload)', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the Import OSCAL SSP heading and Upload step', () => {
+  it('renders the Import OSCAL SSP heading and Upload step label', () => {
     render(<OscalImportWizard {...defaultProps} />);
     expect(screen.getByText('Import OSCAL SSP')).toBeInTheDocument();
-    // Step label
     expect(screen.getByText('Upload')).toBeInTheDocument();
-    // Primary action button
-    expect(screen.getByText('Upload & Validate')).toBeInTheDocument();
+    // CTA button text per contract revision
+    expect(screen.getByText('Upload File')).toBeInTheDocument();
   });
 
-  it('Upload & Validate is disabled with no file selected', () => {
+  it('"Upload File" is disabled with no file selected', () => {
     render(<OscalImportWizard {...defaultProps} />);
-    const btn = screen.getByText('Upload & Validate');
-    expect(btn).toBeDisabled();
+    expect(screen.getByText('Upload File')).toBeDisabled();
   });
 
   it('rejects .xml file with a clear error message', () => {
@@ -47,8 +51,7 @@ describe('OscalImportWizard — Step 1 (Upload)', () => {
     Object.defineProperty(input, 'files', { value: [xmlFile], configurable: true });
     fireEvent.change(input);
     expect(screen.getByText(/Only .json files are accepted/)).toBeInTheDocument();
-    // Button must remain disabled
-    expect(screen.getByText('Upload & Validate')).toBeDisabled();
+    expect(screen.getByText('Upload File')).toBeDisabled();
   });
 
   it('rejects .yaml file with a clear error message', () => {
@@ -69,7 +72,7 @@ describe('OscalImportWizard — Step 1 (Upload)', () => {
     expect(screen.getByText('File is empty.')).toBeInTheDocument();
   });
 
-  it('accepts a valid .json file and enables Upload & Validate', () => {
+  it('accepts a valid .json file and enables "Upload File"', () => {
     render(<OscalImportWizard {...defaultProps} />);
     const input = document.getElementById('oscal-file-input') as HTMLInputElement;
     const validFile = new File(
@@ -79,22 +82,31 @@ describe('OscalImportWizard — Step 1 (Upload)', () => {
     );
     Object.defineProperty(input, 'files', { value: [validFile], configurable: true });
     fireEvent.change(input);
-    const btn = screen.getByText('Upload & Validate');
-    expect(btn).not.toBeDisabled();
+    expect(screen.getByText('Upload File')).not.toBeDisabled();
     expect(screen.getByText(/ssp\.json/)).toBeInTheDocument();
   });
 
-  it('shows a non-blocking amber warning for files > 10 MB', () => {
+  it('shows a non-blocking amber warning for files > 10 MB (upload NOT blocked)', () => {
     render(<OscalImportWizard {...defaultProps} />);
     const input = document.getElementById('oscal-file-input') as HTMLInputElement;
-    // Create a 11 MB file
-    const bigContent = 'x'.repeat(11 * 1024 * 1024);
-    const bigFile = new File([bigContent], 'large.json', { type: 'application/json' });
+    const bigFile = new File(['x'.repeat(11 * 1024 * 1024)], 'large.json', { type: 'application/json' });
     Object.defineProperty(input, 'files', { value: [bigFile], configurable: true });
     fireEvent.change(input);
     expect(screen.getByText(/larger than 10/)).toBeInTheDocument();
-    // Warning does NOT block upload
-    expect(screen.getByText('Upload & Validate')).not.toBeDisabled();
+    // Warning must NOT block the upload
+    expect(screen.getByText('Upload File')).not.toBeDisabled();
+  });
+
+  it('hard-blocks upload for files > 50 MB (contract §Notes-1)', () => {
+    render(<OscalImportWizard {...defaultProps} />);
+    const input = document.getElementById('oscal-file-input') as HTMLInputElement;
+    // Simulate a file reporting > 50 MB via Object.defineProperty on size
+    const oversizeFile = new File(['{}'], 'huge.json', { type: 'application/json' });
+    Object.defineProperty(oversizeFile, 'size', { value: 51 * 1024 * 1024 });
+    Object.defineProperty(input, 'files', { value: [oversizeFile], configurable: true });
+    fireEvent.change(input);
+    expect(screen.getByText(/exceeds the 50 MB limit/)).toBeInTheDocument();
+    expect(screen.getByText('Upload File')).toBeDisabled();
   });
 
   it('calls onClose when Cancel is clicked', () => {

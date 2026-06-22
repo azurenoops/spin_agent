@@ -8,6 +8,22 @@ import apiClient from '../api/client';
 import { enqueuePackage, getPackageStatus, getPackageDownloadUrl } from '../api/packages';
 import { ValidationBadge } from '../features/oscal';
 
+// ── Contract types for OSCAL SSP export ─────────────────────────────────────
+// GET /api/v1/systems/{systemId}/exports/oscal-ssp
+interface OscalExportValidationStatus {
+  isValid: boolean;
+  errors: { code: string; message: string; path: string }[];
+  warnings: { code: string; message: string; path: string }[];
+}
+interface OscalExportSummary {
+  oscalVersion: string;
+  generatedAt: string;
+  validationStatus: OscalExportValidationStatus;
+  stats: { controlCount: number; componentCount: number; inventoryItemCount: number };
+  downloadUrl: string;
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 interface ExportSspDialogProps {
   systemId: string;
   onClose: () => void;
@@ -30,6 +46,9 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
   // Wave 6 GAP-018
   const [oscalExporting, setOscalExporting] = useState<string | null>(null);
   const [oscalError, setOscalError] = useState<string | null>(null);
+  // #419: OSCAL SSP export summary (validation + stats from contract GET endpoint)
+  const [oscalSspSummary, setOscalSspSummary] = useState<OscalExportSummary | null>(null);
+  const [oscalSspSummaryLoading, setOscalSspSummaryLoading] = useState(false);
   // #180: PDF/XLSX/eMASS package export state
   const [pkgExporting, setPkgExporting] = useState<string | null>(null);
   const [pkgError, setPkgError] = useState<string | null>(null);
@@ -54,27 +73,49 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
     }
   }, [systemId]);
 
+  /**
+   * #419 contract: two-phase OSCAL SSP export.
+   *   1. GET /api/v1/systems/{id}/exports/oscal-ssp  → validate + surface stats
+   *   2. GET /api/v1/systems/{id}/exports/oscal-ssp/download  → stream file
+   *
+   * Calling this function when oscalSspSummary is already loaded skips step 1
+   * and goes straight to download; re-validates only when summary is stale.
+   */
   const handleOscalSspDownload = useCallback(async () => {
     setOscalExporting('oscal-ssp');
     setOscalError(null);
     try {
-      const response = await apiClient.get(
-        `/api/v1/systems/${systemId}/packages/oscal-ssp`,
-        { responseType: 'blob' }
+      // Step 1 — fetch validation + stats if not already loaded
+      let summary = oscalSspSummary;
+      if (!summary) {
+        setOscalSspSummaryLoading(true);
+        const metaRes = await apiClient.get<OscalExportSummary>(
+          `/api/v1/systems/${systemId}/exports/oscal-ssp`,
+        );
+        summary = metaRes.data;
+        setOscalSspSummary(summary);
+        setOscalSspSummaryLoading(false);
+      }
+
+      // Step 2 — stream download
+      const downloadRes = await apiClient.get(
+        `/api/v1/systems/${systemId}/exports/oscal-ssp/download`,
+        { responseType: 'blob' },
       );
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([response.data as BlobPart]));
+      a.href = URL.createObjectURL(new Blob([downloadRes.data as BlobPart]));
       a.download = `oscal-ssp-${systemId}.json`;
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(a.href);
       a.remove();
     } catch (e: unknown) {
+      setOscalSspSummaryLoading(false);
       setOscalError(`OSCAL SSP export failed: ${(e as Error).message ?? 'Unknown error'}`);
     } finally {
       setOscalExporting(null);
     }
-  }, [systemId]);
+  }, [systemId, oscalSspSummary]);
 
   const handlePackageExport = useCallback(async (format: 'pdf' | 'xlsx' | 'emass-xlsx') => {
     setPkgExporting(format);
@@ -409,11 +450,36 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                       <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
                         OSCAL 1.1.2
                       </span>
-                      <ValidationBadge valid={true} errorCount={0} warningCount={0} />
+                      {/* #419: live validation badge — real data when summary loaded, skeleton otherwise */}
+                      {oscalSspSummary ? (
+                        <ValidationBadge
+                          isValid={oscalSspSummary.validationStatus.isValid}
+                          errorCount={oscalSspSummary.validationStatus.errors.length}
+                          warningCount={oscalSspSummary.validationStatus.warnings.length}
+                        />
+                      ) : oscalSspSummaryLoading ? (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-400 animate-pulse">
+                          Validating…
+                        </span>
+                      ) : null}
                     </div>
                     <p className="text-xs text-gray-500">
                       System Security Plan — primary OSCAL artifact for NIST SP 800-53 compliance
                     </p>
+                    {/* Inline stats once loaded */}
+                    {oscalSspSummary && (
+                      <div className="flex gap-4 mt-2">
+                        {[
+                          { label: 'Controls',   v: oscalSspSummary.stats.controlCount       },
+                          { label: 'Components', v: oscalSspSummary.stats.componentCount      },
+                          { label: 'Inventory',  v: oscalSspSummary.stats.inventoryItemCount  },
+                        ].map(({ label, v }) => (
+                          <span key={label} className="text-xs text-gray-600">
+                            <span className="font-semibold text-gray-800">{v}</span> {label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => void handleOscalSspDownload()}
