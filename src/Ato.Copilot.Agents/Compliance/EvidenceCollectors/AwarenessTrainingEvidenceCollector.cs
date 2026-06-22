@@ -63,13 +63,13 @@ public class AwarenessTrainingEvidenceCollector : BaseEvidenceCollector
         // Evidence 2 — Policy: Policy compliance state (AT-1 Policy and Procedures)
         try
         {
-            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, cancellationToken: cancellationToken);
+            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, ct: cancellationToken);
 
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {
                 ControlReference = "AT-1",
                 Description = "Policy compliance state supporting awareness and training policy and procedure controls.",
-                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
+                TotalPolicyStates = policyStates?.Count ?? 0,
                 PolicyStates = policyStates
             });
 

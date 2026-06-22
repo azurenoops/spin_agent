@@ -41,7 +41,7 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
             var allResources = await _azureResourceService.GetResourcesAsync(
                 subscriptionId, resourceGroup, null, cancellationToken);
 
-            var taggedCount = allResources?.Count(r => r.Data.Tags != null && r.Data.Tags.Count > 0) ?? 0;
+            var taggedCount = allResources?.Count(r => r.Tags != null && r.Tags.Count > 0) ?? 0;
             var totalCount = allResources?.Count ?? 0;
             var untaggedCount = totalCount - taggedCount;
 
@@ -70,13 +70,13 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
         // Evidence 2 — Policy: Policy compliance state for planning policies (PL-1 Policy and Procedures)
         try
         {
-            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, cancellationToken: cancellationToken);
+            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, ct: cancellationToken);
 
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {
                 ControlReference = "PL-1",
                 Description = "Azure Policy compliance state demonstrating enforcement of security planning policy and procedure requirements.",
-                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
+                TotalPolicyStates = policyStates?.Count ?? 0,
                 PolicyStates = policyStates
             });
 
@@ -129,7 +129,7 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
 
             // Group by resource type for boundary clarity
             var resourceTypeSummary = allResources?
-                .GroupBy(r => r.Data.ResourceType.ToString() ?? "unknown")
+                .GroupBy(r => r.Type ?? "unknown")
                 .Select(g => new { ResourceType = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .ToList();
@@ -162,7 +162,7 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
 
             // Extract distinct role definition IDs to represent defined security roles
             var distinctRoles = roleAssignments?
-                .Select(r => r.Data.RoleDefinitionId)
+                .Select(r => r.RoleDefinitionId)
                 .Distinct()
                 .ToList();
 

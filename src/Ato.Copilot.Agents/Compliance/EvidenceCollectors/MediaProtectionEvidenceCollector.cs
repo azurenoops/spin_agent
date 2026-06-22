@@ -64,13 +64,13 @@ public class MediaProtectionEvidenceCollector : BaseEvidenceCollector
         // Evidence 2 — Policy: Policy compliance for storage encryption (MP-4 Media Storage)
         try
         {
-            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, cancellationToken: cancellationToken);
+            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, ct: cancellationToken);
 
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {
                 ControlReference = "MP-4",
                 Description = "Azure Policy compliance state for storage encryption policies protecting media at rest.",
-                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
+                TotalPolicyStates = policyStates?.Count ?? 0,
                 PolicyStates = policyStates
             });
 

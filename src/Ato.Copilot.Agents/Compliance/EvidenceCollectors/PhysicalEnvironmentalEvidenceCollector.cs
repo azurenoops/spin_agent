@@ -43,7 +43,7 @@ public class PhysicalEnvironmentalEvidenceCollector : BaseEvidenceCollector
 
             // Group resources by location to demonstrate geographic distribution
             var locationGroups = allResources?
-                .GroupBy(r => r.Data.Location.Name ?? "unknown")
+                .GroupBy(r => r.Location ?? "unknown")
                 .Select(g => new { Location = g.Key, ResourceCount = g.Count() })
                 .ToList();
 
@@ -70,13 +70,13 @@ public class PhysicalEnvironmentalEvidenceCollector : BaseEvidenceCollector
         // Evidence 2 — Policy: Policy compliance for geo-redundancy (PE-17 Alternate Work Site)
         try
         {
-            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, cancellationToken: cancellationToken);
+            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, ct: cancellationToken);
 
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {
                 ControlReference = "PE-17",
                 Description = "Azure Policy compliance state for geo-redundancy policies supporting alternate work site and business continuity controls.",
-                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
+                TotalPolicyStates = policyStates?.Count ?? 0,
                 PolicyStates = policyStates
             });
 

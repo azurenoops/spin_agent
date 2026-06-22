@@ -89,13 +89,13 @@ public class MaintenanceEvidenceCollector : BaseEvidenceCollector
         // Evidence 3 — Policy: Policy compliance for patching (MA-3 Maintenance Tools)
         try
         {
-            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, cancellationToken: cancellationToken);
+            var policyStates = await _policyService.GetPolicyStatesAsync(subscriptionId, ct: cancellationToken);
 
             var content = System.Text.Json.JsonSerializer.Serialize(new
             {
                 ControlReference = "MA-3",
                 Description = "Azure Policy compliance state for patching and maintenance tool governance policies.",
-                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
+                TotalPolicyStates = policyStates?.Count ?? 0,
                 PolicyStates = policyStates
             });
 

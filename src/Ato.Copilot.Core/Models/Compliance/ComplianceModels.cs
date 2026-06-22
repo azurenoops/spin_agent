@@ -3071,6 +3071,7 @@ public class ManualRemediationGuide
     /// <summary>Microsoft Docs or NIST reference links.</summary>
     public List<string> References { get; set; } = new();
 }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 418 — Enhanced Evidence Automation Models
