@@ -70,7 +70,7 @@ public class MediaProtectionEvidenceCollector : BaseEvidenceCollector
             {
                 ControlReference = "MP-4",
                 Description = "Azure Policy compliance state for storage encryption policies protecting media at rest.",
-                TotalPolicyStates = policyStates?.Count ?? 0,
+                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
                 PolicyStates = policyStates
             });
 

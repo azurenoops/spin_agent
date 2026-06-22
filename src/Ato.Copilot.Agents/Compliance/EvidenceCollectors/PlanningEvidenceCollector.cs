@@ -76,7 +76,7 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
             {
                 ControlReference = "PL-1",
                 Description = "Azure Policy compliance state demonstrating enforcement of security planning policy and procedure requirements.",
-                TotalPolicyStates = policyStates?.Count ?? 0,
+                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
                 PolicyStates = policyStates
             });
 

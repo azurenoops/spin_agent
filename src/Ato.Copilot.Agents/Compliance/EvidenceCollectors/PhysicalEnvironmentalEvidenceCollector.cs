@@ -76,7 +76,7 @@ public class PhysicalEnvironmentalEvidenceCollector : BaseEvidenceCollector
             {
                 ControlReference = "PE-17",
                 Description = "Azure Policy compliance state for geo-redundancy policies supporting alternate work site and business continuity controls.",
-                TotalPolicyStates = policyStates?.Count ?? 0,
+                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
                 PolicyStates = policyStates
             });
 
