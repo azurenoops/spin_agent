@@ -19,7 +19,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.117"
+      version = "~> 3.36"
     }
     azurenoopsutils = {
       source  = "azurenoops/azurenoopsutils"
@@ -309,9 +309,12 @@ resource "azurerm_container_app" "mcp" {
     target_port      = 8080
     transport        = "auto" # "auto" enables HTTP + WebSocket upgrade (required for SignalR)
 
-    sticky_sessions {
-      affinity = "sticky" # Required for SignalR: connection IDs are server-local; without sticky sessions, negotiate lands on replica A and WebSocket connect hits replica B -> 404
-    }
+    # sticky_sessions is NOT supported in azurerm ~> 3.x (added in 4.x).
+    # The overlay modules (overlays-key-vault, overlays-azsql, overlays-container-registry)
+    # all require azurerm ~> 3.x and cannot be bumped to 4.x until upstream publishes 4.x releases.
+    # Sticky session affinity for SignalR must be enabled via Azure Portal or az CLI post-deploy:
+    #   az containerapp ingress sticky-sessions set -n <app> -g <rg> --affinity sticky
+    # This is tracked in infra/docs/post-deploy-manual-steps.md.
 
     traffic_weight {
       percentage      = 100
