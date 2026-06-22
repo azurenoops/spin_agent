@@ -162,7 +162,7 @@ public class PlanningEvidenceCollector : BaseEvidenceCollector
 
             // Extract distinct role definition IDs to represent defined security roles
             var distinctRoles = roleAssignments?
-                .Select(r => r.Data.RoleDefinitionId?.ToString())
+                .Select(r => r.Data.RoleDefinitionId)
                 .Distinct()
                 .ToList();
 

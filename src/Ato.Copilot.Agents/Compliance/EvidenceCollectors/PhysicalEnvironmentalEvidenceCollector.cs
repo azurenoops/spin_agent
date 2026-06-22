@@ -43,7 +43,7 @@ public class PhysicalEnvironmentalEvidenceCollector : BaseEvidenceCollector
 
             // Group resources by location to demonstrate geographic distribution
             var locationGroups = allResources?
-                .GroupBy(r => r.Data.Location.ToString() ?? "unknown")
+                .GroupBy(r => r.Data.Location.Name ?? "unknown")
                 .Select(g => new { Location = g.Key, ResourceCount = g.Count() })
                 .ToList();
 
