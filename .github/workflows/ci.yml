@@ -78,11 +78,12 @@ jobs:
   terraform-lint:
     name: Terraform Lint
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       contains(toJson(github.event.pull_request.changed_files), 'infra/'))
+    # Run on every push/dispatch and on every PR (not just PRs touching infra/).
+    # The previous `contains(changed_files)` filter used a field that does not exist
+    # on the pull_request webhook payload — it always evaluated false, silently
+    # skipping terraform-lint on all PRs. This allowed provider constraint conflicts
+    # to merge undetected (e.g. PR #513 introduced azurerm ~> 4.0 while overlay
+    # modules require ~> 3.x). Running on every PR costs ~15s and prevents recurrence.
 
     steps:
       - name: Checkout
