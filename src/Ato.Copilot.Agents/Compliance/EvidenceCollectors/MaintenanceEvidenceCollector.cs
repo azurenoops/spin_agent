@@ -95,7 +95,7 @@ public class MaintenanceEvidenceCollector : BaseEvidenceCollector
             {
                 ControlReference = "MA-3",
                 Description = "Azure Policy compliance state for patching and maintenance tool governance policies.",
-                TotalPolicyStates = policyStates?.Count ?? 0,
+                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
                 PolicyStates = policyStates
             });
 

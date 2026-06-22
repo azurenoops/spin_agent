@@ -69,7 +69,7 @@ public class AwarenessTrainingEvidenceCollector : BaseEvidenceCollector
             {
                 ControlReference = "AT-1",
                 Description = "Policy compliance state supporting awareness and training policy and procedure controls.",
-                TotalPolicyStates = policyStates?.Count ?? 0,
+                TotalPolicyStates = string.IsNullOrEmpty(policyStates) ? 0 : 1,
                 PolicyStates = policyStates
             });
 
