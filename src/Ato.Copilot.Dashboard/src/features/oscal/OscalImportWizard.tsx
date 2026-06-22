@@ -188,7 +188,7 @@ export default function OscalImportWizard({ systemId, onClose, onImportComplete 
     return null;
   };
 
-  const handleFile = (f: File) => {
+  const handleFile = useCallback((f: File) => {
     const result = validateFile(f);
     if (result?.blocking) {
       setFileError(result.message);
@@ -197,14 +197,14 @@ export default function OscalImportWizard({ systemId, onClose, onImportComplete 
     }
     setFile(f);
     setFileError(result?.message ?? null);   // non-blocking warning
-  };
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps -- validateFile is pure, stable across renders
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
     const f = e.dataTransfer.files[0];
     if (f) handleFile(f);
-  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [handleFile]);
 
   // -- Step 1 → 2 : Upload --------------------------------------------------
 
@@ -276,8 +276,12 @@ export default function OscalImportWizard({ systemId, onClose, onImportComplete 
   const commitBlocked = hasErrors;
 
   const formatDate = (iso: string) => {
-    try { return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); }
-    catch { return iso; }
+    try {
+      return new Date(iso).toLocaleString(undefined, {
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch { return iso; }
   };
 
   // -- Render ---------------------------------------------------------------
