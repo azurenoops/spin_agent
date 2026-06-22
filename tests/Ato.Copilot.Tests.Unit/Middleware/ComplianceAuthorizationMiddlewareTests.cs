@@ -14,6 +14,7 @@ namespace Ato.Copilot.Tests.Unit.Middleware;
 /// <summary>
 /// Tests for ComplianceAuthorizationMiddleware — Tier 2 gate, OPERATION_PAUSED, role checks.
 /// </summary>
+[Collection("MiddlewareEnvTests")]
 public class ComplianceAuthorizationMiddlewareTests
 {
     private readonly Mock<ILogger<ComplianceAuthorizationMiddleware>> _logger = new();
