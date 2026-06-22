@@ -96,7 +96,7 @@ const Spinner = () => (
 
 // -- Validation badge --------------------------------------------------------
 
-function ValidationBadge({ valid, errorCount, warningCount }: {
+export function ValidationBadge({ valid, errorCount, warningCount }: {
   valid: boolean; errorCount: number; warningCount: number;
 }) {
   if (valid && warningCount === 0)

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import EmassImportWizard from './EmassImportWizard';
 import SspPdfImportWizard from './SspPdfImportWizard';
+import { OscalImportWizard } from '../../oscal';
 
 interface ImportedArtifactRow {
   id: string;
@@ -36,6 +37,7 @@ const KIND_LABELS: Record<string, string> = {
   EmassImportSession: 'eMASS Import',
   SspPdfImportSession: 'SSP PDF',
   NarrativeSeedDocument: 'Narrative Seed',
+  OscalImportRun: 'OSCAL SSP Import',
 };
 
 const onboardingApi = axios.create({ baseURL: '/api/onboarding' });
@@ -58,6 +60,7 @@ export default function ImportedDocumentsView() {
   // T273: eMASS import wizard state
   const [showEmassWizard, setShowEmassWizard] = useState(false);
   const [showSspWizard, setShowSspWizard] = useState(false);
+  const [showOscalWizard, setShowOscalWizard] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -132,11 +135,22 @@ export default function ImportedDocumentsView() {
             </svg>
             Import from eMASS
           </button>
+          {/* #419: Import OSCAL SSP CTA */}
+          <button
+            onClick={() => setShowOscalWizard(true)}
+            className="inline-flex items-center gap-1.5 rounded border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            Import OSCAL SSP
+          </button>
           {[
             { v: '', label: 'All' },
             { v: 'Template', label: 'Templates' },
             { v: 'EmassImportSession', label: 'eMASS' },
             { v: 'SspPdfImportSession', label: 'SSP PDFs' },
+            { v: 'OscalImportRun', label: 'OSCAL SSP' },
             { v: 'NarrativeSeedDocument', label: 'Narrative Seeds' },
           ].map(c => (
             <button
@@ -255,6 +269,12 @@ export default function ImportedDocumentsView() {
     )}
     {showSspWizard && (
       <SspPdfImportWizard onClose={() => { setShowSspWizard(false); void refresh(); }} />
+    )}
+    {showOscalWizard && (
+      <OscalImportWizard
+        systemId=""
+        onClose={() => { setShowOscalWizard(false); void refresh(); }}
+      />
     )}
     </>
   );

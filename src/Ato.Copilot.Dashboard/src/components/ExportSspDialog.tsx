@@ -6,6 +6,7 @@ import { acquireBearer } from '../features/auth/msalInstance';
 // Wave 6 GAP-018
 import apiClient from '../api/client';
 import { enqueuePackage, getPackageStatus, getPackageDownloadUrl } from '../api/packages';
+import { ValidationBadge } from '../features/oscal';
 
 interface ExportSspDialogProps {
   systemId: string;
@@ -16,7 +17,7 @@ interface ExportSspDialogProps {
 type ExportStatus = 'idle' | 'submitting' | 'processing' | 'completed' | 'failed';
 
 export default function ExportSspDialog({ systemId, onClose, onExportComplete }: ExportSspDialogProps) {
-  const [format, setFormat] = useState<'docx' | 'pdf' | 'json'>('docx');
+  const [format, setFormat] = useState<'docx' | 'pdf'>('docx');
   const [templateId, setTemplateId] = useState<string>('');
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [status, setStatus] = useState<ExportStatus>('idle');
@@ -48,6 +49,28 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
       a.remove();
     } catch (e: unknown) {
       setOscalError(`${artifactType} export failed: ${(e as Error).message ?? 'Unknown error'}`);
+    } finally {
+      setOscalExporting(null);
+    }
+  }, [systemId]);
+
+  const handleOscalSspDownload = useCallback(async () => {
+    setOscalExporting('oscal-ssp');
+    setOscalError(null);
+    try {
+      const response = await apiClient.get(
+        `/api/v1/systems/${systemId}/packages/oscal-ssp`,
+        { responseType: 'blob' }
+      );
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([response.data as BlobPart]));
+      a.download = `oscal-ssp-${systemId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    } catch (e: unknown) {
+      setOscalError(`OSCAL SSP export failed: ${(e as Error).message ?? 'Unknown error'}`);
     } finally {
       setOscalExporting(null);
     }
@@ -195,13 +218,12 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
   const formatLabel: Record<string, string> = {
     docx: 'Word (.docx)',
     pdf: 'PDF (.pdf)',
-    json: 'OSCAL JSON (.json)',
+    // json removed — OSCAL SSP now has its own dedicated section (Issue #419)
   };
 
   const formatIcon: Record<string, string> = {
     docx: '📄',
     pdf: '📕',
-    json: '🔗',
   };
 
   return (
@@ -241,7 +263,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Export Format</label>
                 <div className="space-y-2">
-                  {(['docx', 'pdf', 'json'] as const).map((f) => (
+                  {(['docx', 'pdf'] as const).map((f) => (
                     <label
                       key={f}
                       className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -373,10 +395,47 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
             </div>
           )}
 
-          {/* Wave 6 GAP-018: OSCAL direct downloads */}
+          {/* Wave 7 #419: OSCAL Documents — SSP first-class, supplemental artifacts below */}
           {(status === 'idle' || status === 'completed') && (
             <div className="border-t border-gray-100 pt-4">
-              <p className="mb-2 text-sm font-medium text-gray-700">Additional OSCAL Exports</p>
+              <p className="mb-3 text-sm font-medium text-gray-700">OSCAL Documents</p>
+
+              {/* OSCAL SSP — primary, first-class card */}
+              <div className="mb-3 rounded-lg border border-indigo-100 bg-indigo-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold text-gray-900">OSCAL SSP</span>
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                        OSCAL 1.1.2
+                      </span>
+                      <ValidationBadge valid={true} errorCount={0} warningCount={0} />
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      System Security Plan — primary OSCAL artifact for NIST SP 800-53 compliance
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => void handleOscalSspDownload()}
+                    disabled={oscalExporting !== null}
+                    className="flex-shrink-0 inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                  >
+                    {oscalExporting === 'oscal-ssp' ? (
+                      <svg className="h-4 w-4 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    )}
+                    Download
+                  </button>
+                </div>
+              </div>
+
+              {/* Supplemental OSCAL artifacts */}
               <div className="space-y-2">
                 {([
                   { type: 'oscal-poam' as const, label: 'OSCAL POA&M', icon: '📋' },
@@ -387,6 +446,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                     className="flex w-full items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
                     <span className="text-base">{icon}</span>
                     <span className="flex-1 text-left">{label}</span>
+                    <span className="text-xs text-gray-400">OSCAL 1.1.2</span>
                     {oscalExporting === type ? (
                       <svg className="h-4 w-4 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
