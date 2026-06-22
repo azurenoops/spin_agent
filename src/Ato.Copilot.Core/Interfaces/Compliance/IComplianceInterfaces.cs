@@ -1475,3 +1475,116 @@ public interface IAlertCorrelationService
     Task<int> FinalizeExpiredWindowsAsync(
         CancellationToken cancellationToken = default);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 418 — Enhanced Evidence Automation Interfaces
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Links multiple evidence sources to a single NIST control.
+/// Supports multi-evidence chain visualization and correlated compliance posture.
+/// </summary>
+public interface IEvidenceCorrelationEngine
+{
+    /// <summary>
+    /// Map an evidence item to a NIST control, creating a ControlEvidenceMapping record.
+    /// Computes a correlation score based on source type and family alignment.
+    /// </summary>
+    Task<ControlEvidenceMapping> CorrelateEvidenceAsync(
+        string controlId,
+        string subscriptionId,
+        string evidenceReferenceId,
+        EvidenceSourceType sourceType,
+        string mappedBy,
+        string? note = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieve all evidence mappings for a specific control + subscription.
+    /// Returns ordered by CorrelationScore descending, then MappedAt descending.
+    /// </summary>
+    Task<IReadOnlyList<ControlEvidenceMapping>> GetMappingsForControlAsync(
+        string controlId,
+        string subscriptionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Auto-correlate all evidence in an EvidencePackage to their corresponding controls.
+    /// Called after a family collection run. Returns count of new mappings created.
+    /// </summary>
+    Task<int> AutoCorrelatePackageAsync(
+        EvidencePackage package,
+        string subscriptionId,
+        string actorId = "system",
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Tracks evidence freshness per control+subscription pair.
+/// Automated evidence: 24h TTL. Manual uploads: 90-day TTL.
+/// Fires staleness alerts when TTL is exceeded.
+/// </summary>
+public interface IEvidenceFreshnessService
+{
+    /// <summary>
+    /// Record a successful evidence collection for a control, resetting the freshness clock.
+    /// </summary>
+    Task RecordCollectionAsync(
+        string controlId,
+        string subscriptionId,
+        EvidenceSourceType sourceType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get the freshness record for a single control+subscription pair.
+    /// Returns null if no collection has been recorded yet.
+    /// </summary>
+    Task<EvidenceFreshnessRecord?> GetFreshnessAsync(
+        string controlId,
+        string subscriptionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get all stale evidence records for an optional subscription filter.
+    /// A record is stale when DateTime.UtcNow > LastCollectedAt + FreshnessWindowHours.
+    /// </summary>
+    Task<IReadOnlyList<EvidenceFreshnessRecord>> GetStaleEvidenceAsync(
+        string? subscriptionId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sweep all records and fire staleness audit events for newly-stale items.
+    /// Called by a background job (hourly). Returns count of alerts fired.
+    /// </summary>
+    Task<int> FireStalenessAlertsAsync(
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Provides an immutable audit trail of evidence lifecycle events.
+/// Every automated collection, manual upload, mapping, and staleness alert is recorded here.
+/// </summary>
+public interface IEvidenceAuditService
+{
+    /// <summary>
+    /// Record a single audit event for evidence lifecycle tracking.
+    /// </summary>
+    Task RecordEventAsync(
+        EvidenceAuditEventType eventType,
+        string controlId,
+        string actorId,
+        string description,
+        string? subscriptionId = null,
+        string? metadata = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Query the audit trail, optionally filtered by controlId and/or subscriptionId.
+    /// Returns events ordered by OccurredAt descending (most recent first).
+    /// </summary>
+    Task<IReadOnlyList<EvidenceAuditEvent>> GetAuditTrailAsync(
+        string? controlId = null,
+        string? subscriptionId = null,
+        int days = 30,
+        CancellationToken cancellationToken = default);
+}

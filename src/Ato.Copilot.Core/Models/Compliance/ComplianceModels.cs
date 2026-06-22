@@ -3071,3 +3071,151 @@ public class ManualRemediationGuide
     /// <summary>Microsoft Docs or NIST reference links.</summary>
     public List<string> References { get; set; } = new();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 418 — Enhanced Evidence Automation Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Source type classification for evidence items used in correlation and freshness tracking.
+/// </summary>
+public enum EvidenceSourceType
+{
+    /// <summary>Collected automatically via Azure SDK collectors.</summary>
+    AutomatedAzure = 0,
+    /// <summary>Manually uploaded by a user.</summary>
+    ManualUpload = 1,
+    /// <summary>Imported from an external scanning tool (e.g., Nessus, Prisma).</summary>
+    ExternalScan = 2
+}
+
+/// <summary>
+/// Lifecycle event type for the evidence audit trail.
+/// </summary>
+public enum EvidenceAuditEventType
+{
+    /// <summary>Evidence was automatically collected from Azure.</summary>
+    Collected = 0,
+    /// <summary>Evidence was mapped to a control via correlation engine.</summary>
+    Mapped = 1,
+    /// <summary>Evidence was archived or soft-deleted.</summary>
+    Archived = 2,
+    /// <summary>A staleness alert was fired for this evidence.</summary>
+    StaleAlertFired = 3,
+    /// <summary>Evidence was manually uploaded by a user.</summary>
+    ManuallyUploaded = 4
+}
+
+/// <summary>
+/// Maps one or more evidence sources to a single NIST control.
+/// Supports the evidence correlation engine and chain visualization.
+/// </summary>
+public class ControlEvidenceMapping
+{
+    /// <summary>Unique identifier (GUID).</summary>
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    /// <summary>NIST 800-53 control identifier (e.g., "AC-2").</summary>
+    public string ControlId { get; set; } = string.Empty;
+
+    /// <summary>Azure subscription ID the evidence was collected from.</summary>
+    public string SubscriptionId { get; set; } = string.Empty;
+
+    /// <summary>Whether the evidence came from Azure automation, manual upload, or external scan.</summary>
+    public EvidenceSourceType EvidenceSourceType { get; set; }
+
+    /// <summary>
+    /// FK reference to ComplianceEvidence.Id (automated) or EvidenceArtifact.Id (manual).
+    /// </summary>
+    public string EvidenceReferenceId { get; set; } = string.Empty;
+
+    /// <summary>Optional human-readable note explaining why this evidence covers the control.</summary>
+    public string? MappingNote { get; set; }
+
+    /// <summary>
+    /// Correlation confidence score 0.0–1.0.
+    /// 1.0 = direct Azure SDK evidence for this exact family.
+    /// 0.5 = indirect / policy-based evidence.
+    /// </summary>
+    public double CorrelationScore { get; set; } = 1.0;
+
+    /// <summary>UTC timestamp when the mapping was created.</summary>
+    public DateTime MappedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Identity of the actor who created the mapping ("system" for automated).</summary>
+    public string MappedBy { get; set; } = "system";
+
+    /// <summary>Tenant scope (populated by TenantStampingSaveChangesInterceptor).</summary>
+    public Guid TenantId { get; set; }
+}
+
+/// <summary>
+/// Tracks the freshness of evidence for a specific control+subscription pair.
+/// Used to detect and alert on stale evidence that needs re-collection.
+/// </summary>
+public class EvidenceFreshnessRecord
+{
+    /// <summary>Unique identifier (GUID).</summary>
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    /// <summary>NIST 800-53 control identifier (e.g., "AC-2").</summary>
+    public string ControlId { get; set; } = string.Empty;
+
+    /// <summary>Azure subscription ID for scoped tracking.</summary>
+    public string SubscriptionId { get; set; } = string.Empty;
+
+    /// <summary>UTC timestamp of the most recent successful evidence collection.</summary>
+    public DateTime LastCollectedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// How long (in hours) evidence for this control stays fresh.
+    /// Defaults: 24h for AutomatedAzure, 2160h (90 days) for ManualUpload.
+    /// </summary>
+    public int FreshnessWindowHours { get; set; } = 24;
+
+    /// <summary>Source type determining default freshness window.</summary>
+    public EvidenceSourceType EvidenceSourceType { get; set; }
+
+    /// <summary>Computed expiry: LastCollectedAt + FreshnessWindowHours.</summary>
+    public DateTime StaleAfter => LastCollectedAt.AddHours(FreshnessWindowHours);
+
+    /// <summary>True when the current UTC time is past StaleAfter.</summary>
+    public bool IsStale => DateTime.UtcNow > StaleAfter;
+
+    /// <summary>Tenant scope.</summary>
+    public Guid TenantId { get; set; }
+}
+
+/// <summary>
+/// Immutable audit event recording a meaningful action in the evidence lifecycle.
+/// Provides full traceability from collection through mapping to archival.
+/// </summary>
+public class EvidenceAuditEvent
+{
+    /// <summary>Unique identifier (GUID).</summary>
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    /// <summary>The type of lifecycle event that occurred.</summary>
+    public EvidenceAuditEventType EventType { get; set; }
+
+    /// <summary>NIST 800-53 control identifier this event relates to.</summary>
+    public string ControlId { get; set; } = string.Empty;
+
+    /// <summary>Azure subscription ID (null for tenant-wide events).</summary>
+    public string? SubscriptionId { get; set; }
+
+    /// <summary>Identity of the actor (user OID, "system", or service name).</summary>
+    public string ActorId { get; set; } = "system";
+
+    /// <summary>Human-readable description of what happened.</summary>
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Optional JSON metadata blob for extensibility (e.g., evidence IDs, scores).</summary>
+    public string? Metadata { get; set; }
+
+    /// <summary>UTC timestamp when the event occurred.</summary>
+    public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Tenant scope.</summary>
+    public Guid TenantId { get; set; }
+}

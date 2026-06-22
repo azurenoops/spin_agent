@@ -359,6 +359,17 @@ public class AtoCopilotContext : DbContext
     /// <summary>Immutable version snapshots created when evidence artifacts are replaced.</summary>
     public DbSet<EvidenceVersion> EvidenceVersions => Set<EvidenceVersion>();
 
+    // ─── Enhanced Evidence Automation (Issue #418) ───────────────────────────
+
+    /// <summary>Evidence-to-control mappings produced by the correlation engine.</summary>
+    public DbSet<ControlEvidenceMapping> ControlEvidenceMappings => Set<ControlEvidenceMapping>();
+
+    /// <summary>Per-control freshness records for staleness detection and alerts.</summary>
+    public DbSet<EvidenceFreshnessRecord> EvidenceFreshnessRecords => Set<EvidenceFreshnessRecord>();
+
+    /// <summary>Immutable evidence lifecycle audit trail (collection, mapping, staleness).</summary>
+    public DbSet<EvidenceAuditEvent> EvidenceAuditEvents => Set<EvidenceAuditEvent>();
+
     // ─── POA&M Management (Feature 039) ──────────────────────────────────────
 
     /// <summary>Junction linking POA&amp;M items to system components (many-to-many).</summary>
@@ -3942,6 +3953,51 @@ public class AtoCopilotContext : DbContext
             entity.HasIndex(e => e.IsActive)
                 .HasDatabaseName("IX_OverlayDocument_IsActive");
             entity.HasData(OverlayDocumentSeed.GetSeedData());
+        });
+
+        // ─── Enhanced Evidence Automation (Issue #418) ───────────────────────
+
+        modelBuilder.Entity<ControlEvidenceMapping>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ControlId).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.SubscriptionId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.EvidenceReferenceId).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.MappedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.MappingNote).HasMaxLength(1000);
+            entity.HasIndex(e => new { e.ControlId, e.SubscriptionId })
+                .HasDatabaseName("IX_ControlEvidenceMapping_ControlId_Sub");
+            entity.HasIndex(e => e.MappedAt)
+                .HasDatabaseName("IX_ControlEvidenceMapping_MappedAt");
+        });
+
+        modelBuilder.Entity<EvidenceFreshnessRecord>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ControlId).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.SubscriptionId).HasMaxLength(36).IsRequired();
+            entity.HasIndex(e => new { e.ControlId, e.SubscriptionId })
+                .IsUnique()
+                .HasDatabaseName("IX_EvidenceFreshness_ControlId_Sub_Unique");
+            // IsStale and StaleAfter are computed — not persisted
+            entity.Ignore(e => e.IsStale);
+            entity.Ignore(e => e.StaleAfter);
+        });
+
+        modelBuilder.Entity<EvidenceAuditEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ControlId).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.SubscriptionId).HasMaxLength(36);
+            entity.Property(e => e.ActorId).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(2000).IsRequired();
+            entity.Property(e => e.Metadata).HasMaxLength(4000);
+            entity.HasIndex(e => e.ControlId)
+                .HasDatabaseName("IX_EvidenceAuditEvent_ControlId");
+            entity.HasIndex(e => e.OccurredAt)
+                .HasDatabaseName("IX_EvidenceAuditEvent_OccurredAt");
+            entity.HasIndex(e => new { e.SubscriptionId, e.OccurredAt })
+                .HasDatabaseName("IX_EvidenceAuditEvent_Sub_OccurredAt");
         });
     }
 

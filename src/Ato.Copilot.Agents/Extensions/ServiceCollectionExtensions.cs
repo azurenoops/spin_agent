@@ -103,6 +103,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IComplianceScanner, DefaultComplianceScanner>();
 
         // ─── Family-Specific Evidence Collectors (Feature 008 — US3) ────────
+        // Original 10 specialized collectors
         services.AddSingleton<IEvidenceCollector, AccessControlEvidenceCollector>();
         services.AddSingleton<IEvidenceCollector, AuditEvidenceCollector>();
         services.AddSingleton<IEvidenceCollector, SecurityCommsEvidenceCollector>();
@@ -113,7 +114,22 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IEvidenceCollector, IncidentResponseEvidenceCollector>();
         services.AddSingleton<IEvidenceCollector, RiskAssessmentEvidenceCollector>();
         services.AddSingleton<IEvidenceCollector, CertAccreditationEvidenceCollector>();
+        // Issue #418 — 10 new collectors completing all 20 NIST families (2x coverage)
+        services.AddSingleton<IEvidenceCollector, AwarenessTrainingEvidenceCollector>();
+        services.AddSingleton<IEvidenceCollector, MaintenanceEvidenceCollector>();
+        services.AddSingleton<IEvidenceCollector, MediaProtectionEvidenceCollector>();
+        services.AddSingleton<IEvidenceCollector, PhysicalEnvironmentalEvidenceCollector>();
+        services.AddSingleton<IEvidenceCollector, PlanningEvidenceCollector>();
+        services.AddSingleton<IEvidenceCollector, ProgramManagementEvidenceCollector>();
+        services.AddSingleton<IEvidenceCollector, PersonnelSecurityEvidenceCollector>();
+        services.AddSingleton<IEvidenceCollector, PiiProcessingEvidenceCollector>();
+        services.AddSingleton<IEvidenceCollector, SystemServicesAcquisitionEvidenceCollector>();
+        services.AddSingleton<IEvidenceCollector, SupplyChainRiskEvidenceCollector>();
         services.AddSingleton<IEvidenceCollector, DefaultEvidenceCollector>();
+        // Issue #418 — Evidence correlation, freshness, and audit trail services
+        services.AddScoped<IEvidenceAuditService, EvidenceAuditService>();
+        services.AddScoped<IEvidenceFreshnessService, EvidenceFreshnessService>();
+        services.AddScoped<IEvidenceCorrelationEngine, EvidenceCorrelationEngine>();
 
         // ─── Knowledge Base Stubs (Feature 008) ─────────────────────────────
         services.AddSingleton<IStigValidationService, StigValidationService>();
