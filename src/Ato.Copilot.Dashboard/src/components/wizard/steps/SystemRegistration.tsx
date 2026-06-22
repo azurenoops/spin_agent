@@ -230,12 +230,17 @@ export default function SystemRegistration({
         </div>
       </div>
 
-      {/* Step 1 handles its own Next button since it creates the system */}
-      <div className="mt-6 flex justify-end gap-3">
+      {/* Step 1 handles its own Next button since it creates the system.
+          fix(#499/#495): sticky footer so button is always visible regardless
+          of viewport height. Inline hint shown when required fields are empty. */}
+      <div className="sticky bottom-0 bg-white border-t border-gray-200 mt-6 px-0 py-4 flex items-center justify-between">
+        <p className="text-xs text-gray-400">
+          {!form.name.trim() ? '* System Name is required to continue' : ''}
+        </p>
         <button
           onClick={handleNext}
           disabled={saving || !form.name.trim()}
-          className="rounded-md bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="rounded-md bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? 'Creating System...' : 'Next'}
         </button>

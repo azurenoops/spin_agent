@@ -11,6 +11,8 @@ const PAGE_MAP: Record<string, string> = {
   '/remediation': 'remediation',
   '/audit': 'audit',
   '/admin/migration': 'admin-migration',
+  // fix(#496): /systems list page was falling through to 'unknown'
+  '/systems': 'systems',
 };
 
 function resolvePageName(pathname: string): string {

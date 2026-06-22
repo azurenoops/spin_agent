@@ -154,7 +154,8 @@ export default function PortfolioDashboard() {
           <option value="Monitor">Monitor</option>
         </select>
         <span className="self-center text-sm text-gray-500">
-          {totalCount} system{totalCount !== 1 ? 's' : ''}
+          {/* fix(#492): hide count while loading to prevent flash of '0 systems' */}
+          {loading ? '…' : `${totalCount} system${totalCount !== 1 ? 's' : ''}`}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <button

@@ -150,6 +150,10 @@ export default function SystemLayout() {
 
   usePolling(fetchData, undefined, !!id);
 
+  // fix(#505): useLocation must be called before any early returns to satisfy
+  // React Rules of Hooks — hooks cannot be called after conditional returns.
+  const location = useLocation();
+
   if (loading) {
     return (
       <PageLayout title="System Detail">
@@ -167,7 +171,6 @@ export default function SystemLayout() {
   }
 
   const basePath = `/systems/${id}`;
-  const location = useLocation();
 
   // Count incomplete profile sections for notification badge on details tab
   const profileActionCount = profileCompleteness
