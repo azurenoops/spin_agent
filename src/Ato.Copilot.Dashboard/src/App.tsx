@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useIsAuthenticated, useMsal } from '@azure/msal-react';
 import PortfolioRoute from './pages/PortfolioRoute';
 import SystemsRoute from './pages/SystemsRoute';
+import SystemsNewRoute from './pages/SystemsNewRoute';
 import ComponentsRoute from './pages/ComponentsRoute';
 import CapabilitiesRoute from './pages/CapabilitiesRoute';
 import ControlsRoute from './pages/ControlsRoute';
@@ -104,6 +105,10 @@ function AppContent() {
               loginRedirect with the deep-link as `state` when unauthenticated. */}
           <Route path="/" element={<RequireAuth><PortfolioRoute /></RequireAuth>} />
           <Route path="/systems" element={<RequireAuth><SystemsRoute /></RequireAuth>} />
+          {/* fix(#522): /systems/new must be registered BEFORE /systems/:id so React
+              Router does not match it as id="new". SystemsNewRoute redirects to
+              /systems with state.openWizard=true, which opens the intake wizard. */}
+          <Route path="/systems/new" element={<RequireAuth><SystemsNewRoute /></RequireAuth>} />
           <Route path="/systems/:id" element={<RequireAuth><SystemLayout /></RequireAuth>}>
             <Route index element={<SystemDetail />} />
             <Route path="roadmap" element={<Roadmap />} />
