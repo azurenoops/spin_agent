@@ -35,6 +35,17 @@ function resolvePageName(pathname: string): string {
   if (pathname.includes('/inheritance') || pathname.includes('/control-inheritance')) return 'inheritance';
   if (pathname.includes('/baseline') || pathname.includes('/categorization')) return 'baseline';
   if (pathname.includes('/capability-coverage') || pathname.includes('/capabilities')) return 'capabilities';
+  // fix(#526): alias sub-pages that live under /systems/:id before the
+  // SystemRedirect fires — the chat context is evaluated while the browser
+  // still shows the alias URL, causing 'Viewing: unknown'.
+  if (
+    pathname.includes('/mission-purpose') ||
+    pathname.includes('/users-access') ||
+    pathname.includes('/environment') ||
+    pathname.includes('/data-types') ||
+    pathname.includes('/ports-protocols') ||
+    pathname.includes('/leveraged-auth')
+  ) return 'system-profile';
   if (pathname.includes('/profile/')) return 'system-profile';
   if (pathname.includes('/authorize')) return 'authorize';
   if (pathname.includes('/roles')) return 'roles';

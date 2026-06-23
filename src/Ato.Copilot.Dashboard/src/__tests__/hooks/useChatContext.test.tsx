@@ -11,6 +11,8 @@ function createWrapper(path: string) {
 }
 
 describe('useChatContext', () => {
+  // ── Original baseline tests ───────────────────────────────────────────────
+
   it('returns portfolio context on root path', () => {
     const { result } = renderHook(() => useChatContext(), { wrapper: createWrapper('/') });
     expect(result.current.page).toBe('portfolio');
@@ -32,5 +34,58 @@ describe('useChatContext', () => {
   it('returns unknown for unrecognized paths', () => {
     const { result } = renderHook(() => useChatContext(), { wrapper: createWrapper('/some/random/path') });
     expect(result.current.page).toBe('unknown');
+  });
+
+  // ── Existing sub-page aliases that already work ───────────────────────────
+
+  it('resolves /systems/abc/profile/ to system-profile', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/systems/abc/profile/'),
+    });
+    expect(result.current.page).toBe('system-profile');
+  });
+
+  // ── fix/#526: missing slug aliases → must resolve to system-profile ───────
+
+  it('resolves /systems/abc/mission-purpose to system-profile (fix #526)', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/systems/abc/mission-purpose'),
+    });
+    expect(result.current.page).toBe('system-profile');
+  });
+
+  it('resolves /systems/abc/users-access to system-profile (fix #526)', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/systems/abc/users-access'),
+    });
+    expect(result.current.page).toBe('system-profile');
+  });
+
+  it('resolves /systems/abc/environment to system-profile (fix #526)', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/systems/abc/environment'),
+    });
+    expect(result.current.page).toBe('system-profile');
+  });
+
+  it('resolves /systems/abc/data-types to system-profile (fix #526)', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/systems/abc/data-types'),
+    });
+    expect(result.current.page).toBe('system-profile');
+  });
+
+  it('resolves /systems/abc/ports-protocols to system-profile (fix #526)', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/systems/abc/ports-protocols'),
+    });
+    expect(result.current.page).toBe('system-profile');
+  });
+
+  it('resolves /systems/abc/leveraged-auth to system-profile (fix #526)', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/systems/abc/leveraged-auth'),
+    });
+    expect(result.current.page).toBe('system-profile');
   });
 });
