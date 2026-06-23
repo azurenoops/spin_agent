@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
 import SystemSummaryRow from '../components/cards/SystemSummaryRow';
@@ -31,6 +32,19 @@ export default function PortfolioDashboard() {
 
   // Intake wizard
   const wizard = useIntakeWizard();
+
+  // fix(#522): auto-open the intake wizard when navigated here from
+  // /systems/new (which sets location.state.openWizard = true via redirect).
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    if ((location.state as { openWizard?: boolean } | null)?.openWizard) {
+      wizard.open();
+      // Clear the state so a hard-refresh doesn't re-open the wizard.
+      navigate('/systems', { replace: true, state: {} });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   // Edit system dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
