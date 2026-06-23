@@ -51,7 +51,15 @@ export function useAiHealthCheck() {
         setStatus('degraded');
         return false;
       }
-    } catch {
+    } catch (err: unknown) {
+      // fix(#526): AbortError / TimeoutError means the request was cancelled
+      // during navigation or by AbortSignal.timeout() — this is NOT a genuine
+      // provider failure. Setting 'degraded' here was firing the banner even
+      // when the API returned HTTP 200 on the very next load.
+      if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+        setStatus('unknown'); // navigation cancelled the request — not a real failure
+        return true;
+      }
       setStatus('degraded');
       return false;
     }
