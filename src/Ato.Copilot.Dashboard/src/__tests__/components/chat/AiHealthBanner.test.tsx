@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 
 // ── Hoist mocks BEFORE imports that import the real module ────────────────
 // acquireBearer lives in msalInstance; the health check calls it before fetch.
