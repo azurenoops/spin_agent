@@ -271,6 +271,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<RegisterSystemTool>();
         services.AddSingleton<ListSystemsTool>();
         services.AddSingleton<GetSystemTool>();
+        services.AddSingleton<DeleteSystemTool>();
         services.AddSingleton<AdvanceRmfStepTool>();
         services.AddSingleton<DefineBoundaryTool>();
         services.AddSingleton<ExcludeFromBoundaryTool>();
@@ -531,6 +532,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<RegisterSystemTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ListSystemsTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<GetSystemTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<DeleteSystemTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<AdvanceRmfStepTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<DefineBoundaryTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<ExcludeFromBoundaryTool>());
