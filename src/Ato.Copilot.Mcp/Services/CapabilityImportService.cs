@@ -706,8 +706,10 @@ public class CapabilityImportService
             }
         }
 
-        // Issue #466: return 0.0 instead of null so frontend shows 0% not N/A
-        double? coveragePercent = baselineControlCount > 0
+        // fix(#520): always return 0.0 (never null) so the JSON field is `coveragePercent: 0.0`
+        // rather than `coveragePercent: null`. The TS type `coveragePercent: number | null` in
+        // capabilities.ts:99 is updated separately to remove the null branch.
+        double coveragePercent = baselineControlCount > 0
             ? Math.Round((double)mappedControls / baselineControlCount.Value * 100, 1)
             : 0.0;
         int? unmappedControls = baselineControlCount.HasValue
@@ -1007,7 +1009,9 @@ public class OrgWideCoverage
     public int TotalCapabilities { get; set; }
     public int MappedControls { get; set; }
     public int? UnmappedControls { get; set; }
-    public double? CoveragePercent { get; set; }
+    // fix(#520): always a non-null number so the frontend type `coveragePercent: number | null`
+    // receives 0.0 instead of null when no baseline is configured, keeping Coverage % at '0%'.
+    public double CoveragePercent { get; set; }
     public string? BaselineLevel { get; set; }
     public int? BaselineControlCount { get; set; }
     public List<FamilyCoverage> PerFamily { get; set; } = new();

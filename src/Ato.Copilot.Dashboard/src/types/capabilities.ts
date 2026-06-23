@@ -96,7 +96,10 @@ export interface OrgWideCoverage {
   totalCapabilities: number;
   mappedControls: number;
   unmappedControls: number | null;
-  coveragePercent: number | null;
+  // fix(#520): backend OrgWideCoverage.CoveragePercent is now `double` (non-nullable),
+  // always returning 0.0 when no baseline is configured. Remove the null branch here
+  // so the frontend never has to handle null → 'N/A' in CoverageCards or PortfolioRiskProfile.
+  coveragePercent: number;
   baselineLevel: string | null;
   baselineControlCount: number | null;
   perFamily: FamilyCoverage[];

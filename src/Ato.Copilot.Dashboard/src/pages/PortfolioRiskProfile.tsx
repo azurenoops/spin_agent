@@ -37,7 +37,10 @@ export default function PortfolioRiskProfile() {
   const navigate = useNavigate();
   const [systems, setSystems] = useState<PortfolioSystemSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [coveragePct, setCoveragePct] = useState<number | null>(null);
+  const [coveragePct, setCoveragePct] = useState<number>(0);
+  // fix(#520): track whether the coverage API failed so we can distinguish
+  // "API error → 0%" from "genuinely 0% coverage" and render a muted color.
+  const [coverageFailed, setCoverageFailed] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -51,7 +54,18 @@ export default function PortfolioRiskProfile() {
   usePolling(fetchData);
 
   useEffect(() => {
-    getCoverage(false, false).then(res => setCoveragePct(res.orgWide.coveragePercent)).catch(() => setCoveragePct(null));
+    // fix(#520): catch() sets coveragePct=0 (never null) so Coverage % always
+    // shows '0.0%' rather than 'N/A'. coverageFailed=true signals a gray color
+    // to distinguish an API error from a genuine 0% posture.
+    getCoverage(false, false)
+      .then(res => {
+        setCoveragePct(res.orgWide.coveragePercent ?? 0);
+        setCoverageFailed(false);
+      })
+      .catch(() => {
+        setCoveragePct(0);
+        setCoverageFailed(true);
+      });
   }, []);
 
   // ─── Aggregations ───────────────────────────────────────────────────────────
@@ -86,20 +100,27 @@ export default function PortfolioRiskProfile() {
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
             <KpiCard label="Total Systems" value={stats.totalSystems} />
-            <KpiCard label="Avg Compliance" value={`${stats.avgCompliance}%`} valueColor={stats.avgCompliance >= 90 ? 'text-green-600' : stats.avgCompliance >= 70 ? 'text-amber-600' : 'text-red-600'} />
+            {/* fix(#520): avgCompliance=0 when no assessments have been run — add a tooltip
+                so the user understands 0% is expected and not a data error. */}
+            <KpiCard
+              label="Avg Compliance"
+              value={`${stats.avgCompliance}%`}
+              valueColor={stats.avgCompliance >= 90 ? 'text-green-600' : stats.avgCompliance >= 70 ? 'text-amber-600' : 'text-red-600'}
+              title={stats.avgCompliance === 0 ? 'No compliance assessments have been run yet' : undefined}
+            />
             <KpiCard label="Open POA&Ms" value={stats.totalPoams} />
             <KpiCard label="Overdue" value={stats.totalOverdue} valueColor={stats.totalOverdue > 0 ? 'text-red-600' : undefined} />
             <KpiCard label="CAT I Findings" value={stats.totalCatI} valueColor={stats.totalCatI > 0 ? 'text-red-600' : undefined} />
             <KpiCard label="CAT II Findings" value={stats.totalCatII} valueColor={stats.totalCatII > 0 ? 'text-amber-600' : undefined} />
             <KpiCard label="ATO At Risk" value={stats.expiredOrExpiring} valueColor={stats.expiredOrExpiring > 0 ? 'text-red-600' : undefined} />
-            {/* fix/429: coveragePct null means no capabilities configured — show 0% with
-                  a neutral color (gray) rather than 'N/A' which implies a calculation error.
-                  Include a title tooltip to explain the state to the user. */}
+            {/* fix(#520): coveragePct is now always a number (never null) because the useEffect
+                catch sets 0. coverageFailed=true → gray to distinguish API error from real 0%.
+                title tooltip explains the state to the user when coverage is unavailable. */}
             <KpiCard
               label="Coverage %"
-              value={coveragePct != null ? `${coveragePct.toFixed(1)}%` : '0%'}
-              valueColor={coveragePct != null && coveragePct >= 80 ? 'text-green-600' : coveragePct != null && coveragePct > 0 ? 'text-amber-600' : 'text-gray-400'}
-              title={coveragePct == null ? 'No security capabilities configured yet' : undefined}
+              value={`${coveragePct.toFixed(1)}%`}
+              valueColor={coverageFailed ? 'text-gray-400' : coveragePct >= 80 ? 'text-green-600' : coveragePct > 0 ? 'text-amber-600' : 'text-gray-400'}
+              title={coverageFailed ? 'No capabilities or baselines configured' : coveragePct === 0 ? 'No security capabilities configured yet' : undefined}
             />
           </div>
 
