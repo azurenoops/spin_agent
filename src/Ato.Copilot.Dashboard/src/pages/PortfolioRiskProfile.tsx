@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
 import { usePolling } from '../hooks/usePolling';
@@ -34,6 +34,7 @@ function complianceBadge(score: number) {
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function PortfolioRiskProfile() {
+  const navigate = useNavigate();
   const [systems, setSystems] = useState<PortfolioSystemSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [coveragePct, setCoveragePct] = useState<number | null>(null);
@@ -226,7 +227,11 @@ export default function PortfolioRiskProfile() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {systems.map(s => (
-                    <tr key={s.systemId} className="hover:bg-gray-50">
+                    <tr
+                      key={s.systemId}
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => navigate(`/systems/${s.systemId}`)}
+                    >
                       <td className="px-5 py-3">
                         <Link to={`/systems/${s.systemId}`} className="font-medium text-indigo-600 hover:underline">{s.name}</Link>
                         {s.acronym && <span className="ml-1 text-xs text-gray-400">({s.acronym})</span>}
