@@ -65,11 +65,18 @@ export default function CoverageCards({ coverage, loading }: CoverageCardsProps)
         color={gapControls != null && gapControls > 0 ? 'text-amber-600' : 'text-gray-900'}
         subtitle={coverage.baselineLevel ? `${coverage.baselineLevel} baseline` : undefined}
       />
+      {/* fix(#520): when no baseline is configured, coveragePercent is null/0 from the backend.
+          Show '0%' in neutral gray rather than 'N/A' — N/A implies a calculation error.
+          The subtitle distinguishes "no baseline configured" from a genuine 0% coverage. */}
       <Card
         label="Coverage %"
-        value={coveragePct != null ? `${coveragePct.toFixed(1)}%` : 'N/A'}
-        color={coveragePct != null && coveragePct >= 80 ? 'text-green-700' : coveragePct != null ? 'text-amber-600' : 'text-gray-400'}
-        subtitle={coverage.baselineControlCount != null ? `of ${coverage.baselineControlCount} baseline controls` : undefined}
+        value={coveragePct != null && coveragePct > 0 ? `${coveragePct.toFixed(1)}%` : '0%'}
+        color={coveragePct != null && coveragePct >= 80 ? 'text-green-700' : coveragePct != null && coveragePct > 0 ? 'text-amber-600' : 'text-gray-400'}
+        subtitle={
+          coverage.baselineControlCount != null
+            ? `of ${coverage.baselineControlCount} baseline controls`
+            : 'No security baseline configured'
+        }
       />
     </div>
   );
