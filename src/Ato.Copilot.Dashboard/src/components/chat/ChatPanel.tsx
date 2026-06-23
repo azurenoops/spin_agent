@@ -160,7 +160,7 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
       />
 
       {/* T272: Non-blocking degraded-mode banner */}
-      <AiHealthBanner triggerCheck={healthCheckTrigger > 0} />
+      <AiHealthBanner triggerCheck={healthCheckTrigger} />
 
       {conversations.length > 0 && (
         <ConversationList

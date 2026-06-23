@@ -16,8 +16,8 @@ import { acquireBearer } from '../../features/auth/msalInstance';
 type HealthStatus = 'unknown' | 'checking' | 'healthy' | 'degraded';
 
 interface AiHealthBannerProps {
-  /** Pass true when the panel just opened or before a send to trigger a check. */
-  triggerCheck: boolean;
+  /** Increment this counter each time a check should be triggered (panel open, before send). */
+  triggerCheck: number;
   /** Called after the check completes (either way). */
   onCheckComplete?: (healthy: boolean) => void;
 }
@@ -27,42 +27,62 @@ export function useAiHealthCheck() {
 
   const check = useCallback(async (): Promise<boolean> => {
     setStatus('checking');
+
+    // fix(#521): Acquire the bearer token in its own try-catch so that an MSAL
+    // initialisation failure on cold page load is NOT treated as a provider
+    // failure.  Auth-not-ready ≠ AI provider unreachable.
+    let token: string | null = null;
     try {
-      // fix/425: The MCP server exposes health at /health (root), not /mcp/health.
-      // nginx proxies /api/health → ${MCP_BASE_URL}/health so the dashboard can
-      // reach it without CORS issues. VITE_MCP_BASE_URL is only used in dev/vscode
-      // where the server is accessed directly; the nginx proxy is used in staging/prod.
-      const baseUrl = import.meta.env.VITE_MCP_BASE_URL || '';
-      const url = `${baseUrl}/api/health`;
-      const token = await acquireBearer();
-      const headers: Record<string, string> = { Accept: 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const resp = await fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(5000) });
-      if (resp.ok) {
-        setStatus('healthy');
-        return true;
-      } else if (resp.status === 401 || resp.status === 403) {
-        // Auth issue, not provider issue — MSAL token may not be cached yet.
-        // Don't show the degraded banner; treat as unknown and let the user
-        // retry once the session is fully authenticated.
-        setStatus('unknown');
-        return true;
-      } else {
+      token = await acquireBearer();
+    } catch {
+      // MSAL not ready — auth failure is not a provider failure.
+      // Treat as unknown so the banner is not shown on cold page load.
+      setStatus('unknown');
+      return true;
+    }
+
+    // fix/425: The MCP server exposes health at /health (root), not /mcp/health.
+    // nginx proxies /api/health → ${MCP_BASE_URL}/health so the dashboard can
+    // reach it without CORS issues. VITE_MCP_BASE_URL is only used in dev/vscode
+    // where the server is accessed directly; the nginx proxy is used in staging/prod.
+    const attempt = async (): Promise<boolean> => {
+      try {
+        const baseUrl = import.meta.env.VITE_MCP_BASE_URL || '';
+        const url = `${baseUrl}/api/health`;
+        const headers: Record<string, string> = { Accept: 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const resp = await fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(5000) });
+        if (resp.ok) { setStatus('healthy'); return true; }
+        if (resp.status === 401 || resp.status === 403) {
+          // Auth issue, not provider issue — MSAL token may not be cached yet.
+          // Don't show the degraded banner; treat as unknown and let the user
+          // retry once the session is fully authenticated.
+          setStatus('unknown');
+          return true;
+        }
+        setStatus('degraded');
+        return false;
+      } catch (err: unknown) {
+        // fix(#526): AbortError / TimeoutError means the request was cancelled
+        // during navigation or by AbortSignal.timeout() — this is NOT a genuine
+        // provider failure. Setting 'degraded' here was firing the banner even
+        // when the API returned HTTP 200 on the very next load.
+        if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+          setStatus('unknown'); // navigation cancelled the request — not a real failure
+          return true;
+        }
         setStatus('degraded');
         return false;
       }
-    } catch (err: unknown) {
-      // fix(#526): AbortError / TimeoutError means the request was cancelled
-      // during navigation or by AbortSignal.timeout() — this is NOT a genuine
-      // provider failure. Setting 'degraded' here was firing the banner even
-      // when the API returned HTTP 200 on the very next load.
-      if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
-        setStatus('unknown'); // navigation cancelled the request — not a real failure
-        return true;
-      }
-      setStatus('degraded');
-      return false;
+    };
+
+    const firstAttempt = await attempt();
+    if (!firstAttempt) {
+      // Retry once after 2 s to avoid transient startup false-positives.
+      await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+      return await attempt();
     }
+    return firstAttempt;
   }, []);
 
   return { status, check };
@@ -73,7 +93,7 @@ export default function AiHealthBanner({ triggerCheck, onCheckComplete }: AiHeal
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (!triggerCheck) return;
+    if (triggerCheck === 0) return;
     void check().then((healthy) => {
       if (healthy) setDismissed(false);
       onCheckComplete?.(healthy);
