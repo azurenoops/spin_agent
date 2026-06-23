@@ -278,12 +278,15 @@ public static class DashboardEndpoints
             })
             .WithName("UpdateSystem");
 
-        // ─── Discard Draft System (wizard cancel cleanup) — #459 ─────────────
-        // Soft-deletes a system that was created during the intake wizard but
-        // never fully submitted. Sets IsActive = false so the record is excluded
-        // from all dashboard queries without cascading hard-deletes on child rows.
+        // ─── Delete System — #519/#524 ───────────────────────────────────────
+        // Default (permanent=false): soft-delete — sets IsActive=false so the
+        // system is excluded from all queries. Used by the intake wizard cancel path.
+        // permanent=true: hard-deletes the RegisteredSystem row and all cascade
+        // child rows (boundaries, roles, assessments, etc.) via EF cascade config.
+        // Required to purge orphaned QA test systems that corrupt portfolio metrics.
         group.MapDelete("/systems/{systemId}", async (
                 string systemId,
+                [FromQuery] bool permanent,
                 AtoCopilotContext db,
                 CancellationToken ct) =>
             {
@@ -293,23 +296,32 @@ public static class DashboardEndpoints
                 if (system is null)
                     return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "SYSTEM_NOT_FOUND" });
 
+                if (permanent)
+                {
+                    // Hard-delete: EF cascade config removes all child rows automatically.
+                    db.RegisteredSystems.Remove(system);
+                    await db.SaveChangesAsync(ct);
+                    return Results.Ok(new { id = systemId, deleted = true, permanent = true });
+                }
+
+                // Soft-delete (default — backward-compatible with wizard cancel, #459)
                 system.IsActive = false;
                 system.ModifiedAt = DateTime.UtcNow;
 
                 db.DashboardActivities.Add(new DashboardActivity
                 {
                     RegisteredSystemId = systemId,
-                    EventType = "SystemDiscarded",
+                    EventType = "SystemDeleted",
                     Actor = "dashboard-user",
-                    Summary = $"System '{system.Name}' discarded (wizard cancelled)",
+                    Summary = $"System '{system.Name}' deleted",
                     RelatedEntityType = "RegisteredSystem",
                     RelatedEntityId = systemId,
                 });
                 await db.SaveChangesAsync(ct);
 
-                return Results.Ok(new { id = systemId, discarded = true });
+                return Results.Ok(new { id = systemId, deleted = true, permanent = false });
             })
-            .WithName("DiscardSystem");
+            .WithName("DeleteSystem");
 
         // ─── RMF Role Assignments ────────────────────────────────────────────
         group.MapGet("/systems/{systemId}/roles", async (

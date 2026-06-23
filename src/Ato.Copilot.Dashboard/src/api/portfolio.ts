@@ -92,11 +92,24 @@ export async function generateSystemDescription(
 
 
 /**
- * Soft-deletes a system created during the intake wizard but never submitted.
- * Used by wizard cancel cleanup (Issue #459).
+ * Soft-deletes a system (sets IsActive=false). Used by wizard cancel cleanup (#459).
+ * The system is hidden from all portfolio queries but the DB row is preserved.
  */
 export async function discardSystem(systemId: string): Promise<void> {
   await apiClient.delete(`/systems/${systemId}`);
+}
+
+/**
+ * Permanently hard-deletes a system and all child rows (boundaries, roles,
+ * assessments, POA&Ms, findings). Use this to purge orphaned QA test systems
+ * that corrupt portfolio metrics (#519/#524).
+ */
+export async function deleteSystemPermanent(systemId: string): Promise<{ id: string; deleted: boolean; permanent: boolean }> {
+  const { data } = await apiClient.delete<{ id: string; deleted: boolean; permanent: boolean }>(
+    `/systems/${systemId}`,
+    { params: { permanent: true } },
+  );
+  return data;
 }
 
 // Feature 045: Re-export coverage KPI for Portfolio Risk Profile page

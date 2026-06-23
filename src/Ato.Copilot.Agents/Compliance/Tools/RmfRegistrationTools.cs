@@ -803,3 +803,97 @@ public class ListRmfRolesTool : BaseTool
         }
     }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// #524: DeleteSystemTool — compliance_delete_system
+// ────────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// MCP tool: compliance_delete_system — permanently delete a registered system
+/// and all child rows (boundaries, roles, assessments, POA&amp;Ms, findings).
+/// Use <c>permanent=false</c> (default) for a soft-delete (IsActive=false);
+/// use <c>permanent=true</c> to purge orphaned / QA test systems entirely.
+/// RBAC: Compliance.Administrator
+/// </summary>
+public class DeleteSystemTool : BaseTool
+{
+    private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
+    public DeleteSystemTool(
+        IDbContextFactory<AtoCopilotContext> dbFactory,
+        ILogger<DeleteSystemTool> logger) : base(logger)
+    {
+        _dbFactory = dbFactory;
+    }
+
+    public override string Name => "compliance_delete_system";
+
+    public override string Description =>
+        "Delete a registered information system. " +
+        "permanent=false (default): soft-delete — hides the system from all views without removing DB rows. " +
+        "permanent=true: hard-delete — permanently removes the system and ALL child data (boundaries, roles, assessments, POA&Ms). " +
+        "Use permanent=true to clean up orphaned QA test systems that are corrupting portfolio metrics.";
+
+    public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
+    {
+        ["system_id"] = new() { Name = "system_id", Description = "System GUID to delete", Type = "string", Required = true },
+        ["permanent"] = new() { Name = "permanent", Description = "true = hard-delete all data; false (default) = soft-delete only", Type = "boolean", Required = false }
+    };
+
+    public override async Task<string> ExecuteCoreAsync(
+        Dictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
+    {
+        var sw = Stopwatch.StartNew();
+        var systemId = GetArg<string>(arguments, "system_id");
+        var permanent = GetArg<bool?>(arguments, "permanent") ?? false;
+
+        if (string.IsNullOrWhiteSpace(systemId))
+            return JsonSerializer.Serialize(new { status = "error", errorCode = "INVALID_INPUT", message = "The 'system_id' parameter is required." }, JsonOpts);
+
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+            var system = await db.RegisteredSystems
+                .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken);
+
+            if (system is null)
+                return JsonSerializer.Serialize(new { status = "error", errorCode = "NOT_FOUND", message = $"System '{systemId}' not found." }, JsonOpts);
+
+            var systemName = system.Name;
+
+            if (permanent)
+            {
+                db.RegisteredSystems.Remove(system);
+                await db.SaveChangesAsync(cancellationToken);
+                sw.Stop();
+                return JsonSerializer.Serialize(new
+                {
+                    status = "success",
+                    data = new { system_id = systemId, system_name = systemName, deleted = true, permanent = true },
+                    metadata = new { tool = Name, execution_time_ms = sw.ElapsedMilliseconds, timestamp = DateTime.UtcNow.ToString("O") }
+                }, JsonOpts);
+            }
+
+            // Soft-delete
+            system.IsActive = false;
+            system.ModifiedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+
+            sw.Stop();
+            return JsonSerializer.Serialize(new
+            {
+                status = "success",
+                data = new { system_id = systemId, system_name = systemName, deleted = true, permanent = false },
+                metadata = new { tool = Name, execution_time_ms = sw.ElapsedMilliseconds, timestamp = DateTime.UtcNow.ToString("O") }
+            }, JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "compliance_delete_system failed for '{SystemId}'", systemId);
+            return JsonSerializer.Serialize(new { status = "error", errorCode = "DELETE_FAILED", message = ex.Message }, JsonOpts);
+        }
+    }
+}
