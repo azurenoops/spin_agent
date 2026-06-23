@@ -26,6 +26,31 @@ function approvalVariant(status: GovernanceStatus) {
   }
 }
 
+// ─── Role-based edit permission ──────────────────────────────────────────────
+//
+// Roles that are allowed to author / edit mission profile sections.
+// Exported for unit-testing in isolation.
+//
+// Roles NOT in this set (SCA, AO, Engineer, …) are reviewers/approvers and
+// should see a read-only view. An empty role string means no role has been
+// assigned yet and the form stays editable (open default for new users).
+export const EDITOR_ROLES = new Set(['MissionOwner', 'ISSM', 'ISSO']);
+
+/**
+ * Returns true when the profile section form should be read-only.
+ *
+ * Two independent conditions lock editing:
+ *   1. Governance lock — the section is currently under ISSM review.
+ *   2. Role lock — the current user has a role that is not in EDITOR_ROLES.
+ *                  An empty role (no role assigned) is treated as editable.
+ *
+ * @param governanceStatus - current GovernanceStatus of the section (or undefined when not yet loaded)
+ * @param role             - current user's role string (empty string = no role)
+ */
+export function computeIsReadOnly(governanceStatus: string | undefined, role: string): boolean {
+  return governanceStatus === 'UnderReview' || (!!role && !EDITOR_ROLES.has(role));
+}
+
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function SystemProfile() {
@@ -42,8 +67,7 @@ export default function SystemProfile() {
 
   const sectionType = sectionParam as ProfileSectionType;
   const systemId = detail.systemId;
-  const isReadOnly = section?.governanceStatus === 'UnderReview'
-    || (!!settings.role && settings.role !== 'MissionOwner');
+  const isReadOnly = computeIsReadOnly(section?.governanceStatus, settings.role ?? '');
 
   const fetchSection = useCallback(async () => {
     try {
