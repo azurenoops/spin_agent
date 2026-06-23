@@ -123,24 +123,23 @@ public class DeleteSystemEndpointTests : IDisposable
 /// </summary>
 public class DeleteSystemToolTests : IDisposable
 {
-    private readonly AtoCopilotContext _db;
-    private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
+    private readonly DbContextOptions<AtoCopilotContext> _dbOptions;
+    private AtoCopilotContext _db;
     private readonly DeleteSystemTool _sut;
 
     private const string SystemId = "sys-mcp-delete-001";
 
     public DeleteSystemToolTests()
     {
-        var dbOptions = new DbContextOptionsBuilder<AtoCopilotContext>()
+        _dbOptions = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseInMemoryDatabase($"DeleteSystemTool_{Guid.NewGuid()}")
             .Options;
-        _db = new AtoCopilotContext(dbOptions);
+        _db = new AtoCopilotContext(_dbOptions);
 
         var factoryMock = new Mock<IDbContextFactory<AtoCopilotContext>>();
         factoryMock
             .Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(_db);
-        _dbFactory = factoryMock.Object;
+            .ReturnsAsync(() => new AtoCopilotContext(_dbOptions));
 
         _db.RegisteredSystems.Add(new RegisteredSystem
         {
@@ -155,13 +154,14 @@ public class DeleteSystemToolTests : IDisposable
         _db.SaveChanges();
 
         var logger = Mock.Of<ILogger<DeleteSystemTool>>();
-        _sut = new DeleteSystemTool(_dbFactory, logger);
+        _sut = new DeleteSystemTool(factoryMock.Object, logger);
     }
 
     public void Dispose()
     {
-        _db.Database.EnsureDeleted();
-        _db.Dispose();
+        try { _db?.Dispose(); } catch (ObjectDisposedException) { }
+        using var cleanup = new AtoCopilotContext(_dbOptions);
+        cleanup.Database.EnsureDeleted();
     }
 
     [Fact]
@@ -193,6 +193,8 @@ public class DeleteSystemToolTests : IDisposable
         json.RootElement.GetProperty("status").GetString().Should().Be("success");
         json.RootElement.GetProperty("data").GetProperty("permanent").GetBoolean().Should().BeFalse();
 
+        // Recreate context (tool disposed its instance via await using)
+        _db = new AtoCopilotContext(_dbOptions);
         var row = await _db.RegisteredSystems.FindAsync(SystemId);
         row.Should().NotBeNull();
         row!.IsActive.Should().BeFalse();
@@ -207,6 +209,8 @@ public class DeleteSystemToolTests : IDisposable
         json.RootElement.GetProperty("status").GetString().Should().Be("success");
         json.RootElement.GetProperty("data").GetProperty("permanent").GetBoolean().Should().BeTrue();
 
+        // Recreate context (tool disposed its instance via await using)
+        _db = new AtoCopilotContext(_dbOptions);
         var count = await _db.RegisteredSystems.CountAsync(s => s.Id == SystemId);
         count.Should().Be(0, "permanent=true must remove the row");
     }
