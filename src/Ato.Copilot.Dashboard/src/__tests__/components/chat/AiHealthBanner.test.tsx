@@ -4,7 +4,7 @@ import { renderHook, act } from '@testing-library/react';
 // ── Hoist mocks BEFORE imports that import the real module ────────────────
 // acquireBearer lives in msalInstance; the health check calls it before fetch.
 // We replace it with a no-op that always resolves to '' so MSAL is not needed.
-vi.mock('../../features/auth/msalInstance', () => ({
+vi.mock('../../../features/auth/msalInstance', () => ({
   acquireBearer: vi.fn().mockResolvedValue(''),
   getMsalInstance: vi.fn(),
   setMsalInstance: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock('../../features/auth/msalInstance', () => ({
 }));
 
 import { useAiHealthCheck } from '../../../components/chat/AiHealthBanner';
-import { acquireBearer } from '../../features/auth/msalInstance';
+import { acquireBearer } from '../../../features/auth/msalInstance';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
