@@ -126,7 +126,7 @@ public class ExplainNistControlTool : BaseTool
         var response = FormatControlResponse(controlId, control);
 
         // Cache the result
-        _cache.Set(cacheKey, response, TimeSpan.FromMinutes(_options.CacheDurationMinutes));
+        _cache.Set(cacheKey, response, new Microsoft.Extensions.Caching.Memory.MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_options.CacheDurationMinutes), Size = 1 });
 
         return response;
     }

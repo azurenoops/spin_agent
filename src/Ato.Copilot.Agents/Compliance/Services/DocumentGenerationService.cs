@@ -40,14 +40,45 @@ public class DocumentGenerationService : IDocumentGenerationService
     {
         var docType = NormalizeDocumentType(documentType);
         var resolvedFramework = framework ?? "NIST80053";
-        var resolvedSystemName = systemName ?? "Azure Government System";
+
+        // Fix #555: resolve actual system name from DB instead of hardcoded default
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        string resolvedSystemName;
+        if (!string.IsNullOrWhiteSpace(systemName))
+        {
+            resolvedSystemName = systemName;
+        }
+        else
+        {
+            // Try to resolve from the latest assessment's linked system
+            var latestSystemId = await db.ComplianceAssessments
+                .Where(a => !string.IsNullOrEmpty(a.RegisteredSystemId))
+                .OrderByDescending(a => a.AssessedAt)
+                .Select(a => a.RegisteredSystemId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (latestSystemId != null)
+            {
+                var system = await db.RegisteredSystems
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Id == latestSystemId && s.IsActive, cancellationToken);
+                resolvedSystemName = system?.Name ?? "Unknown System";
+            }
+            else
+            {
+                // Fall back to first active system with a name
+                var firstSystem = await db.RegisteredSystems
+                    .AsNoTracking()
+                    .Where(s => s.IsActive && !string.IsNullOrWhiteSpace(s.Name))
+                    .OrderByDescending(s => s.CreatedAt)
+                    .FirstOrDefaultAsync(cancellationToken);
+                resolvedSystemName = firstSystem?.Name ?? "Unknown System";
+            }
+        }
 
         _logger.LogInformation(
             "Generating {DocType} document for {System} (framework: {Framework})",
             docType, resolvedSystemName, resolvedFramework);
-
-        // Fetch latest assessment and findings
-        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         var assessment = await GetLatestAssessmentAsync(db, subscriptionId, cancellationToken);
         var findings = assessment != null
             ? await db.Findings

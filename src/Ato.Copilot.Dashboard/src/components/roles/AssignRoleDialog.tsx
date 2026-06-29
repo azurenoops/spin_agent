@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { rolesApi } from '../../api/roles';
+import { onboarding, type PersonDto } from '../../features/onboarding/api/onboardingApi';
 import {
   RBAC_ASSIGNABLE_BY,
   RMF_ROLES,
@@ -69,9 +70,19 @@ export default function AssignRoleDialog(props: AssignRoleDialogProps) {
 
   const [role, setRole] = useState<RmfRole>(initialRole ?? roleOptions[0] ?? 'Issm');
   const [personId, setPersonId] = useState('');
+  const [personDisplayName, setPersonDisplayName] = useState('');
+  const [persons, setPersons] = useState<PersonDto[]>([]);
   const [saving, setSaving] = useState(false);
   const [warnings, setWarnings] = useState<SoDWarning[] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Fix #563: load Person records so users can pick by name instead of typing a GUID
+  useEffect(() => {
+    if (!open) return;
+    onboarding.listPersons()
+      .then((data) => setPersons(data))
+      .catch(() => { /* non-fatal — falls back to manual GUID input */ });
+  }, [open]);
 
   if (!open) return null;
 
@@ -137,16 +148,40 @@ export default function AssignRoleDialog(props: AssignRoleDialogProps) {
 
           <div>
             <label htmlFor="ard-person" className="block text-sm font-medium text-gray-700 mb-1">
-              Person ID
+              Person
             </label>
-            <input
-              id="ard-person"
-              type="text"
-              value={personId}
-              onChange={(e) => setPersonId(e.target.value)}
-              placeholder="GUID of the Person record"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            />
+            {/* Fix #563: show person picker dropdown when Person records exist */}
+            {persons.length > 0 ? (
+              <select
+                id="ard-person"
+                value={personId}
+                onChange={(e) => {
+                  const selected = persons.find((p) => p.id === e.target.value);
+                  setPersonId(e.target.value);
+                  setPersonDisplayName(selected?.displayName ?? '');
+                }}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">Select a person…</option>
+                {persons.map((p) => (
+                  <option key={p.id} value={p.id}>{p.displayName}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id="ard-person"
+                type="text"
+                value={personId}
+                onChange={(e) => setPersonId(e.target.value)}
+                placeholder="GUID of the Person record"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+            )}
+            {persons.length === 0 && (
+              <p className="mt-1 text-xs text-amber-700">
+                No Person records found. Add personnel in the Onboarding wizard first, or enter a Person GUID manually.
+              </p>
+            )}
           </div>
 
           {warnings && warnings.length > 0 && (

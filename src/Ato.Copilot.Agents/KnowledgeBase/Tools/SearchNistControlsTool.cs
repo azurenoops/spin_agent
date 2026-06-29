@@ -90,6 +90,19 @@ public class SearchNistControlsTool : BaseTool
         var controls = await _nistService.SearchControlsAsync(
             searchTerm, family, null, maxResults, cancellationToken);
 
+        // Fix #538: if no controls returned, check whether catalog is loaded or still warming up
+        if (controls.Count == 0)
+        {
+            var catalogLoaded = false;
+            if (_nistService is Ato.Copilot.Agents.Compliance.Services.NistControlsService nistSvc)
+                catalogLoaded = nistSvc.CatalogSource != "none";
+
+            if (!catalogLoaded)
+            {
+                return "⚠️ The NIST 800-53 catalog is still loading at startup. Please wait a few seconds and retry your search.";
+            }
+        }
+
         string result;
         if (controls.Count == 0)
         {
@@ -141,7 +154,7 @@ public class SearchNistControlsTool : BaseTool
             result = sb.ToString();
         }
 
-        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(_options.CacheDurationMinutes));
+        _cache.Set(cacheKey, result, new Microsoft.Extensions.Caching.Memory.MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_options.CacheDurationMinutes), Size = 1 });
         return result;
     }
 }
