@@ -70,7 +70,6 @@ export default function AssignRoleDialog(props: AssignRoleDialogProps) {
 
   const [role, setRole] = useState<RmfRole>(initialRole ?? roleOptions[0] ?? 'Issm');
   const [personId, setPersonId] = useState('');
-  const [personDisplayName, setPersonDisplayName] = useState('');
   const [persons, setPersons] = useState<PersonDto[]>([]);
   const [saving, setSaving] = useState(false);
   const [warnings, setWarnings] = useState<SoDWarning[] | null>(null);
@@ -156,9 +155,7 @@ export default function AssignRoleDialog(props: AssignRoleDialogProps) {
                 id="ard-person"
                 value={personId}
                 onChange={(e) => {
-                  const selected = persons.find((p) => p.id === e.target.value);
                   setPersonId(e.target.value);
-                  setPersonDisplayName(selected?.displayName ?? '');
                 }}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               >

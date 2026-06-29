@@ -51,7 +51,7 @@ public class DocumentGenerationService : IDocumentGenerationService
         else
         {
             // Try to resolve from the latest assessment's linked system
-            var latestSystemId = await db.ComplianceAssessments
+            var latestSystemId = await db.Assessments
                 .Where(a => !string.IsNullOrEmpty(a.RegisteredSystemId))
                 .OrderByDescending(a => a.AssessedAt)
                 .Select(a => a.RegisteredSystemId)
