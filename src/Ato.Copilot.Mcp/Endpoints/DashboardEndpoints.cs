@@ -5045,6 +5045,79 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
         })
         .WithName("GetRemediationTasks");
 
+        // Fix #554: POST /api/dashboard/remediation/tasks — create a remediation task
+        // Looks up or creates the default board for the system, then creates a task.
+        app.MapPost("/api/dashboard/remediation/tasks", async (
+            CreateRemediationTaskRequest body,
+            AtoCopilotContext context,
+            IKanbanService kanbanService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(body.SystemId))
+                return Results.BadRequest(new ErrorResponse { Error = "systemId is required", ErrorCode = "INVALID_INPUT" });
+            if (string.IsNullOrWhiteSpace(body.Title))
+                return Results.BadRequest(new ErrorResponse { Error = "title is required", ErrorCode = "INVALID_INPUT" });
+
+            // Resolve or create the default board for this system
+            var board = await context.RemediationBoards
+                .Where(b => b.SubscriptionId == body.SystemId)
+                .OrderByDescending(b => b.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (board == null)
+            {
+                board = await kanbanService.CreateBoardAsync(
+                    $"Remediation — {body.SystemId[..Math.Min(8, body.SystemId.Length)]}",
+                    body.SystemId, "dashboard-user", ct);
+            }
+
+            // Default controlId to "AC-1" if not provided (required by KanbanService)
+            var controlId = !string.IsNullOrWhiteSpace(body.ControlId) ? body.ControlId : "AC-1";
+
+            FindingSeverity? severity = null;
+            if (!string.IsNullOrWhiteSpace(body.Severity) &&
+                Enum.TryParse<FindingSeverity>(body.Severity, true, out var sv))
+                severity = sv;
+
+            DateTime? dueDate = null;
+            if (!string.IsNullOrWhiteSpace(body.DueDate) &&
+                DateTime.TryParse(body.DueDate, out var dd))
+                dueDate = DateTime.SpecifyKind(dd, DateTimeKind.Utc);
+
+            try
+            {
+                var task = await kanbanService.CreateTaskAsync(
+                    board.Id, body.Title, controlId, "dashboard-user",
+                    description: body.Description,
+                    severity: severity,
+                    dueDate: dueDate,
+                    cancellationToken: ct);
+
+                return Results.Ok(new
+                {
+                    id = task.Id,
+                    taskNumber = task.TaskNumber,
+                    title = task.Title,
+                    description = task.Description,
+                    controlId = task.ControlId,
+                    severity = task.Severity.ToString(),
+                    status = task.Status.ToString(),
+                    boardId = task.BoardId,
+                    dueDate = task.DueDate.ToString("O"),
+                    createdAt = task.CreatedAt.ToString("O"),
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "OPERATION_FAILED" });
+            }
+        })
+        .WithName("CreateRemediationTask");
+
         // ─── Move Remediation Task (Kanban column change) ────────────────────
         app.MapPut("/api/dashboard/remediation/tasks/{taskId}/move", async (
             string taskId,
@@ -8478,6 +8551,16 @@ static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
 
     private record MoveTaskRequest(
         string Status);
+
+    // Fix #554: DTO for POST /api/dashboard/remediation/tasks
+    private record CreateRemediationTaskRequest(
+        string SystemId,
+        string Title,
+        string? Description = null,
+        string? FindingId = null,
+        string? Severity = null,
+        string? ControlId = null,
+        string? DueDate = null);
 
     // ─── Feature 039: POA&M request DTOs ─────────────────────────────────────
 

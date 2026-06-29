@@ -90,6 +90,22 @@ public class SearchNistControlsTool : BaseTool
         var controls = await _nistService.SearchControlsAsync(
             searchTerm, family, null, maxResults, cancellationToken);
 
+        // Fix #538: if no controls returned, check whether catalog is loaded or still warming up.
+        // Only return the "still loading" message when we can POSITIVELY confirm the catalog
+        // is not yet loaded (i.e. the concrete NistControlsService reports CatalogSource ==
+        // "none").  When the service is mocked or is a different implementation, treat "no
+        // results" as a genuine empty search result, not a warmup condition.
+        if (controls.Count == 0)
+        {
+            var isConfirmedNotLoaded = _nistService is Ato.Copilot.Agents.Compliance.Services.NistControlsService nistSvc2
+                && nistSvc2.CatalogSource == "none";
+
+            if (isConfirmedNotLoaded)
+            {
+                return "⚠️ The NIST 800-53 catalog is still loading at startup. Please wait a few seconds and retry your search.";
+            }
+        }
+
         string result;
         if (controls.Count == 0)
         {
@@ -141,7 +157,7 @@ public class SearchNistControlsTool : BaseTool
             result = sb.ToString();
         }
 
-        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(_options.CacheDurationMinutes));
+        _cache.Set(cacheKey, result, new Microsoft.Extensions.Caching.Memory.MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_options.CacheDurationMinutes), Size = 1 });
         return result;
     }
 }

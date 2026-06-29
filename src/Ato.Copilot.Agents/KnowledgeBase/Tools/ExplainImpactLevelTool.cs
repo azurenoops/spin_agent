@@ -74,7 +74,7 @@ public class ExplainImpactLevelTool : BaseTool
             _ => await ExplainSingleLevelAsync(level, cancellationToken)
         };
 
-        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(_options.CacheDurationMinutes));
+        _cache.Set(cacheKey, result, new Microsoft.Extensions.Caching.Memory.MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_options.CacheDurationMinutes), Size = 1 });
         return result;
     }
 

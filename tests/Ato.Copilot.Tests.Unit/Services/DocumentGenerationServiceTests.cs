@@ -208,10 +208,13 @@ public class DocumentGenerationServiceTests : IDisposable
     [Fact]
     public async Task GenerateDocument_DefaultsFrameworkAndSystemName()
     {
+        // Empty DB: no systems seeded. Fix #555 changed the default to resolve from DB;
+        // when no systems exist the fallback is "Unknown System", not the old hardcoded
+        // "Azure Government System". The framework default is still "NIST80053".
         var doc = await _sut.GenerateDocumentAsync("SSP");
 
         doc.Framework.Should().Be("NIST80053");
-        doc.SystemName.Should().Be("Azure Government System");
+        doc.SystemName.Should().Be("Unknown System");
     }
 
     [Fact]

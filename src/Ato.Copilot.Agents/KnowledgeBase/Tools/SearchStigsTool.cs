@@ -140,7 +140,7 @@ public class SearchStigsTool : BaseTool
             result = sb.ToString();
         }
 
-        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(_options.CacheDurationMinutes));
+        _cache.Set(cacheKey, result, new Microsoft.Extensions.Caching.Memory.MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_options.CacheDurationMinutes), Size = 1 });
         return result;
     }
 

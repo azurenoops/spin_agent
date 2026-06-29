@@ -47,7 +47,7 @@ public class NistControlsHealthCheck : IHealthCheck
 
         try
         {
-            // Probe version
+            // Probe version — also triggers catalog load if not already cached
             var version = await _nistService.GetVersionAsync(cancellationToken);
 
             // Probe 3 test controls
@@ -60,14 +60,40 @@ public class NistControlsHealthCheck : IHealthCheck
 
             sw.Stop();
 
+            // Fix #561: distinguish "not yet loaded" (Degraded) from "loaded but invalid" (Unhealthy)
+            // Get catalog status to determine if catalog is warming up vs failed
+            string catalogSource = "unknown";
+            bool isLoaded = false;
+            if (_nistService is Ato.Copilot.Agents.Compliance.Services.NistControlsService nistSvc)
+            {
+                catalogSource = nistSvc.CatalogSource;
+                isLoaded = catalogSource != "none";
+            }
+
             var data = new Dictionary<string, object>
             {
                 ["version"] = version,
                 ["validTestControls"] = $"{validCount}/{TestControlIds.Length}",
                 ["responseTimeMs"] = sw.ElapsedMilliseconds,
                 ["timestamp"] = DateTime.UtcNow.ToString("O"),
-                ["cacheDurationHours"] = _options.Value.CacheDurationHours
+                ["cacheDurationHours"] = _options.Value.CacheDurationHours,
+                ["catalogSource"] = catalogSource
             };
+
+            // Not loaded yet (still warming up) → Degraded, not Unhealthy.
+            // Guard: only enter this path when the service IS the concrete NistControlsService
+            // AND it positively reported CatalogSource == "none".  If the cast failed (e.g.
+            // the service is mocked in tests) isLoaded defaults to false, but the type-guard
+            // below prevents mis-classifying mocks or other implementations as "warming up".
+            if (_nistService is Ato.Copilot.Agents.Compliance.Services.NistControlsService
+                && !isLoaded
+                && version == "Unknown")
+            {
+                _logger.LogWarning("NIST health check: Degraded — catalog still loading (warmup in progress)");
+                return HealthCheckResult.Degraded(
+                    "NIST catalog warming up — retry in a few seconds",
+                    data: data);
+            }
 
             if (version == "Unknown" || validCount == 0)
             {

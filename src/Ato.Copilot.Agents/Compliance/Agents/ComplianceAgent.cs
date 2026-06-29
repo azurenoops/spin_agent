@@ -1267,7 +1267,10 @@ public class ComplianceAgent : BaseAgent
         }
 
         // Route based on intent keywords
-        if (ContainsAny(lowerMessage, "assess", "scan", "audit", "check compliance", "run assessment"))
+        // Fix #556: "assess control" / "control assessment" must not route to Azure subscription scanner
+        // The specific RMF per-control assessment routing is further below
+        if (ContainsAny(lowerMessage, "assess", "scan", "audit", "check compliance", "run assessment")
+            && !ContainsAny(lowerMessage, "assess control", "control assessment", "test control", "assess the control"))
         {
             return await _assessmentTool.ExecuteAsync(new Dictionary<string, object?>
             {
@@ -1417,7 +1420,9 @@ public class ComplianceAgent : BaseAgent
             }, cancellationToken);
         }
 
-        if (ContainsAny(lowerMessage, "list task", "task list", "tasks on board", "show tasks"))
+        // Fix #552: "show remediation tasks" was routing to monitoring tool (no-assessment-data path)
+        if (ContainsAny(lowerMessage, "list task", "task list", "tasks on board", "show tasks",
+            "show remediation tasks", "remediation tasks", "remediation task list", "list remediation"))
         {
             var result = await _kanbanTaskList.ExecuteAsync(new Dictionary<string, object?>
             {
@@ -1669,7 +1674,8 @@ public class ComplianceAgent : BaseAgent
             var tool = FindToolByName("compliance_register_system");
             if (tool != null)
             {
-                var systemName = ExtractQuotedValue(lowerMessage) ?? "New System";
+                // Fix #547/#550: extract name from original cased message so casing is preserved
+                var systemName = ExtractQuotedValue(message) ?? "New System";
                 return await tool.ExecuteAsync(new Dictionary<string, object?>
                 {
                     ["name"] = systemName,
@@ -1999,6 +2005,17 @@ public class ComplianceAgent : BaseAgent
         if (ContainsAny(lowerMessage, "generate sar", "security assessment report"))
         {
             var tool = FindToolByName("compliance_generate_sar");
+            if (tool != null)
+                return await tool.ExecuteAsync(new Dictionary<string, object?>
+                {
+                    ["system_id"] = GetContextValue(context, "system_id")
+                }, cancellationToken);
+        }
+
+        // Fix #549: generate SAP had no routing in ComplianceAgent — redirected to wrong tool
+        if (ContainsAny(lowerMessage, "generate sap", "security assessment plan", "generate the sap", "create sap", "sap for"))
+        {
+            var tool = FindToolByName("compliance_generate_sap");
             if (tool != null)
                 return await tool.ExecuteAsync(new Dictionary<string, object?>
                 {
@@ -2562,7 +2579,10 @@ public class ComplianceAgent : BaseAgent
             {
                 var system = await db.RegisteredSystems
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.Name.ToLower() == name.ToLower() && s.IsActive, ct);
+                    // Fix #542: exclude blank-name orphans from name-match candidates
+                    .FirstOrDefaultAsync(s => s.IsActive
+                        && !string.IsNullOrWhiteSpace(s.Name)
+                        && s.Name.ToLower() == name.ToLower(), ct);
 
                 if (system != null)
                 {
@@ -2574,9 +2594,10 @@ public class ComplianceAgent : BaseAgent
             }
 
             // No name in message — query all active systems
+            // Fix #542: exclude systems with blank names (orphans from cancelled wizard, #559)
             var activeSystems = await db.RegisteredSystems
                 .AsNoTracking()
-                .Where(s => s.IsActive)
+                .Where(s => s.IsActive && !string.IsNullOrWhiteSpace(s.Name))
                 .OrderByDescending(s => s.CreatedAt)
                 .Take(10)
                 .ToListAsync(ct);
