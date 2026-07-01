@@ -1698,8 +1698,25 @@ public class ComplianceAgent : BaseAgent
         // — we extract the system name and look it up in the DB.
         // When no name is given, auto-selects if exactly one active system exists.
         // If multiple exist, returns a disambiguation prompt.
+        //
+        // Fix #575: Portfolio-wide tools operate across ALL systems and never
+        // require a system_id. Skip disambiguation entirely for these intents so
+        // that users with multiple registered systems are not incorrectly blocked
+        // by a SYSTEM_REQUIRED error when requesting a cross-system view.
+        _portfolioWideIntents ??=
+        [
+            // compliance_multi_system_dashboard
+            "multi system dashboard", "all systems dashboard", "portfolio dashboard",
+            // compliance_list_systems  (already routed above, but guard here too)
+            "list systems", "show systems", "registered systems", "all systems", "my systems",
+            // RMF status overview — cross-system
+            "rmf status", "rmf phase", "rmf progress", "where are we in rmf"
+        ];
+
+        var isPortfolioWideIntent = ContainsAny(lowerMessage, _portfolioWideIntents);
+
         _pendingSystemChoices = null;
-        if (string.IsNullOrEmpty(GetContextValue(context, "system_id")))
+        if (!isPortfolioWideIntent && string.IsNullOrEmpty(GetContextValue(context, "system_id")))
         {
             var resolvedId = await ResolveSystemIdFromMessageAsync(lowerMessage, cancellationToken);
             if (resolvedId != null)
@@ -2634,6 +2651,15 @@ public class ComplianceAgent : BaseAgent
     /// Reset after each call to RouteToToolAsync.
     /// </summary>
     private List<object>? _pendingSystemChoices;
+
+    /// <summary>
+    /// Intent keywords whose corresponding tools are portfolio-wide and therefore
+    /// NEVER require a system_id. Populated once (lazy) and reused across calls.
+    /// Fix #575: prevents compliance_multi_system_dashboard (and similar cross-system
+    /// tools) from incorrectly triggering a SYSTEM_REQUIRED disambiguation response
+    /// when the caller has more than one registered system.
+    /// </summary>
+    private string[]? _portfolioWideIntents;
 
     /// <summary>
     /// Builds a friendly JSON response listing active systems so the user can
