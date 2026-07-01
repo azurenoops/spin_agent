@@ -265,17 +265,75 @@ public class NistControlsService : INistControlsService
 
     /// <summary>
     /// Gets the backward-compatible NistControl list from cache, loading if needed.
+    ///
+    /// Fix for #577/#578 — lazy-cache bug:
+    /// After the initial load, _lazyCatalog is a resolved Lazy&lt;Task&lt;T&gt;&gt; whose
+    /// Value returns the already-completed task immediately without re-executing
+    /// LoadAndCacheCatalogAsync. If ControlsCacheKey has been evicted (e.g. by
+    /// the sliding-expiration window) while CatalogCacheKey is still populated,
+    /// the second TryGetValue still misses and the method falls through to an
+    /// empty list — causing all control lookups to return "not found".
+    ///
+    /// The fix adds a third fallback: when both the lazy path and the second
+    /// cache check fail, attempt to rebuild the NistControl list directly from
+    /// the still-valid CatalogCacheKey entry and re-populate ControlsCacheKey.
+    /// If CatalogCacheKey is also gone, reset _lazyCatalog so the next call
+    /// triggers a full reload rather than returning the stale completed task.
     /// </summary>
     private async Task<List<NistControl>> GetControlsAsync(CancellationToken cancellationToken)
     {
+        // Fast path: both keys populated (common case).
         if (_cache.TryGetValue(ControlsCacheKey, out List<NistControl>? controls) && controls is not null)
             return controls;
 
-        // Trigger lazy catalog load (which also caches controls)
+        // Trigger lazy catalog load (which also populates ControlsCacheKey on
+        // first load). On subsequent calls the Lazy<T> is already resolved and
+        // returns immediately without re-executing the factory.
         await _lazyCatalog.Value;
 
         if (_cache.TryGetValue(ControlsCacheKey, out controls) && controls is not null)
             return controls;
+
+        // ── Fix for #577 / #578 ──────────────────────────────────────────────
+        // ControlsCacheKey was evicted (sliding expiration) while CatalogCacheKey
+        // may still be alive (absolute expiration is longer).  Rebuild the list
+        // directly from the catalog without a full HTTP reload.
+        if (_cache.TryGetValue(CatalogCacheKey, out NistCatalog? catalog) && catalog is not null)
+        {
+            _logger.LogWarning(
+                "ControlsCacheKey evicted while CatalogCacheKey is still valid — " +
+                "rebuilding NistControl list from cached OSCAL catalog (fix #577/#578).");
+
+            var rebuilt = BuildNistControlList(catalog);
+
+            var absoluteExpiration = TimeSpan.FromHours(_options.CacheDurationHours);
+            var slidingExpiration = TimeSpan.FromHours(_options.CacheDurationHours * 0.25);
+
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = absoluteExpiration,
+                SlidingExpiration = slidingExpiration,
+                Priority = CacheItemPriority.High,
+                Size = 1
+            };
+
+            _cache.Set(ControlsCacheKey, rebuilt, cacheOptions);
+
+            _logger.LogInformation(
+                "Rebuilt {Count} NistControl entries from cached catalog and re-cached ControlsCacheKey.",
+                rebuilt.Count);
+
+            return rebuilt;
+        }
+
+        // Both keys are gone.  Reset the Lazy so the next call re-executes the
+        // full load factory instead of returning the already-completed task.
+        _logger.LogWarning(
+            "Both CatalogCacheKey and ControlsCacheKey are absent — resetting lazy catalog " +
+            "loader so the next request triggers a full reload (fix #577/#578).");
+        _lazyCatalog = new Lazy<Task<NistCatalog?>>(
+            () => LoadAndCacheCatalogAsync(CancellationToken.None),
+            LazyThreadSafetyMode.ExecutionAndPublication);
 
         return new List<NistControl>();
     }
