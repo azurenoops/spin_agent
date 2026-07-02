@@ -146,13 +146,15 @@ export default function CspSystemsPage({
     setBusySystemId(system.systemId);
     try {
       await startImpersonation(system.tenantId, system.orgDisplayName);
-      navigate(`/systems/${encodeURIComponent(system.systemId)}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Impersonation failed.';
       setError(msg);
+      // fix(#595/#599): navigate even when impersonation API is unavailable so
+      // In Setup systems and all rows remain accessible.
     } finally {
       setBusySystemId(null);
     }
+    navigate(`/systems/${encodeURIComponent(system.systemId)}`);
   };
 
   const totalPages = data
