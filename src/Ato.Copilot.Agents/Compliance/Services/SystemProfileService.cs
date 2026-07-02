@@ -848,6 +848,17 @@ public class SystemProfileService : ISystemProfileService
         if (simulatedRole.HasValue && allowedRoles.Contains(simulatedRole.Value))
             return;
 
+        // fix(#545): "dashboard-user" is the unauthenticated dev/QA identity produced by
+        // ResolveDashboardUserId when no MSAL token is present. Every other dashboard
+        // endpoint treats this identity as a pass-through (no role check), consistent
+        // with the dev-only design of the simulated-role header. Without this bypass,
+        // users who haven't set a role in Settings (so X-Simulated-Role is absent) receive
+        // a 403 on every Save Draft click — the error shows as "Save failed" and data is
+        // silently discarded on page reload. Authenticated MSAL users are unaffected
+        // (simulatedRole is always null for authenticated users and userId is their real OID).
+        if (string.Equals(userId, "dashboard-user", StringComparison.OrdinalIgnoreCase))
+            return;
+
         var hasRole = await db.RmfRoleAssignments
             .AnyAsync(r => r.RegisteredSystemId == systemId
                 && r.UserId == userId
