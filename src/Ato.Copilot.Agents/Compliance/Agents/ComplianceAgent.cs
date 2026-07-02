@@ -1698,8 +1698,21 @@ public class ComplianceAgent : BaseAgent
         // — we extract the system name and look it up in the DB.
         // When no name is given, auto-selects if exactly one active system exists.
         // If multiple exist, returns a disambiguation prompt.
+        //
+        // Fix #575/#582/#596/#597: Portfolio-wide tools operate across ALL systems and
+        // never require a system_id. Skip disambiguation entirely for these intents so
+        // that callers with multiple registered systems are not incorrectly blocked by a
+        // SYSTEM_REQUIRED error when requesting a cross-system / portfolio-scoped view.
         _pendingSystemChoices = null;
-        if (string.IsNullOrEmpty(GetContextValue(context, "system_id")))
+        var isPortfolioWideIntent = ContainsAny(lowerMessage,
+            // compliance_multi_system_dashboard — portfolio view, no system needed
+            "multi system dashboard", "all systems dashboard", "portfolio dashboard",
+            // compliance_list_systems — already routed above but guard here too
+            "list systems", "show systems", "registered systems", "all systems", "my systems",
+            // RMF status overview — cross-system reads, no single system_id
+            "rmf status", "rmf phase", "rmf progress", "where are we in rmf");
+
+        if (!isPortfolioWideIntent && string.IsNullOrEmpty(GetContextValue(context, "system_id")))
         {
             var resolvedId = await ResolveSystemIdFromMessageAsync(lowerMessage, cancellationToken);
             if (resolvedId != null)
