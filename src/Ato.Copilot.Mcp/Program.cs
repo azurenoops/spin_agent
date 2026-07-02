@@ -687,6 +687,9 @@ async Task RunHttpModeAsync(string[] args)
     // Phase 2: GET /api/systems/{id}/ato-posture
     app.MapAtoPostureEndpoints();
 
+    // Issue #588 — DELETE /api/systems/{id} (soft-delete + hard-delete)
+    app.MapSystemsEndpoints();
+
     // Map SignalR notification hub
     app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications");
     app.MapHub<Ato.Copilot.Mcp.Hubs.PackageHub>("/hubs/package");
