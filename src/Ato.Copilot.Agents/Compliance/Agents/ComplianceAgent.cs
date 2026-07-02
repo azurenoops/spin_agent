@@ -1674,11 +1674,18 @@ public class ComplianceAgent : BaseAgent
             var tool = FindToolByName("compliance_register_system");
             if (tool != null)
             {
-                // Fix #547/#550: extract name from original cased message so casing is preserved
-                var systemName = ExtractQuotedValue(message) ?? "New System";
+                // fix(#572): extract name from natural-language patterns ("named X", "name X",
+                // "called X") in addition to quoted values — previous code only matched quoted
+                // strings so "register a new system named FOO" always created "New System".
+                var systemName = ExtractQuotedValue(message)
+                    ?? ExtractSystemNameFromRegistrationMessage(message)
+                    ?? "New System";
+                // fix(#572): extract acronym from "with acronym X" / "acronym X" patterns.
+                var systemAcronym = ExtractAcronymFromMessage(message);
                 return await tool.ExecuteAsync(new Dictionary<string, object?>
                 {
                     ["name"] = systemName,
+                    ["acronym"] = systemAcronym,
                     ["system_type"] = ExtractEnumValue(lowerMessage, new[] { "majorapplication", "enclave", "platformit" }, "MajorApplication"),
                     ["mission_criticality"] = ExtractEnumValue(lowerMessage, new[] { "missioncritical", "mission-critical", "missionessential", "mission-essential", "missionsupport", "mission-support" }, "MissionEssential"),
                     ["hosting_environment"] = ExtractEnumValue(lowerMessage, new[] { "azuregovernment", "azure government", "azurecommercial", "azure commercial", "onpremises", "on-premises", "hybrid" }, "AzureGovernment")
@@ -2701,6 +2708,36 @@ public class ComplianceAgent : BaseAgent
         var match = Regex.Match(message, @"[''](.*?)['']|[""](.*?)[""]");
         if (match.Success)
             return match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+        return null;
+    }
+
+    /// <summary>Extracts a system name from natural-language registration prompts.
+    /// Handles patterns: "named X", "name X", "called X" where X is a word/phrase
+    /// before a preposition or end of relevant clause.
+    /// Called when ExtractQuotedValue returns null (no quoted string present).
+    /// fix(#572)</summary>
+    private static string? ExtractSystemNameFromRegistrationMessage(string message)
+    {
+        // Patterns: "named <token>", "name <token>", "called <token>"
+        // Stop at: " with ", " and ", " type ", " acronym ", end of string, punctuation
+        var match = Regex.Match(message,
+            @"(?:named|name|called)\s+([A-Za-z0-9_\-\.]+(?:\s+[A-Za-z0-9_\-\.]+){0,4}?)(?=\s+(?:with|and|type|acronym|for|using|hosted|major|enclave|platform|mission)|$)",
+            RegexOptions.IgnoreCase);
+        if (match.Success)
+            return match.Groups[1].Value.Trim();
+        return null;
+    }
+
+    /// <summary>Extracts a system acronym from natural-language patterns.
+    /// Handles: "with acronym X", "acronym X", "abbreviated X".
+    /// fix(#572)</summary>
+    private static string? ExtractAcronymFromMessage(string message)
+    {
+        var match = Regex.Match(message,
+            @"(?:with\s+acronym|acronym|abbreviated(?:\s+as)?)\s+([A-Za-z0-9_\-]{1,20})",
+            RegexOptions.IgnoreCase);
+        if (match.Success)
+            return match.Groups[1].Value.Trim();
         return null;
     }
 
