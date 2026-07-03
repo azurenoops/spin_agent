@@ -165,13 +165,15 @@ export default function OrgsTable({
     setBusyTenantId(org.tenantId);
     try {
       await startImpersonation(org.tenantId, org.displayName);
-      navigate('/');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Impersonation failed.';
       setError(msg);
+      // fix(#599): navigate even when impersonation API is unavailable so
+      // the primary discovery flow (org → systems) is never a dead end.
     } finally {
       setBusyTenantId(null);
     }
+    navigate('/');
   };
 
   const totalPages = data
