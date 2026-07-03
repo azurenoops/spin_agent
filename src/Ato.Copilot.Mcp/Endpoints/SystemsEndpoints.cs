@@ -55,7 +55,7 @@ public static class SystemsEndpoints
 
         // ─── DELETE /api/systems/{id} ────────────────────────────────────────
         group.MapDelete("/{id}", DeleteSystemAsync)
-            .WithName("DeleteSystem")
+            .WithName("DeleteSystemById")
             .WithSummary("Delete a registered system")
             .WithDescription(
                 "Soft-deletes (IsActive=false) the specified system by default. " +
