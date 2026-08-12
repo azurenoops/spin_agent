@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Azure.AI.Agents.Persistent;
 using Microsoft.Extensions.AI;
@@ -17,6 +18,7 @@ public abstract class BaseAgent
     protected readonly ILogger Logger;
     private readonly IChatClient? _chatClient;
     private protected readonly AzureAiOptions? _azureAiOptions;
+    private readonly IToolRanker _toolRanker;
     private protected readonly PersistentAgentsClient? _foundryClient;
     protected string? _foundryAgentId;
     private readonly ConcurrentDictionary<string, string> _threadMap = new();
@@ -24,6 +26,7 @@ public abstract class BaseAgent
     protected BaseAgent(ILogger logger)
     {
         Logger = logger;
+        _toolRanker = new TfIdfToolRanker();
     }
 
     /// <summary>
@@ -33,12 +36,14 @@ public abstract class BaseAgent
         ILogger logger,
         IChatClient? chatClient,
         PersistentAgentsClient? foundryClient,
-        AzureAiOptions? azureAiOptions)
+        AzureAiOptions? azureAiOptions,
+        IToolRanker? toolRanker = null)
         : this(logger)
     {
         _chatClient = chatClient;
         _foundryClient = foundryClient;
         _azureAiOptions = azureAiOptions;
+        _toolRanker = toolRanker ?? new TfIdfToolRanker();
     }
 
     /// <summary>
@@ -774,100 +779,64 @@ public abstract class BaseAgent
     private const int MaxToolsPerRequest = 128;
 
     /// <summary>
-    /// Tool category prefixes mapped to message keywords.
-    /// When tool count exceeds <see cref="MaxToolsPerRequest"/>, only categories
-    /// matching the user's message are included, keeping the request within limits
-    /// and improving LLM focus.
-    /// </summary>
-    private static readonly Dictionary<string, string[]> ToolCategoryKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Kanban / task board tools
-        ["kanban_"] = new[] { "kanban", "board", "task", "sprint", "ticket", "assign", "backlog", "column" },
-        // CAC / PIV authentication tools
-        ["cac_"] = new[] { "cac", "piv", "certificate", "smart card", "smartcard", "sign out", "signout" },
-        // Privileged Identity Management tools
-        ["pim_"] = new[] { "pim", "privileged", "eligible", "activate role", "deactivate role", "role assignment", "approval" },
-        // Just-in-Time access tools
-        ["jit_"] = new[] { "jit", "just-in-time", "just in time", "access request", "session", "revoke access" },
-        // Continuous monitoring / watch tools
-        ["watch_"] = new[] { "watch", "alert", "monitor", "rule", "suppress", "notification", "escalation", "quiet hour", "trend", "auto-remediation", "auto remediation" },
-    };
-
-    /// <summary>
-    /// Prefixes for tools that are always included regardless of message content.
-    /// These are core compliance tools essential for general RMF/ATO workflows.
-    /// </summary>
-    private static readonly string[] AlwaysIncludePrefixes = new[]
-    {
-        "compliance_", "assessment_", "control_", "document_", "evidence_",
-        "remediation_", "audit_", "nist_", "rmf_", "conmon_", "emass_",
-        "system_", "poam_", "ssp_", "ato_", "authorization_", "categorize_",
-        "role_", "narrative_", "boundary_",
-    };
-
-    /// <summary>
-    /// Converts registered BaseTool instances into AITool definitions for the LLM.
-    /// Creates ToolAIFunction wrappers that provide Azure OpenAI-compliant
-    /// schemas (with additionalProperties: false) from tool metadata.
-    /// When the total tool count exceeds <see cref="MaxToolsPerRequest"/>,
-    /// selects relevant tools based on the user's message keywords.
+    /// Converts registered <see cref="BaseTool"/> instances into <see cref="AITool"/> definitions
+    /// for the LLM.  When the total tool count exceeds <see cref="MaxToolsPerRequest"/>, uses
+    /// <see cref="IToolRanker"/> (embedding-based with TF-IDF fallback) to select the most
+    /// relevant tools for the message, replacing the previous brittle keyword-table approach.
+    /// Every excluded tool is recorded in a structured audit event so exclusions are never silent.
     /// </summary>
     private List<AITool> BuildToolDefinitions(string? message = null)
     {
-        var selectedTools = Tools.Count <= MaxToolsPerRequest
-            ? Tools
-            : SelectToolsForMessage(message);
+        if (Tools.Count <= MaxToolsPerRequest)
+            return Tools.Select(tool => (AITool)new ToolAIFunction(tool)).ToList();
 
-        return selectedTools.Select(tool => (AITool)new ToolAIFunction(tool)).ToList();
+        var selected = SelectToolsForMessageAsync(message).GetAwaiter().GetResult();
+        return selected.Select(tool => (AITool)new ToolAIFunction(tool)).ToList();
     }
 
     /// <summary>
-    /// Selects a subset of tools relevant to the user's message.
-    /// Always includes core compliance tools; adds category-specific tools
-    /// only when the message matches their keywords. Falls back to
-    /// truncating at <see cref="MaxToolsPerRequest"/> if still over limit.
+    /// Selects a subset of tools relevant to the user message using <see cref="IToolRanker"/>
+    /// (embedding-based with TF-IDF fallback).  Emits a structured <c>TOOL_EXCLUDED</c> audit
+    /// event for every tool dropped from the request so the Authorizing Official can inspect
+    /// which capabilities were available for each agent turn.
+    ///
+    /// Audit event shape (structured log):
+    ///   EventId=4001 (ToolExcluded)
+    ///   Fields: ToolName, Reason, Score, MessageHash, AgentName, MaxTools, TotalTools
     /// </summary>
-    private List<BaseTool> SelectToolsForMessage(string? message)
+    private async Task<List<BaseTool>> SelectToolsForMessageAsync(string? message)
     {
-        var lowerMessage = message?.ToLowerInvariant() ?? string.Empty;
-        var selected = new List<BaseTool>();
-        var addedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var messageHash = ComputeMessageHash(message ?? string.Empty);
+        var ranked = await _toolRanker.RankAsync(
+            message ?? string.Empty,
+            Tools,
+            CancellationToken.None);
 
-        // Phase 1: Always include core compliance tools
-        foreach (var tool in Tools)
+        var selected = ranked
+            .Take(MaxToolsPerRequest)
+            .Select(r => r.Tool)
+            .ToList();
+
+        var selectedSet = new HashSet<string>(
+            selected.Select(t => t.Name),
+            StringComparer.OrdinalIgnoreCase);
+
+        // Hard cap guard: if ranker returns fewer than MaxToolsPerRequest, we're fine.
+        // Log audit event for every excluded tool.
+        foreach (var r in ranked.Skip(MaxToolsPerRequest))
         {
-            var name = tool.Name.ToLowerInvariant();
-            var isCore = Array.Exists(AlwaysIncludePrefixes,
-                prefix => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-
-            // Also include tools that don't match ANY category prefix (uncategorized = core)
-            if (!isCore)
-            {
-                var matchesAnyCategory = ToolCategoryKeywords.Keys.Any(
-                    prefix => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-                if (!matchesAnyCategory)
-                    isCore = true;
-            }
-
-            if (isCore && addedNames.Add(tool.Name))
-                selected.Add(tool);
+            ToolExcludedAuditLog(Logger, r.Tool.Name, r.Reason, r.Score,
+                messageHash, AgentName, MaxToolsPerRequest, Tools.Count);
         }
 
-        // Phase 2: Add category-specific tools when message matches keywords
-        foreach (var (prefix, keywords) in ToolCategoryKeywords)
+        // Also audit tools not returned by the ranker at all (edge case: ranker drops tools)
+        foreach (var tool in Tools)
         {
-            var categoryMatches = keywords.Any(kw =>
-                lowerMessage.Contains(kw, StringComparison.OrdinalIgnoreCase));
-
-            if (!categoryMatches) continue;
-
-            foreach (var tool in Tools)
+            if (!selectedSet.Contains(tool.Name) &&
+                ranked.All(r => !string.Equals(r.Tool.Name, tool.Name, StringComparison.OrdinalIgnoreCase)))
             {
-                if (tool.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-                    addedNames.Add(tool.Name))
-                {
-                    selected.Add(tool);
-                }
+                ToolExcludedAuditLog(Logger, tool.Name, "not-ranked:ranker-omission", 0.0,
+                    messageHash, AgentName, MaxToolsPerRequest, Tools.Count);
             }
         }
 
@@ -875,17 +844,35 @@ public abstract class BaseAgent
             "Tool selection: {SelectedCount}/{TotalCount} tools selected for message (max {Max})",
             selected.Count, Tools.Count, MaxToolsPerRequest);
 
-        // Phase 3: Hard cap — if still over limit, truncate
-        if (selected.Count > MaxToolsPerRequest)
-        {
-            Logger.LogWarning(
-                "Tool selection still exceeds limit ({Count}/{Max}), truncating",
-                selected.Count, MaxToolsPerRequest);
-            selected = selected.Take(MaxToolsPerRequest).ToList();
-        }
-
         return selected;
     }
+
+    /// <summary>
+    /// Computes a short SHA-256 prefix of the message for the audit trail.
+    /// The full message text is NOT logged to prevent PII leakage.
+    /// </summary>
+    private static string ComputeMessageHash(string message)
+    {
+        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(message));
+        return Convert.ToHexString(bytes)[..16];
+    }
+
+    // EventId 4001 reserved for tool-exclusion audit events.
+    // AO-visible: captured by ILogger sinks with minimum-level Warning.
+    // Note: LoggerMessage.Define supports at most 6 type params (pre-.NET 9).
+    // Using direct structured log to stay compatible.
+    private static void ToolExcludedAuditLog(
+        ILogger logger, string toolName, string reason, double score,
+        string messageHash, string agentName, int maxTools, int totalTools)
+    {
+        logger.Log(
+            LogLevel.Warning,
+            new EventId(4001, "ToolExcluded"),
+            "TOOL_EXCLUDED | Tool={ToolName} | Reason={Reason} | Score={Score} | " +
+            "MessageHash={MessageHash} | Agent={AgentName} | Selected={MaxTools} of {TotalTools}",
+            toolName, reason, score.ToString("F4"), messageHash, agentName, maxTools, totalTools);
+    }
+
 }
 
 /// <summary>

@@ -41,6 +41,36 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Register the compliance agent and all its tools.
     /// </summary>
+    /// <summary>
+    /// Registers the <see cref="IToolRanker"/> pipeline:
+    ///   primary  = <see cref="EmbeddingToolRanker"/> (Azure OpenAI, requires network)
+    ///   fallback = <see cref="TfIdfToolRanker"/>     (offline-capable, no API call)
+    /// Combined via <see cref="FallbackToolRanker"/>.
+    ///
+    /// Call this once from your host's service registration (before AddComplianceAgent etc.)
+    /// so all agents share a single warm index.
+    /// </summary>
+    public static IServiceCollection AddToolRanking(this IServiceCollection services)
+    {
+        services.AddSingleton<TfIdfToolRanker>();
+        services.AddSingleton<EmbeddingToolRanker>();
+        services.AddSingleton<IToolRanker>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<FallbackToolRanker>>();
+            var tfidf  = sp.GetRequiredService<TfIdfToolRanker>();
+            var embedder = sp.GetService<IEmbeddingGenerator<string, Embedding<float>>>();
+            if (embedder is null)
+            {
+                logger.LogInformation(
+                    "IToolRanker: no embedding generator registered — using TfIdfToolRanker only");
+                return tfidf;
+            }
+            var embedding = sp.GetRequiredService<EmbeddingToolRanker>();
+            return new FallbackToolRanker(embedding, tfidf, logger);
+        });
+        return services;
+    }
+
     public static IServiceCollection AddComplianceAgent(this IServiceCollection services, IConfiguration configuration)
     {
         // Bind compliance agent options

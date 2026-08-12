@@ -65,3 +65,5 @@ coverage/
 site/
 # Playwright test results
 src/Ato.Copilot.Dashboard/test-results/
+src/Ato.Copilot.Agents/Common/BaseAgent.cs.bak
+src/Ato.Copilot.Agents/Compliance/Agents/ComplianceAgent.cs.bak

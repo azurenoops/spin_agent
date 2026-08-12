@@ -1250,6 +1250,17 @@ public class ComplianceAgent : BaseAgent
     }
 
     /// <summary>Routes a user message to the appropriate compliance tool based on intent analysis.</summary>
+    /// <remarks>
+    /// ARCHITECTURE NOTE (work-item dd5bccc3d10f4b0d, Cyborg review 3db462aa61dd4df6):
+    /// Cyborg identified this deterministic keyword-dispatch as a candidate for removal once the
+    /// AI-powered path (<see cref="BaseAgent.TryProcessWithBackendAsync"/>) fully covers all tools
+    /// via dynamic name-dispatch.  It is intentionally RETAINED as the required offline/degraded-mode
+    /// fallback: the AI path returns null when Azure AI Foundry and IChatClient are both unavailable,
+    /// and this method is the only tool-dispatch path that works without a live model.  Removing it
+    /// would break multi-channel transports (VS Code, stdio) in air-gapped / no-AI environments.
+    /// Re-evaluate removal only after an offline deterministic fallback strategy is confirmed and
+    /// tests prove every tool path is covered by the dynamic catch-all.
+    /// </remarks>
     private async Task<string> RouteToToolAsync(
         string message,
         AgentConversationContext context,
