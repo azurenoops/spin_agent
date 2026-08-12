@@ -27,7 +27,7 @@ public static class AdminSystemReassignEndpoints
             ReassignTenantRequest body,
             IDbContextFactory<AtoCopilotContext> dbFactory,
             ITenantContext tenantCtx,
-            ILogger<AdminSystemReassignEndpoints> logger,
+            ILogger<AdminSystemReassignLog> logger,
             CancellationToken ct) =>
         {
             // Gate: CSP-Admin only
@@ -53,7 +53,7 @@ public static class AdminSystemReassignEndpoints
             var previousTenantId = system.TenantId;
 
             // Idempotent check
-            if (string.Equals(previousTenantId, targetTenantIdStr, StringComparison.OrdinalIgnoreCase))
+            if (previousTenantId == body.TargetTenantId)
             {
                 return Results.Ok(BuildEnvelope(new
                 {
@@ -66,7 +66,7 @@ public static class AdminSystemReassignEndpoints
             }
 
             // Reassign the system
-            system.TenantId = targetTenantIdStr;
+            system.TenantId = body.TargetTenantId;
             system.ModifiedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
 
@@ -95,6 +95,9 @@ public static class AdminSystemReassignEndpoints
 
     private static object BuildEnvelope(object data) => new { ok = true, data };
 }
+
+/// <summary>Logger category marker for AdminSystemReassignEndpoints.</summary>
+internal sealed class AdminSystemReassignLog { }
 
 /// <summary>Request body for tenant reassignment.</summary>
 public sealed record ReassignTenantRequest(Guid TargetTenantId, string? Reason = null);

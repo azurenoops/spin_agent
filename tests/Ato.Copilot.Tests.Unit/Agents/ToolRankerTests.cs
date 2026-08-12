@@ -249,9 +249,7 @@ public class ToolRankerTests
         var ranked = await ranker.RankAsync(message, tools);
 
         var topTwo = ranked.Take(2).Select(r => r.Tool.Name).ToList();
-        Assert.Contains(expectedTool, topTwo,
-            $"Expected '{expectedTool}' in top-2 for: "{message}". " +
-            $"Actual top-2: [{string.Join(", ", topTwo)}]");
+        Assert.Contains(expectedTool, (IEnumerable<string>)topTwo);
     }
 
     // ---------------------------------------------------------------------------
@@ -294,14 +292,15 @@ public class ToolRankerTests
 
     private sealed class FakeBaseTool : BaseTool
     {
+        private readonly string _name;
+        private readonly string _desc;
         public FakeBaseTool(string name, string description)
-        {
-            Name = name;
-            Description = description;
-        }
-        public override string Name { get; }
-        public override string Description { get; }
-        public override Task<string> ExecuteAsync(System.Collections.Generic.Dictionary<string, object?> arguments,
+            : base(Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance) { _name = name; _desc = description; }
+        public override string Name => _name;
+        public override string Description => _desc;
+        public override System.Collections.Generic.IReadOnlyDictionary<string, ToolParameter> Parameters
+            => new System.Collections.Generic.Dictionary<string, ToolParameter>();
+        public override Task<string> ExecuteCoreAsync(System.Collections.Generic.Dictionary<string, object?> arguments,
             System.Threading.CancellationToken cancellationToken = default)
             => Task.FromResult("ok");
     }
