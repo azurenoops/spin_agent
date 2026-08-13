@@ -9,6 +9,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 //   (b) lockRole=true disables the role dropdown.
 //   (c) SoD warning from the response renders inline.
 //   (d) bootstrap prop wires bootstrap=true into the POST body.
+//
+// T033-b [#713 / BUG-14] — Person-picker dropdown populates via
+// onboarding.listPersons() (previously used a deprecated API that always
+// returned an empty list, so no RMF role could ever be assigned org-wide).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Mock the rolesApi module BEFORE importing the dialog.
@@ -27,17 +31,37 @@ vi.mock('../../../api/roles', async (orig) => {
   };
 });
 
+// Mock onboarding so listPersons() is controllable. Default: empty array so
+// the existing tests (which use the GUID text-input fallback) continue to pass.
+vi.mock('../../../features/onboarding/api/onboardingApi', async (orig) => {
+  const actual = await orig<typeof import('../../../features/onboarding/api/onboardingApi')>();
+  return {
+    ...actual,
+    onboarding: {
+      ...actual.onboarding,
+      listPersons: vi.fn().mockResolvedValue([]),
+    },
+  };
+});
+
 import AssignRoleDialog from '../../../components/roles/AssignRoleDialog';
 import { rolesApi } from '../../../api/roles';
+import { onboarding } from '../../../features/onboarding/api/onboardingApi';
 
 const mockedApi = rolesApi as unknown as {
   assignOrgRole: ReturnType<typeof vi.fn>;
   assignSystemRole: ReturnType<typeof vi.fn>;
 };
 
+const mockedOnboarding = onboarding as unknown as {
+  listPersons: ReturnType<typeof vi.fn>;
+};
+
 describe('AssignRoleDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: listPersons returns empty → existing tests use GUID text-input path.
+    mockedOnboarding.listPersons.mockResolvedValue([]);
   });
 
   it('filters role dropdown by RBAC_ASSIGNABLE_BY for Isso callers', () => {
@@ -204,6 +228,111 @@ describe('AssignRoleDialog', () => {
     // Assert — error code surfaced
     await waitFor(() => {
       expect(screen.getByText(/may not assign/i)).toBeInTheDocument();
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T033-b [#713 / BUG-14] — Person-picker dropdown populates via listPersons()
+//
+// Root cause: the dialog previously called a deprecated component API that
+// always returned an empty array, so the person-picker SELECT never rendered
+// and no RMF role could be assigned org-wide (open 43 days).
+// Fix: dialog now calls onboarding.listPersons() on open.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('AssignRoleDialog — #713 person-picker via listPersons()', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders a SELECT dropdown (not a text input) when listPersons() returns records', async () => {
+    // Arrange — listPersons returns two persons
+    mockedOnboarding.listPersons.mockResolvedValue([
+      { id: 'p-alice', displayName: 'Alice Adams', email: 'alice@example.mil', isLinkedToDirectory: false },
+      { id: 'p-bob',   displayName: 'Bob Baker',   email: 'bob@example.mil',   isLinkedToDirectory: false },
+    ]);
+
+    render(
+      <AssignRoleDialog
+        open
+        onClose={vi.fn()}
+        scope={{ kind: 'organization' }}
+        callerEffectiveRole="Issm"
+        onAssigned={vi.fn()}
+      />,
+    );
+
+    // Assert — after listPersons resolves, a SELECT with both person options is present
+    const select = await screen.findByRole('combobox', { name: /person/i });
+    expect(select).toBeInTheDocument();
+
+    const options = Array.from((select as HTMLSelectElement).options).map((o) => o.text);
+    expect(options).toContain('Alice Adams');
+    expect(options).toContain('Bob Baker');
+
+    // The raw GUID text input must NOT be rendered when people are loaded
+    expect(screen.queryByPlaceholderText(/guid of the person/i)).not.toBeInTheDocument();
+  });
+
+  it('submits the correct personId when a person is selected from the dropdown', async () => {
+    // Arrange
+    mockedOnboarding.listPersons.mockResolvedValue([
+      { id: 'p-carol', displayName: 'Carol Chen', email: 'carol@example.mil', isLinkedToDirectory: true },
+    ]);
+    mockedApi.assignOrgRole.mockResolvedValueOnce({
+      status: 'success',
+      data: { role: 'Issm', person: { id: 'p-carol', displayName: 'Carol Chen' }, source: 'override' },
+    });
+    const onAssigned = vi.fn();
+
+    render(
+      <AssignRoleDialog
+        open
+        onClose={vi.fn()}
+        scope={{ kind: 'organization' }}
+        initialRole="Issm"
+        callerEffectiveRole="Issm"
+        onAssigned={onAssigned}
+      />,
+    );
+
+    // Wait for the person dropdown to appear then select Carol
+    const select = await screen.findByRole('combobox', { name: /person/i });
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'p-carol' } });
+    });
+
+    // Submit
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /assign/i }));
+    });
+
+    // Assert — the correct personId was posted
+    await waitFor(() => {
+      expect(mockedApi.assignOrgRole).toHaveBeenCalledWith(
+        expect.objectContaining({ personId: 'p-carol', role: 'Issm' }),
+      );
+    });
+    expect(onAssigned).toHaveBeenCalled();
+  });
+
+  it('falls back to GUID text input when listPersons() returns an empty array', async () => {
+    // Arrange
+    mockedOnboarding.listPersons.mockResolvedValue([]);
+
+    render(
+      <AssignRoleDialog
+        open
+        onClose={vi.fn()}
+        scope={{ kind: 'organization' }}
+        callerEffectiveRole="Issm"
+        onAssigned={vi.fn()}
+      />,
+    );
+
+    // Assert — GUID text input (manual entry fallback) is present
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/guid of the person/i)).toBeInTheDocument();
     });
   });
 });
