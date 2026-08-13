@@ -152,7 +152,9 @@ public class AiRemediationPlanGenerator : IAiRemediationPlanGenerator
                     FindingId = finding.Id,
                     Explanation = root.TryGetProperty("explanation", out var exp) ? exp.GetString() ?? "" : content,
                     TechnicalPlan = root.TryGetProperty("technicalPlan", out var plan) ? plan.GetString() ?? "" : "",
-                    ConfidenceScore = 0.8,
+                    // ConfidenceScore intentionally null: parse success only confirms JSON structure,
+                    // not model quality or evidence grounding. A real signal is required to emit a score.
+                    ConfidenceScore = null,
                     References = root.TryGetProperty("references", out var refs)
                         ? refs.EnumerateArray().Select(r => r.GetString() ?? "").Where(s => !string.IsNullOrEmpty(s)).ToList()
                         : new List<string>(),
@@ -168,7 +170,8 @@ public class AiRemediationPlanGenerator : IAiRemediationPlanGenerator
                     FindingId = finding.Id,
                     Explanation = content,
                     TechnicalPlan = "",
-                    ConfidenceScore = 0.6,
+                    // ConfidenceScore intentionally null: fallback path is raw text without evidence linkage.
+                    ConfidenceScore = null,
                     References = new List<string>(),
                     GeneratedAt = DateTime.UtcNow
                 };

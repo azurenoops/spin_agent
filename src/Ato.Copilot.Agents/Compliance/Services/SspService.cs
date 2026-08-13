@@ -177,7 +177,7 @@ public class SspService : ISspService
         // Build suggestion based on system context and control type
         var sb = new StringBuilder();
         var references = new List<string>();
-        double confidence = 0.5;
+        NarrativeDerivationBasis derivationBasis;
 
         if (inheritance?.InheritanceType == InheritanceType.Inherited)
         {
@@ -187,9 +187,9 @@ public class SspService : ISspService
             sb.AppendLine($"The {system.Name} system inherits the implementation of {controlId} from {provider}, ");
             sb.AppendLine($"which maintains a FedRAMP High authorization. The CSP is responsible for the full ");
             sb.AppendLine($"implementation and ongoing assessment of this control within the {system.HostingEnvironment} environment.");
-            confidence = 0.85;
-            references.Add($"FedRAMP High Authorization — {provider}");
-            references.Add($"Control Inheritance Matrix for {system.Name}");
+            derivationBasis = NarrativeDerivationBasis.InheritedFromAuthorizedProvider;
+            references.Add($"FedRAMP High Authorization — {provider} [scaffold reference — unverified]");
+            references.Add($"Control Inheritance Matrix for {system.Name} [scaffold reference — unverified]");
         }
         else if (inheritance?.InheritanceType == InheritanceType.Shared)
         {
@@ -201,9 +201,9 @@ public class SspService : ISspService
             sb.AppendLine();
             sb.AppendLine($"Customer Responsibility: The {system.Name} team is responsible for ");
             sb.Append(inheritance.CustomerResponsibility ?? $"configuring and managing the application-level aspects of {controlId}.");
-            confidence = 0.75;
-            references.Add($"FedRAMP Shared Responsibility — {provider}");
-            references.Add($"Customer Responsibility Matrix for {system.Name}");
+            derivationBasis = NarrativeDerivationBasis.SharedResponsibilityMatrix;
+            references.Add($"FedRAMP Shared Responsibility — {provider} [scaffold reference — unverified]");
+            references.Add($"Customer Responsibility Matrix for {system.Name} [scaffold reference — unverified]");
         }
         else
         {
@@ -211,16 +211,21 @@ public class SspService : ISspService
             var family = controlId.Split('-')[0].ToUpperInvariant();
             var narrative = GenerateCustomerNarrativeTemplate(family, controlId, system);
             sb.Append(narrative);
-            confidence = 0.55;
-            references.Add($"NIST SP 800-53 Rev. 5 — {controlId}");
-            references.Add($"{system.Name} System Architecture");
+            derivationBasis = NarrativeDerivationBasis.TemplateScaffold;
+            references.Add($"NIST SP 800-53 Rev. 5 — {controlId} [scaffold reference — unverified]");
+            references.Add($"{system.Name} System Architecture [scaffold reference — unverified]");
         }
 
+        // Confidence is intentionally null: this path performs deterministic template assembly
+        // and never invokes a model. A numeric confidence would be fabricated. Only populate
+        // Confidence when a real grounding signal (retrieval score, evidence count) exists.
         return new NarrativeSuggestion
         {
             ControlId = controlId,
             Narrative = sb.ToString().Trim(),
-            Confidence = confidence,
+            Confidence = null,
+            DerivationBasis = derivationBasis,
+            RequiresHumanValidation = true,
             References = references
         };
     }

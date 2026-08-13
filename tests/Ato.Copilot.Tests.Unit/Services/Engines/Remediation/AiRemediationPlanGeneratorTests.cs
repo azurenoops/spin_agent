@@ -166,7 +166,8 @@ public class AiRemediationPlanGeneratorTests
         guidance.Explanation.Should().Contain("TLS");
         guidance.TechnicalPlan.Should().Contain("1.2");
         guidance.References.Should().ContainSingle();
-        guidance.ConfidenceScore.Should().Be(0.8);
+        // confidence must be null — no grounding signal justifies a hardcoded constant (#705)
+        guidance.ConfidenceScore.Should().BeNull();
     }
 
     [Fact]
@@ -180,7 +181,8 @@ public class AiRemediationPlanGeneratorTests
 
         guidance.Should().NotBeNull();
         guidance!.Explanation.Should().Contain("Enable TLS");
-        guidance.ConfidenceScore.Should().Be(0.6);
+        // confidence must be null — fallback text path has no grounding signal (#705)
+        guidance.ConfidenceScore.Should().BeNull();
     }
 
     [Fact]
