@@ -46,6 +46,28 @@ jobs:
             tests/**/TestResults/*.trx
           if-no-files-found: ignore
 
+  security-bypass-gate:
+    name: Auth-Bypass Security Gate (BUG-21)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject ALLOW_DEV_AUTH_BYPASS in deployment manifests
+        shell: bash
+        run: |
+          echo "Scanning for ALLOW_DEV_AUTH_BYPASS in deployment/infra files..."
+          # Check deployment YAML manifests and Terraform for the bypass flag.
+          # .env.example and test fixtures are explicitly excluded.
+          FOUND=$(grep -rn "ALLOW_DEV_AUTH_BYPASS"             .github/workflows/             infra/             src/             --include="*.yml"             --include="*.yaml"             --include="*.tf"             --include="*.bicep"             --include="*.json"             --exclude-dir=".git"             2>/dev/null |             grep -v "# BUG-21" |             grep -v "ci.yml" |             grep -v "# example" |             grep -v "# sample" || true)
+
+          if [ -n "$FOUND" ]; then
+            echo "::error::ALLOW_DEV_AUTH_BYPASS found in deployment files. Remove it before merging:"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "✅ No ALLOW_DEV_AUTH_BYPASS detected in deployment manifests."
+
   vscode-extension-compile:
     name: VS Code Extension Compile
     runs-on: ubuntu-latest

@@ -124,11 +124,33 @@ public class CacAuthenticationMiddleware
                 environment);
         }
 
-        // In development mode without simulation, skip JWT validation
+        // In development mode without simulation, skip JWT validation.
+        // BUG-21 (#694): bypass is only permitted when ALLOW_DEV_AUTH_BYPASS=true is set
+        // explicitly — prevents accidental auth bypass if ASPNETCORE_ENVIRONMENT is set to
+        // Development in a staging or production container.
         if (environment == "Development")
         {
-            await _next(context);
-            return;
+            var allowBypass = string.Equals(
+                Environment.GetEnvironmentVariable("ALLOW_DEV_AUTH_BYPASS"),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+
+            if (!allowBypass)
+            {
+                _logger.LogWarning(
+                    "Dev-mode auth bypass requested but ALLOW_DEV_AUTH_BYPASS is not set to 'true'. " +
+                    "Falling through to real JWT authentication. Set ALLOW_DEV_AUTH_BYPASS=true " +
+                    "in your local .env / launchSettings.json to enable the bypass.");
+                // Fall through to JWT validation below
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "[BUG-21] Dev auth bypass ACTIVE — ALLOW_DEV_AUTH_BYPASS=true. " +
+                    "This MUST NOT be set in staging or production environments.");
+                await _next(context);
+                return;
+            }
         }
 
         // Extract Bearer token — check Authorization header first, then PLATFORM_COPILOT_TOKEN env var (T072)
