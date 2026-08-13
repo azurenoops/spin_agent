@@ -345,6 +345,146 @@ public class DocumentGenerationServiceTests : IDisposable
         await db.SaveChangesAsync();
     }
 
+    // ─── WM-BUG-2 regression: impact level and hosting environment ────────
+
+    /// <summary>
+    /// Regression test for WM-BUG-2: GenerateDocumentAsync must derive the NIST
+    /// impact level from SecurityCategorization.NistBaseline, not hardcode "High".
+    /// </summary>
+    [Theory]
+    [InlineData(ImpactValue.Low,      "Low")]
+    [InlineData(ImpactValue.Moderate, "Moderate")]
+    [InlineData(ImpactValue.High,     "High")]
+    public async Task GenerateDocumentAsync_ImpactLevel_DerivedFromSecurityCategorization(
+        ImpactValue cia, string expectedNistBaseline)
+    {
+        using var db = new AtoCopilotContext(_dbOptions);
+
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = $"WM-BUG-2-System-{cia}",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Commercial",
+            CreatedBy = "test",
+            IsActive = true
+        };
+        var sc = new SecurityCategorization
+        {
+            Id = Guid.NewGuid().ToString(),
+            RegisteredSystemId = system.Id,
+            CategorizedBy = "test",
+            InformationTypes = new List<InformationType>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "Test Info Type",
+                    Sp80060Id = "C.3.5.8",
+                    ConfidentialityImpact = cia,
+                    IntegrityImpact     = cia,
+                    AvailabilityImpact  = cia,
+                    
+                }
+            }
+        };
+        system.SecurityCategorization = sc;
+        db.RegisteredSystems.Add(system);
+
+        // An assessment is required so GenerateSspAsync resolves the categorization via RegisteredSystemId
+        var assessment = new ComplianceAssessment
+        {
+            Id = Guid.NewGuid().ToString(),
+            SubscriptionId = $"sub-wm2-{cia}",
+            RegisteredSystemId = system.Id,
+            Framework = "NIST80053",
+            TotalControls = 1,
+            PassedControls = 1,
+            FailedControls = 0,
+            NotAssessedControls = 0,
+            ComplianceScore = 100,
+            AssessedAt = DateTime.UtcNow
+        };
+        db.Assessments.Add(assessment);
+        await db.SaveChangesAsync();
+
+        var doc = await _sut.GenerateDocumentAsync(
+            "SSP", systemName: system.Name, cancellationToken: CancellationToken.None);
+
+        doc.Content.Should().Contain(expectedNistBaseline,
+            $"the document must reflect the {expectedNistBaseline} NIST baseline — never hardcode 'High' (WM-BUG-2)");
+    }
+
+    /// <summary>
+    /// Regression test for WM-BUG-2: hosting environment must be read from
+    /// RegisteredSystem.HostingEnvironment, not hardcoded to "Azure Government".
+    /// </summary>
+    [Theory]
+    [InlineData("Azure Commercial")]
+    [InlineData("On-Premises")]
+    [InlineData("Hybrid")]
+    public async Task GenerateDocumentAsync_HostingEnvironment_DerivedFromSystem(string hostingEnv)
+    {
+        using var db = new AtoCopilotContext(_dbOptions);
+
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = $"WM-BUG-2-Hosting-{hostingEnv.Replace(" ", "-")}",
+            SystemType = SystemType.Enclave,
+            MissionCriticality = MissionCriticality.MissionSupport,
+            HostingEnvironment = hostingEnv,
+            CreatedBy = "test",
+            IsActive = true
+        };
+        var sc = new SecurityCategorization
+        {
+            Id = Guid.NewGuid().ToString(),
+            RegisteredSystemId = system.Id,
+            CategorizedBy = "test",
+            InformationTypes = new List<InformationType>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "Test Info Type",
+                    Sp80060Id = "C.3.5.8",
+                    ConfidentialityImpact = ImpactValue.Low,
+                    IntegrityImpact     = ImpactValue.Low,
+                    AvailabilityImpact  = ImpactValue.Low,
+                    
+                }
+            }
+        };
+        system.SecurityCategorization = sc;
+        db.RegisteredSystems.Add(system);
+
+        var assessment2 = new ComplianceAssessment
+        {
+            Id = Guid.NewGuid().ToString(),
+            SubscriptionId = $"sub-wm2-host",
+            RegisteredSystemId = system.Id,
+            Framework = "NIST80053",
+            TotalControls = 1,
+            PassedControls = 1,
+            FailedControls = 0,
+            NotAssessedControls = 0,
+            ComplianceScore = 100,
+            AssessedAt = DateTime.UtcNow
+        };
+        db.Assessments.Add(assessment2);
+        await db.SaveChangesAsync();
+
+        var doc = await _sut.GenerateDocumentAsync(
+            "SSP", systemName: system.Name, cancellationToken: CancellationToken.None);
+
+        doc.Content.Should().Contain(hostingEnv,
+            $"hosting environment '{hostingEnv}' must appear in the document — not hardcoded 'Azure Government' (WM-BUG-2)");
+        doc.Content.Should().NotContain("Azure Government",
+            "the SSP must not hardcode 'Azure Government' when the system uses a different environment (WM-BUG-2)");
+    }
+
     private class InMemoryDbContextFactory : IDbContextFactory<AtoCopilotContext>
     {
         private readonly DbContextOptions<AtoCopilotContext> _options;
