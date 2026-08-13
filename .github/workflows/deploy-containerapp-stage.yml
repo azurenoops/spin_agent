@@ -178,16 +178,17 @@ jobs:
           echo "app=${APP}" >> "$GITHUB_OUTPUT"
           echo "env_name=${ENV_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve ACR credentials
+      # fix(WM-INFRA-2 follow-up): Replaced az acr credential show (admin password
+      # written to GITHUB_OUTPUT in plain text on every deploy run) with a
+      # login-server-only lookup. Container App image-pull now uses the app's
+      # system-assigned managed identity (AcrPull role granted in the identity
+      # step below) — no admin credential is fetched, stored, or emitted.
+      - name: Resolve ACR login server
         id: acr
         shell: bash
         run: |
           set -euo pipefail
-          USERNAME=$(az acr credential show -n "${{ vars.AZURE_ACR_NAME }}" --query username -o tsv)
-          PASSWORD=$(az acr credential show -n "${{ vars.AZURE_ACR_NAME }}" --query passwords[0].value -o tsv)
           LOGIN_SERVER=$(az acr show -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ vars.AZURE_ACR_NAME }}" --query loginServer -o tsv)
-          echo "username=${USERNAME}" >> "$GITHUB_OUTPUT"
-          echo "password=${PASSWORD}" >> "$GITHUB_OUTPUT"
           echo "login_server=${LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
 
       - name: Ensure Container Apps environment exists (idempotent)
@@ -359,8 +360,7 @@ jobs:
                 --target-port "${TARGET_PORT}" \
                 --ingress external \
                 --registry-server "${{ steps.acr.outputs.login_server }}" \
-                --registry-username "${{ steps.acr.outputs.username }}" \
-                --registry-password "${{ steps.acr.outputs.password }}" \
+                --registry-identity system \
                 "${RESOURCE_ARGS[@]}" \
                 --env-vars ${ENV_ARGS}
             else
@@ -372,8 +372,7 @@ jobs:
                 --target-port "${TARGET_PORT}" \
                 --ingress external \
                 --registry-server "${{ steps.acr.outputs.login_server }}" \
-                --registry-username "${{ steps.acr.outputs.username }}" \
-                --registry-password "${{ steps.acr.outputs.password }}" \
+                --registry-identity system \
                 "${RESOURCE_ARGS[@]}"
             fi
           fi
@@ -416,6 +415,40 @@ jobs:
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
             --name "${{ steps.target.outputs.app }}" \
             --system-assigned >/dev/null
+
+      # Grant the app's system-assigned managed identity the AcrPull role on
+      # the registry (least-privilege: AcrPull only, scoped to this ACR).
+      # This allows the Container App to pull images without admin credentials.
+      - name: Grant AcrPull to managed identity (least-privilege)
+        if: inputs.assign_managed_identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ vars.AZURE_RESOURCE_GROUP }}"
+          APP="${{ steps.target.outputs.app }}"
+          ACR_NAME="${{ vars.AZURE_ACR_NAME }}"
+
+          # Retrieve the managed identity principal ID.
+          PRINCIPAL_ID=$(az containerapp show \
+            --resource-group "${RG}" \
+            --name "${APP}" \
+            --query identity.principalId -o tsv)
+
+          if [ -z "${PRINCIPAL_ID}" ]; then
+            echo "::warning::No system-assigned identity found on '${APP}'; skipping AcrPull grant."
+            exit 0
+          fi
+
+          ACR_ID=$(az acr show -g "${RG}" -n "${ACR_NAME}" --query id -o tsv)
+
+          # Idempotent: az role assignment create returns an error if the assignment
+          # already exists; suppress that specific error and continue.
+          az role assignment create \
+            --assignee-object-id "${PRINCIPAL_ID}" \
+            --assignee-principal-type ServicePrincipal \
+            --role AcrPull \
+            --scope "${ACR_ID}" >/dev/null 2>&1 || \
+            echo "AcrPull already assigned or assignment pending — continuing."
 
       - name: Set optional runtime secrets
         if: inputs.inject_runtime_secrets
