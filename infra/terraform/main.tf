@@ -306,7 +306,10 @@ resource "azurerm_container_app" "mcp" {
 
   ingress {
     external_enabled = true
-    target_port      = 8080
+    # fix(#767/WM-INFRA-1): Changed from 8080 to 3001 — the app listens on 3001
+    # as confirmed by Dockerfile (EXPOSE 3001), appsettings.json (Urls: http://0.0.0.0:3001),
+    # and docker-compose.mcp.yml (ASPNETCORE_URLS=http://+:3001).
+    target_port      = 3001
     transport        = "auto" # "auto" enables HTTP + WebSocket upgrade (required for SignalR)
 
     # sticky_sessions is NOT supported in azurerm ~> 3.x (added in 4.x).
@@ -360,7 +363,7 @@ resource "azurerm_container_app" "mcp" {
 
       liveness_probe {
         path                    = "/health"
-        port                    = 8080
+        port                    = 3001 # fix(#767/WM-INFRA-1): app listens on 3001, not 8080
         transport               = "HTTP"
         initial_delay           = 15
         interval_seconds        = 30
@@ -369,7 +372,7 @@ resource "azurerm_container_app" "mcp" {
 
       readiness_probe {
         path                    = "/health"
-        port                    = 8080
+        port                    = 3001 # fix(#767/WM-INFRA-1): app listens on 3001, not 8080
         transport               = "HTTP"
         interval_seconds        = 10
         failure_count_threshold = 3
