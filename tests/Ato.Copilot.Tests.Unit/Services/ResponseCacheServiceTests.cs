@@ -117,4 +117,55 @@ public class ResponseCacheServiceTests
 
         result.Should().Be("mutation-result");
     }
+
+    // ─── WM-BUG-3 regression: cross-tenant isolation ──────────────────────
+
+    /// <summary>
+    /// Regression test for WM-BUG-3: two different tenants issuing the exact same
+    /// tool call with the same params MUST receive independent cache entries.
+    /// McpServer prefixes the subscriptionId with the tenant GUID after the fix:
+    /// "{tenantId}:{subscriptionId}".
+    /// </summary>
+    [Fact]
+    public async Task GetOrSetAsync_DifferentTenantPrefixes_ProduceIndependentCacheEntries()
+    {
+        var tenantA = Guid.NewGuid().ToString();
+        var tenantB = Guid.NewGuid().ToString();
+        const string innerSub = "sub-shared";
+        var subA = $"{tenantA}:{innerSub}";
+        var subB = $"{tenantB}:{innerSub}";
+
+        // Tenant A populates the cache
+        await _service.GetOrSetAsync("compliance_scan", "{\"resource\":\"vm1\"}", subA,
+            () => Task.FromResult("tenant-a-findings"));
+
+        // Tenant B with identical params must NOT receive tenant A's data
+        var callCount = 0;
+        var result = await _service.GetOrSetAsync("compliance_scan", "{\"resource\":\"vm1\"}", subB,
+            () => { callCount++; return Task.FromResult("tenant-b-findings"); });
+
+        result.Should().Be("tenant-b-findings",
+            "tenant B must never receive tenant A's cached compliance data (WM-BUG-3)");
+        callCount.Should().Be(1,
+            "factory must have been invoked — no cross-tenant cache hit should occur");
+    }
+
+    [Fact]
+    public async Task GetOrSetAsync_SameTenantPrefixSameParams_ReturnsCachedEntry()
+    {
+        // Sanity: single-tenant cache-hit behaviour must still work after the fix.
+        var tenant = Guid.NewGuid().ToString();
+        var sub = $"{tenant}:sub-1";
+
+        await _service.GetOrSetAsync("tool", "{}", sub,
+            () => Task.FromResult("first-response"));
+
+        var callCount = 0;
+        var result = await _service.GetOrSetAsync("tool", "{}", sub,
+            () => { callCount++; return Task.FromResult("second-response"); });
+
+        result.Should().Be("first-response",
+            "same tenant + same params must still hit the cache (regression guard)");
+        callCount.Should().Be(0);
+    }
 }
