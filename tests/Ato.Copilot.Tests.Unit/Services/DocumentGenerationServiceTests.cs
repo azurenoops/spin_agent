@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Ato.Copilot.Core.Constants;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -483,6 +484,128 @@ public class DocumentGenerationServiceTests : IDisposable
             $"hosting environment '{hostingEnv}' must appear in the document — not hardcoded 'Azure Government' (WM-BUG-2)");
         doc.Content.Should().NotContain("Azure Government",
             "the SSP must not hardcode 'Azure Government' when the system uses a different environment (WM-BUG-2)");
+    }
+
+    // ─── WM-BUG-2: FIPS 199 "Not Categorized" fallback ────────────────────
+
+    /// <summary>
+    /// WM-BUG-2 regression: when an assessment has no linked SecurityCategorization
+    /// the SSP must emit "Not Categorized" — it must NOT fabricate or hardcode an
+    /// impact level such as "High".
+    /// </summary>
+    [Fact]
+    public async Task GenerateSspAsync_NoCategorization_EmitsNotCategorizedFallback()
+    {
+        // Seed a system with NO SecurityCategorization
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Uncategorized System",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionSupport,
+            HostingEnvironment = "Azure Government",
+            CreatedBy = "test",
+            IsActive = true
+        };
+        db.RegisteredSystems.Add(system);
+
+        var assessment = new ComplianceAssessment
+        {
+            Id = Guid.NewGuid().ToString(),
+            SubscriptionId = "sub-no-cat",
+            RegisteredSystemId = system.Id,
+            Framework = "NIST80053",
+            TotalControls = 1,
+            PassedControls = 1,
+            FailedControls = 0,
+            NotAssessedControls = 0,
+            ComplianceScore = 100,
+            AssessedAt = DateTime.UtcNow
+        };
+        db.Assessments.Add(assessment);
+        await db.SaveChangesAsync();
+
+        var doc = await _sut.GenerateDocumentAsync("SSP", subscriptionId: "sub-no-cat");
+
+        doc.Content.Should().Contain("Not Categorized",
+            "SSP must emit 'Not Categorized' when no SecurityCategorization record exists (WM-BUG-2 fallback)");
+        doc.Content.Should().Contain("FIPS 199 Impact Level",
+            "SSP must include the FIPS 199 Impact Level field even in the uncategorized case");
+        // Must NOT fabricate a level
+        doc.Content.Should().NotMatchRegex(@"FIPS 199 Impact Level\*\*: (High|Moderate|Low)\b",
+            "SSP must not emit a real impact level when no categorization record exists (WM-BUG-2)");
+    }
+
+    // ─── WM-BUG-2: DoD Impact Level emitted alongside FIPS 199 ────────────
+
+    /// <summary>
+    /// WM-BUG-2 regression: when a SecurityCategorization exists the SSP must emit
+    /// the derived DoD Impact Level (IL2/IL4/IL5/IL6) in addition to the FIPS 199
+    /// categorization.  Both lines must reflect the computed, not hardcoded, values.
+    /// </summary>
+    [Theory]
+    [InlineData(ImpactValue.Low,      "IL2")]
+    [InlineData(ImpactValue.Moderate, "IL4")]
+    [InlineData(ImpactValue.High,     "IL5")]
+    public async Task GenerateSspAsync_WithCategorization_EmitsDoDImpactLevel(
+        ImpactValue cia, string expectedDodIl)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = $"DoD-IL-System-{cia}",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Government",
+            CreatedBy = "test",
+            IsActive = true
+        };
+        var sc = new SecurityCategorization
+        {
+            Id = Guid.NewGuid().ToString(),
+            RegisteredSystemId = system.Id,
+            CategorizedBy = "test",
+            InformationTypes = new List<InformationType>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "Test Info Type",
+                    Sp80060Id = "C.3.5.8",
+                    ConfidentialityImpact = cia,
+                    IntegrityImpact     = cia,
+                    AvailabilityImpact  = cia
+                }
+            }
+        };
+        system.SecurityCategorization = sc;
+        db.RegisteredSystems.Add(system);
+
+        var assessment = new ComplianceAssessment
+        {
+            Id = Guid.NewGuid().ToString(),
+            SubscriptionId = $"sub-dod-{cia}",
+            RegisteredSystemId = system.Id,
+            Framework = "NIST80053",
+            TotalControls = 1,
+            PassedControls = 1,
+            FailedControls = 0,
+            NotAssessedControls = 0,
+            ComplianceScore = 100,
+            AssessedAt = DateTime.UtcNow
+        };
+        db.Assessments.Add(assessment);
+        await db.SaveChangesAsync();
+
+        var doc = await _sut.GenerateDocumentAsync("SSP", subscriptionId: $"sub-dod-{cia}");
+
+        doc.Content.Should().Contain("DoD Impact Level",
+            $"SSP must include DoD Impact Level when categorization exists (WM-BUG-2)");
+        doc.Content.Should().Contain(expectedDodIl,
+            $"SSP must emit {expectedDodIl} derived from {cia} categorization — not a hardcoded value (WM-BUG-2)");
     }
 
     private class InMemoryDbContextFactory : IDbContextFactory<AtoCopilotContext>

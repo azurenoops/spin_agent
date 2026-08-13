@@ -163,6 +163,7 @@ public class DocumentGenerationService : IDocumentGenerationService
         var registeredSystemIdForCat = assessment?.RegisteredSystemId;
         string fipsImpactLevel = "Not Categorized";
         string dodImpactLevel = "";
+        string cloudEnvironment = "Azure Government";
         if (!string.IsNullOrEmpty(registeredSystemIdForCat))
         {
             var cat = await db.SecurityCategorizations
@@ -174,13 +175,15 @@ public class DocumentGenerationService : IDocumentGenerationService
             {
                 fipsImpactLevel = cat.OverallCategorization.ToString();
                 dodImpactLevel = cat.DoDImpactLevel;
+                if (!string.IsNullOrWhiteSpace(cat.RegisteredSystem?.HostingEnvironment))
+                    cloudEnvironment = cat.RegisteredSystem.HostingEnvironment;
             }
         }
 
         sb.AppendLine("## 1. System Identification");
         sb.AppendLine();
         sb.AppendLine($"- **System Name**: {systemName}");
-        sb.AppendLine($"- **Cloud Environment**: Azure Government");
+        sb.AppendLine($"- **Cloud Environment**: {cloudEnvironment}");
         sb.AppendLine($"- **Compliance Framework**: {framework}");
         sb.AppendLine($"- **FIPS 199 Impact Level**: {fipsImpactLevel}");
         if (!string.IsNullOrEmpty(dodImpactLevel))
