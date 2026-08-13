@@ -122,6 +122,7 @@ public class PoamService
             .Include(p => p.Milestones.OrderBy(m => m.Sequence))
             .Include(p => p.ComponentLinks)
                 .ThenInclude(cl => cl.SystemComponent)
+            .Include(p => p.RegisteredSystem)
             .AsQueryable();
 
         if (includeHistory)
@@ -154,6 +155,7 @@ public class PoamService
             .Include(p => p.Milestones)
             .Include(p => p.ComponentLinks)
                 .ThenInclude(cl => cl.SystemComponent)
+            .Include(p => p.RegisteredSystem)
             .AsQueryable();
 
         // Filters
