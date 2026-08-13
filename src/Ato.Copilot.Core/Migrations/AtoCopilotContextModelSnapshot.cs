@@ -57,9 +57,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -114,9 +111,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("MappedRole")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -234,9 +228,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("TicketNumber")
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
@@ -279,76 +270,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("JitRequests");
                 });
 
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Auth.LoginAuditEvent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CorrelationId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("EffectiveTenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ErrorClass")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("MetadataJson")
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Oid")
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SourceIp")
-                        .IsRequired()
-                        .HasMaxLength(45)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Surface")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Tid")
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserAgent")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OccurredAt")
-                        .HasDatabaseName("IX_LoginAuditEvents_Occurred");
-
-                    b.HasIndex("EffectiveTenantId", "OccurredAt")
-                        .IsDescending(false, true)
-                        .HasDatabaseName("IX_LoginAuditEvents_Tenant_Occurred");
-
-                    b.HasIndex("Oid", "OccurredAt")
-                        .IsDescending(false, true)
-                        .HasDatabaseName("IX_LoginAuditEvents_Oid")
-                        .HasFilter("[Oid] IS NOT NULL");
-
-                    b.ToTable("LoginAuditEvents");
-                });
-
             modelBuilder.Entity("Ato.Copilot.Core.Models.CachedResponse", b =>
                 {
                     b.Property<int>("Id")
@@ -380,9 +301,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("ToolName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -410,9 +328,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<int>("LastSequence")
                         .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
 
                     b.HasKey("Date");
 
@@ -459,9 +374,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("Subject")
                         .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
@@ -543,9 +455,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("TriggerCondition")
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT");
@@ -616,9 +525,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AssessedAt")
@@ -647,9 +553,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("ActorTenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("AffectedControls")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -658,18 +561,11 @@ namespace Ato.Copilot.Core.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("CorrelationId")
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Details")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<TimeSpan?>("Duration")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("ImpersonatedTenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Outcome")
@@ -681,9 +577,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("SubscriptionId")
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("Timestamp")
@@ -704,12 +597,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.HasIndex("SubscriptionId");
 
                     b.HasIndex("Timestamp");
-
-                    b.HasIndex("ActorTenantId", "Timestamp")
-                        .HasDatabaseName("IX_AuditLogs_ActorTenantId_Timestamp");
-
-                    b.HasIndex("TenantId", "Timestamp")
-                        .HasDatabaseName("IX_AuditLogs_TenantId_Timestamp");
 
                     b.HasIndex("UserId", "Timestamp");
 
@@ -764,9 +651,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorizationBoundaryDefinitionId")
@@ -818,9 +702,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("RegisteredSystemId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -889,9 +770,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("SupersededById")
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TermsAndConditions")
@@ -966,9 +844,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("TotalArtifactCount")
@@ -1061,9 +936,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -1138,9 +1010,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorizationBoundaryDefinitionId")
@@ -1178,9 +1047,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("RegisteredSystemId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -1245,9 +1111,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ControlImplementationId")
@@ -1294,9 +1157,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorizationBoundaryDefinitionId");
@@ -1315,41 +1175,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_CapabilityControlMapping_Unique");
 
                     b.ToTable("CapabilityControlMappings");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.CapabilitySubscription", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CspInheritedCapabilityId")
-                        .IsRequired()
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("RegisteredSystemId")
-                        .IsRequired()
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("SubscribedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SubscribedBy")
-                        .IsRequired()
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RegisteredSystemId", "CspInheritedCapabilityId")
-                        .HasDatabaseName("IX_CapabilitySubscription_System_Capability");
-
-                    b.ToTable("CapabilitySubscriptions");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ComplianceAlert", b =>
@@ -1441,9 +1266,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SubscriptionId")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Title")
@@ -1578,9 +1400,6 @@ namespace Ato.Copilot.Core.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("TotalControls")
                         .HasColumnType("INTEGER");
 
@@ -1639,9 +1458,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ResourceId", "IsActive")
@@ -1692,9 +1508,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SystemName")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -1763,9 +1576,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SubscriptionId")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -1897,9 +1707,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SubscriptionId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Title")
@@ -2034,9 +1841,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("TotalControls")
                         .HasColumnType("INTEGER");
 
@@ -2094,9 +1898,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("RegisteredSystemId", "CapturedAt")
@@ -2114,9 +1915,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("SecurityCapabilityId")
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("SystemComponentId", "SecurityCapabilityId");
@@ -2152,9 +1950,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SystemComponentId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -2207,9 +2002,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("SignificantChangeTriggers")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -2290,9 +2082,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<int>("ResolvedFindings")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ConMonPlanId")
@@ -2359,9 +2148,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("TestType")
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
@@ -2425,9 +2211,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<int>("TailoredOutControls")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("TotalControls")
                         .HasColumnType("INTEGER");
 
@@ -2490,9 +2273,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AssessmentId")
@@ -2508,59 +2288,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_ControlEffectiveness_Assessment_Control");
 
                     b.ToTable("ControlEffectivenessRecords");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ControlEvidenceMapping", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ControlId")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<double>("CorrelationScore")
-                        .HasColumnType("REAL");
-
-                    b.Property<string>("EvidenceReferenceId")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("EvidenceSourceType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("MappedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("MappedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("MappingNote")
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SubscriptionId")
-                        .IsRequired()
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MappedAt")
-                        .HasDatabaseName("IX_ControlEvidenceMapping_MappedAt");
-
-                    b.HasIndex("ControlId", "SubscriptionId")
-                        .HasDatabaseName("IX_ControlEvidenceMapping_ControlId_Sub");
-
-                    b.ToTable("ControlEvidenceMappings");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.ControlImplementation", b =>
@@ -2631,9 +2358,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ApprovalStatus")
@@ -2702,9 +2426,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ControlBaselineId")
@@ -2761,9 +2482,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ControlBaselineId")
@@ -2807,9 +2525,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("Summary")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("Timestamp")
@@ -2862,9 +2577,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SystemProfileSectionId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -2921,9 +2633,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SkippedFromPhase")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -3053,9 +2762,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorizationDecisionId");
@@ -3116,9 +2822,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<int>("RepeatIntervalMinutes")
                         .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
 
                     b.Property<int>("TriggerSeverity")
                         .HasColumnType("INTEGER");
@@ -3200,9 +2903,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime>("UploadedAt")
                         .HasColumnType("TEXT");
 
@@ -3225,95 +2925,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_EvidenceArtifact_System_IsDeleted");
 
                     b.ToTable("EvidenceArtifacts");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.EvidenceAuditEvent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ActorId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ControlId")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("EventType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Metadata")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("OccurredAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SubscriptionId")
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ControlId")
-                        .HasDatabaseName("IX_EvidenceAuditEvent_ControlId");
-
-                    b.HasIndex("OccurredAt")
-                        .HasDatabaseName("IX_EvidenceAuditEvent_OccurredAt");
-
-                    b.HasIndex("SubscriptionId", "OccurredAt")
-                        .HasDatabaseName("IX_EvidenceAuditEvent_Sub_OccurredAt");
-
-                    b.ToTable("EvidenceAuditEvents");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.EvidenceFreshnessRecord", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ControlId")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("EvidenceSourceType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("FreshnessWindowHours")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("LastCollectedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SubscriptionId")
-                        .IsRequired()
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ControlId", "SubscriptionId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_EvidenceFreshness_ControlId_Sub_Unique");
-
-                    b.ToTable("EvidenceFreshnessRecords");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.EvidenceVersion", b =>
@@ -3357,9 +2968,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("StoragePath")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -3416,7 +3024,7 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("ControlId")
                         .IsRequired()
-                        .HasMaxLength(50)
+                        .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
@@ -3424,7 +3032,7 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("Family")
                         .IsRequired()
-                        .HasMaxLength(50)
+                        .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("FrameworkId")
@@ -3436,7 +3044,7 @@ namespace Ato.Copilot.Core.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ParentControlId")
-                        .HasMaxLength(50)
+                        .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("SortOrder")
@@ -3451,7 +3059,7 @@ namespace Ato.Copilot.Core.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("WithdrawnTo")
-                        .HasMaxLength(50)
+                        .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -3580,9 +3188,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("TEXT");
 
@@ -3662,9 +3267,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SystemInterconnectionId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Title")
@@ -3776,9 +3378,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -3844,9 +3443,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("SystemProfileSectionId");
@@ -3895,9 +3491,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -3939,9 +3532,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("ReviewerComments")
                         .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -3990,9 +3580,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("SubmittedBy")
                         .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("VersionNumber")
@@ -4090,9 +3677,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<bool>("PoamOverdueAlerts")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -4149,9 +3733,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ControlId")
@@ -4162,264 +3743,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasDatabaseName("IX_OrgInheritanceDefault_InheritanceType");
 
                     b.ToTable("OrgInheritanceDefaults");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.OscalDecompositionDraft", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ApprovedBy")
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ControlId")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("GeneratedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("GeneratedBy")
-                        .IsRequired()
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RegisteredSystemId")
-                        .IsRequired()
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("OscalDecompositionDrafts");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.OscalDecompositionFragment", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ComponentUuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("ConfidenceScore")
-                        .HasColumnType("REAL");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DraftId")
-                        .IsRequired()
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StatementId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SuggestedParamsJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DraftId");
-
-                    b.ToTable("OscalDecompositionFragments");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.OscalImportRun", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ControlsCreated")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ControlsFailed")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ControlsSkipped")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ControlsUpdated")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ErrorsJson")
-                        .HasMaxLength(65535)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("ImportedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImportedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Mode")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("OscalVersion")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RegisteredSystemId")
-                        .IsRequired()
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("SchemaValid")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("SourceDocumentUuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("WarningsJson")
-                        .HasMaxLength(65535)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RegisteredSystemId");
-
-                    b.ToTable("OscalImportRuns");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.OverlayDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ControlId")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ModifiedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SourceReference")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive")
-                        .HasDatabaseName("IX_OverlayDocument_IsActive");
-
-                    b.HasIndex("ControlId", "Type")
-                        .HasDatabaseName("IX_OverlayDocument_ControlId_Type");
-
-                    b.ToTable("OverlayDocuments");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000001"),
-                            Content = "CNSSI-1253 NSS Overlay for SC-1: Organizations operating National Security Systems must implement SC controls at the HIGH baseline. CNSS-approved cryptographic modules (FIPS 140-3 validated) are mandatory for all data in transit and at rest. Refer to CNSSI No. 1253 Annex D for NSS-specific parameter assignments.",
-                            ControlId = "SC-1",
-                            CreatedAt = new DateTime(2026, 8, 13, 21, 49, 7, 678, DateTimeKind.Utc).AddTicks(5690),
-                            CreatedBy = "seed",
-                            IsActive = true,
-                            SourceReference = "CNSSI No. 1253 Annex D, SC Family",
-                            Title = "CNSSI-1253 SC Family Overlay — System and Communications Protection",
-                            Type = "CNSSI-1253"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000002"),
-                            Content = "CNSSI-1253 NSS Overlay for SI-1: National Security Systems require continuous integrity monitoring at the HIGH baseline. Anti-malware tools must be CNSS-approved. Integrity verification of software and firmware is mandatory before deployment. Refer to CNSSI No. 1253 Annex D for SI parameter assignments.",
-                            ControlId = "SI-1",
-                            CreatedAt = new DateTime(2026, 8, 13, 21, 49, 7, 678, DateTimeKind.Utc).AddTicks(6940),
-                            CreatedBy = "seed",
-                            IsActive = true,
-                            SourceReference = "CNSSI No. 1253 Annex D, SI Family",
-                            Title = "CNSSI-1253 SI Family Overlay — System and Information Integrity",
-                            Type = "CNSSI-1253"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000003"),
-                            Content = "SECNAVINST 5239.3C requires all DON information systems to implement access control policies consistent with the DON RMF Process Guide. AC-1 must reference SECNAVINST 5239.3C as the governing authority. CIO N2/N6 is the DAA for Navy IT systems. Access control policies must be reviewed annually.",
-                            ControlId = "AC-1",
-                            CreatedAt = new DateTime(2026, 8, 13, 21, 49, 7, 678, DateTimeKind.Utc).AddTicks(6950),
-                            CreatedBy = "seed",
-                            IsActive = true,
-                            SourceReference = "SECNAVINST 5239.3C, Para 5.a",
-                            Title = "SECNAVINST 5239.3C — Navy RMF Policy Overlay for AC Controls",
-                            Type = "SECNAVINST"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000004"),
-                            Content = "DoD Instruction 8140.01 requires all DoD personnel with privileged access to information systems to hold DCWF role-qualified certifications. AT-1 policies must reference DoDI 8140.01 and specify the applicable DCWF work roles. IAT Level II or III certification required for system administrators.",
-                            ControlId = "AT-1",
-                            CreatedAt = new DateTime(2026, 8, 13, 21, 49, 7, 678, DateTimeKind.Utc).AddTicks(6960),
-                            CreatedBy = "seed",
-                            IsActive = true,
-                            SourceReference = "DoDI 8140.01, Enclosure 3",
-                            Title = "DoD 8140 Cyberspace Workforce Overlay for IA Controls",
-                            Type = "DoD-8140"
-                        });
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PackageArtifact", b =>
@@ -4469,9 +3792,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<bool?>("SchemaValid")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorizationPackageId")
@@ -4500,9 +3820,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<bool>("IsValid")
                         .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("ValidatedAt")
                         .HasColumnType("TEXT");
@@ -4609,9 +3926,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Weakness")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -4673,9 +3987,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<DateTime>("TargetDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("PoamItemId")
@@ -4720,9 +4031,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SystemProfileSectionId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -4832,9 +4140,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("Version")
                         .HasColumnType("INTEGER");
 
@@ -4909,9 +4214,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("RegisteredSystemId")
@@ -4956,9 +4258,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SystemProfileSectionId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -5053,9 +4352,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("Acronym")
@@ -5111,9 +4407,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SubscriptionId")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("TotalFindings")
@@ -5184,9 +4477,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorizationDecisionId")
@@ -5229,9 +4519,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("RmfRole")
                         .IsRequired()
                         .HasMaxLength(30)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("UserDisplayName")
@@ -5321,9 +4608,6 @@ namespace Ato.Copilot.Core.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("SecurityAssessmentPlanId", "ControlId")
@@ -5363,9 +4647,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("SecurityAssessmentPlanId");
@@ -5401,9 +4682,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SecurityAssessmentReportId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Title")
@@ -5573,9 +4851,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("VulnId")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -5733,9 +5008,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("TotalEntries")
                         .HasColumnType("INTEGER");
 
@@ -5846,9 +5118,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<int>("StigBenchmarkCount")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -5936,9 +5205,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -6014,9 +5280,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("Category")
@@ -6059,9 +5322,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("RegisteredSystemId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -6120,9 +5380,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("ReviewedBy")
                         .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -6227,6 +5484,9 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("ReviewedAt")
                         .HasColumnType("TEXT");
 
@@ -6251,9 +5511,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
@@ -6262,6 +5519,9 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_SspSection_Status");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("IX_SspSections_TenantId");
 
                     b.HasIndex("RegisteredSystemId", "SectionNumber")
                         .IsUnique()
@@ -6368,9 +5628,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("Type")
                         .HasColumnType("INTEGER");
 
@@ -6407,9 +5664,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SecurityCapabilityId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -6501,9 +5755,6 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.Property<string>("SubType")
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -6607,9 +5858,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("TargetSystemName")
@@ -6687,9 +5935,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("GovernanceStatus")
@@ -6739,9 +5984,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("SystemProfileSectionId");
@@ -6785,9 +6027,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("Severity")
                         .IsRequired()
                         .HasMaxLength(10)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -6834,9 +6073,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SubscriptionId")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -6942,9 +6178,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -7030,9 +6263,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("TaskId");
@@ -7076,9 +6306,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("TaskId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("Timestamp")
@@ -7238,15 +6465,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<Guid?>("IndexJobId")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("IndexedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("IndexedChunkCount")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("IndexingError")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("IndexingStatus")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -7306,9 +6524,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("StepName")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantOnboardingStateId")
@@ -7647,53 +6862,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("SspPdfImportSessions");
                 });
 
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Onboarding.SystemRoleAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("CreatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsInherited")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("PersonId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RegisteredSystemId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("RemovedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid?>("SourceOrganizationRoleAssignmentId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("UpdatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PersonId");
-
-                    b.ToTable("SystemRoleAssignments");
-                });
-
             modelBuilder.Entity("Ato.Copilot.Core.Models.Onboarding.TenantOnboardingState", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7933,9 +7101,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("SystemComponentId")
@@ -7990,9 +7155,6 @@ namespace Ato.Copilot.Core.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("TEXT");
 
@@ -8041,9 +7203,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SyncStatus")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TicketingIntegrationId")
@@ -8119,9 +7278,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<int>("SyncIntervalMinutes")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("RegisteredSystemId", "Provider")
@@ -8177,9 +7333,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<string>("SystemId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<double>("TotalEstimatedEffort")
@@ -8281,9 +7434,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -8348,9 +7498,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Property<int?>("TargetStartWeek")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("TotalItemCount")
                         .HasColumnType("INTEGER");
 
@@ -8365,513 +7512,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.ToTable("RoadmapPhases");
                 });
 
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.CapabilityHistoryEvent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ActorOid")
-                        .IsRequired()
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("CapabilityId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("MetadataJson")
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Summary")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CapabilityId");
-
-                    b.HasIndex("TenantId", "CapabilityId", "OccurredAt")
-                        .IsDescending(false, false, true)
-                        .HasDatabaseName("IX_CapabilityHistoryEvents_Tenant_Capability_Occurred");
-
-                    b.ToTable("CapabilityHistoryEvents");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.CspInheritedCapability", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("CspInheritedComponentId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("MappedBy")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("MappedNistControlIds")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("MappingConfidence")
-                        .HasColumnType("REAL");
-
-                    b.Property<string>("MappingFailureReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("ReviewedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ReviewedBy")
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ReviewerNote")
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CspInheritedComponentId", "Status")
-                        .HasDatabaseName("IX_CspInheritedCapabilities_ComponentId_Status");
-
-                    b.ToTable("CspInheritedCapabilities");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.CspInheritedComponent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ComponentType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("CspProfileId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("ImportedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImportedBy")
-                        .IsRequired()
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
-
-                    b.Property<string>("SourceArtifactReference")
-                        .HasMaxLength(2048)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SourceFileName")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SourceFormat")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CspProfileId", "Status")
-                        .HasDatabaseName("IX_CspInheritedComponents_CspProfileId_Status");
-
-                    b.ToTable("CspInheritedComponents");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.CspProfile", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("ClassificationCompletedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("DefaultClassificationFloor")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("IdentityCompletedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LegalEntityName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LogoUrl")
-                        .HasMaxLength(2048)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("OnboardingCompletedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("OnboardingState")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("PrimarySupportEmail")
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
-
-                    b.Property<DateTimeOffset?>("SupportCompletedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SupportPhone")
-                        .HasMaxLength(40)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("CspProfiles");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.GlobalBaseline", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("PublishedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PublishedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("SourceId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("SourceTenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Title")
-                        .HasMaxLength(300)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("UnpublishedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UnpublishedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("GlobalBaselines");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.OrgControlOverride", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ControlId")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("ImplementationStatus")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("InheritanceApplicability")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Justification")
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UpdatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "ControlId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_OrgControlOverride_TenantId_ControlId");
-
-                    b.ToTable("OrgControlOverrides");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.Organization", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("ParentOrganizationId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ParentOrganizationId");
-
-                    b.HasIndex("TenantId", "Name")
-                        .IsUnique()
-                        .HasDatabaseName("IX_Organizations_TenantId_Name");
-
-                    b.HasIndex("TenantId", "ParentOrganizationId")
-                        .HasDatabaseName("IX_Organizations_TenantId_ParentOrganizationId");
-
-                    b.ToTable("Organizations");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.Tenant", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AuthorizingOfficialEmail")
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AuthorizingOfficialName")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("DefaultClassificationLevel")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DoDComponent")
-                        .HasMaxLength(120)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("EntraTenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("HqAddressLine1")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("HqAddressLine2")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("HqCity")
-                        .HasMaxLength(120)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("HqCountry")
-                        .HasMaxLength(80)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("HqPostalCode")
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("HqStateOrProvince")
-                        .HasMaxLength(120)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LegalEntityName")
-                        .HasMaxLength(300)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("OnboardingState")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("PrimaryPocEmail")
-                        .HasMaxLength(254)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PrimaryPocName")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PrimaryPocPhone")
-                        .HasMaxLength(40)
-                        .HasColumnType("TEXT");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("TimeZone")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EntraTenantId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_Tenants_EntraTenantId")
-                        .HasFilter("[EntraTenantId] IS NOT NULL");
-
-                    b.HasIndex("Status")
-                        .HasDatabaseName("IX_Tenants_Status");
-
-                    b.ToTable("Tenants");
-                });
-
             modelBuilder.Entity("Ato.Copilot.Core.Models.Auth.JitRequestEntity", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Auth.CacSession", "Session")
@@ -8880,15 +7520,6 @@ namespace Ato.Copilot.Core.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Session");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Auth.LoginAuditEvent", b =>
-                {
-                    b.HasOne("Ato.Copilot.Core.Models.Tenancy.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("EffectiveTenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AlertNotification", b =>
@@ -9609,28 +8240,6 @@ namespace Ato.Copilot.Core.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.OscalDecompositionFragment", b =>
-                {
-                    b.HasOne("Ato.Copilot.Core.Models.Compliance.OscalDecompositionDraft", "Draft")
-                        .WithMany("Fragments")
-                        .HasForeignKey("DraftId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Draft");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.OscalImportRun", b =>
-                {
-                    b.HasOne("Ato.Copilot.Core.Models.Compliance.RegisteredSystem", "RegisteredSystem")
-                        .WithMany()
-                        .HasForeignKey("RegisteredSystemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("RegisteredSystem");
-                });
-
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PackageArtifact", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.AuthorizationPackage", "AuthorizationPackage")
@@ -10173,17 +8782,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("Person");
                 });
 
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Onboarding.SystemRoleAssignment", b =>
-                {
-                    b.HasOne("Ato.Copilot.Core.Models.Onboarding.Person", "Person")
-                        .WithMany()
-                        .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Person");
-                });
-
             modelBuilder.Entity("Ato.Copilot.Core.Models.Poam.PoamComponentLink", b =>
                 {
                     b.HasOne("Ato.Copilot.Core.Models.Compliance.PoamItem", "PoamItem")
@@ -10274,42 +8872,6 @@ namespace Ato.Copilot.Core.Migrations
                     b.Navigation("Roadmap");
                 });
 
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.CapabilityHistoryEvent", b =>
-                {
-                    b.HasOne("Ato.Copilot.Core.Models.Tenancy.CspInheritedCapability", null)
-                        .WithMany()
-                        .HasForeignKey("CapabilityId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("Ato.Copilot.Core.Models.Tenancy.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.CspInheritedCapability", b =>
-                {
-                    b.HasOne("Ato.Copilot.Core.Models.Tenancy.CspInheritedComponent", "CspInheritedComponent")
-                        .WithMany("Capabilities")
-                        .HasForeignKey("CspInheritedComponentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("CspInheritedComponent");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.Organization", b =>
-                {
-                    b.HasOne("Ato.Copilot.Core.Models.Tenancy.Organization", "ParentOrganization")
-                        .WithMany()
-                        .HasForeignKey("ParentOrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("ParentOrganization");
-                });
-
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.AuthorizationBoundaryDefinition", b =>
                 {
                     b.Navigation("AuthorizationBoundaries");
@@ -10394,11 +8956,6 @@ namespace Ato.Copilot.Core.Migrations
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.NistControl", b =>
                 {
                     b.Navigation("ControlEnhancements");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.OscalDecompositionDraft", b =>
-                {
-                    b.Navigation("Fragments");
                 });
 
             modelBuilder.Entity("Ato.Copilot.Core.Models.Compliance.PackageValidationResult", b =>
@@ -10514,11 +9071,6 @@ namespace Ato.Copilot.Core.Migrations
             modelBuilder.Entity("Ato.Copilot.Core.Models.Roadmap.RoadmapPhase", b =>
                 {
                     b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("Ato.Copilot.Core.Models.Tenancy.CspInheritedComponent", b =>
-                {
-                    b.Navigation("Capabilities");
                 });
 #pragma warning restore 612, 618
         }
