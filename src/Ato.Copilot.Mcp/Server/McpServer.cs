@@ -10,6 +10,7 @@ using Ato.Copilot.Agents.Common;
 using Ato.Copilot.Core.Interfaces;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Core.Models;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using ErrorDetail = Ato.Copilot.Mcp.Models.ErrorDetail;
 using Microsoft.Extensions.Options;
 using System.Collections;
@@ -37,6 +38,7 @@ public class McpServer
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IPathSanitizationService _pathSanitizer;
     private readonly ResponseCacheService _cacheService;
+    private readonly ITenantContext _tenantContext;
     private readonly PaginationOptions _paginationOptions;
     private readonly OfflineModeService _offlineModeService;
     private readonly ILogger<McpServer> _logger;
@@ -49,6 +51,7 @@ public class McpServer
         ConfigurationAgent configurationAgent,
         ConfigurationTool configurationTool,
         AgentOrchestrator orchestrator,
+        ITenantContext tenantContext,
         IEnumerable<BaseTool> allTools,
         IHttpContextAccessor httpContextAccessor,
         IPathSanitizationService pathSanitizer,
@@ -66,6 +69,7 @@ public class McpServer
         _allTools = allTools;
         _httpContextAccessor = httpContextAccessor;
         _pathSanitizer = pathSanitizer;
+        _tenantContext = tenantContext;
         _cacheService = cacheService;
         _paginationOptions = paginationOptions.Value;
         _offlineModeService = offlineModeService;
@@ -93,6 +97,24 @@ public class McpServer
 
         var sub = user.FindFirst("sub")?.Value;
         return !string.IsNullOrEmpty(sub) ? sub : "mcp-user";
+    }
+
+    /// <summary>
+    /// Resolves the authenticated tenant ID from <see cref="ITenantContext"/>.
+    /// Returns null when no tenant is resolved (unauthenticated / stdio mode).
+    /// Cache operations MUST NOT proceed when this returns null.
+    /// </summary>
+    private string? ResolveTenantId()
+    {
+        try
+        {
+            var id = _tenantContext.EffectiveTenantId;
+            return id == Guid.Empty ? null : id.ToString();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -194,23 +216,43 @@ public class McpServer
                 new SseAgentRoutedEvent { AgentName = targetAgent.AgentName, Confidence = targetAgent.CanHandle(message) }, _jsonOptions));
 
             // Check cache before agent dispatch (FR-016)
-            var subscriptionId = context?.TryGetValue("subscriptionId", out var subId) == true
-                ? subId?.ToString() ?? "default" : "default";
+            // WM-BUG-3 fix: use authenticated tenant ID as primary cache namespace to prevent cross-tenant bleed.
+            // Fall back to subscriptionId only as a secondary discriminator within the same tenant.
+            var tenantId = ResolveTenantId();
+            if (tenantId is null)
+            {
+                // Refuse to cache when no tenant is resolved — stdio/unauthenticated mode.
+                _logger.LogWarning("ResolveTenantId returned null; cache bypassed for this request.");
+            }
+            var subscriptionId = tenantId is not null
+                ? $"{tenantId}:{(context?.TryGetValue("subscriptionId", out var subId) == true ? subId?.ToString() ?? string.Empty : string.Empty)}"
+                : null;
             var contextJson = context != null ? JsonSerializer.Serialize(context, _jsonOptions) : "{}";
             var paramsJson = $"{message}::{contextJson}";
-            var cacheStatus = _cacheService.GetCacheStatus(targetAgent.AgentName, paramsJson, subscriptionId);
+            var cacheStatus = subscriptionId is not null
+                ? _cacheService.GetCacheStatus(targetAgent.AgentName, paramsJson, subscriptionId)
+                : "BYPASS";
             string cachedResponse;
             using (var agentActivity = ActivitySource.StartActivity("AgentDispatch", ActivityKind.Internal))
             {
                 agentActivity?.SetTag("mcp.agent", targetAgent.AgentName);
                 agentActivity?.SetTag("mcp.cache_status", cacheStatus);
-                cachedResponse = await _cacheService.GetOrSetAsync(
-                    targetAgent.AgentName, paramsJson, subscriptionId,
-                    async () =>
-                    {
-                        var resp = await targetAgent.ProcessAsync(message, agentContext, cancellationToken, progress);
-                        return JsonSerializer.Serialize(resp, _jsonOptions);
-                    });
+                if (subscriptionId is not null)
+                {
+                    cachedResponse = await _cacheService.GetOrSetAsync(
+                        targetAgent.AgentName, paramsJson, subscriptionId,
+                        async () =>
+                        {
+                            var resp = await targetAgent.ProcessAsync(message, agentContext, cancellationToken, progress);
+                            return JsonSerializer.Serialize(resp, _jsonOptions);
+                        });
+                }
+                else
+                {
+                    // No tenant resolved — execute without caching (WM-BUG-3).
+                    var resp = await targetAgent.ProcessAsync(message, agentContext, cancellationToken, progress);
+                    cachedResponse = JsonSerializer.Serialize(resp, _jsonOptions);
+                }
             }
 
             var response = JsonSerializer.Deserialize<AgentResponse>(cachedResponse, _jsonOptions)!;

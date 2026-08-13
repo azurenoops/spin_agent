@@ -680,6 +680,7 @@ public interface IDocumentGenerationService
         string? subscriptionId = null,
         string? framework = null,
         string? systemName = null,
+        string? systemId = null,
         CancellationToken cancellationToken = default);
 }
 

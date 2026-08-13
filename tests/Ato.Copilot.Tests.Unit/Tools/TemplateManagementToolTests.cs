@@ -518,7 +518,7 @@ public class TemplateManagementToolTests
         var mockDocGen = new Mock<IDocumentGenerationService>();
         mockDocGen
             .Setup(s => s.GenerateDocumentAsync(
-                "ssp", null, null, null, It.IsAny<CancellationToken>()))
+                "ssp", null, null, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Ato.Copilot.Core.Models.Compliance.ComplianceDocument
             {
                 Content = "# System Security Plan\n\nThis is a test SSP."

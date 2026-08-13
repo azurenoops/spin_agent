@@ -78,6 +78,7 @@ public class McpServerAiIntegrationTests
             configAgent,
             configTool,
             orchestrator,
+            Mock.Of<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>(),
             Enumerable.Empty<BaseTool>(),
             Mock.Of<IHttpContextAccessor>(),
             Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>(),

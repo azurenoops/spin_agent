@@ -383,7 +383,7 @@ public class DocumentGenerationTool : BaseTool
         }
 
         // ── Markdown output (existing behavior) ─────────────────────────
-        var doc = await _documentService.GenerateDocumentAsync(documentType, subscriptionId, framework, systemName, cancellationToken);
+        var doc = await _documentService.GenerateDocumentAsync(documentType, subscriptionId, framework, systemName, cancellationToken: cancellationToken);
         var content = doc.Content;
 
         // For POA&M documents with a boardId, merge open Kanban tasks

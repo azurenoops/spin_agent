@@ -36,21 +36,41 @@ public class DocumentGenerationService : IDocumentGenerationService
         string? subscriptionId = null,
         string? framework = null,
         string? systemName = null,
+        string? systemId = null,
         CancellationToken cancellationToken = default)
     {
         var docType = NormalizeDocumentType(documentType);
         var resolvedFramework = framework ?? "NIST80053";
 
-        // Fix #555: resolve actual system name from DB instead of hardcoded default
+        // WM-BUG-2 fix: derive system name, impact level, and hosting environment from
+        // the real registered system record rather than hardcoded literals.
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
-        string resolvedSystemName;
-        if (!string.IsNullOrWhiteSpace(systemName))
+
+        RegisteredSystem? resolvedSystem = null;
+
+        // Priority 1: caller-supplied explicit systemId
+        if (!string.IsNullOrWhiteSpace(systemId))
         {
-            resolvedSystemName = systemName;
+            resolvedSystem = await db.RegisteredSystems
+                .Include(s => s.SecurityCategorization)
+                    .ThenInclude(sc => sc!.InformationTypes)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
         }
-        else
+
+        // Priority 2: caller-supplied systemName (exact match)
+        if (resolvedSystem is null && !string.IsNullOrWhiteSpace(systemName))
         {
-            // Try to resolve from the latest assessment's linked system
+            resolvedSystem = await db.RegisteredSystems
+                .Include(s => s.SecurityCategorization)
+                    .ThenInclude(sc => sc!.InformationTypes)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Name == systemName && s.IsActive, cancellationToken);
+        }
+
+        // Priority 3: resolve from the latest assessment's linked system
+        if (resolvedSystem is null)
+        {
             var latestSystemId = await db.Assessments
                 .Where(a => !string.IsNullOrEmpty(a.RegisteredSystemId))
                 .OrderByDescending(a => a.AssessedAt)
@@ -59,22 +79,30 @@ public class DocumentGenerationService : IDocumentGenerationService
 
             if (latestSystemId != null)
             {
-                var system = await db.RegisteredSystems
+                resolvedSystem = await db.RegisteredSystems
+                    .Include(s => s.SecurityCategorization)
+                        .ThenInclude(sc => sc!.InformationTypes)
                     .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.Id == latestSystemId && s.IsActive, cancellationToken);
-                resolvedSystemName = system?.Name ?? "Unknown System";
-            }
-            else
-            {
-                // Fall back to first active system with a name
-                var firstSystem = await db.RegisteredSystems
-                    .AsNoTracking()
-                    .Where(s => s.IsActive && !string.IsNullOrWhiteSpace(s.Name))
-                    .OrderByDescending(s => s.CreatedAt)
-                    .FirstOrDefaultAsync(cancellationToken);
-                resolvedSystemName = firstSystem?.Name ?? "Unknown System";
             }
         }
+
+        // Priority 4: first active system
+        if (resolvedSystem is null)
+        {
+            resolvedSystem = await db.RegisteredSystems
+                .Include(s => s.SecurityCategorization)
+                    .ThenInclude(sc => sc!.InformationTypes)
+                .AsNoTracking()
+                .Where(s => s.IsActive && !string.IsNullOrWhiteSpace(s.Name))
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var resolvedSystemName = resolvedSystem?.Name ?? systemName ?? "Unknown System";
+        // WM-BUG-2: derive impact level from categorization data — never hardcode.
+        var resolvedImpactLevel = resolvedSystem?.SecurityCategorization?.NistBaseline ?? "Unknown";
+        var resolvedHostingEnvironment = resolvedSystem?.HostingEnvironment ?? "Unknown";
 
         _logger.LogInformation(
             "Generating {DocType} document for {System} (framework: {Framework})",
@@ -97,7 +125,7 @@ public class DocumentGenerationService : IDocumentGenerationService
 
         var content = docType switch
         {
-            "SSP" => await GenerateSspAsync(db, resolvedSystemName, resolvedFramework, assessment, findings, cancellationToken),
+            "SSP" => await GenerateSspAsync(db, resolvedSystemName, resolvedFramework, resolvedImpactLevel, resolvedHostingEnvironment, assessment, findings, cancellationToken),
             "SAR" => GenerateSar(resolvedSystemName, resolvedFramework, assessment, findings, activeAlerts),
             "POAM" => GeneratePoam(resolvedSystemName, resolvedFramework, findings, activeAlerts),
             _ => throw new ArgumentException($"Unsupported document type: {docType}")
@@ -119,7 +147,7 @@ public class DocumentGenerationService : IDocumentGenerationService
                     ? $"{assessment.AssessedAt:yyyy-MM-dd} to {(assessment.CompletedAt ?? DateTime.UtcNow):yyyy-MM-dd}"
                     : $"{DateTime.UtcNow:yyyy-MM-dd}",
                 PreparedBy = "ATO Copilot",
-                AuthorizationBoundary = $"{resolvedSystemName} Azure Government boundary"
+                AuthorizationBoundary = $"{resolvedSystemName} {resolvedHostingEnvironment} boundary"
             }
         };
 
@@ -140,6 +168,8 @@ public class DocumentGenerationService : IDocumentGenerationService
         AtoCopilotContext db,
         string systemName,
         string framework,
+        string impactLevel,
+        string hostingEnvironment,
         ComplianceAssessment? assessment,
         List<ComplianceFinding> findings,
         CancellationToken cancellationToken)
@@ -161,9 +191,9 @@ public class DocumentGenerationService : IDocumentGenerationService
         sb.AppendLine("## 1. System Identification");
         sb.AppendLine();
         sb.AppendLine($"- **System Name**: {systemName}");
-        sb.AppendLine($"- **Cloud Environment**: Azure Government");
+        sb.AppendLine($"- **Cloud Environment**: {hostingEnvironment}");
         sb.AppendLine($"- **Compliance Framework**: {framework}");
-        sb.AppendLine($"- **Impact Level**: High");
+        sb.AppendLine($"- **Impact Level**: {impactLevel}");
         sb.AppendLine();
 
         // 2. Assessment Summary
