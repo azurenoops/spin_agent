@@ -152,8 +152,12 @@ public class OscalDecompositionFragment
     [MaxLength(4000)]
     public string? SuggestedParamsJson { get; set; }
 
-    /// <summary>AI confidence score for this fragment mapping (0.0 – 1.0).</summary>
-    public double ConfidenceScore { get; set; }
+    /// <summary>
+    /// AI confidence score for this fragment mapping (0.0–1.0), or <c>null</c> when the
+    /// score could not be derived (fallback path). Always model self-reported — never
+    /// an official ATO determination. Requires human review before use.
+    /// </summary>
+    public double? ConfidenceScore { get; set; }
 
     // ─── Navigation ─────────────────────────────────────────────────────────
 

@@ -15,7 +15,7 @@ public class RemediationGuidance
     public string TechnicalPlan { get; set; } = string.Empty;
 
     /// <summary>AI confidence (0.0–1.0).</summary>
-    public double ConfidenceScore { get; set; }
+    public double? ConfidenceScore { get; set; }
 
     /// <summary>Reference links.</summary>
     public List<string> References { get; set; } = new();
