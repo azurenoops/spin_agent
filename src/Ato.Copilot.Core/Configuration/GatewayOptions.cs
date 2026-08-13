@@ -106,6 +106,35 @@ public class AzureAiOptions
     /// <summary>Custom system prompt template. When set, overrides the agent's default prompt resource.</summary>
     public string? SystemPromptTemplate { get; set; }
 
+    // ── Token-budget enforcement (BUG-5 / #693) ─────────────────────────────
+
+    /// <summary>
+    /// Maximum estimated input tokens allowed per LLM request.
+    /// Requests exceeding this limit are handled according to <see cref="TokenBudgetMode"/>.
+    /// Set to 0 to disable the pre-flight token-budget check (not recommended for production).
+    /// Default: 8 000 tokens — conservative cap well below GPT-4o's 128 k context window.
+    /// Override with environment variable LLM_MAX_INPUT_TOKENS.
+    /// </summary>
+    public int MaxInputTokens { get; set; } = 8_000;
+
+    /// <summary>
+    /// How to handle an over-budget prompt: <see cref="TokenBudgetMode.Reject"/> (default)
+    /// raises <see cref="TokenBudgetExceededException"/> without sending the request;
+    /// <see cref="TokenBudgetMode.Truncate"/> drops oldest non-system turns until the
+    /// estimate fits, preserving the system prompt and most-recent user turn.
+    /// Override with environment variable LLM_BUDGET_MODE (Reject | Truncate).
+    /// </summary>
+    public TokenBudgetMode BudgetMode { get; set; } = TokenBudgetMode.Reject;
+
+    /// <summary>
+    /// Fraction of <see cref="MaxInputTokens"/> at which a warning is logged (0.0–1.0).
+    /// When the estimated token count exceeds <c>MaxInputTokens * AlertRatio</c> a
+    /// structured warning is emitted so operators can tune the cap before the hard limit hits.
+    /// Default: 0.9 (warn at 90 % utilisation).
+    /// Override with environment variable LLM_TOKEN_ALERT_RATIO.
+    /// </summary>
+    public double TokenAlertRatio { get; set; } = 0.9;
+
     // ── Computed helpers ─────────────────────────────────────────────────────
 
     /// <summary>True when Provider is Foundry and FoundryProjectEndpoint is configured.</summary>
@@ -417,4 +446,24 @@ public class EscalationOptions
 
     /// <summary>Default repeat interval in minutes between escalation notifications. Default 30.</summary>
     public int DefaultRepeatIntervalMinutes { get; set; } = 30;
+}
+
+/// <summary>
+/// Token-budget enforcement mode for <see cref="AzureAiOptions"/>.
+/// </summary>
+public enum TokenBudgetMode
+{
+    /// <summary>
+    /// Reject the request with a <see cref="TokenBudgetExceededException"/> when the
+    /// estimated prompt token count exceeds <see cref="AzureAiOptions.MaxInputTokens"/>.
+    /// This is the safe default — no cost is incurred and the caller receives a typed error.
+    /// </summary>
+    Reject = 0,
+
+    /// <summary>
+    /// Trim the oldest non-system conversation turns until the estimated token count
+    /// fits within <see cref="AzureAiOptions.MaxInputTokens"/>, then proceed.
+    /// System prompt and the most-recent user turn are always preserved.
+    /// </summary>
+    Truncate = 1
 }
