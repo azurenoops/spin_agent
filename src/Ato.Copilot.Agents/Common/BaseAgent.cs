@@ -582,6 +582,12 @@ public abstract class BaseAgent
                 Temperature = (float)_azureAiOptions.Temperature
             };
 
+            // ── BUG-5 / #693 — Proactive token-budget guard ──────────────────────
+            // Estimate prompt size BEFORE sending any request. Prevents reactive
+            // server-side 400 errors and enforces cost/DoS cap at the LLM chokepoint.
+            chatMessages = EnforceTokenBudget(chatMessages, _azureAiOptions, AgentName, Logger);
+            // ─────────────────────────────────────────────────────────────────────
+
             var toolsExecuted = new List<ToolExecutionResult>();
             var maxRounds = _azureAiOptions.MaxToolIterations;
 
@@ -737,6 +743,17 @@ public abstract class BaseAgent
                 ProcessingTimeMs = stopwatch.ElapsedMilliseconds
             };
         }
+        catch (TokenBudgetExceededException)
+        {
+            // ── BUG-5 / #693 ──────────────────────────────────────────────────────
+            // Re-throw without catching: the token budget guard is an explicit,
+            // typed enforcement policy, not an unexpected failure. Swallowing it
+            // here would silently discard the guard (AGENTS.md rule #6).
+            // Callers receive this as a clear, typed error to handle or surface.
+            // ─────────────────────────────────────────────────────────────────────
+            stopwatch.Stop();
+            throw;
+        }
         catch (Exception ex)
         {
             stopwatch.Stop();
@@ -872,6 +889,141 @@ public abstract class BaseAgent
             "MessageHash={MessageHash} | Agent={AgentName} | Selected={MaxTools} of {TotalTools}",
             toolName, reason, score.ToString("F4"), messageHash, agentName, maxTools, totalTools);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Token-budget enforcement (BUG-5 / #693)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Estimates the number of tokens in a list of chat messages using the
+    /// ~4 characters-per-token heuristic plus per-message overhead.
+    /// This is intentionally conservative — over-counting is safer than under-counting
+    /// because it triggers the budget guard earlier, preventing server-side 400s.
+    /// </summary>
+    /// <param name="messages">The messages to estimate.</param>
+    /// <returns>Estimated token count (always ≥ 0).</returns>
+    internal static int EstimatePromptTokens(IReadOnlyList<ChatMessage> messages)
+    {
+        // Heuristic: ~4 chars per token (GPT tokenizer average) + 4 token overhead per message.
+        const int CharsPerToken = 4;
+        const int PerMessageOverhead = 4;
+
+        var total = 0;
+        foreach (var msg in messages)
+        {
+            total += PerMessageOverhead;
+            foreach (var content in msg.Contents)
+            {
+                var text = content switch
+                {
+                    TextContent tc => tc.Text ?? string.Empty,
+                    _ => string.Empty
+                };
+                total += (text.Length + CharsPerToken - 1) / CharsPerToken; // ceiling division
+            }
+        }
+        return total;
+    }
+
+    /// <summary>
+    /// Enforces the configured token budget against the given message list.
+    ///
+    /// Behaviour depends on <see cref="Ato.Copilot.Core.Configuration.AzureAiOptions.BudgetMode"/>:
+    /// <list type="bullet">
+    ///   <item><see cref="Ato.Copilot.Core.Configuration.TokenBudgetMode.Reject"/> — throws
+    ///     <see cref="TokenBudgetExceededException"/> when over budget; the LLM is never called.</item>
+    ///   <item><see cref="Ato.Copilot.Core.Configuration.TokenBudgetMode.Truncate"/> — removes the
+    ///     oldest non-system turns (preserving the system prompt and the most-recent user turn)
+    ///     until the estimate fits within the cap, then returns the trimmed list.</item>
+    /// </list>
+    ///
+    /// A warning is emitted at <see cref="AzureAiOptions.TokenAlertRatio"/> of the cap
+    /// regardless of mode, giving operators advance notice before the hard limit fires.
+    ///
+    /// When <c>MaxInputTokens</c> is ≤ 0 the guard is disabled and the original list is
+    /// returned unchanged — this is intentional for local dev / testing.
+    /// </summary>
+    /// <param name="messages">The message list to check. May be mutated (truncate mode).</param>
+    /// <param name="options">The AI options carrying MaxInputTokens, BudgetMode, TokenAlertRatio.</param>
+    /// <param name="agentName">Agent name for error messages and log events.</param>
+    /// <param name="logger">Logger for per-request token usage and threshold warnings.</param>
+    /// <returns>
+    /// The (possibly trimmed) message list to use for the LLM call.
+    /// In Reject mode, always returns the original list or throws — never trims.
+    /// </returns>
+    /// <exception cref="TokenBudgetExceededException">
+    /// Thrown in Reject mode when the estimated prompt token count exceeds <c>MaxInputTokens</c>.
+    /// </exception>
+    internal static List<ChatMessage> EnforceTokenBudget(
+        List<ChatMessage> messages,
+        Ato.Copilot.Core.Configuration.AzureAiOptions options,
+        string agentName,
+        ILogger logger)
+    {
+        var maxInputTokens = options.MaxInputTokens;
+
+        // Guard disabled — pass through unchanged.
+        if (maxInputTokens <= 0)
+            return messages;
+
+        var estimated = EstimatePromptTokens(messages);
+
+        // Per-request token usage log (AC #3: usage logging).
+        logger.LogInformation(
+            "[TokenBudget] Agent={AgentName} EstimatedTokens={Estimated} MaxInputTokens={Max} Mode={Mode}",
+            agentName, estimated, maxInputTokens, options.BudgetMode);
+
+        // Alert at configurable ratio threshold (AC #4: threshold alerts).
+        var alertThreshold = (int)(maxInputTokens * options.TokenAlertRatio);
+        if (estimated >= alertThreshold && estimated < maxInputTokens)
+        {
+            logger.LogWarning(
+                "[TokenBudget] ALERT Agent={AgentName} EstimatedTokens={Estimated} is near the " +
+                "MaxInputTokens cap ({Max}). Utilisation={Ratio:P0}. Consider trimming context " +
+                "or raising AzureAiOptions.MaxInputTokens.",
+                agentName, estimated, maxInputTokens,
+                (double)estimated / maxInputTokens);
+        }
+
+        if (estimated <= maxInputTokens)
+            return messages;
+
+        // Over budget — apply mode.
+        if (options.BudgetMode == Ato.Copilot.Core.Configuration.TokenBudgetMode.Reject)
+        {
+            logger.LogError(
+                "[TokenBudget] REJECTED Agent={AgentName} EstimatedTokens={Estimated} exceeds " +
+                "MaxInputTokens={Max}. Request blocked before LLM call (BUG-5/#693).",
+                agentName, estimated, maxInputTokens);
+
+            throw new TokenBudgetExceededException(estimated, maxInputTokens, agentName);
+        }
+
+        // Truncate mode: remove oldest non-system, non-latest-user turns.
+        // Invariant: always preserve the system prompt (first message) and the
+        //            last user turn (most recent human input).
+        logger.LogWarning(
+            "[TokenBudget] TRUNCATING Agent={AgentName} EstimatedTokens={Estimated} exceeds " +
+            "MaxInputTokens={Max}. Removing oldest conversation turns.",
+            agentName, estimated, maxInputTokens);
+
+        var trimmed = new List<ChatMessage>(messages);
+
+        while (trimmed.Count > 2 && EstimatePromptTokens(trimmed) > maxInputTokens)
+        {
+            // Index 0 = system prompt (preserved). Index 1 = oldest non-system turn (removed).
+            trimmed.RemoveAt(1);
+        }
+
+        var trimmedEstimate = EstimatePromptTokens(trimmed);
+        logger.LogInformation(
+            "[TokenBudget] TRUNCATED Agent={AgentName} TrimmedTokens={Trimmed} MaxInputTokens={Max} " +
+            "MessagesDropped={Dropped}",
+            agentName, trimmedEstimate, maxInputTokens, messages.Count - trimmed.Count);
+
+        return trimmed;
+    }
+
 
 }
 
