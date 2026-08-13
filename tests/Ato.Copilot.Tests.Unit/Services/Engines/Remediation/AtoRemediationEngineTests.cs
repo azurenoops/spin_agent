@@ -2476,7 +2476,7 @@ public class AtoRemediationEngineTests
         // Assert
         result.FindingId.Should().Be("F-AI-5");
         result.Explanation.Should().Contain(finding.ControlId);
-        result.ConfidenceScore.Should().Be(0.6);
+        result.ConfidenceScore.Should().BeNull();
         result.References.Should().NotBeEmpty();
     }
 
