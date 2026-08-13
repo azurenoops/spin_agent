@@ -105,16 +105,46 @@ public class ControlImplementation
 
 // ─── SSP DTOs ────────────────────────────────────────────────────────────────
 
+/// <summary>How the narrative draft was produced.</summary>
+public enum NarrativeDerivationBasis
+{
+    /// <summary>Narrative was scaffolded from a deterministic template; no LLM was invoked.</summary>
+    TemplateScaffold,
+
+    /// <summary>Narrative was derived from an authorized CSP inheritance record.</summary>
+    InheritedFromAuthorizedProvider,
+
+    /// <summary>Narrative was derived from a shared-responsibility matrix.</summary>
+    SharedResponsibilityMatrix,
+
+    /// <summary>Narrative was produced by a real model assessment with grounding evidence.</summary>
+    ModelAssessedWithEvidence,
+}
+
 /// <summary>
-/// Result of a narrative suggestion by AI.
+/// Result of a narrative suggestion.
 /// </summary>
 public class NarrativeSuggestion
 {
     /// <summary>Suggested narrative text.</summary>
     public string Narrative { get; set; } = string.Empty;
 
-    /// <summary>Confidence score (0.0–1.0).</summary>
-    public double Confidence { get; set; }
+    /// <summary>
+    /// Confidence score (0.0–1.0). Null unless a real grounding signal exists (e.g. retrieval
+    /// score, linked evidence count). Never populated from a hardcoded constant.
+    /// </summary>
+    public double? Confidence { get; set; }
+
+    /// <summary>
+    /// How this narrative was produced. Always set so consumers can label output appropriately.
+    /// </summary>
+    public NarrativeDerivationBasis DerivationBasis { get; set; } = NarrativeDerivationBasis.TemplateScaffold;
+
+    /// <summary>
+    /// True for all template-scaffolded and AI-generated drafts. A human reviewer must validate
+    /// the narrative before it is used in a SAR or ATO package.
+    /// </summary>
+    public bool RequiresHumanValidation { get; set; } = true;
 
     /// <summary>Source references used for the suggestion.</summary>
     public List<string> References { get; set; } = new();

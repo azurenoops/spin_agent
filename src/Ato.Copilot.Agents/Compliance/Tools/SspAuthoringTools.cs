@@ -154,7 +154,7 @@ public class SuggestNarrativeTool : BaseTool
     public override string Description =>
         "Generate an AI-suggested implementation narrative for a NIST 800-53 control " +
         "based on system context, control requirements, and inheritance data. " +
-        "Returns a draft narrative with confidence score and reference sources.";
+        "Returns a draft narrative with derivation_basis and reference sources. confidence is null unless a real grounding signal exists.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {
@@ -188,7 +188,10 @@ public class SuggestNarrativeTool : BaseTool
                 {
                     control_id = suggestion.ControlId,
                     suggested_narrative = suggestion.Narrative,
-                    confidence = suggestion.Confidence,
+                    // confidence is null when no real grounding signal exists (template path never invokes a model)
+                    confidence = (object?)suggestion.Confidence,
+                    derivation_basis = suggestion.DerivationBasis.ToString(),
+                    requires_human_validation = suggestion.RequiresHumanValidation,
                     references = suggestion.References
                 },
                 metadata = Meta(sw)

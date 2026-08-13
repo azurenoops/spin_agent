@@ -189,14 +189,17 @@ public class SspAuthoringToolTests
     // ────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task SuggestNarrative_InheritedControl_ReturnsHighConfidence()
+    public async Task SuggestNarrative_InheritedControl_ReturnsNullConfidenceAndHumanValidationFlag()
     {
+        // Template path never invokes a model — confidence must be null, not a fabricated constant.
         var suggestion = new NarrativeSuggestion
         {
             ControlId = "AC-2",
             Narrative = "Azure AD manages account provisioning automatically.",
-            Confidence = 0.85,
-            References = new List<string> { "FedRAMP Moderate 2024", "Azure AD Docs" }
+            Confidence = null, // no grounding signal on template path
+            DerivationBasis = NarrativeDerivationBasis.InheritedFromAuthorizedProvider,
+            RequiresHumanValidation = true,
+            References = new List<string> { "FedRAMP Moderate 2024 [scaffold reference — unverified]", "Azure AD Docs [scaffold reference — unverified]" }
         };
         _sspMock
             .Setup(s => s.SuggestNarrativeAsync("sys-1", "AC-2", It.IsAny<CancellationToken>()))
@@ -212,20 +215,32 @@ public class SspAuthoringToolTests
         var json = JsonDocument.Parse(result);
         json.RootElement.GetProperty("status").GetString().Should().Be("success");
         json.RootElement.GetProperty("data").GetProperty("control_id").GetString().Should().Be("AC-2");
-        json.RootElement.GetProperty("data").GetProperty("confidence").GetDouble().Should().Be(0.85);
+
+        // confidence MUST be null — never a fabricated literal (#705 / #645)
+        json.RootElement.GetProperty("data").GetProperty("confidence").ValueKind.Should().Be(JsonValueKind.Null);
+
+        // derivation_basis and requires_human_validation must be present
+        json.RootElement.GetProperty("data").GetProperty("derivation_basis").GetString()
+            .Should().Be("InheritedFromAuthorizedProvider");
+        json.RootElement.GetProperty("data").GetProperty("requires_human_validation").GetBoolean()
+            .Should().BeTrue();
+
         json.RootElement.GetProperty("data").GetProperty("suggested_narrative").GetString().Should().Contain("Azure AD");
         json.RootElement.GetProperty("data").GetProperty("references").GetArrayLength().Should().Be(2);
     }
 
     [Fact]
-    public async Task SuggestNarrative_CustomerControl_ReturnsLowerConfidence()
+    public async Task SuggestNarrative_CustomerControl_ReturnsNullConfidenceAndTemplateScaffoldBasis()
     {
+        // Customer-implemented template path: confidence must be null, derivation_basis must be TemplateScaffold (#705)
         var suggestion = new NarrativeSuggestion
         {
             ControlId = "CM-3",
             Narrative = "The organization manages configuration changes through...",
-            Confidence = 0.55,
-            References = new List<string> { "NIST 800-53 Rev 5" }
+            Confidence = null,
+            DerivationBasis = NarrativeDerivationBasis.TemplateScaffold,
+            RequiresHumanValidation = true,
+            References = new List<string> { "NIST SP 800-53 Rev. 5 — CM-3 [scaffold reference — unverified]" }
         };
         _sspMock
             .Setup(s => s.SuggestNarrativeAsync("sys-1", "CM-3", It.IsAny<CancellationToken>()))
@@ -239,7 +254,9 @@ public class SspAuthoringToolTests
         });
 
         var json = JsonDocument.Parse(result);
-        json.RootElement.GetProperty("data").GetProperty("confidence").GetDouble().Should().BeLessThan(0.7);
+        json.RootElement.GetProperty("data").GetProperty("confidence").ValueKind.Should().Be(JsonValueKind.Null);
+        json.RootElement.GetProperty("data").GetProperty("derivation_basis").GetString().Should().Be("TemplateScaffold");
+        json.RootElement.GetProperty("data").GetProperty("requires_human_validation").GetBoolean().Should().BeTrue();
     }
 
     [Fact]
@@ -296,8 +313,10 @@ public class SspAuthoringToolTests
         {
             ControlId = "IA-2",
             Narrative = "Multi-factor authentication is enforced via Azure AD.",
-            Confidence = 0.80,
-            References = new List<string> { "Azure AD MFA Docs", "FedRAMP Moderate 2024", "NIST SP 800-63B" }
+            Confidence = null, // template path — no grounding signal
+            DerivationBasis = NarrativeDerivationBasis.TemplateScaffold,
+            RequiresHumanValidation = true,
+            References = new List<string> { "Azure AD MFA Docs [scaffold reference — unverified]", "FedRAMP Moderate 2024 [scaffold reference — unverified]", "NIST SP 800-63B [scaffold reference — unverified]" }
         };
         _sspMock
             .Setup(s => s.SuggestNarrativeAsync("sys-1", "IA-2", It.IsAny<CancellationToken>()))

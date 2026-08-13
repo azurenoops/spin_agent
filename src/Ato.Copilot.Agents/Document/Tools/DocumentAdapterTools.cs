@@ -377,7 +377,10 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
                     system_id = systemId,
                     control_id = controlId,
                     suggested_narrative = narrativeText,
-                    confidence = suggestion.Confidence,
+                    // confidence is null when no real grounding signal exists (template path)
+                    confidence = (object?)suggestion.Confidence,
+                    derivation_basis = suggestion.DerivationBasis.ToString(),
+                    requires_human_validation = suggestion.RequiresHumanValidation,
                     references = suggestion.References,
                     source_context = sources,
                     source_evidence = sourceEvidence,
