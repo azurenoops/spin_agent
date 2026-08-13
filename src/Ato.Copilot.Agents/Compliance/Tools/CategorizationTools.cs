@@ -58,14 +58,6 @@ public class CategorizeSystemTool : BaseTool
         if (infoTypesRaw == null)
             return Error("INVALID_INPUT", "The 'information_types' parameter is required.");
 
-        // Debug: write raw value to file to bypass structured logging brace-eating
-        var rawDebugText = infoTypesRaw is JsonElement je2 ? je2.GetRawText() : infoTypesRaw?.ToString() ?? "null";
-        var rawDebugType = infoTypesRaw.GetType().FullName;
-        var rawDebugKind = infoTypesRaw is JsonElement je3 ? je3.ValueKind.ToString() : "N/A";
-        try { System.IO.File.WriteAllText("/tmp/categorize_debug.txt",
-            $"type={rawDebugType}\nkind={rawDebugKind}\nlength={rawDebugText.Length}\nvalue={rawDebugText}"); }
-        catch { /* ignore file write errors */ }
-
         List<InformationTypeInput> infoTypes;
         try
         {

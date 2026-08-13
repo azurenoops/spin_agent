@@ -1,5 +1,4 @@
 name: CI
-
 on:
   pull_request:
     branches: [main]
@@ -342,5 +341,51 @@ jobs:
           if [ "$FOUND" -eq 0 ]; then
             echo "✅ PASS: no simulation-mode identifiers found in production bundle"
           else
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # CUI / Unprotected-Path Write Gate — Incident #687 / Issue #639
+  # Fails the build if any C# source file writes compliance/CUI payloads to
+  # /tmp, /var/tmp, or other world-readable paths.
+  # ---------------------------------------------------------------------------
+  cui-unprotected-write-gate:
+    name: CUI Unprotected-Path Write Gate (Incident #687)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan for CUI writes to unprotected paths
+        run: |
+          echo "Scanning src/ for writes to /tmp or other world-readable paths..."
+          FOUND=0
+
+          PATTERNS=(
+            'File\.WriteAllText\s*\(\s*"/tmp/'
+            'File\.AppendAllText\s*\(\s*"/tmp/'
+            'File\.WriteAllBytes\s*\(\s*"/tmp/'
+            'new\s+StreamWriter\s*\(\s*"/tmp/'
+            'new\s+FileStream\s*\(\s*"/tmp/'
+            'File\.WriteAllText\s*\(\s*"/var/tmp/'
+            'File\.AppendAllText\s*\(\s*"/var/tmp/'
+          )
+
+          for PATTERN in "${PATTERNS[@]}"; do
+            MATCHES=$(grep -rEn "$PATTERN" src/ --include="*.cs" 2>/dev/null | grep -v '^\s*//' || true)
+            if [ -n "$MATCHES" ]; then
+              echo "FAIL: Unprotected CUI write detected:"
+              echo "$MATCHES"
+              FOUND=1
+            fi
+          done
+
+          if [ "$FOUND" -eq 0 ]; then
+            echo "PASS: No CUI writes to unprotected paths detected."
+          else
+            echo ""
+            echo "Fix: use structured logging (ILogger) instead of writing to /tmp."
+            echo "Ref: Incident #687, Issue #639"
             exit 1
           fi

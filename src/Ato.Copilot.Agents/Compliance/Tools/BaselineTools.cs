@@ -149,10 +149,6 @@ public class TailorBaselineTool : BaseTool
 
         var actionsRaw = GetArg<object>(arguments, "tailoring_actions");
 
-        // DEBUG: capture all arguments
-        try { File.AppendAllText("/tmp/tailor_debug.txt",
-            "\n\n--- ALL ARGS ---\n" + string.Join("\n", arguments.Select(kv =>
-                kv.Key + " = " + (kv.Value is JsonElement je ? je.GetRawText() : kv.Value?.ToString() ?? "null")))); } catch { }
 
         if (actionsRaw == null)
             return Error("INVALID_INPUT", "The 'tailoring_actions' parameter is required.");
@@ -228,12 +224,6 @@ public class TailorBaselineTool : BaseTool
         {
             var rawText = jsonElement.GetRawText();
 
-            // DEBUG: capture raw value for diagnosis
-            try { File.WriteAllText("/tmp/tailor_debug.txt",
-                "type=" + raw.GetType().FullName +
-                "\nkind=" + jsonElement.ValueKind +
-                "\nlength=" + rawText.Length +
-                "\nvalue=" + rawText); } catch { }
 
             // Strategy 1: Direct deserialization of entire element
             try
@@ -242,7 +232,7 @@ public class TailorBaselineTool : BaseTool
                 if (list != null && list.Count > 0 && list.Any(x => !string.IsNullOrWhiteSpace(x.ControlId)))
                     return list;
             }
-            catch { /* fall through */ }
+            catch (JsonException) { /* fall through */ }
 
             // Strategy 2: String-encoded JSON
             if (jsonElement.ValueKind == JsonValueKind.String)
@@ -255,14 +245,14 @@ public class TailorBaselineTool : BaseTool
                         var list = JsonSerializer.Deserialize<List<TailoringInput>>(str, CaseInsensitiveOpts);
                         if (list != null && list.Count > 0) return list;
                     }
-                    catch { /* fall through */ }
+                    catch (JsonException) { /* fall through */ }
 
                     try
                     {
                         var single = JsonSerializer.Deserialize<TailoringInput>(str, CaseInsensitiveOpts);
                         if (single != null && !string.IsNullOrWhiteSpace(single.ControlId)) return [single];
                     }
-                    catch { /* fall through */ }
+                    catch (JsonException) { /* fall through */ }
                 }
             }
 
@@ -274,7 +264,7 @@ public class TailorBaselineTool : BaseTool
                     var single = JsonSerializer.Deserialize<TailoringInput>(rawText, CaseInsensitiveOpts);
                     if (single != null && !string.IsNullOrWhiteSpace(single.ControlId)) return [single];
                 }
-                catch { /* fall through */ }
+                catch (JsonException) { /* fall through */ }
                 return [ParseSingleTailoring(jsonElement)];
             }
 
@@ -306,7 +296,7 @@ public class TailorBaselineTool : BaseTool
                             if (parsed != null && !string.IsNullOrWhiteSpace(parsed.ControlId))
                             { result.Add(parsed); continue; }
                         }
-                        catch { /* fall through */ }
+                        catch (JsonException) { /* fall through */ }
                         result.Add(ParseSingleTailoring(item));
                     }
                     else if (item.ValueKind == JsonValueKind.String)
@@ -320,7 +310,7 @@ public class TailorBaselineTool : BaseTool
                                 if (parsed != null && !string.IsNullOrWhiteSpace(parsed.ControlId))
                                     result.Add(parsed);
                             }
-                            catch { /* skip invalid strings */ }
+                            catch (JsonException) { /* skip invalid strings */ }
                         }
                     }
                 }
@@ -425,10 +415,6 @@ public class SetInheritanceTool : BaseTool
 
         var mappingsRaw = GetArg<object>(arguments, "inheritance_mappings");
 
-        // DEBUG: capture all arguments
-        try { File.WriteAllText("/tmp/inherit_debug.txt",
-            "--- ALL ARGS ---\n" + string.Join("\n", arguments.Select(kv =>
-                kv.Key + " = " + (kv.Value is JsonElement je ? je.GetRawText() : kv.Value?.ToString() ?? "null")))); } catch { }
 
         if (mappingsRaw == null)
             return Error("INVALID_INPUT", "The 'inheritance_mappings' parameter is required.");
@@ -440,15 +426,9 @@ public class SetInheritanceTool : BaseTool
         try
         {
             mappings = ParseInheritanceMappings(mappingsRaw, defaultType, defaultProvider);
-            // DEBUG: capture parsed result
-            try { File.AppendAllText("/tmp/inherit_debug.txt",
-                "\n\n--- PARSED ---\ncount=" + mappings.Count +
-                "\nitems=" + string.Join("; ", mappings.Select(m =>
-                    $"[{m.ControlId}|{m.InheritanceType}|{m.Provider}]"))); } catch { }
         }
         catch (Exception ex)
         {
-            try { File.AppendAllText("/tmp/inherit_debug.txt", "\n\n--- EXCEPTION ---\n" + ex); } catch { }
             return Error("INVALID_INPUT", $"Failed to parse inheritance_mappings: {ex.Message}");
         }
 
@@ -497,12 +477,6 @@ public class SetInheritanceTool : BaseTool
         {
             var rawText = jsonElement.GetRawText();
 
-            // DEBUG: capture raw value
-            try { File.AppendAllText("/tmp/inherit_debug.txt",
-                "\n\n--- PARSE ---\ntype=" + raw.GetType().FullName +
-                "\nkind=" + jsonElement.ValueKind +
-                "\nlength=" + rawText.Length +
-                "\nvalue=" + rawText); } catch { }
 
             // Strategy 1: Direct deserialization
             try
@@ -511,7 +485,7 @@ public class SetInheritanceTool : BaseTool
                 if (list != null && list.Count > 0 && list.Any(x => !string.IsNullOrWhiteSpace(x.ControlId)))
                     return list;
             }
-            catch { /* fall through */ }
+            catch (JsonException) { /* fall through */ }
 
             // Strategy 2: String-encoded JSON
             if (jsonElement.ValueKind == JsonValueKind.String)
@@ -519,15 +493,15 @@ public class SetInheritanceTool : BaseTool
                 var str = jsonElement.GetString();
                 if (!string.IsNullOrWhiteSpace(str))
                 {
-                    try { var list = JsonSerializer.Deserialize<List<InheritanceInput>>(str, CaseInsensitiveOpts); if (list != null && list.Count > 0) return list; } catch { }
-                    try { var single = JsonSerializer.Deserialize<InheritanceInput>(str, CaseInsensitiveOpts); if (single != null && !string.IsNullOrWhiteSpace(single.ControlId)) return [single]; } catch { }
+                    try { var list = JsonSerializer.Deserialize<List<InheritanceInput>>(str, CaseInsensitiveOpts); if (list != null && list.Count > 0) return list; } catch (JsonException) { /* fall through */ }
+                    try { var single = JsonSerializer.Deserialize<InheritanceInput>(str, CaseInsensitiveOpts); if (single != null && !string.IsNullOrWhiteSpace(single.ControlId)) return [single]; } catch (JsonException) { /* fall through */ }
                 }
             }
 
             // Strategy 3: Single object
             if (jsonElement.ValueKind == JsonValueKind.Object)
             {
-                try { var single = JsonSerializer.Deserialize<InheritanceInput>(rawText, CaseInsensitiveOpts); if (single != null && !string.IsNullOrWhiteSpace(single.ControlId)) return [single]; } catch { }
+                try { var single = JsonSerializer.Deserialize<InheritanceInput>(rawText, CaseInsensitiveOpts); if (single != null && !string.IsNullOrWhiteSpace(single.ControlId)) return [single]; } catch (JsonException) { /* fall through */ }
                 return [ParseSingleInheritance(jsonElement)];
             }
 
@@ -584,7 +558,7 @@ public class SetInheritanceTool : BaseTool
                 {
                     if (item.ValueKind == JsonValueKind.Object)
                     {
-                        try { var parsed = JsonSerializer.Deserialize<InheritanceInput>(item.GetRawText(), CaseInsensitiveOpts); if (parsed != null && !string.IsNullOrWhiteSpace(parsed.ControlId)) { result.Add(parsed); continue; } } catch { }
+                        try { var parsed = JsonSerializer.Deserialize<InheritanceInput>(item.GetRawText(), CaseInsensitiveOpts); if (parsed != null && !string.IsNullOrWhiteSpace(parsed.ControlId)) { result.Add(parsed); continue; } } catch (JsonException) { /* fall through */ }
                         result.Add(ParseSingleInheritance(item));
                     }
                     else if (item.ValueKind == JsonValueKind.String)
@@ -592,7 +566,7 @@ public class SetInheritanceTool : BaseTool
                         var s = item.GetString();
                         if (!string.IsNullOrWhiteSpace(s))
                         {
-                            try { var parsed = JsonSerializer.Deserialize<InheritanceInput>(s, CaseInsensitiveOpts); if (parsed != null && !string.IsNullOrWhiteSpace(parsed.ControlId)) { result.Add(parsed); continue; } } catch { }
+                            try { var parsed = JsonSerializer.Deserialize<InheritanceInput>(s, CaseInsensitiveOpts); if (parsed != null && !string.IsNullOrWhiteSpace(parsed.ControlId)) { result.Add(parsed); continue; } } catch (JsonException) { /* fall through */ }
                             // Treat as bare control ID string
                             if (System.Text.RegularExpressions.Regex.IsMatch(s, @"^[A-Z]{2}-\d+", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                             {
