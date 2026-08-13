@@ -158,12 +158,33 @@ public class DocumentGenerationService : IDocumentGenerationService
         sb.AppendLine();
 
         // 1. System Identification
+        // WM-BUG-2 fix: resolve FIPS 199 impact level from the registered system's
+        // SecurityCategorization instead of hardcoding "High".
+        var registeredSystemIdForCat = assessment?.RegisteredSystemId;
+        string fipsImpactLevel = "Not Categorized";
+        string dodImpactLevel = "";
+        if (!string.IsNullOrEmpty(registeredSystemIdForCat))
+        {
+            var cat = await db.SecurityCategorizations
+                .Include(c => c.InformationTypes)
+                .Include(c => c.RegisteredSystem)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.RegisteredSystemId == registeredSystemIdForCat, cancellationToken);
+            if (cat != null)
+            {
+                fipsImpactLevel = cat.OverallCategorization.ToString();
+                dodImpactLevel = cat.DoDImpactLevel;
+            }
+        }
+
         sb.AppendLine("## 1. System Identification");
         sb.AppendLine();
         sb.AppendLine($"- **System Name**: {systemName}");
         sb.AppendLine($"- **Cloud Environment**: Azure Government");
         sb.AppendLine($"- **Compliance Framework**: {framework}");
-        sb.AppendLine($"- **Impact Level**: High");
+        sb.AppendLine($"- **FIPS 199 Impact Level**: {fipsImpactLevel}");
+        if (!string.IsNullOrEmpty(dodImpactLevel))
+            sb.AppendLine($"- **DoD Impact Level**: {dodImpactLevel}");
         sb.AppendLine();
 
         // 2. Assessment Summary
