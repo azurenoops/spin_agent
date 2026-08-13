@@ -580,3 +580,127 @@ public class PoamServiceTests : IDisposable
             delayReason: "Resource unavailable", revisedDate: DateTime.UtcNow.AddDays(60));
     }
 }
+
+public class PoamServiceSystemAttributionTests : IDisposable
+{
+    // BUG-6 regression guard: RegisteredSystem navigation must be populated
+    // on ListAsync and GetByIdAsync so systemName is never silently empty.
+
+    private readonly AtoCopilotContext _db;
+    private readonly PoamService _sut;
+
+    private const string SysA = "sys-attr-001";
+    private const string SysB = "sys-attr-002";
+
+    public PoamServiceSystemAttributionTests()
+    {
+        var opts = new DbContextOptionsBuilder<AtoCopilotContext>()
+            .UseInMemoryDatabase($"PoamAttrTests_{Guid.NewGuid()}")
+            .Options;
+        _db = new AtoCopilotContext(opts);
+        _sut = new PoamService(_db, Mock.Of<ILogger<PoamService>>());
+        SeedData();
+    }
+
+    public void Dispose()
+    {
+        _db.Database.EnsureDeleted();
+        _db.Dispose();
+    }
+
+    private void SeedData()
+    {
+        _db.RegisteredSystems.AddRange(
+            new RegisteredSystem
+            {
+                Id = SysA,
+                Name = "Alpha System",
+                SystemType = SystemType.MajorApplication,
+                MissionCriticality = MissionCriticality.MissionEssential,
+                HostingEnvironment = "Azure",
+                CreatedBy = "test",
+                IsActive = true,
+            },
+            new RegisteredSystem
+            {
+                Id = SysB,
+                Name = "Beta System",
+                SystemType = SystemType.MajorApplication,
+                MissionCriticality = MissionCriticality.MissionEssential,
+                HostingEnvironment = "Azure",
+                CreatedBy = "test",
+                IsActive = true,
+            });
+        _db.SaveChanges();
+    }
+
+    [Fact]
+    public async Task ListAsync_PopulatesRegisteredSystem_SoSystemNameIsNotEmpty()
+    {
+        // Arrange — create one POAM per system
+        await _sut.CreateAsync(SysA, "Weakness A", "STIG", "AC-1", CatSeverity.CatII, "POC", DateTime.UtcNow.AddDays(30));
+        await _sut.CreateAsync(SysB, "Weakness B", "STIG", "AC-2", CatSeverity.CatI, "POC", DateTime.UtcNow.AddDays(30));
+
+        // Act — cross-system list (no systemId filter)
+        var (items, _) = await _sut.ListAsync();
+
+        // Assert — RegisteredSystem is populated and Name is non-empty for every item
+        items.Should().HaveCount(2);
+        foreach (var item in items)
+        {
+            item.RegisteredSystem.Should().NotBeNull(
+                because: "ListAsync must Include(RegisteredSystem) so systemName is not silently empty (BUG-6)");
+            item.RegisteredSystem!.Name.Should().NotBeNullOrEmpty(
+                because: "System name must be populated to prevent wrong-system display (BUG-6)");
+        }
+    }
+
+    [Fact]
+    public async Task ListAsync_SystemScoped_EachPoamBelongsToCorrectSystem()
+    {
+        // Arrange
+        await _sut.CreateAsync(SysA, "Alpha weakness", "STIG", "AC-1", CatSeverity.CatII, "POC", DateTime.UtcNow.AddDays(30));
+        await _sut.CreateAsync(SysB, "Beta weakness", "STIG", "AC-2", CatSeverity.CatI, "POC", DateTime.UtcNow.AddDays(30));
+
+        // Act — list scoped to SysA only
+        var (items, _) = await _sut.ListAsync(SysA);
+
+        // Assert — only SysA items returned with correct system navigation
+        items.Should().HaveCount(1);
+        items[0].RegisteredSystemId.Should().Be(SysA);
+        items[0].RegisteredSystem.Should().NotBeNull();
+        items[0].RegisteredSystem!.Name.Should().Be("Alpha System");
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_PopulatesRegisteredSystem_SoSystemNameIsNotEmpty()
+    {
+        // Arrange
+        var created = await _sut.CreateAsync(SysA, "Detail weakness", "STIG", "SI-2", CatSeverity.CatI, "POC", DateTime.UtcNow.AddDays(30));
+
+        // Act
+        var detail = await _sut.GetByIdAsync(created.Id);
+
+        // Assert — BUG-6: RegisteredSystem must be eager-loaded in GetByIdAsync
+        detail.Should().NotBeNull();
+        detail!.RegisteredSystem.Should().NotBeNull(
+            because: "GetByIdAsync must Include(RegisteredSystem) so detail view shows correct system (BUG-6)");
+        detail.RegisteredSystem!.Name.Should().Be("Alpha System");
+    }
+
+    [Fact]
+    public async Task ListAsync_CrossSystem_DistinctSystemNamesAreCorrect()
+    {
+        // Arrange — two POAMs on different systems
+        await _sut.CreateAsync(SysA, "Weakness A", "STIG", "AC-1", CatSeverity.CatII, "POC", DateTime.UtcNow.AddDays(30));
+        await _sut.CreateAsync(SysB, "Weakness B", "STIG", "AC-2", CatSeverity.CatI, "POC", DateTime.UtcNow.AddDays(30));
+
+        // Act
+        var (items, _) = await _sut.ListAsync();
+
+        // Assert — no two items show the same system as each other's system
+        var bySystemId = items.ToDictionary(i => i.RegisteredSystemId, i => i.RegisteredSystem!.Name);
+        bySystemId[SysA].Should().Be("Alpha System");
+        bySystemId[SysB].Should().Be("Beta System");
+    }
+}

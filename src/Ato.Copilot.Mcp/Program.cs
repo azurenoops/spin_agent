@@ -89,6 +89,10 @@ try
 {
     Log.Information("ATO Copilot starting in {Mode} mode", mode);
 
+    // BUG-21 (#694): validate dev/stdio auth-bypass configuration before
+    // starting either transport so a misconfigured container fails fast.
+    ValidateDevAuthBypassConfig(mode);
+
     if (mode == "stdio")
         await RunStdioModeAsync(args);
     else
@@ -1343,6 +1347,81 @@ void ValidateFoundryConfig(IConfiguration configuration)
         Log.Information(
             "Azure AI Foundry provider active. Project endpoint: {FoundryProjectEndpoint}",
             aiOptions.FoundryProjectEndpoint);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Dev/Stdio Auth-Bypass Startup Guard  (BUG-21 / #694)
+// ────────────────────────────────────────────────────────────────
+/// <summary>
+/// Validates that Dev/Stdio auth-bypass configuration is safe for the current environment.
+///
+/// Rules (per BUG-21 acceptance criteria):
+/// <list type="bullet">
+///   <item>In any non-Development environment, ALLOW_DEV_AUTH_BYPASS=true is fatal —
+///         refuse to start and log a critical error.</item>
+///   <item>In a Development environment, ALLOW_DEV_AUTH_BYPASS=true is permitted but
+///         emits a prominent WARNING so developers are aware the bypass is active.</item>
+///   <item>Regardless of mode/environment, the current auth mode is logged at startup.</item>
+/// </list>
+/// </summary>
+void ValidateDevAuthBypassConfig(string runMode)
+{
+    var aspnetEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+    var allowBypass = string.Equals(
+        Environment.GetEnvironmentVariable("ALLOW_DEV_AUTH_BYPASS"),
+        "true",
+        StringComparison.OrdinalIgnoreCase);
+    var isDevelopment = aspnetEnv.Equals("Development", StringComparison.OrdinalIgnoreCase);
+
+    // Log the current auth mode unconditionally (acceptance criterion 4).
+    Log.Information(
+        "[BUG-21] Auth-mode report — RunMode: {RunMode} | Environment: {Environment} | " +
+        "ALLOW_DEV_AUTH_BYPASS: {AllowBypass} | DevAuthBypassActive: {BypassActive}",
+        runMode, aspnetEnv, allowBypass, allowBypass && isDevelopment);
+
+    if (allowBypass && !isDevelopment)
+    {
+        // ALLOW_DEV_AUTH_BYPASS=true in a non-dev environment is a critical
+        // misconfiguration — the entire API would be reachable without authentication.
+        Log.Fatal(
+            "[BUG-21] CRITICAL SECURITY MISCONFIGURATION: ALLOW_DEV_AUTH_BYPASS=true is set " +
+            "but ASPNETCORE_ENVIRONMENT is '{Environment}' (not Development). " +
+            "Refusing to start to prevent unauthenticated access in a non-development environment. " +
+            "Remove the ALLOW_DEV_AUTH_BYPASS variable from your deployment manifest immediately.",
+            aspnetEnv);
+
+        throw new InvalidOperationException(
+            $"ALLOW_DEV_AUTH_BYPASS=true is set in a non-Development environment " +
+            $"(ASPNETCORE_ENVIRONMENT='{aspnetEnv}'). " +
+            "This would allow unauthenticated access to all API endpoints. " +
+            "Remove ALLOW_DEV_AUTH_BYPASS from the deployment environment and redeploy.");
+    }
+
+    if (allowBypass && isDevelopment)
+    {
+        Log.Warning(
+            "[BUG-21] ⚠  Dev auth bypass is ACTIVE (ALLOW_DEV_AUTH_BYPASS=true, " +
+            "ASPNETCORE_ENVIRONMENT=Development). All JWT validation is skipped. " +
+            "This flag MUST NOT be present in staging or production deployments.");
+    }
+
+    if (runMode == "stdio" && !isDevelopment)
+    {
+        // Stdio mode with no real auth in a non-dev environment is equally dangerous
+        // because the stdio transport has no HTTP-layer auth middleware.
+        if (!allowBypass)
+        {
+            // No explicit bypass flag — this is the correct production configuration.
+            // Stdio mode is safe here because CacAuthenticationMiddleware runs for HTTP,
+            // and stdio is only invoked by a trusted local process. Log an info notice
+            // so operators can confirm the transport intentionally lacks HTTP auth.
+            Log.Information(
+                "[BUG-21] Stdio transport started in {Environment} — no HTTP auth middleware " +
+                "applies (stdio is process-local). Ensure network-level access controls " +
+                "are enforced outside the application.",
+                aspnetEnv);
+        }
     }
 }
 
