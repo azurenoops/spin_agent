@@ -82,3 +82,35 @@ public class ErrorDetailTests
         response.RequiresFollowUp.Should().BeFalse();
     }
 }
+
+// ── CorrelationId (epic/791) tests ────────────────────────────────────────────
+
+public class ErrorDetailCorrelationIdTests
+{
+    [Fact]
+    public void ErrorDetail_CorrelationId_DefaultsToNull()
+    {
+        var error = new ErrorDetail();
+        error.CorrelationId.Should().BeNull();
+    }
+
+    [Fact]
+    public void ErrorDetail_WithCorrelationId_SerializesAndRoundTrips()
+    {
+        var traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+        var error = new ErrorDetail
+        {
+            ErrorCode = "TENANT_UNRESOLVED",
+            Message   = "No tenant context is available.",
+            Suggestion = "Re-authenticate.",
+            CorrelationId = traceId
+        };
+
+        var opts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var json = JsonSerializer.Serialize(error, opts);
+        json.Should().Contain($"\"correlationId\":\"{traceId}\"");
+
+        var back = JsonSerializer.Deserialize<ErrorDetail>(json, opts)!;
+        back.CorrelationId.Should().Be(traceId);
+    }
+}

@@ -10,6 +10,8 @@ using Ato.Copilot.Agents.Common;
 using Ato.Copilot.Core.Interfaces;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Core.Models;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using ErrorDetail = Ato.Copilot.Mcp.Models.ErrorDetail;
 using Microsoft.Extensions.Options;
 using System.Collections;
@@ -214,8 +216,32 @@ public class McpServer
                     });
             }
 
-            var response = JsonSerializer.Deserialize<AgentResponse>(cachedResponse, _jsonOptions)!;
+            var response = JsonSerializer.Deserialize<AgentResponse>(cachedResponse, _jsonOptions);
             stopwatch.Stop();
+
+            // #679 empty-response invariant: a null or blank agent response must never
+            // ship as Success=true. If the agent returned nothing, treat as a hard failure.
+            if (response is null || (response.Success && string.IsNullOrWhiteSpace(response.Response)))
+            {
+                var correlationId = Activity.Current?.TraceId.ToString() ?? conversationId;
+                _logger.LogError("Agent {Agent} returned null or empty response | ConvId: {ConvId}", targetAgent.AgentName, conversationId);
+                return new McpChatResponse
+                {
+                    Success = false,
+                    ConversationId = conversationId,
+                    ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                    Errors = new List<ErrorDetail>
+                    {
+                        new ErrorDetail
+                        {
+                            ErrorCode = "EMPTY_AGENT_RESPONSE",
+                            Message = "The agent returned an empty response.",
+                            Suggestion = "Please try again or rephrase your request.",
+                            CorrelationId = correlationId
+                        }
+                    }
+                };
+            }
 
             _logger.LogInformation("Routed to {Agent} | ConvId: {ConvId} | Cache: {CacheStatus}",
                 targetAgent.AgentName, conversationId, cacheStatus);
@@ -255,16 +281,41 @@ public class McpServer
 
             return chatResponse;
         }
+        catch (TenantUnresolvedException ex)
+        {
+            // #791 / #790 hard-fail: missing tenant → structured 400-eligible response.
+            // This must NOT silently degrade; it must surface so the HTTP bridge returns HTTP 400.
+            stopwatch.Stop();
+            activity?.SetStatus(ActivityStatusCode.Error, "TENANT_UNRESOLVED");
+            _logger.LogError(ex, "Tenant context absent for chat request | ConvId: {ConvId}", conversationId);
+            var correlationId = Activity.Current?.TraceId.ToString() ?? conversationId;
+            return new McpChatResponse
+            {
+                Success = false,
+                ConversationId = conversationId,
+                ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                Errors = new List<ErrorDetail>
+                {
+                    new ErrorDetail
+                    {
+                        ErrorCode = "TENANT_UNRESOLVED",
+                        Message = "No tenant context is available; the request cannot be processed.",
+                        Suggestion = "Ensure your session is authenticated and tenant context is established.",
+                        CorrelationId = correlationId
+                    }
+                }
+            };
+        }
         catch (Exception ex)
         {
             stopwatch.Stop();
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.LogError(ex, "Error processing compliance chat request");
+            var correlationId = Activity.Current?.TraceId.ToString() ?? conversationId;
 
             return new McpChatResponse
             {
                 Success = false,
-                Response = $"Error processing request: {ex.Message}",
                 ConversationId = conversationId,
                 ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
                 Errors = new List<ErrorDetail>
@@ -272,8 +323,9 @@ public class McpServer
                     new ErrorDetail
                     {
                         ErrorCode = "PROCESSING_ERROR",
-                        Message = ex.Message,
-                        Suggestion = "Please try again or rephrase your request."
+                        Message = "An error occurred while processing the request.",
+                        Suggestion = "Please try again or rephrase your request.",
+                        CorrelationId = correlationId
                     }
                 }
             };
