@@ -1,0 +1,18 @@
+# pre-commit hook configuration
+# Docs: https://pre-commit.com
+#
+# Install locally:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Runs terraform fmt -check on staged .tf files before every commit so that
+# formatting drift is caught locally instead of blocking CI.
+
+repos:
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.2
+    hooks:
+      - id: terraform_fmt
+        # --check: report drift without auto-reformatting (mirrors the CI gate).
+        # Remove --check (or replace with no args) if you want auto-fix on commit.
+        args: [--args=-check]
