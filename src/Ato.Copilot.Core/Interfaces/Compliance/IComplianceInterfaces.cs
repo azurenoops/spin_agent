@@ -489,7 +489,7 @@ public interface IRemediationEngine
     /// </summary>
     /// <param name="finding">Finding to get guidance for</param>
     /// <param name="ct">Cancellation token</param>
-    /// <returns>AI-enhanced guidance with confidence score</returns>
+    /// <returns>AI-enhanced guidance; ConfidenceScore is null for deterministic lookups and always requires human validation</returns>
     Task<RemediationGuidance> GetRemediationGuidanceAsync(
         ComplianceFinding finding,
         CancellationToken ct = default);

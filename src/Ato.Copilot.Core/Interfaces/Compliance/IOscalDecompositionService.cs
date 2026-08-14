@@ -60,7 +60,9 @@ public record DecompositionFragmentDto(
     string? ComponentUuid,
     string Description,
     List<SuggestedParamDto> SuggestedParams,
-    double ConfidenceScore);
+    double? ConfidenceScore,
+    string DerivationBasis,
+    bool RequiresHumanValidation);
 
 public record SuggestedParamDto(string ParamId, string Value);
 

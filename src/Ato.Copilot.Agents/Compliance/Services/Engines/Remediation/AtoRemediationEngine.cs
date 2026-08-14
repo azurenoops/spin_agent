@@ -1683,7 +1683,7 @@ public class AtoRemediationEngine : IRemediationEngine
             FindingId = finding.Id,
             Explanation = $"Remediation required for {finding.ControlId} ({finding.ControlFamily} family): {finding.Title}",
             TechnicalPlan = string.Join("\n", steps.Select((s, i) => $"{i + 1}. {s}")),
-            ConfidenceScore = 0.6, // deterministic guidance — moderate confidence
+            ConfidenceScore = null, // Deterministic NIST lookup — no model confidence; human review required
             References = new List<string>
             {
                 $"https://csf.tools/reference/nist-sp-800-53/r5/{finding.ControlFamily.ToLowerInvariant()}/{finding.ControlId.ToLowerInvariant()}/"

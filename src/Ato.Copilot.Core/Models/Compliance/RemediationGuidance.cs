@@ -14,9 +14,7 @@ public class RemediationGuidance
     /// <summary>Technical implementation plan.</summary>
     public string TechnicalPlan { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Confidence score. Null unless a real grounding signal exists; never a hardcoded constant.
-    /// </summary>
+    /// <summary>AI confidence (0.0–1.0).</summary>
     public double? ConfidenceScore { get; set; }
 
     /// <summary>Reference links.</summary>

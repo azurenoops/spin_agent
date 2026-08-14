@@ -46,7 +46,8 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
         "1. statement_id must follow OSCAL format: {controlId}_smt.a, {controlId}_smt.b, etc.\n" +
         "2. confidence_score 0.0-1.0 (how confident the fragment mapping is correct)\n" +
         "3. component_uuid: null unless you can infer from context\n" +
-        "4. Return ONLY the JSON object - no markdown, no explanation.";
+        "4. Return ONLY the JSON object - no markdown, no explanation.\n" +
+        "5. confidence_score is model self-reported and does not constitute an ATO determination. It always requires human review and validation before use in any compliance decision.";
 
     // ── JSON parsing ─────────────────────────────────────────────────────────
 
@@ -66,7 +67,9 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
         [property: JsonPropertyName("component_uuid")] string? ComponentUuid,
         [property: JsonPropertyName("description")] string Description,
         [property: JsonPropertyName("suggested_params")] List<ParamOutput> SuggestedParams,
-        [property: JsonPropertyName("confidence_score")] double ConfidenceScore);
+        [property: JsonPropertyName("confidence_score")] double? ConfidenceScore,
+        string DerivationBasis = "ModelSelfReported",
+        bool RequiresHumanValidation = true);
 
     private record ParamOutput(
         [property: JsonPropertyName("param_id")] string ParamId,
@@ -155,7 +158,9 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
                     ComponentUuid: null,
                     Description: narrative,
                     SuggestedParams: [],
-                    ConfidenceScore: 0.5)
+                    ConfidenceScore: null,
+                    DerivationBasis: "Fallback",
+                    RequiresHumanValidation: true)
             ];
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -170,7 +175,9 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
                     ComponentUuid: null,
                     Description: narrative,
                     SuggestedParams: [],
-                    ConfidenceScore: 0.5)
+                    ConfidenceScore: null,
+                    DerivationBasis: "Fallback",
+                    RequiresHumanValidation: true)
             ];
         }
 
@@ -368,7 +375,9 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
                     ComponentUuid: f.ComponentUuid,
                     Description: f.Description,
                     SuggestedParams: suggestedParams,
-                    ConfidenceScore: f.ConfidenceScore);
+                    ConfidenceScore: f.ConfidenceScore,
+                    DerivationBasis: f.ConfidenceScore.HasValue ? "ModelSelfReported" : "Fallback",
+                    RequiresHumanValidation: true);
             })
             .ToList();
 

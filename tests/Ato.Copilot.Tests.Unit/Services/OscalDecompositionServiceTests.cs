@@ -50,13 +50,16 @@ public class OscalDecompositionServiceTests
                     ComponentUuid: null,
                     Description: "The organization develops an access control policy.",
                     SuggestedParams: [new SuggestedParamDto("ac-1_prm_1", "annually")],
-                    ConfidenceScore: 0.9)
+                    ConfidenceScore: 0.9,
+                    DerivationBasis: "ModelSelfReported",
+                    RequiresHumanValidation: true)
             ]);
 
         draft.ControlId.Should().Be("ac-1");
         draft.Fragments.Should().HaveCount(1);
         draft.Fragments[0].StatementId.Should().Be("ac-1_smt.a");
-        draft.Fragments[0].ConfidenceScore.Should().BeApproximately(0.9, 0.001);
+        draft.Fragments[0].ConfidenceScore.Should().NotBeNull();
+        draft.Fragments[0].ConfidenceScore!.Value.Should().BeApproximately(0.9, 0.001);
         draft.Fragments[0].SuggestedParams.Should().HaveCount(1);
         draft.Fragments[0].SuggestedParams[0].ParamId.Should().Be("ac-1_prm_1");
         draft.Fragments[0].SuggestedParams[0].Value.Should().Be("annually");
@@ -81,9 +84,66 @@ public class OscalDecompositionServiceTests
     public void DecompositionFragmentDto_ConfidenceScore_BoundsAreValid()
     {
         var frag = new DecompositionFragmentDto(
-            "f1", "ac-1_smt.a", null, "Test", [], 0.85);
+            "f1", "ac-1_smt.a", null, "Test", [], 0.85, "ModelSelfReported", true);
 
-        frag.ConfidenceScore.Should().BeGreaterThanOrEqualTo(0.0).And.BeLessThanOrEqualTo(1.0);
+        frag.ConfidenceScore.Should().NotBeNull();
+        frag.ConfidenceScore!.Value.Should().BeGreaterThanOrEqualTo(0.0).And.BeLessThanOrEqualTo(1.0);
+    }
+
+
+    [Fact]
+    public void FallbackFragment_HasNullConfidenceScore()
+    {
+        // Simulates a fragment produced by the fallback path (exception in AI call).
+        var frag = new DecompositionFragmentDto(
+            FragmentId: "frag-fallback",
+            StatementId: "ac-1_smt.a",
+            ComponentUuid: null,
+            Description: "Full narrative fallback",
+            SuggestedParams: [],
+            ConfidenceScore: null,
+            DerivationBasis: "Fallback",
+            RequiresHumanValidation: true);
+
+        frag.ConfidenceScore.Should().BeNull();
+        frag.DerivationBasis.Should().Be("Fallback");
+        frag.RequiresHumanValidation.Should().BeTrue();
+    }
+
+    [Fact]
+    public void JsonParseFailure_HasNullConfidenceScore()
+    {
+        // Simulates a fragment produced when the model returns invalid JSON.
+        var frag = new DecompositionFragmentDto(
+            FragmentId: "frag-json-fail",
+            StatementId: "ac-2_smt.a",
+            ComponentUuid: null,
+            Description: "Unparseable model response fallback",
+            SuggestedParams: [],
+            ConfidenceScore: null,
+            DerivationBasis: "Fallback",
+            RequiresHumanValidation: true);
+
+        frag.ConfidenceScore.Should().BeNull();
+        frag.DerivationBasis.Should().Be("Fallback");
+        frag.RequiresHumanValidation.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AtoRemediationEngine_DeterministicPath_HasNullConfidenceScore()
+    {
+        // The deterministic NIST lookup path must not emit a fabricated confidence score.
+        var guidance = new Ato.Copilot.Core.Models.Compliance.RemediationGuidance
+        {
+            FindingId = "finding-001",
+            Explanation = "Remediation required for AC-1.",
+            TechnicalPlan = "1. Do this. 2. Do that.",
+            ConfidenceScore = null, // Deterministic NIST lookup — no model confidence
+            GeneratedAt = DateTime.UtcNow
+        };
+
+        guidance.ConfidenceScore.Should().BeNull(
+            "deterministic NIST lookups do not have model-confidence scores; human review is always required");
     }
 
     // ── IOscalSspImportService ────────────────────────────────────────────────
