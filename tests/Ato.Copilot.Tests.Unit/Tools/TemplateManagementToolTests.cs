@@ -516,9 +516,10 @@ public class TemplateManagementToolTests
     {
         // Arrange — default format (markdown) uses IDocumentGenerationService
         var mockDocGen = new Mock<IDocumentGenerationService>();
+        // Fix #685: systemId is now required. Update mock to expect it.
         mockDocGen
             .Setup(s => s.GenerateDocumentAsync(
-                "ssp", null, null, null, It.IsAny<CancellationToken>()))
+                "ssp", "test-system-id-001", null, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Ato.Copilot.Core.Models.Compliance.ComplianceDocument
             {
                 Content = "# System Security Plan\n\nThis is a test SSP."
@@ -534,7 +535,8 @@ public class TemplateManagementToolTests
         var args = new Dictionary<string, object?>
         {
             ["document_type"] = "ssp",
-            ["format"] = "markdown"
+            ["format"] = "markdown",
+            ["system_id"] = "test-system-id-001"  // Fix #685: systemId required
         };
 
         // Act

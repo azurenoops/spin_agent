@@ -3267,6 +3267,8 @@ public class DocumentMonitoringIntegrationTests : IDisposable
     private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly Ato.Copilot.Agents.Compliance.Services.DocumentGenerationService _docService;
 
+    private string _monitorTestSystemId = string.Empty;
+
     public DocumentMonitoringIntegrationTests()
     {
         _dbOptions = new DbContextOptionsBuilder<AtoCopilotContext>()
@@ -3278,6 +3280,22 @@ public class DocumentMonitoringIntegrationTests : IDisposable
             _dbFactory,
             Mock.Of<INistControlsService>(),
             Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.DocumentGenerationService>>());
+
+        // Fix #685: seed a system so tests can pass explicit systemId
+        using var db = _dbFactory.CreateDbContext();
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Monitor Integration System",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Government",
+            CreatedBy = "test",
+            IsActive = true
+        };
+        db.RegisteredSystems.Add(system);
+        db.SaveChanges();
+        _monitorTestSystemId = system.Id;
     }
 
     public void Dispose() { }
@@ -3315,7 +3333,7 @@ public class DocumentMonitoringIntegrationTests : IDisposable
             await db.SaveChangesAsync();
         }
 
-        var doc = await _docService.GenerateDocumentAsync("POAM");
+        var doc = await _docService.GenerateDocumentAsync("POAM", _monitorTestSystemId);
 
         doc.Content.Should().Contain("Active Monitoring Alerts");
         doc.Content.Should().Contain("ALT-POAM-001");
@@ -3345,7 +3363,7 @@ public class DocumentMonitoringIntegrationTests : IDisposable
             await db.SaveChangesAsync();
         }
 
-        var doc = await _docService.GenerateDocumentAsync("SAR");
+        var doc = await _docService.GenerateDocumentAsync("SAR", _monitorTestSystemId);
 
         doc.Content.Should().Contain("Continuous Monitoring Status");
         doc.Content.Should().Contain("1");
@@ -3355,7 +3373,7 @@ public class DocumentMonitoringIntegrationTests : IDisposable
     [Fact]
     public async Task SarDocument_NoAlerts_ShouldShowNoIssues()
     {
-        var doc = await _docService.GenerateDocumentAsync("SAR");
+        var doc = await _docService.GenerateDocumentAsync("SAR", _monitorTestSystemId);
 
         doc.Content.Should().Contain("Continuous Monitoring Status");
         doc.Content.Should().Contain("No active monitoring alerts");

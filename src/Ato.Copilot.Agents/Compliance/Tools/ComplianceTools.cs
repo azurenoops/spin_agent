@@ -382,8 +382,19 @@ public class DocumentGenerationTool : BaseTool
                 new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
 
-        // ── Markdown output (existing behavior) ─────────────────────────
-        var doc = await _documentService.GenerateDocumentAsync(documentType, subscriptionId, framework, systemName, cancellationToken);
+        // ── Markdown output ─────────────────────────────────────────────
+        // Fix #685: systemId is now required by GenerateDocumentAsync.
+        // If system_id is not provided for markdown output, fail loud — do not guess.
+        if (string.IsNullOrWhiteSpace(systemId))
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                status = "error",
+                code = "SYSTEM_ID_REQUIRED",
+                message = "system_id is required for document generation. Provide the RegisteredSystem.Id of the target system. " +
+                          "The 'first active system' fallback has been removed (fix #685 — grounding integrity)."
+            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+        var doc = await _documentService.GenerateDocumentAsync(documentType, systemId, subscriptionId, framework, systemName, cancellationToken);
         var content = doc.Content;
 
         // For POA&M documents with a boardId, merge open Kanban tasks
