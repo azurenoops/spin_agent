@@ -8,10 +8,26 @@
     "Chat",
     "Other"
   ],
-  "keywords": ["ato", "compliance", "nist", "rmf", "fedramp", "dod", "fisma", "stig", "oscal"],
+  "keywords": [
+    "ato",
+    "compliance",
+    "nist",
+    "rmf",
+    "fedramp",
+    "dod",
+    "fisma",
+    "stig",
+    "oscal"
+  ],
   "icon": "media/icon.png",
-  "galleryBanner": { "color": "#1e3a5f", "theme": "dark" },
-  "repository": { "type": "git", "url": "https://github.com/azurenoops/ato-copilot" },
+  "galleryBanner": {
+    "color": "#1e3a5f",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/azurenoops/ato-copilot"
+  },
   "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"
@@ -184,6 +200,6 @@
   },
   "dependencies": {
     "@azure/msal-node": "^2.16.3",
-    "axios": "^1.6.5"
+    "axios": "^1.18.0"
   }
 }
