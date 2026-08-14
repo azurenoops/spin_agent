@@ -6,6 +6,7 @@ using Ato.Copilot.Core.Observability;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Ato.Copilot.Core.Models.Tenancy;
 
 namespace Ato.Copilot.Core.Services;
 

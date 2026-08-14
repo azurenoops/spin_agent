@@ -136,6 +136,9 @@ public class ErrorDetail
 
     /// <summary>Corrective guidance for the user or client.</summary>
     public string? Suggestion { get; set; }
+
+    /// <summary>Correlation/trace ID for log correlation (Activity.TraceId or conversationId).</summary>
+    public string? CorrelationId { get; set; }
 }
 
 /// <summary>

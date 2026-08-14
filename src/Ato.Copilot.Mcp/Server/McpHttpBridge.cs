@@ -169,12 +169,17 @@ public class McpHttpBridge
                 context.Response.Headers["X-Cache"] = cacheStatus?.ToString() ?? "MISS";
             }
 
+            // #679 / #791: map Success=false → HTTP >=400 with structured error body.
+            // A blank or failed response must never ship as HTTP 200.
+            if (!result.Success)
+                return MapFailureResult(result, _jsonOptions);
+
             return Results.Json(result, _jsonOptions);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing chat request");
-            return Results.Problem(ex.Message);
+            return Results.Problem("An internal error occurred.", statusCode: 500);
         }
     }
 
@@ -337,11 +342,26 @@ public class McpHttpBridge
                 chatRequest.Action,
                 chatRequest.ActionContext);
 
-            // Write final result as SSE event with ID
-            var resultData = JsonSerializer.Serialize(new { type = "result", data = result }, _sseJsonOptions);
-            var finalEvent = _sseEventBuffer.AddEvent(conversationId, resultData);
-            await context.Response.WriteAsync($"id: {finalEvent.Id}\ndata: {resultData}\n\n");
-            await context.Response.Body.FlushAsync();
+            // #679 / #791: emit typed 'error' SSE event on streaming failure path.
+            // A blank or failed response must never stream as a success.
+            if (!result.Success)
+            {
+                var errorPayload = MapFailureSsePayload(result);
+                var errorData = JsonSerializer.Serialize(errorPayload, _sseJsonOptions);
+                var errorEvent = _sseEventBuffer.AddEvent(conversationId, errorData);
+                await context.Response.WriteAsync($"id: {errorEvent.Id}\nevent: error\ndata: {errorData}\n\n");
+                await context.Response.Body.FlushAsync();
+                _logger.LogWarning("Streaming chat failed | ConvId: {ConvId} | Code: {Code}",
+                    conversationId, result.Errors.FirstOrDefault()?.ErrorCode ?? "UNKNOWN");
+            }
+            else
+            {
+                // Write final result as SSE event with ID
+                var resultData = JsonSerializer.Serialize(new { type = "result", data = result }, _sseJsonOptions);
+                var finalEvent = _sseEventBuffer.AddEvent(conversationId, resultData);
+                await context.Response.WriteAsync($"id: {finalEvent.Id}\ndata: {resultData}\n\n");
+                await context.Response.Body.FlushAsync();
+            }
 
             // Mark session complete for cleanup (FR-043)
             _sseEventBuffer.CompleteSession(conversationId);
@@ -374,6 +394,57 @@ public class McpHttpBridge
         }
         catch (OperationCanceledException) { /* expected */ }
         catch { /* client disconnected */ }
+    }
+
+
+    /// <summary>
+    /// Maps a failed <see cref="McpChatResponse"/> to the appropriate HTTP error result.
+    /// Maps machine-readable <c>ErrorCode</c> values to HTTP status codes per #791 contract:
+    /// TENANT_UNRESOLVED → 400, EMPTY_AGENT_RESPONSE/validation → 422,
+    /// OFFLINE_UNAVAILABLE → 503, anything else → 500.
+    /// </summary>
+    private static IResult MapFailureResult(McpChatResponse result, System.Text.Json.JsonSerializerOptions jsonOptions)
+    {
+        var primaryError = result.Errors.FirstOrDefault();
+        var errorCode = primaryError?.ErrorCode ?? "PROCESSING_ERROR";
+        var reason = primaryError?.Message ?? "An error occurred.";
+        var correlationId = primaryError?.CorrelationId ?? result.ConversationId;
+
+        var statusCode = errorCode switch
+        {
+            "TENANT_UNRESOLVED"     => 400,
+            "EMPTY_AGENT_RESPONSE"  => 422,
+            "PROCESSING_ERROR"      => 422,
+            "OFFLINE_UNAVAILABLE"   => 503,
+            _                       => 500
+        };
+
+        var body = new
+        {
+            success   = false,
+            code      = errorCode,
+            reason    = reason,
+            correlationId,
+            errors    = result.Errors
+        };
+
+        return Results.Json(body, jsonOptions, statusCode: statusCode);
+    }
+
+    /// <summary>
+    /// Builds the SSE error event payload for the streaming failure path.
+    /// </summary>
+    private static object MapFailureSsePayload(McpChatResponse result)
+    {
+        var primaryError = result.Errors.FirstOrDefault();
+        return new
+        {
+            type          = "error",
+            code          = primaryError?.ErrorCode ?? "PROCESSING_ERROR",
+            reason        = primaryError?.Message ?? "An error occurred.",
+            correlationId = primaryError?.CorrelationId ?? result.ConversationId,
+            errors        = result.Errors
+        };
     }
 
     /// <summary>Returns server health status, capabilities, and agent health check results.</summary>
