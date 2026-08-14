@@ -164,8 +164,8 @@ public class McpServerResponseEnrichmentTests
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
                 new Ato.Copilot.Core.Observability.HttpMetrics(),
                 Microsoft.Extensions.Options.Options.Create(new Ato.Copilot.Core.Models.CachingOptions()),
+                Mock.Of<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContextAccessor>(),
                 Mock.Of<ILogger<Ato.Copilot.Core.Services.ResponseCacheService>>()),
-            Mock.Of<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>(),
             Microsoft.Extensions.Options.Options.Create(new Ato.Copilot.Core.Models.PaginationOptions()),
             new Ato.Copilot.Core.Services.OfflineModeService(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), Mock.Of<ILogger<Ato.Copilot.Core.Services.OfflineModeService>>()),
             Mock.Of<ILogger<McpServer>>());

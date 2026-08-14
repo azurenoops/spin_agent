@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Observability;
 using Microsoft.Extensions.Caching.Memory;
@@ -11,12 +12,19 @@ namespace Ato.Copilot.Core.Services;
 /// <summary>
 /// In-memory response cache with per-subscription scoping, TTL registry,
 /// and cache hit/miss metrics (FR-016, FR-019).
+///
+/// WM-BUG-3 / #686: Tenant isolation is enforced HERE as the SINGLE
+/// enforcement point. <see cref="ITenantContextAccessor"/> (singleton,
+/// AsyncLocal-backed) is resolved per-operation so a singleton cache service
+/// never captures a stale scoped tenant. If no tenant is resolved the service
+/// fails closed — no entry is served or written.
 /// </summary>
 public class ResponseCacheService
 {
     private readonly IMemoryCache _cache;
     private readonly HttpMetrics _metrics;
     private readonly CachingOptions _options;
+    private readonly ITenantContextAccessor _tenantAccessor;
     private readonly ILogger<ResponseCacheService> _logger;
     private readonly HashSet<string> _trackedKeys = [];
     private readonly object _keysLock = new();
@@ -25,17 +33,21 @@ public class ResponseCacheService
         IMemoryCache cache,
         HttpMetrics metrics,
         IOptions<CachingOptions> options,
+        ITenantContextAccessor tenantAccessor,
         ILogger<ResponseCacheService> logger)
     {
         _cache = cache;
         _metrics = metrics;
         _options = options.Value;
+        _tenantAccessor = tenantAccessor;
         _logger = logger;
     }
 
     /// <summary>
     /// Gets a cached response or executes the factory and caches the result.
-    /// Composite key: SHA256(toolName:paramsJson:subscriptionId).
+    /// Composite key: SHA256(tenantId:toolName:paramsJson:subscriptionId).
+    /// Fails closed: if no tenant is resolved, the factory is always called
+    /// and the result is never cached.
     /// </summary>
     public async Task<string> GetOrSetAsync(
         string toolName,
@@ -44,11 +56,21 @@ public class ResponseCacheService
         Func<Task<string>> factory,
         bool isMutation = false)
     {
-        var cacheKey = ComputeKey(toolName, paramsJson, subscriptionId);
+        // Resolve tenant per-operation (AsyncLocal — safe for singleton service).
+        var tenantId = ResolveTenantId();
+
+        if (tenantId is null)
+        {
+            // Fail closed: no tenant → no cache read or write.
+            _logger.LogWarning("ResponseCacheService: no tenant resolved for tool={Tool}; cache bypassed (fail-closed).", toolName);
+            _metrics.RecordCacheMiss("response");
+            return await factory();
+        }
+
+        var cacheKey = ComputeKey(tenantId.Value, toolName, paramsJson, subscriptionId);
 
         if (isMutation)
         {
-            // Mutations bypass and invalidate cache
             _cache.Remove(cacheKey);
             RemoveTrackedKey(cacheKey);
             var result = await factory();
@@ -72,7 +94,7 @@ public class ResponseCacheService
             .SetSize(1);
 
         _cache.Set(cacheKey, response, entryOptions);
-        TrackKey(cacheKey, toolName, subscriptionId);
+        TrackKey(cacheKey, tenantId.Value, toolName, subscriptionId);
 
         _logger.LogDebug("Cache SET for {Tool} TTL={Ttl}s key={Key}", toolName, ttl, cacheKey[..8]);
         return response;
@@ -80,10 +102,15 @@ public class ResponseCacheService
 
     /// <summary>
     /// Returns the cache status for a given key: "HIT" or "MISS".
+    /// Returns "MISS" when no tenant is resolved (fail-closed).
     /// </summary>
     public string GetCacheStatus(string toolName, string paramsJson, string subscriptionId)
     {
-        var cacheKey = ComputeKey(toolName, paramsJson, subscriptionId);
+        var tenantId = ResolveTenantId();
+        if (tenantId is null)
+            return "MISS";
+
+        var cacheKey = ComputeKey(tenantId.Value, toolName, paramsJson, subscriptionId);
         return _cache.TryGetValue(cacheKey, out _) ? "HIT" : "MISS";
     }
 
@@ -97,7 +124,7 @@ public class ResponseCacheService
         {
             foreach (var key in _trackedKeys)
             {
-                // Keys are tracked as "sha:toolName:subscriptionId"
+                // Keys are tracked as "sha:tenantId:toolName:subscriptionId"
                 var match = true;
                 if (toolName != null && !key.Contains($":{toolName}:"))
                     match = false;
@@ -120,6 +147,22 @@ public class ResponseCacheService
         return keysToRemove.Count;
     }
 
+    // ── Private helpers ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolves the effective tenant ID from the ambient AsyncLocal context.
+    /// Returns null when no tenant context is available.
+    /// </summary>
+    private Guid? ResolveTenantId()
+    {
+        var ctx = _tenantAccessor.Current;
+        if (ctx is null)
+            return null;
+
+        var id = ctx.EffectiveTenantId;
+        return id == Guid.Empty ? null : id;
+    }
+
     private int GetTtl(string toolName)
     {
         var lower = toolName.ToLowerInvariant();
@@ -130,18 +173,18 @@ public class ResponseCacheService
         return _options.DefaultTtlSeconds;
     }
 
-    private static string ComputeKey(string toolName, string paramsJson, string subscriptionId)
+    private static string ComputeKey(Guid tenantId, string toolName, string paramsJson, string subscriptionId)
     {
-        var input = $"{toolName}:{paramsJson}:{subscriptionId}";
+        var input = $"{tenantId:N}:{toolName}:{paramsJson}:{subscriptionId}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexStringLower(hash);
     }
 
-    private void TrackKey(string sha, string toolName, string subscriptionId)
+    private void TrackKey(string sha, Guid tenantId, string toolName, string subscriptionId)
     {
         lock (_keysLock)
         {
-            _trackedKeys.Add($"{sha}:{toolName}:{subscriptionId}");
+            _trackedKeys.Add($"{sha}:{tenantId:N}:{toolName}:{subscriptionId}");
         }
     }
 

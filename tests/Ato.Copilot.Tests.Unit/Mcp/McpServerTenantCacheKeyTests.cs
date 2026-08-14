@@ -17,89 +17,103 @@ using Ato.Copilot.Mcp.Server;
 namespace Ato.Copilot.Tests.Unit.Mcp;
 
 /// <summary>
-/// WM-BUG-3 regression tests: McpServer must use {tenantId}:{subscriptionId} as
-/// the cache key for authenticated tenants so that two users from different orgs
-/// sharing the same subscriptionId cannot be served each other's compliance data.
+/// WM-BUG-3 / #686 regression tests: tenant isolation is now the sole
+/// responsibility of ResponseCacheService (Cyborg architecture). McpServer no
+/// longer carries per-call tenant prefixing — that logic was deleted.
 ///
-/// The anon branch ("anon:{subscriptionId}") is already exercised by the existing
-/// McpServer tests.  These tests exercise the authenticated branch.
+/// These tests verify McpServer's end-to-end caching behaviour with the
+/// new service signature (ITenantContextAccessor injected into the cache service).
 /// </summary>
 public class McpServerTenantCacheKeyTests
 {
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private static (McpServer server, ResponseCacheService cache) CreateServer(ITenantContext tenantContext)
+    private static Mock<ITenantContextAccessor> MakeAccessor(Guid tenantId)
     {
-        var complianceAgent = TestMockFactory.CreateComplianceAgentMock();
-        complianceAgent
+        var ctxMock = new Mock<ITenantContext>();
+        ctxMock.Setup(c => c.EffectiveTenantId).Returns(tenantId);
+
+        var accessorMock = new Mock<ITenantContextAccessor>();
+        accessorMock.Setup(a => a.Current).Returns(ctxMock.Object);
+        return accessorMock;
+    }
+
+    private static (McpServer server, ResponseCacheService cacheService) CreateServer(
+        Mock<ITenantContextAccessor> accessorMock,
+        IMemoryCache? sharedCache = null)
+    {
+        var complianceAgentMock = TestMockFactory.CreateComplianceAgentMock();
+        complianceAgentMock
             .Setup(a => a.ProcessAsync(
                 It.IsAny<string>(),
                 It.IsAny<AgentConversationContext>(),
                 It.IsAny<CancellationToken>(),
                 It.IsAny<IProgress<string>>()))
-            .ReturnsAsync(new AgentResponse { Success = true, Response = "ok", AgentName = "Compliance Agent" });
+            .ReturnsAsync(new AgentResponse
+            {
+                Success = true,
+                Response = "ok",
+                AgentName = "Compliance Agent"
+            });
 
-        var orchestrator = TestMockFactory.CreateOrchestrator(complianceAgent.Object);
+        var orchestrator = TestMockFactory.CreateOrchestrator(complianceAgentMock.Object);
 
-        var cache = new ResponseCacheService(
-            new MemoryCache(new MemoryCacheOptions { SizeLimit = 200 }),
+        var memCache = sharedCache ?? new MemoryCache(new MemoryCacheOptions { SizeLimit = 200 });
+        var cacheService = new ResponseCacheService(
+            memCache,
             new HttpMetrics(),
             Options.Create(new CachingOptions()),
+            accessorMock.Object,
             Mock.Of<ILogger<ResponseCacheService>>());
 
         var server = new McpServer(
             (Ato.Copilot.Mcp.Tools.ComplianceMcpTools)null!,
             (Ato.Copilot.Mcp.Tools.KnowledgeBaseMcpTools)null!,
-            complianceAgent.Object,
+            complianceAgentMock.Object,
             (Ato.Copilot.Agents.Configuration.Agents.ConfigurationAgent)null!,
             null!,
             orchestrator,
-            Enumerable.Empty<Ato.Copilot.Agents.Common.BaseTool>(),
+            Enumerable.Empty<BaseTool>(),
             Mock.Of<IHttpContextAccessor>(),
             Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>(),
-            cache,
-            tenantContext,
+            cacheService,
             Options.Create(new PaginationOptions()),
-            new OfflineModeService(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
+            new OfflineModeService(
+                new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
                 Mock.Of<ILogger<OfflineModeService>>()),
             Mock.Of<ILogger<McpServer>>());
 
-        return (server, cache);
-    }
-
-    private static ITenantContext MakeTenantContext(Guid tenantId)
-    {
-        var ctx = new Mock<ITenantContext>();
-        ctx.Setup(c => c.EffectiveTenantId).Returns(tenantId);
-        return ctx.Object;
+        return (server, cacheService);
     }
 
     // ─── Tests ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Two authenticated tenants with the same subscriptionId and identical requests
-    /// MUST each get their own cache entry.  Tenant B must invoke the underlying agent,
-    /// not receive Tenant A's cached response.
+    /// Two authenticated tenants sharing the same MemoryCache and the same
+    /// subscriptionId + message must each get independent cache entries.
+    /// The accessor switches tenant between calls to simulate two different
+    /// per-request scopes writing into one shared in-process cache.
     /// </summary>
     [Fact]
     public async Task ProcessChatRequestAsync_DifferentAuthenticatedTenants_DoNotShareCacheEntry()
     {
-        const string sharedSub = "sub-shared";
         var tenantAId = Guid.NewGuid();
         var tenantBId = Guid.NewGuid();
+        const string sharedSub = "sub-shared";
 
-        // ── Tenant A request ──────────────────────────────────────────────
-        var tenantACtx = MakeTenantContext(tenantAId);
-        var (serverA, _) = CreateServer(tenantACtx);
+        // Shared MemoryCache — isolation must be proven at the key level.
+        var sharedMem = new MemoryCache(new MemoryCacheOptions { SizeLimit = 400 });
 
-        var context = new Dictionary<string, object> { ["subscriptionId"] = sharedSub };
-        await serverA.ProcessChatRequestAsync("Run assessment", context: context);
+        // Tenant A populates the cache.
+        var accessorA = MakeAccessor(tenantAId);
+        var (serverA, _) = CreateServer(accessorA, sharedMem);
+        var ctxA = new Dictionary<string, object> { ["subscriptionId"] = sharedSub };
+        await serverA.ProcessChatRequestAsync("Run assessment", context: ctxA);
 
-        // ── Tenant B request (same params) — must NOT hit tenant A's cache ─
-        var tenantBCtx = MakeTenantContext(tenantBId);
-        var complianceBMock = TestMockFactory.CreateComplianceAgentMock();
-        var agentInvoked = false;
-        complianceBMock
+        // Tenant B — same shared memory, same params. Agent must be invoked (cache miss).
+        var agentBMock = TestMockFactory.CreateComplianceAgentMock();
+        var agentBInvoked = false;
+        agentBMock
             .Setup(a => a.ProcessAsync(
                 It.IsAny<string>(),
                 It.IsAny<AgentConversationContext>(),
@@ -107,51 +121,48 @@ public class McpServerTenantCacheKeyTests
                 It.IsAny<IProgress<string>>()))
             .ReturnsAsync(() =>
             {
-                agentInvoked = true;
-                return new AgentResponse { Success = true, Response = "tenant-b-response", AgentName = "Compliance Agent" };
+                agentBInvoked = true;
+                return new AgentResponse { Success = true, Response = "tenant-b", AgentName = "Compliance Agent" };
             });
 
-        var orchestratorB = TestMockFactory.CreateOrchestrator(complianceBMock.Object);
+        var orchestratorB = TestMockFactory.CreateOrchestrator(agentBMock.Object);
+        var accessorB = MakeAccessor(tenantBId);
 
-        var sharedCache = new ResponseCacheService(
-            new MemoryCache(new MemoryCacheOptions { SizeLimit = 200 }),
+        var cacheSvcB = new ResponseCacheService(
+            sharedMem,
             new HttpMetrics(),
             Options.Create(new CachingOptions()),
+            accessorB.Object,
             Mock.Of<ILogger<ResponseCacheService>>());
 
-        // NOTE: serverA and serverB each own their own MemoryCache instance
-        // (as in prod: each container/process has independent caches).
-        // The cross-tenant isolation is proven by the ResponseCacheService tests.
-        // Here we prove that McpServer builds the "{tenantId}:{sub}" key by
-        // verifying that Tenant B's cache is cold (agent must be invoked).
         var serverB = new McpServer(
             (Ato.Copilot.Mcp.Tools.ComplianceMcpTools)null!,
             (Ato.Copilot.Mcp.Tools.KnowledgeBaseMcpTools)null!,
-            complianceBMock.Object,
+            agentBMock.Object,
             (Ato.Copilot.Agents.Configuration.Agents.ConfigurationAgent)null!,
             null!,
             orchestratorB,
-            Enumerable.Empty<Ato.Copilot.Agents.Common.BaseTool>(),
+            Enumerable.Empty<BaseTool>(),
             Mock.Of<IHttpContextAccessor>(),
             Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>(),
-            sharedCache,
-            tenantBCtx,
+            cacheSvcB,
             Options.Create(new PaginationOptions()),
-            new OfflineModeService(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
+            new OfflineModeService(
+                new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
                 Mock.Of<ILogger<OfflineModeService>>()),
             Mock.Of<ILogger<McpServer>>());
 
-        var result = await serverB.ProcessChatRequestAsync("Run assessment", context: context);
+        var result = await serverB.ProcessChatRequestAsync("Run assessment",
+            context: new Dictionary<string, object> { ["subscriptionId"] = sharedSub });
 
         result.Should().NotBeNull();
-        agentInvoked.Should().BeTrue(
-            "Tenant B's agent must be invoked — no cross-tenant cache hit may occur (WM-BUG-3)");
+        agentBInvoked.Should().BeTrue(
+            "Tenant B's agent must be invoked — cross-tenant cache hit must not occur (WM-BUG-3 / #686)");
     }
 
     /// <summary>
-    /// The same authenticated tenant making two identical requests MUST benefit from
-    /// the cache on the second call (regression guard — the fix must not break
-    /// same-tenant caching).
+    /// Same authenticated tenant making two identical requests must benefit from
+    /// the cache on the second call (regression guard).
     /// </summary>
     [Fact]
     public async Task ProcessChatRequestAsync_SameAuthenticatedTenant_SecondCallHitsCache()
@@ -174,14 +185,14 @@ public class McpServerTenantCacheKeyTests
             });
 
         var orchestrator = TestMockFactory.CreateOrchestrator(agentMock.Object);
+        var accessor = MakeAccessor(tenantId);
 
-        var cache = new ResponseCacheService(
+        var cacheService = new ResponseCacheService(
             new MemoryCache(new MemoryCacheOptions { SizeLimit = 200 }),
             new HttpMetrics(),
             Options.Create(new CachingOptions()),
+            accessor.Object,
             Mock.Of<ILogger<ResponseCacheService>>());
-
-        var tenantCtx = MakeTenantContext(tenantId);
 
         var server = new McpServer(
             (Ato.Copilot.Mcp.Tools.ComplianceMcpTools)null!,
@@ -190,24 +201,22 @@ public class McpServerTenantCacheKeyTests
             (Ato.Copilot.Agents.Configuration.Agents.ConfigurationAgent)null!,
             null!,
             orchestrator,
-            Enumerable.Empty<Ato.Copilot.Agents.Common.BaseTool>(),
+            Enumerable.Empty<BaseTool>(),
             Mock.Of<IHttpContextAccessor>(),
             Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>(),
-            cache,
-            tenantCtx,
+            cacheService,
             Options.Create(new PaginationOptions()),
-            new OfflineModeService(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
+            new OfflineModeService(
+                new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
                 Mock.Of<ILogger<OfflineModeService>>()),
             Mock.Of<ILogger<McpServer>>());
 
         var ctx = new Dictionary<string, object> { ["subscriptionId"] = sub };
 
-        // First call — populates cache
         await server.ProcessChatRequestAsync("Run assessment", context: ctx);
-        // Second identical call — must hit cache
         await server.ProcessChatRequestAsync("Run assessment", context: ctx);
 
         invocationCount.Should().Be(1,
-            "same authenticated tenant making identical requests must use the cache on the second call (WM-BUG-3 regression guard)");
+            "same tenant + same params must cache on first call and return cached on second (WM-BUG-3 regression guard)");
     }
 }

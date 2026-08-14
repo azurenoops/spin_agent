@@ -10,7 +10,6 @@ using Ato.Copilot.Agents.Common;
 using Ato.Copilot.Core.Interfaces;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Core.Models;
-using Ato.Copilot.Core.Interfaces.Tenancy;
 using ErrorDetail = Ato.Copilot.Mcp.Models.ErrorDetail;
 using Microsoft.Extensions.Options;
 using System.Collections;
@@ -38,7 +37,6 @@ public class McpServer
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IPathSanitizationService _pathSanitizer;
     private readonly ResponseCacheService _cacheService;
-    private readonly ITenantContext _tenantContext;
     private readonly PaginationOptions _paginationOptions;
     private readonly OfflineModeService _offlineModeService;
     private readonly ILogger<McpServer> _logger;
@@ -55,7 +53,6 @@ public class McpServer
         IHttpContextAccessor httpContextAccessor,
         IPathSanitizationService pathSanitizer,
         ResponseCacheService cacheService,
-        ITenantContext tenantContext,
         IOptions<PaginationOptions> paginationOptions,
         OfflineModeService offlineModeService,
         ILogger<McpServer> logger)
@@ -70,7 +67,6 @@ public class McpServer
         _httpContextAccessor = httpContextAccessor;
         _pathSanitizer = pathSanitizer;
         _cacheService = cacheService;
-        _tenantContext = tenantContext;
         _paginationOptions = paginationOptions.Value;
         _offlineModeService = offlineModeService;
         _logger = logger;
@@ -201,23 +197,16 @@ public class McpServer
             var subscriptionId = context?.TryGetValue("subscriptionId", out var subId) == true
                 ? subId?.ToString() ?? "default" : "default";
 
-            // WM-BUG-3 fix: scope cache key to the authenticated tenant so users from
-            // different organizations cannot be served each other's compliance data.
-            // EffectiveTenantId is resolved by TenantResolutionMiddleware before this code runs.
-            var tenantPrefix = _tenantContext.EffectiveTenantId != Guid.Empty
-                ? _tenantContext.EffectiveTenantId.ToString("N")
-                : "anon";
-            var scopedSubscriptionId = $"{tenantPrefix}:{subscriptionId}";
             var contextJson = context != null ? JsonSerializer.Serialize(context, _jsonOptions) : "{}";
             var paramsJson = $"{message}::{contextJson}";
-            var cacheStatus = _cacheService.GetCacheStatus(targetAgent.AgentName, paramsJson, scopedSubscriptionId);
+            var cacheStatus = _cacheService.GetCacheStatus(targetAgent.AgentName, paramsJson, subscriptionId);
             string cachedResponse;
             using (var agentActivity = ActivitySource.StartActivity("AgentDispatch", ActivityKind.Internal))
             {
                 agentActivity?.SetTag("mcp.agent", targetAgent.AgentName);
                 agentActivity?.SetTag("mcp.cache_status", cacheStatus);
                 cachedResponse = await _cacheService.GetOrSetAsync(
-                    targetAgent.AgentName, paramsJson, scopedSubscriptionId,
+                    targetAgent.AgentName, paramsJson, subscriptionId,
                     async () =>
                     {
                         var resp = await targetAgent.ProcessAsync(message, agentContext, cancellationToken, progress);
