@@ -47,8 +47,10 @@ public class DocumentNarrativeGenerateAdapterToolTests
             .ReturnsAsync(new NarrativeSuggestion
             {
                 Narrative = "Baseline narrative",
-                Confidence = 0.75,
-                References = new List<string> { "NIST 800-53 AC-2" },
+                Confidence = null, // template path — no grounding signal; must not emit fabricated constant (#705)
+                DerivationBasis = NarrativeDerivationBasis.TemplateScaffold,
+                RequiresHumanValidation = true,
+                References = new List<string> { "NIST 800-53 AC-2 [scaffold reference — unverified]" },
                 ControlId = "AC-2"
             });
 
