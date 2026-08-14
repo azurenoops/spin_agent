@@ -671,12 +671,28 @@ public interface IComplianceMonitoringService
 }
 
 /// <summary>
-/// Compliance document generation service
+/// Compliance document generation service.
 /// </summary>
+/// <remarks>Fix #685: systemId is now required — no "first active system" fallback.</remarks>
 public interface IDocumentGenerationService
 {
+    /// <summary>
+    /// Generate a compliance document (SSP, SAR, POA&amp;M) for an explicitly identified system.
+    /// </summary>
+    /// <param name="documentType">Document type: SSP, SAR, POAM.</param>
+    /// <param name="systemId">
+    /// RegisteredSystem.Id of the target system. REQUIRED — the caller must resolve and pass
+    /// the system ID explicitly. The "first active system" fallback has been removed (fix #685).
+    /// </param>
+    /// <param name="subscriptionId">Azure subscription for evidence scoping.</param>
+    /// <param name="framework">Compliance framework override.</param>
+    /// <param name="systemName">Optional display name override (defaults to system record name).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">Thrown when systemId is null or whitespace.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when systemId is not found, or grounding guard fails.</exception>
     Task<ComplianceDocument> GenerateDocumentAsync(
         string documentType,
+        string systemId,
         string? subscriptionId = null,
         string? framework = null,
         string? systemName = null,

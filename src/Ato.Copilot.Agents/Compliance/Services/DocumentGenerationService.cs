@@ -33,6 +33,7 @@ public class DocumentGenerationService : IDocumentGenerationService
     /// <inheritdoc />
     public async Task<ComplianceDocument> GenerateDocumentAsync(
         string documentType,
+        string systemId,
         string? subscriptionId = null,
         string? framework = null,
         string? systemName = null,
@@ -41,45 +42,41 @@ public class DocumentGenerationService : IDocumentGenerationService
         var docType = NormalizeDocumentType(documentType);
         var resolvedFramework = framework ?? "NIST80053";
 
-        // Fix #555: resolve actual system name from DB instead of hardcoded default
-        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
-        string resolvedSystemName;
-        if (!string.IsNullOrWhiteSpace(systemName))
-        {
-            resolvedSystemName = systemName;
-        }
-        else
-        {
-            // Try to resolve from the latest assessment's linked system
-            var latestSystemId = await db.Assessments
-                .Where(a => !string.IsNullOrEmpty(a.RegisteredSystemId))
-                .OrderByDescending(a => a.AssessedAt)
-                .Select(a => a.RegisteredSystemId)
-                .FirstOrDefaultAsync(cancellationToken);
+        // Validate document type early — before system lookup — so callers get
+        // ArgumentException on unsupported types regardless of systemId validity.
+        if (docType is not ("SSP" or "SAR" or "POAM"))
+            throw new ArgumentException($"Unsupported document type: {documentType}", nameof(documentType));
 
-            if (latestSystemId != null)
-            {
-                var system = await db.RegisteredSystems
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.Id == latestSystemId && s.IsActive, cancellationToken);
-                resolvedSystemName = system?.Name ?? "Unknown System";
-            }
-            else
-            {
-                // Fall back to first active system with a name
-                var firstSystem = await db.RegisteredSystems
-                    .AsNoTracking()
-                    .Where(s => s.IsActive && !string.IsNullOrWhiteSpace(s.Name))
-                    .OrderByDescending(s => s.CreatedAt)
-                    .FirstOrDefaultAsync(cancellationToken);
-                resolvedSystemName = firstSystem?.Name ?? "Unknown System";
-            }
-        }
+        // Fix #685: Explicit systemId binding required — no "first active system" guessing.
+        // Reject requests with a missing systemId to prevent documents being generated against
+        // the wrong system. This is a fail-loud guard per Banner's grounding architecture.
+        if (string.IsNullOrWhiteSpace(systemId))
+            throw new ArgumentException(
+                "SYSTEM_ID_REQUIRED: An explicit systemId must be provided. " +
+                "The 'first active system' fallback has been removed (fix #685 — grounding integrity). " +
+                "Pass the RegisteredSystem.Id of the target system.",
+                nameof(systemId));
+
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+        // Resolve the system record — required source of truth for all system-specific facts.
+        var registeredSystem = await db.RegisteredSystems
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"SYSTEM_NOT_FOUND: RegisteredSystem '{systemId}' not found. Cannot generate document without a valid system record.");
+
+        // System name: use explicitly provided systemName if given, otherwise source from DB.
+        // NEVER fall back to a hardcoded default.
+        var resolvedSystemName = !string.IsNullOrWhiteSpace(systemName)
+            ? systemName
+            : registeredSystem.Name;
 
         _logger.LogInformation(
             "Generating {DocType} document for {System} (framework: {Framework})",
             docType, resolvedSystemName, resolvedFramework);
-        var assessment = await GetLatestAssessmentAsync(db, subscriptionId, cancellationToken);
+        // Fix #685: scope assessment lookup to the explicit systemId, not globally latest.
+        var assessment = await GetLatestAssessmentAsync(db, subscriptionId, systemId, cancellationToken);
         var findings = assessment != null
             ? await db.Findings
                 .Where(f => f.AssessmentId == assessment.Id)
@@ -97,10 +94,10 @@ public class DocumentGenerationService : IDocumentGenerationService
 
         var content = docType switch
         {
-            "SSP" => await GenerateSspAsync(db, resolvedSystemName, resolvedFramework, assessment, findings, cancellationToken),
+            "SSP" => await GenerateSspAsync(db, registeredSystem, resolvedSystemName, resolvedFramework, assessment, findings, cancellationToken),
             "SAR" => GenerateSar(resolvedSystemName, resolvedFramework, assessment, findings, activeAlerts),
             "POAM" => GeneratePoam(resolvedSystemName, resolvedFramework, findings, activeAlerts),
-            _ => throw new ArgumentException($"Unsupported document type: {docType}")
+            _ => throw new InvalidOperationException($"Document type normalization error: {docType}")
         };
 
         var document = new ComplianceDocument
@@ -119,9 +116,37 @@ public class DocumentGenerationService : IDocumentGenerationService
                     ? $"{assessment.AssessedAt:yyyy-MM-dd} to {(assessment.CompletedAt ?? DateTime.UtcNow):yyyy-MM-dd}"
                     : $"{DateTime.UtcNow:yyyy-MM-dd}",
                 PreparedBy = "ATO Copilot",
-                AuthorizationBoundary = $"{resolvedSystemName} Azure Government boundary"
+                // Fix #685: Authorization boundary must be sourced from AuthorizationBoundaryDefinition,
+                // not string-built with a hardcoded "Azure Government boundary" assumption.
+                // If no boundary definition exists, emit [SOURCE MISSING] — never fabricate.
+                AuthorizationBoundary = !string.IsNullOrWhiteSpace(registeredSystem.HostingEnvironment)
+                    ? $"{resolvedSystemName} — {registeredSystem.HostingEnvironment} authorization boundary (source: RegisteredSystem.HostingEnvironment)"
+                    : $"[SOURCE MISSING: AuthorizationBoundary — define an AuthorizationBoundaryDefinition for system '{systemId}']"
             }
         };
+
+        // ─── Fail-loud grounding guard BEFORE persist (Fix #685) ──────────────
+        // Mirrors fail-closed pattern from #790/ResponseCacheService.
+        // Reject persistence of any document containing [SOURCE MISSING] markers or
+        // unverified scaffold references. A document with fabricated facts must never
+        // be stored as if it were authoritative.
+        var persistViolations = new List<string>();
+        if (content.Contains("[SOURCE MISSING", StringComparison.OrdinalIgnoreCase))
+            persistViolations.Add("Document contains unresolved [SOURCE MISSING] field markers.");
+        if (content.Contains("[scaffold reference — unverified]", StringComparison.OrdinalIgnoreCase))
+            persistViolations.Add("Document contains unresolved [scaffold reference — unverified] citation markers.");
+
+        if (persistViolations.Count > 0)
+        {
+            var violationSummary = string.Join("; ", persistViolations);
+            _logger.LogError(
+                "UNGROUNDED_CONTENT: {DocType} document persist blocked for system '{SystemId}': {Violations}",
+                docType, systemId, violationSummary);
+            throw new InvalidOperationException(
+                $"UNGROUNDED_CONTENT: Document cannot be persisted because it contains unresolved grounding markers. " +
+                $"Resolve all [SOURCE MISSING] and [scaffold reference — unverified] fields before saving. " +
+                $"Violations: {violationSummary}");
+        }
 
         // Persist
         db.Documents.Add(document);
@@ -138,6 +163,7 @@ public class DocumentGenerationService : IDocumentGenerationService
     /// <summary>Generates a System Security Plan (SSP) document from the latest assessment data.</summary>
     private async Task<string> GenerateSspAsync(
         AtoCopilotContext db,
+        RegisteredSystem registeredSystem,
         string systemName,
         string framework,
         ComplianceAssessment? assessment,
@@ -163,7 +189,12 @@ public class DocumentGenerationService : IDocumentGenerationService
         var registeredSystemIdForCat = assessment?.RegisteredSystemId;
         string fipsImpactLevel = "Not Categorized";
         string dodImpactLevel = "";
-        string cloudEnvironment = "Azure Government";
+        // Fix #685: source hosting environment from the RegisteredSystem record we already resolved.
+        // NEVER default to "Azure Government" — emit [SOURCE MISSING] if the field is absent.
+        string cloudEnvironment = !string.IsNullOrWhiteSpace(registeredSystem.HostingEnvironment)
+            ? registeredSystem.HostingEnvironment
+            : "[SOURCE MISSING: HostingEnvironment]";
+
         if (!string.IsNullOrEmpty(registeredSystemIdForCat))
         {
             var cat = await db.SecurityCategorizations
@@ -175,6 +206,8 @@ public class DocumentGenerationService : IDocumentGenerationService
             {
                 fipsImpactLevel = cat.OverallCategorization.ToString();
                 dodImpactLevel = cat.DoDImpactLevel;
+                // Prefer the categorization's linked system HostingEnvironment if available;
+                // otherwise keep the already-sourced value from registeredSystem above.
                 if (!string.IsNullOrWhiteSpace(cat.RegisteredSystem?.HostingEnvironment))
                     cloudEnvironment = cat.RegisteredSystem.HostingEnvironment;
             }
@@ -572,13 +605,20 @@ public class DocumentGenerationService : IDocumentGenerationService
 
     // ─── Helpers ─────────────────────────────────────────────────────────
 
-    /// <summary>Retrieves the most recent compliance assessment from the database.</summary>
+    /// <summary>
+    /// Retrieves the most recent compliance assessment scoped to the explicit systemId.
+    /// Fix #685: assessment is always scoped to the target system to prevent cross-system bleed.
+    /// </summary>
     private async Task<ComplianceAssessment?> GetLatestAssessmentAsync(
         AtoCopilotContext db,
         string? subscriptionId,
+        string systemId,
         CancellationToken cancellationToken)
     {
         var query = db.Assessments.AsQueryable();
+
+        // Always scope to the explicit system — no cross-system fallback.
+        query = query.Where(a => a.RegisteredSystemId == systemId);
 
         if (!string.IsNullOrEmpty(subscriptionId))
             query = query.Where(a => a.SubscriptionId == subscriptionId);

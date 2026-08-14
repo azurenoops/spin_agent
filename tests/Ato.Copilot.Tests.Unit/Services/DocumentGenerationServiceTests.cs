@@ -44,7 +44,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessmentWithFindings();
 
-        var doc = await _sut.GenerateDocumentAsync("SSP", "sub-1", "NIST80053", "Test System");
+        var doc = await _sut.GenerateDocumentAsync("SSP", _seededSystemId!, "sub-1", "NIST80053", "Test System");
 
         doc.DocumentType.Should().Be("SSP");
         doc.SystemName.Should().Be("Test System");
@@ -59,7 +59,8 @@ public class DocumentGenerationServiceTests : IDisposable
     [Fact]
     public async Task GenerateDocument_SSP_NoAssessment_ShowsNoDataMessage()
     {
-        var doc = await _sut.GenerateDocumentAsync("SSP", "sub-1");
+        await SeedSystemOnly(); // #685: system record required even when no assessment exists
+        var doc = await _sut.GenerateDocumentAsync("SSP", _seededSystemId!, "sub-1");
 
         doc.Content.Should().Contain("No assessment data available");
     }
@@ -69,7 +70,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessmentWithFindings();
 
-        var doc = await _sut.GenerateDocumentAsync("SSP", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("SSP", _seededSystemId!, "sub-1");
 
         doc.Content.Should().Contain("AC");
         doc.Content.Should().Contain("Access Control");
@@ -83,7 +84,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessmentWithFindings();
 
-        var doc = await _sut.GenerateDocumentAsync("SAR", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("SAR", _seededSystemId!, "sub-1");
 
         doc.DocumentType.Should().Be("SAR");
         doc.Content.Should().Contain("# Security Assessment Report (SAR)");
@@ -98,7 +99,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessment(95.0);
 
-        var doc = await _sut.GenerateDocumentAsync("SAR", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("SAR", _seededSystemId!, "sub-1");
 
         doc.Content.Should().Contain("Authorization to Operate (ATO)");
     }
@@ -108,7 +109,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessment(50.0);
 
-        var doc = await _sut.GenerateDocumentAsync("SAR", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("SAR", _seededSystemId!, "sub-1");
 
         doc.Content.Should().Contain("requires additional remediation");
     }
@@ -118,7 +119,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessmentWithFindings();
 
-        var doc = await _sut.GenerateDocumentAsync("SAR", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("SAR", _seededSystemId!, "sub-1");
 
         doc.Content.Should().Contain("Critical");
         doc.Content.Should().Contain("High");
@@ -133,7 +134,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessmentWithFindings();
 
-        var doc = await _sut.GenerateDocumentAsync("POAM", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("POAM", _seededSystemId!, "sub-1");
 
         doc.DocumentType.Should().Be("POAM");
         doc.Content.Should().Contain("# Plan of Action and Milestones (POA&M)");
@@ -145,7 +146,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessmentWithRemediatedFindings();
 
-        var doc = await _sut.GenerateDocumentAsync("POAM", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("POAM", _seededSystemId!, "sub-1");
 
         doc.Content.Should().Contain("No open findings");
     }
@@ -155,7 +156,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessmentWithFindings();
 
-        var doc = await _sut.GenerateDocumentAsync("POAM", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("POAM", _seededSystemId!, "sub-1");
 
         doc.Content.Should().Contain("Remediation Details");
         doc.Content.Should().Contain("Remediation Guidance");
@@ -184,7 +185,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         await SeedAssessment(80.0);
 
-        var doc = await _sut.GenerateDocumentAsync("SSP", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("SSP", _seededSystemId!, "sub-1");
 
         await using var db = await _dbFactory.CreateDbContextAsync();
         var stored = await db.Documents.FindAsync(doc.Id);
@@ -196,9 +197,9 @@ public class DocumentGenerationServiceTests : IDisposable
     [Fact]
     public async Task GenerateDocument_SetsMetadata()
     {
-        await SeedAssessment(80.0);
+        var (_, sysId2) = await SeedAssessmentWithSystem(80.0);
 
-        var doc = await _sut.GenerateDocumentAsync("SSP", "sub-1", "NIST80053", "My System");
+        var doc = await _sut.GenerateDocumentAsync("SSP", sysId2, "sub-1", "NIST80053", "My System");
 
         doc.Metadata.Should().NotBeNull();
         doc.Metadata.PreparedBy.Should().Be("ATO Copilot");
@@ -207,15 +208,13 @@ public class DocumentGenerationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateDocument_DefaultsFrameworkAndSystemName()
+    public async Task GenerateDocument_MissingSystemId_ThrowsArgumentException()
     {
-        // Empty DB: no systems seeded. Fix #555 changed the default to resolve from DB;
-        // when no systems exist the fallback is "Unknown System", not the old hardcoded
-        // "Azure Government System". The framework default is still "NIST80053".
-        var doc = await _sut.GenerateDocumentAsync("SSP");
-
-        doc.Framework.Should().Be("NIST80053");
-        doc.SystemName.Should().Be("Unknown System");
+        // Fix #685: systemId is now required. Callers must pass an explicit systemId —
+        // the "first active system" fallback has been removed to prevent cross-system fabrication.
+        var act = () => _sut.GenerateDocumentAsync("SSP", systemId: "");
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*SYSTEM_ID_REQUIRED*");
     }
 
     [Fact]
@@ -223,7 +222,7 @@ public class DocumentGenerationServiceTests : IDisposable
     {
         var assessmentId = await SeedAssessment(80.0);
 
-        var doc = await _sut.GenerateDocumentAsync("SSP", "sub-1");
+        var doc = await _sut.GenerateDocumentAsync("SSP", _seededSystemId!, "sub-1");
 
         doc.AssessmentId.Should().Be(assessmentId);
     }
@@ -233,18 +232,32 @@ public class DocumentGenerationServiceTests : IDisposable
     [Fact]
     public async Task GenerateDocument_UnsupportedType_ThrowsArgumentException()
     {
-        var act = () => _sut.GenerateDocumentAsync("INVALID");
+        var act = () => _sut.GenerateDocumentAsync("INVALID", "some-system-id");
         await act.Should().ThrowAsync<ArgumentException>();
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────
 
-    private async Task<string> SeedAssessment(double score)
+    /// <summary>Seeds a RegisteredSystem + ComplianceAssessment. Returns (assessmentId, systemId).</summary>
+    private async Task<(string AssessmentId, string SystemId)> SeedAssessmentWithSystem(double score, string systemName = "Test System")
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = systemName,
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Government",
+            CreatedBy = "test",
+            IsActive = true
+        };
+        db.RegisteredSystems.Add(system);
+
         var assessment = new ComplianceAssessment
         {
             SubscriptionId = "sub-1",
+            RegisteredSystemId = system.Id,
             Framework = "NIST80053",
             ComplianceScore = score,
             TotalControls = 100,
@@ -255,15 +268,58 @@ public class DocumentGenerationServiceTests : IDisposable
         };
         db.Assessments.Add(assessment);
         await db.SaveChangesAsync();
-        return assessment.Id;
+        return (assessment.Id, system.Id);
     }
+
+    /// <summary>Seeds a RegisteredSystem with no assessment — for tests that verify
+    /// the no-assessment code path. Sets _seededSystemId. (fix #685)</summary>
+    private async Task SeedSystemOnly()
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Test System",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Government",
+            CreatedBy = "test",
+            IsActive = true
+        };
+        db.RegisteredSystems.Add(system);
+        await db.SaveChangesAsync();
+        _seededSystemId = system.Id;
+    }
+
+    private async Task<string> SeedAssessment(double score)
+    {
+        var (assessmentId, sysId) = await SeedAssessmentWithSystem(score);
+        _seededSystemId = sysId; // Fix #685: bind seeded system id for tests that call SeedAssessment
+        return assessmentId;
+    }
+
+    private string? _seededSystemId; // stored by SeedAssessmentWithFindings for use in tests
 
     private async Task SeedAssessmentWithFindings()
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Test System",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Government",
+            CreatedBy = "test",
+            IsActive = true
+        };
+        db.RegisteredSystems.Add(system);
+        _seededSystemId = system.Id;
+
         var assessment = new ComplianceAssessment
         {
             SubscriptionId = "sub-1",
+            RegisteredSystemId = system.Id,
             Framework = "NIST80053",
             ComplianceScore = 75.0,
             TotalControls = 100,
@@ -319,9 +375,23 @@ public class DocumentGenerationServiceTests : IDisposable
     private async Task SeedAssessmentWithRemediatedFindings()
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Remediated System",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Government",
+            CreatedBy = "test",
+            IsActive = true
+        };
+        db.RegisteredSystems.Add(system);
+        _seededSystemId = system.Id;
+
         var assessment = new ComplianceAssessment
         {
             SubscriptionId = "sub-1",
+            RegisteredSystemId = system.Id,
             Framework = "NIST80053",
             ComplianceScore = 100.0,
             TotalControls = 10,
@@ -411,7 +481,7 @@ public class DocumentGenerationServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var doc = await _sut.GenerateDocumentAsync(
-            "SSP", systemName: system.Name, cancellationToken: CancellationToken.None);
+            "SSP", system.Id, systemName: system.Name, cancellationToken: CancellationToken.None);
 
         doc.Content.Should().Contain(expectedNistBaseline,
             $"the document must reflect the {expectedNistBaseline} NIST baseline — never hardcode 'High' (WM-BUG-2)");
@@ -478,7 +548,7 @@ public class DocumentGenerationServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var doc = await _sut.GenerateDocumentAsync(
-            "SSP", systemName: system.Name, cancellationToken: CancellationToken.None);
+            "SSP", system.Id, systemName: system.Name, cancellationToken: CancellationToken.None);
 
         doc.Content.Should().Contain(hostingEnv,
             $"hosting environment '{hostingEnv}' must appear in the document — not hardcoded 'Azure Government' (WM-BUG-2)");
@@ -526,7 +596,7 @@ public class DocumentGenerationServiceTests : IDisposable
         db.Assessments.Add(assessment);
         await db.SaveChangesAsync();
 
-        var doc = await _sut.GenerateDocumentAsync("SSP", subscriptionId: "sub-no-cat");
+        var doc = await _sut.GenerateDocumentAsync("SSP", system.Id, subscriptionId: "sub-no-cat");
 
         doc.Content.Should().Contain("Not Categorized",
             "SSP must emit 'Not Categorized' when no SecurityCategorization record exists (WM-BUG-2 fallback)");
@@ -600,7 +670,7 @@ public class DocumentGenerationServiceTests : IDisposable
         db.Assessments.Add(assessment);
         await db.SaveChangesAsync();
 
-        var doc = await _sut.GenerateDocumentAsync("SSP", subscriptionId: $"sub-dod-{cia}");
+        var doc = await _sut.GenerateDocumentAsync("SSP", system.Id, subscriptionId: $"sub-dod-{cia}");
 
         doc.Content.Should().Contain("DoD Impact Level",
             $"SSP must include DoD Impact Level when categorization exists (WM-BUG-2)");
