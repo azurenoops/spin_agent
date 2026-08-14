@@ -361,6 +361,30 @@ mkdocs serve
 
 Sections: Getting Started (6 role-specific guides), Personas (ISSM, ISSO, SCA, AO, Platform Engineer), RMF Phases (Prepare through Monitor), Reference (tool catalog, API, configuration).
 
+## Pre-commit Hooks (Terraform Formatting)
+
+A `terraform fmt` guard is wired into `.pre-commit-config.yaml` to catch formatting drift **before commit** — mirroring the `terraform-lint` CI job so formatting issues never reach the PR queue.
+
+### Install locally
+
+```bash
+# 1. Install the pre-commit framework (once, globally)
+pip install pre-commit          # or: brew install pre-commit
+
+# 2. Install the hooks into your local .git/hooks
+pre-commit install
+
+# That's it. On every commit, terraform fmt -check runs on staged .tf files.
+# If a file is misformatted you'll see:
+#   terraform_fmt............................................Failed
+#   Run: terraform fmt infra/terraform
+# then re-stage and commit.
+```
+
+> **CI parity:** the `terraform-lint` job in `ci.yml` runs the same check on every PR.
+> Installing the hook lets you fix drift in seconds locally instead of waiting for CI.
+
+
 ## License
 
 Proprietary. All rights reserved.
