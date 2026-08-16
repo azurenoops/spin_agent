@@ -12,6 +12,12 @@ import {
   SuggestedAction,
   ToolExecutionResult,
 } from '../types/chat';
+import { VerdictStoreProvider } from '../lib/verdict-store';
+import { VerdictSummaryChip } from './Chat/VerdictSummaryChip';
+import { TraceabilityPanel } from './Chat/TraceabilityPanel';
+import { ResearchSourcesCard, ResearchSource } from './Chat/ResearchSourcesCard';
+import { isTraceabilityPanelEnabled } from '../lib/featureFlags';
+import './Chat/NliVerdictBadge.css';
 
 const MAX_FILE_SIZE = 10_485_760;
 
@@ -41,10 +47,31 @@ const WELCOME_SUGGESTIONS = [
 ];
 
 export default function ChatWindow() {
+  return (
+    <VerdictStoreProvider>
+      <ChatWindowInner />
+    </VerdictStoreProvider>
+  );
+}
+
+export function ChatWindowInner() {
   const { state, sendMessage, dispatch } = useChatContext();
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+  // TraceabilityPanel state: key = messageId, value = open flag
+  const [panelOpenFor, setPanelOpenFor] = useState<string | null>(null);
+  const [scrollToResultId, setScrollToResultId] = useState<string | undefined>();
+  const [highlightSourceId, setHighlightSourceId] = useState<string | undefined>();
+  // a11y: live-region announcement text for screen readers
+  const [panelAnnouncement, setPanelAnnouncement] = useState('');
+  // focus-return: element that was focused when the panel opened
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
+  // GATE-2437: first-run nudge — shown once per browser, dismissed permanently
+  const NUDGE_KEY = 'traceability_nudge_dismissed';
+  const [nudgeDismissed, setNudgeDismissed] = useState(
+    () => typeof localStorage !== 'undefined' && localStorage.getItem(NUDGE_KEY) === 'true'
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +83,49 @@ export default function ChatWindow() {
   useEffect(() => {
     inputRef.current?.focus();
   }, [state.activeConversationId]);
+
+  // Alt+T — toggle TraceabilityPanel for the most-recent assistant message.
+  // Only active when the feature flag is on.
+  useEffect(() => {
+    if (!isTraceabilityPanelEnabled) return;
+    function handleAltT(e: globalThis.KeyboardEvent) {
+      if (e.altKey && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        const lastAssistant = [...state.messages]
+          .reverse()
+          .find((m) => m.role === MessageRole.Assistant);
+        if (!lastAssistant) return;
+        setPanelOpenFor((prev) => {
+          const opening = prev !== lastAssistant.id;
+          if (opening) {
+            lastFocusedRef.current = document.activeElement as HTMLElement;
+            setPanelAnnouncement('Traceability panel opened');
+          } else {
+            setPanelAnnouncement('Traceability panel closed');
+            setTimeout(() => lastFocusedRef.current?.focus(), 0);
+          }
+          return opening ? lastAssistant.id : null;
+        });
+      }
+    }
+    document.addEventListener('keydown', handleAltT);
+    return () => document.removeEventListener('keydown', handleAltT);
+  }, [state.messages]);
+
+  const openPanelFor = useCallback((messageId: string, resultId?: string, trigger?: HTMLElement) => {
+    lastFocusedRef.current = trigger ?? (document.activeElement as HTMLElement);
+    setPanelOpenFor(messageId);
+    setScrollToResultId(resultId);
+    setPanelAnnouncement('Traceability panel opened');
+  }, []);
+
+  const closePanelFor = useCallback(() => {
+    setPanelOpenFor(null);
+    setScrollToResultId(undefined);
+    setHighlightSourceId(undefined);
+    setPanelAnnouncement('Traceability panel closed');
+    setTimeout(() => lastFocusedRef.current?.focus(), 0);
+  }, []);
 
   const handleSend = useCallback(async () => {
     const content = input.trim();
@@ -145,6 +215,16 @@ export default function ChatWindow() {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-gradient-to-br from-gray-50 to-blue-50/20">
+      {/* GATE-2437: screen-reader live region for panel open/close announcements */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="panel-live-region"
+      >
+        {panelAnnouncement}
+      </div>
+
       <ConnectionStatusBar status={state.connectionStatus} />
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -159,8 +239,45 @@ export default function ChatWindow() {
                 isToolExpanded={expandedTools.has(message.id)}
                 onToggleTool={() => toggleTool(message.id)}
                 onSuggestionClick={handleSuggestionSend}
+                panelOpen={panelOpenFor === message.id}
+                onTogglePanel={() =>
+                  setPanelOpenFor((prev) =>
+                    prev === message.id ? null : message.id
+                  )
+                }
+                onOpenPanelAtResult={(resultId) => openPanelFor(message.id, resultId)}
+                onClosePanel={closePanelFor}
+                scrollToResultId={
+                  panelOpenFor === message.id ? scrollToResultId : undefined
+                }
+                highlightSourceId={
+                  panelOpenFor === message.id ? highlightSourceId : undefined
+                }
+                onViewSource={setHighlightSourceId}
               />
             ))}
+
+            {/* GATE-2437: first-run nudge — shown once after the first assistant
+                message, only when the feature flag is on and the user hasn't
+                dismissed it yet. */}
+            {isTraceabilityPanelEnabled &&
+              !nudgeDismissed &&
+              state.messages.some((m) => m.role === MessageRole.Assistant && m.content) && (
+                <TraceabilityNudge
+                  onOpen={() => {
+                    const lastAssistant = [...state.messages]
+                      .reverse()
+                      .find((m) => m.role === MessageRole.Assistant);
+                    if (lastAssistant) openPanelFor(lastAssistant.id);
+                  }}
+                  onDismiss={() => {
+                    if (typeof localStorage !== 'undefined') {
+                      localStorage.setItem(NUDGE_KEY, 'true');
+                    }
+                    setNudgeDismissed(true);
+                  }}
+                />
+              )}
 
             {state.isProcessing && (
               <div className="flex gap-3 animate-fade-in">
@@ -253,6 +370,34 @@ export default function ChatWindow() {
               disabled={state.isProcessing}
             />
 
+            {/* GATE-2437: TraceabilityPanel toolbar toggle — only visible when flag is on */}
+            {isTraceabilityPanelEnabled && (
+              <button
+                data-testid="traceability-toggle"
+                onClick={() => {
+                  const lastAssistant = [...state.messages]
+                    .reverse()
+                    .find((m) => m.role === MessageRole.Assistant);
+                  if (!lastAssistant) return;
+                  const isOpening = panelOpenFor !== lastAssistant.id;
+                  if (isOpening) {
+                    openPanelFor(lastAssistant.id);
+                  } else {
+                    closePanelFor();
+                  }
+                }}
+                className="p-2.5 text-gray-400 hover:text-indigo-600 transition-colors flex-shrink-0"
+                aria-label="Toggle source traceability panel (Alt+T)"
+                title="View source traceability (Alt+T)"
+              >
+                {/* Link / chain icon */}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              </button>
+            )}
+
             <button
               onClick={handleSend}
               disabled={state.isProcessing || (!input.trim() && attachments.length === 0)}
@@ -334,9 +479,28 @@ interface MessageBubbleProps {
   isToolExpanded: boolean;
   onToggleTool: () => void;
   onSuggestionClick: (prompt: string) => void;
+  panelOpen: boolean;
+  onTogglePanel: () => void;
+  onOpenPanelAtResult: (resultId: string) => void;
+  onClosePanel: () => void;
+  scrollToResultId?: string;
+  highlightSourceId?: string;
+  onViewSource: (sourceId: string) => void;
 }
 
-function MessageBubble({ message, isToolExpanded, onToggleTool, onSuggestionClick }: MessageBubbleProps) {
+function MessageBubble({
+  message,
+  isToolExpanded,
+  onToggleTool,
+  onSuggestionClick,
+  panelOpen,
+  onTogglePanel,
+  onOpenPanelAtResult,
+  onClosePanel,
+  scrollToResultId,
+  highlightSourceId,
+  onViewSource,
+}: MessageBubbleProps) {
   const isUser = message.role === MessageRole.User;
   const isAssistant = message.role === MessageRole.Assistant;
 
@@ -498,6 +662,26 @@ function MessageBubble({ message, isToolExpanded, onToggleTool, onSuggestionClic
               )}
             </div>
           )}
+
+          {/* GATE-2437: VerdictSummaryChip + TraceabilityPanel — only when flag is on */}
+          {isAssistant && isTraceabilityPanelEnabled && (
+            <>
+              <VerdictSummaryChip
+                messageId={message.id}
+                panelOpen={panelOpen}
+                onTogglePanel={onTogglePanel}
+              />
+              {panelOpen && (
+                <TraceabilityPanel
+                  messageId={message.id}
+                  open={panelOpen}
+                  onClose={onClosePanel}
+                  scrollToResultId={scrollToResultId}
+                  onViewSource={onViewSource}
+                />
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -544,5 +728,56 @@ function UserIcon({ className }: { className?: string }) {
       <path strokeLinecap="round" strokeLinejoin="round"
         d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
     </svg>
+  );
+}
+
+// =============================================================================
+// GATE-2437 — TraceabilityNudge
+//
+// A single dismissible inline callout shown once (per browser) after the first
+// assistant response, when the traceability feature flag is enabled.
+// Informs users that source links are available and invites them to open the
+// TraceabilityPanel.
+//
+// Dismiss is permanent: sets localStorage key `traceability_nudge_dismissed`.
+// =============================================================================
+interface TraceabilityNudgeProps {
+  /** Called when the user clicks "View trace →" */
+  onOpen: () => void;
+  /** Called when the user dismisses the nudge */
+  onDismiss: () => void;
+}
+
+export function TraceabilityNudge({ onOpen, onDismiss }: TraceabilityNudgeProps) {
+  return (
+    <div
+      role="status"
+      data-testid="traceability-nudge"
+      className="flex items-start gap-3 px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-800 animate-fade-in"
+    >
+      {/* Link icon */}
+      <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+      </svg>
+      <span className="flex-1">
+        Source links available — see how this answer was built.{' '}
+        <button
+          onClick={onOpen}
+          className="font-semibold underline underline-offset-2 hover:text-indigo-900 transition-colors"
+        >
+          View trace →
+        </button>
+      </span>
+      <button
+        onClick={onDismiss}
+        aria-label="Dismiss source traceability nudge"
+        className="text-indigo-400 hover:text-indigo-700 transition-colors flex-shrink-0 ml-1"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
   );
 }
