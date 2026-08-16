@@ -196,3 +196,27 @@ variable "bot_display_name" {
   type        = string
   default     = "ATO Copilot"
 }
+
+# ---------------------------------------------------------------------------
+# Azure Monitor Alerts — BUG-21 (alerts.tf)
+# ---------------------------------------------------------------------------
+
+variable "pagerduty_webhook_url" {
+  description = "PagerDuty Events API v2 integration URL for the ag-security-critical action group. Inject via TF_VAR_pagerduty_webhook_url — never commit the key. Leave empty to skip PagerDuty receiver."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "teams_webhook_url" {
+  description = "Microsoft Teams incoming webhook URL for alert notifications. Used by both ag-security-critical and ag-security-warning action groups. Inject via TF_VAR_teams_webhook_url."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "alert_email_address" {
+  description = "Email distribution list address that receives alert notifications from both action groups. Example: 'ato-copilot-oncall@example.com'."
+  type        = string
+  default     = ""
+}
