@@ -351,6 +351,8 @@ jobs:
           else
             echo "::notice title=TraceabilityPanel::Feature flag is OFF in .env files — set REACT_APP_FEATURE_TRACEABILITY_PANEL=true to enable the panel in non-CI builds"
           fi
+
+  ato-compliance-gate:
     name: ATO Compliance Gate
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
