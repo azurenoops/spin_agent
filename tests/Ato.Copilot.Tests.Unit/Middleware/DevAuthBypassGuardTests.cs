@@ -23,6 +23,17 @@ namespace Ato.Copilot.Tests.Unit.Middleware;
 public class DevAuthBypassGuardTests : IDisposable
 {
     // ────────────────────────────────────────────────────────────
+    //  Env-var save/restore — prevents cross-test contamination
+    //  when CacAuthenticationMiddlewareTests (same collection) also
+    //  mutates ASPNETCORE_ENVIRONMENT on the same thread.
+    // ────────────────────────────────────────────────────────────
+
+    private readonly string? _savedAspNetCoreEnvironment =
+        Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    private readonly string? _savedAllowDevAuthBypass =
+        Environment.GetEnvironmentVariable("ALLOW_DEV_AUTH_BYPASS");
+
+    // ────────────────────────────────────────────────────────────
     //  Helpers
     // ────────────────────────────────────────────────────────────
 
@@ -45,9 +56,10 @@ public class DevAuthBypassGuardTests : IDisposable
 
     public void Dispose()
     {
-        // Restore env vars after each test
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
-        Environment.SetEnvironmentVariable("ALLOW_DEV_AUTH_BYPASS", null);
+        // Restore env vars to their pre-test values rather than unconditionally
+        // clearing them — prevents leaking null into other tests in the collection.
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", _savedAspNetCoreEnvironment);
+        Environment.SetEnvironmentVariable("ALLOW_DEV_AUTH_BYPASS", _savedAllowDevAuthBypass);
     }
 
     // ────────────────────────────────────────────────────────────
@@ -113,6 +125,14 @@ public class DevAuthBypassGuardTests : IDisposable
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ALLOW_DEV_AUTH_BYPASS", "false");
 
+        // Defensive guard: confirm env vars were applied before invoking the middleware.
+        // If this fails it signals a process-level env contamination from another test
+        // in the MiddlewareEnvTests collection.
+        Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            .Should().Be("Development", "env var must be set before InvokeAsync");
+        Environment.GetEnvironmentVariable("ALLOW_DEV_AUTH_BYPASS")
+            .Should().Be("false", "env var must be set before InvokeAsync");
+
         var nextCalled = false;
         var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
         var context = new DefaultHttpContext();
@@ -120,6 +140,8 @@ public class DevAuthBypassGuardTests : IDisposable
         await middleware.InvokeAsync(context);
 
         // Request passes (Tier-1 is unauthenticated-allowed) but bypass warning logged
+        nextCalled.Should().BeTrue("no-token path allows Tier-1 requests through");
+
         _logger.Verify(
             l => l.Log(
                 LogLevel.Warning,
@@ -127,7 +149,8 @@ public class DevAuthBypassGuardTests : IDisposable
                 It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("ALLOW_DEV_AUTH_BYPASS is not set")),
                 null,
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
+            Times.Once,
+            "must warn that ALLOW_DEV_AUTH_BYPASS is not set to 'true' when it is explicitly 'false'");
     }
 
     [Fact]

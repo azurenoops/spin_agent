@@ -12,7 +12,7 @@
     "@types/node": "^16.18.126",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "axios": "^1.13.5",
+    "axios": "^1.18.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
@@ -54,7 +54,7 @@
     "@tailwindcss/typography": "^0.5.16",
     "@types/react-syntax-highlighter": "^15.5.13",
     "autoprefixer": "^10.4.24",
-    "postcss": "^8.5.6",
+    "postcss": "^8.5.23",
     "tailwindcss": "^3.4.19"
   }
 }
