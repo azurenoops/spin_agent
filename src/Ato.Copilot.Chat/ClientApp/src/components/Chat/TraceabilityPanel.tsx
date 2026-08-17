@@ -108,12 +108,6 @@ export function TraceabilityPanel({
 }: TraceabilityPanelProps) {
   // ── Feature flag guard ───────────────────────────────────────────────────
   if (!isTraceabilityPanelEnabled) {
-    if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
-      console.info(
-        '[TraceabilityPanel] Feature flag is OFF — set REACT_APP_FEATURE_TRACEABILITY_PANEL=true to enable'
-      );
-    }
     return null;
   }
 

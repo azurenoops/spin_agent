@@ -26,3 +26,11 @@
  */
 export const isTraceabilityPanelEnabled: boolean =
   process.env.REACT_APP_FEATURE_TRACEABILITY_PANEL === 'true';
+
+// DEV advisory — fires once at module-load time (not per render)
+if (process.env.NODE_ENV === 'development' && !isTraceabilityPanelEnabled) {
+  // eslint-disable-next-line no-console
+  console.info(
+    '[GATE-2437] TraceabilityPanel is OFF — set REACT_APP_FEATURE_TRACEABILITY_PANEL=true to enable'
+  );
+}
