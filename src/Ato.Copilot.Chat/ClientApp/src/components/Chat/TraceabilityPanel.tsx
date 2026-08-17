@@ -30,6 +30,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { isTraceabilityPanelEnabled } from '../../lib/featureFlags';
 import {
   useVerdictStore,
   getResultsForMessage,
@@ -61,6 +62,12 @@ export interface TraceabilityPanelProps {
    * Used for bidirectional highlight: claims linked to this source pulse.
    */
   highlightedSourceId?: string;
+  /**
+   * When true, shows a loading skeleton (aria-busy) while citation data is
+   * being fetched. Used by freeze-on-stream regression tests and by callers
+   * that initiate a fetch before results arrive in the verdict store.
+   */
+  loading?: boolean;
 }
 
 // ─── Filter tabs ──────────────────────────────────────────────────────────────
@@ -97,7 +104,19 @@ export function TraceabilityPanel({
   onViewSource,
   scrollToResultId,
   highlightedSourceId,
+  loading = false,
 }: TraceabilityPanelProps) {
+  // ── Feature flag guard ───────────────────────────────────────────────────
+  if (!isTraceabilityPanelEnabled) {
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.info(
+        '[TraceabilityPanel] Feature flag is OFF — set REACT_APP_FEATURE_TRACEABILITY_PANEL=true to enable'
+      );
+    }
+    return null;
+  }
+
   const { state } = useVerdictStore();
   const results = getResultsForMessage(state, messageId);
 
@@ -111,6 +130,16 @@ export function TraceabilityPanel({
 
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const tabRefs = useRef<Map<FilterTab, HTMLButtonElement>>(new Map());
+
+  // AbortController ref — callers can pass a controller whose abort() fires on
+  // unmount to prevent dangling fetch state (freeze-on-stream regression guard).
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    abortRef.current = new AbortController();
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, [messageId]);
 
   const uid = useId();
 
@@ -220,6 +249,38 @@ export function TraceabilityPanel({
 
   // ── Panel visibility ────────────────────────────────────────────────────
   if (!open) return null;
+
+  // ── Loading skeleton ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div
+        role="complementary"
+        aria-label="Claim traceability"
+        aria-busy="true"
+        data-testid="traceability-skeleton"
+        style={getPanelStyle(reducedMotion)}
+      >
+        <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>Traceability</div>
+        </div>
+        <div style={{ padding: '16px' }}>
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              style={{
+                height: '48px',
+                background: '#f3f4f6',
+                borderRadius: '6px',
+                marginBottom: '10px',
+                animation: reducedMotion ? 'none' : 'pulse 1.5s ease-in-out infinite',
+              }}
+              aria-hidden="true"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // ── Responsive styles ────────────────────────────────────────────────────
   // We use a simple inline-style approach so no CSS file dependency is needed.

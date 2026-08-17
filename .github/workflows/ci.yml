@@ -311,7 +311,46 @@ jobs:
           path: /tmp/oscal-artifacts/
           if-no-files-found: ignore
 
-  ato-compliance-gate:
+  # ---------------------------------------------------------------------------
+  # Chat Client — React/Jest unit tests (#2437 TraceabilityPanel CI gate)
+  # Runs all ClientApp tests with REACT_APP_FEATURE_TRACEABILITY_PANEL=true
+  # so the flag-enabled render path (including freeze-on-stream) is exercised
+  # on every PR. Non-blocking advisory step also surfaces flag off-state.
+  # ---------------------------------------------------------------------------
+  chat-client-tests:
+    name: Chat Client Tests (TraceabilityPanel gate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Ato.Copilot.Chat/ClientApp
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/Ato.Copilot.Chat/ClientApp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests (flag-enabled)
+        run: CI=true npm test -- --watchAll=false --forceExit
+        env:
+          REACT_APP_FEATURE_TRACEABILITY_PANEL: "true"
+
+      - name: Advisory — flag adoption state
+        if: always()
+        run: |
+          if grep -r "REACT_APP_FEATURE_TRACEABILITY_PANEL=true" ../.env* 2>/dev/null; then
+            echo "::notice title=TraceabilityPanel::Feature flag is ON in .env — panel is adoption-ready"
+          else
+            echo "::notice title=TraceabilityPanel::Feature flag is OFF in .env files — set REACT_APP_FEATURE_TRACEABILITY_PANEL=true to enable the panel in non-CI builds"
+          fi
     name: ATO Compliance Gate
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
