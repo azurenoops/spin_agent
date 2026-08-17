@@ -312,13 +312,17 @@ jobs:
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
-  # Chat Client — React/Jest unit tests (#2437 TraceabilityPanel CI gate)
-  # Runs all ClientApp tests with REACT_APP_FEATURE_TRACEABILITY_PANEL=true
-  # so the flag-enabled render path (including freeze-on-stream) is exercised
-  # on every PR. Non-blocking advisory step also surfaces flag off-state.
+  # Chat Client — React/Jest unit tests
+  #   #2437 TraceabilityPanel CI gate (freeze-on-stream, flag-enabled render)
+  #   #2820 Heap-ceiling gate (200 mount/unmount cycles, ≤50 MB delta)
+  #
+  # NODE_OPTIONS=--expose-gc is required by heap-ceiling.test.tsx so that
+  # global.gc() is available for deterministic GC-before-measure. Without it
+  # the heap-ceiling test skips rather than fails (skip rule for local dev).
+  # In this job the flag is always set so the gate is enforced on every PR.
   # ---------------------------------------------------------------------------
   chat-client-tests:
-    name: Chat Client Tests (TraceabilityPanel gate)
+    name: Chat Client Tests (TraceabilityPanel + heap-ceiling gate)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -338,10 +342,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests (flag-enabled)
+      - name: Run tests (flag-enabled, GC exposed for heap-ceiling gate)
         run: CI=true npm test -- --watchAll=false --forceExit
         env:
           REACT_APP_FEATURE_TRACEABILITY_PANEL: "true"
+          # --expose-gc makes global.gc() available so heap-ceiling.test.tsx
+          # can force GC before/after the 200-render stress loop (#2820).
+          NODE_OPTIONS: "--expose-gc"
 
       - name: Advisory — flag adoption state
         if: always()
