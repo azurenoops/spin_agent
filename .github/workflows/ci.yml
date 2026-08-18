@@ -113,6 +113,35 @@ jobs:
         run: npm run compile
 
   # ---------------------------------------------------------------------------
+  # Shared package typecheck — @ato-copilot/shared (#2683)
+  # Runs on every PR touching packages/ato-shared/**
+  # ---------------------------------------------------------------------------
+  shared-package-typecheck:
+    name: Shared Package Typecheck
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: packages/ato-shared
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/ato-shared/package.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+  # ---------------------------------------------------------------------------
   # Terraform lint — fmt check + validate on every PR touching infra/**
   # Epic #123 (Task #156)
   # ---------------------------------------------------------------------------
@@ -343,12 +372,24 @@ jobs:
         run: npm ci
 
       - name: Run tests (flag-enabled, GC exposed for heap-ceiling gate)
-        run: CI=true npm test -- --watchAll=false --forceExit
+        run: CI=true npm test -- --watchAll=false --forceExit 2>&1 | tee /tmp/jest-output.txt; exit ${PIPESTATUS[0]}
         env:
           REACT_APP_FEATURE_TRACEABILITY_PANEL: "true"
+          REACT_APP_FEATURE_CITATION_STYLE_PICKER: "true"
+          REACT_APP_FEATURE_ANCHOR_REGISTRY: "true"
           # --expose-gc makes global.gc() available so heap-ceiling.test.tsx
           # can force GC before/after the 200-render stress loop (#2820).
           NODE_OPTIONS: "--expose-gc"
+
+      - name: Assert heap-ceiling delta was reported (#2820)
+        run: |
+          if grep -q '\[heap-ceiling\] delta=' /tmp/jest-output.txt; then
+            echo "PASS: heap-ceiling delta line found in test output"
+          else
+            echo "FAIL: [heap-ceiling] delta= line missing — heap-ceiling.test.tsx did not emit its measurement"
+            echo "Check that global.gc() is available (NODE_OPTIONS=--expose-gc) and the test ran to completion."
+            exit 1
+          fi
 
       - name: Advisory — flag adoption state
         if: always()
@@ -475,3 +516,27 @@ jobs:
             echo "Ref: Incident #687, Issue #639"
             exit 1
           fi
+
+  # ---------------------------------------------------------------------------
+  # Workflow lint — actionlint validates all GitHub Actions YAML files (#2820)
+  # Catches indent bugs, unknown fields, and expression errors before they
+  # silently break CI. Uses a pinned actionlint binary (no third-party Action).
+  # ---------------------------------------------------------------------------
+  workflow-lint:
+    name: Workflow Lint (actionlint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          ACTIONLINT_VERSION="1.7.1"
+          curl -sSL \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin actionlint
+          actionlint --version
+
+      - name: Lint workflow files
+        run: actionlint
