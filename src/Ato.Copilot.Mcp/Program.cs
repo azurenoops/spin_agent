@@ -315,6 +315,50 @@ async Task RunHttpModeAsync(string[] args)
         });
     builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.INotificationBroadcaster,
         Ato.Copilot.Mcp.Services.SignalRNotificationBroadcaster>();
+    // #941 — Epic 10: model-call provenance ledger (append-only, singleton-safe via IDbContextFactory).
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Provenance.IModelCallLedger,
+        Ato.Copilot.Mcp.Services.ModelCallLedger>();
+    // #2497/#2753 — DeBERTa NLI shadow logger. Off by default until telemetry prereqs #2748/#2749 are live.
+    // Set FEATURE_CLASSIFIER_SHADOW=true to enable accumulation. Production flip (DEBERTA_NLI_MODE) remains blocked.
+    if (string.Equals(builder.Configuration["FEATURE_CLASSIFIER_SHADOW"], "true", StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Provenance.IClassifierShadowLogger,
+            Ato.Copilot.Mcp.Services.ClassifierShadowLogger>();
+    }
+    else
+    {
+        builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Provenance.IClassifierShadowLogger,
+            Ato.Copilot.Mcp.Services.NullClassifierShadowLogger>();
+    }
+    // #2753 — Promotion-gate evaluation service (read-only; analyzes classifier_shadow_log).
+    // Always registered so callers can check gate state; requires FEATURE_CLASSIFIER_SHADOW rows to be meaningful.
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Provenance.IClassifierPromotionGateService,
+        Ato.Copilot.Mcp.Services.ClassifierPromotionGateService>();
+    // #2753 — Claim verifier router: DEBERTA_NLI_MODE flag + τ threshold + auto-rollback guard.
+    // IDeBertaNliVerifier and ILlmClaimVerifier must be registered by the consuming subsystem
+    // before ClaimVerifierRouter can be resolved. Registration here is conditional on both
+    // verifier interfaces being present to avoid startup failures in hosts that don't wire them.
+    if (builder.Configuration["DEBERTA_NLI_MODE"] is not null ||
+        builder.Configuration["FEATURE_CLASSIFIER_SHADOW"] == "true")
+    {
+        bool debertaModeOn = string.Equals(
+            builder.Configuration["DEBERTA_NLI_MODE"], "true", StringComparison.OrdinalIgnoreCase);
+        double tau = double.TryParse(builder.Configuration["DEBERTA_NLI_TAU"], out var t)
+            ? t
+            : Ato.Copilot.Mcp.Services.ClaimVerifierRouter.DefaultTau;
+
+        // ClaimVerifierRouter requires IDeBertaNliVerifier + ILlmClaimVerifier to be registered
+        // by the consuming feature. Register as factory so resolution is deferred and fails loudly
+        // at first use rather than at startup.
+        builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Provenance.IClaimVerifierRouter>(sp =>
+            new Ato.Copilot.Mcp.Services.ClaimVerifierRouter(
+                sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Provenance.IDeBertaNliVerifier>(),
+                sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Provenance.ILlmClaimVerifier>(),
+                sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Provenance.IClassifierShadowLogger>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Ato.Copilot.Mcp.Services.ClaimVerifierRouter>>(),
+                debertaModeOn,
+                tau));
+    }
     // Feature 048 (T149): tenant impersonation fan-out (consumed by TenantsEndpoints).
     builder.Services.AddSingleton<Ato.Copilot.Mcp.Hubs.ITenantContextNotifier,
         Ato.Copilot.Mcp.Hubs.TenantContextNotifier>();
