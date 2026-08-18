@@ -142,6 +142,26 @@ jobs:
         run: npx tsc --noEmit
 
   # ---------------------------------------------------------------------------
+  # Research-workflow citation boundary lint (#2683)
+  # Fails if CitationString or CitationOutput are imported from
+  # @ato-copilot/shared outside the editor-integration render call site.
+  # ---------------------------------------------------------------------------
+  citation-boundary:
+    name: Citation Boundary Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check citation import boundary
+        run: node packages/ato-shared/scripts/check-citation-imports.mjs
+
+  # ---------------------------------------------------------------------------
   # Terraform lint — fmt check + validate on every PR touching infra/**
   # Epic #123 (Task #156)
   # ---------------------------------------------------------------------------

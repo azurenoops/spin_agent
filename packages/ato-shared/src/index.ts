@@ -6,9 +6,20 @@
  *
  * @example
  *   import type { SseEvent, McpResponse } from '@ato-copilot/shared';
+ *   import type { SourceRecord, DraftClaim } from '@ato-copilot/shared';
  *   import { parseSseChunk } from '@ato-copilot/shared';
  */
 export type { SseEvent, SseEventHandler } from './sse';
 export { parseSseChunk } from './sse';
 export type { ToolExecution, ErrorDetail, McpResponse } from './mcp';
 export { generateConversationId } from './mcp';
+export type {
+  NonEmptyArray,
+  SourceRecord,
+  RetrievedPassage,
+  DraftClaim,
+  CitationString,
+  CitationStyle,
+  CitationOutput,
+  EditorSuggestion,
+} from './research-workflow';
