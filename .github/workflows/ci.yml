@@ -532,10 +532,16 @@ jobs:
 
       - name: Install actionlint
         run: |
+          # To upgrade: bump ACTIONLINT_VERSION and update ACTIONLINT_SHA256 together.
+          # New checksum: https://github.com/rhysd/actionlint/releases → actionlint_X.Y.Z_checksums.txt
           ACTIONLINT_VERSION="1.7.1"
+          ACTIONLINT_SHA256="f53c34493657dfea83b657e4b62cc68c25fbc383dff64c8d581613b037aacaa3"
+          TARBALL="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
           curl -sSL \
-            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
-            | tar -xz -C /usr/local/bin actionlint
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${TARBALL}" \
+            -o "/tmp/${TARBALL}"
+          echo "${ACTIONLINT_SHA256}  /tmp/${TARBALL}" | sha256sum --check --strict
+          tar -xz -C /usr/local/bin -f "/tmp/${TARBALL}" actionlint
           actionlint --version
 
       - name: Lint workflow files
