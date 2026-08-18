@@ -671,13 +671,13 @@ function MessageBubble({
               </div>
             )}
 
-            {isAssistant && message.metadata?.intentType && (
+            {isAssistant && Boolean(message.metadata?.intentType) && (
               <div className="mt-3 pt-3 border-t border-gray-100">
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                  {String(message.metadata.intentType)}
-                  {message.metadata.confidence && (
+                  {String(message.metadata!.intentType)}
+                  {Boolean(message.metadata!.confidence) && (
                     <span className="ml-1 opacity-75">
-                      {` \u2014 ${Math.round(Number(message.metadata.confidence) * 100)}%`}
+                      {` \u2014 ${Math.round(Number(message.metadata!.confidence) * 100)}%`}
                     </span>
                   )}
                 </span>
@@ -723,12 +723,12 @@ function MessageBubble({
               </div>
             )}
 
-            {isAssistant && message.metadata?.toolChain && (
+            {isAssistant && Boolean(message.metadata?.toolChain) && (
               <WorkflowProgress metadata={message.metadata} />
             )}
           </div>
 
-          {isAssistant && message.metadata?.suggestedActions && (
+          {isAssistant && Boolean(message.metadata?.suggestedActions) && (
             <div className="mt-2 flex flex-wrap gap-2">
               {(message.metadata.suggestedActions as unknown as SuggestedAction[]).map(
                 (action, index) => (
