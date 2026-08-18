@@ -7,7 +7,7 @@ describe("SSE Client (FR-029d, FR-029e)", () => {
       const chunk = 'event: agentRouted\ndata: {"agent":"ComplianceAgent"}\n\n';
       const events = parseSseChunk(chunk);
       expect(events).to.have.length(1);
-      expect(events[0].type).to.equal("agentRouted");
+      expect(events[0].event).to.equal("agentRouted");
       expect(events[0].data.agent).to.equal("ComplianceAgent");
     });
 
@@ -17,15 +17,15 @@ describe("SSE Client (FR-029d, FR-029e)", () => {
         'event: toolStart\ndata: {"tool":"scan"}\n\n';
       const events = parseSseChunk(chunk);
       expect(events).to.have.length(2);
-      expect(events[0].type).to.equal("thinking");
-      expect(events[1].type).to.equal("toolStart");
+      expect(events[0].event).to.equal("thinking");
+      expect(events[1].event).to.equal("toolStart");
     });
 
     it("should default event type to message", () => {
       const chunk = 'data: {"text":"hello"}\n\n';
       const events = parseSseChunk(chunk);
       expect(events).to.have.length(1);
-      expect(events[0].type).to.equal("message");
+      expect(events[0].event).to.equal("message");
     });
 
     it("should handle malformed JSON gracefully", () => {

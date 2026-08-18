@@ -15,7 +15,10 @@
         "ghcr.io/devcontainers/features/python:1": {
             "version": "3.11"
         },
-        "ghcr.io/devcontainers/features/github-cli:1": {}
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers-contrib/features/pnpm:2": {
+            "version": "latest"
+        }
     },
     "forwardPorts": [3001, 5001, 1433],
     "portsAttributes": {

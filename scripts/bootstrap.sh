@@ -134,6 +134,18 @@ else
     run_install "node@20" node@20 || MISSING=1
 fi
 
+# pnpm (workspace package manager for packages/*)
+if have pnpm; then
+    ok "pnpm: $(pnpm --version)"
+else
+    warn "pnpm not found — installing via npm"
+    if [ "$CHECK_ONLY" -eq 0 ]; then
+        npm install -g pnpm || MISSING=1
+    else
+        warn "pnpm missing (will install on full bootstrap)"
+    fi
+fi
+
 # Docker (recommended for full deployment)
 if have docker; then ok "docker: $(docker --version | awk '{print $3}' | tr -d ',')"
 else
@@ -235,6 +247,13 @@ if have npm; then
     restore_node_project "$REPO_ROOT/src/Ato.Copilot.Dashboard"
 else
     warn "npm not on PATH — skipping Node restores"
+fi
+
+# ── Restore pnpm workspace (packages/*) ───────────────────────
+if have pnpm && [ -f "$REPO_ROOT/pnpm-workspace.yaml" ]; then
+    header "Restoring pnpm workspace packages"
+    ( cd "$REPO_ROOT" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install )
+    ok "pnpm workspace installed"
 fi
 
 # ── Done ───────────────────────────────────────────────────────

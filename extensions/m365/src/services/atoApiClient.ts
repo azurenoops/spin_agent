@@ -5,9 +5,16 @@
  * - 300s timeout
  * - User-Agent: ATO-Copilot-M365-Extension/1.0.0
  * - Generates m365-{timestamp}-{random9} conversationIds
+ *
+ * ToolExecution, ErrorDetail, and McpResponse are now sourced from
+ * @ato-copilot/shared (#2683) to eliminate the three-way duplication.
  */
 
 import axios, { AxiosInstance, AxiosError } from "axios";
+
+// Shared canonical types (#2683)
+export type { ToolExecution, ErrorDetail, McpResponse } from "@ato-copilot/shared";
+import type { McpResponse } from "@ato-copilot/shared";
 
 export interface McpRequest {
   conversationId: string;
@@ -19,34 +26,6 @@ export interface McpRequest {
     userId?: string;
     userName?: string;
   };
-}
-
-export interface ToolExecution {
-  toolName: string;
-  success: boolean;
-  executionTimeMs: number;
-}
-
-export interface ErrorDetail {
-  errorCode: string;
-  message: string;
-  suggestion?: string;
-}
-
-export interface McpResponse {
-  response: string;
-  success?: boolean;
-  agentUsed?: string;
-  intentType?: string;
-  conversationId?: string;
-  processingTimeMs?: number;
-  data?: Record<string, unknown>;
-  toolsExecuted?: ToolExecution[];
-  suggestions?: string[];
-  requiresFollowUp?: boolean;
-  followUpPrompt?: string;
-  missingFields?: string[];
-  errors?: ErrorDetail[];
 }
 
 export class ATOApiClient {
