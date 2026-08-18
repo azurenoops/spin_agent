@@ -24,9 +24,11 @@ import React from 'react';
 import { render, act } from '@testing-library/react';
 import { TraceabilityPanel } from '../TraceabilityPanel';
 import { VerdictStoreProvider } from '../../../lib/verdict-store';
+import { AnchorRegistry } from '../../../lib/anchorRegistry';
 
 // Feature flag must be on to exercise the full render path.
 process.env.REACT_APP_FEATURE_TRACEABILITY_PANEL = 'true';
+process.env.REACT_APP_FEATURE_ANCHOR_REGISTRY = 'true';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -113,6 +115,73 @@ describe('#2820 heap-ceiling — TraceabilityPanel 200-render stress', () => {
       );
 
       expect(deltaMB).toBeLessThanOrEqual(HEAP_CEILING_DELTA_MB);
+    }
+  );
+});
+
+// ── AnchorRegistry anchor-drift stress gate ───────────────────────────────────
+//
+// Verifies that 200 insert/delete remap cycles on an AnchorRegistry leave
+// zero orphaned anchors (start >= end) and do not leak significant heap.
+// This enforces the CI drift gate requirement from work item 9e3ff674970d4e4a.
+//
+// Skip rule: same GC availability check as the TraceabilityPanel test above.
+
+describe('#2683/9e3ff67 anchor-drift stress — 200 remap cycles, 0 orphans', () => {
+  it(
+    'leaves 0 orphaned anchors and heap delta ≤ 20 MB after 200 insert/delete cycles',
+    () => {
+      if (!gcAvailable()) {
+        console.warn(
+          '[anchor-drift] Skipping: global.gc() not available. ' +
+            'Run with NODE_OPTIONS=--expose-gc to enforce the ceiling.'
+        );
+        return;
+      }
+
+      forceGC();
+      const heapBefore = heapUsedBytes();
+
+      const registry = new AnchorRegistry();
+      const ATTR = { source_id: 'stress-doc', user_modified: false };
+      const ids: string[] = [];
+
+      // Insert 200 non-overlapping 10-char spans at [i*15, i*15+10)
+      for (let i = 0; i < 200; i++) {
+        ids.push(registry.insert({ start: i * 15, end: i * 15 + 10 }, ATTR));
+      }
+
+      // Alternate: remap an insert-then-delete at the document head (200 cycles)
+      for (let cycle = 0; cycle < 200; cycle++) {
+        registry.remap({ kind: 'insert', at: 0, length: 5 });
+        registry.remap({ kind: 'delete', at: 0, length: 5 });
+      }
+
+      // Assert zero orphaned anchors (start >= end would indicate a remap bug)
+      const orphans = registry.all().filter((a) => a.position.start >= a.position.end);
+      expect(orphans.length).toBe(0);
+
+      // Assert all 200 original IDs are still resolvable with valid positions
+      let missingOrInvalid = 0;
+      for (const id of ids) {
+        const pos = registry.resolve(id);
+        if (!pos || pos.start >= pos.end) missingOrInvalid++;
+      }
+      expect(missingOrInvalid).toBe(0);
+
+      registry.dispose();
+
+      forceGC();
+      const heapAfter = heapUsedBytes();
+      const deltaMB = (heapAfter - heapBefore) / (1024 * 1024);
+
+      console.info(
+        `[anchor-drift] heapBefore=${(heapBefore / 1024 / 1024).toFixed(1)} MB  ` +
+          `heapAfter=${(heapAfter / 1024 / 1024).toFixed(1)} MB  ` +
+          `delta=${deltaMB.toFixed(1)} MB  ceiling=20 MB`
+      );
+
+      expect(deltaMB).toBeLessThanOrEqual(20);
     }
   );
 });

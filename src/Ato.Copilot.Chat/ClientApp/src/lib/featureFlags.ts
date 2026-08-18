@@ -57,6 +57,79 @@ export const isCollaborationEnabled: boolean =
 export const isCitationStylePickerEnabled: boolean =
   process.env.REACT_APP_FEATURE_CITATION_STYLE_PICKER === 'true';
 
+/**
+ * GATE-940/939 — Editor Suite Phase 1: Provenance Span Tracking
+ *
+ * When true:
+ *   - ProvenanceSpan objects are attached to AI-generated editor nodes
+ *   - user_modified flag flips on any manual edit of a provenanced span
+ *   - Split/merge operations append ProvenanceHistoryEntry (append-only; never delete)
+ *
+ * Default: false
+ *
+ * To enable locally:  REACT_APP_FEATURE_PROVENANCE=true npm start
+ */
+export const isProvenanceEnabled: boolean =
+  process.env.REACT_APP_FEATURE_PROVENANCE === 'true';
+
+/**
+ * GATE-1458/P2 — Editor Suite Phase 2: Streaming Diff + Citation Badges
+ *
+ * Requires GATE-940/939 (isProvenanceEnabled) to be true for badges to show.
+ * When true:
+ *   - Editor renders token-level diff (added/removed runs) during AI streaming
+ *   - Inline citation badges appear as provenance spans resolve (≤150ms)
+ *
+ * Default: false
+ *
+ * To enable locally:  REACT_APP_FEATURE_STREAMING_DIFF=true npm start
+ */
+export const isStreamingDiffEnabled: boolean =
+  process.env.REACT_APP_FEATURE_STREAMING_DIFF === 'true';
+
+/**
+ * GATE-1457/P3 — Editor Suite Phase 3: Quote Anchoring + Drift Detection
+ *
+ * When true:
+ *   - Pasted quotes store a QuoteAnchor {source_id, char_range, hash_of_quoted_text}
+ *   - On document load, each anchor is drift-checked; mismatches show a visual warning
+ *
+ * Default: false
+ *
+ * To enable locally:  REACT_APP_FEATURE_QUOTE_ANCHORING=true npm start
+ */
+export const isQuoteAnchoringEnabled: boolean =
+  process.env.REACT_APP_FEATURE_QUOTE_ANCHORING === 'true';
+
+/**
+ * GATE-1458/P4 — Editor Suite Phase 4: Caption Registry
+ *
+ * When true:
+ *   - Session-scoped Caption Registry deduplicates figure/table captions on insert
+ *   - Each caption entry back-links to its source_id
+ *
+ * Default: false
+ *
+ * To enable locally:  REACT_APP_FEATURE_CAPTION_REGISTRY=true npm start
+ */
+export const isCaptionRegistryEnabled: boolean =
+  process.env.REACT_APP_FEATURE_CAPTION_REGISTRY === 'true';
+
+/**
+ * GATE-9e3ff67 — Editor Suite Phase 5: AnchorRegistry
+ *
+ * When true:
+ *   - AnchorRegistry assigns stable UUID anchor IDs to provenance-tracked spans
+ *   - Remap transactions keep IDs correct after insert/delete/replace operations
+ *   - CI drift gate asserts 0 orphaned anchors after 200 remap cycles
+ *
+ * Default: false
+ *
+ * To enable locally:  REACT_APP_FEATURE_ANCHOR_REGISTRY=true npm start
+ */
+export const isAnchorRegistryEnabled: boolean =
+  process.env.REACT_APP_FEATURE_ANCHOR_REGISTRY === 'true';
+
 // DEV advisory — fires once at module-load time (not per render)
 if (process.env.NODE_ENV === 'development' && !isTraceabilityPanelEnabled) {
   // eslint-disable-next-line no-console

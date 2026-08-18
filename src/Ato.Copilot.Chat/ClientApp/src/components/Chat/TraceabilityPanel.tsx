@@ -30,7 +30,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { isTraceabilityPanelEnabled } from '../../lib/featureFlags';
 import {
   useVerdictStore,
   getResultsForMessage,
@@ -106,10 +105,10 @@ export function TraceabilityPanel({
   highlightedSourceId,
   loading = false,
 }: TraceabilityPanelProps) {
-  // ── Feature flag guard ───────────────────────────────────────────────────
-  if (!isTraceabilityPanelEnabled) {
-    return null;
-  }
+  // ── Feature flag guard removed (GATE-2437) ──────────────────────────────
+  // Guard lives only in ChatWindow.tsx. Duplicate check here was defensive
+  // overkill that obscured intent and made the component harder to test in
+  // isolation. See Hawkeye audit finding F5.
 
   const { state } = useVerdictStore();
   const results = getResultsForMessage(state, messageId);
@@ -281,6 +280,49 @@ export function TraceabilityPanel({
   // Tailwind classes are added where convenient.
   const panelStyle = getPanelStyle(reducedMotion);
 
+  // ── Guided empty state — header-only collapse (GATE-2437 F4) ─────────────
+  // When the verdict store has no results for this message yet, render a
+  // collapsed header-only panel so the feature is visible without consuming
+  // sidebar space with an empty list. The guided copy replaces the original
+  // dead-end "No sources traced yet." message (Hawkeye audit finding F4).
+  if (results.length === 0) {
+    return (
+      <div
+        id="traceability-panel"
+        role="complementary"
+        aria-label="Claim traceability"
+        data-testid="traceability-empty"
+        style={{ ...panelStyle, overflow: 'visible' }}
+        className="traceability-panel"
+      >
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '14px 16px 10px',
+          borderBottom: '1px solid #e5e7eb',
+          flexShrink: 0,
+        }}>
+          <div style={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>Traceability</div>
+          <button
+            ref={closeButtonRef}
+            onClick={onClose}
+            aria-label="Close traceability panel"
+            style={closeButtonStyle}
+          >
+            ✕
+          </button>
+        </div>
+        <div
+          style={{ padding: '16px', color: '#9ca3af', fontSize: '13px', lineHeight: 1.6 }}
+          data-testid="traceability-guided-empty"
+        >
+          Ask Jarvis a research question — cited sources will appear here automatically.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Backdrop for mobile full-screen / bottom-sheet */}
@@ -414,7 +456,10 @@ export function TraceabilityPanel({
         </div>
 
         {/* ── Claim rows ────────────────────────────────────────────── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+        <div
+          aria-live="polite"
+          style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}
+        >
           {filtered.length === 0 ? (
             <div style={{ padding: '24px 16px', color: '#9ca3af', fontSize: '13px', textAlign: 'center' }}>
               No claims in this category.

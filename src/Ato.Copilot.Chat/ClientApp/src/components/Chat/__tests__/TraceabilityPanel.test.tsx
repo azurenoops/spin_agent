@@ -67,4 +67,13 @@ describe('TraceabilityPanel', () => {
     renderPanel('msg-4', [makeResult('r4', 'msg-4')], true);
     expect(await screen.findByText(/SSP v3/)).toBeInTheDocument();
   });
+
+  it('shows guided empty state when open=true and no results', () => {
+    // GATE-2437 F4: dead-end "No sources traced yet." replaced with guided copy
+    renderPanel('msg-empty', [], true);
+    expect(screen.getByTestId('traceability-guided-empty')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Ask Jarvis a research question — cited sources will appear here automatically\./i)
+    ).toBeInTheDocument();
+  });
 });
