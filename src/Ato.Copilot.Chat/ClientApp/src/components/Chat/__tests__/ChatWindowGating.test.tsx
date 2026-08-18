@@ -163,7 +163,7 @@ describe('TraceabilityNudge', () => {
 // Group 4 – Nudge localStorage persistence
 // ─────────────────────────────────────────────────────────────────────────────
 describe('Nudge localStorage persistence', () => {
-  const NUDGE_KEY = 'traceability_nudge_dismissed';
+  const NUDGE_KEY = 'tp_nudge_dismissed';
 
   beforeEach(() => {
     featureFlagsMock.isTraceabilityPanelEnabled = true;

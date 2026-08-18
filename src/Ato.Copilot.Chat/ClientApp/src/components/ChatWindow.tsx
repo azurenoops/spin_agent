@@ -80,7 +80,7 @@ export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindow
   // focus-return: element that was focused when the panel opened
   const lastFocusedRef = useRef<HTMLElement | null>(null);
   // GATE-2437: first-run nudge — shown once per browser, dismissed permanently
-  const NUDGE_KEY = 'traceability_nudge_dismissed';
+  const NUDGE_KEY = 'tp_nudge_dismissed';
   const [nudgeDismissed, setNudgeDismissed] = useState(
     () => typeof localStorage !== 'undefined' && localStorage.getItem(NUDGE_KEY) === 'true'
   );
@@ -770,7 +770,7 @@ function UserIcon({ className }: { className?: string }) {
 // Informs users that source links are available and invites them to open the
 // TraceabilityPanel.
 //
-// Dismiss is permanent: sets localStorage key `traceability_nudge_dismissed`.
+// Dismiss is permanent: sets localStorage key `tp_nudge_dismissed`.
 // =============================================================================
 interface TraceabilityNudgeProps {
   /** Called when the user clicks "View trace →" */
