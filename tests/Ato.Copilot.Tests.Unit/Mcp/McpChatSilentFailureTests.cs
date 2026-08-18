@@ -143,6 +143,7 @@ public class McpChatSilentFailureTests
                 Mock.Of<ILogger<Ato.Copilot.Core.Services.ResponseCacheService>>()),
             Microsoft.Extensions.Options.Options.Create(new Ato.Copilot.Core.Models.PaginationOptions()),
             offlineModeService,
+            Mock.Of<Ato.Copilot.Core.Interfaces.Provenance.IModelCallLedger>(),
             Mock.Of<ILogger<McpServer>>());
     }
 }

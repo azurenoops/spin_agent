@@ -315,6 +315,21 @@ async Task RunHttpModeAsync(string[] args)
         });
     builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.INotificationBroadcaster,
         Ato.Copilot.Mcp.Services.SignalRNotificationBroadcaster>();
+    // #941 — Epic 10: model-call provenance ledger (append-only, singleton-safe via IDbContextFactory).
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Provenance.IModelCallLedger,
+        Ato.Copilot.Mcp.Services.ModelCallLedger>();
+    // #2497/#2753 — DeBERTa NLI shadow logger. Off by default until telemetry prereqs #2748/#2749 are live.
+    // Set FEATURE_CLASSIFIER_SHADOW=true to enable accumulation. Production flip (DEBERTA_NLI_MODE) remains blocked.
+    if (string.Equals(builder.Configuration["FEATURE_CLASSIFIER_SHADOW"], "true", StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Provenance.IClassifierShadowLogger,
+            Ato.Copilot.Mcp.Services.ClassifierShadowLogger>();
+    }
+    else
+    {
+        builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Provenance.IClassifierShadowLogger,
+            Ato.Copilot.Mcp.Services.NullClassifierShadowLogger>();
+    }
     // Feature 048 (T149): tenant impersonation fan-out (consumed by TenantsEndpoints).
     builder.Services.AddSingleton<Ato.Copilot.Mcp.Hubs.ITenantContextNotifier,
         Ato.Copilot.Mcp.Hubs.TenantContextNotifier>();
