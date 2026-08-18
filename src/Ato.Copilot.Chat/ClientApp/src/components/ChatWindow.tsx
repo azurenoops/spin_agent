@@ -16,7 +16,9 @@ import { VerdictStoreProvider } from '../lib/verdict-store';
 import { VerdictSummaryChip } from './Chat/VerdictSummaryChip';
 import { TraceabilityPanel } from './Chat/TraceabilityPanel';
 import { ResearchSourcesCard, ResearchSource } from './Chat/ResearchSourcesCard';
-import { isTraceabilityPanelEnabled } from '../lib/featureFlags';
+import { isTraceabilityPanelEnabled, isCollaborationEnabled } from '../lib/featureFlags';
+import ConflictResolutionBanner from './Collaboration/ConflictResolutionBanner';
+import MobileCollaborationBanner from './Collaboration/MobileCollaborationBanner';
 import './Chat/NliVerdictBadge.css';
 
 const MAX_FILE_SIZE = 10_485_760;
@@ -46,15 +48,25 @@ const WELCOME_SUGGESTIONS = [
   },
 ];
 
-export default function ChatWindow() {
+// ── #256 EditorShell v2 ──────────────────────────────────────────
+import type { LayoutMode } from '../contexts/EditorLayoutContext';
+
+interface ChatWindowProps {
+  /** Current layout mode — affects canvas width. (#256) */
+  layoutMode?: LayoutMode;
+  /** Current viewport width (px) — used for research-mode right-panel offset. */
+  viewportWidth?: number;
+}
+
+export default function ChatWindow({ layoutMode, viewportWidth }: ChatWindowProps = {}) {
   return (
     <VerdictStoreProvider>
-      <ChatWindowInner />
+      <ChatWindowInner layoutMode={layoutMode} viewportWidth={viewportWidth} />
     </VerdictStoreProvider>
   );
 }
 
-export function ChatWindowInner() {
+export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindowProps = {}) {
   const { state, sendMessage, dispatch } = useChatContext();
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -213,6 +225,17 @@ export function ChatWindowInner() {
 
   const hasMessages = state.messages.length > 0;
 
+  // #256 EditorShell v2 — canvas width adapts to layout mode.
+  // focused: full-bleed with 80px side padding, no max-width cap.
+  // research: narrower to leave room for the 360px right panel.
+  // standard (default): existing max-w-4xl behaviour.
+  const canvasClass =
+    layoutMode === 'focused'
+      ? 'w-full px-20 mx-0'
+      : layoutMode === 'research'
+      ? 'max-w-2xl mx-auto'
+      : 'max-w-4xl mx-auto';
+
   return (
     <div className="flex-1 flex flex-col h-full bg-gradient-to-br from-gray-50 to-blue-50/20">
       {/* GATE-2437: screen-reader live region for panel open/close announcements */}
@@ -227,11 +250,16 @@ export function ChatWindowInner() {
 
       <ConnectionStatusBar status={state.connectionStatus} />
 
+      {/* #1357: mobile editing-disabled banner */}
+      {isCollaborationEnabled && (
+        <MobileCollaborationBanner viewportWidth={viewportWidth} />
+      )}
+
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         {!hasMessages && !state.isProcessing ? (
           <WelcomeScreen onSuggestionClick={handleSuggestionSend} />
         ) : (
-          <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+          <div className={`${canvasClass} px-4 py-6 space-y-6`}>
             {state.messages.map((message) => (
               <MessageBubble
                 key={message.id}
@@ -306,7 +334,7 @@ export function ChatWindowInner() {
             )}
 
             {state.error && (
-              <div className="max-w-4xl mx-auto bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm flex items-start gap-3">
+              <div className={`${canvasClass} bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm flex items-start gap-3`}>
                 <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -321,7 +349,7 @@ export function ChatWindowInner() {
       </div>
 
       {attachments.length > 0 && (
-        <div className="max-w-4xl mx-auto w-full px-4 py-2 flex flex-wrap gap-2 border-t border-gray-200 bg-white/80 backdrop-blur">
+        <div className={`${canvasClass} px-4 py-2 flex flex-wrap gap-2 border-t border-gray-200 bg-white/80 backdrop-blur`}>
           {attachments.map((file, index) => (
             <div
               key={`${file.name}-${index}`}
@@ -345,7 +373,7 @@ export function ChatWindowInner() {
       )}
 
       <div className="border-t border-gray-200 bg-white/80 backdrop-blur">
-        <div className="max-w-4xl mx-auto px-4 py-3">
+        <div className={`${canvasClass} px-4 py-3`}>
           <div className="flex items-end gap-2 bg-white border border-gray-300 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -414,6 +442,9 @@ export function ChatWindowInner() {
           </p>
         </div>
       </div>
+
+      {/* #1357: conflict resolution banner — mounted globally, self-hides when no conflict */}
+      {isCollaborationEnabled && <ConflictResolutionBanner />}
     </div>
   );
 }

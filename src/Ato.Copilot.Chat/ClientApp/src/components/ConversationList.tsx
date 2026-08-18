@@ -6,7 +6,16 @@ import { Conversation } from '../types/chat';
 //  ConversationList — US2 Sidebar Component (T025)
 // ────────────────────────────────────────────────────────────────
 
-export default function ConversationList() {
+interface ConversationListProps {
+  /**
+   * When true the list renders in icon-only rail mode (research mode sidebar
+   * at 56px). Labels and search are hidden; only conversation initials / icons
+   * are shown. (#256 EditorShell v2)
+   */
+  iconOnly?: boolean;
+}
+
+export default function ConversationList({ iconOnly = false }: ConversationListProps) {
   const { state, selectConversation, createConversation, deleteConversation, searchConversations } =
     useChatContext();
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,28 +70,32 @@ export default function ConversationList() {
         <button
           onClick={handleNewConversation}
           className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          aria-label="New conversation"
+          title="New conversation"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          New Conversation
+          {!iconOnly && <span>New Conversation</span>}
         </button>
       </div>
 
-      {/* Search Input */}
-      <div className="p-3 border-b border-gray-200">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Search conversations..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-      </div>
+      {/* Search Input — hidden in icon-rail mode */}
+      {!iconOnly && (
+        <div className="p-3 border-b border-gray-200">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Search conversations..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+      )}
 
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        {displayConversations.length === 0 && (
+        {!iconOnly && displayConversations.length === 0 && (
           <div className="p-4 text-center text-gray-400 text-sm">
             {searchQuery ? 'No conversations found' : 'No conversations yet'}
           </div>
@@ -99,6 +112,7 @@ export default function ConversationList() {
             onConfirmDelete={() => setConfirmDelete(conversation.id)}
             onCancelDelete={() => setConfirmDelete(null)}
             dateLabel={getDateLabel(conversation.updatedAt)}
+            iconOnly={iconOnly}
           />
         ))}
       </div>
@@ -119,6 +133,7 @@ interface ConversationItemProps {
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
   dateLabel: string;
+  iconOnly?: boolean;
 }
 
 function ConversationItem({
@@ -130,7 +145,33 @@ function ConversationItem({
   onConfirmDelete,
   onCancelDelete,
   dateLabel,
+  iconOnly = false,
 }: ConversationItemProps) {
+  // Icon-rail mode: show only a circular initial, no text or delete button.
+  if (iconOnly) {
+    const initial = (conversation.title || '?')[0].toUpperCase();
+    return (
+      <div
+        className={`flex items-center justify-center py-2 cursor-pointer transition-colors ${
+          isActive ? 'bg-blue-50' : 'hover:bg-gray-50'
+        }`}
+        onClick={onSelect}
+        title={conversation.title}
+        aria-label={conversation.title}
+      >
+        <div
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
+            isActive
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-200 text-gray-600'
+          }`}
+        >
+          {initial}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`group px-3 py-3 cursor-pointer border-b border-gray-100 hover:bg-gray-50 transition-colors ${

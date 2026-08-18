@@ -203,6 +203,7 @@ try
 
     app.MapControllers();
     app.MapHub<ChatHub>("/hubs/chat");
+    app.MapHub<CollaborationHub>("/hubs/collaboration"); // #1357
     app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
     {
         ResponseWriter = WriteHealthCheckResponseAsync

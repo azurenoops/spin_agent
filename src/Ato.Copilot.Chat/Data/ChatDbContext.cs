@@ -31,6 +31,20 @@ public class ChatDbContext : DbContext
     /// <summary>File attachments for messages.</summary>
     public DbSet<MessageAttachment> Attachments => Set<MessageAttachment>();
 
+    // ─── #1357 Collaboration DbSets ──────────────────────────────────
+
+    /// <summary>Named collaborators granted access to a document. (#1357 Sub-task 1)</summary>
+    public DbSet<DocumentCollaborator> DocumentCollaborators => Set<DocumentCollaborator>();
+
+    /// <summary>Per-document link-sharing settings. (#1357 Sub-task 1)</summary>
+    public DbSet<DocumentLinkSharing> DocumentLinkSharing => Set<DocumentLinkSharing>();
+
+    /// <summary>Inline comment threads anchored to text selections. (#1357 Sub-task 4)</summary>
+    public DbSet<DocumentCommentThread> DocumentCommentThreads => Set<DocumentCommentThread>();
+
+    /// <summary>Replies within comment threads. (#1357 Sub-task 4)</summary>
+    public DbSet<CommentReply> CommentReplies => Set<CommentReply>();
+
     /// <summary>
     /// Configures entity relationships, constraints, indexes, and JSON value converters
     /// per data-model.md specification.
@@ -138,6 +152,65 @@ public class ChatDbContext : DbContext
             entity.HasIndex(e => e.MessageId);
             entity.HasIndex(e => e.UploadedAt);
             entity.HasIndex(e => e.Type);
+        });
+
+        // ─── #1357: DocumentCollaborator ─────────────────────────────
+
+        modelBuilder.Entity<DocumentCollaborator>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(450);
+            entity.Property(e => e.DocumentId).HasMaxLength(450);
+            entity.Property(e => e.Email).HasMaxLength(320);
+            entity.Property(e => e.DisplayName).HasMaxLength(200);
+            entity.Property(e => e.Permission).HasConversion<string>();
+            entity.Property(e => e.InvitedByUserId).HasMaxLength(450);
+
+            entity.HasIndex(e => e.DocumentId);
+            entity.HasIndex(e => new { e.DocumentId, e.Email }).IsUnique();
+        });
+
+        // ─── #1357: DocumentLinkSharing ──────────────────────────────
+
+        modelBuilder.Entity<DocumentLinkSharing>(entity =>
+        {
+            entity.HasKey(e => e.DocumentId);
+            entity.Property(e => e.DocumentId).HasMaxLength(450);
+            entity.Property(e => e.LinkPermission).HasConversion<string?>();
+        });
+
+        // ─── #1357: DocumentCommentThread ────────────────────────────
+
+        modelBuilder.Entity<DocumentCommentThread>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(450);
+            entity.Property(e => e.DocumentId).HasMaxLength(450);
+            entity.Property(e => e.AnchorBlockId).HasMaxLength(450);
+            entity.Property(e => e.UserId).HasMaxLength(450);
+            entity.Property(e => e.DisplayName).HasMaxLength(200);
+            entity.Property(e => e.ResolvedByUserId).HasMaxLength(450);
+
+            entity.HasIndex(e => e.DocumentId);
+            entity.HasIndex(e => new { e.DocumentId, e.CreatedAt });
+
+            entity.HasMany(e => e.Replies)
+                .WithOne(r => r.Thread)
+                .HasForeignKey(r => r.ThreadId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ─── #1357: CommentReply ──────────────────────────────────────
+
+        modelBuilder.Entity<CommentReply>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(450);
+            entity.Property(e => e.ThreadId).HasMaxLength(450);
+            entity.Property(e => e.UserId).HasMaxLength(450);
+            entity.Property(e => e.DisplayName).HasMaxLength(200);
+
+            entity.HasIndex(e => e.ThreadId);
         });
     }
 }
