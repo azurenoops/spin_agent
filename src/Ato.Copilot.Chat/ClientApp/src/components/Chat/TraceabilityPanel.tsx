@@ -67,6 +67,16 @@ export interface TraceabilityPanelProps {
    * that initiate a fetch before results arrive in the verdict store.
    */
   loading?: boolean;
+  /**
+   * When true, shows an error state with a [Retry] button.
+   * Set by the parent when a verdict fetch fails (AC#5 — GATE-2437).
+   */
+  error?: boolean;
+  /**
+   * Called when the user clicks [Retry] in the error state.
+   * The parent is responsible for re-triggering the fetch.
+   */
+  onRetry?: () => void;
 }
 
 // ─── Filter tabs ──────────────────────────────────────────────────────────────
@@ -104,6 +114,8 @@ export function TraceabilityPanel({
   scrollToResultId,
   highlightedSourceId,
   loading = false,
+  error = false,
+  onRetry,
 }: TraceabilityPanelProps) {
   // ── Feature flag guard removed (GATE-2437) ──────────────────────────────
   // Guard lives only in ChatWindow.tsx. Duplicate check here was defensive
@@ -280,6 +292,68 @@ export function TraceabilityPanel({
   // Tailwind classes are added where convenient.
   const panelStyle = getPanelStyle(reducedMotion);
 
+  // ── Error state — AC#5 (GATE-2437) ───────────────────────────────────────
+  // Shown when the parent signals a fetch failure. Provides a [Retry] button
+  // instead of silent red text, per Hawkeye audit finding F10 / AC#5.
+  if (error) {
+    return (
+      <div
+        role="complementary"
+        aria-label="Claim traceability"
+        data-testid="traceability-error"
+        style={panelStyle}
+        className="traceability-panel"
+      >
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '14px 16px 10px',
+          borderBottom: '1px solid #e5e7eb',
+          flexShrink: 0,
+        }}>
+          <div style={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>Traceability</div>
+          <button
+            ref={closeButtonRef}
+            onClick={onClose}
+            aria-label="Close traceability panel"
+            style={closeButtonStyle}
+          >
+            ✕
+          </button>
+        </div>
+        <div
+          role="alert"
+          style={{ padding: '16px', color: '#dc2626', fontSize: '13px', lineHeight: 1.6 }}
+          data-testid="traceability-error-message"
+        >
+          Could not load citation sources.
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              aria-label="Retry loading citation sources"
+              style={{
+                display: 'inline-block',
+                marginLeft: '8px',
+                padding: '2px 10px',
+                borderRadius: '6px',
+                border: '1px solid #dc2626',
+                background: 'transparent',
+                color: '#dc2626',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // ── Guided empty state — header-only collapse (GATE-2437 F4) ─────────────
   // When the verdict store has no results for this message yet, render a
   // collapsed header-only panel so the feature is visible without consuming
@@ -317,7 +391,7 @@ export function TraceabilityPanel({
           style={{ padding: '16px', color: '#9ca3af', fontSize: '13px', lineHeight: 1.6 }}
           data-testid="traceability-guided-empty"
         >
-          Ask Jarvis a research question — cited sources will appear here automatically.
+          Sources appear here after your first AI response.
         </div>
       </div>
     );

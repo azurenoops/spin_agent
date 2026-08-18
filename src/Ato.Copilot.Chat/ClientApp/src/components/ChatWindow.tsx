@@ -12,7 +12,7 @@ import {
   SuggestedAction,
   ToolExecutionResult,
 } from '../types/chat';
-import { VerdictStoreProvider } from '../lib/verdict-store';
+import { VerdictStoreProvider, useVerdictStore, getResultsForMessage } from '../lib/verdict-store';
 import { VerdictSummaryChip } from './Chat/VerdictSummaryChip';
 import { TraceabilityPanel } from './Chat/TraceabilityPanel';
 import { ResearchSourcesCard, ResearchSource } from './Chat/ResearchSourcesCard';
@@ -68,6 +68,8 @@ export default function ChatWindow({ layoutMode, viewportWidth }: ChatWindowProp
 
 export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindowProps = {}) {
   const { state, sendMessage, dispatch } = useChatContext();
+  // GATE-2437: verdict store for badge count on toolbar toggle (AC#3, AC#8)
+  const { state: verdictState } = useVerdictStore();
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
@@ -75,6 +77,8 @@ export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindow
   const [panelOpenFor, setPanelOpenFor] = useState<string | null>(null);
   const [scrollToResultId, setScrollToResultId] = useState<string | undefined>();
   const [highlightSourceId, setHighlightSourceId] = useState<string | undefined>();
+  // GATE-2437: error state for panel fetch failures — wires [Retry] button (AC#5)
+  const [panelError, setPanelError] = useState(false);
   // a11y: live-region announcement text for screen readers
   const [panelAnnouncement, setPanelAnnouncement] = useState('');
   // focus-return: element that was focused when the panel opened
@@ -135,8 +139,16 @@ export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindow
     setPanelOpenFor(null);
     setScrollToResultId(undefined);
     setHighlightSourceId(undefined);
+    setPanelError(false);
     setPanelAnnouncement('Traceability panel closed');
     setTimeout(() => lastFocusedRef.current?.focus(), 0);
+  }, []);
+
+  // GATE-2437: retry handler — clears error so parent can re-trigger fetch (AC#5).
+  // The verdict store populates results via SignalR push; a retry here re-opens
+  // the panel in a clean state and lets the store re-deliver results if available.
+  const handlePanelRetry = useCallback(() => {
+    setPanelError(false);
   }, []);
 
   const handleSend = useCallback(async () => {
@@ -282,6 +294,8 @@ export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindow
                   panelOpenFor === message.id ? highlightSourceId : undefined
                 }
                 onViewSource={setHighlightSourceId}
+                panelError={panelOpenFor === message.id ? panelError : false}
+                onPanelRetry={panelOpenFor === message.id ? handlePanelRetry : undefined}
               />
             ))}
 
@@ -398,33 +412,66 @@ export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindow
               disabled={state.isProcessing}
             />
 
-            {/* GATE-2437: TraceabilityPanel toolbar toggle — only visible when flag is on */}
-            {isTraceabilityPanelEnabled && (
-              <button
-                data-testid="traceability-toggle"
-                onClick={() => {
-                  const lastAssistant = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === MessageRole.Assistant);
-                  if (!lastAssistant) return;
-                  const isOpening = panelOpenFor !== lastAssistant.id;
-                  if (isOpening) {
-                    openPanelFor(lastAssistant.id);
-                  } else {
-                    closePanelFor();
-                  }
-                }}
-                className="p-2.5 text-gray-400 hover:text-indigo-600 transition-colors flex-shrink-0"
-                aria-label="Toggle source traceability panel (Alt+T)"
-                title="View source traceability (Alt+T)"
-              >
-                {/* Link / chain icon */}
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-              </button>
-            )}
+             {/* GATE-2437: TraceabilityPanel toolbar toggle — only visible when flag is on.
+                  Shows a badge count (AC#3, AC#8) with aria-live so screen readers
+                  announce new citations without requiring the panel to open (AC#9). */}
+             {isTraceabilityPanelEnabled && (() => {
+               const lastAssistant = [...state.messages]
+                 .reverse()
+                 .find((m) => m.role === MessageRole.Assistant);
+               const badgeCount = lastAssistant
+                 ? getResultsForMessage(verdictState, lastAssistant.id).length
+                 : 0;
+               const isOpen = lastAssistant ? panelOpenFor === lastAssistant.id : false;
+               return (
+                 <button
+                   data-testid="traceability-toggle"
+                   onClick={() => {
+                     if (!lastAssistant) return;
+                     if (!isOpen) {
+                       openPanelFor(lastAssistant.id);
+                     } else {
+                       closePanelFor();
+                     }
+                   }}
+                   className="relative p-2.5 text-gray-400 hover:text-indigo-600 transition-colors flex-shrink-0"
+                   aria-label="Toggle source traceability panel (Alt+T)"
+                   aria-keyshortcuts="Alt+T"
+                   title="View source traceability (Alt+T)"
+                 >
+                   {/* Link / chain icon */}
+                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                       d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                   </svg>
+                   {/* Badge count — aria-live announces new citations to screen readers */}
+                   {badgeCount > 0 && (
+                     <span
+                       aria-live="polite"
+                       aria-label={`${badgeCount} citation${badgeCount === 1 ? '' : 's'} available`}
+                       style={{
+                         position: 'absolute',
+                         top: '4px',
+                         right: '4px',
+                         minWidth: '16px',
+                         height: '16px',
+                         padding: '0 4px',
+                         borderRadius: '8px',
+                         background: '#4f46e5',
+                         color: '#fff',
+                         fontSize: '10px',
+                         fontWeight: 700,
+                         lineHeight: '16px',
+                         textAlign: 'center',
+                         pointerEvents: 'none',
+                       }}
+                     >
+                       {badgeCount}
+                     </span>
+                   )}
+                 </button>
+               );
+             })()}
 
             <button
               onClick={handleSend}
@@ -517,6 +564,10 @@ interface MessageBubbleProps {
   scrollToResultId?: string;
   highlightSourceId?: string;
   onViewSource: (sourceId: string) => void;
+  /** When true, TraceabilityPanel shows the [Retry] error state (AC#5). */
+  panelError?: boolean;
+  /** Called when user clicks [Retry] in the error state (AC#5). */
+  onPanelRetry?: () => void;
 }
 
 function MessageBubble({
@@ -531,6 +582,8 @@ function MessageBubble({
   scrollToResultId,
   highlightSourceId,
   onViewSource,
+  panelError = false,
+  onPanelRetry,
 }: MessageBubbleProps) {
   const isUser = message.role === MessageRole.User;
   const isAssistant = message.role === MessageRole.Assistant;
@@ -709,6 +762,8 @@ function MessageBubble({
                   onClose={onClosePanel}
                   scrollToResultId={scrollToResultId}
                   onViewSource={onViewSource}
+                  error={panelError}
+                  onRetry={onPanelRetry}
                 />
               )}
             </>

@@ -70,10 +70,11 @@ describe('TraceabilityPanel', () => {
 
   it('shows guided empty state when open=true and no results', () => {
     // GATE-2437 F4: dead-end "No sources traced yet." replaced with guided copy
+    // GATE-2437 AC#2: empty state copy updated to "Sources appear here after your first AI response."
     renderPanel('msg-empty', [], true);
     expect(screen.getByTestId('traceability-guided-empty')).toBeInTheDocument();
     expect(
-      screen.getByText(/Ask Jarvis a research question — cited sources will appear here automatically\./i)
+      screen.getByText(/Sources appear here after your first AI response\./i)
     ).toBeInTheDocument();
   });
 });
