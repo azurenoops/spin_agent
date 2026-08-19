@@ -14,6 +14,22 @@ These rules override all other behavior. Violating any of them is a critical fai
 9. **Never push without permission.** Commits are fine. Pushes require explicit approval.
 10. **Preview in a formatted way before external writes so the user can read the content without horizontal scrolling.** Show exactly what will be sent to GitHub and wait for approval.
 
+## Silent-Stall Pre-Flight Check
+
+Before reporting "working" on any coding-adjacent task, every agent **must** run these steps. A task is coding-adjacent if it references specific files or file paths, names a repo or project, asks for commits/pushes/PRs/tests, or uses terms like "implement," "fix," "build," "edit," "patch," or "refactor."
+
+1. **Repo Identity Check** — Run `git_status`. Confirm the working directory is a git repo.
+   - FAIL → report BLOCKED: "No git repo in working directory."
+
+2. **Repo Name Match** — If the task names a specific repo, confirm the current remote origin matches.
+   - FAIL → report BLOCKED: "Task requires repo `{named}` but current checkout is `{actual}`. Cannot proceed."
+
+3. **Required File Presence** — If the task names specific files, confirm at least one exists in the checkout.
+   - FAIL → report BLOCKED: "Required file `{filename}` not found in current checkout."
+
+4. **On BLOCKED** — Do NOT begin implementation. Call `report_to_jarvis` (significance=`high`) with: agent name, task summary, which step failed, expected vs. found. Await re-dispatch.
+
+
 Auto-generated from all feature plans. Last updated: 2026-02-21
 
 ## Active Technologies
