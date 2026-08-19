@@ -19,6 +19,8 @@ import { ResearchSourcesCard, ResearchSource } from './Chat/ResearchSourcesCard'
 import { isTraceabilityPanelEnabled, isCollaborationEnabled } from '../lib/featureFlags';
 import ConflictResolutionBanner from './Collaboration/ConflictResolutionBanner';
 import MobileCollaborationBanner from './Collaboration/MobileCollaborationBanner';
+// ── #256 EditorShell v2 ──────────────────────────────────────────
+import type { LayoutMode } from '../contexts/EditorLayoutContext';
 import './Chat/NliVerdictBadge.css';
 
 const MAX_FILE_SIZE = 10_485_760;
@@ -47,9 +49,6 @@ const WELCOME_SUGGESTIONS = [
     prompt: 'Show me all registered systems and their current RMF phase',
   },
 ];
-
-// ── #256 EditorShell v2 ──────────────────────────────────────────
-import type { LayoutMode } from '../contexts/EditorLayoutContext';
 
 interface ChatWindowProps {
   /** Current layout mode — affects canvas width. (#256) */
