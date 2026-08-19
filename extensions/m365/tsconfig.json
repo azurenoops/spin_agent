@@ -13,6 +13,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "moduleResolution": "node",
+    "baseUrl": ".",
     "paths": {
       "@ato-copilot/shared": ["../../packages/ato-shared/src/index.ts"],
       "@ato-copilot/shared/*": ["../../packages/ato-shared/src/*"]

@@ -394,7 +394,7 @@ jobs:
         run: npm ci
 
       - name: Run tests (flag-enabled, GC exposed for heap-ceiling gate)
-        run: CI=true npm test -- --watchAll=false --forceExit --verbose 2>&1 | tee /tmp/jest-output.txt; exit "${PIPESTATUS[0]}"
+        run: CI=true npm test -- --watchAll=false --forceExit --verbose --runInBand 2>&1 | tee /tmp/jest-output.txt; exit "${PIPESTATUS[0]}"
         env:
           REACT_APP_FEATURE_TRACEABILITY_PANEL: "true"
           REACT_APP_FEATURE_CITATION_STYLE_PICKER: "true"
