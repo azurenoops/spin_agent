@@ -455,6 +455,54 @@ jobs:
           fail-on-error: 'true'
 
   # ---------------------------------------------------------------------------
+  # Dashboard unit tests — Issue #707 / BUG-13 regression shield
+  #
+  # This job runs the Dashboard's Vitest suite on every PR and push.
+  # It is the mandatory CI gate that catches routing regressions for the 11
+  # RMF sub-page alias routes (capabilities, mission-purpose, users-access,
+  # environment, data-types, ports-protocols, leveraged-auth, categorization,
+  # control-inheritance, legal-regulatory, implementation-roadmap).
+  #
+  # Background: the same routing bug regressed four times (#498, #505, #516,
+  # #634) because SystemAliasRoutes.test.tsx existed but was never executed in
+  # CI. Any PR that deletes or renames the alias routes now fails this gate
+  # immediately instead of silently reaching main.
+  # ---------------------------------------------------------------------------
+  dashboard-unit-tests:
+    name: Dashboard Unit Tests (RMF route regression shield — #707)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Ato.Copilot.Dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/Ato.Copilot.Dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run routing regression tests (Vitest — scoped)
+        # Scoped to SystemAliasRoutes.test.tsx (13 tests: 11 alias routes + 2
+        # contract tests).  The full Dashboard suite has 53 pre-existing
+        # failures (MSAL mocks, localStorage hooks, idle timer, BroadcastChannel)
+        # that are tracked separately in issue #810.  Running the full suite
+        # would make this gate permanently red and provide no additional signal
+        # for the routing regression it is designed to catch.
+        #
+        # To enforce a new test file here, add its path after the existing one
+        # (space-separated).  To allow the full suite once pre-existing failures
+        # are resolved, replace with: npx vitest run
+        run: npx vitest run src/__tests__/routing/SystemAliasRoutes.test.tsx
+
+  # ---------------------------------------------------------------------------
   # Dashboard production bundle audit — Epic #207 / Task #235
   # Builds the React dashboard in production mode and verifies that simulation
   # mode strings (SimulationPanel, simulate, PostSimulate) are ABSENT from the
