@@ -235,6 +235,9 @@ public class McpHttpBridge
                     Message = form["message"].FirstOrDefault() ?? string.Empty,
                     ConversationId = form["conversationId"].FirstOrDefault(),
                     Attachments = form.Files.Count > 0 ? form.Files : null,
+                    // fix(#722): deserialise context forwarded by the frontend so that
+                    // system_id / systemId reaches the agent even in multipart requests.
+                    Context = TryParseContextField(form["context"].FirstOrDefault()),
                 };
             }
             else
@@ -394,6 +397,24 @@ public class McpHttpBridge
         }
         catch (OperationCanceledException) { /* expected */ }
         catch { /* client disconnected */ }
+    }
+
+    /// <summary>
+    /// Parses the optional JSON <c>context</c> field forwarded in multipart chat requests.
+    /// Returns null silently on any parse failure — a missing context is non-fatal.
+    /// fix(#722): multipart path previously discarded context, causing SYSTEM_REQUIRED errors.
+    /// </summary>
+    private static Dictionary<string, object>? TryParseContextField(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
 

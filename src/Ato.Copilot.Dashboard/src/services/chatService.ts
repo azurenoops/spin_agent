@@ -115,6 +115,9 @@ export async function sendMessage(
       const form = new FormData();
       form.append('message', request.message);
       if (request.conversationId) form.append('conversationId', request.conversationId);
+      // fix(#722): forward page context so the backend can resolve system_id in
+      // multipart requests (previously dropped, causing SYSTEM_REQUIRED errors).
+      if (request.context) form.append('context', JSON.stringify(request.context));
       request.attachments!.forEach((file) => form.append('attachment[]', file));
       body = form;
     } else {
