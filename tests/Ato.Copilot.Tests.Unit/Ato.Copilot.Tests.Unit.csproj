@@ -48,4 +48,16 @@
     <Compile Remove="Provenance\**\*.cs" />
   </ItemGroup>
 
+  <!-- #648: Exclude untracked Provenance test files that reference undefined types
+       (ClaimVerifierRouter, ClassifierPromotionGateService, IClassifierShadowLogger,
+       ClassifierShadowLog). The service implementations were excluded from the Mcp
+       project for the same reason; follow-on work must define the missing types before
+       re-enabling these tests. -->
+  <ItemGroup>
+    <Compile Remove="Provenance\ClaimVerifierRouterTests.cs" />
+    <Compile Remove="Provenance\ClassifierPromotionGateServiceTests.cs" />
+    <!-- Untracked test referencing IModelCallLedger (not yet in Core) and a stale McpServer ctor -->
+    <Compile Remove="Mcp\ChatEmptyResultMetricTests.cs" />
+  </ItemGroup>
+
 </Project>

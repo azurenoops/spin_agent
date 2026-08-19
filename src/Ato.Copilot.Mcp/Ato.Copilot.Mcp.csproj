@@ -44,4 +44,13 @@
     <ProjectReference Include="..\Ato.Copilot.State\Ato.Copilot.State.csproj" />
   </ItemGroup>
 
+  <!-- #648: Exclude untracked stub files that reference undefined types (IClassifierShadowLogger,
+       ClassifierShadowLog). These files were added by another branch/session and depend on
+       entity/interface definitions that do not yet exist in Core. Excluding prevents build
+       breakage while this PR lands; the owning work should define the types in a follow-on. -->
+  <ItemGroup>
+    <Compile Remove="Services/ClaimVerifierRouter.cs" />
+    <Compile Remove="Services/ClassifierPromotionGateService.cs" />
+  </ItemGroup>
+
 </Project>

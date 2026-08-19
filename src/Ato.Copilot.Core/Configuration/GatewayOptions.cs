@@ -135,6 +135,14 @@ public class AzureAiOptions
     /// </summary>
     public double TokenAlertRatio { get; set; } = 0.9;
 
+    /// <summary>
+    /// Maximum number of tokens the model may generate in a single response.
+    /// Maps directly to <see cref="Microsoft.Extensions.AI.ChatOptions.MaxOutputTokens"/>.
+    /// Set to 0 (default) to leave the limit unset (model default applies).
+    /// Override with environment variable LLM_MAX_OUTPUT_TOKENS.
+    /// </summary>
+    public int MaxOutputTokens { get; set; } = 0;
+
     // ── Computed helpers ─────────────────────────────────────────────────────
 
     /// <summary>True when Provider is Foundry and FoundryProjectEndpoint is configured.</summary>

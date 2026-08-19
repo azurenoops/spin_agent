@@ -579,7 +579,11 @@ public abstract class BaseAgent
             var chatOptions = new ChatOptions
             {
                 Tools = toolDefinitions,
-                Temperature = (float)_azureAiOptions.Temperature
+                Temperature = (float)_azureAiOptions.Temperature,
+                // #638: Cap model output tokens when configured (0 = no cap, model default applies).
+                MaxOutputTokens = _azureAiOptions.MaxOutputTokens > 0
+                    ? _azureAiOptions.MaxOutputTokens
+                    : null
             };
 
             // ── BUG-5 / #693 — Proactive token-budget guard ──────────────────────
