@@ -4,12 +4,15 @@
 // Verifies that rendering TraceabilityPanel across 200 simulated message IDs
 // does not leak heap memory beyond HEAP_CEILING_DELTA_MB (50 MB).
 //
-// Skip rule: if the V8 GC is not exposed (NODE_OPTIONS=--expose-gc not set),
-// the test is skipped with an informational message rather than failing.
-// In CI (ci.yml chat-client-tests job), NODE_OPTIONS is set to --expose-gc
-// so the test always runs.
+// Skip rule: if the V8 GC is not exposed (NODE_OPTIONS=--expose-gc not set, or
+// the Node runtime ignores the flag — e.g. the GitHub Actions Node 24 runner
+// as of August 2026), the test is explicitly skipped via it.skip so the skip
+// is visible in CI output rather than silently passing.
 //
-// Measurement approach:
+// Follow-up: restore real coverage once --expose-gc is reliably available on
+// the CI runner. Tracked in issue #804.
+//
+// Measurement approach (when GC is available):
 //   1. Force GC before the test loop.
 //   2. Record baseline heap (process.memoryUsage().heapUsed).
 //   3. Mount + unmount TraceabilityPanel 200 times across unique messageIds.
@@ -37,7 +40,7 @@ const RENDER_CYCLES = 200;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Returns true only if V8's GC is available (--expose-gc flag set). */
+/** Returns true only if V8's GC is available (--expose-gc flag set and honoured). */
 function gcAvailable(): boolean {
   return typeof (global as any).gc === 'function';
 }
@@ -53,22 +56,22 @@ function heapUsedBytes(): number {
   return process.memoryUsage().heapUsed;
 }
 
+// ─── Conditional test runner ──────────────────────────────────────────────────
+//
+// Use it.skip when GC is unavailable so the skip is honest and visible in CI.
+// The Node 24 GitHub Actions runner ignores --expose-gc as of August 2026;
+// restore to a plain `it` once issue #804 is resolved and CI enforces GC.
+//
+const gcTest = gcAvailable() ? it : it.skip;
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('#2820 heap-ceiling — TraceabilityPanel 200-render stress', () => {
-  it(
+  // SKIPPED on Node 24 CI runner — global.gc() unavailable even with --expose-gc.
+  // Tracked: https://github.com/azurenoops/spin_agent/issues/804
+  gcTest(
     `heap delta after ${RENDER_CYCLES} mount/unmount cycles must be ≤ ${HEAP_CEILING_DELTA_MB} MB`,
     () => {
-      if (!gcAvailable()) {
-        // Skip rather than fail: GC not exposed in this environment.
-        // In CI, NODE_OPTIONS=--expose-gc ensures this never skips.
-        console.warn(
-          '[heap-ceiling] Skipping: global.gc() not available. ' +
-            'Run with NODE_OPTIONS=--expose-gc to enforce the ceiling.'
-        );
-        return;
-      }
-
       // ── Baseline ──────────────────────────────────────────────────────────
       forceGC();
       const heapBefore = heapUsedBytes();
@@ -125,20 +128,15 @@ describe('#2820 heap-ceiling — TraceabilityPanel 200-render stress', () => {
 // zero orphaned anchors (start >= end) and do not leak significant heap.
 // This enforces the CI drift gate requirement from work item 9e3ff674970d4e4a.
 //
-// Skip rule: same GC availability check as the TraceabilityPanel test above.
+// SKIPPED on Node 24 CI runner — global.gc() unavailable even with --expose-gc.
+// Tracked: https://github.com/azurenoops/spin_agent/issues/804
 
 describe('#2683/9e3ff67 anchor-drift stress — 200 remap cycles, 0 orphans', () => {
-  it(
+  // SKIPPED on Node 24 CI runner — global.gc() unavailable even with --expose-gc.
+  // Tracked: https://github.com/azurenoops/spin_agent/issues/804
+  gcTest(
     'leaves 0 orphaned anchors and heap delta ≤ 20 MB after 200 insert/delete cycles',
     () => {
-      if (!gcAvailable()) {
-        console.warn(
-          '[anchor-drift] Skipping: global.gc() not available. ' +
-            'Run with NODE_OPTIONS=--expose-gc to enforce the ceiling.'
-        );
-        return;
-      }
-
       forceGC();
       const heapBefore = heapUsedBytes();
 
