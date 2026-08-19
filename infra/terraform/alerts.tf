@@ -63,6 +63,16 @@ locals {
       use_common_alert_schema = true
     }
   } : {}
+
+  # email_receivers: map(string) keyed by receiver name, value = address.
+  # Using map(string) satisfies Terraform 1.7.x dynamic for_each validation.
+  security_critical_email_receivers = var.alert_email_address != "" ? {
+    "team-email" = var.alert_email_address
+  } : {}
+
+  security_warning_email_receivers = var.alert_email_address != "" ? {
+    "team-email" = var.alert_email_address
+  } : {}
 }
 
 resource "azurerm_monitor_action_group" "security_critical" {
@@ -85,10 +95,10 @@ resource "azurerm_monitor_action_group" "security_critical" {
 
   # Team email distribution list
   dynamic "email_receiver" {
-    for_each = var.alert_email_address != "" ? { "enabled" = {} } : {}
+    for_each = local.security_critical_email_receivers
     content {
-      name                    = "team-email"
-      email_address           = var.alert_email_address
+      name                    = email_receiver.key
+      email_address           = email_receiver.value
       use_common_alert_schema = true
     }
   }
@@ -119,10 +129,10 @@ resource "azurerm_monitor_action_group" "security_warning" {
   }
 
   dynamic "email_receiver" {
-    for_each = var.alert_email_address != "" ? { "enabled" = {} } : {}
+    for_each = local.security_warning_email_receivers
     content {
-      name                    = "team-email"
-      email_address           = var.alert_email_address
+      name                    = email_receiver.key
+      email_address           = email_receiver.value
       use_common_alert_schema = true
     }
   }
