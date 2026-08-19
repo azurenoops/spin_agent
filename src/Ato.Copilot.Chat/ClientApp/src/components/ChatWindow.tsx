@@ -15,7 +15,6 @@ import {
 import { VerdictStoreProvider, useVerdictStore, getResultsForMessage } from '../lib/verdict-store';
 import { VerdictSummaryChip } from './Chat/VerdictSummaryChip';
 import { TraceabilityPanel } from './Chat/TraceabilityPanel';
-import { ResearchSourcesCard } from './Chat/ResearchSourcesCard';
 import { isTraceabilityPanelEnabled, isCollaborationEnabled } from '../lib/featureFlags';
 import ConflictResolutionBanner from './Collaboration/ConflictResolutionBanner';
 import MobileCollaborationBanner from './Collaboration/MobileCollaborationBanner';
