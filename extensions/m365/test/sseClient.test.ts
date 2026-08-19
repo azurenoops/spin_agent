@@ -8,7 +8,7 @@ describe("SSE Client (FR-029d, FR-029e)", () => {
       const events = parseSseChunk(chunk);
       expect(events).to.have.length(1);
       expect(events[0].event).to.equal("agentRouted");
-      expect(events[0].data.agent).to.equal("ComplianceAgent");
+      expect(JSON.parse(events[0].data).agent).to.equal("ComplianceAgent");
     });
 
     it("should parse multiple SSE events", () => {
@@ -32,7 +32,8 @@ describe("SSE Client (FR-029d, FR-029e)", () => {
       const chunk = "event: error\ndata: not-json\n\n";
       const events = parseSseChunk(chunk);
       expect(events).to.have.length(1);
-      expect(events[0].data.raw).to.equal("not-json");
+      // data is a raw string — malformed JSON stays as-is
+      expect(events[0].data).to.equal("not-json");
     });
 
     it("should skip empty chunks", () => {

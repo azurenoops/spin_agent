@@ -47,7 +47,7 @@ resource "azurerm_monitor_action_group" "security_critical" {
   # Provide var.pagerduty_webhook_url via TF_VAR_pagerduty_webhook_url or tfvars.
   # Do NOT hardcode the integration key — it is a secret.
   dynamic "webhook_receiver" {
-    for_each = var.pagerduty_webhook_url != "" ? [1] : []
+    for_each = var.pagerduty_webhook_url != "" ? toset(["enabled"]) : toset([])
     content {
       name                    = "pagerduty"
       service_uri             = var.pagerduty_webhook_url
@@ -57,7 +57,7 @@ resource "azurerm_monitor_action_group" "security_critical" {
 
   # Teams incoming webhook
   dynamic "webhook_receiver" {
-    for_each = var.teams_webhook_url != "" ? [1] : []
+    for_each = var.teams_webhook_url != "" ? toset(["enabled"]) : toset([])
     content {
       name                    = "teams"
       service_uri             = var.teams_webhook_url
@@ -67,7 +67,7 @@ resource "azurerm_monitor_action_group" "security_critical" {
 
   # Team email distribution list
   dynamic "email_receiver" {
-    for_each = var.alert_email_address != "" ? [1] : []
+    for_each = var.alert_email_address != "" ? toset(["enabled"]) : toset([])
     content {
       name                    = "team-email"
       email_address           = var.alert_email_address
@@ -92,7 +92,7 @@ resource "azurerm_monitor_action_group" "security_warning" {
   tags = var.tags
 
   dynamic "webhook_receiver" {
-    for_each = var.teams_webhook_url != "" ? [1] : []
+    for_each = var.teams_webhook_url != "" ? toset(["enabled"]) : toset([])
     content {
       name                    = "teams"
       service_uri             = var.teams_webhook_url
@@ -101,7 +101,7 @@ resource "azurerm_monitor_action_group" "security_warning" {
   }
 
   dynamic "email_receiver" {
-    for_each = var.alert_email_address != "" ? [1] : []
+    for_each = var.alert_email_address != "" ? toset(["enabled"]) : toset([])
     content {
       name                    = "team-email"
       email_address           = var.alert_email_address
