@@ -33,8 +33,19 @@
     <ProjectReference Include="..\..\src\Ato.Copilot.Channels\Ato.Copilot.Channels.csproj" />
   </ItemGroup>
 
+   <ItemGroup>
+     <Content Include="TestData\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+   </ItemGroup>
+
+  <!-- #640/#791 security branch: exclude untracked stub test files that reference
+       undefined types not yet in Core. These are pre-existing untracked stubs
+       (not load-bearing — no production callers), excluded here so the security
+       track builds cleanly without pulling in arch-track dependencies.
+       Re-enable when the owning feature (ClaimVerifierRouter / ClassifierPromotionGate)
+       lands in Core. -->
   <ItemGroup>
-    <Content Include="TestData\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Remove="Mcp\ChatEmptyResultMetricTests.cs" />
+    <Compile Remove="Provenance\**\*.cs" />
   </ItemGroup>
 
 </Project>
