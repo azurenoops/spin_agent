@@ -35,6 +35,36 @@
 # Targets: PagerDuty webhook, on-call SMS, team email, Teams channel webhook
 # Used by: BUG21-LogFatal-BootFail, BUG21-BypassActive-Production
 # ---------------------------------------------------------------------------
+locals {
+  # Build webhook receiver maps so that dynamic for_each iterates over a
+  # map(object) whose value attributes match the block's schema exactly.
+  # This satisfies azurerm provider schema validation on Terraform 1.7.x.
+  security_critical_webhook_receivers = merge(
+    var.pagerduty_webhook_url != "" ? {
+      pagerduty = {
+        name                    = "pagerduty"
+        service_uri             = var.pagerduty_webhook_url
+        use_common_alert_schema = true
+      }
+    } : {},
+    var.teams_webhook_url != "" ? {
+      teams = {
+        name                    = "teams"
+        service_uri             = var.teams_webhook_url
+        use_common_alert_schema = true
+      }
+    } : {}
+  )
+
+  security_warning_webhook_receivers = var.teams_webhook_url != "" ? {
+    teams = {
+      name                    = "teams"
+      service_uri             = var.teams_webhook_url
+      use_common_alert_schema = true
+    }
+  } : {}
+}
+
 resource "azurerm_monitor_action_group" "security_critical" {
   name                = "ag-security-critical"
   resource_group_name = module.rg.resource_group_name
@@ -43,25 +73,13 @@ resource "azurerm_monitor_action_group" "security_critical" {
 
   tags = var.tags
 
-  # PagerDuty webhook integration
-  # Provide var.pagerduty_webhook_url via TF_VAR_pagerduty_webhook_url or tfvars.
-  # Do NOT hardcode the integration key — it is a secret.
+  # PagerDuty webhook + Teams webhook — iterate over typed objects
   dynamic "webhook_receiver" {
-    for_each = var.pagerduty_webhook_url != "" ? { "enabled" = {} } : {}
+    for_each = local.security_critical_webhook_receivers
     content {
-      name                    = "pagerduty"
-      service_uri             = var.pagerduty_webhook_url
-      use_common_alert_schema = true
-    }
-  }
-
-  # Teams incoming webhook
-  dynamic "webhook_receiver" {
-    for_each = var.teams_webhook_url != "" ? { "enabled" = {} } : {}
-    content {
-      name                    = "teams"
-      service_uri             = var.teams_webhook_url
-      use_common_alert_schema = true
+      name                    = webhook_receiver.value.name
+      service_uri             = webhook_receiver.value.service_uri
+      use_common_alert_schema = webhook_receiver.value.use_common_alert_schema
     }
   }
 
@@ -92,11 +110,11 @@ resource "azurerm_monitor_action_group" "security_warning" {
   tags = var.tags
 
   dynamic "webhook_receiver" {
-    for_each = var.teams_webhook_url != "" ? { "enabled" = {} } : {}
+    for_each = local.security_warning_webhook_receivers
     content {
-      name                    = "teams"
-      service_uri             = var.teams_webhook_url
-      use_common_alert_schema = true
+      name                    = webhook_receiver.value.name
+      service_uri             = webhook_receiver.value.service_uri
+      use_common_alert_schema = webhook_receiver.value.use_common_alert_schema
     }
   }
 
