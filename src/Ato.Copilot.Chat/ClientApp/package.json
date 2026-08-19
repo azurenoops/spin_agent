@@ -56,8 +56,18 @@
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.16",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.24",
     "postcss": "^8.5.23",
     "tailwindcss": "^3.4.19"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^react-markdown$": "<rootDir>/src/__mocks__/react-markdown.tsx",
+      "^remark-gfm$": "<rootDir>/src/__mocks__/remark-gfm.ts",
+      "^react-syntax-highlighter$": "<rootDir>/src/__mocks__/react-syntax-highlighter.tsx",
+      "^react-syntax-highlighter/(.*)$": "<rootDir>/src/__mocks__/react-syntax-highlighter.tsx",
+      "^@radix-ui/primitive/is-development$": "<rootDir>/src/__mocks__/@radix-ui/primitive-is-development.js"
+    }
   }
 }

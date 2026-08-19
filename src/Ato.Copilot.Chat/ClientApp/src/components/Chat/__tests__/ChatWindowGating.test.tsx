@@ -74,6 +74,12 @@ afterAll(() => (console.error as jest.Mock).mockRestore?.());
 
 // Import after all mocks are registered.
 import { ChatWindowInner, TraceabilityNudge } from '../../ChatWindow';
+import { VerdictStoreProvider } from '../../../lib/verdict-store';
+
+// ChatWindowInner calls useVerdictStore() so it must be wrapped in VerdictStoreProvider.
+function renderWithProvider(ui: React.ReactElement) {
+  return render(<VerdictStoreProvider>{ui}</VerdictStoreProvider>);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Group 1 – feature flag OFF
@@ -83,14 +89,14 @@ describe('ChatWindowInner – feature flag OFF', () => {
 
   it('does NOT render the toolbar toggle button', () => {
     // Arrange / Act
-    render(<ChatWindowInner />);
+    renderWithProvider(<ChatWindowInner />);
     // Assert
     expect(screen.queryByTestId('traceability-toggle')).toBeNull();
   });
 
   it('does NOT render the traceability nudge', () => {
     // Arrange / Act
-    render(<ChatWindowInner />);
+    renderWithProvider(<ChatWindowInner />);
     // Assert
     expect(screen.queryByTestId('traceability-nudge')).toBeNull();
   });
@@ -107,14 +113,14 @@ describe('ChatWindowInner – feature flag ON', () => {
 
   it('renders the toolbar toggle button', () => {
     // Arrange / Act
-    render(<ChatWindowInner />);
+    renderWithProvider(<ChatWindowInner />);
     // Assert
     expect(screen.getByTestId('traceability-toggle')).toBeInTheDocument();
   });
 
   it('renders the aria-live panel-live-region with correct attributes', () => {
     // Arrange / Act
-    render(<ChatWindowInner />);
+    renderWithProvider(<ChatWindowInner />);
     // Assert
     const region = screen.getByTestId('panel-live-region');
     expect(region).toHaveAttribute('aria-live', 'polite');
@@ -174,7 +180,7 @@ describe('Nudge localStorage persistence', () => {
     // Arrange
     localStorage.setItem(NUDGE_KEY, 'true');
     // Act
-    render(<ChatWindowInner />);
+    renderWithProvider(<ChatWindowInner />);
     // Assert — nudge must not show even with flag on, if already dismissed
     expect(screen.queryByTestId('traceability-nudge')).toBeNull();
   });
