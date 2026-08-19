@@ -201,8 +201,13 @@ public class McpServer
                 new SseAgentRoutedEvent { AgentName = targetAgent.AgentName, Confidence = targetAgent.CanHandle(message) }, _jsonOptions));
 
             // Check cache before agent dispatch (FR-016)
+            // #640 / #791 — never use "default" as a subscriptionId cache discriminator.
+            // If the caller did not supply a real subscriptionId, we cannot safely scope
+            // the cache entry; pass null so ResponseCacheService fails closed rather than
+            // risk cross-subscription cache bleed within the same tenant.
             var subscriptionId = context?.TryGetValue("subscriptionId", out var subId) == true
-                ? subId?.ToString() ?? "default" : "default";
+                ? subId?.ToString()   // may still be null → handled by ResponseCacheService
+                : null;
 
             var contextJson = context != null ? JsonSerializer.Serialize(context, _jsonOptions) : "{}";
             var paramsJson = $"{message}::{contextJson}";

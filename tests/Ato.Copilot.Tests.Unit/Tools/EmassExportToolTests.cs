@@ -32,8 +32,16 @@ public class EmassExportToolTests
     private ImportEmassTool CreateImportTool() =>
         new(_mockService.Object, Mock.Of<ILogger<ImportEmassTool>>());
 
-    private ExportOscalTool CreateOscalTool() =>
-        new(_mockService.Object, Mock.Of<IOscalSapExportService>(), Mock.Of<ILogger<ExportOscalTool>>());
+    private readonly Mock<IOscalSchemaValidationService> _mockSchemaValidator = new();
+
+    private ExportOscalTool CreateOscalTool(bool schemaValid = true)
+    {
+        _mockSchemaValidator
+            .Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult { IsValid = schemaValid, ModelType = "ssp" });
+        return new(_mockService.Object, Mock.Of<IOscalSapExportService>(), _mockSchemaValidator.Object,
+            Mock.Of<ILogger<ExportOscalTool>>());
+    }
 
     private static byte[] FakeExcelBytes() =>
         CreateMinimalXlsx();
@@ -584,6 +592,85 @@ public class EmassExportToolTests
         var act = async () => await tool.ExecuteCoreAsync(args);
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*not found*");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    //  #764 regression: pre-export OSCAL schema validation (fail-loud contract)
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// #764 — when the generated OSCAL fails schema validation the tool must return
+    /// an error response (status=error, error=OSCAL_SCHEMA_VALIDATION_FAILED) and
+    /// MUST NOT return the raw OSCAL document. This is the fail-loud contract.
+    /// </summary>
+    [Fact]
+    public async Task ExportOscal_FailsSchemaValidation_ReturnsErrorAndBlocksExport()
+    {
+        // Arrange
+        var invalidOscal = JsonSerializer.Serialize(new { bad = "document" });
+
+        _mockService
+            .Setup(s => s.ExportOscalAsync("sys-001", OscalModelType.Ssp, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(invalidOscal);
+
+        _mockSchemaValidator
+            .Setup(v => v.ValidateAsync(invalidOscal, "ssp", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult
+            {
+                IsValid = false,
+                ModelType = "ssp",
+                Violations = [new OscalSchemaViolation { JsonPath = "$", Message = "Required property 'system-security-plan' is missing." }]
+            });
+
+        var tool = new ExportOscalTool(_mockService.Object, Mock.Of<IOscalSapExportService>(),
+            _mockSchemaValidator.Object, Mock.Of<ILogger<ExportOscalTool>>());
+
+        var args = new Dictionary<string, object?> { ["system_id"] = "sys-001", ["model"] = "ssp" };
+
+        // Act
+        var result = await tool.ExecuteCoreAsync(args);
+
+        // Assert — must be an error, never success
+        var doc = JsonDocument.Parse(result);
+        doc.RootElement.GetProperty("status").GetString().Should().Be("error",
+            "invalid OSCAL must be blocked, not exported (#764 fail-loud contract)");
+        doc.RootElement.GetProperty("error").GetString().Should().Be("OSCAL_SCHEMA_VALIDATION_FAILED");
+        doc.RootElement.GetProperty("violation_count").GetInt32().Should().Be(1);
+        doc.RootElement.TryGetProperty("data", out _).Should().BeFalse(
+            "the OSCAL document must NOT be present in a validation-failed response");
+    }
+
+    /// <summary>
+    /// #764 regression: when OSCAL passes schema validation the export succeeds
+    /// and carries schema_validated=true in metadata.
+    /// </summary>
+    [Fact]
+    public async Task ExportOscal_PassesSchemaValidation_ReturnsSuccessWithSchemaValidatedFlag()
+    {
+        // Arrange
+        var validOscal = JsonSerializer.Serialize(new { system_security_plan = new { uuid = Guid.NewGuid() } });
+
+        _mockService
+            .Setup(s => s.ExportOscalAsync("sys-001", OscalModelType.Ssp, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(validOscal);
+
+        _mockSchemaValidator
+            .Setup(v => v.ValidateAsync(validOscal, "ssp", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult { IsValid = true, ModelType = "ssp" });
+
+        var tool = new ExportOscalTool(_mockService.Object, Mock.Of<IOscalSapExportService>(),
+            _mockSchemaValidator.Object, Mock.Of<ILogger<ExportOscalTool>>());
+
+        var args = new Dictionary<string, object?> { ["system_id"] = "sys-001", ["model"] = "ssp" };
+
+        // Act
+        var result = await tool.ExecuteCoreAsync(args);
+
+        // Assert
+        var doc = JsonDocument.Parse(result);
+        doc.RootElement.GetProperty("status").GetString().Should().Be("success");
+        doc.RootElement.GetProperty("metadata").GetProperty("schema_validated").GetBoolean()
+            .Should().BeTrue("export metadata must confirm schema was checked");
     }
 
     // ═════════════════════════════════════════════════════════════════════════

@@ -234,4 +234,37 @@ public class ResponseCacheServiceTests
         var (svc, _) = BuildService(tenantId: null);
         svc.GetCacheStatus("tool", "{}", "sub").Should().Be("MISS");
     }
+
+    /// <summary>
+    /// #640 regression: when subscriptionId is null (not resolved from request context),
+    /// the service must fail closed — factory always called, result never cached.
+    /// Prevents cross-subscription cache bleed within the same tenant.
+    /// </summary>
+    [Fact]
+    public async Task GetOrSetAsync_NullSubscriptionId_FailsClosed_AlwaysCallsFactory()
+    {
+        var tenantId = Guid.NewGuid();
+        var (svc, _) = BuildService(tenantId: tenantId);
+
+        var callCount = 0;
+        // First call with null subscriptionId
+        var r1 = await svc.GetOrSetAsync("tool", "{}", null,
+            () => { callCount++; return Task.FromResult("r1"); });
+        // Second identical call — must NOT hit cache
+        var r2 = await svc.GetOrSetAsync("tool", "{}", null,
+            () => { callCount++; return Task.FromResult("r2"); });
+
+        r1.Should().Be("r1");
+        r2.Should().Be("r2");
+        callCount.Should().Be(2, "factory must be called every time when subscriptionId is null (fail-closed)");
+    }
+
+    [Fact]
+    public void GetCacheStatus_NullSubscriptionId_ReturnsMiss()
+    {
+        var tenantId = Guid.NewGuid();
+        var (svc, _) = BuildService(tenantId: tenantId);
+        svc.GetCacheStatus("tool", "{}", null).Should().Be("MISS",
+            "null subscriptionId must fail closed — no cache read permitted");
+    }
 }

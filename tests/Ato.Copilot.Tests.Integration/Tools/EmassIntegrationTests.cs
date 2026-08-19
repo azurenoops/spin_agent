@@ -60,8 +60,13 @@ public class EmassIntegrationTests : IDisposable
             emassSvc, Mock.Of<ILogger<ExportEmassTool>>());
         _importTool = new ImportEmassTool(
             emassSvc, Mock.Of<ILogger<ImportEmassTool>>());
+        var schemaValidatorMock = new Mock<IOscalSchemaValidationService>();
+        schemaValidatorMock
+            .Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult { IsValid = true, ModelType = "ssp" });
+
         _oscalTool = new ExportOscalTool(
-            emassSvc, Mock.Of<IOscalSapExportService>(), Mock.Of<ILogger<ExportOscalTool>>());
+            emassSvc, Mock.Of<IOscalSapExportService>(), schemaValidatorMock.Object, Mock.Of<ILogger<ExportOscalTool>>());
     }
 
     public void Dispose() => _serviceProvider.Dispose();
@@ -141,7 +146,7 @@ public class EmassIntegrationTests : IDisposable
             because: $"OSCAL SSP export should succeed but got: {oscalResult}");
         var oscalData = oscalDoc.RootElement.GetProperty("data");
         oscalData.GetProperty("model").GetString().Should().Be("ssp");
-        oscalData.GetProperty("oscal_version").GetString().Should().Be("1.0.6");
+        oscalData.GetProperty("oscal_version").GetString().Should().Be("1.1.2");
         oscalData.GetProperty("oscal_document").ValueKind.Should().Be(JsonValueKind.Object);
     }
 

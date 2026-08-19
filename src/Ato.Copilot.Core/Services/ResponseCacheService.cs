@@ -53,7 +53,7 @@ public class ResponseCacheService
     public async Task<string> GetOrSetAsync(
         string toolName,
         string paramsJson,
-        string subscriptionId,
+        string? subscriptionId,
         Func<Task<string>> factory,
         bool isMutation = false)
     {
@@ -64,6 +64,15 @@ public class ResponseCacheService
         {
             // Fail closed: no tenant → no cache read or write.
             _logger.LogWarning("ResponseCacheService: no tenant resolved for tool={Tool}; cache bypassed (fail-closed).", toolName);
+            _metrics.RecordCacheMiss("response");
+            return await factory();
+        }
+
+        if (subscriptionId is null)
+        {
+            // #640 fail-closed: an unresolved subscriptionId cannot be used as "default"
+            // because it would create cross-subscription cache bleed within the same tenant.
+            _logger.LogWarning("ResponseCacheService: no subscriptionId for tool={Tool}; cache bypassed (fail-closed).", toolName);
             _metrics.RecordCacheMiss("response");
             return await factory();
         }
@@ -105,11 +114,13 @@ public class ResponseCacheService
     /// Returns the cache status for a given key: "HIT" or "MISS".
     /// Returns "MISS" when no tenant is resolved (fail-closed).
     /// </summary>
-    public string GetCacheStatus(string toolName, string paramsJson, string subscriptionId)
+    public string GetCacheStatus(string toolName, string paramsJson, string? subscriptionId)
     {
         var tenantId = ResolveTenantId();
         if (tenantId is null)
             return "MISS";
+        if (subscriptionId is null)
+            return "MISS"; // #640 fail-closed: unknown subscription → no cache read
 
         var cacheKey = ComputeKey(tenantId.Value, toolName, paramsJson, subscriptionId);
         return _cache.TryGetValue(cacheKey, out _) ? "HIT" : "MISS";
@@ -174,14 +185,14 @@ public class ResponseCacheService
         return _options.DefaultTtlSeconds;
     }
 
-    private static string ComputeKey(Guid tenantId, string toolName, string paramsJson, string subscriptionId)
+    private static string ComputeKey(Guid tenantId, string toolName, string paramsJson, string? subscriptionId)
     {
-        var input = $"{tenantId:N}:{toolName}:{paramsJson}:{subscriptionId}";
+        var input = $"{tenantId:N}:{toolName}:{paramsJson}:{subscriptionId ?? string.Empty}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexStringLower(hash);
     }
 
-    private void TrackKey(string sha, Guid tenantId, string toolName, string subscriptionId)
+    private void TrackKey(string sha, Guid tenantId, string toolName, string? subscriptionId)
     {
         lock (_keysLock)
         {

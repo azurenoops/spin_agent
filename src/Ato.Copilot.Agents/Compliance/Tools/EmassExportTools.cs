@@ -234,21 +234,28 @@ public class ImportEmassTool : BaseTool
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// Export system data in OSCAL JSON format (v1.0.6).
-/// Supported models: ssp, assessment-results, poam. RBAC: ISSM, SCA, AO.
+/// Export system data in OSCAL JSON format (v1.1.2).
+/// Supported models: ssp, assessment-results, poam, assessment-plan. RBAC: ISSM, SCA, AO.
+///
+/// #764: Pre-export schema validation is REQUIRED. The artifact is generated, validated
+/// against the official NIST OSCAL 1.1.2 JSON schema, and blocked if validation fails.
+/// This enforces the fail-loud contract — invalid OSCAL is never silently emitted.
 /// </summary>
 public class ExportOscalTool : BaseTool
 {
     private readonly IEmassExportService _service;
     private readonly IOscalSapExportService _sapExportService;
+    private readonly IOscalSchemaValidationService _schemaValidator;
 
     public ExportOscalTool(
         IEmassExportService service,
         IOscalSapExportService sapExportService,
+        IOscalSchemaValidationService schemaValidator,
         ILogger<ExportOscalTool> logger) : base(logger)
     {
         _service = service;
         _sapExportService = sapExportService;
+        _schemaValidator = schemaValidator;
     }
 
     public override string Name => "compliance_export_oscal";
@@ -295,6 +302,29 @@ public class ExportOscalTool : BaseTool
                 systemId, model, cancellationToken);
         }
 
+        // #764 — fail-loud: validate before emitting. Invalid OSCAL MUST NOT be exported silently.
+        var validation = await _schemaValidator.ValidateAsync(oscalJson, modelStr, cancellationToken);
+        if (!validation.IsValid)
+        {
+            sw.Stop();
+            Logger.LogWarning(
+                "OSCAL pre-export validation failed for system={System} model={Model}: {ViolationCount} violation(s)",
+                systemId, modelStr, validation.Violations?.Count ?? 0);
+
+            var violations = validation.Violations?.Select(v => new { path = v.JsonPath, message = v.Message }).ToList();
+            return JsonSerializer.Serialize(new
+            {
+                status = "error",
+                error = "OSCAL_SCHEMA_VALIDATION_FAILED",
+                message = $"The generated OSCAL {modelStr} artifact failed schema validation and was not exported. " +
+                          $"Correct the underlying data and retry.",
+                system_id = systemId,
+                model = modelStr,
+                violation_count = violations?.Count ?? 0,
+                violations
+            }, new JsonSerializerOptions { WriteIndented = true });
+        }
+
         sw.Stop();
 
         // Parse the OSCAL JSON to include in structured response
@@ -314,7 +344,8 @@ public class ExportOscalTool : BaseTool
             {
                 duration_ms = sw.ElapsedMilliseconds,
                 format = "json",
-                spec_version = "OSCAL 1.1.2"
+                spec_version = "OSCAL 1.1.2",
+                schema_validated = true
             }
         };
 
