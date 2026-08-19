@@ -88,4 +88,31 @@ describe('useChatContext', () => {
     });
     expect(result.current.page).toBe('system-profile');
   });
+
+  // ── fix/#722: systemId must be extracted from pathname, not useParams ─────
+  // ChatPanel renders outside <Routes>, so useParams() always returned {}.
+  // The regex-based extraction works regardless of render position.
+
+  it('extracts systemId from /systems/:id/narratives (fix #722)', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/systems/abc-123/narratives'),
+    });
+    expect(result.current.systemId).toBe('abc-123');
+    expect(result.current.page).toBe('narratives');
+  });
+
+  it('extracts systemId from /systems/:id root (fix #722)', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/systems/guid-456'),
+    });
+    expect(result.current.systemId).toBe('guid-456');
+    expect(result.current.page).toBe('system-detail');
+  });
+
+  it('returns null systemId on portfolio page (fix #722)', () => {
+    const { result } = renderHook(() => useChatContext(), {
+      wrapper: createWrapper('/portfolio'),
+    });
+    expect(result.current.systemId).toBeNull();
+  });
 });

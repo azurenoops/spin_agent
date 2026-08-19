@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useSystemContext } from './useSystemContext';
 import type { ChatContext } from '../types/chat';
 
@@ -65,14 +65,17 @@ function resolvePageName(pathname: string): string {
 
 export function useChatContext(): ChatContext {
   const location = useLocation();
-  const params = useParams<{ id?: string }>();
+  // fix(#722): ChatPanel renders outside the <Routes> tree, so useParams()
+  // always returns {} there. Extract the system id directly from the URL
+  // pathname with a regex — works at any render position in the tree.
+  const systemId = location.pathname.match(/^\/systems\/([^/]+)/)?.[1] ?? null;
   const systemCtx = useSystemContext();
 
   return useMemo<ChatContext>(() => {
     const page = resolvePageName(location.pathname);
     return {
       page,
-      systemId: params.id ?? null,
+      systemId,
       boundaryId: null,
       entityType: null,
       entityId: null,
@@ -97,5 +100,5 @@ export function useChatContext(): ChatContext {
         )?.completionPercent,
       } : null,
     };
-  }, [location.pathname, params.id, systemCtx]);
+  }, [location.pathname, systemId, systemCtx]);
 }
