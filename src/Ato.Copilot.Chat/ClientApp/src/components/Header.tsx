@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, forwardRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useChatContext } from '../contexts/ChatContext';
 import type { LayoutMode } from '../contexts/EditorLayoutContext';
 import { isCollaborationEnabled } from '../lib/featureFlags';

@@ -23,7 +23,6 @@ import React, {
 import * as signalR from '@microsoft/signalr';
 import type {
   CollaboratorDto,
-  CollaboratorPermission,
   CommentThreadDto,
   ConflictPayload,
   CreateCommentRequest,
@@ -47,10 +46,6 @@ const PRESENCE_COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
   '#8b5cf6', '#ec4899', '#14b8a6', '#f97316',
 ];
-let colorIndex = 0;
-function nextColor(): string {
-  return PRESENCE_COLORS[colorIndex++ % PRESENCE_COLORS.length];
-}
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 
@@ -118,7 +113,6 @@ export function CollaborationProvider({
   displayName,
 }: CollaborationProviderProps) {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
-  const myColor = useRef<string>(nextColor());
 
   const [connected, setConnected] = useState(false);
   const [presence, setPresence] = useState<Map<string, PresenceEntry>>(new Map());

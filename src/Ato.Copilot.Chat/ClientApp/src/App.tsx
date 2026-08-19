@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatProvider, useChatContext } from './contexts/ChatContext';
-import { EditorLayoutProvider, useEditorLayout, LayoutMode } from './contexts/EditorLayoutContext';
+import { EditorLayoutProvider, useEditorLayout } from './contexts/EditorLayoutContext';
 import { CollaborationProvider } from './contexts/CollaborationContext';
 import ChatWindow from './components/ChatWindow';
 import ConversationList from './components/ConversationList';

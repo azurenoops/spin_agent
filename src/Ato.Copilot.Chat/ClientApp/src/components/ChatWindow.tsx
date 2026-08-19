@@ -15,7 +15,7 @@ import {
 import { VerdictStoreProvider, useVerdictStore, getResultsForMessage } from '../lib/verdict-store';
 import { VerdictSummaryChip } from './Chat/VerdictSummaryChip';
 import { TraceabilityPanel } from './Chat/TraceabilityPanel';
-import { ResearchSourcesCard, ResearchSource } from './Chat/ResearchSourcesCard';
+import { ResearchSourcesCard } from './Chat/ResearchSourcesCard';
 import { isTraceabilityPanelEnabled, isCollaborationEnabled } from '../lib/featureFlags';
 import ConflictResolutionBanner from './Collaboration/ConflictResolutionBanner';
 import MobileCollaborationBanner from './Collaboration/MobileCollaborationBanner';
@@ -211,11 +211,6 @@ export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindow
       else next.add(messageId);
       return next;
     });
-  }, []);
-
-  const handleSuggestionClick = useCallback((prompt: string) => {
-    setInput(prompt);
-    inputRef.current?.focus();
   }, []);
 
   if (!state.activeConversationId) {
