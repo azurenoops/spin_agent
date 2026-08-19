@@ -16,7 +16,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@ato-copilot/shared": ["../../packages/ato-shared/src/index.ts"],
+      "@ato-copilot/shared/*": ["../../packages/ato-shared/src/*"]
+    }
   },
   "include": ["src"]
 }

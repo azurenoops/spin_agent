@@ -3,20 +3,24 @@
  *
  * Server-Sent Events client for streaming MCP responses.
  * - Native fetch + ReadableStream
- * - Line-based SSE parser
+ * - Line-based SSE parser (from @ato-copilot/shared)
  * - Event type dispatch
  * - Retry with exponential backoff
- * - Fallback to sync /mcp/chat
  * - AbortController support for cancellation
+ *
+ * SseEvent, SseEventHandler, and parseSseChunk are now sourced from
+ * @ato-copilot/shared (#2683) to eliminate the three-way duplication.
+ * The SseEvent.event field (canonical name) matches the SSE wire spec.
  */
 
 import type { McpResponse } from "./atoApiClient";
 
-export interface SseEvent {
-  type: string;
-  data: Record<string, unknown>;
-  timestamp?: string;
-}
+// Shared canonical types and parser (#2683)
+export type { SseEvent, SseEventHandler } from "@ato-copilot/shared";
+export { parseSseChunk } from "@ato-copilot/shared";
+
+import type { SseEvent, SseEventHandler } from "@ato-copilot/shared";
+import { parseSseChunk } from "@ato-copilot/shared";
 
 export interface SseClientOptions {
   baseUrl: string;
@@ -27,55 +31,10 @@ export interface SseClientOptions {
   timeoutMs?: number;
 }
 
-export type SseEventHandler = (event: SseEvent) => void;
-
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_INITIAL_RETRY_DELAY_MS = 1000;
 const DEFAULT_MAX_RETRY_DELAY_MS = 30000;
 const DEFAULT_TIMEOUT_MS = 300_000;
-
-/**
- * Parse SSE lines into typed events.
- * SSE format: "event: <type>\ndata: <json>\n\n"
- */
-function parseSseChunk(chunk: string): SseEvent[] {
-  const events: SseEvent[] = [];
-  const blocks = chunk.split("\n\n").filter((b) => b.trim().length > 0);
-
-  for (const block of blocks) {
-    const lines = block.split("\n");
-    let eventType = "message";
-    let dataStr = "";
-
-    for (const line of lines) {
-      if (line.startsWith("event:")) {
-        eventType = line.slice(6).trim();
-      } else if (line.startsWith("data:")) {
-        dataStr += line.slice(5).trim();
-      }
-    }
-
-    if (dataStr) {
-      try {
-        const data = JSON.parse(dataStr);
-        events.push({
-          type: eventType,
-          data,
-          timestamp: data.timestamp ?? new Date().toISOString(),
-        });
-      } catch {
-        // Skip malformed JSON
-        events.push({
-          type: eventType,
-          data: { raw: dataStr },
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
-  }
-
-  return events;
-}
 
 /**
  * SSE Client for streaming MCP responses.
@@ -159,8 +118,12 @@ export class SseClient {
             for (const event of events) {
               onEvent(event);
 
-              if (event.type === "complete" || event.type === "error") {
-                finalResponse = event.data as unknown as McpResponse;
+              if (event.event === "complete" || event.event === "error") {
+                try {
+                  finalResponse = JSON.parse(event.data) as McpResponse;
+                } catch {
+                  // data not JSON — leave finalResponse as-is
+                }
               }
             }
           }
@@ -171,8 +134,12 @@ export class SseClient {
           const events = parseSseChunk(buffer);
           for (const event of events) {
             onEvent(event);
-            if (event.type === "complete") {
-              finalResponse = event.data as unknown as McpResponse;
+            if (event.event === "complete") {
+              try {
+                finalResponse = JSON.parse(event.data) as McpResponse;
+              } catch {
+                // not JSON — leave finalResponse as-is
+              }
             }
           }
         }
@@ -204,5 +171,3 @@ export class SseClient {
     return null;
   }
 }
-
-export { parseSseChunk };

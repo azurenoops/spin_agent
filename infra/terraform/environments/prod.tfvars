@@ -54,3 +54,11 @@ openai_model_capacity        = 30
 deploy_bot_channel = true
 bot_app_id         = "<replace>" # Azure AD → App registrations → Application (client) ID
 bot_display_name   = "ATO Copilot"
+
+# Azure Monitor Alerts — BUG-21 (alerts.tf)
+# SECRETS: inject via environment variables, never hardcode here.
+#   export TF_VAR_pagerduty_webhook_url="https://events.pagerduty.com/integration/<key>/enqueue"
+#   export TF_VAR_teams_webhook_url="https://outlook.office.com/webhook/<id>/..."
+#   export TF_VAR_alert_email_address="ato-copilot-oncall@<org>.mil"
+# Leave defaults as-is — variables.tf defaults to "" which disables each receiver safely.
+# alert_email_address = "<replace>"  # inject via TF_VAR_alert_email_address

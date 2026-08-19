@@ -589,14 +589,62 @@ public abstract class BaseAgent
             // ─────────────────────────────────────────────────────────────────────
 
             var toolsExecuted = new List<ToolExecutionResult>();
+            var modelCallRecords = new List<ModelCallRecord>();
             var maxRounds = _azureAiOptions.MaxToolIterations;
+
+            // Pre-compute system-prompt hash once (same system message every round).
+            var systemPromptHash = chatMessages
+                .Where(m => m.Role == ChatRole.System)
+                .Select(m => string.Join("", m.Contents.OfType<TextContent>().Select(t => t.Text)))
+                .Where(t => !string.IsNullOrEmpty(t))
+                .Select(t => ComputeSha256Hex(t))
+                .FirstOrDefault();
 
             for (var round = 0; round < maxRounds; round++)
             {
                 progress?.Report($"ATO Copilot is thinking (round {round + 1})...");
 
+                // Capture user prompt hash at the start of each round (last user message).
+                var userPromptHash = chatMessages
+                    .Where(m => m.Role == ChatRole.User)
+                    .Select(m => string.Join("", m.Contents.OfType<TextContent>().Select(t => t.Text)))
+                    .Where(t => !string.IsNullOrEmpty(t))
+                    .Select(ComputeSha256Hex)
+                    .LastOrDefault();
+
+                var roundStart = Stopwatch.GetTimestamp();
                 var response = await _chatClient.GetResponseAsync(
                     chatMessages, chatOptions, cancellationToken);
+                var roundLatencyMs = (long)Stopwatch.GetElapsedTime(roundStart).TotalMilliseconds;
+
+                // ── Epic 10 / #941 — capture provenance record for this LLM call ──
+                var outputText = string.Join("",
+                    response.Messages.SelectMany(m => m.Contents).OfType<TextContent>().Select(t => t.Text));
+                var toolCallsInRound = response.Messages
+                    .SelectMany(m => m.Contents).OfType<FunctionCallContent>()
+                    .Select(fc => new { fc.Name, fc.CallId })
+                    .ToList();
+
+                modelCallRecords.Add(new ModelCallRecord
+                {
+                    CallIndex = round,
+                    Provider = _azureAiOptions.Provider.ToString(),
+                    ModelId = _azureAiOptions.DeploymentName,
+                    ParamsJson = JsonSerializer.Serialize(new
+                    {
+                        temperature = _azureAiOptions.Temperature,
+                        max_tool_iterations = maxRounds
+                    }),
+                    SystemPromptHash = systemPromptHash,
+                    UserPromptHash = userPromptHash,
+                    ToolCallsJson = JsonSerializer.Serialize(toolCallsInRound),
+                    PromptTokens = (int?)response.Usage?.InputTokenCount,
+                    CompletionTokens = (int?)response.Usage?.OutputTokenCount,
+                    LatencyMs = roundLatencyMs,
+                    OutputContentHash = string.IsNullOrEmpty(outputText) ? null : ComputeSha256Hex(outputText),
+                    CreatedAt = DateTime.UtcNow
+                });
+                // ─────────────────────────────────────────────────────────────────
 
                 // Check if the response contains tool calls
                 var toolCalls = response.Messages
@@ -632,7 +680,8 @@ public abstract class BaseAgent
                         Response = finalText,
                         AgentName = AgentName,
                         ToolsExecuted = toolsExecuted,
-                        ProcessingTimeMs = stopwatch.ElapsedMilliseconds
+                        ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                        ModelCallRecords = modelCallRecords
                     };
                 }
 
@@ -740,7 +789,8 @@ public abstract class BaseAgent
                            $"Here's what was completed: {string.Join("; ", toolsExecuted.Where(t => t.Success).Select(t => t.ToolName))}",
                 AgentName = AgentName,
                 ToolsExecuted = toolsExecuted,
-                ProcessingTimeMs = stopwatch.ElapsedMilliseconds
+                ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                ModelCallRecords = modelCallRecords
             };
         }
         catch (TokenBudgetExceededException)
@@ -872,6 +922,16 @@ public abstract class BaseAgent
     {
         var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(message));
         return Convert.ToHexString(bytes)[..16];
+    }
+
+    /// <summary>
+    /// Returns the full SHA-256 hex digest of <paramref name="value"/> (UTF-8 encoded).
+    /// Used for provenance hashing of prompt/output content in ModelCallRecord.
+    /// </summary>
+    private static string ComputeSha256Hex(string value)
+    {
+        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     // EventId 4001 reserved for tool-exclusion audit events.
@@ -1141,6 +1201,13 @@ public class AgentResponse
     /// The <c>type</c> key in the dictionary determines the Adaptive Card routing on the client side.
     /// </summary>
     public Dictionary<string, object>? ResponseData { get; set; }
+
+    /// <summary>
+    /// Provenance records for every LLM call made during this response (#941 — Epic 10).
+    /// Populated by <see cref="BaseAgent"/> in <c>TryProcessWithAiAsync</c>.
+    /// The Chat layer persists these via <c>IModelCallLedger</c> after receiving the response.
+    /// </summary>
+    public List<ModelCallRecord> ModelCallRecords { get; set; } = new();
 }
 
 /// <summary>
@@ -1152,6 +1219,36 @@ public class ToolExecutionResult
     public bool Success { get; set; }
     public string Result { get; set; } = string.Empty;
     public double ExecutionTimeMs { get; set; }
+}
+
+/// <summary>
+/// Value object carrying one LLM invocation's provenance data (#941 — Epic 10).
+///
+/// Populated inside <see cref="BaseAgent.TryProcessWithAiAsync"/> immediately after
+/// each <c>GetResponseAsync</c> call.  The Chat layer maps this to a <c>ModelCall</c>
+/// EF entity and persists it via <c>IModelCallLedger</c>.
+///
+/// Fields mirror the <c>ModelCall</c> table exactly so the mapping is trivial.
+/// Raw prompt text is NEVER stored — only SHA-256 hashes (privacy policy).
+/// </summary>
+public class ModelCallRecord
+{
+    /// <summary>0-based ordinal within the current agent turn.</summary>
+    public int CallIndex { get; set; }
+    public string Provider { get; set; } = string.Empty;
+    public string ModelId { get; set; } = string.Empty;
+    public string? ModelVersion { get; set; }
+    /// <summary>JSON: { temperature, top_p, max_tokens, seed }</summary>
+    public string ParamsJson { get; set; } = "{}";
+    public string? SystemPromptHash { get; set; }
+    public string? UserPromptHash { get; set; }
+    /// <summary>JSON array of tool calls made in this round.</summary>
+    public string ToolCallsJson { get; set; } = "[]";
+    public int? PromptTokens { get; set; }
+    public int? CompletionTokens { get; set; }
+    public long LatencyMs { get; set; }
+    public string? OutputContentHash { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>

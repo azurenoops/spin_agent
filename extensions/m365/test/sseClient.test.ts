@@ -7,8 +7,8 @@ describe("SSE Client (FR-029d, FR-029e)", () => {
       const chunk = 'event: agentRouted\ndata: {"agent":"ComplianceAgent"}\n\n';
       const events = parseSseChunk(chunk);
       expect(events).to.have.length(1);
-      expect(events[0].type).to.equal("agentRouted");
-      expect(events[0].data.agent).to.equal("ComplianceAgent");
+      expect(events[0].event).to.equal("agentRouted");
+      expect(JSON.parse(events[0].data).agent).to.equal("ComplianceAgent");
     });
 
     it("should parse multiple SSE events", () => {
@@ -17,22 +17,23 @@ describe("SSE Client (FR-029d, FR-029e)", () => {
         'event: toolStart\ndata: {"tool":"scan"}\n\n';
       const events = parseSseChunk(chunk);
       expect(events).to.have.length(2);
-      expect(events[0].type).to.equal("thinking");
-      expect(events[1].type).to.equal("toolStart");
+      expect(events[0].event).to.equal("thinking");
+      expect(events[1].event).to.equal("toolStart");
     });
 
     it("should default event type to message", () => {
       const chunk = 'data: {"text":"hello"}\n\n';
       const events = parseSseChunk(chunk);
       expect(events).to.have.length(1);
-      expect(events[0].type).to.equal("message");
+      expect(events[0].event).to.equal("message");
     });
 
     it("should handle malformed JSON gracefully", () => {
       const chunk = "event: error\ndata: not-json\n\n";
       const events = parseSseChunk(chunk);
       expect(events).to.have.length(1);
-      expect(events[0].data.raw).to.equal("not-json");
+      // data is a raw string — malformed JSON stays as-is
+      expect(events[0].data).to.equal("not-json");
     });
 
     it("should skip empty chunks", () => {

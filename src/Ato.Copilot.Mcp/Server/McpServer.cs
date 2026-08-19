@@ -8,9 +8,11 @@ using Ato.Copilot.Agents.Configuration.Agents;
 using Ato.Copilot.Agents.Configuration.Tools;
 using Ato.Copilot.Agents.Common;
 using Ato.Copilot.Core.Interfaces;
+using Ato.Copilot.Core.Interfaces.Provenance;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Models.Provenance;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using ErrorDetail = Ato.Copilot.Mcp.Models.ErrorDetail;
 using Microsoft.Extensions.Options;
@@ -41,6 +43,7 @@ public class McpServer
     private readonly ResponseCacheService _cacheService;
     private readonly PaginationOptions _paginationOptions;
     private readonly OfflineModeService _offlineModeService;
+    private readonly IModelCallLedger _modelCallLedger;
     private readonly ILogger<McpServer> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
 
@@ -57,6 +60,7 @@ public class McpServer
         ResponseCacheService cacheService,
         IOptions<PaginationOptions> paginationOptions,
         OfflineModeService offlineModeService,
+        IModelCallLedger modelCallLedger,
         ILogger<McpServer> logger)
     {
         _complianceTools = complianceTools;
@@ -71,6 +75,7 @@ public class McpServer
         _cacheService = cacheService;
         _paginationOptions = paginationOptions.Value;
         _offlineModeService = offlineModeService;
+        _modelCallLedger = modelCallLedger;
         _logger = logger;
         _jsonOptions = new JsonSerializerOptions
         {
@@ -212,6 +217,8 @@ public class McpServer
                     async () =>
                     {
                         var resp = await targetAgent.ProcessAsync(message, agentContext, cancellationToken, progress);
+                        // #941 — persist model-call provenance records (cache-miss path only)
+                        await PersistModelCallRecordsAsync(resp, conversationId, cancellationToken);
                         return JsonSerializer.Serialize(resp, _jsonOptions);
                     });
             }
@@ -479,6 +486,51 @@ public class McpServer
     /// Resolves an agent by client routing hint (e.g., "ComplianceAgent", "ConfigurationAgent").
     /// Matches against AgentId or AgentName, case-insensitive.
     /// </summary>
+    /// <summary>
+    /// Persists all <see cref="ModelCallRecord"/>s from an <see cref="AgentResponse"/>
+    /// to the append-only ledger (#941 — Epic 10 provenance audit trail).
+    /// Failures are logged and swallowed so ledger errors never break the agent response path.
+    /// </summary>
+    private async Task PersistModelCallRecordsAsync(
+        AgentResponse response,
+        string conversationId,
+        CancellationToken cancellationToken)
+    {
+        if (response.ModelCallRecords.Count == 0) return;
+
+        foreach (var rec in response.ModelCallRecords)
+        {
+            try
+            {
+                var entity = new ModelCall
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    ConversationId = conversationId,
+                    CallIndex = rec.CallIndex,
+                    Provider = rec.Provider,
+                    ModelId = rec.ModelId,
+                    ModelVersion = rec.ModelVersion,
+                    ParamsJson = rec.ParamsJson,
+                    SystemPromptHash = rec.SystemPromptHash,
+                    UserPromptHash = rec.UserPromptHash,
+                    ToolCallsJson = rec.ToolCallsJson,
+                    PromptTokens = rec.PromptTokens,
+                    CompletionTokens = rec.CompletionTokens,
+                    LatencyMs = rec.LatencyMs,
+                    OutputContentHash = rec.OutputContentHash,
+                    CreatedAt = rec.CreatedAt
+                };
+                await _modelCallLedger.RecordAsync(entity, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[McpServer] Failed to persist ModelCallRecord index={Index} conversation={ConvId}",
+                    rec.CallIndex, conversationId);
+            }
+        }
+    }
+
     private BaseAgent? ResolveAgentByHint(string hint)
     {
         // Try exact match on AgentId first (e.g., "compliance-agent")
@@ -612,6 +664,9 @@ public class McpServer
                 $"Execute tool '{toolName}' with context: {JsonSerializer.Serialize(toolArgs, _jsonOptions)}",
                 agentContext, cancellationToken, progress);
         }
+
+        // #941 — persist model-call provenance records
+        await PersistModelCallRecordsAsync(response, conversationId, cancellationToken);
 
         stopwatch.Stop();
 
@@ -944,6 +999,8 @@ public class McpServer
         };
 
         var response = await _configurationAgent.ProcessAsync(message, agentContext);
+        // #941 — persist model-call provenance records (fire-and-forget; config calls are non-critical)
+        _ = PersistModelCallRecordsAsync(response, conversationId, CancellationToken.None);
         return response.Response;
     }
 

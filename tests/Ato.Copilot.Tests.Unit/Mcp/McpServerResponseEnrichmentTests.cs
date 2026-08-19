@@ -168,6 +168,7 @@ public class McpServerResponseEnrichmentTests
                 Mock.Of<ILogger<Ato.Copilot.Core.Services.ResponseCacheService>>()),
             Microsoft.Extensions.Options.Options.Create(new Ato.Copilot.Core.Models.PaginationOptions()),
             new Ato.Copilot.Core.Services.OfflineModeService(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), Mock.Of<ILogger<Ato.Copilot.Core.Services.OfflineModeService>>()),
+            Mock.Of<Ato.Copilot.Core.Interfaces.Provenance.IModelCallLedger>(),
             Mock.Of<ILogger<McpServer>>());
     }
 }

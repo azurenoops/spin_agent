@@ -81,6 +81,7 @@ public class McpServerTenantCacheKeyTests
             new OfflineModeService(
                 new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
                 Mock.Of<ILogger<OfflineModeService>>()),
+            Mock.Of<Ato.Copilot.Core.Interfaces.Provenance.IModelCallLedger>(),
             Mock.Of<ILogger<McpServer>>());
 
         return (server, cacheService);
@@ -150,6 +151,7 @@ public class McpServerTenantCacheKeyTests
             new OfflineModeService(
                 new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
                 Mock.Of<ILogger<OfflineModeService>>()),
+            Mock.Of<Ato.Copilot.Core.Interfaces.Provenance.IModelCallLedger>(),
             Mock.Of<ILogger<McpServer>>());
 
         var result = await serverB.ProcessChatRequestAsync("Run assessment",
@@ -209,6 +211,7 @@ public class McpServerTenantCacheKeyTests
             new OfflineModeService(
                 new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
                 Mock.Of<ILogger<OfflineModeService>>()),
+            Mock.Of<Ato.Copilot.Core.Interfaces.Provenance.IModelCallLedger>(),
             Mock.Of<ILogger<McpServer>>());
 
         var ctx = new Dictionary<string, object> { ["subscriptionId"] = sub };

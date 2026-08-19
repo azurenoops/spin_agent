@@ -347,7 +347,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     },
-    [state.activeConversationId]
+    [] // conversationId comes from the parameter; no reactive closure deps needed
   );
 
   const sendMessage = useCallback(

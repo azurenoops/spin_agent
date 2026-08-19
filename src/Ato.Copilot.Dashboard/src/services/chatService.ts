@@ -7,59 +7,11 @@ import type {
 } from '../types/chat';
 import { acquireBearer } from '../features/auth/msalInstance';
 
-/** Parsed SSE event (ported from extensions/vscode/src/services/sseClient.ts). */
-export interface SseEvent {
-  event: string;
-  data: string;
-  id?: string;
-  timestamp?: string;
-}
+// Shared canonical types — eliminates duplication with extensions (#2683).
+export type { SseEvent } from '@ato-copilot/shared';
+export { parseSseChunk } from '@ato-copilot/shared';
 
-/**
- * Parse a raw SSE chunk into events.
- * SSE format: lines separated by \n, events separated by \n\n.
- * Fields: event:, data:, id:
- */
-export function parseSseChunk(chunk: string): SseEvent[] {
-  const events: SseEvent[] = [];
-  const blocks = chunk.split('\n\n').filter((b) => b.trim().length > 0);
-
-  for (const block of blocks) {
-    const lines = block.split('\n');
-    let eventType = 'message';
-    let data = '';
-    let id: string | undefined;
-
-    for (const line of lines) {
-      if (line.startsWith('event:')) {
-        eventType = line.substring(6).trim();
-      } else if (line.startsWith('data:')) {
-        data = line.substring(5).trim();
-      } else if (line.startsWith('id:')) {
-        id = line.substring(3).trim();
-      }
-      // Comment lines (starting with ':') are ignored (keepalive)
-    }
-
-    if (data) {
-      const event: SseEvent = { event: eventType, data };
-      if (id) {
-        event.id = id;
-      }
-      try {
-        const parsed = JSON.parse(data);
-        if (parsed.timestamp) {
-          event.timestamp = parsed.timestamp;
-        }
-      } catch {
-        // Not JSON — leave timestamp undefined
-      }
-      events.push(event);
-    }
-  }
-
-  return events;
-}
+import { parseSseChunk } from '@ato-copilot/shared';
 
 const SSE_TIMEOUT_MS = 120_000;
 

@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { ComplianceFinding } from "../commands/analyzeFile";
 import { McpClient, McpChatResponse, ToolExecution } from "../services/mcpClient";
+import { isEditorToHostEvent } from "../bridge/editorBridgeGuard";
+import type { OpenCitationSourcePanelEvent } from "../bridge/editorBridgeEvents";
 
 /**
  * Severity configuration: color, label, CSS class, sort order.
@@ -63,35 +65,47 @@ export function createAnalysisPanel(
 
   panel.webview.html = buildHtml(title, findings, source, mcpResponse);
 
-  // Handle messages from the webview (FR-014c, FR-018a, FR-018b, FR-018e)
+  // Handle messages from the webview (FR-014c, FR-018a, FR-018b, FR-018e, #2343)
   if (mcpClient) {
+    // Debounce state for openCitationSourcePanel (AC3) — keyed on citationId,
+    // suppresses duplicate emits arriving within 300 ms (e.g. double-click).
+    const citationDebounce = new Map<string, number>();
+
     panel.webview.onDidReceiveMessage(
-      async (message: { command: string; [key: string]: unknown }) => {
+      async (message: unknown) => {
+        if (!isEditorToHostEvent(message)) {
+          // Malformed payload — warn without crashing (AC4)
+          console.warn("[EditorBridge] Rejected malformed message:", message);
+          return;
+        }
         switch (message.command) {
           case "drillDown":
             await handleDrillDown(
               panel,
               mcpClient,
-              message.controlId as string,
-              message.conversationId as string | undefined
+              message.controlId,
+              message.conversationId
             );
             break;
           case "applyFix":
-            await handleApplyFix(message);
+            await handleApplyFix(message as unknown as { [key: string]: unknown });
             break;
           case "confirmRemediation":
-            await handleConfirmRemediation(mcpClient, message);
+            await handleConfirmRemediation(mcpClient, message as unknown as { [key: string]: unknown });
             break;
           case "updateStatus":
             await handleStatusUpdate(
               mcpClient,
-              message.findingId as string,
-              message.newStatus as string,
-              message.conversationId as string | undefined
+              message.findingId,
+              message.newStatus,
+              message.conversationId
             );
             break;
           case "checkPim":
-            await handlePimCheck(mcpClient, message.conversationId as string | undefined);
+            await handlePimCheck(mcpClient, message.conversationId);
+            break;
+          case "openCitationSourcePanel":
+            await handleOpenCitationSourcePanel(message, citationDebounce);
             break;
         }
       }
@@ -241,6 +255,57 @@ async function handlePimCheck(
     }
   } catch {
     vscode.window.showErrorMessage("PIM check failed");
+  }
+}
+
+/**
+ * Handle openCitationSourcePanel (#2343, AC3).
+ *
+ * Opens/focuses the source-evidence panel for the given citation.
+ * - Debounces rapid repeat emits keyed on citationId (300 ms window).
+ * - Resolves sourceId from citationId when absent (placeholder — source panel
+ *   UI is out of scope for this ticket; resolution logic lives in the panel).
+ * - Shows a graceful empty-state notification when no source can be resolved.
+ */
+async function handleOpenCitationSourcePanel(
+  msg: OpenCitationSourcePanelEvent,
+  debounce: Map<string, number>
+): Promise<void> {
+  const now = Date.now();
+  const last = debounce.get(msg.citationId) ?? 0;
+  if (now - last < 300) {
+    return; // debounce: suppress rapid repeat
+  }
+  debounce.set(msg.citationId, now);
+
+  // Resolve sourceId — when the editor knows only the citationId, the host is
+  // responsible for looking up the associated source. Until the source panel
+  // UI lands, we surface the citation identifier to the user directly.
+  const resolvedSourceId = msg.sourceId ?? msg.citationId;
+
+  if (!resolvedSourceId) {
+    // Graceful empty-state: no source available for this citation (AC3)
+    vscode.window.showInformationMessage(
+      `No source available for citation "${msg.citationId}".`
+    );
+    return;
+  }
+
+  // Open/focus the source panel via VS Code command.
+  // The ato.openSourcePanel command is registered by the source-panel feature;
+  // if not yet registered (pre-Wave 14), fall back to a user-facing notice.
+  try {
+    await vscode.commands.executeCommand("ato.openSourcePanel", {
+      citationId: msg.citationId,
+      sourceId: resolvedSourceId,
+      anchor: msg.anchor,
+      requestId: msg.requestId,
+    });
+  } catch {
+    // Source panel not yet installed — graceful empty-state (AC3)
+    vscode.window.showInformationMessage(
+      `Source panel not available. Citation: "${msg.citationId}" (source: ${resolvedSourceId}).`
+    );
   }
 }
 
@@ -562,6 +627,56 @@ function getScript(): string {
     function checkPim(conversationId) {
       vscode.postMessage({ command: 'checkPim', conversationId });
     }
+
+    /**
+     * openCitationSourcePanel — editor→host bridge dispatch (#2343, AC2).
+     *
+     * @param {string} citationId  - stable citation identifier
+     * @param {string} origin      - 'click' | 'keyboard' | 'programmatic'
+     * @param {string} [sourceId]  - optional pre-resolved source identifier
+     */
+    function openCitationSourcePanel(citationId, origin, sourceId) {
+      const requestId = crypto.randomUUID();
+      const msg = {
+        command: 'openCitationSourcePanel',
+        citationId,
+        origin,
+        requestId,
+      };
+      if (sourceId) {
+        msg.sourceId = sourceId;
+      }
+      vscode.postMessage(msg);
+    }
+
+    // Delegated citation interaction listener (AC2).
+    // Fires openCitationSourcePanel for any element carrying [data-citation-id].
+    // Handles both click and keyboard (Enter / Space) activation.
+    document.addEventListener('click', function(event) {
+      const target = event.target && event.target.closest
+        ? event.target.closest('[data-citation-id]')
+        : null;
+      if (!target) return;
+      const citationId = target.getAttribute('data-citation-id');
+      const sourceId = target.getAttribute('data-source-id') || undefined;
+      if (citationId) {
+        openCitationSourcePanel(citationId, 'click', sourceId);
+      }
+    });
+
+    document.addEventListener('keydown', function(event) {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const target = event.target && event.target.closest
+        ? event.target.closest('[data-citation-id]')
+        : null;
+      if (!target) return;
+      event.preventDefault();
+      const citationId = target.getAttribute('data-citation-id');
+      const sourceId = target.getAttribute('data-source-id') || undefined;
+      if (citationId) {
+        openCitationSourcePanel(citationId, 'keyboard', sourceId);
+      }
+    });
 
     // Handle messages from extension host
     window.addEventListener('message', event => {

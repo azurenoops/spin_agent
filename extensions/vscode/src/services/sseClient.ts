@@ -1,20 +1,19 @@
 /**
  * SSE (Server-Sent Events) client for VS Code extension (FR-029a, FR-029e).
  *
- * Uses native fetch + ReadableStream for line-based SSE parsing.
- * Supports retry with exponential backoff, AbortController cancellation,
- * and automatic fallback to synchronous /mcp/chat on exhausted retries.
+ * SseEvent, SseEventHandler, and parseSseChunk are now sourced from
+ * @ato-copilot/shared (#2683) to eliminate the three-way duplication.
+ * The SseClient class implementation remains extension-specific (different
+ * constructor signature — no baseUrl, URL passed per-call).
  */
 
-/**
- * Parsed SSE event.
- */
-export interface SseEvent {
-  event: string;
-  data: string;
-  id?: string;
-  timestamp?: string;
-}
+// Re-export canonical types from shared package — callers get the same type
+// regardless of which import path they use.
+export type { SseEvent, SseEventHandler } from "@ato-copilot/shared";
+export { parseSseChunk } from "@ato-copilot/shared";
+
+import type { SseEvent, SseEventHandler } from "@ato-copilot/shared";
+import { parseSseChunk } from "@ato-copilot/shared";
 
 /**
  * SSE client configuration.
@@ -28,59 +27,6 @@ export interface SseClientOptions {
   maxRetryDelayMs?: number;
   /** Request timeout in milliseconds (default: 120000) */
   timeoutMs?: number;
-}
-
-/**
- * Callback for SSE event dispatch.
- */
-export type SseEventHandler = (event: SseEvent) => void;
-
-/**
- * Parse a raw SSE chunk into events.
- * SSE format: lines separated by \n, events separated by \n\n.
- * Fields: event:, data:, id:
- */
-export function parseSseChunk(chunk: string): SseEvent[] {
-  const events: SseEvent[] = [];
-  const blocks = chunk.split("\n\n").filter((b) => b.trim().length > 0);
-
-  for (const block of blocks) {
-    const lines = block.split("\n");
-    let eventType = "message";
-    let data = "";
-    let id: string | undefined;
-
-    for (const line of lines) {
-      if (line.startsWith("event:")) {
-        eventType = line.substring(6).trim();
-      } else if (line.startsWith("data:")) {
-        data = line.substring(5).trim();
-      } else if (line.startsWith("id:")) {
-        id = line.substring(3).trim();
-      }
-    }
-
-    if (data) {
-      const event: SseEvent = { event: eventType, data };
-      if (id) {
-        event.id = id;
-      }
-
-      // Try to extract timestamp from JSON data
-      try {
-        const parsed = JSON.parse(data);
-        if (parsed.timestamp) {
-          event.timestamp = parsed.timestamp;
-        }
-      } catch {
-        // Not JSON — leave timestamp undefined
-      }
-
-      events.push(event);
-    }
-  }
-
-  return events;
 }
 
 /**

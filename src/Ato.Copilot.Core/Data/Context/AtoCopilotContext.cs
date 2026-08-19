@@ -10,6 +10,7 @@ using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Onboarding;
+using Ato.Copilot.Core.Models.Provenance;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Models.Roadmap;
 using Ato.Copilot.Core.Models.Tenancy;
@@ -550,6 +551,12 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>Statement-level fragments within a decomposition draft (Feature 076 — T012).</summary>
     public DbSet<OscalDecompositionFragment> OscalDecompositionFragments => Set<OscalDecompositionFragment>();
+
+    /// <summary>#941 — Epic 10 provenance audit ledger. Append-only.</summary>
+    public DbSet<ModelCall> ModelCalls => Set<ModelCall>();
+
+    /// <summary>#2497/#2753 — DeBERTa NLI classifier shadow log. Write-only during shadow phase; never updated or deleted.</summary>
+    public DbSet<ClassifierShadowLog> ClassifierShadowLogs => Set<ClassifierShadowLog>();
 
     //
     /// <inheritdoc />
@@ -3998,6 +4005,39 @@ public class AtoCopilotContext : DbContext
                 .HasDatabaseName("IX_EvidenceAuditEvent_OccurredAt");
             entity.HasIndex(e => new { e.SubscriptionId, e.OccurredAt })
                 .HasDatabaseName("IX_EvidenceAuditEvent_Sub_OccurredAt");
+        });
+
+        // ─── #941 Provenance: ModelCall ledger ───────────────────────────────────
+        modelBuilder.Entity<ModelCall>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.ConversationId)
+                  .HasDatabaseName("IX_ModelCall_ConversationId");
+            entity.HasIndex(e => new { e.ConversationId, e.CallIndex })
+                  .IsUnique()
+                  .HasDatabaseName("IX_ModelCall_ConvId_CallIndex");
+            entity.HasIndex(e => e.CreatedAt)
+                  .HasDatabaseName("IX_ModelCall_CreatedAt");
+        });
+
+        // ─── #2497/#2753 ClassifierShadowLog — append-only, no user-facing reads ──
+        modelBuilder.Entity<ClassifierShadowLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.PairId).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.ClaimHash).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.EvidenceHash).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.DebertaVerdict).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.LlmVerdict).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.TrafficSlice).HasMaxLength(40).IsRequired();
+            entity.HasIndex(e => e.PairId)
+                  .HasDatabaseName("IX_ClassifierShadowLog_PairId");
+            entity.HasIndex(e => e.Ts)
+                  .HasDatabaseName("IX_ClassifierShadowLog_Ts");
+            entity.HasIndex(e => e.DebertaVerdict)
+                  .HasDatabaseName("IX_ClassifierShadowLog_DebertaVerdict");
+            entity.HasIndex(e => e.TrafficSlice)
+                  .HasDatabaseName("IX_ClassifierShadowLog_TrafficSlice");
         });
     }
 

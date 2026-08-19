@@ -4,24 +4,9 @@ import * as http from "http";
 import * as https from "https";
 import { URL } from "url";
 
-/**
- * Tool execution record from MCP response (FR-002).
- */
-export interface ToolExecution {
-  toolName: string;
-  success: boolean;
-  executionTimeMs: number;
-  resultSummary?: string;
-}
-
-/**
- * Structured error detail (FR-007, Constitution VII).
- */
-export interface ErrorDetail {
-  errorCode: string;
-  message: string;
-  suggestion?: string;
-}
+// Shared canonical types — eliminates duplication with m365 + Dashboard (#2683).
+export type { ToolExecution, ErrorDetail } from "@ato-copilot/shared";
+import type { ToolExecution, ErrorDetail } from "@ato-copilot/shared";
 
 /**
  * Request payload for POST /mcp/chat
