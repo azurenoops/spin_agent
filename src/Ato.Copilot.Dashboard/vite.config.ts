@@ -32,10 +32,19 @@ const simulationPanelAlias = isProduction
     ]
   : [];
 
+// Resolve @ato-copilot/shared from the workspace source tree (#2683).
+// The shared package is not published to npm; it lives at packages/ato-shared.
+// Vite/Rollup needs this alias so CI can build the Dashboard without a
+// separate publish step.
+const sharedPackageAlias = {
+  find: '@ato-copilot/shared',
+  replacement: path.resolve(__dirname, '../../packages/ato-shared/src/index.ts'),
+};
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: simulationPanelAlias,
+    alias: [...simulationPanelAlias, sharedPackageAlias],
   },
   server: {
     port: 5173,

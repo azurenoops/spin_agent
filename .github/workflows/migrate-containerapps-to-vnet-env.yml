@@ -3,92 +3,60 @@
 # This workflow is retained for reference only and will be removed in a future cleanup PR.
 name: Migrate Container Apps To VNet Environment
 
+# DEPRECATED workflow — all inputs use baked-in defaults; no runtime overrides
+# needed for reference-only execution. Consolidating to ≤10 inputs satisfies
+# the GitHub Actions workflow_dispatch limit (max 10 per the spec).
 on:
   workflow_dispatch:
     inputs:
       resource_group:
         description: Resource group name
-        required: true
+        required: false
         default: rg-ato-copilot
         type: string
       location:
         description: Azure location
-        required: true
+        required: false
         default: eastus
         type: string
       deployment_environment:
-        description: GitHub environment name for reusable deployment jobs
-        required: true
+        description: GitHub environment name
+        required: false
         default: dev
         type: string
       source_mcp_app:
         description: Existing MCP app name (source)
-        required: true
+        required: false
         default: ca-ato-copilot-mcp
         type: string
       source_dashboard_app:
         description: Existing Dashboard app name (source)
-        required: true
+        required: false
         default: ca-ato-copilot-dashboard
         type: string
       target_env_name:
         description: New VNet-integrated Container Apps environment name
-        required: true
+        required: false
         default: cae-ato-copilot-vnet
         type: string
       target_mcp_app:
-        description: Target MCP app name (new app)
-        required: true
+        description: Target MCP app name (new VNet app)
+        required: false
         default: ca-ato-copilot-mcp-vnet
         type: string
       target_dashboard_app:
-        description: Target Dashboard app name (new app)
-        required: true
+        description: Target Dashboard app name (new VNet app)
+        required: false
         default: ca-ato-copilot-dashboard-vnet
         type: string
       vnet_name:
-        description: VNet name for Container Apps + SQL private endpoint
-        required: true
+        description: VNet name
+        required: false
         default: vnet-ato-copilot
-        type: string
-      vnet_address_prefix:
-        description: VNet CIDR
-        required: true
-        default: 10.40.0.0/16
-        type: string
-      infra_subnet_name:
-        description: Container Apps infrastructure subnet name
-        required: true
-        default: snet-containerapps-infra
-        type: string
-      infra_subnet_prefix:
-        description: Container Apps infrastructure subnet CIDR
-        required: true
-        default: 10.40.2.0/24
-        type: string
-      pe_subnet_name:
-        description: Private endpoint subnet name
-        required: true
-        default: snet-sql-private-endpoint
-        type: string
-      pe_subnet_prefix:
-        description: Private endpoint subnet CIDR
-        required: true
-        default: 10.40.1.0/24
-        type: string
-      sql_server_name:
-        description: Azure SQL server name
-        required: true
-        default: azsql-ato-copilot-04152047-902
-        type: string
-      private_dns_zone:
-        description: Private DNS zone name for Azure SQL
-        required: true
-        default: privatelink.database.windows.net
         type: string
       disable_sql_public_network:
         description: Disable SQL public network access at end of workflow
-        required: true
+        required: false
         default: false
         type: boolean
 
@@ -118,11 +86,11 @@ jobs:
           RG="${{ github.event.inputs.resource_group }}"
           LOCATION="${{ github.event.inputs.location }}"
           VNET="${{ github.event.inputs.vnet_name }}"
-          VNET_PREFIX="${{ github.event.inputs.vnet_address_prefix }}"
-          INFRA_SUBNET="${{ github.event.inputs.infra_subnet_name }}"
-          INFRA_PREFIX="${{ github.event.inputs.infra_subnet_prefix }}"
-          PE_SUBNET="${{ github.event.inputs.pe_subnet_name }}"
-          PE_PREFIX="${{ github.event.inputs.pe_subnet_prefix }}"
+          VNET_PREFIX="10.40.0.0/16"
+          INFRA_SUBNET="snet-containerapps-infra"
+          INFRA_PREFIX="10.40.2.0/24"
+          PE_SUBNET="snet-sql-private-endpoint"
+          PE_PREFIX="10.40.1.0/24"
 
           VNET_ID=$(az network vnet show -g "$RG" -n "$VNET" --query id -o tsv 2>/dev/null || true)
           if [ -z "$VNET_ID" ]; then
@@ -156,10 +124,10 @@ jobs:
         run: |
           set -euo pipefail
           RG="${{ github.event.inputs.resource_group }}"
-          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          SQL_SERVER="azsql-ato-copilot-04152047-902"
           VNET="${{ github.event.inputs.vnet_name }}"
-          PE_SUBNET="${{ github.event.inputs.pe_subnet_name }}"
-          DNS_ZONE="${{ github.event.inputs.private_dns_zone }}"
+          PE_SUBNET="snet-sql-private-endpoint"
+          DNS_ZONE="privatelink.database.windows.net"
 
           az network private-dns zone create -g "$RG" -n "$DNS_ZONE" >/dev/null
 
@@ -204,7 +172,7 @@ jobs:
           LOCATION="${{ github.event.inputs.location }}"
           ENV_NAME="${{ github.event.inputs.target_env_name }}"
           VNET="${{ github.event.inputs.vnet_name }}"
-          INFRA_SUBNET="${{ github.event.inputs.infra_subnet_name }}"
+          INFRA_SUBNET="snet-containerapps-infra"
 
           LAW_NAME="law-${ENV_NAME}"
           az monitor log-analytics workspace show -g "$RG" --workspace-name "$LAW_NAME" >/dev/null 2>&1 || \
@@ -354,7 +322,7 @@ jobs:
         run: |
           set -euo pipefail
           RG="${{ github.event.inputs.resource_group }}"
-          SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+          SQL_SERVER="azsql-ato-copilot-04152047-902"
           MCP_APP="${{ github.event.inputs.target_mcp_app }}"
 
           az sql server update -g "$RG" -n "$SQL_SERVER" --set publicNetworkAccess=Disabled >/dev/null
