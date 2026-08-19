@@ -261,7 +261,7 @@ jobs:
             # ATO_AZUREAI_ENDPOINT: repo var (required). Must be set — empty value prevents
             # AI client registration and causes revision activation failure.
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENDPOINT=${{ vars.ATO_AZUREAI_ENDPOINT }}"
-            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-5.4-mini' }}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-4o-mini' }}"
             # ATO_DATABASE__MANAGEDIDENTITYCLIENTID: user-assigned MI client ID for SQL Server auth.
             # Without this, SqlClient falls back to the system-assigned identity on ACA hosts that
             # have both identity types — causing Error 18456 (Login failed). Set via repo variable.
