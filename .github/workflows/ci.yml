@@ -14,6 +14,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      infra: ${{ steps.filter.outputs.infra }}
+      m365: ${{ steps.filter.outputs.m365 }}
+      oscal: ${{ steps.filter.outputs.oscal }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'infra/**'
+            m365:
+              - 'extensions/m365/**'
+            oscal:
+              - 'src/**/Oscal**'
+              - 'src/**/oscal**'
+
   dotnet-build-test:
     name: Build + Unit Tests
     runs-on: ubuntu-latest
@@ -99,11 +119,11 @@ jobs:
   terraform-lint:
     name: Terraform Lint
     runs-on: ubuntu-latest
+    needs: [detect-changes]
     if: >
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       contains(toJson(github.event.pull_request.changed_files), 'infra/'))
+      needs.detect-changes.outputs.infra == 'true'
 
     steps:
       - name: Checkout
@@ -133,11 +153,11 @@ jobs:
   m365-test:
     name: M365 Teams Extension
     runs-on: ubuntu-latest
+    needs: [detect-changes]
     if: >
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       contains(toJson(github.event.pull_request.changed_files), 'extensions/m365/'))
+      needs.detect-changes.outputs.m365 == 'true'
 
     steps:
       - name: Checkout
@@ -227,15 +247,11 @@ jobs:
   oscal-cli-metaschema-validation:
     name: OSCAL Metaschema Validation (oscal-cli)
     runs-on: ubuntu-latest
-    needs: [oscal-schema-validation]
+    needs: [oscal-schema-validation, detect-changes]
     if: >
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       (contains(toJson(github.event.pull_request.changed_files), 'OscalSsp') ||
-        contains(toJson(github.event.pull_request.changed_files), 'OscalPoam') ||
-        contains(toJson(github.event.pull_request.changed_files), 'OscalSar') ||
-        contains(toJson(github.event.pull_request.changed_files), 'OscalAssessment')))
+      needs.detect-changes.outputs.oscal == 'true'
 
     steps:
       - name: Checkout
