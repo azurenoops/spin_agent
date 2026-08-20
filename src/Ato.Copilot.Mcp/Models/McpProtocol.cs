@@ -117,6 +117,13 @@ public class McpChatResponse
     public Dictionary<string, object>? Data { get; set; }
 
     public Dictionary<string, object> Metadata { get; set; } = new();
+
+    /// <summary>
+    /// Count of unresolvable outcomes in this response: tool calls to unknown tools
+    /// plus any rounds where the agent produced no text (#628 empty-results counter).
+    /// Non-zero here means the LLM requested capabilities that are not registered.
+    /// </summary>
+    public int EmptyResultsCount { get; set; }
 }
 
 /// <summary>
