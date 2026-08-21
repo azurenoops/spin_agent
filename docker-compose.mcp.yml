@@ -167,7 +167,10 @@ services:
     ports:
       - "${CHAT_PORT:-5001}:5001"
     environment:
-      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      # fix(#657): default to Development to match ato-copilot service; prevents auth
+      # mismatch (chat=Production real auth vs MCP=Development CAC simulation) for local dev.
+      # Override to Production via ASPNETCORE_ENVIRONMENT env var in staging/prod deployments.
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
 
       # ── Chat Database (SQL Server — separate DB) ──────────
       - ATO_CONNECTIONSTRINGS__CHATDB=Server=sqlserver,1433;Database=AtoCopilotChat;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True
