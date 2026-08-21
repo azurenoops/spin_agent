@@ -4,15 +4,16 @@
 // Verifies that rendering TraceabilityPanel across 200 simulated message IDs
 // does not leak heap memory beyond HEAP_CEILING_DELTA_MB (50 MB).
 //
-// Skip rule: if the V8 GC is not exposed (NODE_OPTIONS=--expose-gc not set, or
-// the Node runtime ignores the flag — e.g. the GitHub Actions Node 24 runner
-// as of August 2026), the test is explicitly skipped via it.skip so the skip
-// is visible in CI output rather than silently passing.
+// CI requirement: NODE_OPTIONS=--expose-gc must be set and honoured by the
+// Node runtime. The CI job (chat-client-tests in ci.yml) pins Node 22 LTS,
+// which reliably exposes global.gc() via that flag (issue #803 fix).
 //
-// Follow-up: restore real coverage once --expose-gc is reliably available on
-// the CI runner. Tracked in issue #804.
+// Skip rule: if global.gc() is unavailable (e.g. local dev without the flag),
+// the test is explicitly skipped via it.skip so the skip is visible rather
+// than silently passing. In CI this should never trigger — the gate will fail
+// the assert step if the delta line is absent.
 //
-// Measurement approach (when GC is available):
+// Measurement approach:
 //   1. Force GC before the test loop.
 //   2. Record baseline heap (process.memoryUsage().heapUsed).
 //   3. Mount + unmount TraceabilityPanel 200 times across unique messageIds.
@@ -58,17 +59,17 @@ function heapUsedBytes(): number {
 
 // ─── Conditional test runner ──────────────────────────────────────────────────
 //
-// Use it.skip when GC is unavailable so the skip is honest and visible in CI.
-// The Node 24 GitHub Actions runner ignores --expose-gc as of August 2026;
-// restore to a plain `it` once issue #804 is resolved and CI enforces GC.
+// Use it.skip when GC is unavailable (local dev without --expose-gc) so the
+// skip is honest and visible. In CI (Node 22 LTS, NODE_OPTIONS=--expose-gc)
+// gcAvailable() returns true and gcTest === it, so the gate is enforced.
 //
 const gcTest = gcAvailable() ? it : it.skip;
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('#2820 heap-ceiling — TraceabilityPanel 200-render stress', () => {
-  // SKIPPED on Node 24 CI runner — global.gc() unavailable even with --expose-gc.
-  // Tracked: https://github.com/azurenoops/spin_agent/issues/804
+  // Skips automatically in local dev when --expose-gc is not set.
+  // In CI (Node 22 LTS + NODE_OPTIONS=--expose-gc) this runs as a hard gate.
   gcTest(
     `heap delta after ${RENDER_CYCLES} mount/unmount cycles must be ≤ ${HEAP_CEILING_DELTA_MB} MB`,
     () => {
@@ -128,12 +129,12 @@ describe('#2820 heap-ceiling — TraceabilityPanel 200-render stress', () => {
 // zero orphaned anchors (start >= end) and do not leak significant heap.
 // This enforces the CI drift gate requirement from work item 9e3ff674970d4e4a.
 //
-// SKIPPED on Node 24 CI runner — global.gc() unavailable even with --expose-gc.
-// Tracked: https://github.com/azurenoops/spin_agent/issues/804
+// Skips automatically in local dev when --expose-gc is not set.
+// In CI (Node 22 LTS + NODE_OPTIONS=--expose-gc) this runs as a hard gate.
 
 describe('#2683/9e3ff67 anchor-drift stress — 200 remap cycles, 0 orphans', () => {
-  // SKIPPED on Node 24 CI runner — global.gc() unavailable even with --expose-gc.
-  // Tracked: https://github.com/azurenoops/spin_agent/issues/804
+  // Skips automatically in local dev when --expose-gc is not set.
+  // In CI (Node 22 LTS + NODE_OPTIONS=--expose-gc) this runs as a hard gate.
   gcTest(
     'leaves 0 orphaned anchors and heap delta ≤ 20 MB after 200 insert/delete cycles',
     () => {
