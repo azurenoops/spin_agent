@@ -1746,11 +1746,27 @@ public class ComplianceAgent : BaseAgent
 
         if (ContainsAny(lowerMessage, "get system", "system details", "show system", "system info"))
         {
+            // fix(#593): guard against null system_id — a read must never create a phantom system.
+            // If resolution failed and no disambiguation was returned above (i.e. 0 active systems),
+            // return SYSTEM_REQUIRED rather than forwarding null to the tool.
+            var systemId = GetContextValue(context, "system_id");
+            if (string.IsNullOrEmpty(systemId))
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    error = "SYSTEM_REQUIRED",
+                    message = "No system is specified and none could be identified from context. " +
+                              "Please provide a system name or ID, e.g. *\"show system Eagle Eye\"* " +
+                              "or *\"get system 3fa85f64-5717-4562-b3fc-2c963f66afa6\"*."
+                });
+            }
+
             var tool = FindToolByName("compliance_get_system");
             if (tool != null)
                 return await tool.ExecuteAsync(new Dictionary<string, object?>
                 {
-                    ["system_id"] = GetContextValue(context, "system_id")
+                    ["system_id"] = systemId
                 }, cancellationToken);
         }
 
