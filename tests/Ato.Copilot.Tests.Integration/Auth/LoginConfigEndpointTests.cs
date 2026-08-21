@@ -21,7 +21,6 @@ namespace Ato.Copilot.Tests.Integration.Auth;
 /// </remarks>
 [Collection("Tenancy")]
 public class LoginConfigEndpointTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private readonly HttpClient _client;
 

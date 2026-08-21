@@ -20,7 +20,8 @@ namespace Ato.Copilot.Tests.Integration.Auth;
 /// Uses <see cref="LoginAuthTestFactory"/> which adds a test-only
 /// claim-injection startup filter (controlled by <c>X-Test-*</c> headers).
 /// </summary>
-public class MeEndpointTests : IClassFixture<LoginAuthTestFactory>
+[Collection("Auth")]
+public class MeEndpointTests
 {
     private readonly LoginAuthTestFactory _factory;
 

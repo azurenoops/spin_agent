@@ -93,6 +93,15 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
                 $"Data Source={_sqliteFile};Mode=ReadWriteCreate");
         }
 
+        // Force HTTP mode so DetermineRunMode() returns "http" and the factory
+        // boots via WebApplication (no `using var host` disposal race).
+        // In the test runner Console.IsInputRedirected is true, which would
+        // otherwise cause DetermineRunMode to pick "stdio" and boot via
+        // `using var host = builder.Build()` — that `using` disposes the host
+        // the instant HostAbortedException unwinds the try-block, making every
+        // service provider access throw ObjectDisposedException.
+        Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
+
         Environment.SetEnvironmentVariable("ATO_Deployment__Mode", "MultiTenant");
         Environment.SetEnvironmentVariable("ATO_Deployment__Tenants__AllowSelfOnboarding", "false");
         Environment.SetEnvironmentVariable("ATO_Auth__Impersonation__SigningKey",

@@ -20,7 +20,8 @@ namespace Ato.Copilot.Tests.Integration.Auth;
 /// <c>contracts/http-api.md § 4</c>. Uses <see cref="LoginAuthTestFactory"/>
 /// for synthetic auth claims (X-Test-* headers).
 /// </summary>
-public class SelectTenantEndpointTests : IClassFixture<LoginAuthTestFactory>
+[Collection("Auth")]
+public class SelectTenantEndpointTests
 {
     private readonly LoginAuthTestFactory _factory;
     private static readonly Guid EntraTidForTenantA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");

@@ -41,7 +41,8 @@ namespace Ato.Copilot.Tests.Integration.Auth;
 ///   <c>IdleSignOut</c> row so the audit trail reads in causal order.</item>
 /// </list></para>
 /// </remarks>
-public class ImpersonationAuditTests : IClassFixture<LoginAuthTestFactory>
+[Collection("Auth")]
+public class ImpersonationAuditTests
 {
     private readonly LoginAuthTestFactory _factory;
 

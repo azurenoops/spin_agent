@@ -40,7 +40,8 @@ namespace Ato.Copilot.Tests.Integration.Auth;
 /// the class fixture can be shared without cross-test contamination.
 /// </para>
 /// </remarks>
-public class LoginAuditEventsEndpointTests : IClassFixture<LoginAuthTestFactory>
+[Collection("Auth")]
+public class LoginAuditEventsEndpointTests
 {
     private readonly LoginAuthTestFactory _factory;
 
