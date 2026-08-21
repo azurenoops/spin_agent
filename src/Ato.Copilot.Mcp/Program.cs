@@ -1325,9 +1325,22 @@ void ValidateCacSimulationConfig(IConfiguration configuration, string environmen
     }
     else
     {
-        Log.Warning(
-            "CacAuth:SimulationMode is enabled but environment is {Environment}. Simulation mode will be ignored.",
+        // fix(#749): SimulationMode=true in a non-dev environment bypasses CAC authentication
+        // entirely, leaving every API endpoint open without real identity verification.
+        // Refuse to start — this is the same hard-stop pattern used by BUG-21 for
+        // ALLOW_DEV_AUTH_BYPASS. A warning-only guard was insufficient.
+        Log.Fatal(
+            "[WM-IMP-6] CRITICAL SECURITY MISCONFIGURATION: CacAuth:SimulationMode=true is active " +
+            "but ASPNETCORE_ENVIRONMENT is '{Environment}' (not Development). " +
+            "CAC authentication is completely bypassed — all endpoints are unauthenticated. " +
+            "Remove or override CacAuth__SimulationMode in your deployment manifest and redeploy.",
             environmentName);
+
+        throw new InvalidOperationException(
+            $"CacAuth:SimulationMode=true is set in a non-Development environment " +
+            $"(ASPNETCORE_ENVIRONMENT='{environmentName}'). " +
+            "This bypasses CAC authentication and exposes all API endpoints without identity verification. " +
+            "Disable simulation mode in staging and production deployments.");
     }
 }
 
