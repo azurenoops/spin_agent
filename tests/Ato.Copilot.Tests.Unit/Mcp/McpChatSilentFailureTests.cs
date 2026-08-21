@@ -115,6 +115,79 @@ public class McpChatSilentFailureTests
         result.Response.Should().Be("AC-2 is Account Management.");
     }
 
+    // ─── Issue #628 — NO_TOOL_MATCHED split and EmptyResultsCount ─────────────
+
+    /// <summary>
+    /// When all tool calls the LLM requested were to unknown tools, ProcessChatRequestAsync
+    /// must return Success=false with error code NO_TOOL_MATCHED and a non-zero EmptyResultsCount.
+    /// This splits the "unresolvable tool" case from EMPTY_AGENT_RESPONSE (#791 contract).
+    /// </summary>
+    [Fact]
+    public async Task ProcessChatRequestAsync_WhenAllToolCallsUnmatched_ReturnsNoToolMatchedError()
+    {
+        // Arrange — all tools failed with "Unknown tool" (the sentinel value BaseAgent writes)
+        _complianceAgent
+            .Setup(a => a.ProcessAsync(
+                It.IsAny<string>(), It.IsAny<AgentConversationContext>(),
+                It.IsAny<CancellationToken>(), It.IsAny<IProgress<string>>()))
+            .ReturnsAsync(new AgentResponse
+            {
+                Success = true,
+                Response = "I tried to help but couldn't find the right tool.",
+                AgentName = "compliance-agent",
+                SkippedToolCallCount = 2,
+                ToolsExecuted = new List<ToolExecutionResult>
+                {
+                    new() { ToolName = "ghost_tool_1", Success = false, Result = "Unknown tool", ExecutionTimeMs = 0 },
+                    new() { ToolName = "ghost_tool_2", Success = false, Result = "Unknown tool", ExecutionTimeMs = 0 }
+                }
+            });
+
+        // Act
+        var result = await CreateServer().ProcessChatRequestAsync("Use ghost tools");
+
+        // Assert — #628: all-unknown-tool path must fail loud
+        result.Success.Should().BeFalse("all-unknown-tool responses must not silently succeed (#628)");
+        result.EmptyResultsCount.Should().Be(2, "skipped tool count must propagate to EmptyResultsCount (#628)");
+        result.Errors.Should().ContainSingle(e => e.ErrorCode == "NO_TOOL_MATCHED",
+            "error code must be NO_TOOL_MATCHED, not EMPTY_AGENT_RESPONSE (#628)");
+    }
+
+    /// <summary>
+    /// When the LLM resolved at least one tool successfully, a partial skip must NOT fail loud.
+    /// EmptyResultsCount should reflect skipped tools but Success stays true.
+    /// </summary>
+    [Fact]
+    public async Task ProcessChatRequestAsync_WhenPartialToolMatch_SucceedWithSkippedCount()
+    {
+        // Arrange — one successful tool, one skipped (partial match)
+        _complianceAgent
+            .Setup(a => a.ProcessAsync(
+                It.IsAny<string>(), It.IsAny<AgentConversationContext>(),
+                It.IsAny<CancellationToken>(), It.IsAny<IProgress<string>>()))
+            .ReturnsAsync(new AgentResponse
+            {
+                Success = true,
+                Response = "Partial answer based on available tools.",
+                AgentName = "compliance-agent",
+                SkippedToolCallCount = 1,
+                ToolsExecuted = new List<ToolExecutionResult>
+                {
+                    new() { ToolName = "get_control", Success = true, Result = "AC-2 details", ExecutionTimeMs = 50 },
+                    new() { ToolName = "ghost_tool",  Success = false, Result = "Unknown tool", ExecutionTimeMs = 0 }
+                }
+            });
+
+        // Act
+        var result = await CreateServer().ProcessChatRequestAsync("What is AC-2 via ghost?");
+
+        // Assert — partial match: success stays true, but EmptyResultsCount is non-zero (#628)
+        result.Success.Should().BeTrue("partial tool match must not fail loud — a valid tool succeeded (#628)");
+        result.EmptyResultsCount.Should().Be(1, "one skipped tool must still be reflected in EmptyResultsCount (#628)");
+        result.Errors.Should().NotContain(e => e.ErrorCode == "NO_TOOL_MATCHED",
+            "NO_TOOL_MATCHED must not fire when at least one tool succeeded (#628)");
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private McpServer CreateServer(

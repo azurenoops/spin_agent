@@ -595,6 +595,8 @@ public abstract class BaseAgent
             var toolsExecuted = new List<ToolExecutionResult>();
             var modelCallRecords = new List<ModelCallRecord>();
             var maxRounds = _azureAiOptions.MaxToolIterations;
+            // #628 — tally tool calls the LLM requested but no registered tool matched.
+            var skippedToolCallCount = 0;
 
             // Pre-compute system-prompt hash once (same system message every round).
             var systemPromptHash = chatMessages
@@ -685,7 +687,8 @@ public abstract class BaseAgent
                         AgentName = AgentName,
                         ToolsExecuted = toolsExecuted,
                         ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
-                        ModelCallRecords = modelCallRecords
+                        ModelCallRecords = modelCallRecords,
+                        SkippedToolCallCount = skippedToolCallCount
                     };
                 }
 
@@ -719,6 +722,7 @@ public abstract class BaseAgent
                             Result = "Unknown tool",
                             ExecutionTimeMs = 0
                         });
+                        skippedToolCallCount++; // #628 — track unresolvable LLM tool requests
                         continue;
                     }
 
@@ -1212,6 +1216,12 @@ public class AgentResponse
     /// The Chat layer persists these via <c>IModelCallLedger</c> after receiving the response.
     /// </summary>
     public List<ModelCallRecord> ModelCallRecords { get; set; } = new();
+
+    /// <summary>
+    /// Number of tool calls the LLM requested that had no matching registered tool (#628).
+    /// A non-zero value surfaces in <c>McpChatResponse.EmptyResultsCount</c> for caller observability.
+    /// </summary>
+    public int SkippedToolCallCount { get; set; }
 }
 
 /// <summary>

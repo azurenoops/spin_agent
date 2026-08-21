@@ -436,6 +436,7 @@ public class McpHttpBridge
             "TENANT_UNRESOLVED"     => 400,
             "EMPTY_AGENT_RESPONSE"  => 422,
             "PROCESSING_ERROR"      => 422,
+            "NO_TOOL_MATCHED"       => 422,
             "OFFLINE_UNAVAILABLE"   => 503,
             _                       => 500
         };
