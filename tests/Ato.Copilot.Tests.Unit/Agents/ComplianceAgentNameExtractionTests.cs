@@ -1,7 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // fix(#617) — ComplianceAgent name extraction regression tests
-// Verifies that ExtractSystemNameFromRegistrationMessage handles the real-world
-// patterns reported in #617 (comma-delimited "name X, type Y" inputs).
+// fix(#568) — GUID token scanning helper tests
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Reflection;
@@ -23,32 +22,58 @@ public class ComplianceAgentNameExtractionTests
         return (string?)method!.Invoke(null, new object[] { message });
     }
 
+    // Helper mirrors the GUID-token-scan logic from fix(#568) so we can unit-test the
+    // candidate extraction independently of the DB.  The actual method requires a live
+    // DbContextFactory, so we only test the pure tokenizing step here.
+    private static IEnumerable<string> ExtractGuidCandidates(string message)
+    {
+        foreach (var token in message.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = token.Trim('.', ',', ';', ':', '"', '\'', '(', ')');
+            if (Guid.TryParse(candidate, out _))
+                yield return candidate;
+        }
+    }
+
+    // ── fix(#617): name extraction ───────────────────────────────────────────
+
     [Theory]
-    // Quoted values (handled by ExtractQuotedValue, but double-check Extract doesn't break)
     [InlineData("Register a new system with name Zephyr Test Platform, type MajorApplication", "Zephyr Test Platform")]
     [InlineData("register a new system named Eagle Eye, type Enclave", "Eagle Eye")]
     [InlineData("register a system called ACME Portal type MajorApplication", "ACME Portal")]
-    // "with name X" pattern (fix #617)
     [InlineData("Register a new system with name My Cool System, type Enclave, acronym MCS", "My Cool System")]
-    // Trailing end-of-string (no type suffix)
     [InlineData("register a new system named SkyNet", "SkyNet")]
-    // Single word names
     [InlineData("register system named Prometheus type MajorApplication", "Prometheus")]
-    // Multi-word before semicolon
     [InlineData("register a system named Alpha Bravo; type MajorApplication", "Alpha Bravo")]
     public void Extract_ShouldCaptureName_ForRegistrationMessages(string message, string expected)
     {
-        var result = Extract(message);
-        result.Should().Be(expected);
+        Extract(message).Should().Be(expected);
     }
 
     [Theory]
-    // Messages that should NOT match (no "named/name/called" keyword)
     [InlineData("list systems")]
     [InlineData("get system details for Foo")]
     public void Extract_ShouldReturnNull_WhenNoNameKeywordPresent(string message)
     {
-        var result = Extract(message);
-        result.Should().BeNull();
+        Extract(message).Should().BeNull();
+    }
+
+    // ── fix(#568): GUID token scanning ──────────────────────────────────────
+
+    [Theory]
+    [InlineData("get status for 3fa85f64-5717-4562-b3fc-2c963f66afa6", "3fa85f64-5717-4562-b3fc-2c963f66afa6")]
+    [InlineData("show system (3fa85f64-5717-4562-b3fc-2c963f66afa6)", "3fa85f64-5717-4562-b3fc-2c963f66afa6")]
+    [InlineData("system id: 3fa85f64-5717-4562-b3fc-2c963f66afa6.", "3fa85f64-5717-4562-b3fc-2c963f66afa6")]
+    public void GuidTokenScan_ShouldExtractGuid_FromVariousDelimiters(string message, string expectedGuid)
+    {
+        var candidates = ExtractGuidCandidates(message).ToList();
+        candidates.Should().Contain(expectedGuid);
+    }
+
+    [Fact]
+    public void GuidTokenScan_ShouldReturnEmpty_WhenNoGuidPresent()
+    {
+        var candidates = ExtractGuidCandidates("get status for Eagle Eye system").ToList();
+        candidates.Should().BeEmpty();
     }
 }

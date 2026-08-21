@@ -2590,20 +2590,49 @@ public class ComplianceAgent : BaseAgent
     /// active systems — auto-selects if exactly one exists.
     /// Returns the GUID string if found, null otherwise.
     /// </summary>
-    private async Task<string?> ResolveSystemIdFromMessageAsync(string message, CancellationToken ct)
-    {
-        // 1. Try quoted value first: 'My System' or "My System"
-        var name = ExtractQuotedValue(message);
+     private async Task<string?> ResolveSystemIdFromMessageAsync(string message, CancellationToken ct)
+     {
+         // 0. fix(#568): scan message tokens for a bare GUID — user may paste the system ID
+         //    directly into the chat (e.g. "get status for 3fa85f64-5717-4562-b3fc-2c963f66afa6").
+         //    Resolve before any name-lookup or disambiguation so we never prompt "which system?"
+         //    when the answer is already unambiguous.
+         foreach (var token in message.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+         {
+             var candidate = token.Trim('.', ',', ';', ':', '"', '\'', '(', ')');
+             if (Guid.TryParse(candidate, out var parsedGuid))
+             {
+                 var guidStr = parsedGuid.ToString();
+                 try
+                 {
+                     await using var dbGuid = await _dbFactory.CreateDbContextAsync(ct);
+                     var exists = await dbGuid.RegisteredSystems
+                         .AsNoTracking()
+                         .AnyAsync(s => s.Id == guidStr && s.IsActive, ct);
+                     if (exists)
+                     {
+                         Logger.LogInformation("fix(#568): resolved GUID token '{Guid}' directly from message", guidStr);
+                         return guidStr;
+                     }
+                 }
+                 catch (Exception ex)
+                 {
+                     Logger.LogWarning(ex, "fix(#568): error verifying GUID token '{Guid}'", guidStr);
+                 }
+             }
+         }
 
-        // 2. Try "for <SystemName>" pattern (case-insensitive)
-        if (string.IsNullOrEmpty(name))
-        {
-            name = ExtractSystemNameFromForClauses(message);
-        }
+         // 1. Try quoted value first: 'My System' or "My System"
+         var name = ExtractQuotedValue(message);
 
-        try
-        {
-            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+         // 2. Try "for <SystemName>" pattern (case-insensitive)
+         if (string.IsNullOrEmpty(name))
+         {
+             name = ExtractSystemNameFromForClauses(message);
+         }
+
+         try
+         {
+             await using var db = await _dbFactory.CreateDbContextAsync(ct);
 
             // If we extracted a name, look it up directly
             if (!string.IsNullOrEmpty(name))
