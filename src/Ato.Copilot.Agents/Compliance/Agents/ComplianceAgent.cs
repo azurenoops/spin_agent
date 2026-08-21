@@ -2742,10 +2742,14 @@ public class ComplianceAgent : BaseAgent
     /// fix(#572)</summary>
     private static string? ExtractSystemNameFromRegistrationMessage(string message)
     {
-        // Patterns: "named <token>", "name <token>", "called <token>"
-        // Stop at: " with ", " and ", " type ", " acronym ", end of string, punctuation
+        // Patterns: "named X", "name X", "called X", "with name X"
+        // fix(#617): stop at functional parameter keywords only (type, acronym, for, using,
+        // hosted, with, and).  The previous version also stopped at noun words like "platform",
+        // "mission", "major", "enclave" which appear legitimately in system names (e.g.
+        // "Zephyr Test Platform" would truncate to "Zephyr Test" because "Platform" hit the stop).
+        // Also support an optional comma/semicolon before the stop keyword (e.g. ", type").
         var match = Regex.Match(message,
-            @"(?:named|name|called)\s+([A-Za-z0-9_\-\.]+(?:\s+[A-Za-z0-9_\-\.]+){0,4}?)(?=\s+(?:with|and|type|acronym|for|using|hosted|major|enclave|platform|mission)|$)",
+            @"(?:with\s+)?(?:named|name|called)\s+([A-Za-z0-9_\-\.]+(?:\s+[A-Za-z0-9_\-\.]+){0,7}?)(?=[,;]?\s*(?:with\b|and\b|type\b|acronym\b|for\b|using\b|hosted\b)|$)",
             RegexOptions.IgnoreCase);
         if (match.Success)
             return match.Groups[1].Value.Trim();
