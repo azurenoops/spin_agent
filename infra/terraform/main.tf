@@ -14,31 +14,31 @@
 # =============================================================================
 
 terraform {
-  required_version = ">= 1.3"
+  required_version = ">= 1.3, < 2.0"
 
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.36"
+      version = "= 3.116.0" # fix #763: exact pin — bump deliberately via PR
     }
     azurenoopsutils = {
       source  = "azurenoops/azurenoopsutils"
-      version = "~> 1.0"
+      version = "= 1.0.4" # fix #763: exact pin
     }
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.5"
+      version = "= 3.6.3" # fix #763: exact pin
     }
   }
 
-  # Remote state backend — configure before first apply.
-  # See docs/deployment.md § Terraform Deployment for setup instructions.
-  # backend "azurerm" {
-  #   resource_group_name  = "<state-rg>"
-  #   storage_account_name = "<state-sa>"
-  #   container_name       = "tfstate"
-  #   key                  = "ato-copilot.tfstate"
-  # }
+  # fix #668: remote state backend — fill values from backend.hcl (see example).
+  # Run: terraform init -backend-config=environments/backend.hcl
+  backend "azurerm" {
+    resource_group_name  = "" # populated from backend.hcl
+    storage_account_name = "" # populated from backend.hcl
+    container_name       = "tfstate"
+    key                  = "ato-copilot.tfstate"
+  }
 }
 
 provider "azurerm" {

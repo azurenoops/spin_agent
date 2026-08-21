@@ -67,3 +67,8 @@ site/
 src/Ato.Copilot.Dashboard/test-results/
 src/Ato.Copilot.Agents/Common/BaseAgent.cs.bak
 src/Ato.Copilot.Agents/Compliance/Agents/ComplianceAgent.cs.bak
+
+# Terraform — local backend config (fix #668: never commit real values)
+infra/terraform/environments/backend.hcl
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl.local

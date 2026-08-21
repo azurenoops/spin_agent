@@ -9,9 +9,8 @@ on:
         default: rg-ato-copilot
         type: string
       sql_server_name:
-        description: Azure SQL server name
+        description: "Azure SQL server name (fix #654: no default — must supply explicitly)"
         required: true
-        default: azsql-ato-copilot-04152047-902
         type: string
       sql_database_name:
         description: Azure SQL database name
@@ -19,9 +18,9 @@ on:
         default: AtoCopilot
         type: string
       api_base_url:
-        description: Dashboard API base URL (including /api/dashboard)
+        description: "Dashboard API base URL including /api/dashboard (fix #654: use vars.ATO_API_BASE_URL or supply explicitly — no production URL hardcoded)"
         required: true
-        default: https://ca-ato-copilot-mcp-v2.blackwater-9393aa1a.centralus.azurecontainerapps.io/api/dashboard
+        default: ${{ vars.ATO_API_BASE_URL }}
         type: string
 
 permissions:
@@ -154,12 +153,32 @@ jobs:
           done
 
       # ── Cleanup ───────────────────────────────────────────────────────────────
-      - name: Cleanup — firewall + public access
+      - name: Cleanup — restore AAD admin + firewall + public access
         if: always()
         shell: bash
         run: |
           RG="${{ github.event.inputs.resource_group }}"
           SQL_SERVER="${{ github.event.inputs.sql_server_name }}"
+
+          # Fix #653: restore original AAD admin if we displaced it.
+          # steps.setup.outputs.sp_was_admin=false means we replaced an existing admin.
+          if [ "${{ steps.setup.outputs.sp_was_admin }}" = "false" ]; then
+            ORIGINAL_ADMIN="${{ steps.setup.outputs.existing_admin }}"
+            if [ -n "$ORIGINAL_ADMIN" ] && [ "$ORIGINAL_ADMIN" != "none" ]; then
+              ORIGINAL_OID=$(az ad user show --id "$ORIGINAL_ADMIN" --query id -o tsv 2>/dev/null \
+                || az ad group show --group "$ORIGINAL_ADMIN" --query id -o tsv 2>/dev/null \
+                || az ad sp list --display-name "$ORIGINAL_ADMIN" --query "[0].id" -o tsv 2>/dev/null \
+                || echo "")
+              if [ -n "$ORIGINAL_OID" ]; then
+                az sql server ad-admin create --resource-group "$RG" --server "$SQL_SERVER" \
+                  --display-name "$ORIGINAL_ADMIN" --object-id "$ORIGINAL_OID" --output none
+                echo "AAD admin restored to: ${ORIGINAL_ADMIN}"
+              else
+                echo "::warning::Could not resolve object ID for original admin '${ORIGINAL_ADMIN}'. Manual restore required."
+              fi
+            fi
+          fi
+
           az sql server firewall-rule delete --resource-group "$RG" --server "$SQL_SERVER" \
             --name "Allow-GHRunner-Wipe" --output none 2>/dev/null || true
           echo "Firewall rule removed."
