@@ -384,13 +384,14 @@ export default function ComponentInventory() {
                 {orgAssignError && (
                   <div className="bg-red-50 text-red-700 p-2 rounded text-sm mb-3">{orgAssignError}</div>
                 )}
-                {orgLoading ? (
+                {(() => {
+                  const filteredOrgComponents = orgComponents.filter((c) =>
+                    !orgSearch.trim() ||
+                    c.name.toLowerCase().includes(orgSearch.trim().toLowerCase()) ||
+                    (c.subType ?? '').toLowerCase().includes(orgSearch.trim().toLowerCase()),
+                  );
+                  return orgLoading ? (
                   <div className="text-center text-sm text-gray-500 py-8">Loading org components…</div>
-                ) : orgComponents.length === 0 && orgSearch.trim() ? (
-                  // (C) Unassigned components exist but search has no match
-                  <div className="py-8 text-center">
-                    <p className="text-sm text-gray-400">No components match your search.</p>
-                  </div>
                 ) : totalOrgComponents === 0 ? (
                   // (A) No org-level components exist at all → guide to Components library
                   <div className="py-8 text-center space-y-2">
@@ -408,14 +409,14 @@ export default function ComponentInventory() {
                   <div className="py-8 text-center">
                     <p className="text-sm text-gray-400">All org-level components are already assigned to this system.</p>
                   </div>
+                ) : filteredOrgComponents.length === 0 && orgSearch.trim() ? (
+                  // (C) Unassigned components exist but search has no match
+                  <div className="py-8 text-center">
+                    <p className="text-sm text-gray-400">No components match your search.</p>
+                  </div>
                 ) : (
                   <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                    {orgComponents
-                      .filter((c) =>
-                        !orgSearch.trim() ||
-                        c.name.toLowerCase().includes(orgSearch.trim().toLowerCase()) ||
-                        (c.subType ?? '').toLowerCase().includes(orgSearch.trim().toLowerCase()),
-                      )
+                    {filteredOrgComponents
                       .map((comp) => (
                         <div key={comp.id} className="flex items-center justify-between border rounded px-3 py-2 hover:bg-gray-50">
                           <div className="min-w-0">
@@ -444,7 +445,8 @@ export default function ComponentInventory() {
                         </div>
                       ))}
                   </div>
-                )}
+                );
+                })()}
                 <div className="flex justify-end pt-4">
                   <button type="button" onClick={handleCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
                     Cancel
