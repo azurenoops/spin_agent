@@ -26,7 +26,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy.Csp;
 /// </remarks>
 [Collection("Tenancy")]
 public class CspInheritedComponentReadAccessTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private const string ListUrl = "/api/csp/inherited-components";
 

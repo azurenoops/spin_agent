@@ -20,7 +20,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// </summary>
 [Collection("Tenancy")]
 public class AuditFieldsPopulatedTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private readonly MultiTenantWebApplicationFactory<McpProgram> _factory;
     private readonly HttpClient _client;

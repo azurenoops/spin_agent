@@ -31,7 +31,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy.Csp;
 /// </remarks>
 [Collection("Tenancy")]
 public class ListCapabilityHistoryEndpointTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private const string BaseUrl = "/api/csp/inherited-components";
 
