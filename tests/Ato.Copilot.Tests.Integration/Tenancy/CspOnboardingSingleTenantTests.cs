@@ -121,6 +121,14 @@ public class CspOnboardingSingleTenantTests
             // Anything fixture-specific (Deployment:Mode) MUST go through
             // ConfigureAppConfiguration to avoid cross-fixture contamination
             // since env vars are process-global.
+            //
+            // ATO_RUN_MODE=http: in the test runner Console.IsInputRedirected=true,
+            // which causes DetermineRunMode() to return "stdio". stdio mode boots
+            // via `using var host = builder.Build()`, which disposes the host the
+            // instant HostAbortedException unwinds the try-block. Every subsequent
+            // service-provider access then throws ObjectDisposedException. Force
+            // http mode so WebApplicationFactory<T> gets a live TestServer.
+            Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
             Environment.SetEnvironmentVariable("ATO_Database__Provider", "Sqlite");
             Environment.SetEnvironmentVariable("ATO_ConnectionStrings__DefaultConnection",
                 $"Data Source={_sqliteFile};Mode=ReadWriteCreate");

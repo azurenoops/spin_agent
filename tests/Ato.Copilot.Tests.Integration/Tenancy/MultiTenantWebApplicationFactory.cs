@@ -167,6 +167,14 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
             // tenancy seed runs as a hosted service in tests.
             RemoveHostedService<Ato.Copilot.Core.Services.BoundaryMigrationService>(services);
 
+            // Remove McpStdioService: it opens Console.OpenStandardInput() and
+            // blocks on ReadLineAsync() forever when run under the test runner
+            // (stdin is the runner's pipe, never closed). This is the root cause
+            // of the WebApplicationFactory hang: the hosted service starts during
+            // IHost.StartAsync() which is called by WebApplicationFactory before
+            // it can intercept app.RunAsync().
+            RemoveHostedService<Ato.Copilot.Mcp.Server.McpStdioService>(services);
+
             // Seed tenants A and B AFTER the host's database migration runs.
             // We use a hosted service rather than calling EnsureCreated() at
             // ConfigureServices-time because the host's startup hook runs
