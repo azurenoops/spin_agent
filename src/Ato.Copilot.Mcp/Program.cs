@@ -207,6 +207,8 @@ async Task RunHttpModeAsync(string[] args)
     ValidateCacSimulationConfig(builder.Configuration, builder.Environment.EnvironmentName);
     // Validate Foundry provider configuration (Task #177 / Epic #132)
     ValidateFoundryConfig(builder.Configuration);
+    // fix(#656): validate AzureAi endpoint is configured when AI is enabled
+    ValidateAzureAiEndpointConfig(builder.Configuration);
     builder.Services.AddHealthChecks()
         .AddCheck<AgentHealthCheck>("compliance-agent")
         .AddCheck<Ato.Copilot.Agents.Observability.NistControlsHealthCheck>("nist-controls");
@@ -1363,6 +1365,38 @@ void ValidateFoundryConfig(IConfiguration configuration)
             "Azure AI Foundry provider active. Project endpoint: {FoundryProjectEndpoint}",
             aiOptions.FoundryProjectEndpoint);
     }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Azure AI Endpoint Startup Validation  (fix #656)
+// ────────────────────────────────────────────────────────────────
+/// <summary>
+/// Fails fast when AzureAi:Enabled=true but AzureAi:Endpoint is empty.
+/// The base appsettings.json no longer ships a hardcoded endpoint, so any
+/// environment that enables AI must supply the endpoint via environment
+/// variable (ATO_AZUREAI__ENDPOINT) or a secrets override file.
+/// </summary>
+void ValidateAzureAiEndpointConfig(IConfiguration configuration)
+{
+    var aiOptions = configuration.GetSection(Ato.Copilot.Core.Configuration.AzureAiOptions.SectionName)
+                                 .Get<Ato.Copilot.Core.Configuration.AzureAiOptions>();
+
+    if (aiOptions is null || !aiOptions.Enabled) return;
+
+    // Foundry provider has its own endpoint validation in ValidateFoundryConfig
+    if (aiOptions.Provider == Ato.Copilot.Core.Configuration.AiProvider.Foundry) return;
+
+    if (string.IsNullOrWhiteSpace(aiOptions.Endpoint))
+    {
+        throw new InvalidOperationException(
+            "AzureAi:Enabled is true but AzureAi:Endpoint is empty. " +
+            "Set ATO_AZUREAI__ENDPOINT to your Azure OpenAI endpoint " +
+            "(e.g. https://<resource>.openai.azure.com/) via environment variable " +
+            "or appsettings.*.local.json (do not commit the endpoint to appsettings.json). " +
+            "Alternatively set ATO_AZUREAI__ENABLED=false to disable AI features.");
+    }
+
+    Log.Information("Azure AI endpoint configured: {Endpoint}", aiOptions.Endpoint);
 }
 
 // ────────────────────────────────────────────────────────────────
