@@ -139,7 +139,33 @@ jobs:
         run: npm install
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
+
+  # ---------------------------------------------------------------------------
+  # Grounding port CI guard — check-grounding-port.mjs (#a493ec1c)
+  #
+  # REQUIRED check — must pass before any PR can merge.
+  # Statically scans all TypeScript source for:
+  #   Rule A: content-insert calls made without routing through GroundingPort
+  #   Rule B: evidenceSpan [0,0] sentinel used outside migration.ts
+  #   Rule D: ClaimNode constructed without GroundingPort or backfillLegacyCitation
+  #
+  # This is the durable guard against grounding-regression recurrence (cf. #641).
+  # ---------------------------------------------------------------------------
+  grounding-port-check:
+    name: Grounding Port Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run grounding port static scan
+        run: node packages/ato-shared/scripts/check-grounding-port.mjs
 
   # ---------------------------------------------------------------------------
   # Research-workflow citation boundary lint (#2683)
