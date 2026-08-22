@@ -35,6 +35,8 @@ public static class TenantsEndpoints
         group.MapGet("", ListTenantsAsync).WithName("ListTenants");
         group.MapPost("", CreateTenantAsync).WithName("CreateTenant");
         group.MapGet("/{tenantId:guid}", GetTenantAsync).WithName("GetTenant");
+        group.MapPut("/{tenantId:guid}", UpdateTenantAsync).WithName("UpdateTenant");
+        group.MapDelete("/{tenantId:guid}", DeleteTenantAsync).WithName("DeleteTenant");
         group.MapPatch("/{tenantId:guid}/status", PatchTenantStatusAsync).WithName("PatchTenantStatus");
         group.MapPost("/{tenantId:guid}/impersonate", StartImpersonationAsync).WithName("StartImpersonation");
         group.MapDelete("/impersonation", EndImpersonationAsync).WithName("EndImpersonation");
@@ -132,6 +134,87 @@ public static class TenantsEndpoints
         var row = await service.GetByIdAsync(tenantId, ct);
         if (row is null) return NotFound(sw);
         return Success(sw, ProjectTenant(row));
+    }
+
+    /// <summary>
+    /// PUT /api/tenants/{tenantId} — update mutable profile fields.
+    /// Status changes use PATCH /status instead. CSP-Admin only.
+    /// </summary>
+    private static async Task<IResult> UpdateTenantAsync(
+        HttpContext http,
+        Guid tenantId,
+        ITenantContext tenant,
+        ITenantProvisioningService service,
+        [FromBody] UpdateTenantRequest body,
+        CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        if (!tenant.IsCspAdmin)
+        {
+            return ForbiddenNotCspAdmin(sw);
+        }
+        if (body is null || string.IsNullOrWhiteSpace(body.DisplayName))
+        {
+            return Error(sw, StatusCodes.Status400BadRequest, "INVALID_REQUEST",
+                "displayName is required.");
+        }
+
+        var actor = GetActor(http);
+        try
+        {
+            var updated = await service.UpdateAsync(tenantId, new UpdateTenantData(
+                DisplayName: body.DisplayName,
+                LegalEntityName: body.LegalEntityName,
+                DoDComponent: body.DoDComponent,
+                PrimaryPocName: body.PrimaryPocName,
+                PrimaryPocEmail: body.PrimaryPocEmail,
+                PrimaryPocPhone: body.PrimaryPocPhone,
+                HqAddressLine1: body.HqAddressLine1,
+                HqAddressLine2: body.HqAddressLine2,
+                HqCity: body.HqCity,
+                HqStateOrProvince: body.HqStateOrProvince,
+                HqPostalCode: body.HqPostalCode,
+                HqCountry: body.HqCountry,
+                DefaultClassificationLevel: body.DefaultClassificationLevel ?? ClassificationLevel.Unclassified,
+                AuthorizingOfficialName: body.AuthorizingOfficialName,
+                AuthorizingOfficialEmail: body.AuthorizingOfficialEmail,
+                TimeZone: string.IsNullOrWhiteSpace(body.TimeZone) ? "UTC" : body.TimeZone), actor, ct);
+            return Success(sw, ProjectTenant(updated));
+        }
+        catch (InvalidOperationException)
+        {
+            return NotFound(sw);
+        }
+    }
+
+    /// <summary>
+    /// DELETE /api/tenants/{tenantId} — permanently remove a tenant row.
+    /// CSP-Admins may not delete their own home tenant (self-protection guard).
+    /// Returns 204 on success, 404 when not found, 409 on self-delete attempt.
+    /// </summary>
+    private static async Task<IResult> DeleteTenantAsync(
+        HttpContext http,
+        Guid tenantId,
+        ITenantContext tenant,
+        ITenantProvisioningService service,
+        CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        if (!tenant.IsCspAdmin)
+        {
+            return ForbiddenNotCspAdmin(sw);
+        }
+        if (tenantId == tenant.TenantId)
+        {
+            return Error(sw, StatusCodes.Status409Conflict, "CANNOT_DELETE_OWN_TENANT",
+                "A CSP-Admin cannot delete their own home tenant.");
+        }
+
+        var actor = GetActor(http);
+        var deleted = await service.DeleteAsync(tenantId, actor, ct);
+        if (!deleted) return NotFound(sw);
+
+        return Results.NoContent();
     }
 
     /// <summary>
@@ -425,4 +508,23 @@ public static class TenantsEndpoints
 
     /// <summary>PATCH /api/tenants/{id}/status body shape.</summary>
     public sealed record PatchStatusRequest(string Status, string Reason);
+
+    /// <summary>PUT /api/tenants/{id} body shape.</summary>
+    public sealed record UpdateTenantRequest(
+        string DisplayName,
+        string? LegalEntityName = null,
+        string? DoDComponent = null,
+        string? PrimaryPocName = null,
+        string? PrimaryPocEmail = null,
+        string? PrimaryPocPhone = null,
+        string? HqAddressLine1 = null,
+        string? HqAddressLine2 = null,
+        string? HqCity = null,
+        string? HqStateOrProvince = null,
+        string? HqPostalCode = null,
+        string? HqCountry = null,
+        ClassificationLevel? DefaultClassificationLevel = null,
+        string? AuthorizingOfficialName = null,
+        string? AuthorizingOfficialEmail = null,
+        string? TimeZone = null);
 }

@@ -53,4 +53,52 @@ public interface ITenantProvisioningService
         string reason,
         string actor,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Update mutable profile fields on an existing tenant. Status and
+    /// onboarding-state are intentionally excluded (use
+    /// <see cref="UpdateStatusAsync"/> for lifecycle changes).
+    /// Throws <see cref="InvalidOperationException"/> when the tenant is not found.
+    /// </summary>
+    /// <param name="id">Surrogate key of the tenant row to update.</param>
+    /// <param name="data">New field values.</param>
+    /// <param name="actor">OID / username of the acting principal.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The updated tenant row.</returns>
+    Task<Tenant> UpdateAsync(
+        Guid id,
+        UpdateTenantData data,
+        string actor,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Permanently delete a tenant row. Callers must not pass their own
+    /// <paramref name="id"/> (self-delete guard). Returns <c>false</c> when
+    /// no row with the given id exists; returns <c>true</c> on success.
+    /// </summary>
+    Task<bool> DeleteAsync(
+        Guid id,
+        string actor,
+        CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Mutable profile fields accepted by <see cref="ITenantProvisioningService.UpdateAsync"/>.
+/// </summary>
+public sealed record UpdateTenantData(
+    string DisplayName,
+    string? LegalEntityName,
+    string? DoDComponent,
+    string? PrimaryPocName,
+    string? PrimaryPocEmail,
+    string? PrimaryPocPhone,
+    string? HqAddressLine1,
+    string? HqAddressLine2,
+    string? HqCity,
+    string? HqStateOrProvince,
+    string? HqPostalCode,
+    string? HqCountry,
+    ClassificationLevel DefaultClassificationLevel,
+    string? AuthorizingOfficialName,
+    string? AuthorizingOfficialEmail,
+    string TimeZone);

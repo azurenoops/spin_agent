@@ -158,4 +158,72 @@ public sealed class TenantProvisioningService : ITenantProvisioningService
 
         return tenant;
     }
+
+    /// <inheritdoc />
+    public async Task<Tenant> UpdateAsync(
+        Guid id,
+        UpdateTenantData data,
+        string actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(data.DisplayName))
+            throw new ArgumentException("displayName is required.", nameof(data));
+        if (data.DisplayName.Length > 200)
+            throw new ArgumentException("displayName cannot exceed 200 characters.", nameof(data));
+        if (string.IsNullOrWhiteSpace(actor))
+            throw new ArgumentException("actor is required.", nameof(actor));
+        if (string.IsNullOrWhiteSpace(data.TimeZone))
+            throw new ArgumentException("timeZone is required.", nameof(data));
+
+        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException($"Tenant {id} not found.");
+
+        tenant.DisplayName = data.DisplayName.Trim();
+        tenant.LegalEntityName = data.LegalEntityName;
+        tenant.DoDComponent = data.DoDComponent;
+        tenant.PrimaryPocName = data.PrimaryPocName;
+        tenant.PrimaryPocEmail = data.PrimaryPocEmail;
+        tenant.PrimaryPocPhone = data.PrimaryPocPhone;
+        tenant.HqAddressLine1 = data.HqAddressLine1;
+        tenant.HqAddressLine2 = data.HqAddressLine2;
+        tenant.HqCity = data.HqCity;
+        tenant.HqStateOrProvince = data.HqStateOrProvince;
+        tenant.HqPostalCode = data.HqPostalCode;
+        tenant.HqCountry = data.HqCountry;
+        tenant.DefaultClassificationLevel = data.DefaultClassificationLevel;
+        tenant.AuthorizingOfficialName = data.AuthorizingOfficialName;
+        tenant.AuthorizingOfficialEmail = data.AuthorizingOfficialEmail;
+        tenant.TimeZone = data.TimeZone.Trim();
+        tenant.UpdatedAt = DateTimeOffset.UtcNow;
+        tenant.UpdatedBy = actor;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Tenant {TenantId} profile updated by {Actor}", tenant.Id, actor);
+
+        return tenant;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> DeleteAsync(
+        Guid id,
+        string actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actor))
+            throw new ArgumentException("actor is required.", nameof(actor));
+
+        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        if (tenant is null) return false;
+
+        _db.Tenants.Remove(tenant);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Tenant {TenantId} (DisplayName={DisplayName}) permanently deleted by {Actor}",
+            tenant.Id, tenant.DisplayName, actor);
+
+        return true;
+    }
 }
