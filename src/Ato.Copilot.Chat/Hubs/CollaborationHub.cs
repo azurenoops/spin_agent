@@ -12,7 +12,9 @@
 // does not receive its own events back.
 // =============================================================================
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using System.Security.Claims;
 
 namespace Ato.Copilot.Chat.Hubs;
 
@@ -50,6 +52,7 @@ public sealed record PresencePayload(
 /// Clients join the "doc:{conversationId}" group on <see cref="JoinDocument"/>
 /// and leave on <see cref="LeaveDocument"/> or disconnect.
 /// </summary>
+[Authorize]
 public class CollaborationHub : Hub
 {
     private readonly ILogger<CollaborationHub> _logger;
@@ -72,12 +75,19 @@ public class CollaborationHub : Hub
 
     /// <summary>
     /// Join the collaboration group for a document.
+    /// userId is derived from the authenticated identity — not accepted from the client.
     /// Broadcasts a "UserJoined" presence event to all other members.
     /// </summary>
-    public async Task JoinDocument(string conversationId, string userId, string? displayName)
+    public async Task JoinDocument(string conversationId, string? displayName)
     {
-        if (string.IsNullOrWhiteSpace(conversationId) || string.IsNullOrWhiteSpace(userId))
-            throw new HubException("conversationId and userId are required");
+        if (string.IsNullOrWhiteSpace(conversationId))
+            throw new HubException("conversationId is required");
+
+        // DEF-001: userId derived from authenticated claims, not client-supplied parameter.
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? Context.User?.FindFirstValue("oid")
+                     ?? Context.User?.Identity?.Name
+                     ?? Context.ConnectionId;
 
         var group = GroupName(conversationId);
         await Groups.AddToGroupAsync(Context.ConnectionId, group);
@@ -94,11 +104,18 @@ public class CollaborationHub : Hub
 
     /// <summary>
     /// Leave the collaboration group for a document.
+    /// userId is derived from the authenticated identity — not accepted from the client.
     /// Broadcasts a "UserLeft" presence event.
     /// </summary>
-    public async Task LeaveDocument(string conversationId, string userId)
+    public async Task LeaveDocument(string conversationId)
     {
         if (string.IsNullOrWhiteSpace(conversationId)) return;
+
+        // DEF-001: userId derived from authenticated claims.
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? Context.User?.FindFirstValue("oid")
+                     ?? Context.User?.Identity?.Name
+                     ?? Context.ConnectionId;
 
         var group = GroupName(conversationId);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, group);

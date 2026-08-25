@@ -88,13 +88,13 @@ export async function createConversation(
   return response.data;
 }
 
+// DEF-001: userId removed — server derives from authenticated claims.
 export async function getConversations(
-  userId: string,
   skip: number = 0,
   take: number = 50
 ): Promise<Conversation[]> {
   const response = await apiClient.get<Conversation[]>('/conversations', {
-    params: { userId, skip, take },
+    params: { skip, take },
   });
   return response.data;
 }
@@ -104,12 +104,12 @@ export async function getConversation(conversationId: string): Promise<Conversat
   return response.data;
 }
 
+// DEF-001: userId removed — server derives from authenticated claims.
 export async function searchConversations(
-  query: string,
-  userId: string
+  query: string
 ): Promise<Conversation[]> {
   const response = await apiClient.get<Conversation[]>('/conversations/search', {
-    params: { query, userId },
+    params: { query },
   });
   return response.data;
 }

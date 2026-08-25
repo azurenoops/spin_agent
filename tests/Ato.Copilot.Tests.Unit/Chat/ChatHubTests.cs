@@ -139,12 +139,12 @@ public class ChatHubTests
         // Arrange
         var hub = CreateHub();
         var conversationId = "conv-123";
-        var userId = "user-1";
+        // DEF-001: userId is now derived from authenticated claims server-side, not passed by client.
 
         _clientsMock.Setup(c => c.OthersInGroup(conversationId)).Returns(_clientProxyMock.Object);
 
         // Act
-        await hub.NotifyTyping(conversationId, userId);
+        await hub.NotifyTyping(conversationId);
 
         // Assert
         _clientProxyMock.Verify(
@@ -263,8 +263,8 @@ public class ChatHubTests
         // Arrange
         var hub = CreateHub();
 
-        // Act
-        await hub.NotifyTyping("", "user-1");
+        // Act — DEF-001: userId param removed, only conversationId needed
+        await hub.NotifyTyping("");
 
         // Assert — should not call OthersInGroup
         _clientsMock.Verify(c => c.OthersInGroup(It.IsAny<string>()), Times.Never);

@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using Ato.Copilot.Chat.Models;
 using Ato.Copilot.Chat.Services;
 
@@ -7,6 +9,7 @@ namespace Ato.Copilot.Chat.Controllers;
 /// <summary>
 /// REST API controller for chat messages.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/messages")]
 public class MessagesController : ControllerBase
@@ -105,6 +108,7 @@ public class MessagesController : ControllerBase
 /// <summary>
 /// REST API controller for conversations.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/conversations")]
 public class ConversationsController : ControllerBase
@@ -120,14 +124,21 @@ public class ConversationsController : ControllerBase
 
     /// <summary>
     /// Gets conversations for a user with pagination.
-    /// GET /api/conversations?userId=default-user&amp;skip=0&amp;take=50
+    /// GET /api/conversations?skip=0&amp;take=50
+    /// userId is derived from the authenticated identity — not accepted from the client.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetConversations(
-        [FromQuery] string userId = "default-user",
         [FromQuery] int skip = 0,
         [FromQuery] int take = 50)
     {
+        // DEF-001: userId derived from authenticated claims, not client-supplied query string.
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirstValue("oid")
+                     ?? User.Identity?.Name;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
         var conversations = await _chatService.GetConversationsAsync(userId, skip, take);
         return Ok(conversations);
     }
@@ -187,12 +198,12 @@ public class ConversationsController : ControllerBase
 
     /// <summary>
     /// Searches conversations by title or message content.
-    /// GET /api/conversations/search?query=keyword&amp;userId=default-user
+    /// GET /api/conversations/search?query=keyword
+    /// userId is derived from the authenticated identity — not accepted from the client.
     /// </summary>
     [HttpGet("search")]
     public async Task<IActionResult> SearchConversations(
-        [FromQuery] string query,
-        [FromQuery] string userId = "default-user")
+        [FromQuery] string query)
     {
         if (string.IsNullOrWhiteSpace(query))
             return BadRequest(new ErrorResponse
@@ -201,6 +212,13 @@ public class ConversationsController : ControllerBase
                 Error = "Validation",
                 Suggestion = "Provide a non-empty search query"
             });
+
+        // DEF-001: userId derived from authenticated claims, not client-supplied query string.
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirstValue("oid")
+                     ?? User.Identity?.Name;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
 
         var conversations = await _chatService.SearchConversationsAsync(query, userId);
         return Ok(conversations);

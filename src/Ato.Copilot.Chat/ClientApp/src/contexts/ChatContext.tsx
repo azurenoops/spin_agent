@@ -156,10 +156,9 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 
 interface ChatProviderProps {
   children: ReactNode;
-  userId: string;
 }
 
-export function ChatProvider({ children, userId }: ChatProviderProps) {
+export function ChatProvider({ children }: ChatProviderProps) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const connectionRef = useRef<HubConnection | null>(null);
   const dispatchRef = useRef(dispatch);
@@ -308,7 +307,7 @@ export function ChatProvider({ children, userId }: ChatProviderProps) {
   const loadConversations = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const conversations = await chatApi.getConversations(userId);
+      const conversations = await chatApi.getConversations();
       dispatch({ type: 'SET_CONVERSATIONS', payload: conversations });
 
       // Auto-create first conversation if none exist
@@ -450,7 +449,7 @@ export function ChatProvider({ children, userId }: ChatProviderProps) {
       dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] });
       return;
     }
-    const results = await chatApi.searchConversations(query, userId);
+    const results = await chatApi.searchConversations(query);
     dispatch({ type: 'SET_SEARCH_RESULTS', payload: results });
   }, []);
 
