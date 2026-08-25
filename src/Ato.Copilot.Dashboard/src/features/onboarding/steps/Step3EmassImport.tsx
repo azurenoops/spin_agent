@@ -146,7 +146,7 @@ export default function Step3EmassImport({ onSaved }: Props) {
   return (
     <section className="space-y-6">
       <header>
-        <h2 className="text-xl font-semibold">Step 5 — eMASS Bulk Import</h2>
+        <h2 className="text-xl font-semibold">Step 3 — eMASS Bulk Import</h2>
         <p className="text-sm text-gray-600">
           Upload an eMASS export (.xlsx) or package (.zip) to register multiple systems at once.
           You can review per-system results and choose Skip / Merge / Overwrite before committing.

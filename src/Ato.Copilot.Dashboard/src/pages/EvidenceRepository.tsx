@@ -66,6 +66,7 @@ export default function EvidenceRepository() {
   // T282: Collect Evidence — track busy state per controlId
   const [collectingControlId, setCollectingControlId] = useState<string | null>(null);
   const [collectError, setCollectError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const PAGE_SIZE = 50;
 
@@ -151,7 +152,7 @@ export default function EvidenceRepository() {
       URL.revokeObjectURL(url);
       a.remove();
     } catch {
-      // download failed silently
+      setDownloadError('Download failed. Please try again.');
     }
   };
 
@@ -183,6 +184,12 @@ export default function EvidenceRepository() {
         <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           Collection failed: {collectError}
           <button onClick={() => setCollectError(null)} className="ml-2 text-red-500 hover:text-red-700">✕</button>
+        </div>
+      )}
+      {downloadError && (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {downloadError}
+          <button onClick={() => setDownloadError(null)} className="ml-2 text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
 

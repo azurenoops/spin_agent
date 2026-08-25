@@ -79,6 +79,7 @@ export default function CspCapabilitiesPage(): ReactElement {
   // Modal visibility — the actual form state lives inside the modal
   // component (mirrors CreateComponentModal in CspInheritedComponentsPage).
   const [createOpen, setCreateOpen] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   // Detail-drawer selection — row click sets this; the drawer mutates
   // it back to null on close. We store both ids so the drawer can render
@@ -207,6 +208,12 @@ export default function CspCapabilitiesPage(): ReactElement {
   return (
     <PageLayout title="Security Capabilities">
       <div data-testid="csp-capabilities-page">
+        {archiveError && (
+          <div className="mb-4 flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+            <span>{archiveError}</span>
+            <button type="button" onClick={() => setArchiveError(null)} className="ml-4 opacity-60 hover:opacity-100">✕</button>
+          </div>
+        )}
         <PageHero
           eyebrow="Capabilities"
           title="Security Capabilities"
@@ -352,10 +359,11 @@ export default function CspCapabilitiesPage(): ReactElement {
                       }
                       try {
                         await archiveCspInheritedCapability(r.componentId, r.id);
+                        setArchiveError(null);
                         void reload();
                       } catch (err) {
                         const ex = err as { message?: string };
-                        window.alert(ex?.message ?? 'Archive failed.');
+                        setArchiveError(ex?.message ?? 'Archive failed.');
                       }
                     }}
                   />

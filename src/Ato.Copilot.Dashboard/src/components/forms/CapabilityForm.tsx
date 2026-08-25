@@ -44,6 +44,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
   const [implementationStatus, setImplementationStatus] = useState<CapabilityStatusOption>(initial?.implementationStatus as CapabilityStatusOption ?? 'Planned');
   const [owner, setOwner] = useState(initial?.owner ?? '');
   const [generatingDesc, setGeneratingDesc] = useState(false);
+  const [aiDescError, setAiDescError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initial) {
@@ -70,9 +71,9 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to generate description';
       if (msg.includes('503')) {
-        alert('AI service is not configured. Contact administrator to enable Azure OpenAI integration.');
+        setAiDescError('AI service is not configured. Contact your administrator to enable Azure OpenAI integration.');
       } else {
-        alert(`Error generating description: ${msg}`);
+        setAiDescError(`Error generating description: ${msg}`);
       }
     } finally {
       setGeneratingDesc(false);
@@ -160,6 +161,7 @@ export function CapabilityForm({ initial, onSubmit, onCancel, isSubmitting, erro
           className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           placeholder="Describe how this capability works..."
         />
+        {aiDescError && <p className="mt-1 text-xs text-red-600">{aiDescError}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">

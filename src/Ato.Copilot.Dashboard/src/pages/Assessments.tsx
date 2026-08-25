@@ -92,7 +92,7 @@ export default function Assessments() {
 
   // View detail modals
   const [showSapView, setShowSapView] = useState(false);
-  const [_showSarView, setShowSarView] = useState(false);  // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [showSarView, setShowSarView] = useState(false);
 
   // Create Remediation Task modal state
   const [taskModalFinding, setTaskModalFinding] = useState<AssessmentFinding | null>(null);
@@ -1216,6 +1216,97 @@ export default function Assessments() {
           </div>
           );
         })()}
+
+        {/* SAR Detail View Modal */}
+        {showSarView && sarData && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowSarView(false); }}
+          >
+            <div className="w-full max-w-2xl max-h-[90vh] rounded-xl bg-white shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-5 pb-3 flex-shrink-0">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Security Assessment Report</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{sarData.title}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    sarData.status === 'Approved' ? 'bg-green-100 text-green-700' :
+                    sarData.status === 'UnderReview' ? 'bg-indigo-100 text-indigo-700' :
+                    'bg-amber-100 text-amber-700'
+                  }`}>
+                    {sarData.status === 'UnderReview' ? 'Under Review' : sarData.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSarView(false)}
+                    className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                    aria-label="Close"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+                {/* Summary stats */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-center">
+                    <p className="text-xl font-bold text-emerald-600">{sarData.satisfiedCount}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Satisfied</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-center">
+                    <p className="text-xl font-bold text-red-500">{sarData.notSatisfiedCount}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Not Satisfied</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-center">
+                    <p className="text-xl font-bold text-gray-700">{sarData.totalControlsAssessed}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Assessed</p>
+                  </div>
+                </div>
+
+                {/* Sections */}
+                {sarData.sections && sarData.sections.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Report Sections</h4>
+                    <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+                      {sarData.sections.map((sec) => (
+                        <li key={sec.sectionType} className="flex items-center justify-between px-4 py-2.5">
+                          <span className="text-sm text-gray-800">{sec.title}</span>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${sec.hasContent ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {sec.hasContent ? 'Complete' : 'Empty'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div className="text-xs text-gray-500 space-y-1">
+                  <p>Created by <span className="font-medium text-gray-700">{sarData.createdBy}</span> on {new Date(sarData.createdAt).toLocaleDateString()}</p>
+                  {sarData.reviewedBy && <p>Reviewed by <span className="font-medium text-gray-700">{sarData.reviewedBy}</span>{sarData.reviewedAt ? ` on ${new Date(sarData.reviewedAt).toLocaleDateString()}` : ''}</p>}
+                  {sarData.approvedBy && <p>Approved by <span className="font-medium text-gray-700">{sarData.approvedBy}</span>{sarData.approvedAt ? ` on ${new Date(sarData.approvedAt).toLocaleDateString()}` : ''}</p>}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowSarView(false)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       {deviationModalFinding && (
         <AddDeviationDialog

@@ -89,7 +89,7 @@ export async function createConversation(
 }
 
 export async function getConversations(
-  userId: string = 'default-user',
+  userId: string,
   skip: number = 0,
   take: number = 50
 ): Promise<Conversation[]> {
@@ -106,7 +106,7 @@ export async function getConversation(conversationId: string): Promise<Conversat
 
 export async function searchConversations(
   query: string,
-  userId: string = 'default-user'
+  userId: string
 ): Promise<Conversation[]> {
   const response = await apiClient.get<Conversation[]>('/conversations/search', {
     params: { query, userId },

@@ -142,7 +142,7 @@ export default function Step4SspPdfImport({ onSaved }: Props) {
   return (
     <section className="space-y-6">
       <header>
-        <h2 className="text-xl font-semibold">Step 6 — SSP PDF batch import</h2>
+        <h2 className="text-xl font-semibold">Step 4 — SSP PDF batch import</h2>
         <p className="text-sm text-gray-600">
           Upload one or more digital SSP PDFs (NIST framework only). Password-
           protected, image-only, or non-NIST PDFs are rejected with a specific reason.

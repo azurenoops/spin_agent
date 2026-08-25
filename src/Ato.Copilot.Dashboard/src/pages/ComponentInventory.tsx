@@ -53,6 +53,7 @@ export default function ComponentInventory() {
   const [importLoading, setImportLoading] = useState(false);
   const [failedGroups, setFailedGroups] = useState<string[]>([]);
   const [noAzureSubscriptions, setNoAzureSubscriptions] = useState(false);
+  const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!systemId) return;
@@ -125,16 +126,15 @@ export default function ComponentInventory() {
     try {
       const result = await deleteComponent(id);
       if (result.flaggedCapabilities.length > 0) {
-        alert(
-          `Deleted. The following capabilities were flagged for review:\n${result.flaggedCapabilities
-            .map((f) => `• ${f.capabilityName}: ${f.message}`)
-            .join('\n')}`,
-        );
+        setActionMessage({
+          type: 'success',
+          text: `Deleted. The following capabilities were flagged for review: ${result.flaggedCapabilities.map((f) => `${f.capabilityName}: ${f.message}`).join('; ')}`,
+        });
       }
       setDeleteConfirm(null);
       await fetchData();
     } catch {
-      alert('Failed to delete component');
+      setActionMessage({ type: 'error', text: 'Failed to delete component' });
     }
   };
 
@@ -190,10 +190,10 @@ export default function ComponentInventory() {
     if (!systemId) return;
     try {
       const result = await relinkComponentFindings(systemId, comp.id);
-      alert(`Re-linked ${result.linkedCount} finding(s) for ${comp.name}`);
+      setActionMessage({ type: 'success', text: `Re-linked ${result.linkedCount} finding(s) for ${comp.name}` });
       await fetchData();
     } catch {
-      alert('Failed to re-link findings');
+      setActionMessage({ type: 'error', text: 'Failed to re-link findings' });
     }
   };
 
@@ -259,6 +259,13 @@ export default function ComponentInventory() {
 
   return (
     <>
+      {/* Action result banner */}
+      {actionMessage && (
+        <div className={`mb-4 flex items-center justify-between rounded-lg px-4 py-3 text-sm ${actionMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+          <span>{actionMessage.text}</span>
+          <button type="button" onClick={() => setActionMessage(null)} className="ml-4 text-current opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

@@ -13,9 +13,13 @@ import './styles/App.css';
 // ────────────────────────────────────────────────────────────────
 
 function App() {
+  // Stable transient identity for this browser session.
+  // Replace with real auth once auth middleware is wired.
+  const userId = useRef(`anon-${Math.random().toString(36).slice(2)}`).current;
+
   return (
-    <ChatProvider>
-      <AppLayoutBridge />
+    <ChatProvider userId={userId}>
+      <AppLayoutBridge userId={userId} />
     </ChatProvider>
   );
 }
@@ -24,13 +28,10 @@ function App() {
  * Bridge: reads activeConversationId from ChatContext so EditorLayoutProvider
  * can key localStorage persistence per conversation.
  */
-function AppLayoutBridge() {
+function AppLayoutBridge({ userId }: { userId: string }) {
   const { state } = useChatContext();
   const conversationId = state.activeConversationId ?? null;
 
-  // Stable transient identity for this browser session.
-  // Replace with real auth once auth middleware is wired.
-  const userId = useRef(`anon-${Math.random().toString(36).slice(2)}`).current;
   const displayName = useRef('Anonymous').current;
 
   const inner = (

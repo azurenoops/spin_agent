@@ -106,6 +106,7 @@ export default function Remediation() {
   const dragTaskRef = useRef<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     dragTaskRef.current = taskId;
@@ -154,10 +155,11 @@ export default function Remediation() {
     setMovingTaskId(taskId);
     try {
       await moveTask(taskId, targetStatus);
+      setMoveError(null);
       refreshTasks();
       refresh();
     } catch {
-      // Silent failure — will show stale state until next poll
+      setMoveError('Failed to move task. Please try again.');
     } finally {
       setMovingTaskId(null);
     }
@@ -236,6 +238,12 @@ export default function Remediation() {
 
   return (
     <div className="space-y-6">
+        {moveError && (
+          <div className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+            <span>{moveError}</span>
+            <button type="button" onClick={() => setMoveError(null)} className="ml-4 opacity-60 hover:opacity-100">✕</button>
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
