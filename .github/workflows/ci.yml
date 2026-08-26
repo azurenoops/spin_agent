@@ -444,6 +444,10 @@ jobs:
   # global.gc() is available for deterministic GC-before-measure. Without it
   # the heap-ceiling test skips rather than fails (skip rule for local dev).
   # In this job the flag is always set so the gate is enforced on every PR.
+  #
+  # Node 22 LTS is pinned here because Node 24 silently ignores --expose-gc
+  # (global.gc remains undefined), causing the heap-ceiling and anchor-drift
+  # tests to skip rather than run. Tracked and fixed in issue #803.
   # ---------------------------------------------------------------------------
   chat-client-tests:
     name: Chat Client Tests (TraceabilityPanel + heap-ceiling gate)
@@ -456,10 +460,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: src/Ato.Copilot.Chat/ClientApp/package-lock.json
 
@@ -476,26 +480,18 @@ jobs:
           # can force GC before/after the 200-render stress loop (#2820).
           NODE_OPTIONS: "--expose-gc"
 
-      - name: Assert heap-ceiling delta was reported (#2820)
-        # Accepts two outcomes:
-        #   1. GC available — test ran and emitted "[heap-ceiling] delta=X MB"
-        #   2. GC unavailable (Node 24 runner ignores --expose-gc) — heap-ceiling
-        #      tests are explicitly skipped via it.skip; Jest reports N skipped.
-        #      Restoration tracked in issue #804.
-        # Fails only if there is no measurement AND no skipped tests at all
-        # (which would mean the file was somehow not executed).
+      - name: Assert heap-ceiling delta was reported (#2820 / #803)
+        # Gate: the heap-ceiling test MUST run and emit a delta measurement.
+        # Skipped tests are no longer accepted — Node 22 LTS exposes global.gc()
+        # reliably via NODE_OPTIONS=--expose-gc (issue #803 fixed).
         run: |
           if grep -q '\[heap-ceiling\].*delta=' /tmp/jest-output.txt; then
             echo "PASS: heap-ceiling delta measured and reported"
-          elif grep -qE 'Tests:.*[0-9]+ skipped' /tmp/jest-output.txt; then
-            SKIPPED_COUNT=$(grep -oE '[0-9]+ skipped' /tmp/jest-output.txt | grep -oE '[0-9]+')
-            echo "INFO: ${SKIPPED_COUNT} test(s) explicitly skipped (global.gc() unavailable on this runner)."
-            echo "heap-ceiling and anchor-drift tests require --expose-gc / global.gc() to measure heap."
-            echo "Restoration tracked in https://github.com/azurenoops/spin_agent/issues/804"
           else
-            echo "FAIL: [heap-ceiling] delta= line missing and no skipped tests detected."
-            echo "heap-ceiling.test.tsx must either run to completion or be explicitly skipped."
-            echo "Check that global.gc() is available (NODE_OPTIONS=--expose-gc) and the test ran."
+            echo "FAIL: [heap-ceiling] delta= line missing from test output."
+            echo "This means global.gc() was unavailable or heap-ceiling.test.tsx did not execute."
+            echo "Ensure NODE_OPTIONS=--expose-gc is set and the Node version is 22 LTS."
+            echo "Ref: issue #803"
             exit 1
           fi
 
@@ -526,6 +522,54 @@ jobs:
           # Defaults to localhost and still produces annotations if unreachable.
           mcp-server-url: ${{ vars.ATO_MCP_SERVER_URL || 'http://localhost:5000' }}
           fail-on-error: 'true'
+
+  # ---------------------------------------------------------------------------
+  # Dashboard unit tests — Issue #707 / BUG-13 regression shield
+  #
+  # This job runs the Dashboard's Vitest suite on every PR and push.
+  # It is the mandatory CI gate that catches routing regressions for the 11
+  # RMF sub-page alias routes (capabilities, mission-purpose, users-access,
+  # environment, data-types, ports-protocols, leveraged-auth, categorization,
+  # control-inheritance, legal-regulatory, implementation-roadmap).
+  #
+  # Background: the same routing bug regressed four times (#498, #505, #516,
+  # #634) because SystemAliasRoutes.test.tsx existed but was never executed in
+  # CI. Any PR that deletes or renames the alias routes now fails this gate
+  # immediately instead of silently reaching main.
+  # ---------------------------------------------------------------------------
+  dashboard-unit-tests:
+    name: Dashboard Unit Tests (RMF route regression shield — #707)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Ato.Copilot.Dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/Ato.Copilot.Dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run routing regression tests (Vitest — scoped)
+        # Scoped to SystemAliasRoutes.test.tsx (13 tests: 11 alias routes + 2
+        # contract tests).  The full Dashboard suite has 53 pre-existing
+        # failures (MSAL mocks, localStorage hooks, idle timer, BroadcastChannel)
+        # that are tracked separately in issue #810.  Running the full suite
+        # would make this gate permanently red and provide no additional signal
+        # for the routing regression it is designed to catch.
+        #
+        # To enforce a new test file here, add its path after the existing one
+        # (space-separated).  To allow the full suite once pre-existing failures
+        # are resolved, replace with: npx vitest run
+        run: npx vitest run src/__tests__/routing/SystemAliasRoutes.test.tsx
 
   # ---------------------------------------------------------------------------
   # Dashboard production bundle audit — Epic #207 / Task #235

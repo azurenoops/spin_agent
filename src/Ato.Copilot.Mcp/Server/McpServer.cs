@@ -255,6 +255,36 @@ public class McpServer
                 };
             }
 
+            // #628 — NO_TOOL_MATCHED: all tool dispatches in this run were to unknown tools.
+            // Distinct from EMPTY_AGENT_RESPONSE: the agent returned a text response, but
+            // every tool the LLM tried to call was unresolvable — fail loud per #791 contract.
+            if (response.SkippedToolCallCount > 0
+                && response.ToolsExecuted.Count > 0
+                && response.ToolsExecuted.All(t => !t.Success && t.Result == "Unknown tool"))
+            {
+                var noMatchCorrelationId = Activity.Current?.TraceId.ToString() ?? conversationId;
+                _logger.LogError(
+                    "Agent {Agent} — all {Count} tool call(s) unmatched | ConvId: {ConvId}",
+                    targetAgent.AgentName, response.SkippedToolCallCount, conversationId);
+                return new McpChatResponse
+                {
+                    Success = false,
+                    ConversationId = conversationId,
+                    ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                    EmptyResultsCount = response.SkippedToolCallCount,
+                    Errors = new List<ErrorDetail>
+                    {
+                        new ErrorDetail
+                        {
+                            ErrorCode = "NO_TOOL_MATCHED",
+                            Message = $"None of the {response.SkippedToolCallCount} requested tool(s) could be resolved.",
+                            Suggestion = "Rephrase your request so it targets a known capability.",
+                            CorrelationId = noMatchCorrelationId
+                        }
+                    }
+                };
+            }
+
             _logger.LogInformation("Routed to {Agent} | ConvId: {ConvId} | Cache: {CacheStatus}",
                 targetAgent.AgentName, conversationId, cacheStatus);
 
@@ -285,7 +315,9 @@ public class McpServer
                 Metadata = new Dictionary<string, object>
                 {
                     ["cacheStatus"] = cacheStatus,
-                }
+                },
+                // #628 — propagate skipped-tool count so callers can detect partial matches.
+                EmptyResultsCount = response.SkippedToolCallCount
             };
 
             // T047: Server-side pagination enforcement (FR-029/FR-030/FR-031)
@@ -648,10 +680,11 @@ public class McpServer
                                 Message = $"Path validation failed for parameter '{key}'.",
                                 Suggestion = "Provide a valid file path within the allowed directory."
                             }
-                        }
-                    };
-                }
-                toolArgs[key] = validation.CanonicalPath!;
+                    }
+                };
+            }
+
+            toolArgs[key] = validation.CanonicalPath!;
             }
         }
 
