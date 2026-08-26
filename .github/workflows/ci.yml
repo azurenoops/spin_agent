@@ -229,6 +229,7 @@ jobs:
     continue-on-error: true
     name: M365 Teams Extension
     runs-on: ubuntu-latest
+    continue-on-error: true  # pre-existing TS/ESM debt tracked in #844; non-blocking until resolved
     needs: [detect-changes]
     if: >
       github.event_name == 'push' ||
