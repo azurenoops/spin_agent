@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
+import { getMsalInstance } from '../../features/auth/msalInstance';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,8 +21,12 @@ interface NotificationPreferences {
  * (Email, Teams, Slack). Saves to PUT /api/dashboard/notifications/preferences.
  */
 export default function NotificationSettingsPanel() {
+  // DEF-001 R2: resolve userId from MSAL at mount. The API response will
+  // overwrite this on successful load; the initializer must never use a
+  // phantom placeholder identity.
+  const msalUserId = getMsalInstance().getAllAccounts()[0]?.localAccountId ?? '';
   const [prefs, setPrefs] = useState<NotificationPreferences>({
-    userId: 'dashboard-user',
+    userId: msalUserId,
     emailEnabled: false,
     emailAddress: null,
     teamsEnabled: false,

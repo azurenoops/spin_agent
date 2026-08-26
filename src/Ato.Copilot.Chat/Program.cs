@@ -290,8 +290,14 @@ try
         }
     })).AllowAnonymous();
 
-    // SPA fallback — MUST be last
-    app.MapFallbackToFile("index.html");
+    // SPA fallback — MUST be last.
+    // DEF-001 R1: AllowAnonymous so unauthenticated browsers can load the
+    // app shell and reach the MSAL login page. The FallbackPolicy
+    // (RequireAuthenticatedUser) would otherwise 401 every fresh session
+    // before index.html is served, preventing MSAL from ever running.
+    // API controllers and SignalR hubs retain their auth requirement via
+    // [Authorize] attributes and the DefaultPolicy.
+    app.MapFallbackToFile("index.html").AllowAnonymous();
 
     var port = builder.Configuration.GetValue("Server:Port", 5001);
     var urls = builder.Configuration.GetValue("Server:Urls", $"http://0.0.0.0:{port}");

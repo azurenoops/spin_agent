@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { requestExport, downloadExportUrl, listTemplates } from '../api/exports';
 import type { ExportSummary, TemplateInfo } from '../api/exports';
 import * as signalR from '@microsoft/signalr';
-import { acquireBearer } from '../features/auth/msalInstance';
+import { acquireBearer, getMsalInstance } from '../features/auth/msalInstance';
 // Wave 6 GAP-018
 import apiClient from '../api/client';
 import { enqueuePackage, getPackageStatus, getPackageDownloadUrl } from '../api/packages';
@@ -217,7 +217,14 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
 
     connection
       .start()
-      .then(() => connection.invoke('RegisterUser', 'dashboard-user'))
+      .then(() => {
+        // DEF-001 R2: only register when there is an authenticated MSAL account.
+        // Never fall back to a phantom identity string.
+        const account = getMsalInstance().getAllAccounts()[0];
+        if (account) {
+          return connection.invoke('RegisterUser', account.localAccountId);
+        }
+      })
       .catch(() => {
         // SignalR connection optional — user can poll instead
       });
