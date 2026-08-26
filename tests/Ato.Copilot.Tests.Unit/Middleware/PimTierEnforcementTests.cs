@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -21,18 +22,21 @@ public class PimTierEnforcementTests
     private readonly Mock<IPimService> _mockPimService;
     private readonly Mock<ICacSessionService> _mockCacService;
     private readonly Mock<ILogger<ComplianceAuthorizationMiddleware>> _mockLogger;
+    private readonly Mock<IHostEnvironment> _mockEnv;
 
     public PimTierEnforcementTests()
     {
         _mockPimService = new Mock<IPimService>();
         _mockCacService = new Mock<ICacSessionService>();
         _mockLogger = new Mock<ILogger<ComplianceAuthorizationMiddleware>>();
+        _mockEnv = new Mock<IHostEnvironment>();
+        _mockEnv.Setup(e => e.EnvironmentName).Returns(Environments.Production);
     }
 
     private ComplianceAuthorizationMiddleware CreateMiddleware(RequestDelegate? next = null)
     {
         next ??= _ => Task.CompletedTask;
-        return new ComplianceAuthorizationMiddleware(next, _mockLogger.Object);
+        return new ComplianceAuthorizationMiddleware(next, _mockLogger.Object, _mockEnv.Object);
     }
 
     private HttpContext CreateAuthenticatedContext(string toolName, string userId = "test-user-id")
@@ -56,9 +60,6 @@ public class PimTierEnforcementTests
         // CAC session is active by default
         _mockCacService.Setup(s => s.IsSessionActiveAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-
-        // Set non-Development environment
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
 
         return context;
     }
@@ -149,25 +150,19 @@ public class PimTierEnforcementTests
     [Fact]
     public async Task DevelopmentMode_ShouldSkipAllPimChecks()
     {
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
-        try
-        {
-            var context = new DefaultHttpContext();
-            context.Items["ToolName"] = "pim_activate_role";
+        _mockEnv.Setup(e => e.EnvironmentName).Returns(Environments.Development);
 
-            // No auth setup, no PIM — should skip entirely in Development
+        var context = new DefaultHttpContext();
+        context.Items["ToolName"] = "pim_activate_role";
 
-            bool nextCalled = false;
-            var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+        // No auth setup, no PIM — should skip entirely in Development
 
-            await middleware.InvokeAsync(context);
+        bool nextCalled = false;
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
 
-            nextCalled.Should().BeTrue("Development mode should skip all PIM checks");
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
-        }
+        await middleware.InvokeAsync(context);
+
+        nextCalled.Should().BeTrue("Development mode should skip all PIM checks");
     }
 
     [Fact]

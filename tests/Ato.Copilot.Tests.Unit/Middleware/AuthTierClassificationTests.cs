@@ -4,6 +4,7 @@ using Ato.Copilot.Mcp.Middleware;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 using System.Text.Json;
@@ -163,94 +164,86 @@ public class AuthTierClassificationTests
     public async Task Middleware_ShouldReturnAuthRequired_ForTier2ToolWithoutUser()
     {
         // Arrange — middleware with non-Development environment
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
-        try
-        {
-            var nextCalled = false;
-            var middleware = new ComplianceAuthorizationMiddleware(
-                _ => { nextCalled = true; return Task.CompletedTask; },
-                Mock.Of<ILogger<ComplianceAuthorizationMiddleware>>());
+        var mockEnv = new Mock<IHostEnvironment>();
+        mockEnv.Setup(e => e.EnvironmentName).Returns(Environments.Production);
 
-            var context = new DefaultHttpContext();
-            context.Items["ToolName"] = "pim_activate_role";
-            context.Response.Body = new MemoryStream();
+        var nextCalled = false;
+        var middleware = new ComplianceAuthorizationMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            Mock.Of<ILogger<ComplianceAuthorizationMiddleware>>(),
+            mockEnv.Object);
 
-            var services = new ServiceCollection();
-            services.AddSingleton(Mock.Of<ICacSessionService>());
-            context.RequestServices = services.BuildServiceProvider();
+        var context = new DefaultHttpContext();
+        context.Items["ToolName"] = "pim_activate_role";
+        context.Response.Body = new MemoryStream();
 
-            // Act
-            await middleware.InvokeAsync(context);
+        var services = new ServiceCollection();
+        services.AddSingleton(Mock.Of<ICacSessionService>());
+        context.RequestServices = services.BuildServiceProvider();
 
-            // Assert — AUTH_REQUIRED envelope per contract error code reference
-            context.Response.StatusCode.Should().Be(401);
-            nextCalled.Should().BeFalse("Tier 2 tool should be blocked without authenticated user");
+        // Act
+        await middleware.InvokeAsync(context);
 
-            context.Response.Body.Seek(0, SeekOrigin.Begin);
-            var json = await new StreamReader(context.Response.Body).ReadToEndAsync();
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
+        // Assert — AUTH_REQUIRED envelope per contract error code reference
+        context.Response.StatusCode.Should().Be(401);
+        nextCalled.Should().BeFalse("Tier 2 tool should be blocked without authenticated user");
 
-            root.GetProperty("status").GetString().Should().Be("error");
-            root.GetProperty("data").GetProperty("errorCode").GetString().Should().Be("AUTH_REQUIRED");
-            root.GetProperty("data").GetProperty("message").GetString().Should().Contain("pim_activate_role");
-            root.GetProperty("data").GetProperty("suggestion").GetString().Should().Contain("PLATFORM_COPILOT_TOKEN");
-            root.GetProperty("metadata").GetProperty("toolName").GetString().Should().Be("pim_activate_role");
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
-        }
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        var json = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        root.GetProperty("status").GetString().Should().Be("error");
+        root.GetProperty("data").GetProperty("errorCode").GetString().Should().Be("AUTH_REQUIRED");
+        root.GetProperty("data").GetProperty("message").GetString().Should().Contain("pim_activate_role");
+        root.GetProperty("data").GetProperty("suggestion").GetString().Should().Contain("PLATFORM_COPILOT_TOKEN");
+        root.GetProperty("metadata").GetProperty("toolName").GetString().Should().Be("pim_activate_role");
     }
 
     [Fact]
     public async Task Middleware_ShouldReturnAuthRequired_ForTier2ToolWithExpiredSession()
     {
         // Arrange — user has oid claim but no active CAC session
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
-        try
-        {
-            var nextCalled = false;
-            var middleware = new ComplianceAuthorizationMiddleware(
-                _ => { nextCalled = true; return Task.CompletedTask; },
-                Mock.Of<ILogger<ComplianceAuthorizationMiddleware>>());
+        var mockEnv = new Mock<IHostEnvironment>();
+        mockEnv.Setup(e => e.EnvironmentName).Returns(Environments.Production);
 
-            var context = new DefaultHttpContext();
-            context.Items["ToolName"] = "run_assessment";
-            context.Response.Body = new MemoryStream();
+        var nextCalled = false;
+        var middleware = new ComplianceAuthorizationMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            Mock.Of<ILogger<ComplianceAuthorizationMiddleware>>(),
+            mockEnv.Object);
 
-            // Add user with oid claim
-            var claims = new[] { new System.Security.Claims.Claim("oid", "user-123") };
-            context.User = new System.Security.Claims.ClaimsPrincipal(
-                new System.Security.Claims.ClaimsIdentity(claims, "Bearer"));
+        var context = new DefaultHttpContext();
+        context.Items["ToolName"] = "run_assessment";
+        context.Response.Body = new MemoryStream();
 
-            // Mock ICacSessionService to return false for IsSessionActiveAsync
-            var mockCacService = new Mock<ICacSessionService>();
-            mockCacService.Setup(s => s.IsSessionActiveAsync("user-123", It.IsAny<CancellationToken>()))
-                .ReturnsAsync(false);
+        // Add user with oid claim
+        var claims = new[] { new System.Security.Claims.Claim("oid", "user-123") };
+        context.User = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(claims, "Bearer"));
 
-            var services = new ServiceCollection();
-            services.AddSingleton(mockCacService.Object);
-            context.RequestServices = services.BuildServiceProvider();
+        // Mock ICacSessionService to return false for IsSessionActiveAsync
+        var mockCacService = new Mock<ICacSessionService>();
+        mockCacService.Setup(s => s.IsSessionActiveAsync("user-123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
 
-            // Act
-            await middleware.InvokeAsync(context);
+        var services = new ServiceCollection();
+        services.AddSingleton(mockCacService.Object);
+        context.RequestServices = services.BuildServiceProvider();
 
-            // Assert
-            context.Response.StatusCode.Should().Be(401);
-            nextCalled.Should().BeFalse();
+        // Act
+        await middleware.InvokeAsync(context);
 
-            context.Response.Body.Seek(0, SeekOrigin.Begin);
-            var json = await new StreamReader(context.Response.Body).ReadToEndAsync();
-            using var doc = JsonDocument.Parse(json);
+        // Assert
+        context.Response.StatusCode.Should().Be(401);
+        nextCalled.Should().BeFalse();
 
-            doc.RootElement.GetProperty("data").GetProperty("errorCode").GetString().Should().Be("AUTH_REQUIRED");
-            doc.RootElement.GetProperty("data").GetProperty("message").GetString().Should().Contain("expired");
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
-        }
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        var json = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        doc.RootElement.GetProperty("data").GetProperty("errorCode").GetString().Should().Be("AUTH_REQUIRED");
+        doc.RootElement.GetProperty("data").GetProperty("message").GetString().Should().Contain("expired");
     }
 
     [Theory]
@@ -263,26 +256,22 @@ public class AuthTierClassificationTests
     public async Task Middleware_ShouldPassThrough_ForTier1ToolsWithoutAuth(string toolName)
     {
         // Arrange — unauthenticated user with Tier 1 tool
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
-        try
-        {
-            var nextCalled = false;
-            var middleware = new ComplianceAuthorizationMiddleware(
-                _ => { nextCalled = true; return Task.CompletedTask; },
-                Mock.Of<ILogger<ComplianceAuthorizationMiddleware>>());
+        var mockEnv = new Mock<IHostEnvironment>();
+        mockEnv.Setup(e => e.EnvironmentName).Returns(Environments.Production);
 
-            var context = new DefaultHttpContext();
-            context.Items["ToolName"] = toolName;
+        var nextCalled = false;
+        var middleware = new ComplianceAuthorizationMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            Mock.Of<ILogger<ComplianceAuthorizationMiddleware>>(),
+            mockEnv.Object);
 
-            // Act
-            await middleware.InvokeAsync(context);
+        var context = new DefaultHttpContext();
+        context.Items["ToolName"] = toolName;
 
-            // Assert — Tier 1 tools should pass through to next middleware
-            nextCalled.Should().BeTrue($"Tier 1 tool '{toolName}' should pass through without auth");
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
-        }
+        // Act
+        await middleware.InvokeAsync(context);
+
+        // Assert — Tier 1 tools should pass through to next middleware
+        nextCalled.Should().BeTrue($"Tier 1 tool '{toolName}' should pass through without auth");
     }
 }
