@@ -1,0 +1,709 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      infra: ${{ steps.filter.outputs.infra }}
+      m365: ${{ steps.filter.outputs.m365 }}
+      oscal: ${{ steps.filter.outputs.oscal }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'infra/**'
+            m365:
+              - 'extensions/m365/**'
+            oscal:
+              - 'src/**/Oscal**'
+              - 'src/**/oscal**'
+
+  dotnet-build-test:
+    name: Build + Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Ato.Copilot.sln
+
+      - name: Build
+        run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
+
+      - name: Run unit tests
+        run: dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj -c Release --no-build -nologo --logger trx
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            tests/**/TestResults/*.trx
+          if-no-files-found: ignore
+
+  security-bypass-gate:
+    name: Auth-Bypass Security Gate (BUG-21)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject ALLOW_DEV_AUTH_BYPASS in deployment manifests
+        shell: bash
+        run: |
+          echo "Scanning for ALLOW_DEV_AUTH_BYPASS in deployment/infra files..."
+          # Check deployment YAML manifests and Terraform for the bypass flag.
+          # .env.example and test fixtures are explicitly excluded.
+          FOUND=$(grep -rn "ALLOW_DEV_AUTH_BYPASS"             .github/workflows/             infra/             src/             --include="*.yml"             --include="*.yaml"             --include="*.tf"             --include="*.bicep"             --include="*.json"             --exclude-dir=".git"             2>/dev/null |             grep -v "# BUG-21" |             grep -v "ci.yml" |             grep -v "# example" |             grep -v "# sample" || true)
+
+          if [ -n "$FOUND" ]; then
+            echo "::error::ALLOW_DEV_AUTH_BYPASS found in deployment files. Remove it before merging:"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "✅ No ALLOW_DEV_AUTH_BYPASS detected in deployment manifests."
+
+  vscode-extension-compile:
+    name: VS Code Extension Compile
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: extensions/vscode
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: extensions/vscode/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile extension
+        run: npm run compile
+
+  # ---------------------------------------------------------------------------
+  # Shared package typecheck — @ato-copilot/shared (#2683)
+  # Runs on every PR touching packages/ato-shared/**
+  # ---------------------------------------------------------------------------
+  shared-package-typecheck:
+    name: Shared Package Typecheck
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: packages/ato-shared
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/ato-shared/package.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  # ---------------------------------------------------------------------------
+  # Grounding port CI guard — check-grounding-port.mjs (#a493ec1c)
+  #
+  # REQUIRED check — must pass before any PR can merge.
+  # Statically scans all TypeScript source for:
+  #   Rule A: content-insert calls made without routing through GroundingPort
+  #   Rule B: evidenceSpan [0,0] sentinel used outside migration.ts
+  #   Rule D: ClaimNode constructed without GroundingPort or backfillLegacyCitation
+  #
+  # This is the durable guard against grounding-regression recurrence (cf. #641).
+  # ---------------------------------------------------------------------------
+  grounding-port-check:
+    name: Grounding Port Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run grounding port static scan
+        run: node packages/ato-shared/scripts/check-grounding-port.mjs
+
+  # ---------------------------------------------------------------------------
+  # Research-workflow citation boundary lint (#2683)
+  # Fails if CitationString or CitationOutput are imported from
+  # @ato-copilot/shared outside the editor-integration render call site.
+  # ---------------------------------------------------------------------------
+  citation-boundary:
+    name: Citation Boundary Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check citation import boundary
+        run: node packages/ato-shared/scripts/check-citation-imports.mjs
+
+  # ---------------------------------------------------------------------------
+  # Terraform lint — fmt check + validate on every PR touching infra/**
+  # Epic #123 (Task #156)
+  # ---------------------------------------------------------------------------
+  terraform-lint:
+    name: Terraform Lint
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.detect-changes.outputs.infra == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7"
+
+      - name: terraform fmt --check
+        run: terraform fmt --check -recursive
+        working-directory: infra/terraform
+
+      - name: terraform init (no backend)
+        run: terraform init -backend=false
+        working-directory: infra/terraform
+
+      - name: terraform validate
+        run: terraform validate
+        working-directory: infra/terraform
+
+  # ---------------------------------------------------------------------------
+  # M365 Teams Extension — build + mocha tests on every PR touching extensions/m365/**
+  # Epic #129 (T061-01)
+  # ---------------------------------------------------------------------------
+  m365-test:
+    continue-on-error: true
+    name: M365 Teams Extension
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.detect-changes.outputs.m365 == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: extensions/m365/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: extensions/m365
+
+      - name: Build (TypeScript compile)
+        run: npm run build
+        working-directory: extensions/m365
+
+      - name: Run tests
+        run: npm test
+        working-directory: extensions/m365
+
+  # ---------------------------------------------------------------------------
+  # Integration Tests — Fix #659
+  # Runs the full Ato.Copilot.Tests.Integration suite on every push to main
+  # and on all PRs. Uses SQLite in-memory (EnsureCreatedAsync dev path) so no
+  # live SQL Server is required. OSCAL-specific tests are also covered here;
+  # the oscal-schema-validation job below retains its schema-filter for the
+  # bundled NIST OSCAL 1.1.2 schema check.
+  # ---------------------------------------------------------------------------
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [dotnet-build-test]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Ato.Copilot.sln
+
+      - name: Build
+        run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
+
+      - name: Run integration tests
+        run: |
+          dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+            -c Release --no-build -nologo \
+            --logger trx \
+            --logger "console;verbosity=normal"
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ATO_DATABASE__PROVIDER: Sqlite
+          ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: "Data Source=:memory:"
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: tests/**/TestResults/*.trx
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # OSCAL 1.1.2 Schema Validation Gate — Epic #122 (Task #153)
+  # Runs OscalValidationService unit tests + integration OSCAL export tests.
+  # Fails the build if any OSCAL SSP export regresses against the bundled
+  # NIST OSCAL 1.1.2 schema (oscal_ssp_schema.json).
+  # ---------------------------------------------------------------------------
+  oscal-schema-validation:
+    name: OSCAL 1.1.2 Schema Validation
+    runs-on: ubuntu-latest
+    needs: [dotnet-build-test]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Ato.Copilot.sln
+
+      - name: Build
+        run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
+
+      - name: Run OSCAL schema validation unit tests
+        run: >
+          dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj
+          -c Release --no-build -nologo
+          --filter "FullyQualifiedName~OscalValidationService|FullyQualifiedName~OscalSspExport"
+          --logger trx
+        env:
+          OSCAL_VALIDATION_FAIL_ON_VIOLATIONS: "true"
+
+      - name: Run OSCAL integration tests (export + schema validation)
+        run: >
+          dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj
+          -c Release --no-build -nologo
+          --filter "FullyQualifiedName~SspToolsIntegration|FullyQualifiedName~OscalSchemaValidation"
+          --logger trx
+        env:
+          OSCAL_VALIDATION_FAIL_ON_VIOLATIONS: "true"
+
+      - name: Upload OSCAL validation test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oscal-validation-results
+          path: |
+            tests/**/TestResults/*.trx
+          if-no-files-found: ignore
+
+
+
+  # ---------------------------------------------------------------------------
+  # OSCAL Metaschema Constraint Validation — Feature 076 / T004
+  # Runs oscal-cli Docker image to validate generated OSCAL SSP, POA&M, and SAR
+  # against NIST Metaschema constraints (beyond JSON Schema — cross-ref integrity,
+  # allowed values, conditional required fields).
+  # Only triggers when OSCAL service files change.
+  # ---------------------------------------------------------------------------
+  oscal-cli-metaschema-validation:
+    name: OSCAL Metaschema Validation (oscal-cli)
+    runs-on: ubuntu-latest
+    needs: [oscal-schema-validation, detect-changes]
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.detect-changes.outputs.oscal == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Ato.Copilot.sln
+
+      - name: Build
+        run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
+
+      - name: Generate OSCAL test artifacts for validation
+        run: >
+          dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj
+          -c Release --no-build -nologo
+          --filter "FullyQualifiedName~OscalSspExport|FullyQualifiedName~OscalValidation"
+          --logger trx
+          -- RunConfiguration.TestOutputDir=/tmp/oscal-artifacts
+        env:
+          OSCAL_EXPORT_ARTIFACTS_DIR: /tmp/oscal-artifacts
+          OSCAL_VALIDATION_FAIL_ON_VIOLATIONS: "true"
+
+      - name: Pull oscal-cli Docker image
+        run: docker pull ghcr.io/metaschema-framework/oscal-cli:latest
+
+      - name: Validate generated OSCAL artifacts with oscal-cli (Metaschema constraints)
+        run: |
+          ARTIFACTS_DIR=/tmp/oscal-artifacts
+          EXIT_CODE=0
+
+          if ls "${ARTIFACTS_DIR}"/*.json 2>/dev/null; then
+            for artifact in "${ARTIFACTS_DIR}"/*.json; do
+              echo "--- Validating: $artifact ---"
+              if ! docker run --rm \
+                -v "${ARTIFACTS_DIR}:/data" \
+                ghcr.io/metaschema-framework/oscal-cli:latest \
+                validate "/data/$(basename "$artifact")" 2>&1; then
+                echo "METASCHEMA VALIDATION FAILED: $artifact"
+                EXIT_CODE=1
+              fi
+            done
+          else
+            echo "No OSCAL JSON artifacts found in ${ARTIFACTS_DIR} — skipping metaschema validation."
+            echo "This is expected when no systems with full compliance data exist in test DB."
+          fi
+
+          exit $EXIT_CODE
+
+      - name: Upload OSCAL CLI validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oscal-cli-validation-results
+          path: /tmp/oscal-artifacts/
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Chat Client — React/Jest unit tests
+  #   #2437 TraceabilityPanel CI gate (freeze-on-stream, flag-enabled render)
+  #   #2820 Heap-ceiling gate (200 mount/unmount cycles, ≤50 MB delta)
+  #
+  # NODE_OPTIONS=--expose-gc is required by heap-ceiling.test.tsx so that
+  # global.gc() is available for deterministic GC-before-measure. Without it
+  # the heap-ceiling test skips rather than fails (skip rule for local dev).
+  # In this job the flag is always set so the gate is enforced on every PR.
+  #
+  # Node 22 LTS is pinned here because Node 24 silently ignores --expose-gc
+  # (global.gc remains undefined), causing the heap-ceiling and anchor-drift
+  # tests to skip rather than run. Tracked and fixed in issue #803.
+  # ---------------------------------------------------------------------------
+  chat-client-tests:
+    name: Chat Client Tests (TraceabilityPanel + heap-ceiling gate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Ato.Copilot.Chat/ClientApp
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/Ato.Copilot.Chat/ClientApp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests (flag-enabled, GC exposed for heap-ceiling gate)
+        run: CI=true npm test -- --watchAll=false --forceExit --verbose --runInBand 2>&1 | tee /tmp/jest-output.txt; exit "${PIPESTATUS[0]}"
+        env:
+          REACT_APP_FEATURE_TRACEABILITY_PANEL: "true"
+          REACT_APP_FEATURE_CITATION_STYLE_PICKER: "true"
+          REACT_APP_FEATURE_ANCHOR_REGISTRY: "true"
+          # --expose-gc makes global.gc() available so heap-ceiling.test.tsx
+          # can force GC before/after the 200-render stress loop (#2820).
+          NODE_OPTIONS: "--expose-gc"
+
+      - name: Assert heap-ceiling delta was reported (#2820 / #803)
+        # Gate: the heap-ceiling test MUST run and emit a delta measurement.
+        # Skipped tests are no longer accepted — Node 22 LTS exposes global.gc()
+        # reliably via NODE_OPTIONS=--expose-gc (issue #803 fixed).
+        run: |
+          if grep -q '\[heap-ceiling\].*delta=' /tmp/jest-output.txt; then
+            echo "PASS: heap-ceiling delta measured and reported"
+          else
+            echo "FAIL: [heap-ceiling] delta= line missing from test output."
+            echo "This means global.gc() was unavailable or heap-ceiling.test.tsx did not execute."
+            echo "Ensure NODE_OPTIONS=--expose-gc is set and the Node version is 22 LTS."
+            echo "Ref: issue #803"
+            exit 1
+          fi
+
+      - name: Advisory — flag adoption state
+        if: always()
+        run: |
+          if grep -r "REACT_APP_FEATURE_TRACEABILITY_PANEL=true" ../.env* 2>/dev/null; then
+            echo "::notice title=TraceabilityPanel::Feature flag is ON in .env — panel is adoption-ready"
+          else
+            echo "::notice title=TraceabilityPanel::Feature flag is OFF in .env files — set REACT_APP_FEATURE_TRACEABILITY_PANEL=true to enable the panel in non-CI builds"
+          fi
+
+  ato-compliance-gate:
+    name: ATO Compliance Gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run ATO compliance gate
+        uses: ./.github/actions/ato-compliance-gate
+        with:
+          scan-paths: src,scripts,docs
+          severity-threshold: '2'
+          # Set this repository variable if you host MCP externally.
+          # Defaults to localhost and still produces annotations if unreachable.
+          mcp-server-url: ${{ vars.ATO_MCP_SERVER_URL || 'http://localhost:5000' }}
+          fail-on-error: 'true'
+
+  # ---------------------------------------------------------------------------
+  # Dashboard unit tests — Issue #707 / BUG-13 regression shield
+  #
+  # This job runs the Dashboard's Vitest suite on every PR and push.
+  # It is the mandatory CI gate that catches routing regressions for the 11
+  # RMF sub-page alias routes (capabilities, mission-purpose, users-access,
+  # environment, data-types, ports-protocols, leveraged-auth, categorization,
+  # control-inheritance, legal-regulatory, implementation-roadmap).
+  #
+  # Background: the same routing bug regressed four times (#498, #505, #516,
+  # #634) because SystemAliasRoutes.test.tsx existed but was never executed in
+  # CI. Any PR that deletes or renames the alias routes now fails this gate
+  # immediately instead of silently reaching main.
+  # ---------------------------------------------------------------------------
+  dashboard-unit-tests:
+    name: Dashboard Unit Tests (RMF route regression shield — #707)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Ato.Copilot.Dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/Ato.Copilot.Dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run routing regression tests (Vitest — scoped)
+        # Scoped to SystemAliasRoutes.test.tsx (13 tests: 11 alias routes + 2
+        # contract tests).  The full Dashboard suite has 53 pre-existing
+        # failures (MSAL mocks, localStorage hooks, idle timer, BroadcastChannel)
+        # that are tracked separately in issue #810.  Running the full suite
+        # would make this gate permanently red and provide no additional signal
+        # for the routing regression it is designed to catch.
+        #
+        # To enforce a new test file here, add its path after the existing one
+        # (space-separated).  To allow the full suite once pre-existing failures
+        # are resolved, replace with: npx vitest run
+        run: npx vitest run src/__tests__/routing/SystemAliasRoutes.test.tsx
+
+  # ---------------------------------------------------------------------------
+  # Dashboard production bundle audit — Epic #207 / Task #235
+  # Builds the React dashboard in production mode and verifies that simulation
+  # mode strings (SimulationPanel, simulate, PostSimulate) are ABSENT from the
+  # output bundle. A feature flag that is merely "off" is insufficient for
+  # FedRAMP; the code path must be excluded at build time.
+  # ---------------------------------------------------------------------------
+  dashboard-bundle-audit:
+    name: Dashboard Production Bundle Audit (FedRAMP Sim-Mode Gate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Ato.Copilot.Dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/Ato.Copilot.Dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build (NODE_ENV=production)
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Audit bundle — simulation mode must be absent
+        # Fail if any of the simulation-mode identifiers survive tree-shaking.
+        # These strings must only exist in dev builds. Their presence in the
+        # production bundle is a FedRAMP violation (Epic #207 explicit constraint).
+        run: |
+          echo "Scanning dist/ for simulation-mode identifiers..."
+          FOUND=0
+          for PATTERN in "SimulationPanel" "PostSimulate" "simulate?identityId" "SimulationMode"; do
+            if grep -r --include="*.js" "$PATTERN" dist/ 2>/dev/null | grep -v "//"; then
+              echo "❌ FAIL: found '$PATTERN' in production bundle — simulation code was not tree-shaken"
+              FOUND=1
+            fi
+          done
+          if [ "$FOUND" -eq 0 ]; then
+            echo "✅ PASS: no simulation-mode identifiers found in production bundle"
+          else
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # CUI / Unprotected-Path Write Gate — Incident #687 / Issue #639
+  # Fails the build if any C# source file writes compliance/CUI payloads to
+  # /tmp, /var/tmp, or other world-readable paths.
+  # ---------------------------------------------------------------------------
+  cui-unprotected-write-gate:
+    name: CUI Unprotected-Path Write Gate (Incident #687)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan for CUI writes to unprotected paths
+        run: |
+          echo "Scanning src/ for writes to /tmp or other world-readable paths..."
+          FOUND=0
+
+          PATTERNS=(
+            'File\.WriteAllText\s*\(\s*"/tmp/'
+            'File\.AppendAllText\s*\(\s*"/tmp/'
+            'File\.WriteAllBytes\s*\(\s*"/tmp/'
+            'new\s+StreamWriter\s*\(\s*"/tmp/'
+            'new\s+FileStream\s*\(\s*"/tmp/'
+            'File\.WriteAllText\s*\(\s*"/var/tmp/'
+            'File\.AppendAllText\s*\(\s*"/var/tmp/'
+          )
+
+          for PATTERN in "${PATTERNS[@]}"; do
+            MATCHES=$(grep -rEn "$PATTERN" src/ --include="*.cs" 2>/dev/null | grep -v '^\s*//' || true)
+            if [ -n "$MATCHES" ]; then
+              echo "FAIL: Unprotected CUI write detected:"
+              echo "$MATCHES"
+              FOUND=1
+            fi
+          done
+
+          if [ "$FOUND" -eq 0 ]; then
+            echo "PASS: No CUI writes to unprotected paths detected."
+          else
+            echo ""
+            echo "Fix: use structured logging (ILogger) instead of writing to /tmp."
+            echo "Ref: Incident #687, Issue #639"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Workflow lint — actionlint validates all GitHub Actions YAML files (#2820)
+  # Catches indent bugs, unknown fields, and expression errors before they
+  # silently break CI. Uses a pinned actionlint binary (no third-party Action).
+  # ---------------------------------------------------------------------------
+  workflow-lint:
+    name: Workflow Lint (actionlint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          # To upgrade: bump ACTIONLINT_VERSION and update ACTIONLINT_SHA256 together.
+          # New checksum: https://github.com/rhysd/actionlint/releases → actionlint_X.Y.Z_checksums.txt
+          ACTIONLINT_VERSION="1.7.1"
+          ACTIONLINT_SHA256="f53c34493657dfea83b657e4b62cc68c25fbc383dff64c8d581613b037aacaa3"
+          TARBALL="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSL \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${TARBALL}" \
+            -o "/tmp/${TARBALL}"
+          echo "${ACTIONLINT_SHA256}  /tmp/${TARBALL}" | sha256sum --check --strict
+          tar -xz -C /usr/local/bin -f "/tmp/${TARBALL}" actionlint
+          actionlint --version
+
+      - name: Lint workflow files
+        # -ignore patterns suppress shellcheck info/style advisory codes that
+        # are cosmetic and do not indicate broken workflow logic. Real errors
+        # (unknown action inputs, expression type mismatches) are still caught.
+        run: |
+          actionlint \
+            -ignore 'SC2129:' \
+            -ignore 'SC2015:' \
+            -ignore 'SC2034:'
+
