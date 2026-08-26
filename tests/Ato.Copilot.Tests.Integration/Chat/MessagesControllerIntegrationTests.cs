@@ -12,6 +12,8 @@ using Ato.Copilot.Chat.Data;
 using Ato.Copilot.Chat.Hubs;
 using Ato.Copilot.Chat.Models;
 using Ato.Copilot.Chat.Services;
+using Ato.Copilot.Core.Interfaces;
+using Ato.Copilot.Core.Services;
 
 namespace Ato.Copilot.Tests.Integration.Chat;
 
@@ -40,6 +42,7 @@ public class MessagesControllerIntegrationTests : IAsyncLifetime
 
         builder.Services.AddDbContext<ChatDbContext>(options =>
             options.UseInMemoryDatabase(dbName));
+        builder.Services.AddSingleton<IPathSanitizationService, PathSanitizationService>();
         builder.Services.AddScoped<IChatService, ChatService>();
         builder.Services.AddHttpClient("McpServer", client =>
         {
