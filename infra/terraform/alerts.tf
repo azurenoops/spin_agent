@@ -56,13 +56,15 @@ locals {
     } : {}
   )
 
-  security_warning_webhook_receivers = var.teams_webhook_url != "" ? {
-    teams = {
-      name                    = "teams"
-      service_uri             = var.teams_webhook_url
-      use_common_alert_schema = true
-    }
-  } : {}
+  security_warning_webhook_receivers = merge(
+    var.teams_webhook_url != "" ? {
+      teams = {
+        name                    = "teams"
+        service_uri             = var.teams_webhook_url
+        use_common_alert_schema = true
+      }
+    } : {}
+  )
 
   # email_receivers: map(string) keyed by receiver name, value = address.
   # Using map(string) satisfies Terraform 1.7.x dynamic for_each validation.

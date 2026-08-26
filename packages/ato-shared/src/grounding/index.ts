@@ -19,15 +19,15 @@
  * @module grounding
  */
 
-import type { ClaimNode, EvidenceBinding, VerificationStatus } from '../research-workflow/types.ts';
-import type { NonEmptyArray } from '../research-workflow/types.ts';
+import type { ClaimNode, EvidenceBinding, VerificationStatus } from '../research-workflow/types';
+import type { NonEmptyArray } from '../research-workflow/types';
 
 export type { ClaimNode, EvidenceBinding, VerificationStatus };
 export type { NonEmptyArray };
 
-export { transitionVerificationStatus, isTerminalStatus } from './verificationStateMachine.ts';
-export { backfillLegacyCitation, buildMigrationReport } from './migration.ts';
-export type { LegacyCitation, MigrationResult, MigrationReport } from './migration.ts';
+export { transitionVerificationStatus, isTerminalStatus } from './verificationStateMachine';
+export { backfillLegacyCitation, buildMigrationReport } from './migration';
+export type { LegacyCitation, MigrationResult, MigrationReport } from './migration';
 
 // ---------------------------------------------------------------------------
 // validateEvidenceBinding — runtime span guard for GroundingPort.bind()
