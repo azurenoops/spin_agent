@@ -8,6 +8,11 @@ COPY src/Ato.Copilot.Dashboard/package.json src/Ato.Copilot.Dashboard/package-lo
 
 RUN npm ci
 
+# Copy shared workspace package so vite.config.ts alias resolves (#2683).
+# vite.config.ts resolves @ato-copilot/shared to ../../packages/ato-shared/src/index.ts
+# relative to /app — that path is /packages/ato-shared/src/index.ts inside the container.
+COPY packages/ato-shared /packages/ato-shared
+
 # Copy source and build
 COPY src/Ato.Copilot.Dashboard/ ./
 RUN rm -rf dist tsconfig.tsbuildinfo
