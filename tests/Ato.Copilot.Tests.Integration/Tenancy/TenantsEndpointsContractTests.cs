@@ -26,7 +26,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// </remarks>
 [Collection("Tenancy")]
 public class TenantsEndpointsContractTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private readonly MultiTenantWebApplicationFactory<McpProgram> _factory;
     private readonly HttpClient _client;
@@ -135,5 +134,105 @@ public class TenantsEndpointsContractTests
 
         // Per contract: deleting an absent cookie still returns 204.
         resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    // ── DEF-004: Update (PUT) ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task Put_Tenant_AsCspAdmin_UpdatesDisplayName_Returns200()
+    {
+        var targetId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
+        var newName = $"Updated-{Guid.NewGuid():N}".Substring(0, 32);
+        var body = new
+        {
+            displayName = newName,
+            timeZone = "America/New_York",
+        };
+
+        var resp = await _client.PutAsJsonAsync($"/api/tenants/{targetId}", body);
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        json.GetProperty("status").GetString().Should().Be("success");
+        json.GetProperty("data").GetProperty("displayName").GetString().Should().Be(newName);
+        json.GetProperty("data").GetProperty("timeZone").GetString().Should().Be("America/New_York");
+    }
+
+    [Fact]
+    public async Task Put_Tenant_AsNonCspAdmin_Returns403()
+    {
+        _factory.GetActiveContext().IsCspAdmin = false;
+
+        var resp = await _client.PutAsJsonAsync(
+            $"/api/tenants/{MultiTenantWebApplicationFactory<McpProgram>.TenantBId}",
+            new { displayName = "should-be-rejected", timeZone = "UTC" });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        json.GetProperty("error").GetProperty("errorCode").GetString().Should().Be("FORBIDDEN_NOT_CSP_ADMIN");
+    }
+
+    [Fact]
+    public async Task Put_Tenant_UnknownId_Returns404()
+    {
+        var resp = await _client.PutAsJsonAsync(
+            $"/api/tenants/{Guid.NewGuid()}",
+            new { displayName = "ghost-tenant", timeZone = "UTC" });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // ── DEF-004: Delete (DELETE) ────────────────────────────────────────────
+
+    [Fact]
+    public async Task Delete_Tenant_AsCspAdmin_Returns204_ThenGet_Returns404()
+    {
+        // Create a throwaway tenant so we don't disturb fixture tenants.
+        var entraTid = Guid.NewGuid();
+        var created = await _client.PostAsJsonAsync("/api/tenants",
+            new { entraTenantId = entraTid, displayName = $"Throwaway-{entraTid:N}".Substring(0, 32) });
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var createdBody = await created.Content.ReadFromJsonAsync<JsonElement>();
+        var id = Guid.Parse(createdBody.GetProperty("data").GetProperty("id").GetString()!);
+
+        var del = await _client.DeleteAsync($"/api/tenants/{id}");
+        del.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // Subsequent GET must 404 (row is gone).
+        var get = await _client.GetAsync($"/api/tenants/{id}");
+        get.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Delete_Tenant_AsNonCspAdmin_Returns403()
+    {
+        _factory.GetActiveContext().IsCspAdmin = false;
+
+        var resp = await _client.DeleteAsync(
+            $"/api/tenants/{MultiTenantWebApplicationFactory<McpProgram>.TenantBId}");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        json.GetProperty("error").GetProperty("errorCode").GetString().Should().Be("FORBIDDEN_NOT_CSP_ADMIN");
+    }
+
+    [Fact]
+    public async Task Delete_Tenant_OwnTenant_Returns409_CannotSelfDelete()
+    {
+        // TenantAId is the caller's own home tenant per constructor setup.
+        var resp = await _client.DeleteAsync(
+            $"/api/tenants/{MultiTenantWebApplicationFactory<McpProgram>.TenantAId}");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        json.GetProperty("error").GetProperty("errorCode").GetString().Should().Be("CANNOT_DELETE_OWN_TENANT");
+    }
+
+    [Fact]
+    public async Task Delete_Tenant_UnknownId_Returns404()
+    {
+        var resp = await _client.DeleteAsync($"/api/tenants/{Guid.NewGuid()}");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

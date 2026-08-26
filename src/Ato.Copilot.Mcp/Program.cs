@@ -778,7 +778,7 @@ async Task RunHttpModeAsync(string[] args)
 async Task MigrateDatabaseAsync(IServiceProvider services)
 {
     using var scope = services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<AtoCopilotContext>>();
     var deploymentOpts = scope.ServiceProvider
         .GetService<Microsoft.Extensions.Options.IOptions<Ato.Copilot.Mcp.Configuration.DeploymentOptions>>()?.Value;
@@ -795,6 +795,7 @@ async Task MigrateDatabaseAsync(IServiceProvider services)
         // leaving less than 30 s for EnsureCreatedAsync + schema additions.
         // Root cause of revision ActivationFailed (issue #386).
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(dbOptions.MigrationTimeoutSeconds));
+        await using var db = await factory.CreateDbContextAsync(cts.Token);
         var provider = scope.ServiceProvider.GetRequiredService<IConfiguration>()
             .GetValue<string>("Database:Provider") ?? "SQLite";
 

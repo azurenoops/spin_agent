@@ -13,8 +13,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { attachAuthInterceptor } from '../../auth/interceptors';
+import { getMsalInstance, DEFAULT_API_SCOPES } from '../../auth/msalInstance';
 
 const emassApi = axios.create({ baseURL: '/api/onboarding/imports/emass' });
+// Feature 051 / C-1: attach MSAL bearer token injection so requests are
+// authenticated in all environments (the bare axios.create() above had no
+// auth interceptors, causing 401s in any non-dev deployment).
+attachAuthInterceptor(emassApi, getMsalInstance, DEFAULT_API_SCOPES);
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

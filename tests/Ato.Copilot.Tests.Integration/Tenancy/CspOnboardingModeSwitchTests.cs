@@ -139,6 +139,10 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
             // below to avoid contention with sibling fixtures (the env var
             // would race with MultiTenantWebApplicationFactory and
             // SingleTenantFactory ctors).
+            // ATO_RUN_MODE=http: prevents DetermineRunMode() from picking
+            // "stdio" (which would use `using var host` and dispose the host
+            // immediately, causing ObjectDisposedException on CreateClient()).
+            Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
             Environment.SetEnvironmentVariable("ATO_Database__Provider", "Sqlite");
             Environment.SetEnvironmentVariable("ATO_ConnectionStrings__DefaultConnection",
                 $"Data Source={sqliteFile};Mode=ReadWriteCreate");

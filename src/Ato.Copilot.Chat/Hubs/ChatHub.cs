@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Ato.Copilot.Channels.Abstractions;
@@ -5,6 +6,7 @@ using Ato.Copilot.Channels.Models;
 using Ato.Copilot.Chat.Channels;
 using Ato.Copilot.Chat.Models;
 using Ato.Copilot.Chat.Services;
+using System.Security.Claims;
 
 namespace Ato.Copilot.Chat.Hubs;
 
@@ -14,6 +16,7 @@ namespace Ato.Copilot.Chat.Hubs;
 /// message processing to <see cref="IMessageHandler"/>,
 /// and delivery to <see cref="IChannel"/> for Channels library integration.
 /// </summary>
+[Authorize]
 public class ChatHub : Hub
 {
     private readonly IChannelManager _channelManager;
@@ -166,13 +169,19 @@ public class ChatHub : Hub
 
     /// <summary>
     /// Notifies other participants that a user is typing.
+    /// userId is derived from the authenticated identity — not accepted from the client.
     /// </summary>
     /// <param name="conversationId">The conversation ID.</param>
-    /// <param name="userId">The typing user's ID.</param>
-    public async Task NotifyTyping(string conversationId, string userId)
+    public async Task NotifyTyping(string conversationId)
     {
-        if (string.IsNullOrWhiteSpace(conversationId) || string.IsNullOrWhiteSpace(userId))
+        if (string.IsNullOrWhiteSpace(conversationId))
             return;
+
+        // DEF-001: userId derived from authenticated claims, not client-supplied parameter.
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? Context.User?.FindFirstValue("oid")
+                     ?? Context.User?.Identity?.Name
+                     ?? Context.ConnectionId;
 
         await Clients.OthersInGroup(conversationId).SendAsync("UserTyping", new
         {

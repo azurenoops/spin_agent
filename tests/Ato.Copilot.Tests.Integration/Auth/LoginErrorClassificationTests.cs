@@ -35,7 +35,8 @@ namespace Ato.Copilot.Tests.Integration.Auth;
 /// subjects, or issuer DNs.
 /// </para>
 /// </remarks>
-public sealed class LoginErrorClassificationTests : IClassFixture<LoginAuthTestFactory>
+[Collection("Auth")]
+public sealed class LoginErrorClassificationTests
 {
     private readonly LoginAuthTestFactory _factory;
 

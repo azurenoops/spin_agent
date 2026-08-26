@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Ato.Copilot.Core.Configuration;
@@ -18,6 +19,7 @@ public class ComplianceAuthorizationMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ComplianceAuthorizationMiddleware> _logger;
+    private readonly IHostEnvironment _hostEnvironment;
 
     /// <summary>Tools that modify compliance state (write operations).</summary>
     private static readonly HashSet<string> WriteTools = new(StringComparer.OrdinalIgnoreCase)
@@ -39,10 +41,11 @@ public class ComplianceAuthorizationMiddleware
     /// <summary>
     /// Initializes a new instance of the <see cref="ComplianceAuthorizationMiddleware"/> class.
     /// </summary>
-    public ComplianceAuthorizationMiddleware(RequestDelegate next, ILogger<ComplianceAuthorizationMiddleware> logger)
+    public ComplianceAuthorizationMiddleware(RequestDelegate next, ILogger<ComplianceAuthorizationMiddleware> logger, IHostEnvironment hostEnvironment)
     {
         _next = next;
         _logger = logger;
+        _hostEnvironment = hostEnvironment;
     }
 
     /// <summary>
@@ -72,8 +75,7 @@ public class ComplianceAuthorizationMiddleware
         }
 
         // In development or stdio mode, skip auth
-        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-        if (environment == "Development")
+        if (_hostEnvironment.IsDevelopment())
         {
             await _next(context);
             return;

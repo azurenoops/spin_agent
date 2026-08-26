@@ -22,4 +22,22 @@ export type {
   CitationStyle,
   CitationOutput,
   EditorSuggestion,
+  // Claim↔Evidence Ledger — v2 grounding contract (#a493ec1c)
+  VerificationStatus,
+  ClaimNode,
+  EvidenceBinding,
 } from './research-workflow';
+// GroundingPort + state machine + migration helpers
+export type { GroundingPort, LegacyCitation, MigrationResult, MigrationReport } from './grounding';
+export type { VerificationEvent } from './grounding/verificationStateMachine';
+export {
+  transitionVerificationStatus,
+  isTerminalStatus,
+  validateEvidenceBinding,
+} from './grounding';
+export {
+  backfillLegacyCitation,
+  buildMigrationReport,
+  isMigrationPending,
+  meetsLegacyRemovalGate,
+} from './grounding/migration';

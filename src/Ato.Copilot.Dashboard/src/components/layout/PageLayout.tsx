@@ -142,12 +142,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
             {/* Feature 051 cleanup: legacy <RoleSwitcher /> (the orange
                 "DEV ISSM" pre-login persona override) removed — real
                 identity now flows from /api/auth/me via AccountMenu. */}
-            <button type="button" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Search" title="Search">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-              </svg>
-            </button>
-            <div ref={notifRef} className="relative">
+             <div ref={notifRef} className="relative">
               <button type="button" onClick={() => setNotificationsOpen(!notificationsOpen)} className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 ${notificationsOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'}`} aria-label="Notifications" title="Notifications" aria-expanded={notificationsOpen}>
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />

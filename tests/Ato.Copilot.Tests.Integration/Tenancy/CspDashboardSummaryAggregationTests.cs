@@ -26,7 +26,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// </remarks>
 [Collection("Tenancy")]
 public class CspDashboardSummaryAggregationTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private static readonly Guid TenantCId = Guid.Parse("c0c0c0c0-cccc-cccc-cccc-c0c0c0c0c0c0");
 

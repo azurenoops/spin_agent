@@ -22,7 +22,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// </remarks>
 [Collection("Tenancy")]
 public class CspAdminAccessGuardTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private readonly MultiTenantWebApplicationFactory<McpProgram> _factory;
     private readonly HttpClient _client;

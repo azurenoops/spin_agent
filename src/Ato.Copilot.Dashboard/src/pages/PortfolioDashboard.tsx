@@ -278,9 +278,9 @@ export default function PortfolioDashboard() {
                       } catch (err: unknown) {
                         const msg = err instanceof Error ? err.message : 'Failed to generate description';
                         if (msg.includes('503')) {
-                          alert('AI service is not configured. Contact administrator to enable Azure OpenAI integration.');
+                          setEditError('AI service is not configured. Contact your administrator to enable Azure OpenAI integration.');
                         } else {
-                          alert(`Error generating description: ${msg}`);
+                          setEditError(`Error generating description: ${msg}`);
                         }
                       } finally {
                         setEditGeneratingDesc(false);

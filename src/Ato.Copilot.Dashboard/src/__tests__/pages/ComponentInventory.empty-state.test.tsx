@@ -100,7 +100,7 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={[`/systems/${SYSTEM_ID}/components`]}>
       <Routes>
-        <Route path="/systems/:systemId/components" element={<ComponentInventory />} />
+        <Route path="/systems/:id/components" element={<ComponentInventory />} />
       </Routes>
     </MemoryRouter>,
   );

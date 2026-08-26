@@ -25,18 +25,28 @@ export interface NotificationSummary {
 
 // ─── Hook ───────────────────────────────────────────────────────────────────
 
-export function useNotifications(userId: string = 'dashboard-user') {
+export function useNotifications(userId?: string) {
+  // DEF-001 R2: Resolve the caller's OID from MSAL. If no authenticated account
+  // exists, bail out entirely — do not fall back to a phantom 'dashboard-user'
+  // identity. localAccountId is MSAL's projection of the Entra `oid` claim,
+  // consistent with the identity used elsewhere in the app.
+  const msalAccount = getMsalInstance().getAllAccounts()[0];
+  const resolvedUserId = userId ?? msalAccount?.localAccountId ?? null;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(resolvedUserId !== null);
   const connectionRef = useRef<signalR.HubConnection | null>(null);
 
-  // Fetch notifications from API
+  // Fetch notifications from API — skip when unauthenticated
   const fetchNotifications = useCallback(async () => {
+    if (!resolvedUserId) {
+      setLoading(false);
+      return;
+    }
     try {
       const [listRes, summaryRes] = await Promise.all([
-        apiClient.get<{ items: Notification[] }>('/notifications', { params: { userId, limit: 50 } }),
-        apiClient.get<NotificationSummary>('/notifications/summary', { params: { userId } }),
+        apiClient.get<{ items: Notification[] }>('/notifications', { params: { userId: resolvedUserId, limit: 50 } }),
+        apiClient.get<NotificationSummary>('/notifications/summary', { params: { userId: resolvedUserId } }),
       ]);
       setNotifications(listRes.data.items);
       setUnreadCount(summaryRes.data.unreadCount);
@@ -45,7 +55,7 @@ export function useNotifications(userId: string = 'dashboard-user') {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [resolvedUserId]);
 
   // Mark specific notifications as read
   const markAsRead = useCallback(async (notificationIds: string[]) => {
@@ -66,8 +76,9 @@ export function useNotifications(userId: string = 'dashboard-user') {
 
   // Mark all as read
   const markAllAsRead = useCallback(async () => {
+    if (!resolvedUserId) return;
     try {
-      await apiClient.post('/notifications/mark-all-read', null, { params: { userId } });
+      await apiClient.post('/notifications/mark-all-read', null, { params: { userId: resolvedUserId } });
       setNotifications((prev) =>
         prev.map((n) => ({ ...n, isRead: true, readAt: new Date().toISOString() })),
       );
@@ -75,15 +86,18 @@ export function useNotifications(userId: string = 'dashboard-user') {
     } catch {
       // best-effort
     }
-  }, [userId]);
+  }, [resolvedUserId]);
 
   // Initial fetch
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // SignalR real-time connection
+  // SignalR real-time connection — skip entirely when unauthenticated.
+  // DEF-001 R2: never connect or register without a verified MSAL account.
   useEffect(() => {
+    if (!resolvedUserId) return;
+
     const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/dashboard', '') || '';
     const hubUrl = `${baseUrl}/hubs/notifications`;
 
@@ -133,7 +147,7 @@ export function useNotifications(userId: string = 'dashboard-user') {
 
     connection
       .start()
-      .then(() => connection.invoke('RegisterUser', userId))
+      .then(() => connection.invoke('RegisterUser', resolvedUserId))
       .catch(() => {
         // SignalR not available — fall back to polling
       });
@@ -143,7 +157,7 @@ export function useNotifications(userId: string = 'dashboard-user') {
     return () => {
       connection.stop();
     };
-  }, [userId]);
+  }, [resolvedUserId]);
 
   return {
     notifications,

@@ -39,7 +39,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy.Csp;
 /// </remarks>
 [Collection("Tenancy")]
 public class CspAtoUploadFlowTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private const string WizardUploadUrl = "/api/csp/onboarding/atos/upload";
     private const string PostOnboardingImportUrl = "/api/csp/inherited-components/import";

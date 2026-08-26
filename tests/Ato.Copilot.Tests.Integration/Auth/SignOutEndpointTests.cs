@@ -19,7 +19,8 @@ namespace Ato.Copilot.Tests.Integration.Auth;
 /// <c>POST /api/auth/signout</c> per <c>contracts/http-api.md § 3</c>.
 /// Uses <see cref="LoginAuthTestFactory"/> for synthetic auth claims.
 /// </summary>
-public class SignOutEndpointTests : IClassFixture<LoginAuthTestFactory>
+[Collection("Auth")]
+public class SignOutEndpointTests
 {
     private readonly LoginAuthTestFactory _factory;
 

@@ -39,7 +39,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy.Csp;
 /// </remarks>
 [Collection("Tenancy")]
 public class CspInheritedComponentFkRejectionTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private readonly MultiTenantWebApplicationFactory<McpProgram> _factory;
 

@@ -1,0 +1,50 @@
+# .github/CODEOWNERS
+# Fix #666: security-critical paths now have required reviewer enforcement.
+#
+# SETUP REQUIRED: Replace team slugs below with real GitHub team names.
+#   az ad group list --display-name "..." or GitHub → Settings → Teams
+# Then enable: Settings → Branches → main → "Require review from Code Owners"
+#
+# Format: <path pattern>   @<org>/<team-slug>
+# Docs:   https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# ── Default owner for everything not matched below ────────────────────────────
+*                          @azurenoops/ato-copilot-maintainers
+
+# ── CI/CD workflows ───────────────────────────────────────────────────────────
+.github/workflows/         @azurenoops/platform-infra
+.github/actions/           @azurenoops/platform-infra
+.github/CODEOWNERS         @azurenoops/platform-infra
+
+# ── Infrastructure (Terraform, Docker, compose) ───────────────────────────────
+infra/                     @azurenoops/platform-infra
+Dockerfile                 @azurenoops/platform-infra
+docker-compose*.yml        @azurenoops/platform-infra
+global.json                @azurenoops/platform-infra
+
+# ── Authentication and authorization (security-critical) ──────────────────────
+src/Ato.Copilot.Dashboard/src/features/auth/   @azurenoops/security-reviewers
+src/Ato.Copilot.Mcp/Middleware/                @azurenoops/security-reviewers
+src/Ato.Copilot.Core/Configuration/           @azurenoops/security-reviewers
+
+# ── Core domain models and EF context ────────────────────────────────────────
+src/Ato.Copilot.Core/      @azurenoops/ato-copilot-backend
+
+# ── AI agents and MCP tools ───────────────────────────────────────────────────
+src/Ato.Copilot.Agents/    @azurenoops/ato-copilot-backend
+src/Ato.Copilot.Mcp/       @azurenoops/ato-copilot-backend
+
+# ── Frontend — Dashboard and Chat ─────────────────────────────────────────────
+src/Ato.Copilot.Dashboard/ @azurenoops/ato-copilot-frontend
+src/Ato.Copilot.Chat/      @azurenoops/ato-copilot-frontend
+
+# ── Extensions ────────────────────────────────────────────────────────────────
+extensions/vscode/         @azurenoops/ato-copilot-frontend
+extensions/m365/           @azurenoops/ato-copilot-frontend
+
+# ── Shared packages ───────────────────────────────────────────────────────────
+packages/                  @azurenoops/ato-copilot-frontend
+
+# ── Security documentation ────────────────────────────────────────────────────
+SECURITY.md                @azurenoops/security-reviewers
+docs/architecture/         @azurenoops/security-reviewers @azurenoops/ato-copilot-backend

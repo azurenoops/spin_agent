@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -18,10 +19,17 @@ namespace Ato.Copilot.Tests.Unit.Middleware;
 public class ComplianceAuthorizationMiddlewareTests
 {
     private readonly Mock<ILogger<ComplianceAuthorizationMiddleware>> _logger = new();
+    private readonly Mock<IHostEnvironment> _prodEnv;
+
+    public ComplianceAuthorizationMiddlewareTests()
+    {
+        _prodEnv = new Mock<IHostEnvironment>();
+        _prodEnv.Setup(e => e.EnvironmentName).Returns(Environments.Production);
+    }
 
     private ComplianceAuthorizationMiddleware CreateMiddleware(RequestDelegate next)
     {
-        return new ComplianceAuthorizationMiddleware(next, _logger.Object);
+        return new ComplianceAuthorizationMiddleware(next, _logger.Object, _prodEnv.Object);
     }
 
     [Fact]
@@ -54,12 +62,7 @@ public class ComplianceAuthorizationMiddlewareTests
         context.Items["ToolName"] = "run_assessment";
         context.Items["SessionId"] = "prev-session-123";
 
-        // Set production environment
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
-
         await middleware.InvokeAsync(context);
-
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
 
         context.Response.StatusCode.Should().Be(202);
         nextCalled.Should().BeFalse();
@@ -102,11 +105,7 @@ public class ComplianceAuthorizationMiddlewareTests
         context.Items["ToolName"] = "run_assessment";
         // No SessionId — not a mid-operation scenario
 
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
-
         await middleware.InvokeAsync(context);
-
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
 
         context.Response.StatusCode.Should().Be(401);
 
@@ -126,11 +125,7 @@ public class ComplianceAuthorizationMiddlewareTests
         context.Request.Path = "/api/tools";
         context.Items["ToolName"] = "cac_status"; // Tier 1
 
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
-
         await middleware.InvokeAsync(context);
-
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
 
         // Tier 1 tool with no auth should not be blocked (no role check for unauthenticated)
         // The middleware should call next for non-Tier 2 tools without strict auth

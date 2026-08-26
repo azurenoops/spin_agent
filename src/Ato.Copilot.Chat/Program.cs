@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
@@ -148,9 +151,68 @@ try
             options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         });
     builder.Services.AddHealthChecks();
+
+    // ─── Authentication & Authorization (DEF-001) ────────────────────────────
+    // Validates Azure AD JWT Bearer tokens using the same AzureAd configuration
+    // section as the MCP server (port 3001). SignalR connections pass the token
+    // via the access_token query string (standard SignalR + JWT pattern).
+    //
+    // The MCP server uses a custom CacAuthenticationMiddleware to do the same
+    // validation and additionally enforce CAC/PIV amr claims. Chat uses the
+    // standard JwtBearer handler for simplicity; CAC enforcement can be layered
+    // on in a follow-on if Chat users are required to hold PIV cards.
+    var azureAdSection = builder.Configuration.GetSection("AzureAd");
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.Authority = azureAdSection["Authority"]
+                ?? $"https://login.microsoftonline.com/{azureAdSection["TenantId"]}/v2.0";
+            options.Audience = azureAdSection["ClientId"];
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+            };
+            // Allow SignalR to pass the bearer token as a query string parameter
+            // (WebSocket / SSE connections cannot set Authorization headers).
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken) &&
+                        (path.StartsWithSegments("/hubs/chat") ||
+                         path.StartsWithSegments("/hubs/collaboration")))
+                    {
+                        context.Token = accessToken;
+                    }
+                    return Task.CompletedTask;
+                }
+            };
+        });
+
+    // Default policy: every endpoint requires an authenticated user.
+    // FallbackPolicy extends this to minimal-API endpoints (MapGet, etc.)
+    // that have no explicit [Authorize] or [AllowAnonymous].
+    // Endpoints that must remain public (health, info) use .AllowAnonymous().
+    builder.Services.AddAuthorization(options =>
+    {
+        var requireAuth = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+        options.DefaultPolicy = requireAuth;
+        options.FallbackPolicy = requireAuth;
+    });
+
     builder.Services.AddCors(options =>
     {
-        options.AddPolicy("AllowAll", policy =>
+        // DEF-001: renamed from "AllowAll" to "AllowDashboard" to make intent explicit.
+        // Origins are config-driven (Cors:AllowedOrigins); dev fallback covers the
+        // React dev server and Vite. AllowCredentials() is required for SignalR.
+        options.AddPolicy("AllowDashboard", policy =>
         {
             var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
                           ?? new[] { "http://localhost:3000", "http://localhost:5173" };
@@ -160,7 +222,6 @@ try
                 .AllowCredentials();
         });
     });
-
     var app = builder.Build();
 
     // ─── Database Initialization ─────────────────────────────────────
@@ -197,17 +258,24 @@ try
     app.UseHttpsRedirection();
     app.UseStaticFiles();
     app.UseRouting();
-    app.UseCors("AllowAll");
+    // DEF-001: renamed policy + UseAuthentication/UseAuthorization wired in correct order.
+    // ASP.NET Core middleware ordering: CORS must come before auth so preflight
+    // requests are handled before the auth challenge runs.
+    app.UseCors("AllowDashboard");
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     // ─── Endpoints ───────────────────────────────────────────────────
 
     app.MapControllers();
     app.MapHub<ChatHub>("/hubs/chat");
     app.MapHub<CollaborationHub>("/hubs/collaboration"); // #1357
+    // Health and info are public — they must be explicitly opted out of the
+    // FallbackPolicy (RequireAuthenticatedUser) set in AddAuthorization above.
     app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
     {
         ResponseWriter = WriteHealthCheckResponseAsync
-    });
+    }).AllowAnonymous();
 
     app.MapGet("/api/info", () => Results.Json(new
     {
@@ -220,10 +288,16 @@ try
             hub = "ws /hubs/chat",
             health = "GET /health"
         }
-    }));
+    })).AllowAnonymous();
 
-    // SPA fallback — MUST be last
-    app.MapFallbackToFile("index.html");
+    // SPA fallback — MUST be last.
+    // DEF-001 R1: AllowAnonymous so unauthenticated browsers can load the
+    // app shell and reach the MSAL login page. The FallbackPolicy
+    // (RequireAuthenticatedUser) would otherwise 401 every fresh session
+    // before index.html is served, preventing MSAL from ever running.
+    // API controllers and SignalR hubs retain their auth requirement via
+    // [Authorize] attributes and the DefaultPolicy.
+    app.MapFallbackToFile("index.html").AllowAnonymous();
 
     var port = builder.Configuration.GetValue("Server:Port", 5001);
     var urls = builder.Configuration.GetValue("Server:Urls", $"http://0.0.0.0:{port}");

@@ -16,4 +16,8 @@ export type {
   CitationStyle,
   CitationOutput,
   EditorSuggestion,
+  // Claim↔Evidence Ledger — v2 grounding contract (#a493ec1c)
+  VerificationStatus,
+  ClaimNode,
+  EvidenceBinding,
 } from './types';

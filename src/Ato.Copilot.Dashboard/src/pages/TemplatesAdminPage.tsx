@@ -61,6 +61,7 @@ function TemplateUploadForm(props: {
   const [version, setVersion] = useState('v1.0');
   const [isDefault, setIsDefault] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [fileSizeError, setFileSizeError] = useState<string | null>(null);
 
   return (
     <form
@@ -94,10 +95,11 @@ function TemplateUploadForm(props: {
           const picked = e.target.files?.[0] ?? null;
           // T011: client-side 50 MB cap before upload attempt
           if (picked && picked.size > 50 * 1024 * 1024) {
-            alert('File exceeds the 50 MB limit. Please choose a smaller file.');
+            setFileSizeError('File exceeds the 50 MB limit. Please choose a smaller file.');
             e.target.value = '';
             return;
           }
+          setFileSizeError(null);
           setFile(picked);
         }}
       />
@@ -116,6 +118,9 @@ function TemplateUploadForm(props: {
       >
         {props.busy ? 'Uploading…' : 'Upload'}
       </button>
+      {fileSizeError && (
+        <p className="col-span-5 text-xs text-red-600 mt-1">{fileSizeError}</p>
+      )}
     </form>
   );
 }
@@ -134,6 +139,7 @@ export default function TemplatesAdminPage() {
   const [seedsLoading, setSeedsLoading] = useState(true);
   const [seedsError, setSeedsError] = useState<string | null>(null);
   const [seedBusy, setSeedBusy] = useState(false);
+  const [seedFileSizeError, setSeedFileSizeError] = useState<string | null>(null);
 
   // ── Seed upload form state ────────────────────────────────────────────────
   const [seedLabel, setSeedLabel] = useState('');
@@ -522,10 +528,11 @@ export default function TemplatesAdminPage() {
           const picked = e.target.files?.[0] ?? null;
           // T011: client-side 50 MB cap for seed documents
           if (picked && picked.size > 50 * 1024 * 1024) {
-            alert('File exceeds the 50 MB limit. Please choose a smaller file.');
+            setSeedFileSizeError('File exceeds the 50 MB limit. Please choose a smaller file.');
             e.target.value = '';
             return;
           }
+          setSeedFileSizeError(null);
           setSeedFile(picked);
         }}
               />
@@ -539,6 +546,9 @@ export default function TemplatesAdminPage() {
                 {seedBusy ? 'Uploading…' : 'Upload Seed'}
               </button>
             </div>
+            {seedFileSizeError && (
+              <p className="text-xs text-red-600 mt-1">{seedFileSizeError}</p>
+            )}
           </form>
         </div>
 

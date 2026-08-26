@@ -28,10 +28,10 @@ RUN dotnet publish src/Ato.Copilot.Mcp/Ato.Copilot.Mcp.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 
-# Install curl for health checks and Azure CLI for credential passthrough from host
+# Install curl for HEALTHCHECK — Azure CLI removed (fix #662: 300MB bloat + attack surface)
+# For local dev credential passthrough, mount ~/.azure via docker-compose volume instead.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates gnupg lsb-release \
-    && curl -sL https://aka.ms/InstallAzureCLIDeb | bash \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -48,5 +48,10 @@ COPY --from=build /app/publish .
 USER atocopilot
 
 EXPOSE 3001
+
+# Health check — polls the /health endpoint (rate-limit exempt, unauthenticated)
+# Fix #660: enables Docker-native health status for standalone and Swarm deployments
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:3001/health || exit 1
 
 ENTRYPOINT ["dotnet", "Ato.Copilot.Mcp.dll", "--http"]

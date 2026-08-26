@@ -139,7 +139,33 @@ jobs:
         run: npm install
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
+
+  # ---------------------------------------------------------------------------
+  # Grounding port CI guard — check-grounding-port.mjs (#a493ec1c)
+  #
+  # REQUIRED check — must pass before any PR can merge.
+  # Statically scans all TypeScript source for:
+  #   Rule A: content-insert calls made without routing through GroundingPort
+  #   Rule B: evidenceSpan [0,0] sentinel used outside migration.ts
+  #   Rule D: ClaimNode constructed without GroundingPort or backfillLegacyCitation
+  #
+  # This is the durable guard against grounding-regression recurrence (cf. #641).
+  # ---------------------------------------------------------------------------
+  grounding-port-check:
+    name: Grounding Port Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run grounding port static scan
+        run: node packages/ato-shared/scripts/check-grounding-port.mjs
 
   # ---------------------------------------------------------------------------
   # Research-workflow citation boundary lint (#2683)
@@ -230,6 +256,53 @@ jobs:
       - name: Run tests
         run: npm test
         working-directory: extensions/m365
+
+  # ---------------------------------------------------------------------------
+  # Integration Tests — Fix #659
+  # Runs the full Ato.Copilot.Tests.Integration suite on every push to main
+  # and on all PRs. Uses SQLite in-memory (EnsureCreatedAsync dev path) so no
+  # live SQL Server is required. OSCAL-specific tests are also covered here;
+  # the oscal-schema-validation job below retains its schema-filter for the
+  # bundled NIST OSCAL 1.1.2 schema check.
+  # ---------------------------------------------------------------------------
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [dotnet-build-test]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Ato.Copilot.sln
+
+      - name: Build
+        run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
+
+      - name: Run integration tests
+        run: |
+          dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+            -c Release --no-build -nologo \
+            --logger trx \
+            --logger "console;verbosity=normal"
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ATO_DATABASE__PROVIDER: Sqlite
+          ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: "Data Source=:memory:"
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: tests/**/TestResults/*.trx
+          if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
   # OSCAL 1.1.2 Schema Validation Gate — Epic #122 (Task #153)

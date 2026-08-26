@@ -23,7 +23,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// </remarks>
 [Collection("Tenancy")]
 public class CspDashboardAuthorizationTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private static readonly string[] DashboardPaths =
     {

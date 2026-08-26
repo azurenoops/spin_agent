@@ -23,7 +23,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// </remarks>
 [Collection("Tenancy")]
 public class CspDashboardDisabledTenantTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private static readonly Guid DisabledTenantId =
         Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");

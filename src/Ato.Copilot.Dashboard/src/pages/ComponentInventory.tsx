@@ -53,6 +53,7 @@ export default function ComponentInventory() {
   const [importLoading, setImportLoading] = useState(false);
   const [failedGroups, setFailedGroups] = useState<string[]>([]);
   const [noAzureSubscriptions, setNoAzureSubscriptions] = useState(false);
+  const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!systemId) return;
@@ -125,16 +126,15 @@ export default function ComponentInventory() {
     try {
       const result = await deleteComponent(id);
       if (result.flaggedCapabilities.length > 0) {
-        alert(
-          `Deleted. The following capabilities were flagged for review:\n${result.flaggedCapabilities
-            .map((f) => `• ${f.capabilityName}: ${f.message}`)
-            .join('\n')}`,
-        );
+        setActionMessage({
+          type: 'success',
+          text: `Deleted. The following capabilities were flagged for review: ${result.flaggedCapabilities.map((f) => `${f.capabilityName}: ${f.message}`).join('; ')}`,
+        });
       }
       setDeleteConfirm(null);
       await fetchData();
     } catch {
-      alert('Failed to delete component');
+      setActionMessage({ type: 'error', text: 'Failed to delete component' });
     }
   };
 
@@ -190,10 +190,10 @@ export default function ComponentInventory() {
     if (!systemId) return;
     try {
       const result = await relinkComponentFindings(systemId, comp.id);
-      alert(`Re-linked ${result.linkedCount} finding(s) for ${comp.name}`);
+      setActionMessage({ type: 'success', text: `Re-linked ${result.linkedCount} finding(s) for ${comp.name}` });
       await fetchData();
     } catch {
-      alert('Failed to re-link findings');
+      setActionMessage({ type: 'error', text: 'Failed to re-link findings' });
     }
   };
 
@@ -259,6 +259,13 @@ export default function ComponentInventory() {
 
   return (
     <>
+      {/* Action result banner */}
+      {actionMessage && (
+        <div className={`mb-4 flex items-center justify-between rounded-lg px-4 py-3 text-sm ${actionMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+          <span>{actionMessage.text}</span>
+          <button type="button" onClick={() => setActionMessage(null)} className="ml-4 text-current opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -384,13 +391,14 @@ export default function ComponentInventory() {
                 {orgAssignError && (
                   <div className="bg-red-50 text-red-700 p-2 rounded text-sm mb-3">{orgAssignError}</div>
                 )}
-                {orgLoading ? (
+                {(() => {
+                  const filteredOrgComponents = orgComponents.filter((c) =>
+                    !orgSearch.trim() ||
+                    c.name.toLowerCase().includes(orgSearch.trim().toLowerCase()) ||
+                    (c.subType ?? '').toLowerCase().includes(orgSearch.trim().toLowerCase()),
+                  );
+                  return orgLoading ? (
                   <div className="text-center text-sm text-gray-500 py-8">Loading org components…</div>
-                ) : orgComponents.length === 0 && orgSearch.trim() ? (
-                  // (C) Unassigned components exist but search has no match
-                  <div className="py-8 text-center">
-                    <p className="text-sm text-gray-400">No components match your search.</p>
-                  </div>
                 ) : totalOrgComponents === 0 ? (
                   // (A) No org-level components exist at all → guide to Components library
                   <div className="py-8 text-center space-y-2">
@@ -408,14 +416,14 @@ export default function ComponentInventory() {
                   <div className="py-8 text-center">
                     <p className="text-sm text-gray-400">All org-level components are already assigned to this system.</p>
                   </div>
+                ) : filteredOrgComponents.length === 0 && orgSearch.trim() ? (
+                  // (C) Unassigned components exist but search has no match
+                  <div className="py-8 text-center">
+                    <p className="text-sm text-gray-400">No components match your search.</p>
+                  </div>
                 ) : (
                   <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                    {orgComponents
-                      .filter((c) =>
-                        !orgSearch.trim() ||
-                        c.name.toLowerCase().includes(orgSearch.trim().toLowerCase()) ||
-                        (c.subType ?? '').toLowerCase().includes(orgSearch.trim().toLowerCase()),
-                      )
+                    {filteredOrgComponents
                       .map((comp) => (
                         <div key={comp.id} className="flex items-center justify-between border rounded px-3 py-2 hover:bg-gray-50">
                           <div className="min-w-0">
@@ -444,7 +452,8 @@ export default function ComponentInventory() {
                         </div>
                       ))}
                   </div>
-                )}
+                );
+                })()}
                 <div className="flex justify-end pt-4">
                   <button type="button" onClick={handleCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
                     Cancel

@@ -1,0 +1,15 @@
+# backend.hcl.example — fix #668: remote state backend configuration template.
+#
+# Copy this file to environments/backend.hcl (which is .gitignored) and fill
+# in the values for your environment.
+#
+# Usage:
+#   terraform init -backend-config=environments/backend.hcl
+#
+# The storage account must exist before running terraform init.
+# See docs/deployment.md § "Terraform Remote State" for setup steps.
+
+resource_group_name  = "rg-ato-copilot-tfstate"
+storage_account_name = "saatotfstate<unique-suffix>"
+container_name       = "tfstate"
+key                  = "ato-copilot.tfstate"

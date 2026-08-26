@@ -28,10 +28,8 @@ function AppLayoutBridge() {
   const { state } = useChatContext();
   const conversationId = state.activeConversationId ?? null;
 
-  // Stable transient identity for this browser session.
-  // Replace with real auth once auth middleware is wired.
-  const userId = useRef(`anon-${Math.random().toString(36).slice(2)}`).current;
-  const displayName = useRef('Anonymous').current;
+  // DEF-001: displayName sourced from auth context in future. Placeholder for now.
+  const displayName = useRef('Authenticated User').current;
 
   const inner = (
     <EditorLayoutProvider conversationId={conversationId}>
@@ -44,7 +42,6 @@ function AppLayoutBridge() {
   return (
     <CollaborationProvider
       documentId={conversationId}
-      userId={userId}
       displayName={displayName}
     >
       {inner}

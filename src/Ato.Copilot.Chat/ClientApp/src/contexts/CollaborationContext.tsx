@@ -69,7 +69,8 @@ export interface CollaborationContextValue {
 
   // ─── SignalR actions ──────────────────────────────────────────
 
-  joinDocument: (documentId: string, userId: string, displayName: string) => Promise<void>;
+  // DEF-001: userId param removed — server derives from authenticated claims.
+  joinDocument: (documentId: string, displayName: string) => Promise<void>;
   updateCursor: (documentId: string, cursor: CursorPositionPayload) => Promise<void>;
   claimLock: (payload: LockClaimPayload) => Promise<void>;
   releaseLock: (payload: LockReleasePayload) => Promise<void>;
@@ -94,15 +95,16 @@ export interface CollaborationProviderProps {
   children: React.ReactNode;
   /** Current conversation / document id. Null means no document is open. */
   documentId: string | null;
-  /** Identity of the local user — sourced from auth context or a transient id. */
-  userId: string;
+  // DEF-001 R3: userId removed — server derives identity from authenticated JWT
+  // claims on every hub call. Passing a userId prop here was dead code that
+  // would silently reintroduce a phantom-identity bug if a hub invoke were
+  // ever wired to it again.
   displayName: string;
 }
 
 export function CollaborationProvider({
   children,
   documentId,
-  userId,
   displayName,
 }: CollaborationProviderProps) {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
@@ -211,14 +213,15 @@ export function CollaborationProvider({
     const conn = connectionRef.current;
     if (!conn || !documentId || conn.state !== signalR.HubConnectionState.Connected) return;
 
-    conn.invoke('JoinDocument', documentId, userId, displayName).catch((err) => {
+    // DEF-001: userId no longer sent to hub — server derives from authenticated claims.
+    conn.invoke('JoinDocument', documentId, displayName).catch((err) => {
       console.error('[CollaborationHub] JoinDocument failed', err);
     });
 
     return () => {
-      conn.invoke('LeaveDocument', documentId, userId).catch(() => { /* ignore on unmount */ });
+      conn.invoke('LeaveDocument', documentId).catch(() => { /* ignore on unmount */ });
     };
-  }, [documentId, userId, displayName]);
+  }, [documentId, displayName]);
 
   // ─── Fetch REST data when documentId changes ──────────────────────────────
 
@@ -271,8 +274,9 @@ export function CollaborationProvider({
 
   // ─── SignalR actions ──────────────────────────────────────────────────────
 
-  const joinDocument = useCallback(async (docId: string, uid: string, name: string) => {
-    await connectionRef.current?.invoke('JoinDocument', docId, uid, name);
+  // DEF-001: uid param removed — server derives userId from authenticated claims.
+  const joinDocument = useCallback(async (docId: string, name: string) => {
+    await connectionRef.current?.invoke('JoinDocument', docId, name);
   }, []);
 
   const updateCursor = useCallback(async (docId: string, cursor: CursorPositionPayload) => {

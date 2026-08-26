@@ -29,7 +29,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// </summary>
 [Collection("Tenancy")]
 public class TenantScopedEndpointHttpPipelineTests
-    : IClassFixture<MultiTenantWebApplicationFactory<McpProgram>>
 {
     private readonly MultiTenantWebApplicationFactory<McpProgram> _factory;
     private readonly HttpClient _client;

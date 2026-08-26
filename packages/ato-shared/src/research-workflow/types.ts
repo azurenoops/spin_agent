@@ -133,6 +133,95 @@ export interface CitationOutput {
 }
 
 // ---------------------------------------------------------------------------
+// Claim↔Evidence Ledger — v2 grounding contract (#a493ec1c)
+// ---------------------------------------------------------------------------
+
+/**
+ * The verification lifecycle of an EvidenceBinding.
+ *
+ * Legal transitions (enforced by verificationStateMachine.ts):
+ *   unverified → machine_verified
+ *   unverified → contradicted
+ *   machine_verified → human_confirmed
+ *   machine_verified → contradicted
+ *   human_confirmed  — terminal (no further transitions)
+ *   contradicted     — terminal (no further transitions)
+ *
+ * Reverification is idempotent: applying the same event to the same state
+ * always yields the same output state.
+ */
+export type VerificationStatus =
+  | 'unverified'
+  | 'machine_verified'
+  | 'human_confirmed'
+  | 'contradicted';
+
+/**
+ * An atomic claim node that lives in the document model.
+ *
+ * Produced by the synthesis package and referenced by stable `id`.
+ * Agents MUST NOT insert prose into a document without first creating a
+ * ClaimNode and registering ≥1 EvidenceBinding through GroundingPort.
+ *
+ * Schema version is explicit so consumers can gate on it; bump when fields
+ * are added or semantics change.
+ */
+export interface ClaimNode {
+  /** Stable UUID for this claim within the document. */
+  id: string;
+  /**
+   * Opaque reference to the document position this claim occupies.
+   * Format is editor-substrate-specific (e.g. ProseMirror pos, Slate path).
+   * Shuri/Hawkeye own the mapping from spanRef to rendered position.
+   */
+  spanRef: string;
+  /**
+   * Identity of the agent that produced this claim (e.g. 'banner-rag',
+   * 'clara-synthesis', 'user-manual'). Used in audit trails.
+   */
+  agentOrigin: string;
+  /** ISO-8601 timestamp of initial claim creation. */
+  createdAt: string;
+  /** Schema version — must be '1' for this release. */
+  schemaVersion: '1';
+}
+
+/**
+ * A binding between a ClaimNode and an evidence span in a real source.
+ *
+ * Every ClaimNode in a published document MUST carry ≥1 EvidenceBinding.
+ * GroundingPort.bind() enforces this at the API level; the CI contract test
+ * enforces it statically.
+ *
+ * For legacy citations backfilled during migration, rawLegacyCitationText
+ * preserves the original string so no provenance is lost even when a source
+ * span cannot be recovered.
+ */
+export interface EvidenceBinding {
+  /** ID of the ClaimNode this binding grounds. */
+  claimId: string;
+  /** ID of the SourceRecord the evidence span is drawn from. */
+  sourceId: string;
+  /**
+   * Character-offset span [start, end) within SourceRecord.text.
+   * Both values are required; a zero-length span [n, n) is invalid.
+   */
+  evidenceSpan: [start: number, end: number];
+  /** Retrieval confidence score returned by the embedding model (0–1). */
+  retrievalConfidence: number;
+  /** Current verification lifecycle state. */
+  verificationStatus: VerificationStatus;
+  /**
+   * Preserved verbatim text of the original legacy citation, present only
+   * on bindings created by the dual-write migration path. Retained so that
+   * bindings whose source span cannot be recovered are not silently dropped.
+   */
+  rawLegacyCitationText?: string;
+  /** Schema version — must be '1' for this release. */
+  schemaVersion: '1';
+}
+
+// ---------------------------------------------------------------------------
 // editor-integration package — consumed types (presentation only)
 // ---------------------------------------------------------------------------
 

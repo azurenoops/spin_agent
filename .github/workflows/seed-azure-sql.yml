@@ -9,9 +9,8 @@ on:
         default: rg-ato-copilot
         type: string
       sql_server_name:
-        description: Azure SQL server name
+        description: "Azure SQL server name (fix #654: no default — must supply explicitly)"
         required: true
-        default: azsql-ato-copilot-04152047-902
         type: string
       sql_database_name:
         description: Azure SQL database name

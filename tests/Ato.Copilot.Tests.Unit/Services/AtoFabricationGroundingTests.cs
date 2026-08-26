@@ -12,9 +12,27 @@ using Ato.Copilot.Core.Models.Compliance;
 namespace Ato.Copilot.Tests.Unit.Services;
 
 /// <summary>
-/// Regression tests for Issue #685 — ATO document generator fabrication fix.
-/// Ensures the grounding guard, explicit systemId binding, and [SOURCE MISSING] emission
-/// work correctly across all document paths.
+/// Regression tests for Issue #641 / #685 — ATO document generator fabrication fix.
+///
+/// Issue #641 ("ATO documents fabricating facts") is the original trust-critical defect:
+/// the generator was emitting ungrounded compliance claims (e.g. "MFA is configured",
+/// "TLS 1.2+ enforced") that were not backed by any source record, and silently persisting
+/// those documents as authoritative. An Authorizing Official seeing fabricated facts in an
+/// SSP is an unacceptable compliance failure.
+///
+/// Issue #685 is the implementation tracking issue for the remediation. The fixes merged
+/// in PR #792 (branch fix/685-ato-fabrication-grounding) cover all guardrails specified
+/// by Banner's #641 remediation artifact:
+///   1. Explicit systemId binding — no "first active system" guessing.
+///   2. [SOURCE MISSING] emission — every field without a real DB source emits a marker.
+///   3. Fail-loud grounding guard before persist — throws UNGROUNDED_CONTENT if any
+///      [SOURCE MISSING] or [scaffold reference — unverified] marker reaches the persist path.
+///   4. Pre-export grounding guard in SspService — adds GROUNDING_VIOLATION warnings;
+///      callers must treat as hard block (HTTP 422).
+///   5. Reviewer gate — AI-suggested narratives without ApprovedVersionId are marked
+///      "[reviewer gate required]" so they cannot be silently exported as approved.
+///
+/// These tests fail without the guard (pre-fix behavior) and pass with it.
 /// </summary>
 public class AtoFabricationGroundingTests : IDisposable
 {
