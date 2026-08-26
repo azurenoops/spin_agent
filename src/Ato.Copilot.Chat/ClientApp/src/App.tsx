@@ -42,7 +42,6 @@ function AppLayoutBridge() {
   return (
     <CollaborationProvider
       documentId={conversationId}
-      userId=""
       displayName={displayName}
     >
       {inner}

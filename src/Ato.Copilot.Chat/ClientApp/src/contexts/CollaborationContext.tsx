@@ -95,15 +95,16 @@ export interface CollaborationProviderProps {
   children: React.ReactNode;
   /** Current conversation / document id. Null means no document is open. */
   documentId: string | null;
-  /** Identity of the local user — sourced from auth context or a transient id. */
-  userId: string;
+  // DEF-001 R3: userId removed — server derives identity from authenticated JWT
+  // claims on every hub call. Passing a userId prop here was dead code that
+  // would silently reintroduce a phantom-identity bug if a hub invoke were
+  // ever wired to it again.
   displayName: string;
 }
 
 export function CollaborationProvider({
   children,
   documentId,
-  userId,
   displayName,
 }: CollaborationProviderProps) {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
@@ -220,7 +221,7 @@ export function CollaborationProvider({
     return () => {
       conn.invoke('LeaveDocument', documentId).catch(() => { /* ignore on unmount */ });
     };
-  }, [documentId, userId, displayName]);
+  }, [documentId, displayName]);
 
   // ─── Fetch REST data when documentId changes ──────────────────────────────
 
