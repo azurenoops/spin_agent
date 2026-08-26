@@ -10,6 +10,7 @@ using System.Net;
 using System.Text.Json;
 using Xunit;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Kanban;
 using Ato.Copilot.Core.Interfaces.Roadmap;
 using Ato.Copilot.Core.Models.Roadmap;
@@ -48,6 +49,8 @@ public class RoadmapEndpointsTests : IAsyncLifetime
 
         // Register services needed by dashboard endpoints
         builder.Services.AddScoped<NarrativeTemplateService>();
+        builder.Services.AddScoped(_ => Mock.Of<IDeviationService>());
+        builder.Services.AddScoped(_ => Mock.Of<IOrgInheritanceService>());
         builder.Services.AddScoped<CapabilityService>();
         builder.Services.AddScoped<DashboardService>();
         builder.Services.AddScoped<IRoadmapService>(sp =>
