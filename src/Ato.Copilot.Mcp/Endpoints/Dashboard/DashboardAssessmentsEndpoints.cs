@@ -522,22 +522,31 @@ public static partial class DashboardEndpoints
                     ControlFamilyResults = familyResults,
                 };
 
-                // Persist findings
+                // Persist assessment header first so findings can reference its Id via FK.
                 context.Assessments.Add(assessment);
                 await context.SaveChangesAsync(ct);
 
                 foreach (var finding in findings)
                     finding.AssessmentId = assessment.Id;
 
-                // Only persist findings whose ControlId exists in NistControls (FK constraint)
+                // Only persist findings whose ControlId exists in NistControls (FK constraint).
+                // AUD-001 fix: persistableFindings is the authoritative set — the response MUST
+                // be built from this list, not from the pre-filter `findings` collection.
                 var persistableFindings = findings.Where(f => validSet.Contains(f.ControlId)).ToList();
                 if (persistableFindings.Count > 0)
                 {
                     context.Findings.AddRange(persistableFindings);
                     await context.SaveChangesAsync(ct);
+                    // After SaveChangesAsync EF has populated the auto-generated Id on each entity,
+                    // so persistableFindings entries now carry their real DB primary keys.
                 }
 
-                // Create ControlEffectiveness records so the heatmap updates
+                // AUD-001: assign the persisted-only set back to the assessment so every
+                // downstream code path (response, activity log, POA&M, Kanban) reflects what
+                // was actually written to the database.  Never expose the pre-filter list.
+                assessment.Findings = persistableFindings;
+
+                // Create ControlEffectiveness records so the heatmap updates.
                 var effectivenessRecords = new List<ControlEffectiveness>();
                 foreach (var controlId in baseline.ControlIds)
                 {
@@ -562,8 +571,6 @@ public static partial class DashboardEndpoints
                 }
                 context.ControlEffectivenessRecords.AddRange(effectivenessRecords);
                 await context.SaveChangesAsync(ct);
-
-                assessment.Findings = persistableFindings;
             }
 
             // Log activity
