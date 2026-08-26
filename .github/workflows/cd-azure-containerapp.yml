@@ -32,6 +32,7 @@ jobs:
     outputs:
       mcp_image: ${{ steps.mcp_image.outputs.value }}
       dashboard_image: ${{ steps.dashboard_image.outputs.value }}
+      chat_image: ${{ steps.chat_image.outputs.value }}
       image_tag: ${{ steps.tag.outputs.value }}
 
     steps:
@@ -126,6 +127,24 @@ jobs:
             ${{ steps.dashboard_image.outputs.value }}
             ${{ steps.acr.outputs.login_server }}/ato-copilot-dashboard:latest
 
+      - name: Compute full Chat image
+        id: chat_image
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "value=${{ steps.acr.outputs.login_server }}/ato-copilot-chat:${{ steps.tag.outputs.value }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Chat image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./src/Ato.Copilot.Chat/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ steps.chat_image.outputs.value }}
+            ${{ steps.acr.outputs.login_server }}/ato-copilot-chat:latest
+
   deploy-dev:
     needs: build-image
     uses: ./.github/workflows/deploy-containerapp-stage.yml
@@ -164,8 +183,38 @@ jobs:
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-  deploy-test:
+  deploy-dev-chat:
     needs: [deploy-dev-dashboard, build-image]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: dev
+      workload: chat
+      # DEF-001: containerapp_name must be set explicitly; workload=chat is not a
+      # recognised branch in deploy-containerapp-stage resolve-target logic (only
+      # mcp/dashboard are handled). AZURE_CHAT_CONTAINERAPP_NAME must be set as a
+      # GitHub Actions environment variable for each environment (dev/test/production).
+      # Example value: ca-ato-copilot-chat-dev
+      containerapp_name: ${{ vars.AZURE_CHAT_CONTAINERAPP_NAME }}
+      image: ${{ needs.build-image.outputs.chat_image }}
+      target_port: "8080"
+      health_path: /health
+      include_mcp_env_vars: false
+      assign_managed_identity: true
+      inject_runtime_secrets: true
+      # SignalR negotiate requires sticky sessions when max_replicas > 1.
+      # enable_session_affinity defaults to true in the reusable workflow.
+      # ASPNETCORE_URLS overrides the default port (5001) to match the Dockerfile EXPOSE 8080.
+      extra_env_vars: "ASPNETCORE_URLS=http://+:8080"
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
+      ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
+
+  deploy-test:
+    needs: [deploy-dev-chat, build-image]
     uses: ./.github/workflows/deploy-containerapp-stage.yml
     with:
       environment_name: test
@@ -198,8 +247,30 @@ jobs:
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-  deploy-production:
+  deploy-test-chat:
     needs: [deploy-test-dashboard, build-image]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: test
+      workload: chat
+      containerapp_name: ${{ vars.AZURE_CHAT_CONTAINERAPP_NAME }}
+      image: ${{ needs.build-image.outputs.chat_image }}
+      target_port: "8080"
+      health_path: /health
+      include_mcp_env_vars: false
+      assign_managed_identity: true
+      inject_runtime_secrets: true
+      extra_env_vars: "ASPNETCORE_URLS=http://+:8080"
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
+      ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
+
+  deploy-production:
+    needs: [deploy-test-chat, build-image]
     uses: ./.github/workflows/deploy-containerapp-stage.yml
     with:
       environment_name: production
@@ -232,13 +303,35 @@ jobs:
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+  deploy-production-chat:
+    needs: [deploy-production-dashboard, build-image]
+    uses: ./.github/workflows/deploy-containerapp-stage.yml
+    with:
+      environment_name: production
+      workload: chat
+      containerapp_name: ${{ vars.AZURE_CHAT_CONTAINERAPP_NAME }}
+      image: ${{ needs.build-image.outputs.chat_image }}
+      target_port: "8080"
+      health_path: /health
+      include_mcp_env_vars: false
+      assign_managed_identity: true
+      inject_runtime_secrets: true
+      extra_env_vars: "ASPNETCORE_URLS=http://+:8080"
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
+      ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
+
   # Feature 411: Org-only (non-CSP) dashboard — same image, same MCP backend,
   # FORCE_SINGLE_TENANT=true forces SingleTenant mode at runtime via nginx
   # sub_filter injection of window.__FORCE_SINGLE_TENANT__. This eliminates
   # the CSP portfolio view, TenantPicker, and ImpersonationBanner for tenants
   # that do not need CSP features.
   deploy-production-dashboard-org:
-    needs: [deploy-production-dashboard, build-image]
+    needs: [deploy-production-chat, build-image]
     uses: ./.github/workflows/deploy-containerapp-stage.yml
     with:
       environment_name: production
