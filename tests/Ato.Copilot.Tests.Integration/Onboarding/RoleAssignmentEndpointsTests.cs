@@ -20,6 +20,7 @@ using Ato.Copilot.Agents.Compliance.Services.Onboarding;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Onboarding;
 using Ato.Copilot.Core.Models.Onboarding;
+using Ato.Copilot.Core.Services.Roles;
 using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Endpoints.Onboarding;
 
@@ -52,6 +53,21 @@ public class RoleAssignmentEndpointsTests : IAsyncLifetime
         builder.Services.AddDbContextFactory<AtoCopilotContext>(o => o.UseInMemoryDatabase(_dbName));
         builder.Services.AddScoped<IWizardAuditService>(_ => _auditMock.Object);
         builder.Services.AddScoped<IOrganizationRoleAssignmentService, OrganizationRoleAssignmentService>();
+        // IOnboardingStateService is required by POST /role-assignments to mark wizard
+        // step completion. Register a no-op mock so the minimal test host can resolve it.
+        builder.Services.AddScoped<IOnboardingStateService>(_ => Mock.Of<IOnboardingStateService>());
+        // ICallerEffectiveRoleResolver and IRoleAuthorizationService are required by
+        // the role-assignment endpoint for caller authorization checks.
+        builder.Services.AddSingleton<ICallerEffectiveRoleResolver>(
+            _ => Mock.Of<ICallerEffectiveRoleResolver>());
+        var roleAuthzMock = new Mock<IRoleAuthorizationService>();
+        roleAuthzMock
+            .Setup(a => a.Authorize(
+                It.IsAny<CallerEffectiveRole>(),
+                It.IsAny<Ato.Copilot.Core.Models.Compliance.RmfRole>(),
+                It.IsAny<bool>()))
+            .Returns(new Ato.Copilot.Core.Services.Roles.AuthorizationResult(Allowed: true, DeniedReason: null));
+        builder.Services.AddSingleton<IRoleAuthorizationService>(_ => roleAuthzMock.Object);
         builder.Services.AddSingleton<ILogger<OrganizationRoleAssignmentService>>(
             NullLogger<OrganizationRoleAssignmentService>.Instance);
 
