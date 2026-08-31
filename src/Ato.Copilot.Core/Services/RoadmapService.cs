@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Kanban;
 using Ato.Copilot.Core.Interfaces.Roadmap;
 using Ato.Copilot.Core.Models.Roadmap;
@@ -87,10 +88,10 @@ public class RoadmapService : IRoadmapService
     {
         _logger.LogInformation("Generating roadmap for system {SystemId}", systemId);
 
-        // Fetch gap analysis
+        // Fetch gap analysis — throws SystemNotFoundException or NoBaselineSelectedException
+        // if the system is missing or has no baseline; both are valid failure modes that
+        // surface actionable guidance to the caller.
         var gapAnalysis = await _capabilityService.GetGapAnalysisAsync(systemId, null, cancellationToken);
-        if (gapAnalysis is null)
-            throw new InvalidOperationException($"Cannot generate roadmap: no baseline selected for system {systemId}. Select a baseline first.");
 
         var allGaps = gapAnalysis.FamilyBreakdown
             .SelectMany(f => f.UnmappedControls.Select(c => new { Control = c, Family = f }))
@@ -266,13 +267,21 @@ public class RoadmapService : IRoadmapService
         var completedItems = allItems.Count(i => i.Status == ItemStatus.Complete);
         var overallCompletion = allItems.Count > 0 ? (double)completedItems / allItems.Count * 100 : 0;
 
-        // Compute actual risk reduction via current gap analysis (FR-014)
+        // Compute actual risk reduction via current gap analysis (FR-014).
+        // If the system has no baseline yet, skip the reduction metric (risk = 0).
         double actualRiskReduction = 0;
-        var currentGaps = await _capabilityService.GetGapAnalysisAsync(systemId, null, cancellationToken);
-        if (currentGaps is not null && roadmap.TotalGaps > 0)
+        try
         {
-            var currentGapCount = currentGaps.GapCount;
-            actualRiskReduction = (double)(roadmap.TotalGaps - currentGapCount) / roadmap.TotalGaps * 100;
+            var currentGaps = await _capabilityService.GetGapAnalysisAsync(systemId, null, cancellationToken);
+            if (roadmap.TotalGaps > 0)
+            {
+                var currentGapCount = currentGaps.GapCount;
+                actualRiskReduction = (double)(roadmap.TotalGaps - currentGapCount) / roadmap.TotalGaps * 100;
+            }
+        }
+        catch (NoBaselineSelectedException)
+        {
+            // No baseline → no gap data → risk reduction stays 0; not an error for roadmap progress.
         }
 
         // Build risk curve
