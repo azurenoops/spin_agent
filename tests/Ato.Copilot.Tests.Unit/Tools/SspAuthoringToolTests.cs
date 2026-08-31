@@ -333,6 +333,36 @@ public class SspAuthoringToolTests
         json.RootElement.GetProperty("data").GetProperty("references").GetArrayLength().Should().Be(3);
     }
 
+    /// <summary>
+    /// T077-R1 — Regression: suggest narrative on a no-baseline system returns SUGGEST_NARRATIVE_FAILED
+    /// with an actionable message naming compliance_select_baseline.
+    /// Acceptance criteria #1 from issue #537.
+    /// </summary>
+    [Fact]
+    public async Task SuggestNarrative_NoBaseline_ReturnsActionableError()
+    {
+        const string actionableMessage =
+            "No control baseline is selected for system 'sys-nobaseline'. " +
+            "Complete the Select phase (compliance_select_baseline) before generating narratives.";
+
+        _sspMock
+            .Setup(s => s.SuggestNarrativeAsync("sys-nobaseline", "AC-1", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(actionableMessage));
+
+        var tool = CreateSuggestNarrativeTool();
+        var result = await tool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = "sys-nobaseline",
+            ["control_id"] = "AC-1"
+        });
+
+        var json = JsonDocument.Parse(result);
+        json.RootElement.GetProperty("status").GetString().Should().Be("error");
+        json.RootElement.GetProperty("errorCode").GetString().Should().Be("SUGGEST_NARRATIVE_FAILED");
+        json.RootElement.GetProperty("message").GetString().Should()
+            .Contain("compliance_select_baseline");
+    }
+
     // ────────────────────────────────────────────────────────────────────────
     // T078: BatchPopulateNarrativesTool Tests
     // ────────────────────────────────────────────────────────────────────────

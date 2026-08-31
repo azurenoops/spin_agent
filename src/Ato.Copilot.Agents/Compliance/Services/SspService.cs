@@ -171,7 +171,14 @@ public class SspService : ISspService
             .Include(b => b.Inheritances)
             .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, cancellationToken);
 
-        var inheritance = baseline?.Inheritances
+        // Guard: cannot suggest narratives for a system that has not completed the Select phase.
+        // Returning a TemplateScaffold for an ungrounded system produces misleading content.
+        if (baseline is null)
+            throw new InvalidOperationException(
+                $"No control baseline is selected for system '{systemId}'. " +
+                $"Complete the Select phase (compliance_select_baseline) before generating narratives.");
+
+        var inheritance = baseline.Inheritances
             .FirstOrDefault(i => i.ControlId == controlId);
 
         // Build suggestion based on system context and control type
