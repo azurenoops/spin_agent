@@ -26,6 +26,7 @@ public class PrivacyGateTests
         var dbName = $"PrivacyGate_{Guid.NewGuid()}";
         var services = new ServiceCollection();
         services.AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(dbName));
+        services.AddDbContextFactory<AtoCopilotContext>(o => o.UseInMemoryDatabase(dbName));
         services.AddLogging();
 
         _serviceProvider = services.BuildServiceProvider();
@@ -33,6 +34,7 @@ public class PrivacyGateTests
 
         _service = new RmfLifecycleService(
             _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(),
             Mock.Of<ILogger<RmfLifecycleService>>());
     }
 

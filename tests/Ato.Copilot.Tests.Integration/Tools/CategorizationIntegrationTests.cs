@@ -32,12 +32,14 @@ public class CategorizationIntegrationTests : IDisposable
         var services = new ServiceCollection();
         services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
+        services.AddDbContextFactory<AtoCopilotContext>(opts =>
+            opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
         services.AddLogging();
 
         _serviceProvider = services.BuildServiceProvider();
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        var lifecycleSvc = new RmfLifecycleService(scopeFactory, Mock.Of<ILogger<RmfLifecycleService>>());
+        var lifecycleSvc = new RmfLifecycleService(scopeFactory, _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(), Mock.Of<ILogger<RmfLifecycleService>>());
         var categorizationSvc = new CategorizationService(scopeFactory, Mock.Of<ILogger<CategorizationService>>(), Mock.Of<IPrivacyService>());
 
         _registerTool = new RegisterSystemTool(lifecycleSvc, Mock.Of<ILogger<RegisterSystemTool>>());

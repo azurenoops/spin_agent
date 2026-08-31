@@ -251,60 +251,77 @@ public class GetSystemTool : BaseTool
 
         try
         {
-            var system = await _lifecycleService.GetSystemAsync(systemId, cancellationToken);
+            var result = await _lifecycleService.GetSystemAsync(systemId, cancellationToken);
             sw.Stop();
 
-            if (system == null)
-                return JsonSerializer.Serialize(new { status = "error", errorCode = "NOT_FOUND", message = $"System '{systemId}' not found." }, JsonOpts);
-
-            return JsonSerializer.Serialize(new
+            return result switch
             {
-                status = "success",
-                data = new
+                GetSystemResult.NotFound nf => JsonSerializer.Serialize(new
                 {
-                    id = system.Id,
-                    name = system.Name,
-                    acronym = system.Acronym,
-                    system_type = system.SystemType.ToString(),
-                    mission_criticality = system.MissionCriticality.ToString(),
-                    hosting_environment = system.HostingEnvironment,
-                    description = system.Description,
-                    current_rmf_step = system.CurrentRmfStep.ToString(),
-                    rmf_step_updated_at = system.RmfStepUpdatedAt.ToString("O"),
-                    is_active = system.IsActive,
-                    created_at = system.CreatedAt.ToString("O"),
-                    created_by = system.CreatedBy,
-                    security_categorization = system.SecurityCategorization != null ? new
+                    status = "error",
+                    errorCode = "SYSTEM_NOT_FOUND",
+                    message = $"System '{nf.Input}' not found."
+                }, JsonOpts),
+
+                GetSystemResult.NoBaseline nb => JsonSerializer.Serialize(new
+                {
+                    status = "error",
+                    errorCode = "NO_BASELINE",
+                    message = $"System '{nb.System.Id}' exists but has no control baseline assigned.",
+                    hint = "Use compliance_select_baseline to assign one."
+                }, JsonOpts),
+
+                GetSystemResult.Found f => JsonSerializer.Serialize(new
+                {
+                    status = "success",
+                    data = new
                     {
-                        id = system.SecurityCategorization.Id,
-                        overall = system.SecurityCategorization.OverallCategorization.ToString(),
-                        confidentiality = system.SecurityCategorization.ConfidentialityImpact.ToString(),
-                        integrity = system.SecurityCategorization.IntegrityImpact.ToString(),
-                        availability = system.SecurityCategorization.AvailabilityImpact.ToString(),
-                        dod_impact_level = system.SecurityCategorization.DoDImpactLevel,
-                        nist_baseline = system.SecurityCategorization.NistBaseline,
-                        formal_notation = system.SecurityCategorization.FormalNotation,
-                        information_types_count = system.SecurityCategorization.InformationTypes.Count
-                    } : (object?)null,
-                    control_baseline = system.ControlBaseline != null ? new
-                    {
-                        id = system.ControlBaseline.Id,
-                        baseline_level = system.ControlBaseline.BaselineLevel,
-                        total_controls = system.ControlBaseline.TotalControls,
-                        overlay_applied = system.ControlBaseline.OverlayApplied
-                    } : (object?)null,
-                    boundary_resource_count = system.AuthorizationBoundaries.Count(b => b.IsInBoundary),
-                    role_assignments = system.RmfRoleAssignments
-                        .Where(r => r.IsActive)
-                        .Select(r => new
+                        id = f.System.Id,
+                        name = f.System.Name,
+                        acronym = f.System.Acronym,
+                        system_type = f.System.SystemType.ToString(),
+                        mission_criticality = f.System.MissionCriticality.ToString(),
+                        hosting_environment = f.System.HostingEnvironment,
+                        description = f.System.Description,
+                        current_rmf_step = f.System.CurrentRmfStep.ToString(),
+                        rmf_step_updated_at = f.System.RmfStepUpdatedAt.ToString("O"),
+                        is_active = f.System.IsActive,
+                        created_at = f.System.CreatedAt.ToString("O"),
+                        created_by = f.System.CreatedBy,
+                        security_categorization = f.System.SecurityCategorization != null ? new
                         {
-                            role = r.RmfRole.ToString(),
-                            user_id = r.UserId,
-                            user_display_name = r.UserDisplayName
-                        })
-                },
-                metadata = new { tool = Name, execution_time_ms = sw.ElapsedMilliseconds, timestamp = DateTime.UtcNow.ToString("O") }
-            }, JsonOpts);
+                            id = f.System.SecurityCategorization.Id,
+                            overall = f.System.SecurityCategorization.OverallCategorization.ToString(),
+                            confidentiality = f.System.SecurityCategorization.ConfidentialityImpact.ToString(),
+                            integrity = f.System.SecurityCategorization.IntegrityImpact.ToString(),
+                            availability = f.System.SecurityCategorization.AvailabilityImpact.ToString(),
+                            dod_impact_level = f.System.SecurityCategorization.DoDImpactLevel,
+                            nist_baseline = f.System.SecurityCategorization.NistBaseline,
+                            formal_notation = f.System.SecurityCategorization.FormalNotation,
+                            information_types_count = f.System.SecurityCategorization.InformationTypes.Count
+                        } : (object?)null,
+                        control_baseline = new
+                        {
+                            id = f.System.ControlBaseline!.Id,
+                            baseline_level = f.System.ControlBaseline.BaselineLevel,
+                            total_controls = f.System.ControlBaseline.TotalControls,
+                            overlay_applied = f.System.ControlBaseline.OverlayApplied
+                        },
+                        boundary_resource_count = f.System.AuthorizationBoundaries.Count(b => b.IsInBoundary),
+                        role_assignments = f.System.RmfRoleAssignments
+                            .Where(r => r.IsActive)
+                            .Select(r => new
+                            {
+                                role = r.RmfRole.ToString(),
+                                user_id = r.UserId,
+                                user_display_name = r.UserDisplayName
+                            })
+                    },
+                    metadata = new { tool = Name, execution_time_ms = sw.ElapsedMilliseconds, timestamp = DateTime.UtcNow.ToString("O") }
+                }, JsonOpts),
+
+                _ => throw new InvalidOperationException($"Unexpected GetSystemResult type: {result.GetType().Name}")
+            };
         }
         catch (Exception ex)
         {

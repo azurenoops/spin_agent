@@ -88,7 +88,7 @@ public class ScanImportPerformanceTests : IDisposable
         var cklGeneratorMock = new Mock<ICklGenerator>();
 
         rmfServiceMock.Setup(s => s.GetSystemAsync(TestSystemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(_testSystem);
+            .ReturnsAsync(new GetSystemResult.Found(_testSystem));
         baselineServiceMock.Setup(s => s.GetBaselineAsync(TestSystemId, false, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(_testBaseline);
 

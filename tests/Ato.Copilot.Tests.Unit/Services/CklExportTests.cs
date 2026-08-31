@@ -134,7 +134,7 @@ public class CklExportTests : IDisposable
         _cklGeneratorMock = new Mock<ICklGenerator>();
 
         _rmfServiceMock.Setup(s => s.GetSystemAsync(TestSystemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(_testSystem);
+            .ReturnsAsync(new GetSystemResult.Found(_testSystem));
 
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
@@ -430,7 +430,7 @@ public class CklExportTests : IDisposable
     public async Task ExportCkl_InvalidSystem_ThrowsInvalidOperation()
     {
         _rmfServiceMock.Setup(s => s.GetSystemAsync("bad-sys", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredSystem?)null);
+            .ReturnsAsync(new GetSystemResult.NotFound("bad-sys"));
 
         var act = () => _service.ExportCklAsync("bad-sys", TestBenchmarkId, TestAssessmentId);
 

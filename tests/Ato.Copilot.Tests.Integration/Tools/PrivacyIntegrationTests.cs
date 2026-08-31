@@ -32,6 +32,8 @@ public class PrivacyIntegrationTests : IDisposable
         var services = new ServiceCollection();
         services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
+        services.AddDbContextFactory<AtoCopilotContext>(opts =>
+            opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
         services.AddLogging();
 
         _serviceProvider = services.BuildServiceProvider();
@@ -39,7 +41,7 @@ public class PrivacyIntegrationTests : IDisposable
 
         _privacyService = new PrivacyService(scopeFactory, Mock.Of<ILogger<PrivacyService>>());
         _interconnectionService = new InterconnectionService(scopeFactory, Mock.Of<ILogger<InterconnectionService>>());
-        _lifecycleService = new RmfLifecycleService(scopeFactory, Mock.Of<ILogger<RmfLifecycleService>>());
+        _lifecycleService = new RmfLifecycleService(scopeFactory, _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(), Mock.Of<ILogger<RmfLifecycleService>>());
     }
 
     public void Dispose() => _serviceProvider.Dispose();
