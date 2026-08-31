@@ -445,6 +445,39 @@ public class SspAuthoringToolTests
         json.RootElement.GetProperty("errorCode").GetString().Should().Be("BATCH_POPULATE_FAILED");
     }
 
+    /// <summary>
+    /// T078-R1 — Regression: baseline-less system returns NO_BASELINE_SELECTED with actionable message.
+    /// Acceptance criteria #1 from issue #537.
+    /// </summary>
+    [Fact]
+    public async Task BatchPopulate_NoBaseline_ReturnsNoBaselineSelectedError()
+    {
+        const string actionableMessage =
+            "No control baseline is selected for system 'sys-nobaseline'. " +
+            "Complete the Select phase (compliance_select_baseline) before auto-generating narratives.";
+
+        _sspMock
+            .Setup(s => s.BatchPopulateNarrativesAsync(
+                "sys-nobaseline", null, "mcp-user",
+                It.IsAny<IProgress<string>?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(actionableMessage));
+
+        var tool = CreateBatchPopulateNarrativesTool();
+        var result = await tool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = "sys-nobaseline"
+        });
+
+        var json = JsonDocument.Parse(result);
+        json.RootElement.GetProperty("status").GetString().Should().Be("error");
+        json.RootElement.GetProperty("errorCode").GetString().Should().Be("NO_BASELINE_SELECTED");
+        json.RootElement.GetProperty("message").GetString().Should()
+            .Contain("compliance_select_baseline");
+        // Must NOT contain the old misleading message
+        json.RootElement.GetProperty("message").GetString().Should()
+            .NotContain("document service lookup failure");
+    }
+
     [Fact]
     public async Task BatchPopulate_SharedControls_ReturnsSharedPopulated()
     {
@@ -615,6 +648,45 @@ public class SspAuthoringToolTests
 
         var json = JsonDocument.Parse(result);
         json.RootElement.GetProperty("data").GetProperty("family_breakdowns").GetArrayLength().Should().Be(3);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // T080: GenerateSspTool Tests
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// T079-R1 — Regression: baseline-less system returns a valid non-error progress state.
+    /// Acceptance criteria #3 from issue #537.
+    /// </summary>
+    [Fact]
+    public async Task NarrativeProgress_NoBaseline_ReturnsNoBaselineState()
+    {
+        var noBaselineProgress = new NarrativeProgress
+        {
+            SystemId = "sys-nobaseline",
+            BaselineSelected = false,
+            StatusMessage = "0/0 — no baseline selected for system 'sys-nobaseline'. " +
+                            "Complete the Select phase (compliance_select_baseline) before generating narratives."
+        };
+
+        _sspMock
+            .Setup(s => s.GetNarrativeProgressAsync("sys-nobaseline", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(noBaselineProgress);
+
+        var tool = CreateNarrativeProgressTool();
+        var result = await tool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = "sys-nobaseline"
+        });
+
+        var json = JsonDocument.Parse(result);
+        // Must NOT be an error — must be a valid state
+        json.RootElement.GetProperty("status").GetString().Should().Be("no_baseline");
+        json.RootElement.GetProperty("data").GetProperty("baseline_selected").GetBoolean().Should().BeFalse();
+        json.RootElement.GetProperty("data").GetProperty("status_message").GetString().Should()
+            .Contain("compliance_select_baseline");
+        // Counts should be zero, not errors
+        json.RootElement.GetProperty("data").GetProperty("total_controls").GetInt32().Should().Be(0);
     }
 
     // ────────────────────────────────────────────────────────────────────────
