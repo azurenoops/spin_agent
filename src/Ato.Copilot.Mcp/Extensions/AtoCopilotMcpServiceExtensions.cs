@@ -236,6 +236,117 @@ public static class AtoCopilotMcpServiceExtensions
             Ato.Copilot.Core.Interfaces.Compliance.ISarifParserService,
             Ato.Copilot.Agents.Compliance.Services.ScanImport.SarifParserService>();
 
+        // Onboarding wizard services (Feature 048 + extensions).
+        // Pulled into AddAtoCopilotMcp so integration test scaffolding
+        // (AddAtoCopilotMcpForTesting) picks them up without a separate call.
+        services.AddAtoCopilotOnboarding(configuration, includeHostedServices);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers every onboarding-wizard service consumed by the MCP onboarding
+    /// endpoints (<c>OrganizationContextEndpoints</c>, <c>RoleAssignmentEndpoints</c>,
+    /// <c>OnboardingStateEndpoints</c>, etc.).
+    ///
+    /// Extracted from <c>Program.cs</c> so that <see cref="AddAtoCopilotMcp"/> (and
+    /// therefore the integration-test harness) always has these registrations on the
+    /// DI graph. Without them, ASP.NET Core's minimal-API parameter inference throws
+    /// <see cref="InvalidOperationException"/> ("Failure to infer one or more
+    /// parameters — stateService UNKNOWN") when the endpoint data-source is built.
+    /// </summary>
+    internal static IServiceCollection AddAtoCopilotOnboarding(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool includeHostedServices = true)
+    {
+        // Authorization policy + handler for the onboarding administrator gate.
+        // AddAuthorization is idempotent in .NET 9 — safe to call here and in
+        // Program.cs without doubling policies.
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy(
+                Ato.Copilot.Mcp.Authorization.OnboardingAdministratorRequirement.PolicyName,
+                policy => policy.Requirements.Add(
+                    new Ato.Copilot.Mcp.Authorization.OnboardingAdministratorRequirement()));
+        });
+        services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+            Ato.Copilot.Mcp.Authorization.OnboardingAdministratorHandler>();
+
+        // Wizard infrastructure
+        services.AddSingleton<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobChannel>();
+        services.AddSingleton<Ato.Copilot.Core.Interfaces.Onboarding.IWizardProgressNotifier,
+            Ato.Copilot.Mcp.Hubs.Onboarding.SignalRWizardProgressNotifier>();
+
+        // Core onboarding services
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardAuditService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.Auditing.WizardAuditService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IBootstrapAdministratorService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.BootstrapAdministratorService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOnboardingStateService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.OnboardingStateService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardJobRunner,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobRunner>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardArtifactDependencyService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.WizardArtifactDependencyService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOrganizationContextService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.OrganizationContextService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IDirectorySearchClient,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.GraphDirectorySearchClient>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IPersonService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.PersonService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOrganizationRoleAssignmentService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.OrganizationRoleAssignmentService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IRegisteredSystemRoleSnapshotter,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.RegisteredSystemRoleSnapshotter>();
+
+        // eMASS import
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IEmassImportParser,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.EmassImportParser>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IEmassImportService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.EmassImportService>();
+        services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.Handlers.EmassParseJobHandler>();
+        services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.Handlers.EmassCommitJobHandler>();
+
+        // SSP PDF import
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.ISspPdfExtractionService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.SspPdfExtractionService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.ISspPdfImportService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.SspPdfImportService>();
+        services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.Handlers.SspPdfExtractJobHandler>();
+
+        // Azure subscription management
+        services.AddSingleton<Ato.Copilot.Core.Interfaces.Onboarding.IDelegatedArmTokenProvider,
+            Ato.Copilot.Mcp.Onboarding.ConfiguredArmTokenProvider>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IAzureSubscriptionEnumerationService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions.AzureSubscriptionEnumerationService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IAzureSubscriptionRegistrationService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions.AzureSubscriptionRegistrationService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IAzureSubscriptionScopeResolver,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions.AzureSubscriptionScopeResolver>();
+
+        // Templates, seeds, inventory
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOrganizationTemplateService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.Templates.OrganizationTemplateService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.INarrativeSeedDocumentService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.NarrativeSeeds.NarrativeSeedDocumentService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardArtifactInventoryService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.WizardArtifactInventoryService>();
+        services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.NarrativeSeeds.Handlers.NarrativeSeedIndexJobHandler>();
+        services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.Cascade.ExportRerenderJobHandler>();
+        services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.Cascade.ImportRerenderJobHandler>();
+
+        if (includeHostedServices)
+        {
+            services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobHostedService>();
+        }
+
         return services;
     }
 }
