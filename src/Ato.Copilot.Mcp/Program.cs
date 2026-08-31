@@ -468,8 +468,8 @@ async Task RunHttpModeAsync(string[] args)
     // IDbContextFactory<AtoCopilotContext> and follows the F050
     // CapabilityHistoryService SRP — AppendAsync does not call
     // SaveChangesAsync (caller owns the transaction).
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Auth.ILoginAuditService,
-        Ato.Copilot.Core.Services.Auth.LoginAuditService>();
+    // ILoginAuditService now registered in AtoCopilotMcpServiceExtensions (TryAddScoped)
+    // so it is available to integration tests via AddAtoCopilotMcpForTesting().
 
     // Feature 051 (T039): forensic context extractor used by Auth endpoints
     // to populate SourceIp / UserAgent / CorrelationId on every audit row.
