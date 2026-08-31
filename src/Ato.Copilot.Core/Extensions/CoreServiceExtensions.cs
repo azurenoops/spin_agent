@@ -6,14 +6,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Observability;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Core.Services.Tenancy;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
@@ -67,6 +70,19 @@ public static class CoreServiceExtensions
         services.AddSingleton<IPathSanitizationService, PathSanitizationService>();
         services.AddSingleton<ResponseCacheService>();
         services.AddSingleton<OfflineModeService>();
+
+        // Tenancy (Feature 048) — ITenantContextAccessor / ITenantContext must be
+        // registered HERE (in AddAtoCopilotCore) so that every consumer of this
+        // extension — including integration-test scaffolding via
+        // AddAtoCopilotMcpForTesting — gets a complete DI graph.
+        // ResponseCacheService (registered above) depends on ITenantContextAccessor,
+        // so these two registrations must precede its first resolution.
+        // Program.cs previously held these registrations exclusively, which caused
+        // 321 integration-test failures at container Build() time (WM-BUG-3 / #686
+        // introduced the dependency; this commit moves the registrations to the
+        // shared extension so all consumers are covered).
+        services.TryAddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+        services.TryAddScoped<ITenantContext, TenantContext>();
 
         // Register IMemoryCache with configurable size limit (FR-020a)
         var cachingOptions = new CachingOptions();

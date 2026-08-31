@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -235,6 +236,13 @@ public static class AtoCopilotMcpServiceExtensions
         services.AddSingleton<
             Ato.Copilot.Core.Interfaces.Compliance.ISarifParserService,
             Ato.Copilot.Agents.Compliance.Services.ScanImport.SarifParserService>();
+
+        // ILoginAuditService — consumed by CacAuthenticationMiddleware and LoginThrottleMiddleware.
+        // Registered as Scoped in Program.cs; must also be in the shared extension so integration
+        // tests that call AddAtoCopilotMcpForTesting() can resolve it.
+        services.TryAddScoped<
+            Ato.Copilot.Core.Interfaces.Auth.ILoginAuditService,
+            Ato.Copilot.Core.Services.Auth.LoginAuditService>();
 
         // Onboarding wizard services (Feature 048 + extensions).
         // Pulled into AddAtoCopilotMcp so integration test scaffolding
