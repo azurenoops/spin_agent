@@ -115,6 +115,12 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
         // Authentication bypass for tests — ComplianceAuthorizationMiddleware
         // would otherwise return 401 because no JWT/CAC handler is wired up.
         Environment.SetEnvironmentVariable("ATO_Auth__BypassForTests", "true");
+
+        // Disable Azure OpenAI so Program.cs ValidateAzureAiEndpointConfig() does
+        // not throw when no ATO_AZUREAI__ENDPOINT is present in the CI environment.
+        // Integration tests do not exercise AI endpoints; disabling AI here has no
+        // effect on the compliance/tenancy/auth behavior under test.
+        Environment.SetEnvironmentVariable("ATO_AZUREAI__ENABLED", "false");
     }
 
     /// <summary>
