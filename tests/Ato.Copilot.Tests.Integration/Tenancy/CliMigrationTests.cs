@@ -10,6 +10,17 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// sub-command per <c>contracts/ato-cli-tenant.md</c>. Validates parser shape
 /// + exit-code conventions without spawning a process.
 /// </summary>
+/// <remarks>
+/// IMPORTANT — in-process ExitCode isolation (BUG-IT-001):
+/// CLI handlers call <c>Environment.ExitCode = N</c> rather than
+/// <c>Environment.Exit(N)</c>, so the in-process test host does not terminate.
+/// However, xUnit runs all tests in a single process; if <c>Environment.ExitCode</c>
+/// is non-zero when the process finally exits, the OS reports an abnormal exit,
+/// xUnit's blame-hang detector fires a 2-min dump, and the entire test run is
+/// aborted (CI run 33535952002 — 10.5-min hang, 1.2 GB crash dump).
+/// Every test that may trigger a non-zero <c>Environment.ExitCode</c> path MUST
+/// reset it to 0 in a <c>finally</c> block so no dirty state bleeds across tests.
+/// </remarks>
 public class CliMigrationTests
 {
     [Fact]
@@ -51,7 +62,17 @@ public class CliMigrationTests
         var root = AtoCliCommandFactory.Build();
 
         Environment.SetEnvironmentVariable("ATO_DB__CONNECTION_STRING", null);
-        var rc = await root.InvokeAsync(new[] { "tenant", "default" });
+        int rc;
+        try
+        {
+            rc = await root.InvokeAsync(new[] { "tenant", "default" });
+        }
+        finally
+        {
+            // Reset so ExitCode=1 set by the handler does not leak into the
+            // xUnit host process exit code (see class-level remarks — BUG-IT-001).
+            Environment.ExitCode = 0;
+        }
 
         // Without --connection-string + env var, the handler emits to stderr
         // and sets ExitCode=1; the System.CommandLine return value tracks
@@ -66,16 +87,26 @@ public class CliMigrationTests
     {
         var root = AtoCliCommandFactory.Build();
 
-        var rc = await root.InvokeAsync(new[]
+        int rc;
+        try
         {
-            "tenant", "migrate",
-            "--connection-string", "Data Source=:memory:",
-            "--default-tenant-id", "not-a-guid",
-        });
+            rc = await root.InvokeAsync(new[]
+            {
+                "tenant", "migrate",
+                "--connection-string", "Data Source=:memory:",
+                "--default-tenant-id", "not-a-guid",
+            });
+        }
+        finally
+        {
+            // Reset so ExitCode=3 set by the handler does not leak into the
+            // xUnit host process exit code (see class-level remarks — BUG-IT-001).
+            Environment.ExitCode = 0;
+        }
 
         // Parser succeeded (string), handler validated GUID and set ExitCode=3.
         // The InvokeAsync return matches the handler's return; the handler
         // sets Environment.ExitCode but returns 0 by default.
-        Environment.ExitCode.Should().BeOneOf(0, 3);
+        rc.Should().BeOneOf(0, 3);
     }
 }
