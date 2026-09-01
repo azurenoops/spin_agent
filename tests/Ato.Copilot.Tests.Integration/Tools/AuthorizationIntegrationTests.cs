@@ -55,9 +55,7 @@ public class AuthorizationIntegrationTests : IDisposable
         _registerTool = new RegisterSystemTool(lifecycleSvc, Mock.Of<ILogger<RegisterSystemTool>>());
         _assessControlTool = new AssessControlTool(assessmentSvc, Mock.Of<ILogger<AssessControlTool>>());
         _issueAuthorizationTool = new IssueAuthorizationTool(authorizationSvc, Mock.Of<ILogger<IssueAuthorizationTool>>());
-        var dbContextFactory = _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
-        var deviationSvc = new DeviationService(dbContextFactory, Mock.Of<ILogger<DeviationService>>());
-        _acceptRiskTool = new AcceptRiskTool(deviationSvc, Mock.Of<ILogger<AcceptRiskTool>>());
+        _acceptRiskTool = new AcceptRiskTool(authorizationSvc, Mock.Of<ILogger<AcceptRiskTool>>());
         _showRiskRegisterTool = new ShowRiskRegisterTool(authorizationSvc, Mock.Of<ILogger<ShowRiskRegisterTool>>());
         _createPoamTool = new CreatePoamTool(authorizationSvc, Mock.Of<ILogger<CreatePoamTool>>());
         _listPoamTool = new ListPoamTool(authorizationSvc, Mock.Of<ILogger<ListPoamTool>>());

@@ -28,7 +28,7 @@ public static partial class DashboardEndpoints
 {
     private static void MapSystemRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
     {
-        group.MapGet("", async (
+        group.MapGet("/", async (
                 [AsParameters] PortfolioQuery query,
                 DashboardService service,
                 CancellationToken ct) =>

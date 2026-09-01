@@ -137,6 +137,7 @@ public class CspOnboardingSingleTenantTests
             Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
             Environment.SetEnvironmentVariable("ATO_Tenant__Resolution__BypassForTests", "true");
             Environment.SetEnvironmentVariable("ATO_Auth__BypassForTests", "true");
+            Environment.SetEnvironmentVariable("ATO_AZUREAI__ENABLED", "false");
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -168,7 +169,9 @@ public class CspOnboardingSingleTenantTests
                     var d = services[i];
                     if (d.ServiceType == typeof(IHostedService) &&
                         (d.ImplementationType == typeof(Ato.Copilot.Core.Services.BoundaryMigrationService) ||
-                         d.ImplementationInstance?.GetType() == typeof(Ato.Copilot.Core.Services.BoundaryMigrationService)))
+                         d.ImplementationInstance?.GetType() == typeof(Ato.Copilot.Core.Services.BoundaryMigrationService) ||
+                         d.ImplementationType == typeof(Ato.Copilot.Mcp.Server.McpStdioService) ||
+                         d.ImplementationInstance?.GetType() == typeof(Ato.Copilot.Mcp.Server.McpStdioService)))
                     {
                         services.RemoveAt(i);
                     }
