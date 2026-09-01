@@ -37,7 +37,7 @@ namespace Ato.Copilot.Tests.Integration.Tenancy.Csp;
 /// </list>
 /// </para>
 /// </remarks>
-[Collection("Tenancy")]
+[Collection("TenancyCspOnboarding")]
 public class CspAtoUploadFlowTests
 {
     private const string WizardUploadUrl = "/api/csp/onboarding/atos/upload";

@@ -52,10 +52,18 @@ public sealed class CspProfileService : ICspProfileService
         // Cache-aside: serve the latest snapshot for up to 30 s; the cache
         // is invalidated on every write and on SubmitAsync.
         if (_cache.TryGetValue(CacheKey, out CspProfile? cached))
+        {
+            // #region agent log
+            try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H22", location = "CspProfileService.GetAsync", message = "cache-hit", data = new { cachedNull = cached is null, onboard = cached?.OnboardingState.ToString() }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+            // #endregion
             return cached;
+        }
 
         await using var db = await _contextFactory.CreateDbContextAsync(ct);
         var row = await LoadSingletonAsync(db, ct);
+        // #region agent log
+        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H22", location = "CspProfileService.GetAsync", message = "db-load", data = new { rowNull = row is null, onboard = row?.OnboardingState.ToString() }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+        // #endregion
         // The MCP host configures IMemoryCache with a SizeLimit; every entry
         // must declare its Size. The CspProfile is a small singleton so a
         // unit-size entry is appropriate.

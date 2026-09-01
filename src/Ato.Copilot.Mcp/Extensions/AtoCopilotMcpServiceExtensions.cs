@@ -243,6 +243,12 @@ public static class AtoCopilotMcpServiceExtensions
         services.TryAddScoped<
             Ato.Copilot.Core.Interfaces.Auth.ILoginAuditService,
             Ato.Copilot.Core.Services.Auth.LoginAuditService>();
+        // CacAuthenticationMiddleware.InvokeAsync takes LoginAuditContextAccessor
+        // as a method parameter; ASP.NET resolves it from DI even when the C#
+        // parameter is optional. Tests that boot via AddAtoCopilotMcpForTesting
+        // never ran Program.cs's AddScoped, so the full suite 500'd
+        // (CI 33570305880, debug 225414 H27).
+        services.TryAddScoped<Ato.Copilot.Mcp.Middleware.LoginAuditContextAccessor>();
 
         // IModelCallLedger — consumed by McpServer. Program.cs also registers this;
         // TryAdd keeps a single descriptor when both paths run.

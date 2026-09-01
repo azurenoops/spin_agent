@@ -144,6 +144,9 @@ public sealed class TenantResolutionMiddleware
             && !IsCspOnboardingAllowed(context.Request.Path))
         {
             var cspProfile = await cspProfileService.GetAsync(context.RequestAborted);
+            // #region agent log
+            try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H22", location = "TenantResolutionMiddleware.InvokeAsync", message = "csp-gate", data = new { path = context.Request.Path.Value, mode = deploymentOptions.Value.Mode.ToString(), profileNull = cspProfile is null, onboard = cspProfile?.OnboardingState.ToString() }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+            // #endregion
             if (cspProfile?.OnboardingState != OnboardingState.Active)
             {
                 await WriteErrorAsync(context, StatusCodes.Status503ServiceUnavailable,

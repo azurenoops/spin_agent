@@ -738,6 +738,9 @@ async Task MigrateDatabaseAsync(IServiceProvider services)
         await using var db = await factory.CreateDbContextAsync(cts.Token);
         var provider = scope.ServiceProvider.GetRequiredService<IConfiguration>()
             .GetValue<string>("Database:Provider") ?? "SQLite";
+        // #region agent log
+        try { var _cfg = scope.ServiceProvider.GetRequiredService<IConfiguration>(); System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H19", location = "Program.MigrateDatabaseAsync", message = "migrate-start", data = new { provider, deploymentMode = deploymentOpts?.Mode.ToString(), cfgMode = _cfg["Deployment:Mode"], conn = _cfg.GetConnectionString("DefaultConnection") }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+        // #endregion
 
         if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
         {
