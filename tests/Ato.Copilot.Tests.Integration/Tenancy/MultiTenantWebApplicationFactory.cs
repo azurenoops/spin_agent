@@ -116,10 +116,10 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
         // would otherwise return 401 because no JWT/CAC handler is wired up.
         Environment.SetEnvironmentVariable("ATO_Auth__BypassForTests", "true");
 
-        // Disable Azure OpenAI so Program.cs ValidateAzureAiEndpointConfig() does
-        // not throw when no ATO_AZUREAI__ENDPOINT is present in the CI environment.
-        // Integration tests do not exercise AI endpoints; disabling AI here has no
-        // effect on the compliance/tenancy/auth behavior under test.
+        // Disable Azure OpenAI so Program.cs ValidateAzureAiEndpointConfig()
+        // does not throw when no ATO_AZUREAI__ENDPOINT is present. Must be set
+        // in the factory ctor (before Program.Main) — ConfigureWebHost
+        // in-memory config is too late for that startup guard.
         Environment.SetEnvironmentVariable("ATO_AZUREAI__ENABLED", "false");
     }
 

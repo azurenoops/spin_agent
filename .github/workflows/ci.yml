@@ -300,11 +300,10 @@ jobs:
           ASPNETCORE_ENVIRONMENT: Development
           ATO_DATABASE__PROVIDER: Sqlite
           ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: "Data Source=:memory:"
-          # Disable Azure OpenAI in CI — integration tests do not exercise AI
-          # endpoints and no ATO_AZUREAI__ENDPOINT secret is available here.
-          # Without this, Program.cs ValidateAzureAiEndpointConfig() throws
-          # InvalidOperationException before the IHost is built, causing all
-          # tests that use WebApplicationFactory<McpProgram> to fail.
+          # Integration tests do not exercise Azure OpenAI. appsettings.json
+          # ships AzureAi:Enabled=true with an empty Endpoint; without this,
+          # Program.cs ValidateAzureAiEndpointConfig() throws before IHost is
+          # built and every WebApplicationFactory<McpProgram> test fails.
           ATO_AZUREAI__ENABLED: "false"
 
       - name: Upload integration test results
