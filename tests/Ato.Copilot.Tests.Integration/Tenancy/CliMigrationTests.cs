@@ -51,7 +51,17 @@ public class CliMigrationTests
         var root = AtoCliCommandFactory.Build();
 
         Environment.SetEnvironmentVariable("ATO_DB__CONNECTION_STRING", null);
-        var rc = await root.InvokeAsync(new[] { "tenant", "default" });
+        int rc;
+        try
+        {
+            rc = await root.InvokeAsync(new[] { "tenant", "default" });
+        }
+        finally
+        {
+            // Handler sets Environment.ExitCode=1. Reset so blame-crash
+            // does not abort the xUnit host (H5 / CI 33542685428).
+            Environment.ExitCode = 0;
+        }
 
         // Without --connection-string + env var, the handler emits to stderr
         // and sets ExitCode=1; the System.CommandLine return value tracks
@@ -66,16 +76,30 @@ public class CliMigrationTests
     {
         var root = AtoCliCommandFactory.Build();
 
-        var rc = await root.InvokeAsync(new[]
+        int rc;
+        int exitCodeAfterInvoke;
+        try
         {
-            "tenant", "migrate",
-            "--connection-string", "Data Source=:memory:",
-            "--default-tenant-id", "not-a-guid",
-        });
+            rc = await root.InvokeAsync(new[]
+            {
+                "tenant", "migrate",
+                "--connection-string", "Data Source=:memory:",
+                "--default-tenant-id", "not-a-guid",
+            });
+            exitCodeAfterInvoke = Environment.ExitCode;
+        }
+        finally
+        {
+            Environment.ExitCode = 0;
+        }
+
+        // #region agent log
+        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", runId = "post-fix", hypothesisId = "H5", location = "CliMigrationTests.cs:TenantMigrate_InvalidGuid", message = "process ExitCode after in-process CLI", data = new { invokeRc = rc, environmentExitCode = exitCodeAfterInvoke, resetExitCode = Environment.ExitCode }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+        // #endregion
 
         // Parser succeeded (string), handler validated GUID and set ExitCode=3.
         // The InvokeAsync return matches the handler's return; the handler
         // sets Environment.ExitCode but returns 0 by default.
-        Environment.ExitCode.Should().BeOneOf(0, 3);
+        exitCodeAfterInvoke.Should().BeOneOf(0, 3);
     }
 }

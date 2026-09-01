@@ -222,6 +222,10 @@ public class BaselineService : IBaselineService
             reappliedCount++;
         }
 
+        // #region agent log
+        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H3", location = "BaselineService.cs:SelectBaseline", message = "reapply snapshot", data = new { snapshotCount = inheritanceSnapshot.Count, reappliedCount, controlCount = controlIds.Count }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+        // #endregion
+
         if (reappliedCount > 0)
         {
             // Recalculate baseline inheritance counts
@@ -539,7 +543,10 @@ public class BaselineService : IBaselineService
             };
 
             context.ControlInheritances.Add(inheritance);
-            baseline.Inheritances.Add(inheritance);
+            // Do not also Add to baseline.Inheritances — EF relationship
+            // fixup already inserts the entity into the navigation. A second
+            // Add duplicated rows (navCount=2× mappings) and doubled
+            // inherited_count in InMemory / CI (debug session 225414 H2).
 
             // Create audit entry for the change
             context.InheritanceAuditEntries.Add(new InheritanceAuditEntry
@@ -561,15 +568,33 @@ public class BaselineService : IBaselineService
             result.ControlsUpdated++;
         }
 
-        // Recalculate inheritance counts
-        baseline.InheritedControls = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Inherited);
-        baseline.SharedControls = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Shared);
-        baseline.CustomerControls = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Customer);
+        // Recalculate inheritance counts (Distinct — nav may still contain
+        // a removed+re-added pair until SaveChanges if the tracker has not
+        // pruned the collection yet).
+        baseline.InheritedControls = baseline.Inheritances
+            .Where(i => i.InheritanceType == InheritanceType.Inherited)
+            .Select(i => i.ControlId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        baseline.SharedControls = baseline.Inheritances
+            .Where(i => i.InheritanceType == InheritanceType.Shared)
+            .Select(i => i.ControlId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        baseline.CustomerControls = baseline.Inheritances
+            .Where(i => i.InheritanceType == InheritanceType.Customer)
+            .Select(i => i.ControlId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
         baseline.ModifiedAt = DateTime.UtcNow;
 
         result.InheritedCount = baseline.InheritedControls;
         result.SharedCount = baseline.SharedControls;
         result.CustomerCount = baseline.CustomerControls;
+
+        // #region agent log
+        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H2", location = "BaselineService.cs:SetInheritance", message = "inheritance collection vs distinct", data = new { mappingCount = mappings.Count, navCount = baseline.Inheritances.Count, distinctControlIds = baseline.Inheritances.Select(i => i.ControlId).Distinct(StringComparer.OrdinalIgnoreCase).Count(), inheritedCount = result.InheritedCount, sharedCount = result.SharedCount, updated = result.ControlsUpdated, skipped = result.SkippedControls.Count }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+        // #endregion
 
         // ─── Auto-update narrative implementation status based on inheritance type ───
         // Inherited → Implemented, Shared → PartiallyImplemented
