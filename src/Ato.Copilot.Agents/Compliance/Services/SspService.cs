@@ -171,7 +171,14 @@ public class SspService : ISspService
             .Include(b => b.Inheritances)
             .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, cancellationToken);
 
-        var inheritance = baseline?.Inheritances
+        // Guard: cannot suggest narratives for a system that has not completed the Select phase.
+        // Returning a TemplateScaffold for an ungrounded system produces misleading content.
+        if (baseline is null)
+            throw new InvalidOperationException(
+                $"No control baseline is selected for system '{systemId}'. " +
+                $"Complete the Select phase (compliance_select_baseline) before generating narratives.");
+
+        var inheritance = baseline.Inheritances
             .FirstOrDefault(i => i.ControlId == controlId);
 
         // Build suggestion based on system context and control type
@@ -250,7 +257,7 @@ public class SspService : ISspService
         var baseline = await context.ControlBaselines
             .Include(b => b.Inheritances)
             .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, cancellationToken)
-            ?? throw new InvalidOperationException($"No baseline found for system '{systemId}'. Select a baseline first.");
+            ?? throw new InvalidOperationException($"No control baseline is selected for system '{systemId}'. Complete the Select phase (compliance_select_baseline) before auto-generating narratives.");
 
         // Get existing narratives to skip.
         // Controls that only have an AI-generated template stub (IsAutoPopulated = true AND
@@ -383,8 +390,18 @@ public class SspService : ISspService
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
 
         var baseline = await context.ControlBaselines
-            .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, cancellationToken)
-            ?? throw new InvalidOperationException($"No baseline found for system '{systemId}'.");
+            .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, cancellationToken);
+
+        if (baseline is null)
+        {
+            return new NarrativeProgress
+            {
+                SystemId = systemId,
+                BaselineSelected = false,
+                StatusMessage = $"0/0 \u2014 no baseline selected for system '{systemId}'. " +
+                                "Complete the Select phase (compliance_select_baseline) before generating narratives."
+            };
+        }
 
         var controlIds = baseline.ControlIds;
         if (!string.IsNullOrWhiteSpace(familyFilter))
