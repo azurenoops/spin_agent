@@ -58,12 +58,28 @@ public class MessagesControllerIntegrationTests : IAsyncLifetime
             .AddApplicationPart(typeof(Ato.Copilot.Chat.Controllers.MessagesController).Assembly);
         builder.Services.AddSignalR();
         builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+        // MessagesController carries [Authorize]. Register authentication + authorization
+        // services so the middleware pipeline can resolve the metadata — otherwise
+        // ASP.NET Core throws InvalidOperationException at request time.
+        builder.Services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = "Test";
+            options.DefaultChallengeScheme = "Test";
+        })
+        .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,
+            TestPassThroughAuthHandler>("Test", _ => { });
+        builder.Services.AddAuthorization();
 
         builder.WebHost.UseTestServer();
 
         _app = builder.Build();
         _app.UseCors();
         _app.UseRouting();
+        // UseAuthentication + UseAuthorization MUST be ordered between UseRouting()
+        // and endpoint mapping. Without this, any endpoint with [Authorize] metadata
+        // raises InvalidOperationException at runtime.
+        _app.UseAuthentication();
+        _app.UseAuthorization();
         _app.MapControllers();
         _app.MapHub<ChatHub>("/hubs/chat");
 

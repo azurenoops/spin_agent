@@ -244,6 +244,27 @@ public static class AtoCopilotMcpServiceExtensions
             Ato.Copilot.Core.Interfaces.Auth.ILoginAuditService,
             Ato.Copilot.Core.Services.Auth.LoginAuditService>();
 
+        // INotificationBroadcaster — SignalR-backed broadcast service consumed by export notifiers
+        // (Singleton-scoped services registered in AddMcpServer). Must be present in the shared
+        // extension so AddAtoCopilotMcpForTesting() builds a complete DI graph.
+        services.TryAddSingleton<
+            Ato.Copilot.Core.Interfaces.Compliance.INotificationBroadcaster,
+            Ato.Copilot.Mcp.Services.SignalRNotificationBroadcaster>();
+
+        // IModelCallLedger — model-call provenance ledger (append-only, singleton-safe via
+        // IDbContextFactory). Consumed by McpServer and McpHttpBridge (both Singleton). Must be
+        // present in the shared extension so AddAtoCopilotMcpForTesting() builds a complete DI graph.
+        services.TryAddSingleton<
+            Ato.Copilot.Core.Interfaces.Provenance.IModelCallLedger,
+            Ato.Copilot.Mcp.Services.ModelCallLedger>();
+
+        // ISspPdfExtractionService — onboarding wizard SSP PDF parsing. Consumed transitively by
+        // ICspAtoDocumentParser (Scoped). Must be present in the shared extension so
+        // AddAtoCopilotMcpForTesting() builds a complete DI graph.
+        services.TryAddScoped<
+            Ato.Copilot.Core.Interfaces.Onboarding.ISspPdfExtractionService,
+            Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.SspPdfExtractionService>();
+
         return services;
     }
 }
