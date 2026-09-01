@@ -244,6 +244,12 @@ public static class AtoCopilotMcpServiceExtensions
             Ato.Copilot.Core.Interfaces.Auth.ILoginAuditService,
             Ato.Copilot.Core.Services.Auth.LoginAuditService>();
 
+        // IModelCallLedger — consumed by McpServer. Program.cs also registers this;
+        // TryAdd keeps a single descriptor when both paths run.
+        services.TryAddSingleton<
+            Ato.Copilot.Core.Interfaces.Provenance.IModelCallLedger,
+            Ato.Copilot.Mcp.Services.ModelCallLedger>();
+
         // Onboarding wizard services (Feature 048 + extensions).
         // Pulled into AddAtoCopilotMcp so integration test scaffolding
         // (AddAtoCopilotMcpForTesting) picks them up without a separate call.
