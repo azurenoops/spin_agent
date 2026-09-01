@@ -87,9 +87,6 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
 
         var cache = scope.ServiceProvider.GetRequiredService<IMemoryCache>();
         cache.Remove(Ato.Copilot.Core.Services.Tenancy.CspProfileService.CacheKey);
-        // #region agent log
-        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H25", location = "MultiTenantWebApplicationFactory.EnsureActiveCspProfileAsync", message = "csp-profile-restored", data = new { hadRow = row is not null }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-        // #endregion
     }
 
     /// <summary>
@@ -112,9 +109,6 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
 
         var cache = scope.ServiceProvider.GetRequiredService<IMemoryCache>();
         cache.Remove(Ato.Copilot.Core.Services.Tenancy.CspProfileService.CacheKey);
-        // #region agent log
-        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H25", location = "MultiTenantWebApplicationFactory.ResetCspProfileAsync", message = "csp-profile-wiped", data = new { caller = Environment.StackTrace.Contains("CspOnboarding") ? "csp-onboarding" : "other" }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-        // #endregion
     }
 
     public MultiTenantWebApplicationFactory()
@@ -288,8 +282,6 @@ internal sealed class TenancySeedHostedService : IHostedService
         var db = scope.ServiceProvider.GetService<AtoCopilotContext>();
         if (db is null) return;
 
-        try
-        {
         // Feature 048's tenancy DbSets (Tenants, CertificateRoleMappings,
         // CacSessions, JitRequestEntities) were added to AtoCopilotContext
         // but not yet captured in any EF migration. Production code creates
@@ -306,9 +298,6 @@ internal sealed class TenancySeedHostedService : IHostedService
             .GetService<Microsoft.Extensions.Options.IOptions<Ato.Copilot.Mcp.Configuration.DeploymentOptions>>()?.Value;
         var isMultiTenant = deploymentOptions?.Mode
             == Ato.Copilot.Mcp.Configuration.DeploymentMode.MultiTenant;
-        // #region agent log
-        try { var _cfg = scope.ServiceProvider.GetService<Microsoft.Extensions.Configuration.IConfiguration>(); System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H21", location = "TenancySeedHostedService.StartAsync", message = "seed-start", data = new { optionsMode = deploymentOptions?.Mode.ToString(), isMultiTenant, cfgMode = _cfg?["Deployment:Mode"], conn = _cfg?.GetConnectionString("DefaultConnection") }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-        // #endregion
 
         var tenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var tenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -359,17 +348,6 @@ internal sealed class TenancySeedHostedService : IHostedService
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        // #region agent log
-        try { var cspCount = db.Set<CspProfile>().IgnoreQueryFilters().Count(); System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H20", location = "TenancySeedHostedService.StartAsync", message = "seed-saved", data = new { isMultiTenant, cspCount }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-        // #endregion
-        }
-        catch (Exception ex)
-        {
-            // #region agent log
-            try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H20", location = "TenancySeedHostedService.StartAsync", message = "seed-failed", data = new { exType = ex.GetType().Name, ex.Message }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-            // #endregion
-            throw;
-        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

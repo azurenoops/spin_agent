@@ -255,9 +255,6 @@ public static class CoreServiceExtensions
                 : "SQLite";
             var connectionString = cfg.GetConnectionString("DefaultConnection")
                                    ?? "Data Source=ato-copilot.db";
-            // #region agent log
-            try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H19", location = "CoreServiceExtensions.RegisterDbContext", message = "db-factory-config", data = new { provider, connFile = connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase) ? connectionString.Split("Data Source=", 2, StringSplitOptions.None)[1].Split(';')[0] : "non-sqlite", deploymentMode = cfg["Deployment:Mode"] }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-            // #endregion
 
             // ACA + user-assigned MI: SqlClient picks system-assigned identity by default when
             // both identity types are present. Inject User Id=<client-id> so the correct
