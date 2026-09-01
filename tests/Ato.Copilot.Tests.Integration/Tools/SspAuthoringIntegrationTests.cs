@@ -137,7 +137,13 @@ public class SspAuthoringIntegrationTests : IDisposable
 
         var suggestJson = JsonDocument.Parse(suggestResult);
         suggestJson.RootElement.GetProperty("status").GetString().Should().Be("success");
-        suggestJson.RootElement.GetProperty("data").GetProperty("confidence").GetDouble().Should().BeGreaterThan(0.0);
+        // SspService.SuggestNarrativeAsync intentionally returns Confidence = null for template paths
+        // (a fabricated number would be misleading). Assert the field is present and either null or a
+        // valid positive number — both are acceptable contract states.
+        var confidenceEl = suggestJson.RootElement.GetProperty("data").GetProperty("confidence");
+        confidenceEl.ValueKind.Should().BeOneOf(JsonValueKind.Null, JsonValueKind.Number);
+        if (confidenceEl.ValueKind == JsonValueKind.Number)
+            confidenceEl.GetDouble().Should().BeGreaterThan(0.0);
         suggestJson.RootElement.GetProperty("data").GetProperty("suggested_narrative").GetString().Should().NotBeNullOrEmpty();
 
         // ─── Step 7: Batch populate inherited controls ────────────────

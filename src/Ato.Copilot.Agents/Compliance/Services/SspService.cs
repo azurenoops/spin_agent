@@ -259,9 +259,16 @@ public class SspService : ISspService
             .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, cancellationToken)
             ?? throw new InvalidOperationException($"No control baseline is selected for system '{systemId}'. Complete the Select phase (compliance_select_baseline) before auto-generating narratives.");
 
-        // Get existing narratives to skip
+        // Get existing narratives to skip.
+        // Controls that only have an AI-generated template stub (IsAutoPopulated = true AND
+        // AiSuggested = true) were auto-created by SelectBaselineAsync as placeholders — they
+        // are NOT real authored narratives and must be REPLACED by batch populate, not skipped.
+        // Only skip controls that have been manually authored (IsAutoPopulated = false) or that
+        // have already been populated by a previous batch-populate run (IsAutoPopulated = true
+        // but AiSuggested = false, i.e. the inherited-template narrative set by this method).
         var existingControlIds = await context.ControlImplementations
-            .Where(ci => ci.RegisteredSystemId == systemId)
+            .Where(ci => ci.RegisteredSystemId == systemId
+                && !(ci.IsAutoPopulated && ci.AiSuggested))
             .Select(ci => ci.ControlId)
             .ToListAsync(cancellationToken);
 
@@ -285,6 +292,18 @@ public class SspService : ISspService
                 i.InheritanceType == InheritanceType.Shared);
         }
 
+        // Pre-load template stubs that batch populate should replace (upsert path).
+        // SelectBaselineAsync creates placeholder ControlImplementation rows (IsAutoPopulated=true,
+        // AiSuggested=true) for every control so dashboards are never empty. Batch populate must
+        // overwrite those stubs in-place (unique index on (RegisteredSystemId, ControlId) prevents
+        // a blind Add). These stubs are NOT in existingSet so they will not be skipped above.
+        var templateStubs = await context.ControlImplementations
+            .Where(ci => ci.RegisteredSystemId == systemId
+                && ci.IsAutoPopulated && ci.AiSuggested)
+            .ToListAsync(cancellationToken);
+        var stubLookup = templateStubs
+            .ToDictionary(ci => ci.ControlId, ci => ci, StringComparer.OrdinalIgnoreCase);
+
         var result = new BatchPopulateResult();
         var inheritanceList = inheritances.ToList();
         var totalToProcess = inheritanceList.Count;
@@ -303,21 +322,35 @@ public class SspService : ISspService
             }
 
             var narrative = GenerateInheritedNarrative(inh, system.Name, system.HostingEnvironment);
+            var targetStatus = inh.InheritanceType == InheritanceType.Inherited
+                ? ImplementationStatus.Implemented
+                : ImplementationStatus.PartiallyImplemented;
 
-            var implementation = new ControlImplementation
+            if (stubLookup.TryGetValue(inh.ControlId, out var stub))
             {
-                RegisteredSystemId = systemId,
-                ControlId = inh.ControlId,
-                Narrative = narrative,
-                ImplementationStatus = inh.InheritanceType == InheritanceType.Inherited
-                    ? ImplementationStatus.Implemented
-                    : ImplementationStatus.PartiallyImplemented,
-                IsAutoPopulated = true,
-                AuthoredBy = authoredBy,
-                AuthoredAt = DateTime.UtcNow
-            };
+                // Update the existing template stub in-place (preserves PK / unique index).
+                stub.Narrative = narrative;
+                stub.ImplementationStatus = targetStatus;
+                stub.IsAutoPopulated = true;
+                stub.AiSuggested = false;   // mark as batch-populated, not a raw template
+                stub.AuthoredBy = authoredBy;
+                stub.ModifiedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                var implementation = new ControlImplementation
+                {
+                    RegisteredSystemId = systemId,
+                    ControlId = inh.ControlId,
+                    Narrative = narrative,
+                    ImplementationStatus = targetStatus,
+                    IsAutoPopulated = true,
+                    AuthoredBy = authoredBy,
+                    AuthoredAt = DateTime.UtcNow
+                };
+                context.ControlImplementations.Add(implementation);
+            }
 
-            context.ControlImplementations.Add(implementation);
             existingSet.Add(inh.ControlId);
             result.PopulatedCount++;
             result.PopulatedControlIds.Add(inh.ControlId);
