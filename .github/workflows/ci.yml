@@ -267,7 +267,6 @@ jobs:
   # bundled NIST OSCAL 1.1.2 schema check.
   # ---------------------------------------------------------------------------
   integration-tests:
-    continue-on-error: true
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: [dotnet-build-test]
@@ -287,12 +286,32 @@ jobs:
       - name: Build
         run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
 
-      - name: Run integration tests
+      # Hard-fail lane: all tests EXCEPT the four pre-existing failures.
+      # Any regression here blocks the merge.
+      - name: Run integration tests (hard-fail lane)
         run: |
           dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
             -c Release --no-build -nologo \
             --logger trx \
-            --logger "console;verbosity=normal"
+            --logger "console;verbosity=normal" \
+            --filter "FullyQualifiedName!~BaselineIntegrationTests.FullBaselineLifecycle_SelectTailorInheritCrm&FullyQualifiedName!~BaselineIntegrationTests.ReselectBaseline_ReplacesPreviousBaseline&FullyQualifiedName!~SspAuthoringIntegrationTests.BatchPopulate_Idempotent_SecondRunSkipsAll&FullyQualifiedName!~SspAuthoringIntegrationTests.FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp"
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ATO_DATABASE__PROVIDER: Sqlite
+          ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: "Data Source=:memory:"
+
+      # Quarantine lane: four pre-existing failures tracked in GitHub issues.
+      # Baseline: #857 (FullBaselineLifecycle_SelectTailorInheritCrm, ReselectBaseline_ReplacesPreviousBaseline)
+      # SspAuthoring: #856 (BatchPopulate_Idempotent_SecondRunSkipsAll, FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp)
+      # continue-on-error is scoped to this step only — quarantine lane must trend to zero.
+      - name: Run integration tests (quarantine lane)
+        continue-on-error: true
+        run: |
+          dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+            -c Release --no-build -nologo \
+            --logger trx \
+            --logger "console;verbosity=normal" \
+            --filter "FullyQualifiedName~BaselineIntegrationTests.FullBaselineLifecycle_SelectTailorInheritCrm|FullyQualifiedName~BaselineIntegrationTests.ReselectBaseline_ReplacesPreviousBaseline|FullyQualifiedName~SspAuthoringIntegrationTests.BatchPopulate_Idempotent_SecondRunSkipsAll|FullyQualifiedName~SspAuthoringIntegrationTests.FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp"
         env:
           ASPNETCORE_ENVIRONMENT: Development
           ATO_DATABASE__PROVIDER: Sqlite
