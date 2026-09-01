@@ -217,6 +217,18 @@ public class NarrativeProgress
 
     /// <summary>Per-family breakdown.</summary>
     public List<FamilyProgress> FamilyBreakdowns { get; set; } = new();
+
+    /// <summary>
+    /// True when a control baseline has been selected for the system.
+    /// False means the system is in the Prepare phase — progress counts will all be zero.
+    /// </summary>
+    public bool BaselineSelected { get; set; } = true;
+
+    /// <summary>
+    /// Human-readable status note, e.g. "0/0 — no baseline selected. Complete the Select phase
+    /// (compliance_select_baseline) before generating narratives." Null when BaselineSelected is true.
+    /// </summary>
+    public string? StatusMessage { get; set; }
 }
 
 /// <summary>

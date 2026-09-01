@@ -1,10 +1,22 @@
 # Build artifacts
 bin/
 obj/
+**/bin/
+**/obj/
 publish/
+**/publish/
 node_modules/
+**/node_modules/
 dist/
+**/dist/
 *.tsbuildinfo
+
+# Python virtual env
+.venv/
+**/.venv/
+
+# MkDocs generated site
+site/
 
 # IDE
 .vs/

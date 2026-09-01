@@ -1974,6 +1974,22 @@ public class ComplianceAgent : BaseAgent
 
         if (ContainsAny(lowerMessage, "batch narrative", "populate narratives", "batch populate"))
         {
+            // Routing guard (Option B): if WorkflowState carries a known RMF step that precedes
+            // Select/Implement, return guidance before letting the tool throw.
+            if (context.WorkflowState.TryGetValue("current_rmf_step", out var rmfStepObj))
+            {
+                var rmfStep = rmfStepObj?.ToString() ?? string.Empty;
+                var selectOrImplement = new[] { "Select", "Implement" };
+                if (!string.IsNullOrWhiteSpace(rmfStep) &&
+                    !selectOrImplement.Any(s => rmfStep.Equals(s, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return $"Auto-fill narratives requires a selected control baseline. " +
+                           $"Your system is currently in the **{rmfStep}** phase. " +
+                           $"Complete the **Select** phase first by running `compliance_select_baseline`, " +
+                           $"then return here to auto-generate narratives.";
+                }
+            }
+
             var tool = FindToolByName("compliance_batch_populate_narratives");
             if (tool != null)
                 return await tool.ExecuteAsync(new Dictionary<string, object?>
