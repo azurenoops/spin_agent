@@ -181,6 +181,9 @@ public class SuggestNarrativeTool : BaseTool
                 systemId, controlId, cancellationToken);
 
             sw.Stop();
+            // #region agent log
+            try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H4", location = "SspAuthoringTools.cs:SuggestNarrative", message = "confidence token", data = new { confidenceIsNull = suggestion.Confidence is null, confidence = suggestion.Confidence }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+            // #endregion
             return JsonSerializer.Serialize(new
             {
                 status = "success",
