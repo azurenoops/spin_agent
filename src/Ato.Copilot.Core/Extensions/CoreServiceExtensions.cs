@@ -149,13 +149,24 @@ public static class CoreServiceExtensions
             return;
 
         var useManagedIdentity = configuration.GetValue<bool>("AzureAi:UseManagedIdentity");
-        var chatDeploymentName = configuration.GetValue<string>("AzureAi:DeploymentName") ?? "gpt-4o";
+        var configuredDeployment = configuration.GetValue<string>("AzureAi:DeploymentName");
+        var chatDeploymentName = configuredDeployment ?? "gpt-4o";
         var apiKey = configuration.GetValue<string>("AzureAi:ApiKey");
         var cloudEnv = configuration.GetValue<string>("AzureAi:CloudEnvironment");
 
         services.AddSingleton<IChatClient>(sp =>
         {
             var logger = sp.GetService<ILogger<IChatClient>>();
+
+            // #698 — warn at startup when the deployment name was not explicitly configured so
+            // operators know which model the IChatClient fallback will actually use.
+            if (configuredDeployment is null)
+            {
+                logger?.LogWarning(
+                    "AzureAi:DeploymentName is not configured — IChatClient will use the default deployment '{DefaultModel}'. " +
+                    "Set AzureAi:DeploymentName explicitly to prevent silent model substitution. (#698)",
+                    chatDeploymentName);
+            }
 
             Azure.AI.OpenAI.AzureOpenAIClient azureClient;
             if (useManagedIdentity)

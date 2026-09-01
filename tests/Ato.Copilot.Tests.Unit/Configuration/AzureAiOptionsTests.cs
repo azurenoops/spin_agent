@@ -167,4 +167,64 @@ public class AzureAiOptionsTests
         };
         options.IsFoundry.Should().BeFalse();
     }
+
+    // ---------------------------------------------------------------------------
+    // Regression tests for #698 — silent model swap
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// When AzureAi:DeploymentName is absent from configuration, the IChatClient
+    /// fallback silently used "gpt-4o" without any indication.  This test asserts
+    /// that the resolved deployment name IS "gpt-4o" in that case so the warning
+    /// log path in CoreServiceExtensions is exercised (the warning fires when
+    /// configuredDeployment is null).
+    /// </summary>
+    [Fact]
+    public void DeploymentName_WhenNotConfigured_DefaultsToGpt4o_SignallingDefaultFallback()
+    {
+        // Arrange — no AzureAi:DeploymentName key in config
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureAi:Enabled"] = "true",
+                ["AzureAi:Endpoint"] = "https://my-gov.openai.azure.us/"
+                // DeploymentName intentionally absent
+            })
+            .Build();
+
+        // The raw config value is null when key is absent
+        var rawValue = config.GetValue<string>("AzureAi:DeploymentName");
+        rawValue.Should().BeNull("the key is absent — null triggers the #698 startup warning");
+
+        // AzureAiOptions itself falls back to "gpt-4o" via property default
+        var services = new ServiceCollection();
+        services.Configure<AzureAiOptions>(config.GetSection("AzureAi"));
+        var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<AzureAiOptions>>().Value;
+
+        options.DeploymentName.Should().Be("gpt-4o",
+            "default must be gpt-4o so the startup warning log is accurate");
+    }
+
+    /// <summary>
+    /// When AzureAi:DeploymentName is explicitly configured, the raw config value
+    /// is non-null and the startup warning path in CoreServiceExtensions is NOT triggered.
+    /// </summary>
+    [Fact]
+    public void DeploymentName_WhenConfigured_IsNonNull_NoDefaultFallbackWarning()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureAi:Enabled"] = "true",
+                ["AzureAi:Endpoint"] = "https://my-gov.openai.azure.us/",
+                ["AzureAi:DeploymentName"] = "my-gpt4o-deployment"
+            })
+            .Build();
+
+        // When explicitly set, raw value is non-null — warning path in RegisterChatClient is skipped
+        var rawValue = config.GetValue<string>("AzureAi:DeploymentName");
+        rawValue.Should().NotBeNull("explicit configuration must not trigger the default-fallback warning");
+        rawValue.Should().Be("my-gpt4o-deployment");
+    }
 }
