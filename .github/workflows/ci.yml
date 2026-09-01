@@ -270,6 +270,7 @@ jobs:
     continue-on-error: true
     name: Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [dotnet-build-test]
 
     steps:
@@ -292,7 +293,9 @@ jobs:
           dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
             -c Release --no-build -nologo \
             --logger trx \
-            --logger "console;verbosity=normal"
+            --logger "console;verbosity=normal" \
+            --blame-hang-timeout 2min \
+            --blame-crash
         env:
           ASPNETCORE_ENVIRONMENT: Development
           ATO_DATABASE__PROVIDER: Sqlite
