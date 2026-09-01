@@ -84,27 +84,6 @@ public class EvidenceEndpointsTests : IAsyncLifetime
 
         builder.WebHost.UseTestServer();
 
-        // #region agent log
-        try
-        {
-            var factoryLifetime = builder.Services.FirstOrDefault(d =>
-                    d.ServiceType == typeof(IDbContextFactory<AtoCopilotContext>))?.Lifetime.ToString();
-            var optionsLifetime = builder.Services.FirstOrDefault(d =>
-                    d.ServiceType == typeof(DbContextOptions<AtoCopilotContext>))?.Lifetime.ToString();
-            System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log",
-                System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    sessionId = "225414",
-                    hypothesisId = "C",
-                    location = "EvidenceEndpointsTests.cs:InitializeAsync",
-                    message = "evidence-di-lifetimes-before-build",
-                    data = new { factoryLifetime, optionsLifetime },
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                }) + "\n");
-        }
-        catch { }
-        // #endregion
-
         _app = builder.Build();
 
         // MapDashboardEndpoints already prefixes /api/dashboard — do not nest
@@ -252,23 +231,6 @@ public class EvidenceEndpointsTests : IAsyncLifetime
     public async Task GetSettings_ReturnsDefaultConfig()
     {
         var httpResponse = await _client.GetAsync("/api/dashboard/evidence/settings");
-        // #region agent log
-        try
-        {
-            var body = await httpResponse.Content.ReadAsStringAsync();
-            System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log",
-                System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    sessionId = "225414",
-                    hypothesisId = "C",
-                    location = "EvidenceEndpointsTests.cs:GetSettings",
-                    message = "evidence-settings-response",
-                    data = new { status = (int)httpResponse.StatusCode, body = body.Length > 500 ? body[..500] : body },
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                }) + "\n");
-        }
-        catch { }
-        // #endregion
         httpResponse.EnsureSuccessStatusCode();
         var response = await httpResponse.Content.ReadFromJsonAsync<JsonElement>(_json);
 

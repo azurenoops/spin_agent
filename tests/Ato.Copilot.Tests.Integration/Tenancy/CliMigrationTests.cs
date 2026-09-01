@@ -93,10 +93,6 @@ public class CliMigrationTests
             Environment.ExitCode = 0;
         }
 
-        // #region agent log
-        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", runId = "post-fix", hypothesisId = "H5", location = "CliMigrationTests.cs:TenantMigrate_InvalidGuid", message = "process ExitCode after in-process CLI", data = new { invokeRc = rc, environmentExitCode = exitCodeAfterInvoke, resetExitCode = Environment.ExitCode }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-        // #endregion
-
         // Parser succeeded (string), handler validated GUID and set ExitCode=3.
         // The InvokeAsync return matches the handler's return; the handler
         // sets Environment.ExitCode but returns 0 by default.

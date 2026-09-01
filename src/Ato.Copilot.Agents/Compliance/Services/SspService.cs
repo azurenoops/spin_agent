@@ -269,10 +269,6 @@ public class SspService : ISspService
         var existingByControl = existingImpls.ToDictionary(
             ci => ci.ControlId, StringComparer.OrdinalIgnoreCase);
 
-        // #region agent log
-        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", runId = "post-fix", hypothesisId = "H1", location = "SspService.cs:BatchPopulate", message = "existing implementations vs inheritances", data = new { existingCount = existingImpls.Count, autoPopulated = existingImpls.Count(x => x.IsAutoPopulated), planned = existingImpls.Count(x => x.ImplementationStatus == ImplementationStatus.Planned), inheritanceNavCount = baseline.Inheritances.Count, filter = inheritanceType }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-        // #endregion
-
         // Filter inheritance records
         var inheritances = baseline.Inheritances.AsEnumerable();
 
@@ -362,10 +358,6 @@ public class SspService : ISspService
         _logger.LogInformation(
             "Batch populated {Count} narratives for system '{SystemId}' (skipped {Skipped})",
             result.PopulatedCount, systemId, result.SkippedCount);
-
-        // #region agent log
-        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", runId = "post-fix", hypothesisId = "H1", location = "SspService.cs:BatchPopulate:exit", message = "populate result", data = new { result.PopulatedCount, result.SkippedCount, populatedIds = result.PopulatedControlIds }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-        // #endregion
 
         return result;
     }

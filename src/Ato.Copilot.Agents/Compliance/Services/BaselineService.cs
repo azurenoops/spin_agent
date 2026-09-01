@@ -222,10 +222,6 @@ public class BaselineService : IBaselineService
             reappliedCount++;
         }
 
-        // #region agent log
-        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H3", location = "BaselineService.cs:SelectBaseline", message = "reapply snapshot", data = new { snapshotCount = inheritanceSnapshot.Count, reappliedCount, controlCount = controlIds.Count }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-        // #endregion
-
         if (reappliedCount > 0)
         {
             // Recalculate baseline inheritance counts
@@ -591,10 +587,6 @@ public class BaselineService : IBaselineService
         result.InheritedCount = baseline.InheritedControls;
         result.SharedCount = baseline.SharedControls;
         result.CustomerCount = baseline.CustomerControls;
-
-        // #region agent log
-        try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "H2", location = "BaselineService.cs:SetInheritance", message = "inheritance collection vs distinct", data = new { mappingCount = mappings.Count, navCount = baseline.Inheritances.Count, distinctControlIds = baseline.Inheritances.Select(i => i.ControlId).Distinct(StringComparer.OrdinalIgnoreCase).Count(), inheritedCount = result.InheritedCount, sharedCount = result.SharedCount, updated = result.ControlsUpdated, skipped = result.SkippedControls.Count }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-        // #endregion
 
         // ─── Auto-update narrative implementation status based on inheritance type ───
         // Inherited → Implemented, Shared → PartiallyImplemented

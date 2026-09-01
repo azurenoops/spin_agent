@@ -44,6 +44,8 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     private readonly string _sqliteFile = Path.Combine(
         Path.GetTempPath(),
         $"ato-copilot-tests-{Guid.NewGuid():N}.db");
+    private readonly string? _sqlServerConn =
+        Environment.GetEnvironmentVariable("ATO_TEST_SQLSERVER_CONNSTRING");
 
     /// <summary>Returns the live <see cref="TenantContext"/> the test is mutating.</summary>
     public TenantContext GetActiveContext() => _activeContext;
@@ -74,24 +76,11 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
         // the host to use SQL Server instead of the per-fixture SQLite file.
         // This lets RLS-enabled integration tests run the *full* HTTP pipeline
         // against a server that actually enforces the BLOCK predicate.
-        var sqlServerConn = Environment.GetEnvironmentVariable("ATO_TEST_SQLSERVER_CONNSTRING");
-        if (!string.IsNullOrEmpty(sqlServerConn))
-        {
-            Environment.SetEnvironmentVariable("ATO_Database__Provider", "SqlServer");
-            Environment.SetEnvironmentVariable("ATO_ConnectionStrings__DefaultConnection", sqlServerConn);
-        }
-        else
-        {
-            // Force SQLite + a per-fixture unique file-backed DB BEFORE the host
-            // builder reads configuration. The MCP host's default appsettings.json
-            // points at SQL Server which is not reachable from the unit-test
-            // environment. Program.cs registers env-var configuration with the
-            // "ATO_" prefix, so we MUST use that prefix for the override to win
-            // over appsettings.json.
-            Environment.SetEnvironmentVariable("ATO_Database__Provider", "Sqlite");
-            Environment.SetEnvironmentVariable("ATO_ConnectionStrings__DefaultConnection",
-                $"Data Source={_sqliteFile};Mode=ReadWriteCreate");
-        }
+        // Connection string + Database:Provider are pinned per-host in
+        // ConfigureWebHost (in-memory). Do NOT set ATO_ConnectionStrings__*
+        // here — those env vars are process-global and the last fixture
+        // ctor wins, so parallel WAFs would share one SQLite file
+        // (debug 225414 H17).
 
         // Force HTTP mode so DetermineRunMode() returns "http" and the factory
         // boots via WebApplication (no `using var host` disposal race).
@@ -102,8 +91,9 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
         // service provider access throw ObjectDisposedException.
         Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
 
-        Environment.SetEnvironmentVariable("ATO_Deployment__Mode", "MultiTenant");
-        Environment.SetEnvironmentVariable("ATO_Deployment__Tenants__AllowSelfOnboarding", "false");
+        // Deployment:Mode is per-host in-memory only (see ConfigureWebHost).
+        // ATO_Deployment__Mode is process-global and races with
+        // SingleTenantFactory when xUnit constructs fixtures in parallel.
         Environment.SetEnvironmentVariable("ATO_Auth__Impersonation__SigningKey",
             "ato-copilot-tests-impersonation-signing-key-stable-32B!");
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
@@ -147,6 +137,14 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
             {
                 ["Deployment:Mode"] = DeploymentModeOverride,
                 ["Deployment:Tenants:AllowSelfOnboarding"] = "false",
+                // Per-host connection — env vars are process-global and race
+                // when two WebApplicationFactory instances boot in parallel
+                // (CspOnboarding + SimulateEndpoint hung on the same SQLite
+                // file in CI 33565219515 / debug 225414 H10).
+                ["Database:Provider"] = string.IsNullOrEmpty(_sqlServerConn) ? "Sqlite" : "SqlServer",
+                ["ConnectionStrings:DefaultConnection"] = string.IsNullOrEmpty(_sqlServerConn)
+                    ? $"Data Source={_sqliteFile};Mode=ReadWriteCreate"
+                    : _sqlServerConn,
             });
         });
 
