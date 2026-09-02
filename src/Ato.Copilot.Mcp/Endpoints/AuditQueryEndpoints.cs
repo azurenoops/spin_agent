@@ -122,6 +122,9 @@ public static class AuditQueryEndpoints
         actorDisplayName = string.IsNullOrEmpty(e.UserId) ? null : e.UserId,
         actorTenantId = e.ActorTenantId,
         tenantId = e.TenantId,
+        // Feature 048 FR-052: EffectiveTenantId is the row's TenantId
+        // (impersonated target when set, else the actor's home tenant).
+        effectiveTenantId = e.TenantId,
         impersonatedTenantId = e.ImpersonatedTenantId,
         action = e.Action,
         // Full resource string goes into entityType; entityId split deferred (TODO #198).

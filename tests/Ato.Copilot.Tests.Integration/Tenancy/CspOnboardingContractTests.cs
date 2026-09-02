@@ -22,7 +22,7 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// gate (T164) is asserted in <see cref="CspOnboardingGateTests"/>; this file
 /// only validates the contract once the caller is allowed through.
 /// </remarks>
-[Collection("Tenancy")]
+[Collection("TenancyCspOnboarding")]
 public class CspOnboardingContractTests
 {
     private readonly MultiTenantWebApplicationFactory<McpProgram> _factory;

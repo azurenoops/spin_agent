@@ -21,7 +21,7 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// RED until T162 (CspProfileService step-machine semantics) and T163
 /// (CspOnboardingEndpoints) are implemented.
 /// </remarks>
-[Collection("Tenancy")]
+[Collection("TenancyCspOnboarding")]
 public class CspOnboardingReentrancyTests
 {
     private readonly MultiTenantWebApplicationFactory<McpProgram> _factory;
