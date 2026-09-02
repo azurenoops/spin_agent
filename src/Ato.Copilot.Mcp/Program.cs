@@ -1335,10 +1335,6 @@ void ValidateAzureAiEndpointConfig(IConfiguration configuration)
     var aiOptions = configuration.GetSection(Ato.Copilot.Core.Configuration.AzureAiOptions.SectionName)
                                  .Get<Ato.Copilot.Core.Configuration.AzureAiOptions>();
 
-    // #region agent log
-    try { System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "225414", hypothesisId = "A", location = "Program.cs:ValidateAzureAiEndpointConfig", message = "azure-ai-startup-config", data = new { enabled = aiOptions?.Enabled, endpointEmpty = string.IsNullOrWhiteSpace(aiOptions?.Endpoint), envEnabled = Environment.GetEnvironmentVariable("ATO_AZUREAI__ENABLED"), aspEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
-    // #endregion
-
     if (aiOptions is null || !aiOptions.Enabled) return;
 
     // Foundry provider has its own endpoint validation in ValidateFoundryConfig
