@@ -18,9 +18,9 @@ on:
         default: AtoCopilot
         type: string
       api_base_url:
-        description: "Dashboard API base URL including /api/dashboard (fix #654: use vars.ATO_API_BASE_URL or supply explicitly — no production URL hardcoded)"
-        required: true
-        default: ${{ vars.ATO_API_BASE_URL }}
+        description: "Dashboard API base URL including /api/dashboard. Leave empty to use repository variable ATO_API_BASE_URL (expressions are not valid in workflow_dispatch defaults)."
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -28,16 +28,7 @@ permissions:
   contents: read
 
 jobs:
-  # GitHub still starts this workflow on feature-branch pushes. If every job
-  # is skipped, the run is FAILURE with zero jobs. This no-op keeps push runs green.
-  skip-non-dispatch:
-    if: github.event_name != 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Full Wipe + Reseed is manual (workflow_dispatch) only."
-
   wipe-and-reseed:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: dev
 
@@ -118,7 +109,7 @@ jobs:
       - name: Phase 2 — API seed (seed-systems.sh)
         shell: bash
         env:
-          ATO_BASE_URL: ${{ github.event.inputs.api_base_url }}
+          ATO_BASE_URL: ${{ github.event.inputs.api_base_url || vars.ATO_API_BASE_URL }}
         run: |
           set -euo pipefail
           bash scripts/seed-systems.sh
@@ -126,7 +117,7 @@ jobs:
       - name: Phase 2 — API seed (seed-dashboard.sh)
         shell: bash
         env:
-          ATO_BASE_URL: ${{ github.event.inputs.api_base_url }}
+          ATO_BASE_URL: ${{ github.event.inputs.api_base_url || vars.ATO_API_BASE_URL }}
         run: |
           set -euo pipefail
           bash scripts/seed-dashboard.sh
@@ -139,7 +130,7 @@ jobs:
       - name: Phase 2 — API seed (seed-csp-inherited.sh)
         shell: bash
         env:
-          ATO_BASE_URL: ${{ github.event.inputs.api_base_url }}
+          ATO_BASE_URL: ${{ github.event.inputs.api_base_url || vars.ATO_API_BASE_URL }}
         run: |
           set -euo pipefail
           bash scripts/seed-csp-inherited.sh || true
