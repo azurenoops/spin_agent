@@ -270,6 +270,7 @@ jobs:
     continue-on-error: true
     name: Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [dotnet-build-test]
 
     steps:
@@ -292,11 +293,18 @@ jobs:
           dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
             -c Release --no-build -nologo \
             --logger trx \
-            --logger "console;verbosity=normal"
+            --logger "console;verbosity=normal" \
+            --blame-hang-timeout 2min \
+            --blame-crash
         env:
           ASPNETCORE_ENVIRONMENT: Development
           ATO_DATABASE__PROVIDER: Sqlite
           ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: "Data Source=:memory:"
+          # Integration tests do not exercise Azure OpenAI. appsettings.json
+          # ships AzureAi:Enabled=true with an empty Endpoint; without this,
+          # Program.cs ValidateAzureAiEndpointConfig() throws before IHost is
+          # built and every WebApplicationFactory<McpProgram> test fails.
+          ATO_AZUREAI__ENABLED: "false"
 
       - name: Upload integration test results
         if: always()
