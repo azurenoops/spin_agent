@@ -60,6 +60,8 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
         {
             using var scope = single.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            await TenancySeedHostedService
+                .CreateTenancyTablesIfMissingPublicAsync(db, CancellationToken.None);
             var any = await db.Tenants.FirstOrDefaultAsync();
             any.Should().NotBeNull("SingleTenant boot must create the default tenant");
             existingTenantId = any!.Id;
@@ -222,10 +224,41 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
         {
             await using var scope = _services.CreateAsyncScope();
             var factory = scope.ServiceProvider.GetService<IDbContextFactory<AtoCopilotContext>>();
-            if (factory is null) return;
-            await using var db = await factory.CreateDbContextAsync(cancellationToken);
-            await TenancySeedHostedService
-                .CreateTenancyTablesIfMissingPublicAsync(db, cancellationToken);
+            var scoped = scope.ServiceProvider.GetService<AtoCopilotContext>();
+            // #region agent log
+            try
+            {
+                var payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    sessionId = "225414",
+                    hypothesisId = "H-modeswitch-conn",
+                    location = "CspOnboardingModeSwitchTests.TenancyTablesOnlyHostedService.StartAsync",
+                    message = "tenancy DDL targets",
+                    data = new
+                    {
+                        factoryNull = factory is null,
+                        scopedNull = scoped is null,
+                        scopedCs = scoped?.Database.GetConnectionString()
+                    },
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                });
+                await File.AppendAllTextAsync("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", payload + Environment.NewLine, cancellationToken);
+            }
+            catch { /* debug ingest must not fail the fixture */ }
+            // #endregion
+            // CI 33655198294 / 33655171786: factory-only DDL left the scoped
+            // AtoCopilotContext on a different SQLite file (no Tenants table).
+            if (factory is not null)
+            {
+                await using var db = await factory.CreateDbContextAsync(cancellationToken);
+                await TenancySeedHostedService
+                    .CreateTenancyTablesIfMissingPublicAsync(db, cancellationToken);
+            }
+            if (scoped is not null)
+            {
+                await TenancySeedHostedService
+                    .CreateTenancyTablesIfMissingPublicAsync(scoped, cancellationToken);
+            }
         }
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
