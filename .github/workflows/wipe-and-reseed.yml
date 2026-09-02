@@ -28,7 +28,16 @@ permissions:
   contents: read
 
 jobs:
+  # GitHub still starts this workflow on feature-branch pushes. If every job
+  # is skipped, the run is FAILURE with zero jobs. This no-op keeps push runs green.
+  skip-non-dispatch:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Full Wipe + Reseed is manual (workflow_dispatch) only."
+
   wipe-and-reseed:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: dev
 

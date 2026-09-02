@@ -10,7 +10,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
-using Ato.Copilot.Tests.Unit;
 
 namespace Ato.Copilot.Tests.Unit.Tenancy;
 
@@ -61,27 +60,10 @@ public class TenantScopedQueryGuardGlobalReferenceTests : IAsyncLifetime
         services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         services.AddSingleton(_httpContextAccessorMock.Object);
 
-        // Register a NON-POOLING IDbContextFactory<AtoCopilotContext> so the
-        // TenantScopedQueryGuardInterceptor constructor can call CreateDbContext()
-        // to read EF model metadata for the [GlobalReference] table map.
-        //
-        // IMPORTANT: Do NOT use AddDbContextFactory here. AddDbContextFactory
-        // registers a PooledDbContextFactory whose Dispose() path resets and CLOSES
-        // the underlying connection object. Since _connection is a shared in-memory
-        // SqliteConnection used by AddDbContext below, closing it in the pool reset
-        // (triggered when the interceptor ctor disposes its seed context) makes
-        // subsequent EnsureCreatedAsync / query calls hang on a closed connection.
-        //
-        // TestDbContextFactory returns the same non-disposing shared context on every
-        // CreateDbContext() call, so the pool never closes _connection.
-        var factoryOptions = new DbContextOptionsBuilder<AtoCopilotContext>()
-            .UseSqlite(_connection)
-            .Options;
-        services.AddSingleton<IDbContextFactory<AtoCopilotContext>>(
-            new TestDbContextFactory(factoryOptions));
-
-        // Also register as AddDbContext so test code that resolves AtoCopilotContext
-        // directly (via scope) gets the interceptor attached.
+        // Register as AddDbContext so test code that resolves AtoCopilotContext
+        // directly (via scope) gets the interceptor attached. The interceptor
+        // seeds [GlobalReference] tables from eventData.Context on first query
+        // and must not take IDbContextFactory (ctor→factory cycle / hang).
         services.AddDbContext<AtoCopilotContext>((sp, opt) =>
         {
             opt.UseSqlite(_connection);
