@@ -135,12 +135,13 @@ public class SspAuthoringIntegrationTests : IDisposable
 
         var suggestJson = JsonDocument.Parse(suggestResult);
         suggestJson.RootElement.GetProperty("status").GetString().Should().Be("success");
-        // confidence is nullable per SuggestNarrativeTool contract — calling GetDouble()
-        // on a null JSON token throws InvalidOperationException (BUG-IT-002).
-        // Guard: only assert the numeric value when the field is actually a number.
+        // SuggestNarrative returns Confidence = null on the template path
+        // (a fabricated number would be misleading). Accept null or a
+        // positive number — both are valid contract states (H4 / CI 33542685428).
         var confidenceEl = suggestJson.RootElement.GetProperty("data").GetProperty("confidence");
-        if (confidenceEl.ValueKind == System.Text.Json.JsonValueKind.Number)
-            confidenceEl.GetDouble().Should().BeGreaterOrEqualTo(0.0);
+        confidenceEl.ValueKind.Should().BeOneOf(JsonValueKind.Null, JsonValueKind.Number);
+        if (confidenceEl.ValueKind == JsonValueKind.Number)
+            confidenceEl.GetDouble().Should().BeGreaterThan(0.0);
         suggestJson.RootElement.GetProperty("data").GetProperty("suggested_narrative").GetString().Should().NotBeNullOrEmpty();
 
         // ─── Step 7: Batch populate inherited controls ────────────────

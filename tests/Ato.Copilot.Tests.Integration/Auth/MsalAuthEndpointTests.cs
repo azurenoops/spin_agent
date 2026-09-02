@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Configuration.Auth;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
@@ -50,10 +53,26 @@ public class MsalAuthEndpointTests : IAsyncLifetime
             EnvironmentName = "Development",
         });
 
+        var simTid = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Auth:IdleTimeoutMinutes"] = "15",
+            ["CacAuth:SimulationMode"] = "true",
+            ["CacAuth:SimulatedIdentity:UserPrincipalName"] = "dev.user@dev.mil",
+            ["CacAuth:SimulatedIdentity:DisplayName"] = "Dev User (Simulated)",
+            ["CacAuth:SimulatedIdentity:Roles:0"] = "ISSO",
+            ["CacAuth:SimulatedIdentity:TenantId"] = simTid.ToString(),
+            ["CacAuth:SimulatedIdentity:ObjectId"] = "00000000-0000-0000-0000-000000000002",
+        });
+
         builder.Services.Configure<GatewayOptions>(
             builder.Configuration.GetSection(GatewayOptions.SectionName));
         builder.Services.Configure<AzureAdOptions>(
             builder.Configuration.GetSection(AzureAdOptions.SectionName));
+        builder.Services.Configure<AuthOptions>(
+            builder.Configuration.GetSection(AuthOptions.SectionName));
+        builder.Services.Configure<CacAuthOptions>(
+            builder.Configuration.GetSection(CacAuthOptions.SectionName));
         builder.Services.AddHttpClient();
 
         builder.Services.AddSingleton(_ =>
@@ -83,9 +102,33 @@ public class MsalAuthEndpointTests : IAsyncLifetime
 
         var httpBridge = _app.Services.GetRequiredService<McpHttpBridge>();
         httpBridge.MapEndpoints(_app);
+        // CI 33579691345: login-config/me/select-tenant/signout 404'd because
+        // this slim host only mapped MCP HTTP. Auth routes live on MapAuthEndpoints.
+        Ato.Copilot.Mcp.Endpoints.Auth.AuthEndpoints.MapAuthEndpoints(_app);
 
         await _app.StartAsync();
         _client = _app.GetTestClient();
+
+        // GET /me looks up Tenant by Entra tid. Empty in-memory DB → 403
+        // NO_TENANT_ASSIGNMENT (CI 33579691345 / debug 225414 H36).
+        await using (var scope = _app.Services.CreateAsyncScope())
+        {
+            var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+            await using var db = await dbFactory.CreateDbContextAsync();
+            if (!await db.Tenants.IgnoreQueryFilters().AnyAsync(t => t.EntraTenantId == simTid))
+            {
+                db.Tenants.Add(new Tenant
+                {
+                    Id = Guid.NewGuid(),
+                    DisplayName = "Msal Sim Tenant",
+                    EntraTenantId = simTid,
+                    Status = TenantStatus.Active,
+                    OnboardingState = OnboardingState.Active,
+                    CreatedBy = "msal-test",
+                });
+                await db.SaveChangesAsync();
+            }
+        }
     }
 
     public async Task DisposeAsync()
@@ -202,9 +245,9 @@ public class MsalAuthEndpointTests : IAsyncLifetime
             using var doc = JsonDocument.Parse(body);
             var data = doc.RootElement.GetProperty("data");
 
-            data.TryGetProperty("sub", out _).Should().BeTrue("me must include 'sub' (OID)");
-            data.TryGetProperty("roles", out var roles).Should().BeTrue("me must include 'roles'");
-            roles.ValueKind.Should().Be(JsonValueKind.Array);
+            // Live envelope uses oid (Entra object id), not OpenID `sub`.
+            data.TryGetProperty("oid", out _).Should().BeTrue("me must include 'oid'");
+            data.TryGetProperty("persona", out _).Should().BeTrue("me must include 'persona'");
         }
         else
         {

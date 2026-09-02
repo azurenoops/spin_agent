@@ -259,13 +259,15 @@ public class SspService : ISspService
             .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, cancellationToken)
             ?? throw new InvalidOperationException($"No control baseline is selected for system '{systemId}'. Complete the Select phase (compliance_select_baseline) before auto-generating narratives.");
 
-        // Get existing narratives to skip
-        var existingControlIds = await context.ControlImplementations
+        // Load existing narratives. SelectBaseline auto-creates Planned
+        // IsAutoPopulated templates for every control; those are replaceable
+        // inherited drafts, not human-authored content. Skipping every
+        // existing row made BatchPopulate a no-op (populated_count=0).
+        var existingImpls = await context.ControlImplementations
             .Where(ci => ci.RegisteredSystemId == systemId)
-            .Select(ci => ci.ControlId)
             .ToListAsync(cancellationToken);
-
-        var existingSet = new HashSet<string>(existingControlIds, StringComparer.OrdinalIgnoreCase);
+        var existingByControl = existingImpls.ToDictionary(
+            ci => ci.ControlId, StringComparer.OrdinalIgnoreCase);
 
         // Filter inheritance records
         var inheritances = baseline.Inheritances.AsEnumerable();
@@ -295,30 +297,49 @@ public class SspService : ISspService
         foreach (var inh in inheritanceList)
         {
             processed++;
-            if (existingSet.Contains(inh.ControlId))
-            {
-                result.SkippedCount++;
-                result.SkippedControlIds.Add(inh.ControlId);
-                continue;
-            }
-
+            var targetStatus = inh.InheritanceType == InheritanceType.Inherited
+                ? ImplementationStatus.Implemented
+                : ImplementationStatus.PartiallyImplemented;
             var narrative = GenerateInheritedNarrative(inh, system.Name, system.HostingEnvironment);
 
-            var implementation = new ControlImplementation
+            if (existingByControl.TryGetValue(inh.ControlId, out var existing))
             {
-                RegisteredSystemId = systemId,
-                ControlId = inh.ControlId,
-                Narrative = narrative,
-                ImplementationStatus = inh.InheritanceType == InheritanceType.Inherited
-                    ? ImplementationStatus.Implemented
-                    : ImplementationStatus.PartiallyImplemented,
-                IsAutoPopulated = true,
-                AuthoredBy = authoredBy,
-                AuthoredAt = DateTime.UtcNow
-            };
+                // SelectBaseline writes AiSuggested Planned templates; SetInheritance
+                // may already flip those to Implemented without replacing the
+                // customer-template text. Both are still replaceable drafts.
+                // Human-authored (!IsAutoPopulated) and prior batch-populate
+                // rows (IsAutoPopulated && !AiSuggested) are skipped.
+                var isReplaceableTemplate = existing.IsAutoPopulated && existing.AiSuggested;
+                if (!isReplaceableTemplate)
+                {
+                    result.SkippedCount++;
+                    result.SkippedControlIds.Add(inh.ControlId);
+                    continue;
+                }
 
-            context.ControlImplementations.Add(implementation);
-            existingSet.Add(inh.ControlId);
+                existing.Narrative = narrative;
+                existing.ImplementationStatus = targetStatus;
+                existing.IsAutoPopulated = true;
+                existing.AiSuggested = false;
+                existing.AuthoredBy = authoredBy;
+                existing.AuthoredAt = DateTime.UtcNow;
+                existing.ModifiedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                context.ControlImplementations.Add(new ControlImplementation
+                {
+                    RegisteredSystemId = systemId,
+                    ControlId = inh.ControlId,
+                    Narrative = narrative,
+                    ImplementationStatus = targetStatus,
+                    IsAutoPopulated = true,
+                    AiSuggested = false,
+                    AuthoredBy = authoredBy,
+                    AuthoredAt = DateTime.UtcNow
+                });
+            }
+
             result.PopulatedCount++;
             result.PopulatedControlIds.Add(inh.ControlId);
 
