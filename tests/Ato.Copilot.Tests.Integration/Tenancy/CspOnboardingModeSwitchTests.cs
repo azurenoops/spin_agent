@@ -60,6 +60,30 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
         {
             using var scope = single.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            // CI 33659336938: factory-only DDL left this scoped context without Tenants.
+            await TenancySeedHostedService
+                .CreateTenancyTablesIfMissingPublicAsync(db, CancellationToken.None);
+            // #region agent log
+            try
+            {
+                var payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    sessionId = "3a8241",
+                    hypothesisId = "F",
+                    location = "CspOnboardingModeSwitchTests.cs:63",
+                    message = "scoped Tenants query after explicit DDL",
+                    data = new
+                    {
+                        cs = db.Database.GetConnectionString(),
+                        tenantsTable = await TableExistsAsync(db, "Tenants")
+                    },
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    runId = "post-fix"
+                });
+                await File.AppendAllTextAsync("/Volumes/Internal/repos/ato-copilot/.cursor/debug-3a8241.log", payload + Environment.NewLine);
+            }
+            catch { /* debug ingest must not fail the test */ }
+            // #endregion
             var any = await db.Tenants.FirstOrDefaultAsync();
             any.Should().NotBeNull("SingleTenant boot must create the default tenant");
             existingTenantId = any!.Id;
@@ -222,12 +246,45 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
         {
             await using var scope = _services.CreateAsyncScope();
             var factory = scope.ServiceProvider.GetService<IDbContextFactory<AtoCopilotContext>>();
-            if (factory is null) return;
-            await using var db = await factory.CreateDbContextAsync(cancellationToken);
-            await TenancySeedHostedService
-                .CreateTenancyTablesIfMissingPublicAsync(db, cancellationToken);
+            var scoped = scope.ServiceProvider.GetService<AtoCopilotContext>();
+            // CI 33659336938 / 33655198294: factory-only DDL can land on a
+            // different SQLite connection than the scoped AtoCopilotContext
+            // the test queries (no such table: Tenants).
+            if (factory is not null)
+            {
+                await using var db = await factory.CreateDbContextAsync(cancellationToken);
+                await TenancySeedHostedService
+                    .CreateTenancyTablesIfMissingPublicAsync(db, cancellationToken);
+            }
+            if (scoped is not null)
+            {
+                await TenancySeedHostedService
+                    .CreateTenancyTablesIfMissingPublicAsync(scoped, cancellationToken);
+            }
         }
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private static async Task<bool> TableExistsAsync(AtoCopilotContext db, string table)
+    {
+        var conn = db.Database.GetDbConnection();
+        var shouldClose = conn.State != System.Data.ConnectionState.Open;
+        if (shouldClose) await db.Database.OpenConnectionAsync();
+        try
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name=$name";
+            var p = cmd.CreateParameter();
+            p.ParameterName = "$name";
+            p.Value = table;
+            cmd.Parameters.Add(p);
+            var result = await cmd.ExecuteScalarAsync();
+            return result is not null;
+        }
+        finally
+        {
+            if (shouldClose) await db.Database.CloseConnectionAsync();
+        }
     }
 }
