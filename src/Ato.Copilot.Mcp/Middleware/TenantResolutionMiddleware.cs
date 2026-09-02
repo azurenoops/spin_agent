@@ -159,6 +159,12 @@ public sealed class TenantResolutionMiddleware
         // Strictly opt-in (defaults to false) and never set in production.
         if (configuration.GetValue<bool>("Tenant:Resolution:BypassForTests"))
         {
+            // Bridge the fixture-injected ITenantContext into the accessor so
+            // the tenant query filter and TenantScopedQueryGuardInterceptor
+            // see Current. Skipping Push left accessor.Current null and
+            // blocked pre-session writes such as SimulationBlocked
+            // (debug 225414 H18).
+            using var _testScope = tenantAccessor.Push(tenantContext);
             await _next(context);
             return;
         }

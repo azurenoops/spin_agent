@@ -6,14 +6,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Observability;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Core.Services.Tenancy;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
@@ -67,6 +70,19 @@ public static class CoreServiceExtensions
         services.AddSingleton<IPathSanitizationService, PathSanitizationService>();
         services.AddSingleton<ResponseCacheService>();
         services.AddSingleton<OfflineModeService>();
+
+        // Tenancy (Feature 048) — ITenantContextAccessor / ITenantContext must be
+        // registered HERE (in AddAtoCopilotCore) so that every consumer of this
+        // extension — including integration-test scaffolding via
+        // AddAtoCopilotMcpForTesting — gets a complete DI graph.
+        // ResponseCacheService (registered above) depends on ITenantContextAccessor,
+        // so these two registrations must precede its first resolution.
+        // Program.cs previously held these registrations exclusively, which caused
+        // 321 integration-test failures at container Build() time (WM-BUG-3 / #686
+        // introduced the dependency; this commit moves the registrations to the
+        // shared extension so all consumers are covered).
+        services.TryAddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+        services.TryAddScoped<ITenantContext, TenantContext>();
 
         // Register IMemoryCache with configurable size limit (FR-020a)
         var cachingOptions = new CachingOptions();
@@ -223,31 +239,37 @@ public static class CoreServiceExtensions
     /// <param name="configuration">Application configuration.</param>
     private static void RegisterDbContext(IServiceCollection services, IConfiguration configuration)
     {
-        var dbOptions = new DatabaseOptions();
-        configuration.GetSection(DatabaseOptions.SectionName).Bind(dbOptions);
-
-        var provider = !string.IsNullOrWhiteSpace(dbOptions.Provider)
-            ? dbOptions.Provider
-            : "SQLite";
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-                               ?? "Data Source=ato-copilot.db";
-
-        // ACA + user-assigned MI: SqlClient picks system-assigned identity by default when
-        // both identity types are present. Inject User Id=<client-id> so the correct
-        // user-assigned MI is always selected. Only applied when:
-        //   1. ManagedIdentityClientId is configured, AND
-        //   2. the connection string uses Active Directory Managed Identity auth, AND
-        //   3. User Id is not already present in the connection string.
-        if (!string.IsNullOrWhiteSpace(dbOptions.ManagedIdentityClientId)
-            && connectionString.Contains("Active Directory Managed Identity", StringComparison.OrdinalIgnoreCase)
-            && !connectionString.Contains("User Id=", StringComparison.OrdinalIgnoreCase))
-        {
-            connectionString = connectionString.TrimEnd(';')
-                + $";User Id={dbOptions.ManagedIdentityClientId};";
-        }
-
         services.AddDbContextFactory<AtoCopilotContext>((sp, options) =>
         {
+            // Resolve provider + connection from the *built* IConfiguration so
+            // WebApplicationFactory in-memory overrides win. Capturing them at
+            // AddAtoCopilotCore() time is too early: Program.cs registers
+            // services before the factory's ConfigureAppConfiguration runs, so
+            // two parallel WAFs would share the last process-global
+            // ATO_ConnectionStrings__DefaultConnection (debug 225414 H17).
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var liveOptions = new DatabaseOptions();
+            cfg.GetSection(DatabaseOptions.SectionName).Bind(liveOptions);
+            var provider = !string.IsNullOrWhiteSpace(liveOptions.Provider)
+                ? liveOptions.Provider
+                : "SQLite";
+            var connectionString = cfg.GetConnectionString("DefaultConnection")
+                                   ?? "Data Source=ato-copilot.db";
+
+            // ACA + user-assigned MI: SqlClient picks system-assigned identity by default when
+            // both identity types are present. Inject User Id=<client-id> so the correct
+            // user-assigned MI is always selected. Only applied when:
+            //   1. ManagedIdentityClientId is configured, AND
+            //   2. the connection string uses Active Directory Managed Identity auth, AND
+            //   3. User Id is not already present in the connection string.
+            if (!string.IsNullOrWhiteSpace(liveOptions.ManagedIdentityClientId)
+                && connectionString.Contains("Active Directory Managed Identity", StringComparison.OrdinalIgnoreCase)
+                && !connectionString.Contains("User Id=", StringComparison.OrdinalIgnoreCase))
+            {
+                connectionString = connectionString.TrimEnd(';')
+                    + $";User Id={liveOptions.ManagedIdentityClientId};";
+            }
+
             // Suppress PendingModelChangesWarning — model snapshot may lag behind
             // code-first changes during active development. EnsureCreated/Migrate
             // will apply the correct schema.
@@ -257,7 +279,7 @@ public static class CoreServiceExtensions
             // EnableSensitiveDataLogging — driven by DatabaseOptions so it can be
             // flipped on per-environment without a rebuild. MUST remain false in
             // production (exposes parameter values in logs).
-            if (dbOptions.EnableSensitiveDataLogging)
+            if (liveOptions.EnableSensitiveDataLogging)
             {
                 options.EnableSensitiveDataLogging();
             }
@@ -296,17 +318,17 @@ public static class CoreServiceExtensions
                 options.UseSqlServer(connectionString, sqlOptions =>
                 {
                     sqlOptions.EnableRetryOnFailure(
-                        maxRetryCount: dbOptions.MaxRetryCount,
-                        maxRetryDelay: TimeSpan.FromSeconds(dbOptions.MaxRetryDelay),
+                        maxRetryCount: liveOptions.MaxRetryCount,
+                        maxRetryDelay: TimeSpan.FromSeconds(liveOptions.MaxRetryDelay),
                         errorNumbersToAdd: null);
-                    sqlOptions.CommandTimeout(dbOptions.CommandTimeoutSeconds);
+                    sqlOptions.CommandTimeout(liveOptions.CommandTimeoutSeconds);
                 });
             }
             else
             {
                 options.UseSqlite(connectionString, sqliteOptions =>
                 {
-                    sqliteOptions.CommandTimeout(dbOptions.CommandTimeoutSeconds);
+                    sqliteOptions.CommandTimeout(liveOptions.CommandTimeoutSeconds);
                 });
             }
         });

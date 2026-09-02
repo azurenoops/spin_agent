@@ -18,7 +18,7 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// RED until T164 (TenantResolutionMiddleware adds the CSP-onboarding gate).
 /// Acceptance scenarios 1 and 2 from spec.md US7.
 /// </remarks>
-[Collection("Tenancy")]
+[Collection("TenancyCspOnboarding")]
 public class CspOnboardingGateTests
 {
     private readonly MultiTenantWebApplicationFactory<McpProgram> _factory;
