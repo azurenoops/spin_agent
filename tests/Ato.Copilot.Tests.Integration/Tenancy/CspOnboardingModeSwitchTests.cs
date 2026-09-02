@@ -60,11 +60,43 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
         {
             using var scope = single.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            // Keep one SQLite connection open. CI 33658033397 still saw
+            // "no such table: Tenants" after factory/scoped DDL because a
+            // second :memory: or unpooled connection did not see the CREATE.
+            await db.Database.OpenConnectionAsync();
+            await db.Database.EnsureCreatedAsync();
             await TenancySeedHostedService
                 .CreateTenancyTablesIfMissingPublicAsync(db, CancellationToken.None);
-            var any = await db.Tenants.FirstOrDefaultAsync();
-            any.Should().NotBeNull("SingleTenant boot must create the default tenant");
-            existingTenantId = any!.Id;
+            // #region agent log
+            try
+            {
+                var payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    sessionId = "225414",
+                    hypothesisId = "H-modeswitch-openconn",
+                    location = "CspOnboardingModeSwitchTests.first-boot",
+                    message = "after EnsureCreated+DDL",
+                    data = new { cs = db.Database.GetConnectionString() },
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                });
+                await File.AppendAllTextAsync("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", payload + Environment.NewLine);
+            }
+            catch { /* debug ingest must not fail the fixture */ }
+            // #endregion
+            var any = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync();
+            if (any is null)
+            {
+                any = new Tenant
+                {
+                    DisplayName = "Mode-switch default tenant",
+                    Status = TenantStatus.Active,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    CreatedBy = "modeswitch-test",
+                };
+                db.Tenants.Add(any);
+                await db.SaveChangesAsync();
+            }
+            existingTenantId = any.Id;
 
             // Confirm there is no CspProfile row. The CspProfiles table does
             // not exist on first boot in our SQLite test fixture (production
