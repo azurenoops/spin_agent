@@ -135,8 +135,9 @@ async Task RunStdioModeAsync(string[] args)
             config.AddJsonFile($"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json", optional: true);
             config.AddEnvironmentVariables("ATO_");
 
-            // Azure Key Vault configuration provider (non-Development only, per FR-038)
-            if (!ctx.HostingEnvironment.IsDevelopment())
+            // Azure Key Vault configuration provider (non-Development only, per FR-038).
+            // Skip Testing — same hang as HTTP testhost (session 225414 H6).
+            if (!ctx.HostingEnvironment.IsDevelopment() && !ctx.HostingEnvironment.IsEnvironment("Testing"))
             {
                 var builtConfig = config.Build();
                 var vaultUri = builtConfig["KeyVault:VaultUri"];
@@ -184,8 +185,11 @@ async Task RunHttpModeAsync(string[] args)
         .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
         .AddEnvironmentVariables("ATO_");
 
-    // Azure Key Vault configuration provider (non-Development only, per FR-038)
-    if (!builder.Environment.IsDevelopment())
+    // Azure Key Vault configuration provider (non-Development only, per FR-038).
+    // Testing is a WebApplicationFactory environment, not a deployed env —
+    // DefaultAzureCredential against Azure Government hangs testhost for
+    // minutes (CI blame-hang 2min abort, session 225414 H6).
+    if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
     {
         var vaultUri = builder.Configuration["KeyVault:VaultUri"];
         if (!string.IsNullOrEmpty(vaultUri))
@@ -539,7 +543,7 @@ async Task RunHttpModeAsync(string[] args)
 
     var app = builder.Build();
 
-    // Auto-migrate database at startup (fail = exit code 1)
+    // Auto-migrate database at startup (fail = exit code 1).
     await MigrateDatabaseAsync(app.Services);
 
     // Configure pipeline — middleware ordering per R-012:
@@ -1432,6 +1436,13 @@ string DetermineRunMode(string[] args)
     // Check command line: --stdio or --http
     if (args.Contains("--stdio")) return "stdio";
     if (args.Contains("--http")) return "http";
+
+    // WebApplicationFactory testhost always has redirected stdin. Defaulting
+    // to stdio here boots McpStdioService, which blocks on ReadLineAsync
+    // and trips --blame-hang-timeout (CI 33565219515).
+    var aspEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    if (string.Equals(aspEnv, "Testing", StringComparison.OrdinalIgnoreCase))
+        return "http";
 
     // Check environment variable
     var envMode = Environment.GetEnvironmentVariable("ATO_RUN_MODE");

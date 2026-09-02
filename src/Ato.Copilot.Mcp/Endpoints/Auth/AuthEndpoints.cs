@@ -866,6 +866,7 @@ public static class AuthEndpoints
         IOptions<CacAuthOptions> cacAuthOptions,
         IDbContextFactory<AtoCopilotContext> dbFactory,
         ILoginAuditService audit,
+        ITenantContextAccessor tenantAccessor,
         LoginAuditContextAccessor auditCtxAccessor,
         ILoggerFactory loggerFactory,
         CancellationToken ct,
@@ -891,6 +892,11 @@ public static class AuthEndpoints
             // collapse the 404 cover into something more revealing.
             try
             {
+                // Pre-session row is owned by SYSTEM_TENANT_ID. Push so the
+                // tenant query filter / guard are live during SaveChanges
+                // (SQLite INSERT RETURNING is a ReaderExecuting command).
+                using var _sysTenant = tenantAccessor.Push(
+                    new Ato.Copilot.Core.Services.Tenancy.TenantContext(Guid.Empty));
                 await using var db = await dbFactory.CreateDbContextAsync(ct);
                 await audit.AppendAsync(db, new LoginAuditEventDraft(
                     EventType: LoginAuditEventType.SimulationBlocked,

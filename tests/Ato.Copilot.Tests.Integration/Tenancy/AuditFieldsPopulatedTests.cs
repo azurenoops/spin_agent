@@ -60,7 +60,7 @@ public class AuditFieldsPopulatedTests
         var page = await GetAuditPageAsync($"/api/audit?action={marker}");
         var item = page.GetProperty("items")[0];
 
-        item.GetProperty("actorOid").GetString().Should().Be("actor-oid-local");
+        item.GetProperty("actorUserId").GetString().Should().Be("actor-oid-local");
         item.GetProperty("actorTenantId").GetGuid().Should().Be(_tenantA);
         item.GetProperty("effectiveTenantId").GetGuid().Should().Be(_tenantA);
         item.TryGetProperty("impersonatedTenantId", out var imp).Should().BeTrue();
@@ -108,8 +108,8 @@ public class AuditFieldsPopulatedTests
     private async Task<JsonElement> GetAuditPageAsync(string url)
     {
         var resp = await _client.GetAsync(url);
-        resp.EnsureSuccessStatusCode();
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        resp.EnsureSuccessStatusCode();
         return body.GetProperty("data");
     }
 }

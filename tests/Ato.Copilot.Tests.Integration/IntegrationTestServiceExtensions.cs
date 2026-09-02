@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
@@ -44,9 +45,10 @@ internal static class IntegrationTestServiceExtensions
 
         // AddAtoCopilotMcp / AddAtoCopilotCore registered SQLite/SQL Server-backed
         // IDbContextFactory<AtoCopilotContext>. Override with InMemory for tests.
-        services.RemoveAll<IDbContextFactory<AtoCopilotContext>>();
-        services.RemoveAll<DbContextOptions<AtoCopilotContext>>();
-        services.RemoveAll<DbContextOptions>();
+        // EF Core 8+ also registers IDbContextOptionsConfiguration<TContext>;
+        // leaving that descriptor in place applies BOTH UseSqlite and
+        // UseInMemoryDatabase to the same provider ("dual provider" crash).
+        RemoveAtoCopilotContextRegistrations(services);
 
         services.AddDbContextFactory<AtoCopilotContext>(
             options => options.UseInMemoryDatabase(dbName),
@@ -58,5 +60,21 @@ internal static class IntegrationTestServiceExtensions
         services.AddHealthChecks();
 
         return services;
+    }
+
+    /// <summary>
+    /// Strips every EF Core descriptor for <see cref="AtoCopilotContext"/> so a
+    /// subsequent <c>AddDbContextFactory</c> can register a different provider.
+    /// EF Core 8+ keeps <see cref="IDbContextOptionsConfiguration{TContext}"/>
+    /// after <c>RemoveAll&lt;IDbContextFactory&gt;</c>, which would otherwise
+    /// leave both Sqlite and InMemory applied to the same service provider.
+    /// </summary>
+    private static void RemoveAtoCopilotContextRegistrations(IServiceCollection services)
+    {
+        services.RemoveAll<IDbContextFactory<AtoCopilotContext>>();
+        services.RemoveAll<AtoCopilotContext>();
+        services.RemoveAll<DbContextOptions<AtoCopilotContext>>();
+        services.RemoveAll<DbContextOptions>();
+        services.RemoveAll<IDbContextOptionsConfiguration<AtoCopilotContext>>();
     }
 }
