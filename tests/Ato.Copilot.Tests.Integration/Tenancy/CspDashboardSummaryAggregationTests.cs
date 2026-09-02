@@ -123,6 +123,21 @@ public class CspDashboardSummaryAggregationTests
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"DELETE FROM \"Tenants\" WHERE \"Id\" = {TenantCId}");
 
+        // Isolate from CspDashboardDisabledTenantTests (same Tenancy
+        // collection). Raw SQL GUID NOT IN deleted A/B (SQLite stores
+        // Guid as blob) and Status='Active' is not the enum integer —
+        // debug 225414 after CI 33579691345: active dropped to 1.
+        var aId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
+        var bId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
+        var tenants = await db.Tenants.IgnoreQueryFilters().ToListAsync();
+        foreach (var t in tenants)
+        {
+            if (t.Id == aId || t.Id == bId)
+                t.Status = TenantStatus.Active;
+            else
+                db.Tenants.Remove(t);
+        }
+
         // Findings.ControlId is a FK → NistControl.Id (Restrict, optional).
         // Insert the referenced row idempotently before any finding lands.
         if (!await db.NistControls.AnyAsync(c => c.Id == "AC-2"))
@@ -147,8 +162,6 @@ public class CspDashboardSummaryAggregationTests
             CreatedBy = "test",
         });
 
-        var aId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
-        var bId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
         var cId = TenantCId;
 
         // Organizations: 2 / 1 / 3 = 6 total.

@@ -31,6 +31,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- KeyVaultIntegrationTests reads appsettings.json from BaseDirectory.
+         CI 33579691345: VaultUri/Retention/Pim were null because the MCP
+         file was never copied into testhost output. -->
+    <Content Include="..\..\src\Ato.Copilot.Mcp\appsettings.json" Link="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Ato.Copilot.Mcp\Ato.Copilot.Mcp.csproj" />
     <ProjectReference Include="..\..\src\Ato.Copilot.Agents\Ato.Copilot.Agents.csproj" />
     <ProjectReference Include="..\..\src\Ato.Copilot.Core\Ato.Copilot.Core.csproj" />
