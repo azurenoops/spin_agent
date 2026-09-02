@@ -249,6 +249,24 @@ public static class AtoCopilotMcpServiceExtensions
         // never ran Program.cs's AddScoped, so the full suite 500'd
         // (CI 33570305880, debug 225414 H27).
         services.TryAddScoped<Ato.Copilot.Mcp.Middleware.LoginAuditContextAccessor>();
+        services.AddDistributedMemoryCache();
+        services.TryAddSingleton<
+            Ato.Copilot.Core.Interfaces.Auth.IRememberedTenantCookieService,
+            Ato.Copilot.Core.Services.Auth.RememberedTenantCookieService>();
+        services.TryAddSingleton<Ato.Copilot.Mcp.Services.Tenancy.ITenantImpersonationService>(sp =>
+        {
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var env = sp.GetRequiredService<IHostEnvironment>();
+            var key = cfg["Auth:Impersonation:SigningKey"];
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                if (env.IsProduction())
+                    throw new InvalidOperationException(
+                        "Auth:Impersonation:SigningKey is not configured.");
+                key = "dev-only-impersonation-signing-key-change-me-please-32b";
+            }
+            return new Ato.Copilot.Mcp.Services.Tenancy.TenantImpersonationService(key);
+        });
 
         // IModelCallLedger — consumed by McpServer. Program.cs also registers this;
         // TryAdd keeps a single descriptor when both paths run.
