@@ -135,8 +135,9 @@ async Task RunStdioModeAsync(string[] args)
             config.AddJsonFile($"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json", optional: true);
             config.AddEnvironmentVariables("ATO_");
 
-            // Azure Key Vault configuration provider (non-Development only, per FR-038)
-            if (!ctx.HostingEnvironment.IsDevelopment())
+            // Azure Key Vault configuration provider (non-Development only, per FR-038).
+            // Skip Testing — same hang as HTTP testhost (session 225414 H6).
+            if (!ctx.HostingEnvironment.IsDevelopment() && !ctx.HostingEnvironment.IsEnvironment("Testing"))
             {
                 var builtConfig = config.Build();
                 var vaultUri = builtConfig["KeyVault:VaultUri"];
@@ -184,8 +185,11 @@ async Task RunHttpModeAsync(string[] args)
         .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
         .AddEnvironmentVariables("ATO_");
 
-    // Azure Key Vault configuration provider (non-Development only, per FR-038)
-    if (!builder.Environment.IsDevelopment())
+    // Azure Key Vault configuration provider (non-Development only, per FR-038).
+    // Testing is a WebApplicationFactory environment, not a deployed env —
+    // DefaultAzureCredential against Azure Government hangs testhost for
+    // minutes (CI blame-hang 2min abort, session 225414 H6).
+    if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
     {
         var vaultUri = builder.Configuration["KeyVault:VaultUri"];
         if (!string.IsNullOrEmpty(vaultUri))
@@ -376,73 +380,9 @@ async Task RunHttpModeAsync(string[] args)
             Ato.Copilot.Mcp.Authentication.CacPassthroughAuthHandler.SchemeName,
             _ => { });
 
-    builder.Services.AddAuthorization(options =>
-    {
-        options.AddPolicy(
-            Ato.Copilot.Mcp.Authorization.OnboardingAdministratorRequirement.PolicyName,
-            policy => policy.Requirements.Add(
-                new Ato.Copilot.Mcp.Authorization.OnboardingAdministratorRequirement()));
-    });
-    builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
-        Ato.Copilot.Mcp.Authorization.OnboardingAdministratorHandler>();
-    builder.Services.AddSingleton<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobChannel>();
-    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Onboarding.IWizardProgressNotifier,
-        Ato.Copilot.Mcp.Hubs.Onboarding.SignalRWizardProgressNotifier>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardAuditService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.Auditing.WizardAuditService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IBootstrapAdministratorService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.BootstrapAdministratorService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOnboardingStateService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.OnboardingStateService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardJobRunner,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobRunner>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardArtifactDependencyService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.WizardArtifactDependencyService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOrganizationContextService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.OrganizationContextService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IDirectorySearchClient,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.GraphDirectorySearchClient>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IPersonService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.PersonService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOrganizationRoleAssignmentService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.OrganizationRoleAssignmentService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IRegisteredSystemRoleSnapshotter,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.RegisteredSystemRoleSnapshotter>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IEmassImportParser,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.EmassImportParser>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IEmassImportService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.EmassImportService>();
-    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.Handlers.EmassParseJobHandler>();
-    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.Emass.Handlers.EmassCommitJobHandler>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.ISspPdfExtractionService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.SspPdfExtractionService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.ISspPdfImportService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.SspPdfImportService>();
-    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.SspPdf.Handlers.SspPdfExtractJobHandler>();
-    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Onboarding.IDelegatedArmTokenProvider,
-        Ato.Copilot.Mcp.Onboarding.ConfiguredArmTokenProvider>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IAzureSubscriptionEnumerationService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions.AzureSubscriptionEnumerationService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IAzureSubscriptionRegistrationService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions.AzureSubscriptionRegistrationService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IAzureSubscriptionScopeResolver,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions.AzureSubscriptionScopeResolver>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IOrganizationTemplateService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.Templates.OrganizationTemplateService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.INarrativeSeedDocumentService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.NarrativeSeeds.NarrativeSeedDocumentService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Onboarding.IWizardArtifactInventoryService,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.WizardArtifactInventoryService>();
-    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.NarrativeSeeds.Handlers.NarrativeSeedIndexJobHandler>();
-    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.Cascade.ExportRerenderJobHandler>();
-    builder.Services.AddScoped<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.IWizardJobHandler,
-        Ato.Copilot.Agents.Compliance.Services.Onboarding.Cascade.ImportRerenderJobHandler>();
-    builder.Services.AddHostedService<Ato.Copilot.Agents.Compliance.Services.Onboarding.Jobs.WizardJobHostedService>();
+    // Onboarding wizard services (authorization policy, wizard state, job handlers, etc.)
+    // are now registered inside AddAtoCopilotMcp → AddAtoCopilotOnboarding so the
+    // integration-test harness picks them up without a separate call here.
 
     // Tenancy (Feature 048) — bind options + register ITenantContext / accessor.
     // The accessor is Singleton (AsyncLocal-backed); the context itself is Scoped
@@ -468,8 +408,8 @@ async Task RunHttpModeAsync(string[] args)
     // IDbContextFactory<AtoCopilotContext> and follows the F050
     // CapabilityHistoryService SRP — AppendAsync does not call
     // SaveChangesAsync (caller owns the transaction).
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Auth.ILoginAuditService,
-        Ato.Copilot.Core.Services.Auth.LoginAuditService>();
+    // ILoginAuditService now registered in AtoCopilotMcpServiceExtensions (TryAddScoped)
+    // so it is available to integration tests via AddAtoCopilotMcpForTesting().
 
     // Feature 051 (T039): forensic context extractor used by Auth endpoints
     // to populate SourceIp / UserAgent / CorrelationId on every audit row.
@@ -603,7 +543,7 @@ async Task RunHttpModeAsync(string[] args)
 
     var app = builder.Build();
 
-    // Auto-migrate database at startup (fail = exit code 1)
+    // Auto-migrate database at startup (fail = exit code 1).
     await MigrateDatabaseAsync(app.Services);
 
     // Configure pipeline — middleware ordering per R-012:
@@ -1496,6 +1436,13 @@ string DetermineRunMode(string[] args)
     // Check command line: --stdio or --http
     if (args.Contains("--stdio")) return "stdio";
     if (args.Contains("--http")) return "http";
+
+    // WebApplicationFactory testhost always has redirected stdin. Defaulting
+    // to stdio here boots McpStdioService, which blocks on ReadLineAsync
+    // and trips --blame-hang-timeout (CI 33565219515).
+    var aspEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    if (string.Equals(aspEnv, "Testing", StringComparison.OrdinalIgnoreCase))
+        return "http";
 
     // Check environment variable
     var envMode = Environment.GetEnvironmentVariable("ATO_RUN_MODE");

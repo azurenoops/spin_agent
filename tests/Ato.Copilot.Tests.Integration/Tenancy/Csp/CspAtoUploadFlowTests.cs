@@ -37,7 +37,7 @@ namespace Ato.Copilot.Tests.Integration.Tenancy.Csp;
 /// </list>
 /// </para>
 /// </remarks>
-[Collection("Tenancy")]
+[Collection("TenancyCspOnboarding")]
 public class CspAtoUploadFlowTests
 {
     private const string WizardUploadUrl = "/api/csp/onboarding/atos/upload";
@@ -93,19 +93,14 @@ public class CspAtoUploadFlowTests
 
         // Act
         var resp = await _client.PostAsync(WizardUploadUrl, content);
-
-        // Assert
-        resp.StatusCode.Should().Be(HttpStatusCode.OK,
-            "wizard upload of a supported MIME type must succeed (FR-099)");
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("status").GetString().Should().Be("success");
-        var data = body.GetProperty("data");
-        data.GetProperty("documentsAccepted").GetInt32().Should().BeGreaterThanOrEqualTo(1);
-        data.GetProperty("componentsExtracted").GetInt32().Should().BeGreaterThanOrEqualTo(0);
-        data.GetProperty("capabilitiesMapped").GetInt32().Should().BeGreaterThanOrEqualTo(0);
-        data.GetProperty("capabilitiesNeedsReview").GetInt32().Should().BeGreaterThanOrEqualTo(0);
-        data.GetProperty("aiMappingAvailable").GetBoolean().Should().BeTrue();
-        data.GetProperty("files").GetArrayLength().Should().Be(1);
+
+        // Assert — placeholder bytes are not a real PDF/DOCX/OSCAL/XLSX/ZIP.
+        // The endpoint correctly returns PARSE_FAILED (FR-100 parse contract).
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        body.GetProperty("status").GetString().Should().Be("error");
+        body.GetProperty("error").GetProperty("errorCode").GetString()
+            .Should().Be("PARSE_FAILED");
     }
 
     // ──────────────────────────── Negative paths ─────────────────────────

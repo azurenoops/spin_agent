@@ -4,12 +4,8 @@ using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Mcp;
 using FluentAssertions;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Tenancy;
@@ -103,77 +99,13 @@ public class CspOnboardingSingleTenantTests
     }
 
     /// <summary>
-    /// Single-tenant fixture: same SQLite-backed boot as the multi-tenant
-    /// fixture but pins <c>Deployment:Mode = SingleTenant</c> via in-memory
-    /// configuration (NOT env vars — env vars are process-global and race
-    /// with the sibling <c>MultiTenantWebApplicationFactory</c>).
+    /// Single-tenant fixture: reuse <see cref="MultiTenantWebApplicationFactory{TStartup}"/>
+    /// so McpStdioService / BoundaryMigrationService are stripped the same way
+    /// as every other WAF test. A hand-rolled factory missed that strip and
+    /// hung testhost on redirected stdin (CI 33565219515, H6).
     /// </summary>
-    public sealed class SingleTenantFactory : WebApplicationFactory<McpProgram>
+    public sealed class SingleTenantFactory : MultiTenantWebApplicationFactory<McpProgram>
     {
-        private readonly string _sqliteFile = Path.Combine(
-            Path.GetTempPath(),
-            $"ato-copilot-tests-singletenant-{Guid.NewGuid():N}.db");
-
-        public SingleTenantFactory()
-        {
-            // Set env vars for ALL config that does NOT differ between
-            // sibling fixtures (DB provider/connection use SQLite in both).
-            // Anything fixture-specific (Deployment:Mode) MUST go through
-            // ConfigureAppConfiguration to avoid cross-fixture contamination
-            // since env vars are process-global.
-            //
-            // ATO_RUN_MODE=http: in the test runner Console.IsInputRedirected=true,
-            // which causes DetermineRunMode() to return "stdio". stdio mode boots
-            // via `using var host = builder.Build()`, which disposes the host the
-            // instant HostAbortedException unwinds the try-block. Every subsequent
-            // service-provider access then throws ObjectDisposedException. Force
-            // http mode so WebApplicationFactory<T> gets a live TestServer.
-            Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
-            Environment.SetEnvironmentVariable("ATO_Database__Provider", "Sqlite");
-            Environment.SetEnvironmentVariable("ATO_ConnectionStrings__DefaultConnection",
-                $"Data Source={_sqliteFile};Mode=ReadWriteCreate");
-            Environment.SetEnvironmentVariable("ATO_Auth__Impersonation__SigningKey",
-                "ato-copilot-tests-impersonation-signing-key-stable-32B!");
-            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
-            Environment.SetEnvironmentVariable("ATO_Tenant__Resolution__BypassForTests", "true");
-            Environment.SetEnvironmentVariable("ATO_Auth__BypassForTests", "true");
-        }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-
-            // Pin Deployment:Mode = SingleTenant via in-memory configuration,
-            // NOT env vars — env vars are process-global and would race with
-            // the sibling MultiTenantWebApplicationFactory.
-            builder.ConfigureAppConfiguration(cfg =>
-            {
-                cfg.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Deployment:Mode"] = "SingleTenant",
-                });
-            });
-
-            builder.ConfigureServices(services =>
-            {
-                services.Configure<HostOptions>(o =>
-                    o.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);
-
-                // Same SQL-Server-only hosted service the multi-tenant factory
-                // strips out — its StartAsync hard-fails on SQLite which would
-                // tear down the test host. (Mirrors the multi-tenant fixture's
-                // teardown protection per Feature 048 / T112.)
-                for (var i = services.Count - 1; i >= 0; i--)
-                {
-                    var d = services[i];
-                    if (d.ServiceType == typeof(IHostedService) &&
-                        (d.ImplementationType == typeof(Ato.Copilot.Core.Services.BoundaryMigrationService) ||
-                         d.ImplementationInstance?.GetType() == typeof(Ato.Copilot.Core.Services.BoundaryMigrationService)))
-                    {
-                        services.RemoveAt(i);
-                    }
-                }
-            });
-        }
+        protected override string DeploymentModeOverride => "SingleTenant";
     }
 }
