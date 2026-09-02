@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Reflection;
-using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy.Attributes;
 using Microsoft.AspNetCore.Http;
@@ -35,12 +34,13 @@ namespace Ato.Copilot.Core.Data.Interceptors;
 /// <c>CspProfile</c> (a <c>[GlobalReference]</c> entity) before
 /// <c>accessor.Push(ctx)</c> runs at Stage E. See issues #396 and #403.</para>
 ///
-/// <para>The <c>[GlobalReference]</c> table set is populated <em>eagerly</em> at
-/// construction time via <see cref="IDbContextFactory{TContext}"/>. This prevents
-/// a cold-start race where the first request to hit the guard fires before
-/// <c>eventData.Context</c> has been used to seed the cache, causing all
-/// <c>[GlobalReference]</c> table names to be missing from the set and the guard
-/// to fire incorrectly on the <c>CspProfiles</c> read in Stage A0.</para>
+/// <para>The <c>[GlobalReference]</c> table set is populated lazily from
+/// <c>eventData.Context</c> on the first intercepted command. Seeding from
+/// <see cref="IDbContextFactory{TContext}"/> in the constructor is forbidden:
+/// <c>RegisterDbContext</c> resolves this interceptor while building
+/// <c>DbContextOptions</c>, so a factory dependency deadlocks DI
+/// (<c>StackGuard.RunOnEmptyStack</c> + thread-pool starvation when two
+/// WebApplicationFactory hosts start in parallel — debug session 225414).</para>
 ///
 /// <para>Registration: added alongside <see cref="TenantStampingSaveChangesInterceptor"/>
 /// in <c>CoreServiceExtensions.AddAtoCopilotCore()</c>.</para>
@@ -55,34 +55,20 @@ public sealed class TenantScopedQueryGuardInterceptor : DbCommandInterceptor
     private readonly ILogger<TenantScopedQueryGuardInterceptor> _logger;
 
     // Set of table names that belong exclusively to [GlobalReference] entities.
-    // Populated EAGERLY at construction time from the EF model via IDbContextFactory
-    // so it is never empty on the first request. Thread-safe via ConcurrentDictionary
-    // used as a set (value byte is unused; TryAdd is the membership operation).
-    //
-    // Eager initialisation is critical: CspProfileService.GetAsync() is called from
-    // TenantResolutionMiddleware Stage A0 — before accessor.Push() at Stage E — using
-    // a factory-created DbContext that is separate from the interceptor's lazy-loaded
-    // eventData.Context. On cold boot, if the map is empty when that query fires, the
-    // guard incorrectly treats CspProfiles as [TenantScoped] and throws, blocking
-    // every first request with a 500. (issue #403 / pitfall #15)
+    // Populated lazily from eventData.Context on the first intercepted command
+    // (same DbContext instance that is about to execute SQL), so Stage A0
+    // CspProfiles reads are classified correctly without a ctor→factory cycle.
+    // Thread-safe via ConcurrentDictionary used as a set (value byte unused).
     private readonly ConcurrentDictionary<string, byte> _globalRefTableNames = new(StringComparer.OrdinalIgnoreCase);
 
     public TenantScopedQueryGuardInterceptor(
         ITenantContextAccessor accessor,
         IHttpContextAccessor httpContextAccessor,
-        IDbContextFactory<AtoCopilotContext> dbContextFactory,
         ILogger<TenantScopedQueryGuardInterceptor> logger)
     {
         _accessor = accessor;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
-
-        // Eagerly seed the [GlobalReference] table map from the EF model.
-        // CreateDbContext() is synchronous, cheap (no DB connection), and
-        // safe to call during DI construction because it only reads the in-memory
-        // model. We immediately dispose the context — we only need the model metadata.
-        using var seedCtx = dbContextFactory.CreateDbContext();
-        PopulateGlobalRefTableNames(seedCtx);
     }
 
     /// <inheritdoc/>
@@ -113,6 +99,19 @@ public sealed class TenantScopedQueryGuardInterceptor : DbCommandInterceptor
         // Allow-list 1: no active HTTP request (background service, CLI,
         // hosted service, startup path) → let the query proceed.
         if (_httpContextAccessor.HttpContext is null)
+        {
+            return;
+        }
+
+        // Allow-list 1b: writes are gated by TenantStampingSaveChangesInterceptor.
+        // SQLite INSERT ... RETURNING is delivered to ReaderExecuting, and
+        // ExtractTableNames finds no FROM/JOIN → the guard would otherwise
+        // treat pre-session audit inserts (POST /api/auth/simulate) as a
+        // tenant-filter bypass (debug 225414 H18).
+        var sqlHead = command.CommandText.AsSpan().TrimStart();
+        if (sqlHead.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase)
+            || sqlHead.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase)
+            || sqlHead.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -183,10 +182,13 @@ public sealed class TenantScopedQueryGuardInterceptor : DbCommandInterceptor
     /// </remarks>
     private bool IsGlobalReferenceOnlyQuery(DbCommand command, CommandEventData eventData)
     {
-        // The [GlobalReference] table map is seeded eagerly at construction time,
-        // so no lazy-init check is needed here. If somehow the map is empty
-        // (e.g. a unit test that doesn't wire the factory), be conservative and
-        // let the guard proceed (return false = possible tenant-scoped query).
+        // Seed from the executing context before classifying tables. Must happen
+        // here (not in the ctor) so Stage A0 CspProfiles reads are exempted
+        // without creating a DbContextFactory cycle.
+        if (_globalRefTableNames.IsEmpty && eventData.Context is not null)
+        {
+            PopulateGlobalRefTableNames(eventData.Context);
+        }
 
         // Extract table names from the SQL text. If we can't find any recognizable
         // table references → be conservative and let the guard proceed (return false).

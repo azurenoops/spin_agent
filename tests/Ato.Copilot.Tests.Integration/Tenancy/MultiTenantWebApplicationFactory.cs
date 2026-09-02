@@ -44,9 +44,50 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     private readonly string _sqliteFile = Path.Combine(
         Path.GetTempPath(),
         $"ato-copilot-tests-{Guid.NewGuid():N}.db");
+    private readonly string? _sqlServerConn =
+        Environment.GetEnvironmentVariable("ATO_TEST_SQLSERVER_CONNSTRING");
 
     /// <summary>Returns the live <see cref="TenantContext"/> the test is mutating.</summary>
     public TenantContext GetActiveContext() => _activeContext;
+
+    /// <summary>
+    /// Re-seeds an Active <c>CspProfile</c> after a test wiped the shared
+    /// fixture row. Invalidates the 30 s <see cref="CspProfileService"/> cache.
+    /// </summary>
+    public async Task EnsureActiveCspProfileAsync(CancellationToken ct = default)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var row = await db.Set<CspProfile>().IgnoreQueryFilters().FirstOrDefaultAsync(ct);
+        if (row is null)
+        {
+            db.Set<CspProfile>().Add(new CspProfile
+            {
+                Id = Guid.NewGuid(),
+                LegalEntityName = "Test Hosting CSP",
+                DisplayName = "Test CSP",
+                OnboardingState = OnboardingState.Active,
+                OnboardingCompletedAt = DateTimeOffset.UtcNow,
+                IdentityCompletedAt = DateTimeOffset.UtcNow,
+                SupportCompletedAt = DateTimeOffset.UtcNow,
+                ClassificationCompletedAt = DateTimeOffset.UtcNow,
+                CreatedBy = "test-fixture",
+            });
+            await db.SaveChangesAsync(ct);
+        }
+        else if (row.OnboardingState != OnboardingState.Active)
+        {
+            row.OnboardingState = OnboardingState.Active;
+            row.OnboardingCompletedAt ??= DateTimeOffset.UtcNow;
+            row.IdentityCompletedAt ??= DateTimeOffset.UtcNow;
+            row.SupportCompletedAt ??= DateTimeOffset.UtcNow;
+            row.ClassificationCompletedAt ??= DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
+
+        var cache = scope.ServiceProvider.GetRequiredService<IMemoryCache>();
+        cache.Remove(Ato.Copilot.Core.Services.Tenancy.CspProfileService.CacheKey);
+    }
 
     /// <summary>
     /// Drops every <c>CspProfile</c> row and clears the
@@ -59,9 +100,12 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     {
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-        // Use raw SQL — EF's DbSet.RemoveRange() would require Tracking and
-        // hits the [GlobalReference] interceptor which expects a TenantId.
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM \"CspProfiles\";", ct);
+        var existing = await db.Set<CspProfile>().IgnoreQueryFilters().ToListAsync(ct);
+        if (existing.Count > 0)
+        {
+            db.Set<CspProfile>().RemoveRange(existing);
+            await db.SaveChangesAsync(ct);
+        }
 
         var cache = scope.ServiceProvider.GetRequiredService<IMemoryCache>();
         cache.Remove(Ato.Copilot.Core.Services.Tenancy.CspProfileService.CacheKey);
@@ -74,24 +118,11 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
         // the host to use SQL Server instead of the per-fixture SQLite file.
         // This lets RLS-enabled integration tests run the *full* HTTP pipeline
         // against a server that actually enforces the BLOCK predicate.
-        var sqlServerConn = Environment.GetEnvironmentVariable("ATO_TEST_SQLSERVER_CONNSTRING");
-        if (!string.IsNullOrEmpty(sqlServerConn))
-        {
-            Environment.SetEnvironmentVariable("ATO_Database__Provider", "SqlServer");
-            Environment.SetEnvironmentVariable("ATO_ConnectionStrings__DefaultConnection", sqlServerConn);
-        }
-        else
-        {
-            // Force SQLite + a per-fixture unique file-backed DB BEFORE the host
-            // builder reads configuration. The MCP host's default appsettings.json
-            // points at SQL Server which is not reachable from the unit-test
-            // environment. Program.cs registers env-var configuration with the
-            // "ATO_" prefix, so we MUST use that prefix for the override to win
-            // over appsettings.json.
-            Environment.SetEnvironmentVariable("ATO_Database__Provider", "Sqlite");
-            Environment.SetEnvironmentVariable("ATO_ConnectionStrings__DefaultConnection",
-                $"Data Source={_sqliteFile};Mode=ReadWriteCreate");
-        }
+        // Connection string + Database:Provider are pinned per-host in
+        // ConfigureWebHost (in-memory). Do NOT set ATO_ConnectionStrings__*
+        // here — those env vars are process-global and the last fixture
+        // ctor wins, so parallel WAFs would share one SQLite file
+        // (debug 225414 H17).
 
         // Force HTTP mode so DetermineRunMode() returns "http" and the factory
         // boots via WebApplication (no `using var host` disposal race).
@@ -102,8 +133,9 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
         // service provider access throw ObjectDisposedException.
         Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
 
-        Environment.SetEnvironmentVariable("ATO_Deployment__Mode", "MultiTenant");
-        Environment.SetEnvironmentVariable("ATO_Deployment__Tenants__AllowSelfOnboarding", "false");
+        // Deployment:Mode is per-host in-memory only (see ConfigureWebHost).
+        // ATO_Deployment__Mode is process-global and races with
+        // SingleTenantFactory when xUnit constructs fixtures in parallel.
         Environment.SetEnvironmentVariable("ATO_Auth__Impersonation__SigningKey",
             "ato-copilot-tests-impersonation-signing-key-stable-32B!");
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
@@ -115,6 +147,12 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
         // Authentication bypass for tests — ComplianceAuthorizationMiddleware
         // would otherwise return 401 because no JWT/CAC handler is wired up.
         Environment.SetEnvironmentVariable("ATO_Auth__BypassForTests", "true");
+
+        // Disable Azure OpenAI so Program.cs ValidateAzureAiEndpointConfig()
+        // does not throw when no ATO_AZUREAI__ENDPOINT is present. Must be set
+        // in the factory ctor (before Program.Main) — ConfigureWebHost
+        // in-memory config is too late for that startup guard.
+        Environment.SetEnvironmentVariable("ATO_AZUREAI__ENABLED", "false");
     }
 
     /// <summary>
@@ -141,6 +179,14 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
             {
                 ["Deployment:Mode"] = DeploymentModeOverride,
                 ["Deployment:Tenants:AllowSelfOnboarding"] = "false",
+                // Per-host connection — env vars are process-global and race
+                // when two WebApplicationFactory instances boot in parallel
+                // (CspOnboarding + SimulateEndpoint hung on the same SQLite
+                // file in CI 33565219515 / debug 225414 H10).
+                ["Database:Provider"] = string.IsNullOrEmpty(_sqlServerConn) ? "Sqlite" : "SqlServer",
+                ["ConnectionStrings:DefaultConnection"] = string.IsNullOrEmpty(_sqlServerConn)
+                    ? $"Data Source={_sqliteFile};Mode=ReadWriteCreate"
+                    : _sqlServerConn,
             });
         });
 
