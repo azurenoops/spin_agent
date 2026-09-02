@@ -267,10 +267,8 @@ jobs:
   # bundled NIST OSCAL 1.1.2 schema check.
   # ---------------------------------------------------------------------------
   integration-tests:
-    continue-on-error: true
     name: Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     needs: [dotnet-build-test]
 
     steps:
@@ -288,23 +286,36 @@ jobs:
       - name: Build
         run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
 
-      - name: Run integration tests
+      # Hard-fail lane: all tests EXCEPT the four pre-existing failures.
+      # Any regression here blocks the merge.
+      - name: Run integration tests (hard-fail lane)
         run: |
           dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
             -c Release --no-build -nologo \
             --logger trx \
             --logger "console;verbosity=normal" \
-            --blame-hang-timeout 2min \
-            --blame-crash
+            --filter "FullyQualifiedName!~BaselineIntegrationTests.FullBaselineLifecycle_SelectTailorInheritCrm&FullyQualifiedName!~BaselineIntegrationTests.ReselectBaseline_ReplacesPreviousBaseline&FullyQualifiedName!~SspAuthoringIntegrationTests.BatchPopulate_Idempotent_SecondRunSkipsAll&FullyQualifiedName!~SspAuthoringIntegrationTests.FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp"
         env:
           ASPNETCORE_ENVIRONMENT: Development
           ATO_DATABASE__PROVIDER: Sqlite
           ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: "Data Source=:memory:"
-          # Integration tests do not exercise Azure OpenAI. appsettings.json
-          # ships AzureAi:Enabled=true with an empty Endpoint; without this,
-          # Program.cs ValidateAzureAiEndpointConfig() throws before IHost is
-          # built and every WebApplicationFactory<McpProgram> test fails.
-          ATO_AZUREAI__ENABLED: "false"
+
+      # Quarantine lane: four pre-existing failures tracked in GitHub issues.
+      # Baseline: #857 (FullBaselineLifecycle_SelectTailorInheritCrm, ReselectBaseline_ReplacesPreviousBaseline)
+      # SspAuthoring: #856 (BatchPopulate_Idempotent_SecondRunSkipsAll, FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp)
+      # continue-on-error is scoped to this step only — quarantine lane must trend to zero.
+      - name: Run integration tests (quarantine lane)
+        continue-on-error: true
+        run: |
+          dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+            -c Release --no-build -nologo \
+            --logger trx \
+            --logger "console;verbosity=normal" \
+            --filter "FullyQualifiedName~BaselineIntegrationTests.FullBaselineLifecycle_SelectTailorInheritCrm|FullyQualifiedName~BaselineIntegrationTests.ReselectBaseline_ReplacesPreviousBaseline|FullyQualifiedName~SspAuthoringIntegrationTests.BatchPopulate_Idempotent_SecondRunSkipsAll|FullyQualifiedName~SspAuthoringIntegrationTests.FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp"
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ATO_DATABASE__PROVIDER: Sqlite
+          ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: "Data Source=:memory:"
 
       - name: Upload integration test results
         if: always()

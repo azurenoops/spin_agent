@@ -7,7 +7,7 @@ import IntakeWizard from '../components/wizard/IntakeWizard';
 import AoPendingDecisionsWidget from '../components/portfolio/AoPendingDecisionsWidget';
 import { usePolling } from '../hooks/usePolling';
 import { useIntakeWizard } from '../hooks/useIntakeWizard';
-import { getPortfolio, getPortfolioLegacy, updateSystem, generateSystemDescription } from '../api/portfolio';
+import { getPortfolio, getPortfolioLegacy, updateSystem, generateSystemDescription, deleteSystemPermanent } from '../api/portfolio';
 import type { UpdateSystemBody } from '../api/portfolio';
 import type { PortfolioSystemSummary } from '../types/dashboard';
 
@@ -61,6 +61,11 @@ export default function PortfolioDashboard() {
     description: '',
   });
 
+  // Delete system state
+  const [deleteTarget, setDeleteTarget] = useState<PortfolioSystemSummary | null>(null);
+  const [deleteDeleting, setDeleteDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const fetchPortfolio = useCallback(async () => {
     try {
       const query = {
@@ -112,6 +117,27 @@ export default function PortfolioDashboard() {
     });
     setEditError('');
     setEditDialogOpen(true);
+  };
+
+  const openDeleteDialog = (system: PortfolioSystemSummary) => {
+    setDeleteTarget(system);
+    setDeleteError(null);
+  };
+
+  const handleDeleteSystem = async () => {
+    if (!deleteTarget) return;
+    setDeleteDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteSystemPermanent(deleteTarget.systemId);
+      setDeleteTarget(null);
+      void fetchPortfolio();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete system';
+      setDeleteError(msg);
+    } finally {
+      setDeleteDeleting(false);
+    }
   };
 
   const handleEditSystem = async () => {
@@ -370,10 +396,46 @@ export default function PortfolioDashboard() {
             </thead>
             <tbody>
               {systems.map((system) => (
-                <SystemSummaryRow key={system.systemId} system={system} onEdit={openEditDialog} />
+                <SystemSummaryRow key={system.systemId} system={system} onEdit={openEditDialog} onDelete={openDeleteDialog} />
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Delete System Confirmation Dialog */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete System</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Permanently delete <strong>{deleteTarget.name}</strong>? This removes all assessments,
+              findings, POA&amp;M items, role assignments, and related data. This action cannot be undone.
+            </p>
+            {deleteError && (
+              <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteDeleting}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteSystem()}
+                disabled={deleteDeleting}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteDeleting ? 'Deleting...' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </PageLayout>

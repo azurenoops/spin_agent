@@ -247,17 +247,27 @@ export default function Assessments() {
               onChange={(e) => setFilter(e.target.value)}
               className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
-            <button
-              onClick={() => { setShowSapDialog(true); setSapError(null); }}
-              disabled={!detail.baselineLevel || detail.baselineLevel === 'None'}
-              title={!detail.baselineLevel || detail.baselineLevel === 'None' ? 'Select a control baseline before generating a SAP' : 'Generate Security Assessment Plan'}
-              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Generate SAP
-            </button>
+            <div className="flex flex-col items-start gap-0.5">
+              <button
+                onClick={() => { setShowSapDialog(true); setSapError(null); }}
+                disabled={!detail.baselineLevel || detail.baselineLevel === 'None'}
+                title={!detail.baselineLevel || detail.baselineLevel === 'None' ? 'Select a control baseline before generating a SAP' : 'Generate Security Assessment Plan'}
+                className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Generate SAP
+              </button>
+              {(!detail.baselineLevel || detail.baselineLevel === 'None') && (
+                <Link
+                  to={`/systems/${systemId}/baseline`}
+                  className="text-xs text-amber-600 hover:text-amber-800 hover:underline"
+                >
+                  No baseline selected — set one here →
+                </Link>
+              )}
+            </div>
             <button
               onClick={() => { setShowSarDialog(true); setSarError(null); }}
               disabled={assessments.filter(a => a.status === 'Completed').length === 0}
@@ -900,8 +910,21 @@ export default function Assessments() {
                   )}
                 </div>
                 {sapError && (
-                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{sapError}</div>
-                )}
+                   <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                     {sapError}
+                     {/baseline/i.test(sapError) && (
+                       <div className="mt-2">
+                         <Link
+                           to={`/systems/${systemId}/baseline`}
+                           className="font-medium underline hover:text-red-900"
+                           onClick={() => setShowSapDialog(false)}
+                         >
+                           Go to Baseline Selection →
+                         </Link>
+                       </div>
+                     )}
+                   </div>
+                 )}
               </div>
               <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end gap-2">
                 <button type="button" onClick={() => setShowSapDialog(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>

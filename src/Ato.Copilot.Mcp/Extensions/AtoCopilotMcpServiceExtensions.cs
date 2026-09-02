@@ -206,6 +206,11 @@ public static class AtoCopilotMcpServiceExtensions
         services.AddScoped<Ato.Copilot.Core.Services.Ticketing.ITicketingProvider, Ato.Copilot.Core.Services.Ticketing.JiraProvider>();
         services.AddScoped<Ato.Copilot.Core.Services.Ticketing.ITicketingProvider, Ato.Copilot.Core.Services.Ticketing.ServiceNowProvider>();
 
+        // fix(#724): Remediation task creation requires IKanbanService — missing DI registration
+        // caused POST /api/dashboard/remediation/tasks to fail with "Failed to create task".
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Kanban.IKanbanService,
+            Ato.Copilot.Agents.Compliance.Services.KanbanService>();
+
         // Feature 049: Unified RMF Role Assignments — DI per
         // specs/049-unified-rmf-role-assignments/contracts/internal-services.md § DI Registration.
         // The fanout queue is a Singleton (one channel per process), the worker is hosted, and

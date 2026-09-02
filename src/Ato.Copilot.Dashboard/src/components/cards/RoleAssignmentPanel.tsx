@@ -60,6 +60,7 @@ export default function RoleAssignmentPanel({ registeredSystemId, callerEffectiv
   const [rows, setRows] = useState<ResolvedRoleAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogRole, setDialogRole] = useState<RmfRole | null>(null);
+  const [dialogMode, setDialogMode] = useState<'assign' | 'override'>('override');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -90,9 +91,16 @@ export default function RoleAssignmentPanel({ registeredSystemId, callerEffectiv
 
   const canAct = (role: RmfRole) => assignable.includes(role);
 
-  // ── Write paths (Override + Remove-override) ─────────────────────────────
+  // ── Write paths (Override + Remove-override + Assign) ────────────────────
   const handleOverride = (role: RmfRole) => {
     setErrorMsg(null);
+    setDialogMode('override');
+    setDialogRole(role);
+  };
+
+  const handleAssign = (role: RmfRole) => {
+    setErrorMsg(null);
+    setDialogMode('assign');
     setDialogRole(role);
   };
 
@@ -210,7 +218,7 @@ export default function RoleAssignmentPanel({ registeredSystemId, callerEffectiv
                     <button
                       type="button"
                       data-action="assign"
-                      onClick={() => handleOverride(r.role)}
+                      onClick={() => handleAssign(r.role)}
                       className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
                     >
                       Assign
@@ -230,6 +238,7 @@ export default function RoleAssignmentPanel({ registeredSystemId, callerEffectiv
           scope={{ kind: 'system', registeredSystemId }}
           initialRole={dialogRole}
           lockRole
+          mode={dialogMode}
           callerEffectiveRole={callerEffectiveRole}
           onAssigned={handleAssigned}
         />
