@@ -225,7 +225,9 @@ public class BaselineIntegrationTests : IDisposable
             }
         });
 
-        // Re-select — should replace and clear inheritance
+        // Re-select replaces the baseline row but reapplies inheritance
+        // designations whose control IDs still exist in the new set
+        // (BaselineService snapshot/reapply — H3).
         var result2 = await _selectBaselineTool.ExecuteAsync(new Dictionary<string, object?>
         {
             ["system_id"] = systemId,
@@ -234,7 +236,7 @@ public class BaselineIntegrationTests : IDisposable
 
         var json2 = JsonDocument.Parse(result2);
         json2.RootElement.GetProperty("status").GetString().Should().Be("success");
-        json2.RootElement.GetProperty("data").GetProperty("inherited_controls").GetInt32().Should().Be(0);
+        json2.RootElement.GetProperty("data").GetProperty("inherited_controls").GetInt32().Should().Be(1);
         json2.RootElement.GetProperty("data").GetProperty("overlay_applied").GetString().Should().Contain("CNSSI 1253");
     }
 
