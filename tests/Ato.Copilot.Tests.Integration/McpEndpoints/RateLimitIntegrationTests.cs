@@ -82,8 +82,12 @@ public class RateLimitIntegrationTests : IAsyncLifetime
 
         builder.Services.AddRateLimiter(options =>
         {
+            // appsettings.json already defines a `chat` policy; the in-memory
+            // overlay adds another. Skip duplicates (same guard as Program.cs).
+            var addedPolicies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var policy in rateLimitingOptions.Policies)
             {
+                if (!addedPolicies.Add(policy.PolicyName)) continue;
                 options.AddPolicy(policy.PolicyName, context =>
                     RateLimitPartition.GetSlidingWindowLimiter(
                         partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
