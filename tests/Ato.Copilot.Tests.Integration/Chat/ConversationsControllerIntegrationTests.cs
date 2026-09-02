@@ -58,12 +58,30 @@ public class ConversationsControllerIntegrationTests : IAsyncLifetime
             .AddApplicationPart(typeof(Ato.Copilot.Chat.Controllers.ConversationsController).Assembly);
         builder.Services.AddSignalR();
         builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+        // ConversationsController carries [Authorize]. Register authentication and
+        // authorization services so the middleware pipeline can resolve the metadata —
+        // otherwise ASP.NET Core throws InvalidOperationException at request time.
+        // The default scheme allows all requests through (no real identity provider
+        // needed for these integration tests).
+        builder.Services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = "Test";
+            options.DefaultChallengeScheme = "Test";
+        })
+        .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,
+            TestPassThroughAuthHandler>("Test", _ => { });
+        builder.Services.AddAuthorization();
 
         builder.WebHost.UseTestServer();
 
         _app = builder.Build();
         _app.UseCors();
         _app.UseRouting();
+        // UseAuthentication + UseAuthorization MUST be ordered between UseRouting()
+        // and endpoint mapping (MapControllers). Without this, any endpoint with
+        // [Authorize] metadata raises InvalidOperationException at runtime.
+        _app.UseAuthentication();
+        _app.UseAuthorization();
         _app.MapControllers();
         _app.MapHub<ChatHub>("/hubs/chat");
 
@@ -102,13 +120,15 @@ public class ConversationsControllerIntegrationTests : IAsyncLifetime
     public async Task GetConversations_ReturnsCreatedConversations()
     {
         // Arrange
+        // DEF-001: userId is now derived from auth claims (NameIdentifier = "test-user"),
+        // not from the query string. Create conversations owned by the same identity.
         await _client.PostAsJsonAsync("/api/conversations",
-            new CreateConversationRequest { Title = "Conv 1", UserId = "user-x" }, _jsonOptions);
+            new CreateConversationRequest { Title = "Conv 1", UserId = "test-user" }, _jsonOptions);
         await _client.PostAsJsonAsync("/api/conversations",
-            new CreateConversationRequest { Title = "Conv 2", UserId = "user-x" }, _jsonOptions);
+            new CreateConversationRequest { Title = "Conv 2", UserId = "test-user" }, _jsonOptions);
 
-        // Act
-        var response = await _client.GetAsync("/api/conversations?userId=user-x");
+        // Act — userId query param is ignored post-DEF-001; identity comes from claims.
+        var response = await _client.GetAsync("/api/conversations");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -184,13 +204,14 @@ public class ConversationsControllerIntegrationTests : IAsyncLifetime
     public async Task SearchConversations_ReturnsMatchingResults()
     {
         // Arrange
+        // DEF-001: userId is now derived from auth claims (NameIdentifier = "test-user").
         await _client.PostAsJsonAsync("/api/conversations",
-            new CreateConversationRequest { Title = "Compliance Review", UserId = "search-user" }, _jsonOptions);
+            new CreateConversationRequest { Title = "Compliance Review", UserId = "test-user" }, _jsonOptions);
         await _client.PostAsJsonAsync("/api/conversations",
-            new CreateConversationRequest { Title = "General Chat", UserId = "search-user" }, _jsonOptions);
+            new CreateConversationRequest { Title = "General Chat", UserId = "test-user" }, _jsonOptions);
 
-        // Act
-        var response = await _client.GetAsync("/api/conversations/search?query=compliance&userId=search-user");
+        // Act — userId query param is ignored post-DEF-001; identity comes from claims.
+        var response = await _client.GetAsync("/api/conversations/search?query=compliance");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -209,5 +230,32 @@ public class ConversationsControllerIntegrationTests : IAsyncLifetime
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+}
+
+/// <summary>
+/// Minimal authentication handler for integration tests.
+/// Authenticates every request as an anonymous authenticated principal so
+/// endpoints carrying [Authorize] don't throw the "middleware not found"
+/// InvalidOperationException. No real identity provider is needed.
+/// </summary>
+internal sealed class TestPassThroughAuthHandler(
+    Microsoft.Extensions.Options.IOptionsMonitor<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions> options,
+    Microsoft.Extensions.Logging.ILoggerFactory logger,
+    System.Text.Encodings.Web.UrlEncoder encoder)
+    : Microsoft.AspNetCore.Authentication.AuthenticationHandler<
+        Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    protected override Task<Microsoft.AspNetCore.Authentication.AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new[]
+        {
+            new System.Security.Claims.Claim(
+                System.Security.Claims.ClaimTypes.NameIdentifier, "test-user"),
+        };
+        var identity = new System.Security.Claims.ClaimsIdentity(claims, "Test");
+        var principal = new System.Security.Claims.ClaimsPrincipal(identity);
+        var ticket = new Microsoft.AspNetCore.Authentication.AuthenticationTicket(principal, "Test");
+        return Task.FromResult(Microsoft.AspNetCore.Authentication.AuthenticateResult.Success(ticket));
     }
 }

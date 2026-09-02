@@ -54,6 +54,28 @@ internal static class IntegrationTestServiceExtensions
             options => options.UseInMemoryDatabase(dbName),
             ServiceLifetime.Singleton);
 
+        // #region agent log
+        try
+        {
+            var leftover = services
+                .Where(d => d.ServiceType.FullName?.Contains("AtoCopilotContext", StringComparison.Ordinal) == true
+                            || d.ServiceType.FullName?.Contains("IDbContextOptionsConfiguration", StringComparison.Ordinal) == true)
+                .Select(d => d.ServiceType.FullName)
+                .ToArray();
+            System.IO.File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log",
+                System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    sessionId = "225414",
+                    hypothesisId = "B",
+                    location = "IntegrationTestServiceExtensions.cs:AddAtoCopilotMcpForTesting",
+                    message = "ef-registrations-after-override",
+                    data = new { leftover, dbName },
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                }) + "\n");
+        }
+        catch { }
+        // #endregion
+
         // Production registers AddHealthChecks separately in Program.cs after
         // AddAtoCopilotMcp(). Some tests call MapHealthChecks("/health"), which
         // requires the HealthCheckService to be present on the DI graph.
