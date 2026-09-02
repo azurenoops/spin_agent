@@ -281,6 +281,12 @@ public class BatchPopulateNarrativesTool : BaseTool
                 metadata = Meta(sw)
             }, JsonOpts);
         }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("No control baseline is selected", StringComparison.OrdinalIgnoreCase))
+        {
+            // Precondition: user must complete the Select phase before batch auto-fill.
+            // Return an actionable guidance error — not a product defect.
+            return Error("NO_BASELINE_SELECTED", ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             return Error("BATCH_POPULATE_FAILED", ex.Message);
@@ -366,15 +372,17 @@ public class NarrativeProgressTool : BaseTool
             sw.Stop();
             return JsonSerializer.Serialize(new
             {
-                status = "success",
+                status = progress.BaselineSelected ? "success" : "no_baseline",
                 data = new
                 {
-                    system_id = progress.SystemId,
-                    total_controls = progress.TotalControls,
-                    completed_narratives = progress.CompletedNarratives,
-                    draft_narratives = progress.DraftNarratives,
-                    missing_narratives = progress.MissingNarratives,
-                    overall_percentage = progress.OverallPercentage,
+                    system_id               = progress.SystemId,
+                    baseline_selected       = progress.BaselineSelected,
+                    status_message          = progress.StatusMessage,
+                    total_controls          = progress.TotalControls,
+                    completed_narratives    = progress.CompletedNarratives,
+                    draft_narratives        = progress.DraftNarratives,
+                    missing_narratives      = progress.MissingNarratives,
+                    overall_percentage      = progress.OverallPercentage,
                     approval_status = approvalProgress != null ? new
                     {
                         approved = approvalProgress.TotalApproved,
