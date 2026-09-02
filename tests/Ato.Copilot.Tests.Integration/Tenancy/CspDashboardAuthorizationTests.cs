@@ -90,5 +90,9 @@ public class CspDashboardAuthorizationTests
             body.GetProperty("error").GetProperty("errorCode").GetString()
                 .Should().Be("CSP_ONBOARDING_INCOMPLETE");
         }
+
+        // Restore the shared Tenancy fixture so later classes in this
+        // collection do not inherit a wiped CspProfile (debug 225414 H25).
+        await _factory.EnsureActiveCspProfileAsync();
     }
 }

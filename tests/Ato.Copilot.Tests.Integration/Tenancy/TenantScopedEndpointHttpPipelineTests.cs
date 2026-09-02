@@ -67,11 +67,13 @@ public class TenantScopedEndpointHttpPipelineTests
 
         // Act
         var resp = await _client.GetAsync("/api/dashboard/systems");
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        var items = body.GetProperty("data").GetProperty("items");
+        var items = body.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object
+            ? dataEl.GetProperty("items")
+            : body.GetProperty("items");
         var ids = Enumerable.Range(0, items.GetArrayLength())
                             .Select(i => items[i].GetProperty("systemId").GetString())
                             .ToList();
@@ -107,7 +109,9 @@ public class TenantScopedEndpointHttpPipelineTests
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        var items = body.GetProperty("data").GetProperty("items");
+        var items = body.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object
+            ? dataEl.GetProperty("items")
+            : body.GetProperty("items");
         var ids = Enumerable.Range(0, items.GetArrayLength())
                             .Select(i => items[i].GetProperty("systemId").GetString())
                             .ToList();
@@ -143,7 +147,9 @@ public class TenantScopedEndpointHttpPipelineTests
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        var items = body.GetProperty("data").GetProperty("items");
+        var items = body.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object
+            ? dataEl.GetProperty("items")
+            : body.GetProperty("items");
         var ids = Enumerable.Range(0, items.GetArrayLength())
                             .Select(i => items[i].GetProperty("systemId").GetString())
                             .ToHashSet();
@@ -173,7 +179,9 @@ public class TenantScopedEndpointHttpPipelineTests
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        var items = body.GetProperty("data").GetProperty("items");
+        var items = body.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object
+            ? dataEl.GetProperty("items")
+            : body.GetProperty("items");
         var ids = Enumerable.Range(0, items.GetArrayLength())
                             .Select(i => items[i].GetProperty("systemId").GetString())
                             .ToList();

@@ -53,7 +53,7 @@ public class AuditQueryEndpointTests
         page.GetProperty("page").GetInt32().Should().Be(1);
         page.GetProperty("pageSize").GetInt32().Should().Be(50, "default page size per contract");
         page.GetProperty("items").GetArrayLength().Should().BeGreaterOrEqualTo(3);
-        page.GetProperty("total").GetInt32().Should().BeGreaterOrEqualTo(3);
+        page.GetProperty("totalCount").GetInt32().Should().BeGreaterOrEqualTo(3);
     }
 
     [Fact]

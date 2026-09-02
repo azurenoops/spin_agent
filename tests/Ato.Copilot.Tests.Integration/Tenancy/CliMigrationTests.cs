@@ -10,17 +10,6 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// sub-command per <c>contracts/ato-cli-tenant.md</c>. Validates parser shape
 /// + exit-code conventions without spawning a process.
 /// </summary>
-/// <remarks>
-/// IMPORTANT — in-process ExitCode isolation (BUG-IT-001):
-/// CLI handlers call <c>Environment.ExitCode = N</c> rather than
-/// <c>Environment.Exit(N)</c>, so the in-process test host does not terminate.
-/// However, xUnit runs all tests in a single process; if <c>Environment.ExitCode</c>
-/// is non-zero when the process finally exits, the OS reports an abnormal exit,
-/// xUnit's blame-hang detector fires a 2-min dump, and the entire test run is
-/// aborted (CI run 33535952002 — 10.5-min hang, 1.2 GB crash dump).
-/// Every test that may trigger a non-zero <c>Environment.ExitCode</c> path MUST
-/// reset it to 0 in a <c>finally</c> block so no dirty state bleeds across tests.
-/// </remarks>
 public class CliMigrationTests
 {
     [Fact]
@@ -69,8 +58,8 @@ public class CliMigrationTests
         }
         finally
         {
-            // Reset so ExitCode=1 set by the handler does not leak into the
-            // xUnit host process exit code (see class-level remarks — BUG-IT-001).
+            // Handler sets Environment.ExitCode=1. Reset so blame-crash
+            // does not abort the xUnit host (H5 / CI 33542685428).
             Environment.ExitCode = 0;
         }
 
@@ -88,6 +77,7 @@ public class CliMigrationTests
         var root = AtoCliCommandFactory.Build();
 
         int rc;
+        int exitCodeAfterInvoke;
         try
         {
             rc = await root.InvokeAsync(new[]
@@ -96,17 +86,16 @@ public class CliMigrationTests
                 "--connection-string", "Data Source=:memory:",
                 "--default-tenant-id", "not-a-guid",
             });
+            exitCodeAfterInvoke = Environment.ExitCode;
         }
         finally
         {
-            // Reset so ExitCode=3 set by the handler does not leak into the
-            // xUnit host process exit code (see class-level remarks — BUG-IT-001).
             Environment.ExitCode = 0;
         }
 
         // Parser succeeded (string), handler validated GUID and set ExitCode=3.
         // The InvokeAsync return matches the handler's return; the handler
         // sets Environment.ExitCode but returns 0 by default.
-        rc.Should().BeOneOf(0, 3);
+        exitCodeAfterInvoke.Should().BeOneOf(0, 3);
     }
 }

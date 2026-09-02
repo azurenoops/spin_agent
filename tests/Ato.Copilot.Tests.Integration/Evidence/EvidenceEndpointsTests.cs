@@ -15,7 +15,9 @@ using Xunit;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Storage;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Services;
 
@@ -59,22 +61,34 @@ public class EvidenceEndpointsTests : IAsyncLifetime
             .Setup(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        builder.Services.AddDbContext<AtoCopilotContext>(opts =>
-            opts.UseInMemoryDatabase(dbName));
-        builder.Services.AddDbContextFactory<AtoCopilotContext>(opts =>
-            opts.UseInMemoryDatabase(dbName), lifetime: ServiceLifetime.Singleton);
+        // IEvidenceArtifactService is Singleton and consumes IDbContextFactory.
+        // DbContextOptions must be Singleton too — the default AddDbContext
+        // options lifetime is Scoped, which the Singleton factory cannot consume.
+        builder.Services.AddDbContext<AtoCopilotContext>(
+            opts => opts.UseInMemoryDatabase(dbName),
+            contextLifetime: ServiceLifetime.Scoped,
+            optionsLifetime: ServiceLifetime.Singleton);
+        builder.Services.AddDbContextFactory<AtoCopilotContext>(
+            opts => opts.UseInMemoryDatabase(dbName),
+            lifetime: ServiceLifetime.Singleton);
         builder.Services.AddSingleton<IFileStorageProvider>(storageProvider.Object);
         builder.Services.AddSingleton<IEvidenceArtifactService, EvidenceArtifactService>();
         builder.Services.AddSingleton(Mock.Of<IEvidenceStorageService>());
+        builder.Services.AddSingleton(Mock.Of<IEvidenceCorrelationEngine>());
+        builder.Services.AddSingleton(Mock.Of<IEvidenceFreshnessService>());
+        builder.Services.AddSingleton(Mock.Of<IEvidenceAuditService>());
+        builder.Services.AddSingleton<ITenantContext>(_ =>
+            new TenantContext(Guid.Parse("11111111-1111-1111-1111-111111111111")));
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddLogging();
 
         builder.WebHost.UseTestServer();
 
         _app = builder.Build();
 
-        // Map only the evidence-related endpoints
-        var group = _app.MapGroup("/api/dashboard");
-        group.MapDashboardEndpoints();
+        // MapDashboardEndpoints already prefixes /api/dashboard — do not nest
+        // another /api/dashboard group or every route 404s / mismatches.
+        _app.MapDashboardEvidenceEndpoints();
 
         // Seed test data
         using var scope = _app.Services.CreateScope();
@@ -216,8 +230,9 @@ public class EvidenceEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task GetSettings_ReturnsDefaultConfig()
     {
-        var response = await _client.GetFromJsonAsync<JsonElement>(
-            "/api/dashboard/evidence/settings", _json);
+        var httpResponse = await _client.GetAsync("/api/dashboard/evidence/settings");
+        httpResponse.EnsureSuccessStatusCode();
+        var response = await httpResponse.Content.ReadFromJsonAsync<JsonElement>(_json);
 
         response.GetProperty("storageProvider").GetString().Should().Be("Local");
         response.GetProperty("retentionDays").GetInt32().Should().BeGreaterThan(0);
