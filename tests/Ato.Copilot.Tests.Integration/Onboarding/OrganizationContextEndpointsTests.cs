@@ -56,6 +56,9 @@ public class OrganizationContextEndpointsTests : IAsyncLifetime
         builder.Services.AddDbContextFactory<AtoCopilotContext>(o => o.UseInMemoryDatabase(dbName));
         builder.Services.AddScoped<IWizardAuditService>(_ => _auditMock.Object);
         builder.Services.AddScoped<IOrganizationContextService, OrganizationContextService>();
+        // IOnboardingStateService is required by PUT /organization-context to mark wizard
+        // step completion. Register a no-op mock so the minimal test host can resolve it.
+        builder.Services.AddScoped<IOnboardingStateService>(_ => Mock.Of<IOnboardingStateService>());
 
         builder.Services.AddSingleton<ILogger<OrganizationContextService>>(NullLogger<OrganizationContextService>.Instance);
 
