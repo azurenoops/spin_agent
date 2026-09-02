@@ -16,6 +16,7 @@ using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Poam;
+using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
@@ -62,6 +63,8 @@ public class ApiMismatchRouteTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+        Environment.SetEnvironmentVariable("ATO_Auth__BypassForTests", "true");
+        Environment.SetEnvironmentVariable("ATO_AZUREAI__ENABLED", "false");
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -102,8 +105,9 @@ public class ApiMismatchRouteTests : IAsyncLifetime
 
         var httpBridge = _app.Services.GetRequiredService<McpHttpBridge>();
         httpBridge.MapEndpoints(_app);
+        _app.MapDashboardEndpoints();
 
-        _app.MapGet("/", () => Microsoft.AspNetCore.Http.Results.Json(new
+        _app.MapGet("/healthz-test", () => Microsoft.AspNetCore.Http.Results.Json(new
         {
             service = "ATO Copilot",
             version = "1.0.0",
@@ -174,10 +178,19 @@ public class ApiMismatchRouteTests : IAsyncLifetime
             $"/api/dashboard/systems/{TestSystemId}/inheritance/apply-profile",
             request, _jsonOptions);
 
-        // RED: route does not exist — expect 404
-        // After fix: route is registered, expect 200 or 400 (valid response from handler)
-        response.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
-            because: "POST /api/dashboard/systems/{id}/inheritance/apply-profile must be registered (GAP-001, issue #141)");
+        // Handler-level 404 (baseline/profile missing) still proves the route
+        // is registered. Unregistered routes return an empty framework 404.
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            body.Should().Contain("errorCode",
+                because: "POST /api/dashboard/systems/{id}/inheritance/apply-profile must be registered (GAP-001, issue #141)");
+        }
+        else
+        {
+            response.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
+                because: "POST /api/dashboard/systems/{id}/inheritance/apply-profile must be registered (GAP-001, issue #141)");
+        }
     }
 
     // ─── T008: GAP-002 — import/preview route ────────────────────────────────

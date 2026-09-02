@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Ato.Copilot.Core.Interfaces.Onboarding;
 using Ato.Copilot.Core.Models.Onboarding;
@@ -38,9 +39,9 @@ public static class RoleAssignmentEndpoints
                 CreateRoleAssignmentRequest request,
                 HttpContext http,
                 IOrganizationRoleAssignmentService service,
-                IOnboardingStateService stateService,
-                ICallerEffectiveRoleResolver callerRoleResolver,
-                IRoleAuthorizationService authz,
+                [FromServices] IOnboardingStateService stateService,
+                [FromServices] ICallerEffectiveRoleResolver callerRoleResolver,
+                [FromServices] IRoleAuthorizationService authz,
                 Microsoft.Extensions.Logging.ILoggerFactory loggerFactory,
                 CancellationToken ct) =>
             {

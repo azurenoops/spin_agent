@@ -59,6 +59,18 @@ public static partial class DashboardEndpoints
                 return app;
     }
 
+    /// <summary>
+    /// Maps only evidence dashboard routes under <c>/api/dashboard</c>.
+    /// Used by evidence integration tests that do not boot the full dashboard DI graph.
+    /// </summary>
+    public static IEndpointRouteBuilder MapDashboardEvidenceEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/dashboard")
+            .WithTags("Dashboard");
+        MapEvidenceRoutes(group, app);
+        return app;
+    }
+
     // ─── NIST Family Name Lookup ────────────────────────────────────────────
     private static readonly Dictionary<string, string> NistFamilyNames = new(StringComparer.OrdinalIgnoreCase)
     {
