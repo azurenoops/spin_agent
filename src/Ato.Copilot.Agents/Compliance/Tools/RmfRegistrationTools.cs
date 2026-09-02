@@ -263,28 +263,12 @@ public class GetSystemTool : BaseTool
                     message = $"System '{nf.Input}' not found."
                 }, JsonOpts),
 
-                // Register+advance does not assign a baseline. Treat NoBaseline
-                // as success so GetSystem matches main (CI 33655149375).
                 GetSystemResult.NoBaseline nb => JsonSerializer.Serialize(new
                 {
-                    status = "success",
-                    data = new
-                    {
-                        id = nb.System.Id,
-                        name = nb.System.Name,
-                        acronym = nb.System.Acronym,
-                        system_type = nb.System.SystemType.ToString(),
-                        mission_criticality = nb.System.MissionCriticality.ToString(),
-                        hosting_environment = nb.System.HostingEnvironment,
-                        description = nb.System.Description,
-                        current_rmf_step = nb.System.CurrentRmfStep.ToString(),
-                        rmf_step_updated_at = nb.System.RmfStepUpdatedAt.ToString("O"),
-                        is_active = nb.System.IsActive,
-                        created_at = nb.System.CreatedAt.ToString("O"),
-                        created_by = nb.System.CreatedBy,
-                        control_baseline = (object?)null,
-                        boundary_resource_count = nb.System.AuthorizationBoundaries.Count(b => b.IsInBoundary)
-                    }
+                    status = "error",
+                    errorCode = "NO_BASELINE",
+                    message = $"System '{nb.System.Id}' exists but has no control baseline assigned.",
+                    hint = "Use compliance_select_baseline to assign one."
                 }, JsonOpts),
 
                 GetSystemResult.Found f => JsonSerializer.Serialize(new
