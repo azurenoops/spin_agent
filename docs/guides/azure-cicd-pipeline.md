@@ -98,7 +98,8 @@ The CD workflow is already wired to those environment names, so approvals are en
 
 ## Notes
 
-- The CD workflow targets Container Apps and uses the repository root `Dockerfile`.
+- The CD workflow targets Container Apps and builds three images: repo-root `Dockerfile` (MCP), `src/Ato.Copilot.Dashboard/Dockerfile`, and `src/Ato.Copilot.Chat/Dockerfile`.
+- The Chat frontend stage must `COPY` `package-lock.json` + `.npmrc` and run `npm ci`. A lockfile-less `npm install` failed CD `build-image` on 2026-09-01 (`Cannot find module 'ajv/dist/compile/codegen'`).
 - Runtime values are set with:
   - `ASPNETCORE_URLS=http://+:3001`
   - `ATO_RUN_MODE=http`

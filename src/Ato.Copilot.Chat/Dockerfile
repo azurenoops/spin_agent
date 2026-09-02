@@ -3,9 +3,21 @@ FROM node:20.18.1-alpine AS frontend-build
 
 WORKDIR /app/ClientApp
 
-# Copy package files first for layer caching
-COPY src/Ato.Copilot.Chat/ClientApp/package.json ./
-RUN npm install --legacy-peer-deps
+# Copy package files first for layer caching.
+# Must include package-lock.json and .npmrc: a floating `npm install` from
+# package.json alone resolved an incompatible ajv/ajv-keywords pair and
+# failed CD build-image (2026-09-01) with
+# `Cannot find module 'ajv/dist/compile/codegen'`.
+# .npmrc sets legacy-peer-deps=true (react-scripts@5 optional peer vs TS 5).
+COPY src/Ato.Copilot.Chat/ClientApp/package.json \
+     src/Ato.Copilot.Chat/ClientApp/package-lock.json \
+     src/Ato.Copilot.Chat/ClientApp/.npmrc \
+     ./
+RUN npm ci
+
+# #region agent log
+RUN node -e "const fs=require('fs');const path=require('path');const pkg=require('ajv/package.json');const dir=path.dirname(require.resolve('ajv/package.json'));const codegen=fs.existsSync(path.join(dir,'dist/compile/codegen.js'))||fs.existsSync(path.join(dir,'dist/compile/codegen/index.js'));console.log(JSON.stringify({sessionId:'3a8241',hypothesisId:'C',location:'Chat/Dockerfile:npm-ci',message:'ajv resolved after npm ci',data:{ajvVersion:pkg.version,codegenExists:codegen,ajvDir:dir},timestamp:Date.now()}));"
+# #endregion
 
 # Copy frontend source and build
 COPY src/Ato.Copilot.Chat/ClientApp/ ./
