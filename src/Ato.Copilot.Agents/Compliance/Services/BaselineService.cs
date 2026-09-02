@@ -539,7 +539,10 @@ public class BaselineService : IBaselineService
             };
 
             context.ControlInheritances.Add(inheritance);
-            baseline.Inheritances.Add(inheritance);
+            // Do not also Add to baseline.Inheritances — EF relationship
+            // fixup already inserts the entity into the navigation. A second
+            // Add duplicated rows (navCount=2× mappings) and doubled
+            // inherited_count in InMemory / CI (debug session 225414 H2).
 
             // Create audit entry for the change
             context.InheritanceAuditEntries.Add(new InheritanceAuditEntry
@@ -561,10 +564,24 @@ public class BaselineService : IBaselineService
             result.ControlsUpdated++;
         }
 
-        // Recalculate inheritance counts
-        baseline.InheritedControls = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Inherited);
-        baseline.SharedControls = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Shared);
-        baseline.CustomerControls = baseline.Inheritances.Count(i => i.InheritanceType == InheritanceType.Customer);
+        // Recalculate inheritance counts (Distinct — nav may still contain
+        // a removed+re-added pair until SaveChanges if the tracker has not
+        // pruned the collection yet).
+        baseline.InheritedControls = baseline.Inheritances
+            .Where(i => i.InheritanceType == InheritanceType.Inherited)
+            .Select(i => i.ControlId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        baseline.SharedControls = baseline.Inheritances
+            .Where(i => i.InheritanceType == InheritanceType.Shared)
+            .Select(i => i.ControlId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        baseline.CustomerControls = baseline.Inheritances
+            .Where(i => i.InheritanceType == InheritanceType.Customer)
+            .Select(i => i.ControlId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
         baseline.ModifiedAt = DateTime.UtcNow;
 
         result.InheritedCount = baseline.InheritedControls;
