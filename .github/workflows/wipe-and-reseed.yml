@@ -29,6 +29,10 @@ permissions:
 
 jobs:
   wipe-and-reseed:
+    # Manual one-shot only. GitHub still starts this workflow on some branch
+    # pushes (empty-job FAILURE, ~0s). Skip those so feature-PR check rolls
+    # are not a red X from an unrelated wipe.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: dev
 

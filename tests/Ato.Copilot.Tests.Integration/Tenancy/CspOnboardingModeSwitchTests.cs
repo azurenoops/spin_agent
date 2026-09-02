@@ -221,8 +221,9 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             await using var scope = _services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetService<AtoCopilotContext>();
-            if (db is null) return;
+            var factory = scope.ServiceProvider.GetService<IDbContextFactory<AtoCopilotContext>>();
+            if (factory is null) return;
+            await using var db = await factory.CreateDbContextAsync(cancellationToken);
             await TenancySeedHostedService
                 .CreateTenancyTablesIfMissingPublicAsync(db, cancellationToken);
         }

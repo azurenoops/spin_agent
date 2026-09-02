@@ -38,14 +38,12 @@ public class SspAuthoringIntegrationTests : IDisposable
         var services = new ServiceCollection();
         services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
-        services.AddDbContextFactory<AtoCopilotContext>(opts =>
-            opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
         services.AddLogging();
 
         _serviceProvider = services.BuildServiceProvider();
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        var lifecycleSvc = new RmfLifecycleService(scopeFactory, _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(), Mock.Of<ILogger<RmfLifecycleService>>());
+        var lifecycleSvc = new RmfLifecycleService(scopeFactory, Mock.Of<ILogger<RmfLifecycleService>>());
         var categorizationSvc = new CategorizationService(scopeFactory, Mock.Of<ILogger<CategorizationService>>(), Mock.Of<IPrivacyService>());
         var referenceDataSvc = new ReferenceDataService(Mock.Of<ILogger<ReferenceDataService>>());
         var baselineSvc = new BaselineService(scopeFactory, referenceDataSvc, Mock.Of<ILogger<BaselineService>>(), Mock.Of<IOrgInheritanceService>());
@@ -137,9 +135,9 @@ public class SspAuthoringIntegrationTests : IDisposable
 
         var suggestJson = JsonDocument.Parse(suggestResult);
         suggestJson.RootElement.GetProperty("status").GetString().Should().Be("success");
-        // SspService.SuggestNarrativeAsync intentionally returns Confidence = null for template paths
-        // (a fabricated number would be misleading). Assert the field is present and either null or a
-        // valid positive number — both are acceptable contract states.
+        // SuggestNarrative returns Confidence = null on the template path
+        // (a fabricated number would be misleading). Accept null or a
+        // positive number — both are valid contract states (H4 / CI 33542685428).
         var confidenceEl = suggestJson.RootElement.GetProperty("data").GetProperty("confidence");
         confidenceEl.ValueKind.Should().BeOneOf(JsonValueKind.Null, JsonValueKind.Number);
         if (confidenceEl.ValueKind == JsonValueKind.Number)
