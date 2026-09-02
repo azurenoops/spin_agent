@@ -17,5 +17,9 @@ internal static class IntegrationTestEnvironment
         // CI does not provide ATO_AZUREAI__ENDPOINT. Disable AI for the whole
         // integration-test process so Program.Main can build an IHost.
         Environment.SetEnvironmentVariable("ATO_AZUREAI__ENABLED", "false");
+        Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
+        // In-process CLI tests set Environment.ExitCode; blame-crash treats a
+        // dirty process exit code as a testhost crash after hang-dump.
+        Environment.ExitCode = 0;
     }
 }
