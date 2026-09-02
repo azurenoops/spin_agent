@@ -44,6 +44,13 @@ export interface AssignRoleDialogProps {
    * ignores it when ≥1 active Organization role exists for the tenant.
    */
   bootstrap?: boolean;
+  /**
+   * Controls the dialog title for system-scoped dialogs.
+   * - `'assign'`   → "Assign Per-System Role" (used for not-assigned rows, FR-027).
+   * - `'override'` → "Assign Per-System Role Override" (used for inherited rows, FR-010).
+   * Defaults to `'override'` for backward compatibility.
+   */
+  mode?: 'assign' | 'override';
   onAssigned: (result: AssignmentResult) => void;
 }
 
@@ -60,7 +67,7 @@ function allowedRoles(callerEffectiveRole: RmfRole | null, lockRole: boolean, in
 export default function AssignRoleDialog(props: AssignRoleDialogProps) {
   const {
     open, onClose, scope, initialRole, lockRole = false,
-    callerEffectiveRole, bootstrap = false, onAssigned,
+    callerEffectiveRole, bootstrap = false, mode = 'override', onAssigned,
   } = props;
 
   const roleOptions = useMemo(
@@ -124,7 +131,11 @@ export default function AssignRoleDialog(props: AssignRoleDialogProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal>
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          {scope.kind === 'organization' ? 'Assign Organization Role' : 'Assign Per-System Role Override'}
+          {scope.kind === 'organization'
+            ? 'Assign Organization Role'
+            : mode === 'assign'
+              ? 'Assign Per-System Role'
+              : 'Assign Per-System Role Override'}
         </h3>
 
         <div className="space-y-4">
