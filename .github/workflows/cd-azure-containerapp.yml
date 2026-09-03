@@ -189,11 +189,9 @@ jobs:
     with:
       environment_name: dev
       workload: chat
-      # DEF-001: containerapp_name must be set explicitly; workload=chat is not a
-      # recognised branch in deploy-containerapp-stage resolve-target logic (only
-      # mcp/dashboard are handled). AZURE_CHAT_CONTAINERAPP_NAME must be set as a
-      # GitHub Actions environment variable for each environment (dev/test/production).
-      # Example value: ca-ato-copilot-chat-dev
+      # Chat name: AZURE_CHAT_CONTAINERAPP_NAME (must contain 'chat'), or
+      # derived as ${AZURE_CONTAINERAPP_NAME/-mcp/-chat} when unset.
+      # Example: ca-ato-copilot-chat-v2
       containerapp_name: ${{ vars.AZURE_CHAT_CONTAINERAPP_NAME }}
       image: ${{ needs.build-image.outputs.chat_image }}
       target_port: "8080"
