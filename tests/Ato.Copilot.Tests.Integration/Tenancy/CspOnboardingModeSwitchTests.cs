@@ -26,7 +26,9 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// </summary>
 /// <remarks>
 /// RED until T160–T164 are implemented (CspProfile entity, service, endpoints,
-/// gate). Uses two sequential factories sharing the same SQLite file.
+/// gate). Two factories share one SQLite file. The SingleTenant host stays
+/// alive until the MultiTenant client is created (CI 33768856347: dispose
+/// then CreateClient returned a disposed IServiceProvider).
 /// </remarks>
 [Collection("Tenancy")]
 public class CspOnboardingModeSwitchTests : IAsyncLifetime
@@ -55,14 +57,18 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
     public async Task SingleTenantThenMultiTenant_WizardAppears_ExistingDataLockedBy503()
     {
         // ───── First boot: SingleTenant — populate one tenant row ───────
+        // CI 33768856347: disposing the first WebApplicationFactory before
+        // CreateClient on the second returned a disposed IServiceProvider
+        // (ConfigureHostBuilder → GetRequiredService<IServer>). Stack was
+        // RunHttpModeAsync — not stdio. Keep the SingleTenant host alive
+        // until the MultiTenant client is created; call CreateClient on
+        // both (same pattern as ModeSwitchTests, which passes on that run).
         Guid existingTenantId;
-        await using (var single = new ModeFactory(_sqliteFile, DeploymentMode.SingleTenant))
+        await using var single = new ModeFactory(_sqliteFile, DeploymentMode.SingleTenant);
+        using (single.CreateClient())
         {
             using var scope = single.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-            // Keep one SQLite connection open. CI 33658033397 still saw
-            // "no such table: Tenants" after factory/scoped DDL because a
-            // second :memory: or unpooled connection did not see the CREATE.
             await db.Database.OpenConnectionAsync();
             await db.Database.EnsureCreatedAsync();
             await TenancySeedHostedService
@@ -73,10 +79,10 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
                 var payload = System.Text.Json.JsonSerializer.Serialize(new
                 {
                     sessionId = "225414",
-                    hypothesisId = "H-modeswitch-openconn",
+                    hypothesisId = "H-sequential-waf",
                     location = "CspOnboardingModeSwitchTests.first-boot",
-                    message = "after EnsureCreated+DDL",
-                    data = new { cs = db.Database.GetConnectionString() },
+                    message = "after first WAF CreateClient+DDL; first host still alive",
+                    data = new { cs = db.Database.GetConnectionString(), firstDisposed = false },
                     timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 });
                 await File.AppendAllTextAsync("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", payload + Environment.NewLine);
@@ -98,10 +104,6 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
             }
             existingTenantId = any.Id;
 
-            // Confirm there is no CspProfile row. The CspProfiles table does
-            // not exist on first boot in our SQLite test fixture (production
-            // creates it via EnsureCreatedAsync on the SQL-Server path) — a
-            // missing table is a stronger guarantee than zero rows.
             int cspCount;
             try
             {
@@ -116,12 +118,36 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
         }
 
         // ───── Second boot: MultiTenant — wizard expected ───────────────
+        Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
         await using var multi = new ModeFactory(_sqliteFile, DeploymentMode.MultiTenant);
         var ctx = multi.GetActiveContext();
         ctx.IsCspAdmin = true;
         ctx.TenantId = existingTenantId;
         ctx.Status = TenantStatus.Active;
 
+        // #region agent log
+        try
+        {
+            var payload = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                sessionId = "225414",
+                hypothesisId = "H-disposed-host",
+                location = "CspOnboardingModeSwitchTests.before-CreateClient",
+                message = "env before MultiTenant CreateClient; SingleTenant host still alive",
+                data = new
+                {
+                    runMode = Environment.GetEnvironmentVariable("ATO_RUN_MODE"),
+                    aspEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                    stdinRedirected = Console.IsInputRedirected,
+                    fileExists = File.Exists(_sqliteFile)
+                },
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            });
+            await File.AppendAllTextAsync("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", payload + Environment.NewLine);
+        }
+        catch { /* debug ingest must not fail the fixture */ }
+        // #endregion
         using var multiClient = multi.CreateClient();
 
         // Wizard endpoint reachable
@@ -168,39 +194,98 @@ public class CspOnboardingModeSwitchTests : IAsyncLifetime
 
         public ModeFactory(string sqliteFile, DeploymentMode mode)
         {
-            // DB env vars are safe to set process-globally — both modes use
-            // SQLite. Deployment:Mode is per-host via in-memory configuration
-            // below to avoid contention with sibling fixtures (the env var
-            // would race with MultiTenantWebApplicationFactory and
-            // SingleTenantFactory ctors).
-            // ATO_RUN_MODE=http: prevents DetermineRunMode() from picking
-            // "stdio" (which would use `using var host` and dispose the host
-            // immediately, causing ObjectDisposedException on CreateClient()).
+            // DB env vars are a fallback only — ConnectionStrings + Provider
+            // are pinned per-host below. CI sets ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION
+            // to :memory:; on Linux that is a distinct env var from the
+            // mixed-case name and can win the configuration race.
+            var fileCs = $"Data Source={sqliteFile};Mode=ReadWriteCreate";
             Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
             Environment.SetEnvironmentVariable("ATO_Database__Provider", "Sqlite");
-            Environment.SetEnvironmentVariable("ATO_ConnectionStrings__DefaultConnection",
-                $"Data Source={sqliteFile};Mode=ReadWriteCreate");
+            Environment.SetEnvironmentVariable("ATO_DATABASE__PROVIDER", "Sqlite");
+            Environment.SetEnvironmentVariable("ATO_ConnectionStrings__DefaultConnection", fileCs);
+            // Linux env vars are case-sensitive. CI sets the all-caps name to
+            // :memory:; leaving it in place lets AddEnvironmentVariables("ATO_")
+            // race and boot an empty in-memory database (33768856347).
+            Environment.SetEnvironmentVariable("ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION", fileCs);
             Environment.SetEnvironmentVariable("ATO_Auth__Impersonation__SigningKey",
                 "ato-copilot-tests-impersonation-signing-key-stable-32B!");
             Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
             Environment.SetEnvironmentVariable("ATO_Tenant__Resolution__BypassForTests", "true");
             Environment.SetEnvironmentVariable("ATO_Auth__BypassForTests", "true");
             Environment.SetEnvironmentVariable("ATO_AZUREAI__ENABLED", "false");
+            _sqliteFile = sqliteFile;
             _mode = mode;
         }
 
+        private readonly string _sqliteFile;
         private readonly DeploymentMode _mode;
+
+        protected override IHost CreateHost(IHostBuilder builder)
+        {
+            // Re-assert immediately before Program.Main — parallel collections
+            // can overwrite process-global env between the ctor and host build.
+            Environment.SetEnvironmentVariable("ATO_RUN_MODE", "http");
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+            Environment.SetEnvironmentVariable("ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION",
+                $"Data Source={_sqliteFile};Mode=ReadWriteCreate");
+            Environment.SetEnvironmentVariable("ATO_DATABASE__PROVIDER", "Sqlite");
+            var host = base.CreateHost(builder);
+            // #region agent log
+            try
+            {
+                var serverOk = false;
+                var disposed = false;
+                try
+                {
+                    _ = host.Services.GetService(typeof(Microsoft.AspNetCore.Hosting.Server.IServer));
+                    serverOk = true;
+                }
+                catch (ObjectDisposedException)
+                {
+                    disposed = true;
+                }
+                var payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    sessionId = "225414",
+                    hypothesisId = "H-disposed-host",
+                    location = "CspOnboardingModeSwitchTests.ModeFactory.CreateHost",
+                    message = "after base.CreateHost",
+                    data = new
+                    {
+                        mode = _mode.ToString(),
+                        serverOk,
+                        disposed,
+                        runMode = Environment.GetEnvironmentVariable("ATO_RUN_MODE"),
+                        aspEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                    },
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                });
+                File.AppendAllText("/Volumes/Internal/repos/ato-copilot/.cursor/debug-225414.log", payload + Environment.NewLine);
+            }
+            catch { /* debug ingest must not fail the fixture */ }
+            // #endregion
+            return host;
+        }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
 
-            // Pin Deployment:Mode for THIS host without env-var contention.
+            // Pin Deployment:Mode AND the SQLite file for THIS host.
+            // Process-global ATO_* connection env vars race with CI's
+            // ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION=:memory: (33768856347).
             builder.ConfigureAppConfiguration(cfg =>
             {
                 cfg.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["Deployment:Mode"] = _mode.ToString(),
+                    ["Database:Provider"] = "Sqlite",
+                    ["ConnectionStrings:DefaultConnection"] =
+                        $"Data Source={_sqliteFile};Mode=ReadWriteCreate",
+                    // Unique listen URL so two overlapping testhosts (this
+                    // test keeps SingleTenant alive during MultiTenant boot)
+                    // do not fight Program.cs app.Urls.Add(Server:Urls).
+                    ["Server:Urls"] = $"http://127.0.0.1:{Random.Shared.Next(41000, 49000)}",
                 });
             });
 
