@@ -131,7 +131,14 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${{ vars.AZURE_RESOURCE_GROUP }}" || (echo "Missing environment variable: AZURE_RESOURCE_GROUP" && exit 1)
-          if [ -z "${{ inputs.containerapp_name }}" ] && [ -z "${{ vars.AZURE_CONTAINERAPP_NAME || '' }}" ]; then
+          if [ "${{ inputs.workload }}" = "chat" ]; then
+            if [ -z "${{ inputs.containerapp_name }}" ] && [ -z "${{ vars.AZURE_CHAT_CONTAINERAPP_NAME || '' }}" ]; then
+              echo "Missing environment variable: AZURE_CHAT_CONTAINERAPP_NAME"
+              echo "Refusing to deploy workload=chat onto AZURE_CONTAINERAPP_NAME (the MCP app)."
+              echo "Set AZURE_CHAT_CONTAINERAPP_NAME on the GitHub Environment (example: ca-ato-copilot-chat-dev)."
+              exit 1
+            fi
+          elif [ -z "${{ inputs.containerapp_name }}" ] && [ -z "${{ vars.AZURE_CONTAINERAPP_NAME || '' }}" ]; then
             echo "Missing environment variable: AZURE_CONTAINERAPP_NAME"
             exit 1
           fi
@@ -159,6 +166,16 @@ jobs:
                 if [ "$APP" = "$BASE_APP" ]; then
                   APP="${BASE_APP}-dashboard"
                 fi
+              fi
+            elif [ "$WORKLOAD" = "chat" ]; then
+              # CD 33771928221: empty AZURE_CHAT_CONTAINERAPP_NAME fell through
+              # to BASE_APP and updated ca-ato-copilot-mcp-v2 with the Chat
+              # image + port 8080. Chat must never inherit the MCP app name.
+              APP="${{ vars.AZURE_CHAT_CONTAINERAPP_NAME || '' }}"
+              if [ -z "$APP" ]; then
+                echo "Missing environment variable: AZURE_CHAT_CONTAINERAPP_NAME"
+                echo "Refusing to deploy workload=chat onto the MCP Container App."
+                exit 1
               fi
             else
               APP="$BASE_APP"

@@ -56,6 +56,7 @@ Set these environment-level variables in each GitHub Environment (`dev`, `test`,
 - `AZURE_ACR_NAME`
 - `AZURE_CONTAINERAPP_ENV_NAME`
 - `AZURE_CONTAINERAPP_NAME`
+- `AZURE_CHAT_CONTAINERAPP_NAME` (required for Chat deploys; without it CD updates the MCP app — see run 33771928221)
 
 Optional environment-level variables:
 
