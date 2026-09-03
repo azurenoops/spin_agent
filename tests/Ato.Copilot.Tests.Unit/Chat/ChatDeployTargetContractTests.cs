@@ -83,6 +83,26 @@ public class ChatDeployTargetContractTests
             "MCP must not deploy onto a dashboard-named Container App");
     }
 
+    [Fact]
+    public void Create_does_not_assign_acrpull_inline_via_registry_identity_system()
+    {
+        // Arrange
+        var text = ReadWorkflow();
+
+        // Act — contract is the Create/update container app step
+
+        // Assert — run 33804223965: `az containerapp create --registry-identity system`
+        // tried to write AcrPull and the CD OIDC principal lacks
+        // Microsoft.Authorization/roleAssignments/write. Registry bind must
+        // happen after identity assign; AcrPull is the later least-privilege step.
+        text.Should().NotContain(
+            "--registry-identity system",
+            "create must not implicitly grant AcrPull; that fails the Chat first-create");
+        text.Should().Contain(
+            "containerapp registry set",
+            "after identity assign, bind ACR with the app system identity");
+    }
+
     private static string ReadWorkflow()
     {
         var path = Path.Combine(FindRepoRoot(), ".github", "workflows", "deploy-containerapp-stage.yml");
