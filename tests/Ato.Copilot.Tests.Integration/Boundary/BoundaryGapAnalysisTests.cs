@@ -64,10 +64,21 @@ public class BoundaryGapAnalysisTests : IAsyncLifetime
                 CapabilityService capService,
                 CancellationToken ct) =>
             {
-                var result = await capService.GetGapAnalysisAsync(systemId, boundaryDefinitionId, ct);
-                return result is not null
-                    ? Results.Ok(result)
-                    : Results.NotFound(new { error = "System or baseline not found" });
+                try
+                {
+                    var result = await capService.GetGapAnalysisAsync(systemId, boundaryDefinitionId, ct);
+                    return result is not null
+                        ? Results.Ok(result)
+                        : Results.NotFound(new { error = "System or baseline not found" });
+                }
+                catch (SystemNotFoundException ex)
+                {
+                    return Results.NotFound(new { error = ex.Message });
+                }
+                catch (NoBaselineSelectedException ex)
+                {
+                    return Results.NotFound(new { error = ex.Message });
+                }
             });
 
         await _app.StartAsync();

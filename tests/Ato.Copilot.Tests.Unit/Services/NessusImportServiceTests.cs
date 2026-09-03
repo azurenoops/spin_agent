@@ -89,7 +89,7 @@ public class NessusImportServiceTests : IDisposable
                 MappingSource: NessusControlMappingSource.PluginFamilyHeuristic));
 
         _rmfServiceMock.Setup(s => s.GetSystemAsync(TestSystemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(_testSystem);
+            .ReturnsAsync(new GetSystemResult.Found(_testSystem));
         _baselineServiceMock.Setup(s => s.GetBaselineAsync(TestSystemId, false, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(_testBaseline);
 
@@ -315,7 +315,7 @@ public class NessusImportServiceTests : IDisposable
             .Returns(BuildParsedNessus());
 
         _rmfServiceMock.Setup(s => s.GetSystemAsync("nonexistent", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredSystem?)null);
+            .ReturnsAsync(new GetSystemResult.NotFound("nonexistent"));
 
         var result = await _service.ImportNessusAsync(
             "nonexistent", null, DummyContent, "test.nessus",

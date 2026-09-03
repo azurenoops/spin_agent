@@ -106,9 +106,22 @@ export default function ScanImportProgressBar({ systemId, importJobId, onComplet
       handleProgressEvent(event);
     });
 
-    connection
+    // Issue #849 — guard against the start/stop race: if the component unmounts
+    // before start() settles, the cleanup must not call stop() synchronously
+    // (that throws "Failed to start the HttpConnection before stop() was called"
+    // and triggers withAutomaticReconnect thrash). Instead we:
+    //   1. Track cancellation with a flag so JoinImportGroup is skipped post-unmount.
+    //   2. Capture the start() promise and chain stop() off .finally() so stop()
+    //      only runs after start() has fully resolved or rejected.
+    //   3. Swallow only the benign "already stopped" rejection; surface everything else.
+    let cancelled = false;
+
+    const startPromise = connection
       .start()
-      .then(() => connection.invoke('JoinImportGroup', importJobId))
+      .then(() => {
+        if (cancelled) return;
+        return connection.invoke('JoinImportGroup', importJobId);
+      })
       .catch(() => {
         // SignalR unavailable — fall back to polling
         startPolling();
@@ -117,9 +130,21 @@ export default function ScanImportProgressBar({ systemId, importJobId, onComplet
     connectionRef.current = connection;
 
     return () => {
-      void connection.invoke('LeaveImportGroup', importJobId).catch(() => {});
-      void connection.stop();
+      cancelled = true;
       if (pollingRef.current) clearInterval(pollingRef.current);
+      startPromise.finally(() => {
+        void connection.invoke('LeaveImportGroup', importJobId).catch(() => {});
+        connection.stop().catch((err: unknown) => {
+          if (
+            err instanceof Error &&
+            err.message.toLowerCase().includes('already stopped')
+          ) {
+            // Expected when the connection never fully started — safe to ignore.
+            return;
+          }
+          console.error('[ScanImportProgressBar] SignalR stop error:', err);
+        });
+      });
     };
   }, [importJobId, handleProgressEvent, startPolling]);
 

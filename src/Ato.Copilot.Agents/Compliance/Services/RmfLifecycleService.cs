@@ -15,13 +15,16 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 public class RmfLifecycleService : IRmfLifecycleService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IDbContextFactory<AtoCopilotContext> _contextFactory;
     private readonly ILogger<RmfLifecycleService> _logger;
 
     public RmfLifecycleService(
         IServiceScopeFactory scopeFactory,
+        IDbContextFactory<AtoCopilotContext> contextFactory,
         ILogger<RmfLifecycleService> logger)
     {
         _scopeFactory = scopeFactory;
+        _contextFactory = contextFactory;
         _logger = logger;
     }
 
@@ -98,16 +101,15 @@ public class RmfLifecycleService : IRmfLifecycleService
     }
 
     /// <inheritdoc />
-    public async Task<RegisteredSystem?> GetSystemAsync(
+    public async Task<GetSystemResult> GetSystemAsync(
         string systemId,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(systemId, nameof(systemId));
 
-        using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        return await context.RegisteredSystems
+        var system = await context.RegisteredSystems
             .Include(s => s.SecurityCategorization)
                 .ThenInclude(sc => sc!.InformationTypes)
             .Include(s => s.ControlBaseline)
@@ -117,6 +119,14 @@ public class RmfLifecycleService : IRmfLifecycleService
             .Include(s => s.RmfRoleAssignments)
             .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken);
+
+        if (system is null)
+            return new GetSystemResult.NotFound(systemId);
+
+        if (system.ControlBaseline is null)
+            return new GetSystemResult.NoBaseline(system);
+
+        return new GetSystemResult.Found(system);
     }
 
     /// <inheritdoc />
@@ -129,8 +139,7 @@ public class RmfLifecycleService : IRmfLifecycleService
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
         var query = context.RegisteredSystems.AsQueryable();
 

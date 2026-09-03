@@ -43,6 +43,10 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const connectionRef = useRef<signalR.HubConnection | null>(null);
+  // Issue #850 — holds the start() promise so the cleanup useEffect can chain
+  // stop() off .finally() instead of calling it synchronously (race fix).
+  const startPromiseRef = useRef<Promise<void> | null>(null);
+  const cancelledRef = useRef(false);
   // Wave 6 GAP-018
   const [oscalExporting, setOscalExporting] = useState<string | null>(null);
   const [oscalError, setOscalError] = useState<string | null>(null);
@@ -215,11 +219,22 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
       }
     });
 
-    connection
+    // Issue #850 — guard against the start/stop race: if the component unmounts
+    // before start() settles, the cleanup must not call stop() synchronously
+    // (that throws "Failed to start the HttpConnection before stop() was called"
+    // and triggers withAutomaticReconnect thrash). Instead we:
+    //   1. Track cancellation with a ref so RegisterUser is skipped post-unmount.
+    //   2. Capture the start() promise into startPromiseRef and chain stop() off
+    //      .finally() in the cleanup so stop() only runs after start() settles.
+    //   3. Swallow only the benign "already stopped" rejection; surface everything else.
+    cancelledRef.current = false;
+
+    const startPromise = connection
       .start()
       .then(() => {
         // DEF-001 R2: only register when there is an authenticated MSAL account.
         // Never fall back to a phantom identity string.
+        if (cancelledRef.current) return;
         const account = getMsalInstance().getAllAccounts()[0];
         if (account) {
           return connection.invoke('RegisterUser', account.localAccountId);
@@ -229,13 +244,33 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
         // SignalR connection optional — user can poll instead
       });
 
+    startPromiseRef.current = startPromise;
     connectionRef.current = connection;
   }, [onExportComplete]);
 
   // Clean up SignalR on unmount
   useEffect(() => {
     return () => {
-      connectionRef.current?.stop();
+      cancelledRef.current = true;
+      const conn = connectionRef.current;
+      const startPromise = startPromiseRef.current;
+      if (!conn) return;
+      if (startPromise) {
+        startPromise.finally(() => {
+          conn.stop().catch((err: unknown) => {
+            if (
+              err instanceof Error &&
+              err.message.toLowerCase().includes('already stopped')
+            ) {
+              // Expected when the connection never fully started — safe to ignore.
+              return;
+            }
+            console.error('[ExportSspDialog] SignalR stop error:', err);
+          });
+        });
+      } else {
+        conn.stop().catch(() => {});
+      }
     };
   }, []);
 

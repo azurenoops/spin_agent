@@ -145,9 +145,22 @@ export function useNotifications(userId?: string) {
       );
     });
 
-    connection
+    // Issue #544 — guard against the start/stop race: if the component unmounts
+    // before start() settles, the cleanup must not call stop() synchronously
+    // (that throws "Failed to start the HttpConnection before stop() was called"
+    // and triggers withAutomaticReconnect thrash). Instead we:
+    //   1. Track cancellation with a flag so RegisterUser is skipped post-unmount.
+    //   2. Capture the start() promise and chain stop() off .finally() so stop()
+    //      only runs after start() has fully resolved or rejected.
+    //   3. Swallow only the benign "already stopped" rejection; surface everything else.
+    let cancelled = false;
+
+    const startPromise = connection
       .start()
-      .then(() => connection.invoke('RegisterUser', resolvedUserId))
+      .then(() => {
+        if (cancelled) return;
+        return connection.invoke('RegisterUser', resolvedUserId);
+      })
       .catch(() => {
         // SignalR not available — fall back to polling
       });
@@ -155,7 +168,19 @@ export function useNotifications(userId?: string) {
     connectionRef.current = connection;
 
     return () => {
-      connection.stop();
+      cancelled = true;
+      startPromise.finally(() => {
+        connection.stop().catch((err: unknown) => {
+          if (
+            err instanceof Error &&
+            err.message.toLowerCase().includes('already stopped')
+          ) {
+            // Expected when the connection never fully started — safe to ignore.
+            return;
+          }
+          console.error('[useNotifications] SignalR stop error:', err);
+        });
+      });
     };
   }, [resolvedUserId]);
 

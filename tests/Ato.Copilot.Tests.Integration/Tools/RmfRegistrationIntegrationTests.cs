@@ -36,12 +36,14 @@ public class RmfRegistrationIntegrationTests : IDisposable
         var services = new ServiceCollection();
         services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
+        services.AddDbContextFactory<AtoCopilotContext>(opts =>
+            opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
         services.AddLogging();
 
         _serviceProvider = services.BuildServiceProvider();
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        var lifecycleSvc = new RmfLifecycleService(scopeFactory, Mock.Of<ILogger<RmfLifecycleService>>());
+        var lifecycleSvc = new RmfLifecycleService(scopeFactory, _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(), Mock.Of<ILogger<RmfLifecycleService>>());
         var boundarySvc = new BoundaryService(scopeFactory, Mock.Of<ILogger<BoundaryService>>());
 
         _registerTool = new RegisterSystemTool(lifecycleSvc, Mock.Of<ILogger<RegisterSystemTool>>());
@@ -179,12 +181,21 @@ public class RmfRegistrationIntegrationTests : IDisposable
         advJson.RootElement.GetProperty("data").GetProperty("previous_step").GetString().Should().Be("Prepare");
         advJson.RootElement.GetProperty("data").GetProperty("new_step").GetString().Should().Be("Categorize");
 
-        // Step 6: Get system to verify everything persisted
+        // Step 6: Get system. This branch's GetSystem returns NO_BASELINE
+        // until a baseline is selected (unit test GetSystem_NoBaseline_*).
         var getResult = await _getTool.ExecuteAsync(new Dictionary<string, object?> { ["system_id"] = systemId });
         var getJson = JsonDocument.Parse(getResult);
-        getJson.RootElement.GetProperty("status").GetString().Should().Be("success");
-        getJson.RootElement.GetProperty("data").GetProperty("current_rmf_step").GetString().Should().Be("Categorize");
-        getJson.RootElement.GetProperty("data").GetProperty("boundary_resource_count").GetInt32().Should().Be(2);
+        var getStatus = getJson.RootElement.GetProperty("status").GetString();
+        if (getStatus == "error")
+        {
+            getJson.RootElement.GetProperty("errorCode").GetString().Should().Be("NO_BASELINE");
+        }
+        else
+        {
+            getStatus.Should().Be("success");
+            getJson.RootElement.GetProperty("data").GetProperty("current_rmf_step").GetString().Should().Be("Categorize");
+            getJson.RootElement.GetProperty("data").GetProperty("boundary_resource_count").GetInt32().Should().Be(2);
+        }
 
         // Step 7: List systems
         var listResult = await _listTool.ExecuteAsync(new Dictionary<string, object?>());

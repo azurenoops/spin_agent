@@ -27,6 +27,33 @@ public sealed class SystemNotFoundException : Exception
     public SystemNotFoundException(string message, Exception inner) : base(message, inner) { }
 }
 
+/// <summary>
+/// Thrown when a RegisteredSystem exists but has not yet had a NIST 800-53 control baseline
+/// selected (i.e., the RMF Select phase is incomplete).
+///
+/// fix(#536): distinguishes "system not found" from "system found, no baseline selected"
+/// so callers can surface the correct actionable guidance to the user:
+/// for this exception, the next step is <c>compliance_select_baseline</c>.
+/// </summary>
+public sealed class NoBaselineSelectedException : Exception
+{
+    /// <summary>The system identifier that was resolved but had no baseline.</summary>
+    public string SystemId { get; }
+
+    public NoBaselineSelectedException(string systemId)
+        : base(
+            $"No control baseline is selected for system '{systemId}'. " +
+            "Complete the Select phase (compliance_select_baseline) before running gap analysis.")
+    {
+        SystemId = systemId;
+    }
+
+    public NoBaselineSelectedException(string systemId, string message) : base(message)
+    {
+        SystemId = systemId;
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  DTOs — Pipeline Webhook
 // ─────────────────────────────────────────────────────────────────────────────

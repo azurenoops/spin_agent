@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Ato.Copilot.Agents.Common;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Services;
 
 namespace Ato.Copilot.Agents.Compliance.Tools;
@@ -262,9 +263,34 @@ public class BoundaryGapAnalysisTool : BaseTool
         using var scope = _scopeFactory.CreateScope();
         var capService = scope.ServiceProvider.GetRequiredService<CapabilityService>();
 
-        var result = await capService.GetGapAnalysisAsync(systemId, boundaryId, cancellationToken);
+        // fix(#536): catch the two distinct failure modes and return structured,
+        // actionable error codes so the LLM can guide the user to the right next step.
+        GapAnalysisDto result;
+        try
+        {
+            result = await capService.GetGapAnalysisAsync(systemId, boundaryId, cancellationToken);
+        }
+        catch (SystemNotFoundException ex)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                status = "error",
+                errorCode = "SYSTEM_NOT_FOUND",
+                message = ex.Message,
+            }, JsonOpts);
+        }
+        catch (NoBaselineSelectedException ex)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                status = "error",
+                errorCode = "NO_BASELINE_SELECTED",
+                message = ex.Message,
+            }, JsonOpts);
+        }
+
         if (result is null)
-            return JsonSerializer.Serialize(new { status = "error", errorCode = "NOT_FOUND", message = "System or baseline not found" }, JsonOpts);
+            return JsonSerializer.Serialize(new { status = "error", errorCode = "NOT_FOUND", message = "Gap analysis returned no data." }, JsonOpts);
 
         return JsonSerializer.Serialize(new
         {
