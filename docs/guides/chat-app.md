@@ -277,6 +277,8 @@ Automatic reconnection with backoff: `[0, 2000, 5000, 10000, 30000]` ms
 docker build -f src/Ato.Copilot.Chat/Dockerfile -t ato-copilot-chat .
 ```
 
+The frontend stage copies `package.json`, `package-lock.json`, and `.npmrc`, then runs `npm ci`. Do not switch that install back to a lockfile-less `npm install` — CD `build-image` failed on 2026-09-01 with `Cannot find module 'ajv/dist/compile/codegen'` when the image resolved a floating `ajv`/`ajv-keywords` tree.
+
 ### Run
 
 ```bash
