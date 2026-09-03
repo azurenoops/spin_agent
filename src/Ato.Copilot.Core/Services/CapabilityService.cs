@@ -1494,25 +1494,65 @@ public class CapabilityService
         string? boundaryDefinitionId = null,
         CancellationToken cancellationToken = default)
     {
+        // fix(#536): two-step query so we can produce distinct, actionable errors:
+        //   1. System not found         → SystemNotFoundException  (next step: compliance_list_systems)
+        //   2. System found, no baseline → NoBaselineSelectedException (next step: compliance_select_baseline)
+        // fix(#536): accept GUID, system name, or acronym — same resolution strategy as BaseTool.
+        // Root-cause evidence: original code only matched s.Id == systemId (exact GUID); name/acronym
+        // callers always received null → "system not found". This log confirms the resolution path taken.
+        _logger.LogDebug(
+            "[fix#536] GetGapAnalysisAsync: resolving systemId='{SystemId}' (boundary='{BoundaryId}')",
+            systemId, boundaryDefinitionId ?? "<none>");
+
         var system = await _db.RegisteredSystems
-            .Include(s => s.ControlBaseline)
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(s =>
+                s.IsActive && (
+                    s.Id == systemId ||
+                    s.Name.ToLower() == systemId.ToLower() ||
+                    s.Acronym.ToLower() == systemId.ToLower()),
+                cancellationToken);
 
-        if (system?.ControlBaseline is null) return null;
+        if (system is null)
+        {
+            _logger.LogWarning(
+                "[fix#536] GetGapAnalysisAsync: no active RegisteredSystem matched identifier='{SystemId}' " +
+                "(tried Id/Name/Acronym). Root cause: pre-fix code matched Id only, so name/acronym inputs " +
+                "always returned null and the tool emitted SYSTEM_NOT_FOUND even for valid systems.",
+                systemId);
+            throw new SystemNotFoundException(
+                $"No registered system found with identifier '{systemId}'. " +
+                "Use compliance_list_systems to find the correct system name, acronym, or GUID.");
+        }
 
-        var baseline = system.ControlBaseline;
+        _logger.LogDebug(
+            "[fix#536] GetGapAnalysisAsync: resolved '{SystemId}' → system.Id='{ResolvedId}' name='{Name}'",
+            systemId, system.Id, system.Name);
+
+        var baseline = await _db.ControlBaselines
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.RegisteredSystemId == system.Id, cancellationToken);
+
+        if (baseline is null)
+        {
+            _logger.LogInformation(
+                "[fix#536] GetGapAnalysisAsync: system '{ResolvedId}' ({Name}) found but has no ControlBaseline. " +
+                "Next step: compliance_select_baseline to complete the RMF Select phase.",
+                system.Id, system.Name);
+            throw new NoBaselineSelectedException(system.Id);
+        }
+
         var controlIds = baseline.ControlIds;
 
         // Get all capability mappings that cover this system (filtered by boundary if specified)
-        var mappedSet = await GetCoveredControlIdsAsync(systemId, boundaryDefinitionId, cancellationToken);
+        var mappedSet = await GetCoveredControlIdsAsync(system.Id, boundaryDefinitionId, cancellationToken);
 
         // Get waived controls (approved waivers exclude controls from gap calculations)
         var waivedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (boundaryDefinitionId is not null)
         {
             var waived = await _deviationService.GetWaivedControlsForBoundaryAsync(
-                systemId, boundaryDefinitionId, cancellationToken);
+                system.Id, boundaryDefinitionId, cancellationToken);
             foreach (var id in waived) waivedSet.Add(id);
         }
 
@@ -1572,7 +1612,7 @@ public class CapabilityService
         // Query existing ControlImplementation records for the unmapped controls
         // so we can distinguish NoNarrative vs NotImplemented gaps.
         var unmappedImplsByControlId = await _db.ControlImplementations
-            .Where(ci => ci.RegisteredSystemId == systemId && unmappedIds.Contains(ci.ControlId))
+            .Where(ci => ci.RegisteredSystemId == system.Id && unmappedIds.Contains(ci.ControlId))
             .AsNoTracking()
             .ToDictionaryAsync(ci => ci.ControlId, cancellationToken);
 
@@ -1661,7 +1701,7 @@ public class CapabilityService
         if (boundaryDefinitionId is null)
         {
             var boundaries = await _db.AuthorizationBoundaryDefinitions
-                .Where(b => b.RegisteredSystemId == systemId)
+                .Where(b => b.RegisteredSystemId == system.Id)
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
 
@@ -1670,9 +1710,9 @@ public class CapabilityService
                 boundaryComparison = [];
                 foreach (var boundary in boundaries.OrderByDescending(b => b.IsPrimary).ThenBy(b => b.Name))
                 {
-                    var bCovered = await GetCoveredControlIdsAsync(systemId, boundary.Id, cancellationToken);
+                    var bCovered = await GetCoveredControlIdsAsync(system.Id, boundary.Id, cancellationToken);
                     var bWaived = await _deviationService.GetWaivedControlsForBoundaryAsync(
-                        systemId, boundary.Id, cancellationToken);
+                        system.Id, boundary.Id, cancellationToken);
                     var bEffective = new HashSet<string>(bCovered, StringComparer.OrdinalIgnoreCase);
                     foreach (var id in bWaived) bEffective.Add(id);
                     var bTotal = controlIds.Count;
@@ -1696,7 +1736,7 @@ public class CapabilityService
 
         return new GapAnalysisDto
         {
-            SystemId = systemId,
+            SystemId = system.Id,
             BaselineLevel = baseline.BaselineLevel,
             TotalBaselineControls = totalControls,
             CoveredControls = totalCovered,

@@ -37,12 +37,14 @@ public class AssessmentIntegrationTests : IDisposable
         var services = new ServiceCollection();
         services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
+        services.AddDbContextFactory<AtoCopilotContext>(opts =>
+            opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
         services.AddLogging();
 
         _serviceProvider = services.BuildServiceProvider();
         _scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        var lifecycleSvc = new RmfLifecycleService(_scopeFactory, Mock.Of<ILogger<RmfLifecycleService>>());
+        var lifecycleSvc = new RmfLifecycleService(_scopeFactory, _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(), Mock.Of<ILogger<RmfLifecycleService>>());
         var assessmentSvc = new AssessmentArtifactService(_scopeFactory, Mock.Of<ILogger<AssessmentArtifactService>>());
 
         _registerTool = new RegisterSystemTool(lifecycleSvc, Mock.Of<ILogger<RegisterSystemTool>>());

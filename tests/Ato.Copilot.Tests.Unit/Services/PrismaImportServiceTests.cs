@@ -89,14 +89,14 @@ public class PrismaImportServiceTests : IDisposable
         // Default system exists
         _rmfServiceMock
             .Setup(r => r.GetSystemAsync(TestSystemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new RegisteredSystem
+            .ReturnsAsync(new GetSystemResult.Found(new RegisteredSystem
             {
                 Id = TestSystemId,
                 Name = TestSystemName,
                 CurrentRmfStep = RmfPhase.Assess,
                 HostingEnvironment = "Azure Government",
                 CreatedBy = "admin"
-            });
+            }));
 
         // Default baseline
         _baselineServiceMock
@@ -425,7 +425,7 @@ public class PrismaImportServiceTests : IDisposable
     {
         _rmfServiceMock
             .Setup(r => r.GetSystemAsync("nonexistent", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredSystem?)null);
+            .ReturnsAsync(new GetSystemResult.NotFound("nonexistent"));
 
         var csv = SimpleCsvWithNist();
         var result = await _service.ImportPrismaCsvAsync(
@@ -975,7 +975,7 @@ public class PrismaImportServiceTests : IDisposable
     {
         _rmfServiceMock
             .Setup(r => r.GetSystemAsync("bad-sys", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredSystem?)null);
+            .ReturnsAsync(new GetSystemResult.NotFound("bad-sys"));
 
         var act = () => _service.ListPrismaPoliciesAsync("bad-sys");
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -1248,7 +1248,7 @@ public class PrismaImportServiceTests : IDisposable
     {
         _rmfServiceMock
             .Setup(r => r.GetSystemAsync("bad-sys", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredSystem?)null);
+            .ReturnsAsync(new GetSystemResult.NotFound("bad-sys"));
 
         var act = () => _service.GetPrismaTrendAsync("bad-sys", null, null);
         await act.Should().ThrowAsync<InvalidOperationException>()

@@ -152,7 +152,7 @@ public class ScanImportServiceTests : IDisposable
 
         // Default setup: system exists, baseline exists
         _rmfServiceMock.Setup(s => s.GetSystemAsync(TestSystemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(_testSystem);
+            .ReturnsAsync(new GetSystemResult.Found(_testSystem));
         _baselineServiceMock.Setup(s => s.GetBaselineAsync(TestSystemId, false, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(_testBaseline);
 
@@ -591,7 +591,7 @@ public class ScanImportServiceTests : IDisposable
             CreatedBy = "admin"
         };
         _rmfServiceMock.Setup(s => s.GetSystemAsync(TestSystemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(implementSystem);
+            .ReturnsAsync(new GetSystemResult.Found(implementSystem));
 
         var entry = BuildEntry("V-254239", "Open");
         var parsed = BuildParsedCkl(entry);
@@ -1090,7 +1090,7 @@ public class ScanImportServiceTests : IDisposable
     public async Task ImportCkl_SystemNotFound_ReturnsFailedResult()
     {
         _rmfServiceMock.Setup(s => s.GetSystemAsync("nonexistent", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredSystem?)null);
+            .ReturnsAsync(new GetSystemResult.NotFound("nonexistent"));
 
         var result = await _service.ImportCklAsync(
             "nonexistent", null, DummyFileContent, "test.ckl",
@@ -1667,7 +1667,7 @@ public class ScanImportServiceTests : IDisposable
     {
         // Arrange: system not found
         _rmfServiceMock.Setup(s => s.GetSystemAsync("bad-sys", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredSystem?)null);
+            .ReturnsAsync(new GetSystemResult.NotFound("bad-sys"));
 
         var xccdfResult = BuildXccdfResult("SV-254239r849090_rule", "fail", "high");
         var parsed = BuildParsedXccdf(xccdfResult);

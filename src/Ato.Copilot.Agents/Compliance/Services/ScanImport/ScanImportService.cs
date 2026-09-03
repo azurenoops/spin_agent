@@ -106,7 +106,7 @@ public class ScanImportService : IScanImportService
         }
 
         // ── Step 2: Validate system ──────────────────────────────────────
-        var system = await _rmfService.GetSystemAsync(systemId, ct);
+        var system = UnwrapSystem(await _rmfService.GetSystemAsync(systemId, ct));
         if (system is null)
         {
             return CreateFailedResult(
@@ -606,7 +606,7 @@ public class ScanImportService : IScanImportService
         }
 
         // ── Step 2: Validate system ──────────────────────────────────────
-        var system = await _rmfService.GetSystemAsync(systemId, ct);
+        var system = UnwrapSystem(await _rmfService.GetSystemAsync(systemId, ct));
         if (system is null)
             return CreateFailedResult($"System '{systemId}' not found.", fileName);
 
@@ -1048,7 +1048,7 @@ public class ScanImportService : IScanImportService
         CancellationToken ct = default)
     {
         // ── Step 1: Validate system ──────────────────────────────────────
-        var system = await _rmfService.GetSystemAsync(systemId, ct);
+        var system = UnwrapSystem(await _rmfService.GetSystemAsync(systemId, ct));
         if (system is null)
             throw new InvalidOperationException($"System '{systemId}' not found.");
 
@@ -1565,7 +1565,7 @@ public class ScanImportService : IScanImportService
         if (systemId is not null)
         {
             // ── Explicit system — validate and import all alerts ─────────
-            var system = await _rmfService.GetSystemAsync(systemId, ct);
+            var system = UnwrapSystem(await _rmfService.GetSystemAsync(systemId, ct));
             if (system is null)
             {
                 sw.Stop();
@@ -1636,7 +1636,7 @@ public class ScanImportService : IScanImportService
                     "Prisma CSV subscription resolved: subscriptionId={SubscriptionId}, resolvedSystemId={ResolvedSystemId}",
                     accountId, resolvedSystemId);
 
-                var system = await _rmfService.GetSystemAsync(resolvedSystemId, ct);
+                var system = UnwrapSystem(await _rmfService.GetSystemAsync(resolvedSystemId, ct));
                 if (system is null)
                 {
                     unresolvedSubscriptions.Add(new UnresolvedSubscriptionInfo(
@@ -2143,7 +2143,7 @@ public class ScanImportService : IScanImportService
         if (systemId is not null)
         {
             // ── Explicit system — validate and import all alerts ─────────
-            var system = await _rmfService.GetSystemAsync(systemId, ct);
+            var system = UnwrapSystem(await _rmfService.GetSystemAsync(systemId, ct));
             if (system is null)
             {
                 sw.Stop();
@@ -2214,7 +2214,7 @@ public class ScanImportService : IScanImportService
                     "Prisma API JSON subscription resolved: subscriptionId={SubscriptionId}, resolvedSystemId={ResolvedSystemId}",
                     accountId, resolvedSystemId);
 
-                var system = await _rmfService.GetSystemAsync(resolvedSystemId, ct);
+                var system = UnwrapSystem(await _rmfService.GetSystemAsync(resolvedSystemId, ct));
                 if (system is null)
                 {
                     unresolvedSubscriptions.Add(new UnresolvedSubscriptionInfo(
@@ -2259,7 +2259,7 @@ public class ScanImportService : IScanImportService
         string systemId,
         CancellationToken ct = default)
     {
-        var system = await _rmfService.GetSystemAsync(systemId, ct)
+        var system = UnwrapSystem(await _rmfService.GetSystemAsync(systemId, ct))
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
 
         using var scope = _scopeFactory.CreateScope();
@@ -2373,7 +2373,7 @@ public class ScanImportService : IScanImportService
         string? groupBy,
         CancellationToken ct = default)
     {
-        var system = await _rmfService.GetSystemAsync(systemId, ct)
+        var system = UnwrapSystem(await _rmfService.GetSystemAsync(systemId, ct))
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
 
         using var scope = _scopeFactory.CreateScope();
@@ -2538,7 +2538,7 @@ public class ScanImportService : IScanImportService
         }
 
         // ── Step 2: Validate system ──────────────────────────────────────
-        var system = await _rmfService.GetSystemAsync(systemId, ct);
+        var system = UnwrapSystem(await _rmfService.GetSystemAsync(systemId, ct));
         if (system is null)
             return CreateFailedNessusResult($"System '{systemId}' not found.", dryRun);
 
@@ -3087,4 +3087,12 @@ public class ScanImportService : IScanImportService
             Warnings: new List<string>(),
             ErrorMessage: error);
     }
+
+    private static RegisteredSystem? UnwrapSystem(GetSystemResult result) => result switch
+    {
+        GetSystemResult.Found f    => f.System,
+        GetSystemResult.NoBaseline nb => nb.System,
+        GetSystemResult.NotFound   => null,
+        _                          => null
+    };
 }

@@ -38,8 +38,15 @@ public interface IRmfLifecycleService
     /// </summary>
     /// <param name="systemId">System ID (GUID string).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The system if found; null otherwise.</returns>
-    Task<RegisteredSystem?> GetSystemAsync(string systemId, CancellationToken cancellationToken = default);
+    /// <returns>
+    /// A <see cref="GetSystemResult"/> discriminating between:
+    /// <list type="bullet">
+    ///   <item><see cref="GetSystemResult.Found"/> — system exists and has a control baseline.</item>
+    ///   <item><see cref="GetSystemResult.NotFound"/> — no row matches the provided input.</item>
+    ///   <item><see cref="GetSystemResult.NoBaseline"/> — row exists but <c>ControlBaseline</c> is null.</item>
+    /// </list>
+    /// </returns>
+    Task<GetSystemResult> GetSystemAsync(string systemId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// List registered systems with pagination and optional active-only filter.
@@ -84,6 +91,21 @@ public interface IRmfLifecycleService
         string systemId,
         RmfPhase targetStep,
         CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Discriminated union result for <see cref="IRmfLifecycleService.GetSystemAsync"/>.
+/// </summary>
+public abstract record GetSystemResult
+{
+    /// <summary>System was found and has a control baseline assigned.</summary>
+    public record Found(RegisteredSystem System) : GetSystemResult;
+
+    /// <summary>No system row matches the provided input.</summary>
+    public record NotFound(string Input) : GetSystemResult;
+
+    /// <summary>System row exists but <see cref="RegisteredSystem.ControlBaseline"/> is null.</summary>
+    public record NoBaseline(RegisteredSystem System) : GetSystemResult;
 }
 
 /// <summary>

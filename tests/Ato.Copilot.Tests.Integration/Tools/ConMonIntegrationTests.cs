@@ -38,12 +38,14 @@ public class ConMonIntegrationTests : IDisposable
         var services = new ServiceCollection();
         services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
+        services.AddDbContextFactory<AtoCopilotContext>(opts =>
+            opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
         services.AddLogging();
 
         _serviceProvider = services.BuildServiceProvider();
         _scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        var lifecycleSvc = new RmfLifecycleService(_scopeFactory, Mock.Of<ILogger<RmfLifecycleService>>());
+        var lifecycleSvc = new RmfLifecycleService(_scopeFactory, _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(), Mock.Of<ILogger<RmfLifecycleService>>());
         var conMonSvc = new ConMonService(_scopeFactory, Mock.Of<ILogger<ConMonService>>());
         var authorizationSvc = new AuthorizationService(_scopeFactory, Mock.Of<ILogger<AuthorizationService>>());
 

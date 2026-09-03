@@ -203,6 +203,12 @@ public class RmfRegistrationToolTests
     {
         var mock = new Mock<IRmfLifecycleService>();
         var system = MakeSystem("Full System", SystemType.PlatformIt, MissionCriticality.MissionSupport);
+        system.ControlBaseline = new ControlBaseline
+        {
+            BaselineLevel = "Moderate",
+            TotalControls = 325,
+            OverlayApplied = null
+        };
         system.RmfRoleAssignments.Add(new RmfRoleAssignment
         {
             RegisteredSystemId = system.Id,
@@ -213,7 +219,7 @@ public class RmfRegistrationToolTests
             IsActive = true
         });
         mock.Setup(s => s.GetSystemAsync(system.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(system);
+            .ReturnsAsync(new GetSystemResult.Found(system));
 
         var tool = new GetSystemTool(mock.Object, Mock.Of<ILogger<GetSystemTool>>());
         var result = await tool.ExecuteAsync(new Dictionary<string, object?> { ["system_id"] = system.Id });
@@ -229,14 +235,31 @@ public class RmfRegistrationToolTests
     {
         var mock = new Mock<IRmfLifecycleService>();
         mock.Setup(s => s.GetSystemAsync("non-existent", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredSystem?)null);
+            .ReturnsAsync(new GetSystemResult.NotFound("non-existent"));
 
         var tool = new GetSystemTool(mock.Object, Mock.Of<ILogger<GetSystemTool>>());
         var result = await tool.ExecuteAsync(new Dictionary<string, object?> { ["system_id"] = "non-existent" });
 
         var json = JsonDocument.Parse(result);
         json.RootElement.GetProperty("status").GetString().Should().Be("error");
-        json.RootElement.GetProperty("errorCode").GetString().Should().Be("NOT_FOUND");
+        json.RootElement.GetProperty("errorCode").GetString().Should().Be("SYSTEM_NOT_FOUND");
+    }
+
+    [Fact]
+    public async Task GetSystem_NoBaseline_ReturnsNoBaselineError()
+    {
+        var mock = new Mock<IRmfLifecycleService>();
+        var system = MakeSystem("No Baseline System", SystemType.PlatformIt, MissionCriticality.MissionSupport);
+        mock.Setup(s => s.GetSystemAsync(system.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GetSystemResult.NoBaseline(system));
+
+        var tool = new GetSystemTool(mock.Object, Mock.Of<ILogger<GetSystemTool>>());
+        var result = await tool.ExecuteAsync(new Dictionary<string, object?> { ["system_id"] = system.Id });
+
+        var json = JsonDocument.Parse(result);
+        json.RootElement.GetProperty("status").GetString().Should().Be("error");
+        json.RootElement.GetProperty("errorCode").GetString().Should().Be("NO_BASELINE");
+        json.RootElement.GetProperty("hint").GetString().Should().Contain("compliance_select_baseline");
     }
 
     [Fact]

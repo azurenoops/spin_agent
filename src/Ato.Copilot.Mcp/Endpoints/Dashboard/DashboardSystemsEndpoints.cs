@@ -475,15 +475,30 @@ public static partial class DashboardEndpoints
                 CapabilityService capService,
                 CancellationToken ct) =>
             {
-                var result = await capService.GetGapAnalysisAsync(systemId, boundaryDefinitionId, ct);
-                return result is not null
-                    ? Results.Ok(result)
-                    : Results.NotFound(new ErrorResponse
+                // fix(#536): distinguish "system not found" from "no baseline selected"
+                try
+                {
+                    var result = await capService.GetGapAnalysisAsync(systemId, boundaryDefinitionId, ct);
+                    return Results.Ok(result);
+                }
+                catch (SystemNotFoundException ex)
+                {
+                    return Results.NotFound(new ErrorResponse
                     {
-                        Error = "System or baseline not found",
+                        Error = ex.Message,
                         ErrorCode = "SYSTEM_NOT_FOUND",
-                        Suggestion = "Ensure the system has a control baseline configured",
+                        Suggestion = "Use compliance_list_systems to find the correct system GUID, name, or acronym.",
                     });
+                }
+                catch (NoBaselineSelectedException ex)
+                {
+                    return Results.UnprocessableEntity(new ErrorResponse
+                    {
+                        Error = ex.Message,
+                        ErrorCode = "NO_BASELINE_SELECTED",
+                        Suggestion = "Run compliance_select_baseline to complete the RMF Select phase first.",
+                    });
+                }
             })
             .WithName("GetGapAnalysis");
 
