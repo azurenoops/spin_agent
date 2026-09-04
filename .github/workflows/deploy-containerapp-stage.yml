@@ -133,10 +133,18 @@ jobs:
           test -n "${{ vars.AZURE_RESOURCE_GROUP }}" || (echo "Missing environment variable: AZURE_RESOURCE_GROUP" && exit 1)
           if [ "${{ inputs.workload }}" = "chat" ]; then
             if [ -z "${{ inputs.containerapp_name }}" ] && [ -z "${{ vars.AZURE_CHAT_CONTAINERAPP_NAME || '' }}" ]; then
-              echo "Missing environment variable: AZURE_CHAT_CONTAINERAPP_NAME"
-              echo "Refusing to deploy workload=chat onto AZURE_CONTAINERAPP_NAME (the MCP app)."
-              echo "Set AZURE_CHAT_CONTAINERAPP_NAME on the GitHub Environment (example: ca-ato-copilot-chat-dev)."
-              exit 1
+              # Run 33777693029: test/prod have no env vars. Derive from MCP
+              # name (${BASE_APP/-mcp/-chat}) the same way dashboard does.
+              BASE_FOR_CHAT="${{ vars.AZURE_CONTAINERAPP_NAME || '' }}"
+              case "$BASE_FOR_CHAT" in
+                *-mcp*) ;;
+                *)
+                  echo "Missing environment variable: AZURE_CHAT_CONTAINERAPP_NAME"
+                  echo "Refusing to deploy workload=chat onto AZURE_CONTAINERAPP_NAME (the MCP app)."
+                  echo "Set AZURE_CHAT_CONTAINERAPP_NAME or name the MCP app with '-mcp' so chat can be derived."
+                  exit 1
+                  ;;
+              esac
             fi
           elif [ -z "${{ inputs.containerapp_name }}" ] && [ -z "${{ vars.AZURE_CONTAINERAPP_NAME || '' }}" ]; then
             echo "Missing environment variable: AZURE_CONTAINERAPP_NAME"
@@ -170,17 +178,43 @@ jobs:
             elif [ "$WORKLOAD" = "chat" ]; then
               # CD 33771928221: empty AZURE_CHAT_CONTAINERAPP_NAME fell through
               # to BASE_APP and updated ca-ato-copilot-mcp-v2 with the Chat
-              # image + port 8080. Chat must never inherit the MCP app name.
+              # image + port 8080. Derive like dashboard; never inherit MCP.
               APP="${{ vars.AZURE_CHAT_CONTAINERAPP_NAME || '' }}"
               if [ -z "$APP" ]; then
-                echo "Missing environment variable: AZURE_CHAT_CONTAINERAPP_NAME"
-                echo "Refusing to deploy workload=chat onto the MCP Container App."
-                exit 1
+                APP="${BASE_APP/-mcp/-chat}"
+                if [ "$APP" = "$BASE_APP" ]; then
+                  APP="${BASE_APP}-chat"
+                fi
               fi
             else
               APP="$BASE_APP"
             fi
           fi
+
+          # Run 33777693029: Dev env swapped names (MCP→dashboard, Chat→MCP).
+          # Refuse after resolve so an explicit wrong var cannot land either.
+          if [ "$WORKLOAD" = "chat" ]; then
+            case "$APP" in
+              *chat*) ;;
+              *)
+                echo "Refusing to deploy workload=chat onto '${APP}' (name must contain 'chat')."
+                echo "Set AZURE_CHAT_CONTAINERAPP_NAME to the Chat Container App (example: ca-ato-copilot-chat-v2)."
+                exit 1
+                ;;
+            esac
+          elif [ "$WORKLOAD" = "mcp" ]; then
+            case "$APP" in
+              *dashboard*|*chat*)
+                echo "Refusing to deploy workload=mcp onto '${APP}' (MCP name must not contain dashboard or chat)."
+                echo "Set AZURE_CONTAINERAPP_NAME to the MCP Container App (example: ca-ato-copilot-mcp-v2)."
+                exit 1
+                ;;
+            esac
+          fi
+
+          # #region agent log
+          echo "debug.session=3a8241 hypothesisId=E resolved workload=${WORKLOAD} app=${APP} base=${BASE_APP}"
+          # #endregion
 
           ENV_NAME="${{ inputs.containerapp_env_name }}"
           if [ -z "$ENV_NAME" ]; then
@@ -350,6 +384,35 @@ jobs:
             --scale-rule-http-concurrency "${HTTP_CONCURRENCY}"
           )
 
+          create_app() {
+            # Run 33804223965: binding ACR with a system identity at create
+            # time makes `az` write AcrPull. The CD OIDC principal does not
+            # have Microsoft.Authorization/roleAssignments/write, so
+            # first-create of ca-ato-copilot-chat-v2 failed after targeting
+            # was correct. Bind ACR after identity assign (registry set).
+            if [ -n "${ENV_ARGS}" ]; then
+              # shellcheck disable=SC2086
+              az containerapp create \
+                --resource-group "${RG}" \
+                --name "${APP}" \
+                --environment "${ENV_NAME}" \
+                --image "${IMAGE}" \
+                --target-port "${TARGET_PORT}" \
+                --ingress external \
+                "${RESOURCE_ARGS[@]}" \
+                --env-vars ${ENV_ARGS}
+            else
+              az containerapp create \
+                --resource-group "${RG}" \
+                --name "${APP}" \
+                --environment "${ENV_NAME}" \
+                --image "${IMAGE}" \
+                --target-port "${TARGET_PORT}" \
+                --ingress external \
+                "${RESOURCE_ARGS[@]}"
+            fi
+          }
+
           if az containerapp show -g "${RG}" -n "${APP}" >/dev/null 2>&1; then
             if [ -n "${ENV_ARGS}" ]; then
               # shellcheck disable=SC2086
@@ -367,32 +430,19 @@ jobs:
                 "${RESOURCE_ARGS[@]}"
             fi
           else
-            if [ -n "${ENV_ARGS}" ]; then
-              # shellcheck disable=SC2086
-              az containerapp create \
-                --resource-group "${RG}" \
-                --name "${APP}" \
-                --environment "${ENV_NAME}" \
-                --image "${IMAGE}" \
-                --target-port "${TARGET_PORT}" \
-                --ingress external \
-                --registry-server "${{ steps.acr.outputs.login_server }}" \
-                --registry-identity system \
-                "${RESOURCE_ARGS[@]}" \
-                --env-vars ${ENV_ARGS}
-            else
-              az containerapp create \
-                --resource-group "${RG}" \
-                --name "${APP}" \
-                --environment "${ENV_NAME}" \
-                --image "${IMAGE}" \
-                --target-port "${TARGET_PORT}" \
-                --ingress external \
-                --registry-server "${{ steps.acr.outputs.login_server }}" \
-                --registry-identity system \
-                "${RESOURCE_ARGS[@]}"
+            if ! create_app; then
+              if az containerapp show -g "${RG}" -n "${APP}" >/dev/null 2>&1; then
+                echo "::warning::Create returned an error but '${APP}' exists. Continuing (AcrPull is applied later)."
+              else
+                echo "::error::Failed to create Container App '${APP}'."
+                exit 1
+              fi
             fi
           fi
+
+          # #region agent log
+          echo "debug.session=3a8241 hypothesisId=F create_or_update app=${APP} exists=yes"
+          # #endregion
 
       - name: Ensure ingress target port
         shell: bash
@@ -460,12 +510,22 @@ jobs:
 
           # Idempotent: az role assignment create returns an error if the assignment
           # already exists; suppress that specific error and continue.
-          az role assignment create \
+          if az role assignment create \
             --assignee-object-id "${PRINCIPAL_ID}" \
             --assignee-principal-type ServicePrincipal \
             --role AcrPull \
-            --scope "${ACR_ID}" >/dev/null 2>&1 || \
-            echo "AcrPull already assigned or assignment pending — continuing."
+            --scope "${ACR_ID}" >/dev/null; then
+            echo "Granted AcrPull on ${ACR_NAME} to ${APP} (${PRINCIPAL_ID})."
+          else
+            echo "::warning::Could not grant AcrPull (CD principal may lack roleAssignments/write). Grant once, then re-run CD:"
+            echo "az role assignment create --assignee-object-id ${PRINCIPAL_ID} --assignee-principal-type ServicePrincipal --role AcrPull --scope ${ACR_ID}"
+          fi
+
+          az containerapp registry set \
+            --resource-group "${RG}" \
+            --name "${APP}" \
+            --server "${{ steps.acr.outputs.login_server }}" \
+            --identity system
 
       - name: Set optional runtime secrets
         if: inputs.inject_runtime_secrets

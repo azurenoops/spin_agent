@@ -55,8 +55,9 @@ Set these environment-level variables in each GitHub Environment (`dev`, `test`,
 - `AZURE_RESOURCE_GROUP`
 - `AZURE_ACR_NAME`
 - `AZURE_CONTAINERAPP_ENV_NAME`
-- `AZURE_CONTAINERAPP_NAME`
-- `AZURE_CHAT_CONTAINERAPP_NAME` (required for Chat deploys; without it CD updates the MCP app — see run 33771928221)
+- `AZURE_CONTAINERAPP_NAME` (the **MCP** app; must contain `mcp`, must not contain `dashboard` or `chat`. Example: `ca-ato-copilot-mcp-v2`. Run 33777693029: Dev had this set to the dashboard app, so `deploy-dev` updated Dashboard with the MCP image.)
+- `AZURE_CHAT_CONTAINERAPP_NAME` (the **Chat** app; must contain `chat`. Example: `ca-ato-copilot-chat-v2`. If unset, CD derives it from the MCP name: `ca-ato-copilot-mcp-v2` → `ca-ato-copilot-chat-v2`. An empty or MCP-named value previously updated the MCP app — runs 33771928221 and 33777693029.)
+- First-time Chat create (run 33804223965) does **not** grant AcrPull inline. If the CD principal lacks `Microsoft.Authorization/roleAssignments/write` on the ACR, grant AcrPull once to the new app's system identity, then re-run CD.
 
 Optional environment-level variables:
 
