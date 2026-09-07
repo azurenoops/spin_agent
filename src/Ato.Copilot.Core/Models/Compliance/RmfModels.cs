@@ -729,7 +729,7 @@ public class OrgInheritanceDefault
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
-    /// <summary>NIST control ID (e.g., "AC-2"). Unique — one org default per control.</summary>
+    /// <summary>NIST control ID (e.g., "AC-2"). Unique per tenant — one org default per tenant per control.</summary>
     [Required]
     [MaxLength(20)]
     public string ControlId { get; set; } = string.Empty;

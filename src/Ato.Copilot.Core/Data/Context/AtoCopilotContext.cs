@@ -1515,10 +1515,10 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.SourceCapabilityNames).HasMaxLength(2000).IsRequired();
             entity.Property(e => e.MappingRole).HasConversion<string>().HasMaxLength(20);
 
-            // Unique index: one org default per control
-            entity.HasIndex(e => e.ControlId)
+            // Unique index: one org default per tenant per control (multi-tenant scope)
+            entity.HasIndex(e => new { e.TenantId, e.ControlId })
                 .IsUnique()
-                .HasDatabaseName("IX_OrgInheritanceDefault_ControlId");
+                .HasDatabaseName("IX_OrgInheritanceDefault_TenantId_ControlId");
             entity.HasIndex(e => e.InheritanceType)
                 .HasDatabaseName("IX_OrgInheritanceDefault_InheritanceType");
         });
