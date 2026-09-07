@@ -943,6 +943,19 @@ string GetSqlServerColumnType(Microsoft.EntityFrameworkCore.Metadata.IProperty p
 /// </summary>
 async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions.Logging.ILogger<AtoCopilotContext> logger, CancellationToken ct, Ato.Copilot.Mcp.Configuration.DeploymentOptions? deploymentOptions = null)
 {
+    // Raw SQL blocks below use SQL Server dialect (IF COL_LENGTH, sys.indexes, etc.).
+    // On SQLite (dev / integration tests) EnsureCreatedAsync + MigrateAsync already
+    // apply the full schema, so these blocks are safely skipped.
+    var providerName = db.Database.ProviderName ?? string.Empty;
+    var isSqlServer = providerName.Contains("SqlServer", StringComparison.OrdinalIgnoreCase);
+
+    if (!isSqlServer)
+    {
+        logger.LogInformation(
+            "EnsureSchemaAdditionsAsync: skipping SQL Server-only raw DDL blocks (provider={Provider})",
+            providerName);
+    }
+
     // Add columns/indexes that were added to existing tables after initial EnsureCreated
     const string alterSql = """
         IF COL_LENGTH('AlertNotifications', 'UserId') IS NULL
@@ -998,16 +1011,19 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
             ALTER TABLE FrameworkControls ALTER COLUMN WithdrawnTo NVARCHAR(50) NULL;
         """;
 
-    try
+    if (isSqlServer)
     {
-        await db.Database.ExecuteSqlRawAsync(alterSql, ct);
-        logger.LogInformation("Verified schema additions on existing tables");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (alert-notifications/poam/findings/components/frameworks). Startup aborted.");
-        throw new InvalidOperationException(
-            "Database schema initialization failed in EnsureSchemaAdditionsAsync (base schema additions).", ex);
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(alterSql, ct);
+            logger.LogInformation("Verified schema additions on existing tables");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (alert-notifications/poam/findings/components/frameworks). Startup aborted.");
+            throw new InvalidOperationException(
+                "Database schema initialization failed in EnsureSchemaAdditionsAsync (base schema additions).", ex);
+        }
     }
 
     // Feature 047: Repair Persons.UX_Person_Tenant_EntraObjectId — drop the
@@ -1030,48 +1046,56 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         END
         """;
 
-    try
+    if (isSqlServer)
     {
-        await db.Database.ExecuteSqlRawAsync(personIndexRepairSql, ct);
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Persons unique index repair). Startup aborted.");
-        throw new InvalidOperationException(
-            "Database schema initialization failed in EnsureSchemaAdditionsAsync (Persons index repair).", ex);
-    }
-
-    // Feature 036: Migrate existing system-scoped components to org-wide assignments
-    try
-    {
-        var componentsToMigrate = await db.SystemComponents
-            .Where(c => c.RegisteredSystemId != null)
-            .Where(c => !db.ComponentSystemAssignments.Any(a => a.SystemComponentId == c.Id && a.RegisteredSystemId == c.RegisteredSystemId))
-            .ToListAsync(ct);
-
-        if (componentsToMigrate.Count > 0)
+        try
         {
-            foreach (var comp in componentsToMigrate)
-            {
-                db.ComponentSystemAssignments.Add(new Ato.Copilot.Core.Models.Compliance.ComponentSystemAssignment
-                {
-                    SystemComponentId = comp.Id,
-                    RegisteredSystemId = comp.RegisteredSystemId!,
-                    AuthorizationBoundaryDefinitionId = comp.AuthorizationBoundaryDefinitionId,
-                    CreatedBy = "system-migration",
-                });
-                comp.RegisteredSystemId = null;
-            }
-
-            await db.SaveChangesAsync(ct);
-            logger.LogInformation("Migrated {Count} system-scoped components to org-wide assignments", componentsToMigrate.Count);
+            await db.Database.ExecuteSqlRawAsync(personIndexRepairSql, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Persons unique index repair). Startup aborted.");
+            throw new InvalidOperationException(
+                "Database schema initialization failed in EnsureSchemaAdditionsAsync (Persons index repair).", ex);
         }
     }
-    catch (Exception ex)
+
+    // Feature 036: Migrate existing system-scoped components to org-wide assignments.
+    // This data migration only applies on SQL Server (production). SQLite (dev/test)
+    // uses EnsureCreated which already creates the schema in final state.
+    if (isSqlServer)
     {
-        logger.LogError(ex, "EnsureSchemaAdditionsAsync: FAILED migrating system-scoped components. Startup aborted.");
-        throw new InvalidOperationException(
-            "Database schema initialization failed in EnsureSchemaAdditionsAsync (component migration).", ex);
+        try
+        {
+            var componentsToMigrate = await db.SystemComponents
+                .Where(c => c.RegisteredSystemId != null)
+                .Where(c => !db.ComponentSystemAssignments.Any(a => a.SystemComponentId == c.Id && a.RegisteredSystemId == c.RegisteredSystemId))
+                .ToListAsync(ct);
+
+            if (componentsToMigrate.Count > 0)
+            {
+                foreach (var comp in componentsToMigrate)
+                {
+                    db.ComponentSystemAssignments.Add(new Ato.Copilot.Core.Models.Compliance.ComponentSystemAssignment
+                    {
+                        SystemComponentId = comp.Id,
+                        RegisteredSystemId = comp.RegisteredSystemId!,
+                        AuthorizationBoundaryDefinitionId = comp.AuthorizationBoundaryDefinitionId,
+                        CreatedBy = "system-migration",
+                    });
+                    comp.RegisteredSystemId = null;
+                }
+
+                await db.SaveChangesAsync(ct);
+                logger.LogInformation("Migrated {Count} system-scoped components to org-wide assignments", componentsToMigrate.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "EnsureSchemaAdditionsAsync: FAILED migrating system-scoped components. Startup aborted.");
+            throw new InvalidOperationException(
+                "Database schema initialization failed in EnsureSchemaAdditionsAsync (component migration).", ex);
+        }
     }
 
     // Feature 037: SSP Document Export tables
@@ -1119,16 +1143,19 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
             CREATE INDEX IX_SspTemplates_IsActive_Name ON SspTemplates (IsActive, Name);
         """;
 
-    try
+    if (isSqlServer)
     {
-        await db.Database.ExecuteSqlRawAsync(sspExportSql, ct);
-        logger.LogInformation("Verified SSP Export schema (Feature 037)");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (SSP Export schema). Startup aborted.");
-        throw new InvalidOperationException(
-            "Database schema initialization failed in EnsureSchemaAdditionsAsync (SSP Export schema).", ex);
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(sspExportSql, ct);
+            logger.LogInformation("Verified SSP Export schema (Feature 037)");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (SSP Export schema). Startup aborted.");
+            throw new InvalidOperationException(
+                "Database schema initialization failed in EnsureSchemaAdditionsAsync (SSP Export schema).", ex);
+        }
     }
 
     // Feature 040: Component-Centric Boundary Model — add Azure fields + ComponentId FK
@@ -1172,16 +1199,19 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
             CREATE INDEX IX_BCA_BoundaryId ON BoundaryComponentAssignments (AuthorizationBoundaryDefinitionId);
         """;
 
-    try
+    if (isSqlServer)
     {
-        await db.Database.ExecuteSqlRawAsync(feature040Sql, ct);
-        logger.LogInformation("Verified Feature 040 schema (Component-Centric Boundary)");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Feature 040 Component-Centric Boundary schema). Startup aborted.");
-        throw new InvalidOperationException(
-            "Database schema initialization failed in EnsureSchemaAdditionsAsync (Feature 040 schema).", ex);
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(feature040Sql, ct);
+            logger.LogInformation("Verified Feature 040 schema (Component-Centric Boundary)");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Feature 040 Component-Centric Boundary schema). Startup aborted.");
+            throw new InvalidOperationException(
+                "Database schema initialization failed in EnsureSchemaAdditionsAsync (Feature 040 schema).", ex);
+        }
     }
 
     // Feature 048: Tenancy schema additions (Tenants, Organizations) and system-tenant bootstrap.
