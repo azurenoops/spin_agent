@@ -93,3 +93,4 @@ ATO Copilot enforces role-based access control at every tool invocation. Your ro
 - [Troubleshooting](reference/troubleshooting.md) — Common errors and resolutions
 - [Quick Reference Cards](reference/quick-reference-cards.md) — Printable cheat sheets by persona
 - [Glossary](reference/glossary.md) — Terms and definitions
+- [Database Providers](database-providers.md) — Supported providers, configuration, connection strings, and migration usage

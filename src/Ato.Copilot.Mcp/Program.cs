@@ -1005,7 +1005,9 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Could not apply schema additions — non-fatal");
+        logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (alert-notifications/poam/findings/components/frameworks). Startup aborted.");
+        throw new InvalidOperationException(
+            "Database schema initialization failed in EnsureSchemaAdditionsAsync (base schema additions).", ex);
     }
 
     // Feature 047: Repair Persons.UX_Person_Tenant_EntraObjectId — drop the
@@ -1034,7 +1036,9 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Could not repair Persons unique index — non-fatal");
+        logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Persons unique index repair). Startup aborted.");
+        throw new InvalidOperationException(
+            "Database schema initialization failed in EnsureSchemaAdditionsAsync (Persons index repair).", ex);
     }
 
     // Feature 036: Migrate existing system-scoped components to org-wide assignments
@@ -1065,7 +1069,9 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Could not migrate system-scoped components — non-fatal");
+        logger.LogError(ex, "EnsureSchemaAdditionsAsync: FAILED migrating system-scoped components. Startup aborted.");
+        throw new InvalidOperationException(
+            "Database schema initialization failed in EnsureSchemaAdditionsAsync (component migration).", ex);
     }
 
     // Feature 037: SSP Document Export tables
@@ -1120,7 +1126,9 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Could not apply SSP Export schema — non-fatal");
+        logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (SSP Export schema). Startup aborted.");
+        throw new InvalidOperationException(
+            "Database schema initialization failed in EnsureSchemaAdditionsAsync (SSP Export schema).", ex);
     }
 
     // Feature 040: Component-Centric Boundary Model — add Azure fields + ComponentId FK
@@ -1171,7 +1179,9 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Could not apply Feature 040 schema — non-fatal");
+        logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Feature 040 Component-Centric Boundary schema). Startup aborted.");
+        throw new InvalidOperationException(
+            "Database schema initialization failed in EnsureSchemaAdditionsAsync (Feature 040 schema).", ex);
     }
 
     // Feature 048: Tenancy schema additions (Tenants, Organizations) and system-tenant bootstrap.

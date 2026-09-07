@@ -62,8 +62,12 @@ public static class AuditLogTenantAttributionAdditions
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex,
-                "AuditLogTenantAttributionAdditions encountered an error — non-fatal if columns already exist");
+            logger.LogError(ex,
+                "AuditLogTenantAttributionAdditions: DDL FAILED for provider {Provider}. Startup aborted.",
+                providerName);
+            throw new InvalidOperationException(
+                $"Database schema initialization failed in AuditLogTenantAttributionAdditions for provider '{providerName}'.",
+                ex);
         }
     }
 

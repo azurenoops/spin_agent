@@ -53,8 +53,12 @@ public static class GlobalBaselineSchemaAdditions
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex,
-                "GlobalBaselineSchemaAdditions encountered an error — non-fatal if table already exists");
+            logger.LogError(ex,
+                "GlobalBaselineSchemaAdditions: DDL FAILED for provider {Provider}. Startup aborted.",
+                providerName);
+            throw new InvalidOperationException(
+                $"Database schema initialization failed in GlobalBaselineSchemaAdditions for provider '{providerName}'.",
+                ex);
         }
     }
 

@@ -281,7 +281,7 @@ ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION="Server=localhost,1433;..."
 | `AzureAd` | Azure AD / Entra ID (`TenantId`, `ClientId`, `ClientSecret`, `CloudEnvironment`, `RequireCac`) |
 | `Gateway:Azure` | Subscription, managed identity, Gov cloud, request timeouts |
 | `ConnectionStrings` | SQLite (dev) / SQL Server (prod) — `DefaultConnection`, `ChatDb` |
-| `Database` | EF Core `Provider`, `CommandTimeoutSeconds`, `MaxRetryCount`, `MaxRetryDelay`, `EnableSensitiveDataLogging` |
+| `Database` | EF Core `Provider`, `CommandTimeoutSeconds`, `MaxRetryCount`, `MaxRetryDelay`, `EnableSensitiveDataLogging` — see [Database Providers](docs/database-providers.md) |
 | `Resilience` | Polly HTTP pipelines (`Name`, `MaxRetryAttempts`, `BaseDelaySeconds`, `UseJitter`, `RequestTimeoutSeconds`) |
 | `RateLimiting` | Per-endpoint rate-limit policies (Feature 029) |
 | `Caching` | `IMemoryCache` defaults |

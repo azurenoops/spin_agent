@@ -71,9 +71,12 @@ public static class CapabilityHistoryEventsSchemaAdditions
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex,
-                "CapabilityHistoryEventsSchemaAdditions encountered an error — "
-                + "non-fatal if table already exists");
+            logger.LogError(ex,
+                "CapabilityHistoryEventsSchemaAdditions: DDL FAILED for provider {Provider}. Startup aborted.",
+                providerName);
+            throw new InvalidOperationException(
+                $"Database schema initialization failed in CapabilityHistoryEventsSchemaAdditions for provider '{providerName}'.",
+                ex);
         }
     }
 
