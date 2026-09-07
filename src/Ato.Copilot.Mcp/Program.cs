@@ -943,16 +943,18 @@ string GetSqlServerColumnType(Microsoft.EntityFrameworkCore.Metadata.IProperty p
 /// </summary>
 async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions.Logging.ILogger<AtoCopilotContext> logger, CancellationToken ct, Ato.Copilot.Mcp.Configuration.DeploymentOptions? deploymentOptions = null)
 {
-    // Raw SQL blocks below use SQL Server dialect (IF COL_LENGTH, sys.indexes, etc.).
-    // On SQLite (dev / integration tests) EnsureCreatedAsync + MigrateAsync already
-    // apply the full schema, so these blocks are safely skipped.
+    // Raw SQL blocks below are dialect-aware. SQL Server uses T-SQL guards
+    // (IF COL_LENGTH, sys.indexes, sys.tables). SQLite uses PRAGMA table_info
+    // column checks, CREATE TABLE IF NOT EXISTS, and CREATE INDEX IF NOT EXISTS.
+    // Unknown providers are logged and skipped per block.
     var providerName = db.Database.ProviderName ?? string.Empty;
     var isSqlServer = providerName.Contains("SqlServer", StringComparison.OrdinalIgnoreCase);
+    var isSqlite   = providerName.Contains("Sqlite",    StringComparison.OrdinalIgnoreCase);
 
-    if (!isSqlServer)
+    if (!isSqlServer && !isSqlite)
     {
-        logger.LogInformation(
-            "EnsureSchemaAdditionsAsync: skipping SQL Server-only raw DDL blocks (provider={Provider})",
+        logger.LogWarning(
+            "EnsureSchemaAdditionsAsync: unrecognised provider '{Provider}' — inline DDL blocks will be skipped",
             providerName);
     }
 
@@ -1025,6 +1027,20 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
                 "Database schema initialization failed in EnsureSchemaAdditionsAsync (base schema additions).", ex);
         }
     }
+    else if (isSqlite)
+    {
+        try
+        {
+            await ApplySqliteBaseSchemaAdditionsAsync(db, ct);
+            logger.LogInformation("Verified schema additions on existing tables (SQLite)");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (alert-notifications/poam/findings/components/frameworks) on SQLite. Startup aborted.");
+            throw new InvalidOperationException(
+                "Database schema initialization failed in EnsureSchemaAdditionsAsync (base schema additions, SQLite).", ex);
+        }
+    }
 
     // Feature 047: Repair Persons.UX_Person_Tenant_EntraObjectId — drop the
     // unfiltered unique index and recreate it with `[EntraObjectId] IS NOT NULL`
@@ -1057,6 +1073,19 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
             logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Persons unique index repair). Startup aborted.");
             throw new InvalidOperationException(
                 "Database schema initialization failed in EnsureSchemaAdditionsAsync (Persons index repair).", ex);
+        }
+    }
+    else if (isSqlite)
+    {
+        try
+        {
+            await ApplySqlitePersonIndexRepairAsync(db, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Persons unique index repair) on SQLite. Startup aborted.");
+            throw new InvalidOperationException(
+                "Database schema initialization failed in EnsureSchemaAdditionsAsync (Persons index repair, SQLite).", ex);
         }
     }
 
@@ -1157,6 +1186,20 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
                 "Database schema initialization failed in EnsureSchemaAdditionsAsync (SSP Export schema).", ex);
         }
     }
+    else if (isSqlite)
+    {
+        try
+        {
+            await ApplySqliteSspExportSchemaAsync(db, ct);
+            logger.LogInformation("Verified SSP Export schema (Feature 037, SQLite)");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (SSP Export schema) on SQLite. Startup aborted.");
+            throw new InvalidOperationException(
+                "Database schema initialization failed in EnsureSchemaAdditionsAsync (SSP Export schema, SQLite).", ex);
+        }
+    }
 
     // Feature 040: Component-Centric Boundary Model — add Azure fields + ComponentId FK
     const string feature040Sql = """
@@ -1211,6 +1254,20 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
             logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Feature 040 Component-Centric Boundary schema). Startup aborted.");
             throw new InvalidOperationException(
                 "Database schema initialization failed in EnsureSchemaAdditionsAsync (Feature 040 schema).", ex);
+        }
+    }
+    else if (isSqlite)
+    {
+        try
+        {
+            await ApplySqliteFeature040SchemaAsync(db, ct);
+            logger.LogInformation("Verified Feature 040 schema (Component-Centric Boundary, SQLite)");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "EnsureSchemaAdditionsAsync: DDL FAILED (Feature 040 Component-Centric Boundary schema) on SQLite. Startup aborted.");
+            throw new InvalidOperationException(
+                "Database schema initialization failed in EnsureSchemaAdditionsAsync (Feature 040 schema, SQLite).", ex);
         }
     }
 
@@ -1278,6 +1335,237 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // FR-033 startup warning that RLS is unavailable.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.RlsPolicyInstaller
         .ApplyAsync(db, logger, ct);
+}
+
+// ────────────────────────────────────────────────────────────────
+//  SQLite helpers for EnsureSchemaAdditionsAsync
+//  Each mirrors the T-SQL block above but uses PRAGMA table_info
+//  for column existence, CREATE TABLE/INDEX IF NOT EXISTS for new
+//  objects, and SQLite types (TEXT, INTEGER, REAL) instead of
+//  SQL Server types. All are idempotent across repeated startups.
+// ────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Returns the set of column names that currently exist on <paramref name="table"/>
+/// in the SQLite database, using PRAGMA table_info.
+/// </summary>
+static async Task<HashSet<string>> GetSqliteColumnsAsync(
+    AtoCopilotContext db,
+    string table,
+    CancellationToken ct)
+{
+    var cols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    await using var cmd = db.Database.GetDbConnection().CreateCommand();
+    cmd.CommandText = $"PRAGMA table_info('{table}')";
+    if (cmd.Connection!.State != System.Data.ConnectionState.Open)
+        await cmd.Connection.OpenAsync(ct);
+    await using var reader = await cmd.ExecuteReaderAsync(ct);
+    while (await reader.ReadAsync(ct))
+        cols.Add(reader.GetString(1)); // column index 1 = name
+    return cols;
+}
+
+/// <summary>
+/// Adds a nullable TEXT column to <paramref name="table"/> if absent.
+/// </summary>
+static async Task AddSqliteColumnIfMissingAsync(
+    AtoCopilotContext db,
+    string table,
+    string column,
+    string sqliteType,
+    HashSet<string> existingColumns,
+    CancellationToken ct)
+{
+    if (!existingColumns.Contains(column))
+        await db.Database.ExecuteSqlRawAsync(
+            $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {sqliteType}", ct);
+}
+
+/// <summary>
+/// SQLite path for the base schema additions block (alert-notifications, poam,
+/// findings, system-components, framework-controls).
+/// </summary>
+static async Task ApplySqliteBaseSchemaAdditionsAsync(AtoCopilotContext db, CancellationToken ct)
+{
+    // ── AlertNotifications columns ───────────────────────────────────────────
+    var alertCols = await GetSqliteColumnsAsync(db, "AlertNotifications", ct);
+    await AddSqliteColumnIfMissingAsync(db, "AlertNotifications", "UserId",  "TEXT NULL",    alertCols, ct);
+    await AddSqliteColumnIfMissingAsync(db, "AlertNotifications", "IsRead",  "INTEGER NOT NULL DEFAULT 0", alertCols, ct);
+    await AddSqliteColumnIfMissingAsync(db, "AlertNotifications", "ReadAt",  "TEXT NULL",    alertCols, ct);
+
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS \"IX_AlertNotification_User_Read\" " +
+        "ON \"AlertNotifications\" (\"UserId\", \"IsRead\")", ct);
+
+    // ── PoamItems columns ────────────────────────────────────────────────────
+    var poamCols = await GetSqliteColumnsAsync(db, "PoamItems", ct);
+    await AddSqliteColumnIfMissingAsync(db, "PoamItems", "DeviationId", "TEXT NULL", poamCols, ct);
+
+    // ── Findings columns ─────────────────────────────────────────────────────
+    var findCols = await GetSqliteColumnsAsync(db, "Findings", ct);
+    await AddSqliteColumnIfMissingAsync(db, "Findings", "DeviationId", "TEXT NULL", findCols, ct);
+
+    // ── SystemComponents columns ─────────────────────────────────────────────
+    // Feature 036: make RegisteredSystemId nullable
+    // SQLite cannot ALTER COLUMN nullability — EnsureCreated creates the column
+    // nullable by default on SQLite, so nothing to do here.
+
+    var scCols = await GetSqliteColumnsAsync(db, "SystemComponents", ct);
+    await AddSqliteColumnIfMissingAsync(db, "SystemComponents", "PersonName",   "TEXT NULL", scCols, ct);
+    await AddSqliteColumnIfMissingAsync(db, "SystemComponents", "Email",        "TEXT NULL", scCols, ct);
+    await AddSqliteColumnIfMissingAsync(db, "SystemComponents", "RmfRoleName",  "TEXT NULL", scCols, ct);
+
+    // ── FrameworkControls columns ────────────────────────────────────────────
+    // SQLite TEXT has no max_length constraint, so widening is a no-op.
+    // The columns exist after EnsureCreated; nothing to alter.
+}
+
+/// <summary>
+/// SQLite path for the Persons unique-index repair (Feature 047).
+/// Drops the unfiltered UX_Person_Tenant_EntraObjectId and recreates it
+/// with WHERE EntraObjectId IS NOT NULL, mirroring the SQL Server repair.
+/// Uses PRAGMA index_list to detect whether the unfiltered index is still
+/// present.
+/// </summary>
+static async Task ApplySqlitePersonIndexRepairAsync(AtoCopilotContext db, CancellationToken ct)
+{
+    // Check whether the unfiltered unique index still exists.
+    // PRAGMA index_list returns: seq, name, unique, origin, partial
+    // partial=0 means no WHERE clause.
+    var needsRepair = false;
+    await using (var cmd = db.Database.GetDbConnection().CreateCommand())
+    {
+        cmd.CommandText = "PRAGMA index_list('Persons')";
+        if (cmd.Connection!.State != System.Data.ConnectionState.Open)
+            await cmd.Connection.OpenAsync(ct);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var name    = reader.GetString(1);   // column 1 = name
+            var partial = reader.GetInt64(4);    // column 4 = partial (1 = has WHERE)
+            if (name == "UX_Person_Tenant_EntraObjectId" && partial == 0)
+            {
+                needsRepair = true;
+                break;
+            }
+        }
+    }
+
+    if (needsRepair)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            "DROP INDEX IF EXISTS \"UX_Person_Tenant_EntraObjectId\"", ct);
+    }
+
+    // Recreate with WHERE clause (SQLite 3.8+ partial index support).
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE UNIQUE INDEX IF NOT EXISTS \"UX_Person_Tenant_EntraObjectId\" " +
+        "ON \"Persons\" (\"TenantId\", \"EntraObjectId\") " +
+        "WHERE \"EntraObjectId\" IS NOT NULL", ct);
+}
+
+/// <summary>
+/// SQLite path for Feature 037 SSP Export schema.
+/// Creates SspExports and SspTemplates tables + their indexes if absent.
+/// Uses SQLite-compatible types and DEFAULT expressions.
+/// </summary>
+static async Task ApplySqliteSspExportSchemaAsync(AtoCopilotContext db, CancellationToken ct)
+{
+    await db.Database.ExecuteSqlRawAsync("""
+        CREATE TABLE IF NOT EXISTS "SspExports" (
+            "Id"           TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+            "SystemId"     TEXT NOT NULL,
+            "Format"       TEXT NOT NULL,
+            "Status"       TEXT NOT NULL DEFAULT 'Pending',
+            "FilePath"     TEXT NULL,
+            "FileSize"     INTEGER NULL,
+            "ContentHash"  TEXT NULL,
+            "TemplateId"   TEXT NULL,
+            "GeneratedBy"  TEXT NOT NULL,
+            "GeneratedAt"  TEXT NOT NULL DEFAULT (datetime('now')),
+            "CompletedAt"  TEXT NULL,
+            "ExpiresAt"    TEXT NOT NULL,
+            "ErrorMessage" TEXT NULL,
+            "ControlCount" INTEGER NULL
+        )
+        """, ct);
+
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS \"IX_SspExports_SystemId_GeneratedAt\" " +
+        "ON \"SspExports\" (\"SystemId\", \"GeneratedAt\" DESC)", ct);
+
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS \"IX_SspExports_ExpiresAt\" " +
+        "ON \"SspExports\" (\"ExpiresAt\")", ct);
+
+    await db.Database.ExecuteSqlRawAsync("""
+        CREATE TABLE IF NOT EXISTS "SspTemplates" (
+            "Id"          TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+            "Name"        TEXT NOT NULL,
+            "Description" TEXT NULL,
+            "FilePath"    TEXT NOT NULL,
+            "FileSize"    INTEGER NOT NULL,
+            "MergeFields" TEXT NULL,
+            "IsDefault"   INTEGER NOT NULL DEFAULT 0,
+            "IsActive"    INTEGER NOT NULL DEFAULT 1,
+            "UploadedBy"  TEXT NOT NULL,
+            "UploadedAt"  TEXT NOT NULL DEFAULT (datetime('now')),
+            "UpdatedAt"   TEXT NULL
+        )
+        """, ct);
+
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS \"IX_SspTemplates_IsActive_Name\" " +
+        "ON \"SspTemplates\" (\"IsActive\", \"Name\")", ct);
+}
+
+/// <summary>
+/// SQLite path for Feature 040 Component-Centric Boundary schema.
+/// Adds Azure fields to SystemComponents, ComponentId to Findings, and
+/// creates the BoundaryComponentAssignments table with its indexes.
+/// </summary>
+static async Task ApplySqliteFeature040SchemaAsync(AtoCopilotContext db, CancellationToken ct)
+{
+    // ── SystemComponents Azure columns ───────────────────────────────────────
+    var scCols = await GetSqliteColumnsAsync(db, "SystemComponents", ct);
+    await AddSqliteColumnIfMissingAsync(db, "SystemComponents", "AzureResourceId",    "TEXT NULL", scCols, ct);
+    await AddSqliteColumnIfMissingAsync(db, "SystemComponents", "AzureResourceType",  "TEXT NULL", scCols, ct);
+    await AddSqliteColumnIfMissingAsync(db, "SystemComponents", "AzureResourceGroup", "TEXT NULL", scCols, ct);
+    await AddSqliteColumnIfMissingAsync(db, "SystemComponents", "AzureLocation",      "TEXT NULL", scCols, ct);
+
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS \"IX_SystemComponent_AzureResourceId\" " +
+        "ON \"SystemComponents\" (\"AzureResourceId\")", ct);
+
+    // ── Findings ComponentId column ──────────────────────────────────────────
+    var findCols = await GetSqliteColumnsAsync(db, "Findings", ct);
+    await AddSqliteColumnIfMissingAsync(db, "Findings", "ComponentId", "TEXT NULL", findCols, ct);
+
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS \"IX_ComplianceFinding_ComponentId\" " +
+        "ON \"Findings\" (\"ComponentId\")", ct);
+
+    // ── BoundaryComponentAssignments table ───────────────────────────────────
+    await db.Database.ExecuteSqlRawAsync("""
+        CREATE TABLE IF NOT EXISTS "BoundaryComponentAssignments" (
+            "Id"                                  TEXT NOT NULL PRIMARY KEY,
+            "SystemComponentId"                   TEXT NOT NULL,
+            "AuthorizationBoundaryDefinitionId"   TEXT NOT NULL,
+            "IsInScope"                           INTEGER NOT NULL DEFAULT 1,
+            "ExclusionRationale"                  TEXT NULL,
+            "InheritanceProvider"                 TEXT NULL,
+            "CreatedAt"                           TEXT NOT NULL DEFAULT (datetime('now')),
+            "CreatedBy"                           TEXT NULL
+        )
+        """, ct);
+
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_BCA_ComponentBoundary\" " +
+        "ON \"BoundaryComponentAssignments\" (\"SystemComponentId\", \"AuthorizationBoundaryDefinitionId\")", ct);
+
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS \"IX_BCA_BoundaryId\" " +
+        "ON \"BoundaryComponentAssignments\" (\"AuthorizationBoundaryDefinitionId\")", ct);
 }
 
 // ────────────────────────────────────────────────────────────────
