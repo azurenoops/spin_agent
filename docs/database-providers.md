@@ -112,11 +112,36 @@ After the base schema is initialized, the startup sequence runs a series of
 additive DDL passes via the `EnsureSchemaAdditions` classes
 (`src/Ato.Copilot.Core/Data/Migrations/EnsureSchemaAdditions/`).
 
-**As of Issue #868 (fix landed in this repo):** every `ApplyAsync` method now
-propagates DDL failures. If any schema addition fails, startup halts immediately
-with an `InvalidOperationException` and logs the failure at `LogLevel.Error`,
-including the provider name. This prevents the process from continuing with an
-incomplete schema.
+### Fail-fast contract (Issue #868)
+
+Every `ApplyAsync` method propagates DDL failures **unconditionally on all
+providers** — SQL Server, SQLite, and any future provider. If any schema
+addition fails, startup halts immediately with an `InvalidOperationException`
+and logs the failure at `LogLevel.Error` including the provider name. This
+prevents the process from continuing on a structurally incomplete schema.
+
+> **Why this applies to SQLite too:** all SQLite DDL scripts in the
+> `EnsureSchemaAdditions` classes are written to be idempotent by design —
+> `CREATE TABLE IF NOT EXISTS`, PRAGMA-guarded `ALTER TABLE`, and
+> `CREATE INDEX IF NOT EXISTS`. An exception that reaches the catch block
+> therefore cannot be a benign "already applied" race; it is a genuine schema
+> failure. Swallowing it would boot the service on a broken database, turning
+> a fixable startup abort into silent data-integrity risk downstream.
+>
+> **Invariant:** every DDL script added to `EnsureSchemaAdditions` classes
+> **must** be idempotent (guard every statement with `IF NOT EXISTS` or its
+> SQLite equivalent). Non-idempotent scripts will hard-abort startup on the
+> second run — this is intentional and by design.
+
+If startup aborts with `"Database schema initialization failed in
+<ClassName> for provider '<provider>'"`, the database file or server has a
+schema that does not match the expected state. Resolution steps:
+
+1. **Development (SQLite):** delete the database file and let `EnsureCreatedAsync`
+   recreate it, then rerun the app.
+2. **Production (SQL Server):** examine the specific exception message in the
+   `LogLevel.Error` entry to identify which table, column, or index failed and
+   apply the corrective DDL manually under a change-control window.
 
 Classes in this directory:
 

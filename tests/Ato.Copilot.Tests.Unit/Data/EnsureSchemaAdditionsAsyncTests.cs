@@ -9,15 +9,22 @@ using Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
 namespace Ato.Copilot.Tests.Unit.Data;
 
 /// <summary>
-/// Issue #868 — EnsureSchemaAdditionsAsync must fail startup on DDL error.
+/// Issue #868 — EnsureSchemaAdditionsAsync must fail startup on DDL error
+/// across ALL providers (fail-fast-on-all-providers contract).
 ///
-/// Each ApplyAsync method must rethrow and log at Error level so the process
-/// halts rather than continuing with an incomplete schema.
+/// Design (Tony Stark artifact cb62eb1b, 2026-09-08):
+///   SQLite bootstrap scripts are idempotent by design —
+///   CREATE TABLE IF NOT EXISTS, PRAGMA-guarded ALTER TABLE,
+///   CREATE INDEX IF NOT EXISTS — so any exception that reaches the catch
+///   block is a genuine schema failure, never a benign "already applied"
+///   race. Swallowing it lets the service boot on a structurally broken
+///   database. The isSqlServer guard has been removed; rethrow is unconditional.
 ///
 /// Test strategy: use the SQLite provider pointed at a path that cannot be
 /// opened. The provider name passes the isSqlite check, so the DDL branch is
-/// entered, any database operation throws, and we assert the exception
-/// propagates (rather than being swallowed) and LogError is called.
+/// entered, the database call throws, and we assert:
+///   AC1: The exception IS propagated (fail-fast on all providers).
+///   AC2: LogError is called with the class name in the message.
 /// </summary>
 public class EnsureSchemaAdditionsAsyncTests
 {
@@ -31,8 +38,6 @@ public class EnsureSchemaAdditionsAsyncTests
     /// </summary>
     private static AtoCopilotContext BuildBrokenSqliteContext()
     {
-        // Point to a path inside a directory that does not exist.
-        // SQLite will fail to create the file when any DB call is made.
         var options = new DbContextOptionsBuilder<AtoCopilotContext>()
             .UseSqlite("Data Source=/tmp/esa-test-nonexistent-dir-99999/test.db")
             .Options;
@@ -45,8 +50,8 @@ public class EnsureSchemaAdditionsAsyncTests
     // ─── TenantsAndOrganizationsSchemaAdditions ───────────────────────────────
 
     /// <summary>
-    /// AC1: ApplyAsync re-throws on DDL exception.
-    /// AC2: LogError is called with provider name in message.
+    /// AC1: DDL failure propagates as InvalidOperationException (fail-fast on all providers).
+    /// AC2: LogError is called with the class name in the message.
     /// </summary>
     [Fact]
     public async Task TenantsAndOrganizations_WhenDdlFails_ThrowsInvalidOperationAndLogsError()
@@ -59,11 +64,11 @@ public class EnsureSchemaAdditionsAsyncTests
         var act = async () =>
             await TenantsAndOrganizationsSchemaAdditions.ApplyAsync(ctx, logger.Object, CancellationToken.None);
 
-        // Assert — re-throws wrapped in InvalidOperationException
+        // Assert AC1 — fail-fast: exception propagates on all providers
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*TenantsAndOrganizationsSchemaAdditions*");
 
-        // Assert — LogError was called
+        // Assert AC2 — failure is visible in logs
         logger.Verify(
             l => l.Log(
                 LogLevel.Error,
