@@ -165,7 +165,13 @@ in progress. OperationId: '49802e58-2b10-45b8-90ff-64af6cd336e2'.
 The reusable stage is sequential: create/update → ingress → identity → AcrPull/`registry set` → `az containerapp secret set`. `registry set` leaves an in-flight ACA operation; secret set then aborts the job. Because CD is `deploy-dev` → dashboard → chat → test → production, every later environment is skipped. Related run [33771928221](https://github.com/azurenoops/spin_agent/actions/runs/33771928221) failed on Azure `Too Many Requests` on the same mutate path.
 
 **Chosen Approach**  
-In `deploy-containerapp-stage.yml`, wait until `properties.provisioningState=Succeeded` before secret set / update (and other ACA mutations). Retry only `ContainerAppOperationInProgress` and HTTP 429 / `Too Many Requests` with bounded exponential backoff. Do not swallow unrelated Azure errors. Combine runtime secrets into one `secret set` to cut extra mutations.
+In `deploy-containerapp-stage.yml`, wait until the app is **idle** before secret set / update (and other ACA mutations):
+
+- `Succeeded` — idle, proceed
+- `Failed` / `Canceled` — previous ARM op is finished; **proceed with a warning**. Waiting cannot reach `Succeeded`. Mutation is the recovery path. Run [34366187254](https://github.com/azurenoops/spin_agent/actions/runs/34366187254) aborted at create/update because `wait_containerapp_idle` treated `Failed` as fatal after run [34300443590](https://github.com/azurenoops/spin_agent/actions/runs/34300443590) left `ca-ato-copilot-mcp-v2` Failed.
+- Any other `provisioningState` (InProgress / Updating / Creating / …) — wait, then timeout
+
+Retry only `ContainerAppOperationInProgress` and HTTP 429 / `Too Many Requests` with bounded exponential backoff. Do not swallow unrelated Azure errors. Combine runtime secrets into one `secret set` to cut extra mutations.
 
 **Files Touched**  
 - `.github/workflows/deploy-containerapp-stage.yml`
