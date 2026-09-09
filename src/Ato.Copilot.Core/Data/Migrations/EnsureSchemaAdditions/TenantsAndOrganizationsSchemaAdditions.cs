@@ -54,10 +54,12 @@ public static class TenantsAndOrganizationsSchemaAdditions
         }
         catch (Exception ex)
         {
-            // Non-fatal: EnsureCreatedAsync may have already created the tables
-            // in dev; rethrow only on a clear functional failure.
-            logger.LogWarning(ex,
-                "TenantsAndOrganizationsSchemaAdditions encountered an error — non-fatal if tables already exist");
+            logger.LogError(ex,
+                "TenantsAndOrganizationsSchemaAdditions: DDL FAILED for provider {Provider}. Startup aborted.",
+                providerName);
+            throw new InvalidOperationException(
+                $"Database schema initialization failed in TenantsAndOrganizationsSchemaAdditions for provider '{providerName}'.",
+                ex);
         }
     }
 

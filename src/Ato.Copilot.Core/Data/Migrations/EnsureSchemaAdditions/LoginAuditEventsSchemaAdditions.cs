@@ -69,9 +69,12 @@ public static class LoginAuditEventsSchemaAdditions
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex,
-                "LoginAuditEventsSchemaAdditions encountered an error — "
-                + "non-fatal if table already exists");
+            logger.LogError(ex,
+                "LoginAuditEventsSchemaAdditions: DDL FAILED for provider {Provider}. Startup aborted.",
+                providerName);
+            throw new InvalidOperationException(
+                $"Database schema initialization failed in LoginAuditEventsSchemaAdditions for provider '{providerName}'.",
+                ex);
         }
     }
 

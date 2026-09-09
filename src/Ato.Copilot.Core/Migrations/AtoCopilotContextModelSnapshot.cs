@@ -3735,9 +3735,9 @@ namespace Ato.Copilot.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ControlId")
+                    b.HasIndex("TenantId", "ControlId")
                         .IsUnique()
-                        .HasDatabaseName("IX_OrgInheritanceDefault_ControlId");
+                        .HasDatabaseName("IX_OrgInheritanceDefault_TenantId_ControlId");
 
                     b.HasIndex("InheritanceType")
                         .HasDatabaseName("IX_OrgInheritanceDefault_InheritanceType");
