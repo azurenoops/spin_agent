@@ -126,6 +126,10 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Needed so deploy steps can source scripts/ci/az-containerapp-mutate.sh (#872).
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Validate stage configuration
         shell: bash
         run: |
@@ -312,7 +316,16 @@ jobs:
             # ATO_AZUREAI_ENDPOINT: repo var (required). Must be set — empty value prevents
             # AI client registration and causes revision activation failure.
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__ENDPOINT=${{ vars.ATO_AZUREAI_ENDPOINT }}"
-            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-4o-mini' }}"
+            # #649: GitHub `vars.X || fallback` only applies when the var is unset.
+            # Run 33804223965 still injected repo var ATO_AZUREAI_DEPLOYMENTNAME=gpt-5.4-mini.
+            DEPLOYMENT_NAME="${{ vars.ATO_AZUREAI_DEPLOYMENTNAME || 'gpt-4o-mini' }}"
+            case "${DEPLOYMENT_NAME}" in
+              gpt-5.4-mini|gpt-5-4-mini|"")
+                echo "::warning::ATO_AZUREAI_DEPLOYMENTNAME='${DEPLOYMENT_NAME}' is not a valid Azure OpenAI deployment. Overriding to gpt-4o-mini. Admin must change repo/environment variable ATO_AZUREAI_DEPLOYMENTNAME."
+                DEPLOYMENT_NAME="gpt-4o-mini"
+                ;;
+            esac
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${DEPLOYMENT_NAME}"
             # ATO_DATABASE__MANAGEDIDENTITYCLIENTID: user-assigned MI client ID for SQL Server auth.
             # Without this, SqlClient falls back to the system-assigned identity on ACA hosts that
             # have both identity types — causing Error 18456 (Login failed). Set via repo variable.
@@ -360,6 +373,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # shellcheck source=scripts/ci/az-containerapp-mutate.sh
+          source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
           ENV_NAME="${{ steps.target.outputs.env_name }}"
@@ -392,7 +407,7 @@ jobs:
             # was correct. Bind ACR after identity assign (registry set).
             if [ -n "${ENV_ARGS}" ]; then
               # shellcheck disable=SC2086
-              az containerapp create \
+              az_containerapp_retry az containerapp create \
                 --resource-group "${RG}" \
                 --name "${APP}" \
                 --environment "${ENV_NAME}" \
@@ -402,7 +417,7 @@ jobs:
                 "${RESOURCE_ARGS[@]}" \
                 --env-vars ${ENV_ARGS}
             else
-              az containerapp create \
+              az_containerapp_retry az containerapp create \
                 --resource-group "${RG}" \
                 --name "${APP}" \
                 --environment "${ENV_NAME}" \
@@ -414,16 +429,17 @@ jobs:
           }
 
           if az containerapp show -g "${RG}" -n "${APP}" >/dev/null 2>&1; then
+            wait_containerapp_idle "${RG}" "${APP}"
             if [ -n "${ENV_ARGS}" ]; then
               # shellcheck disable=SC2086
-              az containerapp update \
+              az_containerapp_retry az containerapp update \
                 --resource-group "${RG}" \
                 --name "${APP}" \
                 --image "${IMAGE}" \
                 "${RESOURCE_ARGS[@]}" \
                 --set-env-vars ${ENV_ARGS}
             else
-              az containerapp update \
+              az_containerapp_retry az containerapp update \
                 --resource-group "${RG}" \
                 --name "${APP}" \
                 --image "${IMAGE}" \
@@ -448,11 +464,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          az containerapp ingress update \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ steps.target.outputs.app }}" \
+          # shellcheck source=scripts/ci/az-containerapp-mutate.sh
+          source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
+          RG="${{ vars.AZURE_RESOURCE_GROUP }}"
+          APP="${{ steps.target.outputs.app }}"
+          wait_containerapp_idle "${RG}" "${APP}"
+          az_containerapp_retry az containerapp ingress update \
+            --resource-group "${RG}" \
+            --name "${APP}" \
             --type external \
-            --target-port "${{ inputs.target_port }}" >/dev/null
+            --target-port "${{ inputs.target_port }}"
 
       - name: Ensure ingress session affinity (required for SignalR)
         if: inputs.enable_session_affinity
@@ -468,20 +489,30 @@ jobs:
             echo "::warning::'az containerapp ingress sticky-sessions set' not available — upgrade az CLI to >=2.45 on the runner. Skipping affinity configuration."
             exit 0
           fi
-          az containerapp ingress sticky-sessions set \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ steps.target.outputs.app }}" \
-            --affinity sticky >/dev/null
+          # shellcheck source=scripts/ci/az-containerapp-mutate.sh
+          source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
+          RG="${{ vars.AZURE_RESOURCE_GROUP }}"
+          APP="${{ steps.target.outputs.app }}"
+          wait_containerapp_idle "${RG}" "${APP}"
+          az_containerapp_retry az containerapp ingress sticky-sessions set \
+            --resource-group "${RG}" \
+            --name "${APP}" \
+            --affinity sticky
 
       - name: Ensure system-assigned managed identity
         if: inputs.assign_managed_identity
         shell: bash
         run: |
           set -euo pipefail
-          az containerapp identity assign \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ steps.target.outputs.app }}" \
-            --system-assigned >/dev/null
+          # shellcheck source=scripts/ci/az-containerapp-mutate.sh
+          source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
+          RG="${{ vars.AZURE_RESOURCE_GROUP }}"
+          APP="${{ steps.target.outputs.app }}"
+          wait_containerapp_idle "${RG}" "${APP}"
+          az_containerapp_retry az containerapp identity assign \
+            --resource-group "${RG}" \
+            --name "${APP}" \
+            --system-assigned
 
       # Grant the app's system-assigned managed identity the AcrPull role on
       # the registry (least-privilege: AcrPull only, scoped to this ACR).
@@ -491,6 +522,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # shellcheck source=scripts/ci/az-containerapp-mutate.sh
+          source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
           ACR_NAME="${{ vars.AZURE_ACR_NAME }}"
@@ -508,20 +541,55 @@ jobs:
 
           ACR_ID=$(az acr show -g "${RG}" -n "${ACR_NAME}" --query id -o tsv)
 
-          # Idempotent: az role assignment create returns an error if the assignment
-          # already exists; suppress that specific error and continue.
-          if az role assignment create \
-            --assignee-object-id "${PRINCIPAL_ID}" \
-            --assignee-principal-type ServicePrincipal \
-            --role AcrPull \
-            --scope "${ACR_ID}" >/dev/null; then
-            echo "Granted AcrPull on ${ACR_NAME} to ${APP} (${PRINCIPAL_ID})."
+          existing_acrpull() {
+            # Scope + principalId filter is ARM-only (no Graph). Run 33804223965
+            # failed Graph lookup when az used --assignee.
+            az role assignment list \
+              --scope "${ACR_ID}" \
+              --query "[?principalId=='${PRINCIPAL_ID}' && roleDefinitionName=='AcrPull'].id" \
+              -o tsv 2>/dev/null || true
+          }
+
+          EXISTING="$(existing_acrpull)"
+          if [ -n "${EXISTING}" ]; then
+            echo "AcrPull already assigned on ${ACR_NAME} for ${APP} (${PRINCIPAL_ID}). Skipping create."
           else
-            echo "::warning::Could not grant AcrPull (CD principal may lack roleAssignments/write). Grant once, then re-run CD:"
-            echo "az role assignment create --assignee-object-id ${PRINCIPAL_ID} --assignee-principal-type ServicePrincipal --role AcrPull --scope ${ACR_ID}"
+            ASSIGN_OUT="$(mktemp)"
+            if az role assignment create \
+              --assignee-object-id "${PRINCIPAL_ID}" \
+              --assignee-principal-type ServicePrincipal \
+              --role AcrPull \
+              --scope "${ACR_ID}" >"${ASSIGN_OUT}" 2>&1; then
+              cat "${ASSIGN_OUT}"
+              echo "Granted AcrPull on ${ACR_NAME} to ${APP} (${PRINCIPAL_ID})."
+            else
+              cat "${ASSIGN_OUT}"
+              if grep -qiE 'already exists|RoleAssignmentExists' "${ASSIGN_OUT}"; then
+                echo "AcrPull assignment already exists (create reported exists). Continuing."
+              elif grep -qiE 'AuthorizationFailed|roleAssignments/write' "${ASSIGN_OUT}"; then
+                EXISTING="$(existing_acrpull)"
+                if [ -n "${EXISTING}" ]; then
+                  echo "CD principal cannot write role assignments, but AcrPull is already present. Continuing."
+                else
+                  echo "::error::OIDC principal cannot grant AcrPull and no existing AcrPull assignment was found for ${APP}."
+                  echo "::error::The app cannot pull images until an Azure admin grants AcrPull on ${ACR_NAME}."
+                  echo "az role assignment create --assignee-object-id ${PRINCIPAL_ID} --assignee-principal-type ServicePrincipal --role AcrPull --scope ${ACR_ID}"
+                  echo "::error::Optional (so CD can self-heal): grant the CD OIDC SP Microsoft.Authorization/roleAssignments/write on ACR ${ACR_NAME} only."
+                  rm -f "${ASSIGN_OUT}"
+                  exit 1
+                fi
+              else
+                echo "::error::Unexpected role assignment failure (not already-exists / AuthorizationFailed)."
+                rm -f "${ASSIGN_OUT}"
+                exit 1
+              fi
+            fi
+            rm -f "${ASSIGN_OUT}"
           fi
 
-          az containerapp registry set \
+          # registry set is an ACA mutation — run 33883971872 left OperationInProgress here.
+          wait_containerapp_idle "${RG}" "${APP}"
+          az_containerapp_retry az containerapp registry set \
             --resource-group "${RG}" \
             --name "${APP}" \
             --server "${{ steps.acr.outputs.login_server }}" \
@@ -532,31 +600,49 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # shellcheck source=scripts/ci/az-containerapp-mutate.sh
+          source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
 
+          # One secret-set mutation (run 33883971872 raced the first of three).
+          SECRETS=()
           if [ -n "${{ secrets.ATO_DB_CONNECTION_STRING || '' }}" ]; then
-            az containerapp secret set -g "${RG}" -n "${APP}" --secrets "db-connection-string=${{ secrets.ATO_DB_CONNECTION_STRING }}"
+            SECRETS+=("db-connection-string=${{ secrets.ATO_DB_CONNECTION_STRING }}")
           fi
           if [ -n "${{ secrets.ATO_AZUREAI_APIKEY || '' }}" ]; then
-            az containerapp secret set -g "${RG}" -n "${APP}" --secrets "azureai-apikey=${{ secrets.ATO_AZUREAI_APIKEY }}"
+            SECRETS+=("azureai-apikey=${{ secrets.ATO_AZUREAI_APIKEY }}")
           fi
           if [ -n "${{ secrets.ATO_AZUREAD_CLIENTSECRET || '' }}" ]; then
-            az containerapp secret set -g "${RG}" -n "${APP}" --secrets "azuread-client-secret=${{ secrets.ATO_AZUREAD_CLIENTSECRET }}"
+            SECRETS+=("azuread-client-secret=${{ secrets.ATO_AZUREAD_CLIENTSECRET }}")
           fi
+
+          if [ "${#SECRETS[@]}" -eq 0 ]; then
+            echo "No runtime secrets provided; skipping secret set."
+            exit 0
+          fi
+
+          wait_containerapp_idle "${RG}" "${APP}"
+          az_containerapp_retry az containerapp secret set \
+            -g "${RG}" \
+            -n "${APP}" \
+            --secrets "${SECRETS[@]}"
 
       - name: Reapply env vars after secret updates
         if: inputs.inject_runtime_secrets
         shell: bash
         run: |
           set -euo pipefail
+          # shellcheck source=scripts/ci/az-containerapp-mutate.sh
+          source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
           ENV_ARGS="${{ steps.envargs.outputs.with_secrets }}"
 
           if [ -n "${ENV_ARGS}" ]; then
+            wait_containerapp_idle "${RG}" "${APP}"
             # shellcheck disable=SC2086
-            az containerapp update \
+            az_containerapp_retry az containerapp update \
               --resource-group "${RG}" \
               --name "${APP}" \
               --set-env-vars ${ENV_ARGS}

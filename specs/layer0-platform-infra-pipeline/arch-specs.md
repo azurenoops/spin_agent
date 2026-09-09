@@ -15,7 +15,7 @@ config-loading issues only.
 | # | Title | Verified State |
 |---|-------|---------------|
 | #652 | CI broken `changed_files` conditional | **Already fixed** in ci.yml (dorny/paths-filter in place) — close issue |
-| #649 | Deploy workflow invalid AI deployment name default | **Already fixed** in yaml (now `gpt-4o-mini`) — close issue |
+| #649 | Deploy workflow invalid AI deployment name default | **Open** — YAML fallback is `gpt-4o-mini` but repo var still injects `gpt-5.4-mini` (run 33804223965) |
 | #658 | Terraform port mismatch (8080 vs 3001) | **Already fixed** in main.tf (line 312: `target_port = 3001`) — close issue |
 | #659 | Integration tests never run in CI | Open — spec below |
 | #650 | Deprecated bootstrap workflow still live | Open — spec below |
@@ -47,8 +47,8 @@ Before diving into open specs, three issues are confirmed fixed in the current c
 **Action:** Close #652 with comment citing the fix.
 
 ### #649 — Invalid `gpt-5.4-mini` default
-**Verified:** `deploy-containerapp-stage.yml` line 264 now falls back to `gpt-4o-mini` (valid model).  
-**Action:** Close #649 with comment.
+**Verified 2026-09-09:** YAML fallback is `gpt-4o-mini`, but promoted CD run [33804223965](https://github.com/azurenoops/spin_agent/actions/runs/33804223965) still expanded `ATO_AZUREAI__DEPLOYMENTNAME=gpt-5.4-mini` from repo/environment variable `ATO_AZUREAI_DEPLOYMENTNAME`. GitHub `${{ vars.X || 'fallback' }}` does not apply when the variable is set to a bad value.
+**Fix:** Reject known-invalid names (`gpt-5.4-mini`, `gpt-5-4-mini`, empty) and override to `gpt-4o-mini` with a warning. Admin must change the repo/environment variable.
 
 ### #658 — Terraform port mismatch
 **Verified:** `infra/terraform/main.tf` line 312: `target_port = 3001` (matches `EXPOSE 3001`).  
@@ -151,10 +151,58 @@ Additive to the workflow file. No rollback needed; the restore step is idempoten
 
 ---
 
+### Spec: #872 — Promoted CD Container App operation-in-progress race (2026-09-09)
+
+**Problem Statement**  
+Promoted CD run [33883971872](https://github.com/azurenoops/spin_agent/actions/runs/33883971872) failed at `deploy-dev / Set optional runtime secrets`:
+
+```
+ERROR: (ContainerAppOperationInProgress) Cannot modify a container app
+'ca-ato-copilot-mcp-v2' because there is an active provisioning operation
+in progress. OperationId: '49802e58-2b10-45b8-90ff-64af6cd336e2'.
+```
+
+The reusable stage is sequential: create/update → ingress → identity → AcrPull/`registry set` → `az containerapp secret set`. `registry set` leaves an in-flight ACA operation; secret set then aborts the job. Because CD is `deploy-dev` → dashboard → chat → test → production, every later environment is skipped. Related run [33771928221](https://github.com/azurenoops/spin_agent/actions/runs/33771928221) failed on Azure `Too Many Requests` on the same mutate path.
+
+**Chosen Approach**  
+In `deploy-containerapp-stage.yml`, wait until `properties.provisioningState=Succeeded` before secret set / update (and other ACA mutations). Retry only `ContainerAppOperationInProgress` and HTTP 429 / `Too Many Requests` with bounded exponential backoff. Do not swallow unrelated Azure errors. Combine runtime secrets into one `secret set` to cut extra mutations.
+
+**Files Touched**  
+- `.github/workflows/deploy-containerapp-stage.yml`
+- `scripts/ci/az-containerapp-mutate.sh`
+
+---
+
+### Spec: #873 — Chat ACR role assignment AuthorizationFailed (2026-09-09)
+
+**Problem Statement**  
+Run [33804223965](https://github.com/azurenoops/spin_agent/actions/runs/33804223965) `deploy-dev-chat` failed because OIDC SP `cda4f218-256b-4670-8609-4631bdba5ab6` lacks `Microsoft.Authorization/roleAssignments/write` on `atocopilotacr`. Graph lookup for the assignee also failed. CD cannot grant this role from the repo.
+
+**Chosen Approach**  
+If AcrPull already exists for the app MI, skip create. If create fails with `AuthorizationFailed`, re-check the assignment: continue only when pull permission is already present; otherwise fail this stage with the exact `az role assignment create` an Azure admin must run. Do not hide a missing AcrPull (the app cannot pull images). Unexpected role-assignment errors still fail.
+
+**Azure admin (required, outside this repo)**  
+On ACR `atocopilotacr` (scope `/subscriptions/<sub>/resourceGroups/rg-ato-copilot/providers/Microsoft.ContainerRegistry/registries/atocopilotacr`):
+
+1. Grant **AcrPull** to each Container App system-assigned MI (MCP + Chat, per environment).
+2. Optionally grant the CD OIDC SP `User Access Administrator` (or a custom role with `Microsoft.Authorization/roleAssignments/write` only on that ACR) so CD can self-heal assignments.
+
+---
+
+### Spec: #876 — Deprecated IaC workflows still executable (2026-09-09)
+
+**Problem Statement**  
+`bootstrap-azure-containerapp.yml` has a fail-guard (`exit 1`). `migrate-containerapps-to-vnet-env.yml` and `prepare-sql-private-network.yml` do not — accidental `workflow_dispatch` can mutate live VNet/SQL.
+
+**Chosen Approach**  
+Same fail-guard pattern as bootstrap. Keep the files (git history retains the old jobs). Do not delete.
+
+---
+
 ### Spec: #654 — Hardcoded SQL Server Name and Prod URL in Seed/Wipe Workflows
 
 **Problem Statement**  
-`seed-azure-sql.yml` and `wipe-and-reseed.yml` use a bootstrap-timestamp SQL server name (`azsql-ato-copilot-04152047-902`) as the default for `sql_server_name`. `wipe-and-reseed.yml` also hardcodes a production FQDN as `api_base_url` default. These defaults don't exist in most environments and cause silent failures when the variable is not explicitly supplied.
+`seed-azure-sql.yml` and `wipe-and-reseed.yml` used a bootstrap-timestamp SQL server name (`azsql-ato-copilot-04152047-902`) as the default for `sql_server_name`. Those defaults are removed. `bootstrap-csp-tenants.yml` still had the same timestamp default until 2026-09-09 (now required, no default).
 
 **Chosen Approach**  
 Remove all hardcoded defaults for environment-specific values. Make them required inputs with no default, so a missing value fails fast with a clear error rather than silently using a wrong resource. Required inputs in GitHub Actions `workflow_dispatch` show a placeholder and block run if left empty.
@@ -168,8 +216,9 @@ For `api_base_url`, introduce an Actions variable `ATO_API_BASE_URL` (environmen
 - No application code changes
 
 **Files Touched**  
-- `.github/workflows/seed-azure-sql.yml`
-- `.github/workflows/wipe-and-reseed.yml`
+- `.github/workflows/seed-azure-sql.yml` (default already removed)
+- `.github/workflows/wipe-and-reseed.yml` (default already removed)
+- `.github/workflows/bootstrap-csp-tenants.yml` (2026-09-09: remove timestamp SQL default)
 
 **Acceptance Criteria**  
 - Running either workflow without providing required inputs fails immediately (not silently)
