@@ -22,8 +22,12 @@ wait_containerapp_idle() {
         return 0
         ;;
       Failed|Canceled)
-        echo "::error::Container App '${app}' is in terminal state '${state}'. Refusing to mutate."
-        return 1
+        # Run 34366187254: treating Failed as fatal blocked every later
+        # mutation. Failed/Canceled mean the previous ARM op is finished —
+        # no OperationInProgress. Waiting cannot reach Succeeded; update
+        # is the recovery path (run 34300443590 left MCP Failed).
+        echo "::warning::Container App '${app}' is idle in terminal state '${state}'. Proceeding so CD can recover with an update."
+        return 0
         ;;
       *)
         echo "Container App '${app}' provisioningState=${state}; waiting ${sleep_s}s (attempt ${attempt}/${max_attempts})."
