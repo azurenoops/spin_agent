@@ -405,6 +405,8 @@ jobs:
             # have Microsoft.Authorization/roleAssignments/write, so
             # first-create of ca-ato-copilot-chat-v2 failed after targeting
             # was correct. Bind ACR after identity assign (registry set).
+            # --no-wait: do not block on revision pull before registry is bound
+            # (run 34387809098 expired the revision LRO after ~20m).
             if [ -n "${ENV_ARGS}" ]; then
               # shellcheck disable=SC2086
               az_containerapp_retry az containerapp create \
@@ -414,6 +416,7 @@ jobs:
                 --image "${IMAGE}" \
                 --target-port "${TARGET_PORT}" \
                 --ingress external \
+                --no-wait \
                 "${RESOURCE_ARGS[@]}" \
                 --env-vars ${ENV_ARGS}
             else
@@ -424,26 +427,39 @@ jobs:
                 --image "${IMAGE}" \
                 --target-port "${TARGET_PORT}" \
                 --ingress external \
+                --no-wait \
                 "${RESOURCE_ARGS[@]}"
             fi
           }
 
           if az containerapp show -g "${RG}" -n "${APP}" >/dev/null 2>&1; then
             wait_containerapp_idle "${RG}" "${APP}"
+            STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
+            UPDATE_EXTRA=()
+            NO_WAIT="$(containerapp_no_wait_if_terminal "${STATE}")"
+            if [ -n "${NO_WAIT}" ]; then
+              dump_containerapp_diagnostics "${RG}" "${APP}"
+              UPDATE_EXTRA+=("${NO_WAIT}")
+              echo "::warning::Updating '${APP}' with --no-wait because provisioningState=${STATE} (run 34387809098: waiting update expired the revision LRO)."
+            fi
             if [ -n "${ENV_ARGS}" ]; then
               # shellcheck disable=SC2086
-              az_containerapp_retry az containerapp update \
+              az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+                az containerapp update \
                 --resource-group "${RG}" \
                 --name "${APP}" \
                 --image "${IMAGE}" \
                 "${RESOURCE_ARGS[@]}" \
+                "${UPDATE_EXTRA[@]}" \
                 --set-env-vars ${ENV_ARGS}
             else
-              az_containerapp_retry az containerapp update \
+              az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+                az containerapp update \
                 --resource-group "${RG}" \
                 --name "${APP}" \
                 --image "${IMAGE}" \
-                "${RESOURCE_ARGS[@]}"
+                "${RESOURCE_ARGS[@]}" \
+                "${UPDATE_EXTRA[@]}"
             fi
           else
             if ! create_app; then
@@ -640,11 +656,24 @@ jobs:
           ENV_ARGS="${{ steps.envargs.outputs.with_secrets }}"
 
           if [ -n "${ENV_ARGS}" ]; then
+            IMAGE="${{ inputs.image }}"
             wait_containerapp_idle "${RG}" "${APP}"
+            STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
+            UPDATE_EXTRA=()
+            NO_WAIT="$(containerapp_no_wait_if_terminal "${STATE}")"
+            if [ -n "${NO_WAIT}" ]; then
+              dump_containerapp_diagnostics "${RG}" "${APP}"
+              UPDATE_EXTRA+=("${NO_WAIT}")
+            fi
+            # Re-apply image after registry/secrets (run 34387809098): the
+            # first update may have been --no-wait or a revision LRO expire.
             # shellcheck disable=SC2086
-            az_containerapp_retry az containerapp update \
+            az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+              az containerapp update \
               --resource-group "${RG}" \
               --name "${APP}" \
+              --image "${IMAGE}" \
+              "${UPDATE_EXTRA[@]}" \
               --set-env-vars ${ENV_ARGS}
           fi
 
