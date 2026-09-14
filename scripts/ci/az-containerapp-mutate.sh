@@ -12,8 +12,15 @@ wait_containerapp_idle() {
   local app="${2:?container app name required}"
   local max_attempts="${3:-36}"
   local sleep_s="${4:-10}"
+  local allow_inprogress=0
   local attempt=1
-  local state
+  local state=""
+
+  case "${5:-}" in
+    allow-inprogress|1)
+      allow_inprogress=1
+      ;;
+  esac
 
   while [ "${attempt}" -le "${max_attempts}" ]; do
     state="$(az containerapp show -g "${rg}" -n "${app}" --query properties.provisioningState -o tsv 2>/dev/null || echo "Unknown")"
@@ -38,8 +45,35 @@ wait_containerapp_idle() {
     esac
   done
 
+  # Run 34635028916: --no-wait left InProgress; the next wait killed the
+  # job before identity/registry/secrets. Config mutations pass
+  # allow-inprogress and continue. Unknown / missing app / auth still fail.
+  if [ "${allow_inprogress}" -eq 1 ]; then
+    case "${state}" in
+      InProgress|Updating)
+        dump_containerapp_diagnostics "${rg}" "${app}"
+        echo "::warning::Timed out with provisioningState=${state} on '${app}'. Proceeding with config mutations so identity/registry/secrets can run (run 34635028916)."
+        return 0
+        ;;
+    esac
+  fi
+
   echo "::error::Timed out waiting for Container App '${app}' to leave provisioning/in-progress state."
   return 1
+}
+
+# Run 34635028916: a Failed --no-wait image update starts the revision LRO
+# and the next step waits until timeout. Skip that first image patch so
+# recovery mutations stay possible. Image is applied after registry/secrets.
+containerapp_skip_first_image_update() {
+  case "${1:-}" in
+    Failed|Canceled|InProgress|Updating)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 # Run 34387809098: az containerapp update on a Failed app blocked ~20m on the
