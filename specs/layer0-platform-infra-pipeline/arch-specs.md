@@ -177,6 +177,22 @@ Retry only `ContainerAppOperationInProgress` and HTTP 429 / `Too Many Requests` 
 - `.github/workflows/deploy-containerapp-stage.yml`
 - `scripts/ci/az-containerapp-mutate.sh`
 
+**Follow-up (2026-09-14) — run [34635028916](https://github.com/azurenoops/spin_agent/actions/runs/34635028916) after #880**
+
+#880 `--no-wait` on the Failed MCP update succeeded (create/update step green). The next step, **Ensure ingress target port**, called `wait_containerapp_idle` and treated `InProgress` as blocking. 36×10s polls stayed `InProgress`; the job died with:
+
+```
+Timed out waiting for Container App 'ca-ato-copilot-mcp-v2' to leave provisioning/in-progress state.
+```
+
+Identity / AcrPull / registry / secrets / image re-apply were skipped. That undoes #880: the first `--no-wait` image patch starts the same revision LRO that previously expired after ~20m (run 34387809098).
+
+**Chosen Approach (34635028916)**  
+- When `provisioningState` is `Failed` / `Canceled` / `InProgress` / `Updating`, **do not** fire the first `az containerapp update --image`. The app stays idle (or we refuse to stack another revision LRO). Ingress, identity, AcrPull, registry, and secrets run first.
+- Config-mutation waits use `allow-inprogress`: after a short poll, proceed so the job is not killed by a stuck revision LRO. `AuthorizationFailed` and a missing app still fail.
+- Apply `--image` only after registry/secrets (`Apply image after registry and secrets`). No `--no-wait` on that apply; `az_containerapp_retry_continue_revision_lro` still continues only on revision LRO expire if the app exists.
+- Do not increase the 36×10s hard wait as the sole fix. Do not delete+recreate (identity rotation / #873).
+
 ---
 
 ### Spec: #873 — Chat ACR role assignment AuthorizationFailed (2026-09-09)

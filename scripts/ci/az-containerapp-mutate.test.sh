@@ -29,11 +29,53 @@ assert_timeout() {
   fi
 }
 
+assert_allow_inprogress_proceeds() {
+  local state="$1"
+  MOCK_PROVISIONING_STATE="${state}"
+  if ! wait_containerapp_idle "rg" "app" 1 0 allow-inprogress; then
+    echo "FAIL: provisioningState=${state} with allow-inprogress should proceed (run 34635028916)."
+    exit 1
+  fi
+}
+
+assert_skip_first_image() {
+  local state="$1"
+  if ! containerapp_skip_first_image_update "${state}"; then
+    echo "FAIL: provisioningState=${state} should skip the first image update."
+    exit 1
+  fi
+}
+
+assert_apply_first_image() {
+  local state="$1"
+  if containerapp_skip_first_image_update "${state}"; then
+    echo "FAIL: provisioningState=${state} should apply the first image update."
+    exit 1
+  fi
+}
+
 assert_idle "Succeeded"
 assert_idle "Failed"
 assert_idle "Canceled"
 assert_timeout "InProgress"
 assert_timeout "Updating"
+assert_timeout "Unknown"
+
+# Run 34635028916: wait-after---no-wait must not kill config mutations.
+assert_allow_inprogress_proceeds "InProgress"
+assert_allow_inprogress_proceeds "Updating"
+MOCK_PROVISIONING_STATE="Unknown"
+if wait_containerapp_idle "rg" "app" 1 0 allow-inprogress; then
+  echo "FAIL: Unknown must still be a hard timeout even with allow-inprogress."
+  exit 1
+fi
+
+assert_skip_first_image "Failed"
+assert_skip_first_image "Canceled"
+assert_skip_first_image "InProgress"
+assert_skip_first_image "Updating"
+assert_apply_first_image "Succeeded"
+assert_apply_first_image "Unknown"
 
 if [ -n "$(containerapp_no_wait_if_terminal Succeeded)" ]; then
   echo "FAIL: Succeeded should not add --no-wait."

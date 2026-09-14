@@ -433,16 +433,15 @@ jobs:
           }
 
           if az containerapp show -g "${RG}" -n "${APP}" >/dev/null 2>&1; then
-            wait_containerapp_idle "${RG}" "${APP}"
+            # Run 34635028916: do not start a revision LRO while Failed, then
+            # wait for InProgress. Config mutations run first; image is applied
+            # after registry/secrets.
+            wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
             STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
-            UPDATE_EXTRA=()
-            NO_WAIT="$(containerapp_no_wait_if_terminal "${STATE}")"
-            if [ -n "${NO_WAIT}" ]; then
+            if containerapp_skip_first_image_update "${STATE}"; then
               dump_containerapp_diagnostics "${RG}" "${APP}"
-              UPDATE_EXTRA+=("${NO_WAIT}")
-              echo "::warning::Updating '${APP}' with --no-wait because provisioningState=${STATE} (run 34387809098: waiting update expired the revision LRO)."
-            fi
-            if [ -n "${ENV_ARGS}" ]; then
+              echo "::warning::Skipping first image update on '${APP}' because provisioningState=${STATE} (run 34635028916). Ingress/identity/registry/secrets run next."
+            elif [ -n "${ENV_ARGS}" ]; then
               # shellcheck disable=SC2086
               az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
                 az containerapp update \
@@ -450,7 +449,6 @@ jobs:
                 --name "${APP}" \
                 --image "${IMAGE}" \
                 "${RESOURCE_ARGS[@]}" \
-                "${UPDATE_EXTRA[@]}" \
                 --set-env-vars ${ENV_ARGS}
             else
               az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
@@ -458,8 +456,7 @@ jobs:
                 --resource-group "${RG}" \
                 --name "${APP}" \
                 --image "${IMAGE}" \
-                "${RESOURCE_ARGS[@]}" \
-                "${UPDATE_EXTRA[@]}"
+                "${RESOURCE_ARGS[@]}"
             fi
           else
             if ! create_app; then
@@ -484,7 +481,7 @@ jobs:
           source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
-          wait_containerapp_idle "${RG}" "${APP}"
+          wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
           az_containerapp_retry az containerapp ingress update \
             --resource-group "${RG}" \
             --name "${APP}" \
@@ -509,7 +506,7 @@ jobs:
           source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
-          wait_containerapp_idle "${RG}" "${APP}"
+          wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
           az_containerapp_retry az containerapp ingress sticky-sessions set \
             --resource-group "${RG}" \
             --name "${APP}" \
@@ -524,7 +521,7 @@ jobs:
           source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
-          wait_containerapp_idle "${RG}" "${APP}"
+          wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
           az_containerapp_retry az containerapp identity assign \
             --resource-group "${RG}" \
             --name "${APP}" \
@@ -604,7 +601,7 @@ jobs:
           fi
 
           # registry set is an ACA mutation — run 33883971872 left OperationInProgress here.
-          wait_containerapp_idle "${RG}" "${APP}"
+          wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
           az_containerapp_retry az containerapp registry set \
             --resource-group "${RG}" \
             --name "${APP}" \
@@ -638,14 +635,13 @@ jobs:
             exit 0
           fi
 
-          wait_containerapp_idle "${RG}" "${APP}"
+          wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
           az_containerapp_retry az containerapp secret set \
             -g "${RG}" \
             -n "${APP}" \
             --secrets "${SECRETS[@]}"
 
-      - name: Reapply env vars after secret updates
-        if: inputs.inject_runtime_secrets
+      - name: Apply image after registry and secrets
         shell: bash
         run: |
           set -euo pipefail
@@ -653,28 +649,30 @@ jobs:
           source "${GITHUB_WORKSPACE}/scripts/ci/az-containerapp-mutate.sh"
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
+          IMAGE="${{ inputs.image }}"
           ENV_ARGS="${{ steps.envargs.outputs.with_secrets }}"
+          if [ -z "${ENV_ARGS}" ]; then
+            ENV_ARGS="${{ steps.envargs.outputs.base }}"
+          fi
 
+          # Run 34635028916: this is the first image apply when create/update
+          # skipped a Failed/InProgress --image patch. Do not --no-wait here;
+          # continue only on revision LRO expire if the app still exists.
+          wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
           if [ -n "${ENV_ARGS}" ]; then
-            IMAGE="${{ inputs.image }}"
-            wait_containerapp_idle "${RG}" "${APP}"
-            STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
-            UPDATE_EXTRA=()
-            NO_WAIT="$(containerapp_no_wait_if_terminal "${STATE}")"
-            if [ -n "${NO_WAIT}" ]; then
-              dump_containerapp_diagnostics "${RG}" "${APP}"
-              UPDATE_EXTRA+=("${NO_WAIT}")
-            fi
-            # Re-apply image after registry/secrets (run 34387809098): the
-            # first update may have been --no-wait or a revision LRO expire.
             # shellcheck disable=SC2086
             az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
               az containerapp update \
               --resource-group "${RG}" \
               --name "${APP}" \
               --image "${IMAGE}" \
-              "${UPDATE_EXTRA[@]}" \
               --set-env-vars ${ENV_ARGS}
+          else
+            az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+              az containerapp update \
+              --resource-group "${RG}" \
+              --name "${APP}" \
+              --image "${IMAGE}"
           fi
 
       - name: Reconcile SQL firewall to app egress IPs
