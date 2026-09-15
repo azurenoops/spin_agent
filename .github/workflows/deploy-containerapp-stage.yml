@@ -557,9 +557,11 @@ jobs:
               $(containerapp_no_wait_if_terminal "${STATE}")
           fi
 
-      # Grant the app's system-assigned managed identity the AcrPull role on
-      # the registry (least-privilege: AcrPull only, scoped to this ACR).
-      # This allows the Container App to pull images without admin credentials.
+      # Grant the app's pull identity AcrPull on this ACR (least-privilege).
+      # Run 34989521743 / #873: OIDC cannot write roleAssignments. A name-only
+      # lookup plus hard-fail ignored an already-bound registry and Healthy
+      # latestReady revision. Skip create when assignment exists; on
+      # AuthorizationFailed continue when pull already works.
       - name: Grant AcrPull to managed identity (least-privilege)
         if: inputs.assign_managed_identity
         shell: bash
@@ -570,74 +572,107 @@ jobs:
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
           ACR_NAME="${{ vars.AZURE_ACR_NAME }}"
+          LOGIN_SERVER="${{ steps.acr.outputs.login_server }}"
 
-          # Retrieve the managed identity principal ID.
-          PRINCIPAL_ID=$(az containerapp show \
-            --resource-group "${RG}" \
-            --name "${APP}" \
-            --query identity.principalId -o tsv)
-
-          if [ -z "${PRINCIPAL_ID}" ]; then
-            echo "::warning::No system-assigned identity found on '${APP}'; skipping AcrPull grant."
-            exit 0
+          # Bind + latestReady are the pull-already-works signal (run 34989521743).
+          # Query them before grant so AuthorizationFailed can continue instead of
+          # treating a name-only lookup miss as "AcrPull is missing".
+          BOUND_IDENTITY="$(az containerapp show -g "${RG}" -n "${APP}" --query "properties.configuration.registries[?server=='${LOGIN_SERVER}'].identity | [0]" -o tsv 2>/dev/null || true)"
+          LATEST_READY="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.latestReadyRevisionName -o tsv 2>/dev/null || true)"
+          LATEST_READY_HEALTH=""
+          if [ -n "${LATEST_READY}" ]; then
+            LATEST_READY_HEALTH="$(az containerapp revision show -g "${RG}" -n "${APP}" --revision "${LATEST_READY}" --query properties.healthState -o tsv 2>/dev/null || true)"
           fi
 
-          ACR_ID=$(az acr show -g "${RG}" -n "${ACR_NAME}" --query id -o tsv)
-
-          existing_acrpull() {
-            # Scope + principalId filter is ARM-only (no Graph). Run 33804223965
-            # failed Graph lookup when az used --assignee.
-            az role assignment list \
-              --scope "${ACR_ID}" \
-              --query "[?principalId=='${PRINCIPAL_ID}' && roleDefinitionName=='AcrPull'].id" \
-              -o tsv 2>/dev/null || true
-          }
-
-          EXISTING="$(existing_acrpull)"
-          if [ -n "${EXISTING}" ]; then
-            echo "AcrPull already assigned on ${ACR_NAME} for ${APP} (${PRINCIPAL_ID}). Skipping create."
+          EXPECTED_IDENTITY="system"
+          if [ -n "${BOUND_IDENTITY}" ] && [ "${BOUND_IDENTITY}" != "system" ]; then
+            PRINCIPAL_ID="$(az identity show --ids "${BOUND_IDENTITY}" --query principalId -o tsv)"
+            EXPECTED_IDENTITY="${BOUND_IDENTITY}"
           else
-            ASSIGN_OUT="$(mktemp)"
-            if az role assignment create \
-              --assignee-object-id "${PRINCIPAL_ID}" \
-              --assignee-principal-type ServicePrincipal \
-              --role AcrPull \
-              --scope "${ACR_ID}" >"${ASSIGN_OUT}" 2>&1; then
-              cat "${ASSIGN_OUT}"
-              echo "Granted AcrPull on ${ACR_NAME} to ${APP} (${PRINCIPAL_ID})."
+            PRINCIPAL_ID="$(az containerapp show --resource-group "${RG}" --name "${APP}" --query identity.principalId -o tsv)"
+          fi
+
+          if [ -z "${PRINCIPAL_ID}" ]; then
+            if containerapp_acrpull_pull_already_works "${BOUND_IDENTITY}" "${EXPECTED_IDENTITY}" "${LATEST_READY}" "${LATEST_READY_HEALTH}"; then
+              echo "::warning::No managed identity principal on '${APP}', but registry/latestReady already pull from ${LOGIN_SERVER}. Skipping AcrPull grant (run 34989521743)."
             else
-              cat "${ASSIGN_OUT}"
-              if grep -qiE 'already exists|RoleAssignmentExists' "${ASSIGN_OUT}"; then
-                echo "AcrPull assignment already exists (create reported exists). Continuing."
-              elif grep -qiE 'AuthorizationFailed|roleAssignments/write' "${ASSIGN_OUT}"; then
-                EXISTING="$(existing_acrpull)"
-                if [ -n "${EXISTING}" ]; then
-                  echo "CD principal cannot write role assignments, but AcrPull is already present. Continuing."
+              echo "::warning::No managed identity found on '${APP}'; skipping AcrPull grant."
+            fi
+          else
+            ACR_ID=$(az acr show -g "${RG}" -n "${ACR_NAME}" --query id -o tsv)
+
+            existing_acrpull() {
+              # ARM filter: --assignee-object-id (not Graph --assignee).
+              # Match AcrPull by name or well-known role GUID.
+              az role assignment list \
+                --scope "${ACR_ID}" \
+                --assignee-object-id "${PRINCIPAL_ID}" \
+                --include-inherited \
+                --query "$(containerapp_acrpull_jmespath)" \
+                -o tsv
+            }
+
+            EXISTING=""
+            if ! EXISTING="$(existing_acrpull)"; then
+              echo "::warning::Could not list AcrPull assignments at ${ACR_NAME} for ${PRINCIPAL_ID}. Treating lookup as unknown (run 34989521743)."
+              EXISTING=""
+            fi
+
+            if [ -n "${EXISTING}" ]; then
+              echo "AcrPull already assigned on ${ACR_NAME} for ${APP} (${PRINCIPAL_ID}). Skipping create."
+            else
+              ASSIGN_OUT="$(mktemp)"
+              if az role assignment create \
+                --assignee-object-id "${PRINCIPAL_ID}" \
+                --assignee-principal-type ServicePrincipal \
+                --role AcrPull \
+                --scope "${ACR_ID}" >"${ASSIGN_OUT}" 2>&1; then
+                cat "${ASSIGN_OUT}"
+                echo "Granted AcrPull on ${ACR_NAME} to ${APP} (${PRINCIPAL_ID})."
+              else
+                cat "${ASSIGN_OUT}"
+                if grep -qiE 'already exists|RoleAssignmentExists' "${ASSIGN_OUT}"; then
+                  echo "AcrPull assignment already exists (create reported exists). Continuing."
+                elif grep -qiE 'AuthorizationFailed|roleAssignments/write' "${ASSIGN_OUT}"; then
+                  EXISTING=""
+                  if EXISTING="$(existing_acrpull)"; then
+                    :
+                  else
+                    echo "::warning::Re-list after AuthorizationFailed also failed. Treating lookup as unknown (run 34989521743)."
+                    EXISTING=""
+                  fi
+                  HAS_ASSIGNMENT=0
+                  [ -n "${EXISTING}" ] && HAS_ASSIGNMENT=1
+                  ADMIN_CMD="az role assignment create --assignee-object-id ${PRINCIPAL_ID} --assignee-principal-type ServicePrincipal --role AcrPull --scope ${ACR_ID}"
+                  if containerapp_acrpull_continue_on_authorization_failed \
+                    "${HAS_ASSIGNMENT}" "${BOUND_IDENTITY}" "${EXPECTED_IDENTITY}" \
+                    "${LATEST_READY}" "${LATEST_READY_HEALTH}"; then
+                    echo "::warning::OIDC principal cannot grant AcrPull (roleAssignments/write AuthorizationFailed). Pull already works or assignment is present for ${APP}. Continuing to secrets/image (run 34989521743)."
+                    echo "::warning::Admin grant (optional; CD will not retry as a hard failure): ${ADMIN_CMD}"
+                  else
+                    echo "::error::OIDC principal cannot grant AcrPull and no existing AcrPull assignment was found for ${APP}."
+                    echo "::error::The app has no registry bind and no healthy latestReady revision, so it cannot pull until an Azure admin grants AcrPull on ${ACR_NAME}."
+                    echo "${ADMIN_CMD}"
+                    echo "::error::Optional (so CD can self-heal): grant the CD OIDC SP Microsoft.Authorization/roleAssignments/write on ACR ${ACR_NAME} only."
+                    rm -f "${ASSIGN_OUT}"
+                    exit 1
+                  fi
                 else
-                  echo "::error::OIDC principal cannot grant AcrPull and no existing AcrPull assignment was found for ${APP}."
-                  echo "::error::The app cannot pull images until an Azure admin grants AcrPull on ${ACR_NAME}."
-                  echo "az role assignment create --assignee-object-id ${PRINCIPAL_ID} --assignee-principal-type ServicePrincipal --role AcrPull --scope ${ACR_ID}"
-                  echo "::error::Optional (so CD can self-heal): grant the CD OIDC SP Microsoft.Authorization/roleAssignments/write on ACR ${ACR_NAME} only."
+                  echo "::error::Unexpected role assignment failure (not already-exists / AuthorizationFailed)."
                   rm -f "${ASSIGN_OUT}"
                   exit 1
                 fi
-              else
-                echo "::error::Unexpected role assignment failure (not already-exists / AuthorizationFailed)."
-                rm -f "${ASSIGN_OUT}"
-                exit 1
               fi
+              rm -f "${ASSIGN_OUT}"
             fi
-            rm -f "${ASSIGN_OUT}"
           fi
 
           # registry set is an ACA mutation — run 33883971872 left OperationInProgress here.
           # Run 34870272068: registry was already bound; re-setting it started
           # another revision LRO that can expire before apply-image.
           wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
-          LOGIN_SERVER="${{ steps.acr.outputs.login_server }}"
-          BOUND_IDENTITY="$(az containerapp show -g "${RG}" -n "${APP}" --query "properties.configuration.registries[?server=='${LOGIN_SERVER}'].identity | [0]" -o tsv 2>/dev/null || true)"
-          if containerapp_registry_already_bound "${BOUND_IDENTITY}" system; then
-            echo "Registry '${LOGIN_SERVER}' already bound with identity=system; skipping registry set (run 34870272068)."
+          if containerapp_registry_already_bound "${BOUND_IDENTITY}" "${EXPECTED_IDENTITY}"; then
+            echo "Registry '${LOGIN_SERVER}' already bound with identity=${BOUND_IDENTITY}; skipping registry set (run 34870272068)."
           else
             STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
             # shellcheck disable=SC2046
