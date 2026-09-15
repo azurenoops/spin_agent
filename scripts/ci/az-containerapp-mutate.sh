@@ -151,6 +151,65 @@ containerapp_registry_already_bound() {
   [ -n "${identity}" ] && [ "${identity}" = "${expected}" ]
 }
 
+# Well-known AcrPull built-in role definition GUID.
+# https://learn.microsoft.com/azure/role-based-access-control/built-in-roles
+ACRPULL_ROLE_DEFINITION_ID="7f951dda-4ed3-4680-a7ca-43fe172d538d"
+
+# Match AcrPull by display name or role definition GUID (full ARM id or bare GUID).
+# Run 34989521743: roleDefinitionName=='AcrPull' alone is a false negative when
+# Graph does not populate the name (issue #873) but the GUID is still present.
+containerapp_is_acrpull_role() {
+  local name="${1:-}"
+  local role_id="${2:-}"
+  role_id="${role_id##*/}"
+  case "${name}" in
+    AcrPull|acrpull|ACRPULL) return 0 ;;
+  esac
+  [ -n "${role_id}" ] && [ "${role_id}" = "${ACRPULL_ROLE_DEFINITION_ID}" ]
+}
+
+# JMESPath for `az role assignment list` after `--assignee-object-id` (ARM, not Graph --assignee).
+containerapp_acrpull_jmespath() {
+  printf '%s' "[?(roleDefinitionName=='AcrPull' || contains(to_string(roleDefinitionId), '${ACRPULL_ROLE_DEFINITION_ID}'))].id"
+}
+
+# Pull already works if the app is bound to this ACR with the pull identity,
+# or a latestReady revision is Healthy (it pulled an image successfully).
+containerapp_acrpull_pull_already_works() {
+  local bound_identity="${1:-}"
+  local expected_identity="${2:-system}"
+  local latest_ready="${3:-}"
+  local latest_ready_health="${4:-}"
+
+  if containerapp_registry_already_bound "${bound_identity}" "${expected_identity}"; then
+    return 0
+  fi
+  if [ -n "${latest_ready}" ]; then
+    case "${latest_ready_health}" in
+      Healthy|healthy) return 0 ;;
+    esac
+  fi
+  return 1
+}
+
+# Run 34989521743: OIDC cannot write roleAssignments. Do not hard-fail when
+# an assignment is present or the app is already pulling from this ACR.
+# Fail only when there is no assignment, no registry bind, and no healthy latestReady.
+containerapp_acrpull_continue_on_authorization_failed() {
+  local has_assignment="${1:-0}"
+  local bound_identity="${2:-}"
+  local expected_identity="${3:-system}"
+  local latest_ready="${4:-}"
+  local latest_ready_health="${5:-}"
+
+  case "${has_assignment}" in
+    1|true|yes) return 0 ;;
+  esac
+  containerapp_acrpull_pull_already_works \
+    "${bound_identity}" "${expected_identity}" \
+    "${latest_ready}" "${latest_ready_health}"
+}
+
 deactivate_stuck_containerapp_revisions() {
   local rg="${1:?resource group required}"
   local app="${2:?container app name required}"

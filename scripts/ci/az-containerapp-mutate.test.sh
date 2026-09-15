@@ -157,4 +157,80 @@ if containerapp_registry_already_bound "" system; then
   exit 1
 fi
 
+if ! containerapp_is_acrpull_role "AcrPull" ""; then
+  echo "FAIL: roleDefinitionName AcrPull should match."
+  exit 1
+fi
+if ! containerapp_is_acrpull_role "" "7f951dda-4ed3-4680-a7ca-43fe172d538d"; then
+  echo "FAIL: bare AcrPull role GUID should match (run 34989521743)."
+  exit 1
+fi
+if ! containerapp_is_acrpull_role "" "/subscriptions/x/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d"; then
+  echo "FAIL: full AcrPull roleDefinitionId should match."
+  exit 1
+fi
+if containerapp_is_acrpull_role "" "b24988ac-6180-42a0-ab88-20f7382dd24c"; then
+  echo "FAIL: Contributor GUID must not match AcrPull."
+  exit 1
+fi
+if containerapp_is_acrpull_role "Contributor" ""; then
+  echo "FAIL: Contributor name must not match AcrPull."
+  exit 1
+fi
+
+QUERY="$(containerapp_acrpull_jmespath)"
+case "${QUERY}" in
+  *"roleDefinitionName=='AcrPull'"*) ;;
+  *)
+    echo "FAIL: JMESPath must match roleDefinitionName AcrPull."
+    exit 1
+    ;;
+esac
+case "${QUERY}" in
+  *"7f951dda-4ed3-4680-a7ca-43fe172d538d"*) ;;
+  *)
+    echo "FAIL: JMESPath must match the AcrPull role GUID."
+    exit 1
+    ;;
+esac
+
+# Run 34989521743: registry already bound + latestReady Healthy — do not fail.
+if ! containerapp_acrpull_pull_already_works "system" system \
+  "ca-ato-copilot-mcp-v2--0000087" Healthy; then
+  echo "FAIL: bound registry + Healthy latestReady should mean pull already works."
+  exit 1
+fi
+if ! containerapp_acrpull_pull_already_works "system" system "" ""; then
+  echo "FAIL: registry bound with system identity is enough even without latestReady."
+  exit 1
+fi
+if ! containerapp_acrpull_pull_already_works "" system \
+  "ca-ato-copilot-mcp-v2--0000087" Healthy; then
+  echo "FAIL: Healthy latestReady should mean pull already works without a bind query."
+  exit 1
+fi
+if containerapp_acrpull_pull_already_works "" system \
+  "ca-ato-copilot-mcp-v2--0000113" Unhealthy; then
+  echo "FAIL: Unhealthy latestRevision without a bind must not count as pull-already-works."
+  exit 1
+fi
+if containerapp_acrpull_pull_already_works "" system "" ""; then
+  echo "FAIL: no bind and no latestReady must not count as pull-already-works."
+  exit 1
+fi
+
+if ! containerapp_acrpull_continue_on_authorization_failed 0 "system" system \
+  "ca-ato-copilot-mcp-v2--0000087" Healthy; then
+  echo "FAIL: AuthorizationFailed must continue when registry is bound and latestReady is Healthy (run 34989521743)."
+  exit 1
+fi
+if ! containerapp_acrpull_continue_on_authorization_failed 1 "" system "" ""; then
+  echo "FAIL: AuthorizationFailed must continue when an AcrPull assignment exists."
+  exit 1
+fi
+if containerapp_acrpull_continue_on_authorization_failed 0 "" system "" ""; then
+  echo "FAIL: AuthorizationFailed must fail when there is no assignment, no bind, and no latestReady."
+  exit 1
+fi
+
 echo "az-containerapp-mutate.test.sh: all assertions passed."
