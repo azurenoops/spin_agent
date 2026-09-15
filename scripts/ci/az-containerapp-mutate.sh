@@ -5,7 +5,7 @@
 # Unexpected errors are returned to the caller — never swallowed.
 #
 # Refs: #872 (run 33883971872), throttle run 33771928221,
-# revision LRO expire run 34387809098.
+# revision LRO expire runs 34387809098 / 34870272068.
 
 wait_containerapp_idle() {
   local rg="${1:?resource group required}"
@@ -90,7 +90,92 @@ containerapp_no_wait_if_terminal() {
 }
 
 is_revision_lro_failure() {
-  printf '%s' "${1:-}" | grep -qE 'Failed to provision revision|Error details: Operation expired'
+  # Run 34870272068: match Operation expired / Failed to provision revision
+  # case-insensitively so ingress continue-on-expire actually fires.
+  printf '%s' "${1:-}" | grep -qiE 'Failed to provision revision|Operation expired'
+}
+
+# Run 34870272068: latestRevision 0000113 was Active + Unhealthy /
+# ActivationFailed while latestReady 0000087 stayed Healthy. Ingress
+# mutations then waited ~20m for a revision LRO Azure cannot finish.
+# Never deactivate the latest ready revision. Never delete the app
+# (that rotates the system MI and re-hits #873).
+containerapp_should_deactivate_revision() {
+  local name="${1:-}"
+  local active="${2:-}"
+  local health="${3:-}"
+  local running="${4:-}"
+  local latest_ready="${5:-}"
+
+  if [ -z "${name}" ]; then
+    return 1
+  fi
+  if [ -n "${latest_ready}" ] && [ "${name}" = "${latest_ready}" ]; then
+    return 1
+  fi
+  case "${active}" in
+    true|True|TRUE) ;;
+    *) return 1 ;;
+  esac
+  case "${health}" in
+    Unhealthy|unhealthy) return 0 ;;
+  esac
+  case "${running}" in
+    ActivationFailed|activationfailed) return 0 ;;
+  esac
+  return 1
+}
+
+containerapp_should_skip_ingress_port() {
+  local current="${1:-}"
+  local desired="${2:-}"
+  [ -n "${current}" ] && [ -n "${desired}" ] && [ "${current}" = "${desired}" ]
+}
+
+containerapp_should_skip_ingress_affinity() {
+  local current="${1:-}"
+  local desired="${2:-sticky}"
+  [ -n "${current}" ] && [ "${current}" = "${desired}" ]
+}
+
+containerapp_has_system_identity() {
+  case "${1:-}" in
+    *SystemAssigned*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+containerapp_registry_already_bound() {
+  local identity="${1:-}"
+  local expected="${2:-system}"
+  [ -n "${identity}" ] && [ "${identity}" = "${expected}" ]
+}
+
+deactivate_stuck_containerapp_revisions() {
+  local rg="${1:?resource group required}"
+  local app="${2:?container app name required}"
+  local latest_ready=""
+  local name active health running
+
+  latest_ready="$(az containerapp show -g "${rg}" -n "${app}" --query properties.latestReadyRevisionName -o tsv 2>/dev/null || true)"
+  if [ -z "${latest_ready}" ]; then
+    echo "::warning::No latestReadyRevision on '${app}'; refusing to deactivate revisions (run 34870272068)."
+    return 0
+  fi
+
+  while IFS=$'\t' read -r name active health running; do
+    [ -z "${name}" ] && continue
+    if containerapp_should_deactivate_revision "${name}" "${active}" "${health}" "${running}" "${latest_ready}"; then
+      echo "::warning::Deactivating stuck revision '${name}' (health=${health}, running=${running}) so Azure can provision a new revision. Keeping latestReady='${latest_ready}' (run 34870272068)."
+      if az containerapp revision deactivate -g "${rg}" -n "${app}" --revision "${name}"; then
+        echo "Deactivated stuck revision '${name}'."
+      else
+        echo "::warning::Could not deactivate revision '${name}'. Continuing so later steps can skip no-op mutations and apply the image without waiting on the LRO."
+      fi
+    fi
+  done < <(az containerapp revision list -g "${rg}" -n "${app}" \
+    --query "[].{name:name,active:properties.active,health:properties.healthState,running:properties.runningState}" \
+    -o tsv)
 }
 
 dump_containerapp_diagnostics() {

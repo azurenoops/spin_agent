@@ -441,6 +441,9 @@ jobs:
             if containerapp_skip_first_image_update "${STATE}"; then
               dump_containerapp_diagnostics "${RG}" "${APP}"
               echo "::warning::Skipping first image update on '${APP}' because provisioningState=${STATE} (run 34635028916). Ingress/identity/registry/secrets run next."
+              # Run 34870272068: Active Unhealthy latestRevision blocked every
+              # later ingress LRO. Deactivate it before config mutations.
+              deactivate_stuck_containerapp_revisions "${RG}" "${APP}"
             elif [ -n "${ENV_ARGS}" ]; then
               # shellcheck disable=SC2086
               az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
@@ -482,11 +485,21 @@ jobs:
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
           wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
-          az_containerapp_retry az containerapp ingress update \
-            --resource-group "${RG}" \
-            --name "${APP}" \
-            --type external \
-            --target-port "${{ inputs.target_port }}"
+          TARGET_PORT="${{ inputs.target_port }}"
+          CURRENT_PORT="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.configuration.ingress.targetPort -o tsv 2>/dev/null || true)"
+          if containerapp_should_skip_ingress_port "${CURRENT_PORT}" "${TARGET_PORT}"; then
+            echo "Ingress target port already ${TARGET_PORT}; skipping update (run 34870272068)."
+          else
+            STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
+            # shellcheck disable=SC2046
+            az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+              az containerapp ingress update \
+              --resource-group "${RG}" \
+              --name "${APP}" \
+              --type external \
+              --target-port "${TARGET_PORT}" \
+              $(containerapp_no_wait_if_terminal "${STATE}")
+          fi
 
       - name: Ensure ingress session affinity (required for SignalR)
         if: inputs.enable_session_affinity
@@ -507,10 +520,18 @@ jobs:
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
           wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
-          az_containerapp_retry az containerapp ingress sticky-sessions set \
-            --resource-group "${RG}" \
-            --name "${APP}" \
-            --affinity sticky
+          CURRENT_AFFINITY="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.configuration.ingress.stickySessions.affinity -o tsv 2>/dev/null || true)"
+          if containerapp_should_skip_ingress_affinity "${CURRENT_AFFINITY}" sticky; then
+            echo "Ingress session affinity already sticky; skipping update (run 34870272068)."
+          else
+            # sticky-sessions set has no --no-wait. Continue only on revision
+            # LRO expire if the app still exists (run 34870272068).
+            az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+              az containerapp ingress sticky-sessions set \
+              --resource-group "${RG}" \
+              --name "${APP}" \
+              --affinity sticky
+          fi
 
       - name: Ensure system-assigned managed identity
         if: inputs.assign_managed_identity
@@ -522,10 +543,19 @@ jobs:
           RG="${{ vars.AZURE_RESOURCE_GROUP }}"
           APP="${{ steps.target.outputs.app }}"
           wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
-          az_containerapp_retry az containerapp identity assign \
-            --resource-group "${RG}" \
-            --name "${APP}" \
-            --system-assigned
+          IDENT_TYPE="$(az containerapp show -g "${RG}" -n "${APP}" --query identity.type -o tsv 2>/dev/null || true)"
+          if containerapp_has_system_identity "${IDENT_TYPE}"; then
+            echo "System-assigned identity already present (${IDENT_TYPE}); skipping assign (run 34870272068)."
+          else
+            STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
+            # shellcheck disable=SC2046
+            az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+              az containerapp identity assign \
+              --resource-group "${RG}" \
+              --name "${APP}" \
+              --system-assigned \
+              $(containerapp_no_wait_if_terminal "${STATE}")
+          fi
 
       # Grant the app's system-assigned managed identity the AcrPull role on
       # the registry (least-privilege: AcrPull only, scoped to this ACR).
@@ -601,12 +631,24 @@ jobs:
           fi
 
           # registry set is an ACA mutation — run 33883971872 left OperationInProgress here.
+          # Run 34870272068: registry was already bound; re-setting it started
+          # another revision LRO that can expire before apply-image.
           wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
-          az_containerapp_retry az containerapp registry set \
-            --resource-group "${RG}" \
-            --name "${APP}" \
-            --server "${{ steps.acr.outputs.login_server }}" \
-            --identity system
+          LOGIN_SERVER="${{ steps.acr.outputs.login_server }}"
+          BOUND_IDENTITY="$(az containerapp show -g "${RG}" -n "${APP}" --query "properties.configuration.registries[?server=='${LOGIN_SERVER}'].identity | [0]" -o tsv 2>/dev/null || true)"
+          if containerapp_registry_already_bound "${BOUND_IDENTITY}" system; then
+            echo "Registry '${LOGIN_SERVER}' already bound with identity=system; skipping registry set (run 34870272068)."
+          else
+            STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
+            # shellcheck disable=SC2046
+            az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+              az containerapp registry set \
+              --resource-group "${RG}" \
+              --name "${APP}" \
+              --server "${LOGIN_SERVER}" \
+              --identity system \
+              $(containerapp_no_wait_if_terminal "${STATE}")
+          fi
 
       - name: Set optional runtime secrets
         if: inputs.inject_runtime_secrets
@@ -636,10 +678,14 @@ jobs:
           fi
 
           wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
-          az_containerapp_retry az containerapp secret set \
+          STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
+          # shellcheck disable=SC2046
+          az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+            az containerapp secret set \
             -g "${RG}" \
             -n "${APP}" \
-            --secrets "${SECRETS[@]}"
+            --secrets "${SECRETS[@]}" \
+            $(containerapp_no_wait_if_terminal "${STATE}")
 
       - name: Apply image after registry and secrets
         shell: bash
@@ -655,24 +701,29 @@ jobs:
             ENV_ARGS="${{ steps.envargs.outputs.base }}"
           fi
 
-          # Run 34635028916: this is the first image apply when create/update
-          # skipped a Failed/InProgress --image patch. Do not --no-wait here;
-          # continue only on revision LRO expire if the app still exists.
+          # Run 34870272068: deactivate the Unhealthy latestRevision first so
+          # Azure is not blocked on ActivationFailed 0000113. --no-wait when
+          # Failed; smoke checks the latest ready / ingress, not the LRO.
           wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
+          deactivate_stuck_containerapp_revisions "${RG}" "${APP}"
+          STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
           if [ -n "${ENV_ARGS}" ]; then
-            # shellcheck disable=SC2086
+            # shellcheck disable=SC2086,SC2046
             az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
               az containerapp update \
               --resource-group "${RG}" \
               --name "${APP}" \
               --image "${IMAGE}" \
-              --set-env-vars ${ENV_ARGS}
+              --set-env-vars ${ENV_ARGS} \
+              $(containerapp_no_wait_if_terminal "${STATE}")
           else
+            # shellcheck disable=SC2046
             az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
               az containerapp update \
               --resource-group "${RG}" \
               --name "${APP}" \
-              --image "${IMAGE}"
+              --image "${IMAGE}" \
+              $(containerapp_no_wait_if_terminal "${STATE}")
           fi
 
       - name: Reconcile SQL firewall to app egress IPs
@@ -803,7 +854,7 @@ jobs:
             az containerapp show \
               --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
               --name "${APP}" \
-              --query "{fqdn:properties.configuration.ingress.fqdn,latestRevision:properties.latestRevisionName,provisioningState:properties.provisioningState}" -o json || true
+              --query "{fqdn:properties.configuration.ingress.fqdn,latestRevision:properties.latestRevisionName,latestReadyRevision:properties.latestReadyRevisionName,provisioningState:properties.provisioningState}" -o json || true
 
             echo "Last curl error:"
             cat /tmp/health-error.txt || true

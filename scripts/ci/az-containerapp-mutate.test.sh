@@ -95,8 +95,65 @@ if ! is_revision_lro_failure "${EXPIRED}"; then
   echo "FAIL: Operation expired should be a revision LRO failure."
   exit 1
 fi
+if ! is_revision_lro_failure 'error: failed to provision revision for container app. error details: operation expired.'; then
+  echo "FAIL: lowercase Operation expired must match (run 34870272068)."
+  exit 1
+fi
 if is_revision_lro_failure 'ERROR: (AuthorizationFailed) roleAssignments/write'; then
   echo "FAIL: AuthorizationFailed must not be treated as a revision LRO failure."
+  exit 1
+fi
+
+# Run 34870272068: deactivate Unhealthy latestRevision, keep latestReady.
+if ! containerapp_should_deactivate_revision \
+  "ca-ato-copilot-mcp-v2--0000113" true Unhealthy ActivationFailed \
+  "ca-ato-copilot-mcp-v2--0000087"; then
+  echo "FAIL: Active Unhealthy revision that is not latestReady should deactivate."
+  exit 1
+fi
+if containerapp_should_deactivate_revision \
+  "ca-ato-copilot-mcp-v2--0000087" true Healthy Running \
+  "ca-ato-copilot-mcp-v2--0000087"; then
+  echo "FAIL: latestReady Healthy revision must not be deactivated."
+  exit 1
+fi
+if containerapp_should_deactivate_revision \
+  "ca-ato-copilot-mcp-v2--0000113" false Unhealthy ActivationFailed \
+  "ca-ato-copilot-mcp-v2--0000087"; then
+  echo "FAIL: inactive Unhealthy revision should not be deactivated."
+  exit 1
+fi
+
+if ! containerapp_should_skip_ingress_port "3001" "3001"; then
+  echo "FAIL: matching ingress port should skip (run 34870272068)."
+  exit 1
+fi
+if containerapp_should_skip_ingress_port "8080" "3001"; then
+  echo "FAIL: mismatched ingress port must not skip."
+  exit 1
+fi
+if ! containerapp_should_skip_ingress_affinity "sticky" sticky; then
+  echo "FAIL: sticky affinity already set should skip."
+  exit 1
+fi
+if containerapp_should_skip_ingress_affinity "none" sticky; then
+  echo "FAIL: none affinity must not skip."
+  exit 1
+fi
+if ! containerapp_has_system_identity "SystemAssigned, UserAssigned"; then
+  echo "FAIL: SystemAssigned, UserAssigned should count as present."
+  exit 1
+fi
+if containerapp_has_system_identity "UserAssigned"; then
+  echo "FAIL: UserAssigned alone must not count as system identity."
+  exit 1
+fi
+if ! containerapp_registry_already_bound "system" system; then
+  echo "FAIL: registry identity=system should be treated as already bound."
+  exit 1
+fi
+if containerapp_registry_already_bound "" system; then
+  echo "FAIL: empty registry identity must not skip registry set."
   exit 1
 fi
 
