@@ -1,0 +1,22 @@
+{
+  "AO": {
+    "allowed": ["/api/authorize", "/api/reports/*"],
+    "forbidden": ["/api/onboarding/role-assignments", "/api/admin/*"]
+  },
+  "SCA": {
+    "allowed": ["/api/observability/*", "/api/compliance/*"],
+    "forbidden": ["/api/admin/*", "/api/onboarding/persons"]
+  },
+  "ISSM": {
+    "allowed": ["/api/assessments/*", "/api/reports/*"],
+    "forbidden": ["/api/admin/*"]
+  },
+  "ISSO": {
+    "allowed": ["/api/assessments/*", "/api/observability/*"],
+    "forbidden": ["/api/admin/*"]
+  },
+  "Engineer": {
+    "allowed": ["/api/onboarding/systems", "/api/compliance/*"],
+    "forbidden": ["/api/authorize", "/api/admin/*"]
+  }
+}

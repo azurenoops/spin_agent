@@ -1,0 +1,11 @@
+{
+  "name": "ato-copilot-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "npx playwright test --config=playwright.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.35.0"
+  }
+}
