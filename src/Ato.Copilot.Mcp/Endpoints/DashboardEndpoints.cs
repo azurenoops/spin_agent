@@ -35,7 +35,8 @@ public static partial class DashboardEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapDashboardEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/dashboard")
+        // Protect all dashboard routes by requiring authorization on the group
+        var group = app.MapGroup("/api/dashboard").RequireAuthorization()
             .WithTags("Dashboard");
 
         MapSystemRoutes(group, app);
