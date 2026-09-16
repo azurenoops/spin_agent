@@ -490,15 +490,14 @@ jobs:
           if containerapp_should_skip_ingress_port "${CURRENT_PORT}" "${TARGET_PORT}"; then
             echo "Ingress target port already ${TARGET_PORT}; skipping update (run 34870272068)."
           else
-            STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
-            # shellcheck disable=SC2046
+            # ingress update has no --no-wait (run 35108043923). Continue
+            # only on revision LRO expire if the app still exists.
             az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
               az containerapp ingress update \
               --resource-group "${RG}" \
               --name "${APP}" \
               --type external \
-              --target-port "${TARGET_PORT}" \
-              $(containerapp_no_wait_if_terminal "${STATE}")
+              --target-port "${TARGET_PORT}"
           fi
 
       - name: Ensure ingress session affinity (required for SignalR)
@@ -547,14 +546,13 @@ jobs:
           if containerapp_has_system_identity "${IDENT_TYPE}"; then
             echo "System-assigned identity already present (${IDENT_TYPE}); skipping assign (run 34870272068)."
           else
-            STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
-            # shellcheck disable=SC2046
+            # identity assign has no --no-wait (run 35108043923). Continue
+            # only on revision LRO expire if the app still exists.
             az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
               az containerapp identity assign \
               --resource-group "${RG}" \
               --name "${APP}" \
-              --system-assigned \
-              $(containerapp_no_wait_if_terminal "${STATE}")
+              --system-assigned
           fi
 
       # Grant the app's pull identity AcrPull on this ACR (least-privilege).
@@ -674,15 +672,14 @@ jobs:
           if containerapp_registry_already_bound "${BOUND_IDENTITY}" "${EXPECTED_IDENTITY}"; then
             echo "Registry '${LOGIN_SERVER}' already bound with identity=${BOUND_IDENTITY}; skipping registry set (run 34870272068)."
           else
-            STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
-            # shellcheck disable=SC2046
+            # registry set has no --no-wait (run 35108043923). Continue
+            # only on revision LRO expire if the app still exists.
             az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
               az containerapp registry set \
               --resource-group "${RG}" \
               --name "${APP}" \
               --server "${LOGIN_SERVER}" \
-              --identity system \
-              $(containerapp_no_wait_if_terminal "${STATE}")
+              --identity system
           fi
 
       - name: Set optional runtime secrets
@@ -713,14 +710,13 @@ jobs:
           fi
 
           wait_containerapp_idle "${RG}" "${APP}" 3 10 allow-inprogress
-          STATE="$(az containerapp show -g "${RG}" -n "${APP}" --query properties.provisioningState -o tsv 2>/dev/null || echo Unknown)"
-          # shellcheck disable=SC2046
+          # secret set has no --no-wait (run 35108043923). Continue only
+          # on revision LRO expire if the app still exists.
           az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
             az containerapp secret set \
             -g "${RG}" \
             -n "${APP}" \
-            --secrets "${SECRETS[@]}" \
-            $(containerapp_no_wait_if_terminal "${STATE}")
+            --secrets "${SECRETS[@]}"
 
       - name: Apply image after registry and secrets
         shell: bash
@@ -750,7 +746,7 @@ jobs:
               --name "${APP}" \
               --image "${IMAGE}" \
               --set-env-vars ${ENV_ARGS} \
-              $(containerapp_no_wait_if_terminal "${STATE}")
+              $(containerapp_no_wait_if_terminal "${STATE}" update)
           else
             # shellcheck disable=SC2046
             az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
@@ -758,7 +754,7 @@ jobs:
               --resource-group "${RG}" \
               --name "${APP}" \
               --image "${IMAGE}" \
-              $(containerapp_no_wait_if_terminal "${STATE}")
+              $(containerapp_no_wait_if_terminal "${STATE}" update)
           fi
 
       - name: Reconcile SQL firewall to app egress IPs
