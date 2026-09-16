@@ -379,6 +379,8 @@ public static class ServiceCollectionExtensions
 
         // Assessment Artifact service and tools (Feature 015 - US7)
         services.AddSingleton<IAssessmentArtifactService, AssessmentArtifactService>();
+        services.AddSingleton<IControlValidationLinkService, ControlValidationLinkService>();
+        services.AddSingleton<GetControlValidationTool>();
         services.AddSingleton<AssessControlTool>();
         services.AddSingleton<TakeSnapshotTool>();
         services.AddSingleton<CompareSnapshotsTool>();
@@ -626,6 +628,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<InventoryAutoSeedTool>());
 
         // Assessment Artifact tools as BaseTool (Feature 015 - US7)
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<GetControlValidationTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<AssessControlTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<TakeSnapshotTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<CompareSnapshotsTool>());

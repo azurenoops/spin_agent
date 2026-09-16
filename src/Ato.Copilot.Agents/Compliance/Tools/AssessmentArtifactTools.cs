@@ -23,13 +23,16 @@ namespace Ato.Copilot.Agents.Compliance.Tools;
 public class AssessControlTool : BaseTool
 {
     private readonly IAssessmentArtifactService _service;
+    private readonly IControlValidationLinkService? _validationLinks;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public AssessControlTool(
         IAssessmentArtifactService service,
-        ILogger<AssessControlTool> logger) : base(logger)
+        ILogger<AssessControlTool> logger,
+        IControlValidationLinkService? validationLinks = null) : base(logger)
     {
         _service = service;
+        _validationLinks = validationLinks;
     }
 
     public override string Name => "compliance_assess_control";
@@ -90,11 +93,33 @@ public class AssessControlTool : BaseTool
                 assessmentId, controlId, determination, method, evidenceIds,
                 notes, catSeverity, "mcp-user", cancellationToken);
 
+            var warnings = new List<string>();
+            if (_validationLinks is not null && result.Determination == EffectivenessDetermination.Satisfied)
+            {
+                try
+                {
+                    var links = await _validationLinks.GetLinksAsync(
+                        result.RegisteredSystemId,
+                        result.ControlId,
+                        cancellationToken);
+                    if (links.Count == 0)
+                        warnings.Add("No validation links attached to this control. Consider adding evidence.");
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    Logger.LogWarning(
+                        exception,
+                        "Unable to check validation links after assessing control {ControlId}",
+                        result.ControlId);
+                }
+            }
+
             sw.Stop();
             return JsonSerializer.Serialize(new
             {
                 status = "success",
                 data = FormatEffectiveness(result),
+                warnings,
                 metadata = Meta(sw)
             }, JsonOpts);
         }

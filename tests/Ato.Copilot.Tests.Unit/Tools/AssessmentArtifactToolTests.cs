@@ -55,6 +55,40 @@ public class AssessmentArtifactToolTests
     }
 
     [Fact]
+    public async Task AssessControl_SatisfiedWithNoValidationLinks_ReturnsNonBlockingWarning()
+    {
+        // Arrange
+        var effectiveness = CreateControlEffectiveness("AC-2", EffectivenessDetermination.Satisfied);
+        _serviceMock
+            .Setup(service => service.AssessControlAsync(
+                "assess-1", "AC-2", "Satisfied", null, It.IsAny<List<string>?>(),
+                null, null, "mcp-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(effectiveness);
+        var validationLinks = new Mock<IControlValidationLinkService>();
+        validationLinks
+            .Setup(service => service.GetLinksAsync(effectiveness.RegisteredSystemId, "AC-2", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var tool = new AssessControlTool(
+            _serviceMock.Object,
+            Mock.Of<ILogger<AssessControlTool>>(),
+            validationLinks.Object);
+
+        // Act
+        var result = await tool.ExecuteCoreAsync(new Dictionary<string, object?>
+        {
+            ["assessment_id"] = "assess-1",
+            ["control_id"] = "AC-2",
+            ["determination"] = "Satisfied",
+        });
+        using var document = JsonDocument.Parse(result);
+
+        // Assert
+        document.RootElement.GetProperty("status").GetString().Should().Be("success");
+        document.RootElement.GetProperty("warnings")[0].GetString()
+            .Should().Be("No validation links attached to this control. Consider adding evidence.");
+    }
+
+    [Fact]
     public async Task AssessControl_OtherThanSatisfied_WithCat_ReturnsSuccess()
     {
         // Arrange

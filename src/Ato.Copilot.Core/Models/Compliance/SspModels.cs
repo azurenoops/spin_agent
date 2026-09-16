@@ -101,6 +101,55 @@ public class ControlImplementation
 
     /// <summary>The most recently approved version (null until first approval).</summary>
     public NarrativeVersion? ApprovedVersion { get; set; }
+
+    /// <summary>Resources, findings, and evidence used to validate this implementation.</summary>
+    public ICollection<ControlValidationLink> ValidationLinks { get; set; } = new List<ControlValidationLink>();
+}
+
+/// <summary>A navigable validation reference attached to a control implementation.</summary>
+[TenantScoped]
+public class ControlValidationLink
+{
+    public Guid TenantId { get; set; }
+
+    [Key]
+    [MaxLength(36)]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    [Required]
+    [MaxLength(36)]
+    public string ControlImplementationId { get; set; } = string.Empty;
+
+    [Required]
+    public ControlValidationLinkType LinkType { get; set; }
+
+    [Required]
+    [MaxLength(2048)]
+    public string LinkTarget { get; set; } = string.Empty;
+
+    [MaxLength(2000)]
+    public string? Description { get; set; }
+
+    [Required]
+    [MaxLength(200)]
+    public string AddedBy { get; set; } = string.Empty;
+
+    public DateTime AddedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime? ValidatedAt { get; set; }
+
+    public bool IsAutomated { get; set; }
+
+    public ControlImplementation ControlImplementation { get; set; } = null!;
+}
+
+/// <summary>The kind of validation target attached to a control implementation.</summary>
+public enum ControlValidationLinkType
+{
+    AzureResource,
+    ScanFinding,
+    EvidenceArtifact,
+    ExternalUrl,
 }
 
 // ─── SSP DTOs ────────────────────────────────────────────────────────────────

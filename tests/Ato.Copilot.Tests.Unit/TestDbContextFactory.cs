@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 
 namespace Ato.Copilot.Tests.Unit;
 
@@ -15,8 +16,10 @@ internal sealed class TestDbContextFactory : IDbContextFactory<AtoCopilotContext
 {
     private readonly NonDisposingAtoCopilotContext _shared;
 
-    public TestDbContextFactory(DbContextOptions<AtoCopilotContext> options)
-        => _shared = new NonDisposingAtoCopilotContext(options);
+    public TestDbContextFactory(
+        DbContextOptions<AtoCopilotContext> options,
+        ITenantContextAccessor? tenantAccessor = null)
+        => _shared = new NonDisposingAtoCopilotContext(options, tenantAccessor);
 
     /// <summary>Underlying shared context (use this in test setup/assertions).</summary>
     public AtoCopilotContext Context => _shared;
@@ -28,7 +31,9 @@ internal sealed class TestDbContextFactory : IDbContextFactory<AtoCopilotContext
 
     private sealed class NonDisposingAtoCopilotContext : AtoCopilotContext
     {
-        public NonDisposingAtoCopilotContext(DbContextOptions<AtoCopilotContext> options) : base(options) { }
+        public NonDisposingAtoCopilotContext(
+            DbContextOptions<AtoCopilotContext> options,
+            ITenantContextAccessor? tenantAccessor) : base(options, tenantAccessor) { }
         public override void Dispose() { /* no-op: lifetime managed by test */ }
         public override ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

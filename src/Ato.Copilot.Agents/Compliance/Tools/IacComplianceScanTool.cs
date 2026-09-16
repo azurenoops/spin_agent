@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Agents.Common;
+using Ato.Copilot.Core.Interfaces.Compliance;
 
 namespace Ato.Copilot.Agents.Compliance.Tools;
 
@@ -14,12 +15,16 @@ namespace Ato.Copilot.Agents.Compliance.Tools;
 public class IacComplianceScanTool : BaseTool
 {
     private static readonly Lazy<List<IacComplianceRule>> CachedRules = new(BuildAllRules);
+    private readonly IControlValidationLinkService? _validationLinks;
 
     /// <summary>Initializes a new instance of the <see cref="IacComplianceScanTool"/> class.</summary>
     /// <param name="logger">Logger instance for diagnostic output.</param>
-    public IacComplianceScanTool(ILogger<IacComplianceScanTool> logger)
+    public IacComplianceScanTool(
+        ILogger<IacComplianceScanTool> logger,
+        IControlValidationLinkService? validationLinks = null)
         : base(logger)
     {
+        _validationLinks = validationLinks;
     }
 
     /// <inheritdoc />
@@ -59,6 +64,13 @@ public class IacComplianceScanTool : BaseTool
             Description = "Compliance framework to scan against (default: 'nist-800-53-r5'). Options: 'nist-800-53-r5', 'fedramp-high', 'fedramp-moderate'",
             Type = "string",
             Required = false
+        },
+        ["system_id"] = new()
+        {
+            Name = "system_id",
+            Description = "Registered system ID used to attach findings as control validation links",
+            Type = "string",
+            Required = false
         }
     };
 
@@ -77,6 +89,7 @@ public class IacComplianceScanTool : BaseTool
         var fileContent = GetArg<string>(arguments, "fileContent") ?? string.Empty;
         var fileType = GetArg<string>(arguments, "fileType") ?? "bicep";
         var framework = GetArg<string>(arguments, "framework") ?? "nist-800-53-r5";
+        var systemId = GetArg<string>(arguments, "system_id");
 
         Logger.LogInformation("IaC compliance scan | File: {FilePath}, Type: {FileType}, Framework: {Framework}",
             filePath, fileType, framework);
@@ -111,6 +124,21 @@ public class IacComplianceScanTool : BaseTool
 
         // Perform rule-based IaC compliance scanning
         var findings = await ScanIacContentAsync(fileContent, fileType, framework, cancellationToken);
+        var validationLinksCreated = 0;
+        if (_validationLinks is not null && !string.IsNullOrWhiteSpace(systemId))
+        {
+            foreach (var finding in findings)
+            {
+                var created = await _validationLinks.UpsertScanLinkAsync(
+                    systemId,
+                    finding.ControlId,
+                    $"{filePath}#{finding.FindingId}",
+                    $"{finding.Title}: {finding.Description}",
+                    cancellationToken);
+                if (created)
+                    validationLinksCreated++;
+            }
+        }
 
         var result = new
         {
@@ -120,7 +148,11 @@ public class IacComplianceScanTool : BaseTool
             framework,
             totalFindings = findings.Count,
             findings,
-            scannedAt = DateTime.UtcNow
+            scannedAt = DateTime.UtcNow,
+            metadata = new
+            {
+                validationLinksCreated,
+            },
         };
 
         Logger.LogInformation("IaC scan complete | File: {FilePath}, Findings: {Count}",

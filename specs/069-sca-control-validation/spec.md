@@ -3,8 +3,8 @@
 **Epic:** #57 — SCA: Validate Control Implementation in the Environment  
 **Milestone:** Wave 9 — SCA Evidence & Validation  
 **Owner:** Cyborg (agent:cyborg)  
-**Status:** Spec-complete (pending implementation)  
-**Last updated:** 2026-06-11  
+**Status:** Implemented
+**Last updated:** 2026-09-16
 **Feature number:** 069
 
 ---
@@ -178,17 +178,17 @@ This feature introduces:
 
 ## Definition of Done
 
-- [ ] `ControlValidationLink` entity created in `SspModels.cs`
-- [ ] EF Core migration `Add_ControlValidationLinks` applied
-- [ ] `IControlValidationLinkService` interface and `ControlValidationLinkService` implementation
-- [ ] `GetControlValidationTool` (MCP) implemented and registered in DI
-- [ ] `GET`, `POST`, `DELETE` Dashboard endpoints implemented
-- [ ] IaC scan auto-create hook implemented (upsert)
-- [ ] Dashboard "Validation Evidence" panel implemented on control detail page
-- [ ] Azure Portal deep-link construction for `AzureResource` links
-- [ ] Role gates verified (UI + API)
-- [ ] Unit and integration tests passing
-- [ ] Empty-state and 0-links warning rendered correctly
+- [x] `ControlValidationLink` entity created in `SspModels.cs`
+- [x] Idempotent SQL Server and SQLite `ControlValidationLinks` schema addition applied
+- [x] `IControlValidationLinkService` interface and `ControlValidationLinkService` implementation
+- [x] `GetControlValidationTool` (MCP) implemented and registered in DI
+- [x] `GET`, `POST`, `DELETE` Dashboard endpoints implemented
+- [x] IaC scan auto-create hook implemented (upsert)
+- [x] Dashboard "Validation Evidence" panel implemented on control detail page
+- [x] Azure Portal deep-link construction for `AzureResource` links
+- [x] Role gates verified (UI + API)
+- [x] Feature unit, integration, and E2E tests passing
+- [x] Empty-state and 0-links warning rendered correctly
 
 ---
 
