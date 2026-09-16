@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenAI;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
@@ -44,7 +45,7 @@ public static class CoreServiceExtensions
         // Bind configuration sections
         services.Configure<GatewayOptions>(configuration.GetSection(GatewayOptions.SectionName));
         services.Configure<AzureAiOptions>(configuration.GetSection(AzureAiOptions.SectionName));
-        services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SectionName));
+        services.AddAzureAdConfiguration(configuration);
         services.Configure<PimServiceOptions>(configuration.GetSection(PimServiceOptions.SectionName));
         services.Configure<CacAuthOptions>(configuration.GetSection(CacAuthOptions.SectionName));
         services.Configure<RetentionPolicyOptions>(configuration.GetSection(RetentionPolicyOptions.SectionName));
@@ -131,6 +132,22 @@ public static class CoreServiceExtensions
 
         // Register Azure ARM client
         RegisterArmClient(services, configuration);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Azure AD configuration with fail-fast validation for production hosts.
+    /// </summary>
+    public static IServiceCollection AddAzureAdConfiguration(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<AzureAdOptions>()
+            .Bind(configuration.GetSection(AzureAdOptions.SectionName))
+            .ValidateOnStart();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<AzureAdOptions>, AzureAdOptionsValidator>());
 
         return services;
     }
