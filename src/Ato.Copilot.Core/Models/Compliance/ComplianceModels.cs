@@ -231,6 +231,22 @@ public enum EvidenceCategory
     Inventory
 }
 
+/// <summary>Identifies which narrative half an evidence artifact supports.</summary>
+public enum EvidenceNarrativeType
+{
+    /// <summary>Supports the policy or procedural narrative.</summary>
+    Policy = 0,
+
+    /// <summary>Supports the technical or implementation narrative.</summary>
+    Technical = 1,
+
+    /// <summary>Supports both narrative halves.</summary>
+    Combined = 2,
+
+    /// <summary>Has not yet been classified.</summary>
+    Unclassified = 3
+}
+
 /// <summary>
 /// Remediation plan lifecycle state.
 /// Transitions: Planned → Approved → InProgress → Completed | PartiallyCompleted | Failed

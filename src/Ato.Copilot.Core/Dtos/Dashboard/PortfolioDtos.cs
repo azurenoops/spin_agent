@@ -566,6 +566,9 @@ public class NarrativeListItemDto
     public required string ControlId { get; init; }
     public required string Family { get; init; }
     public string? Narrative { get; init; }
+    public string? PolicyNarrative { get; init; }
+    public string? TechnicalNarrative { get; init; }
+    public bool MigratedFromLegacy { get; init; }
     public required string ImplementationStatus { get; init; }
     public required string ApprovalStatus { get; init; }
     public required string AuthoredBy { get; init; }

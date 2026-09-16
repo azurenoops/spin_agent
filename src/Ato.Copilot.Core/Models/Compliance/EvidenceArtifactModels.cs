@@ -114,6 +114,18 @@ public class EvidenceArtifact
     [Required]
     public CollectionMethod CollectionMethod { get; set; } = CollectionMethod.Manual;
 
+    /// <summary>Identifies which narrative half this artifact supports.</summary>
+    [Required]
+    public EvidenceNarrativeType NarrativeType { get; set; } = EvidenceNarrativeType.Unclassified;
+
+    /// <summary>Reason recorded by the automatic or manual classifier.</summary>
+    [MaxLength(500)]
+    public string? AutoTagRationale { get; set; }
+
+    /// <summary>Identity of the user who last classified this artifact manually.</summary>
+    [MaxLength(200)]
+    public string? ManuallyTaggedBy { get; set; }
+
     /// <summary>SHA-256 hex digest for integrity verification.</summary>
     [Required]
     [MaxLength(64)]

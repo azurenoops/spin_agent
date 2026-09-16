@@ -323,7 +323,7 @@ public class EmassExportService : IEmassExportService
                 ControlName: controlId, // simplified — full name would need catalog lookup
                 ControlFamily: family,
                 ImplementationStatus: implStatus,
-                ImplementationNarrative: impl?.Narrative,
+                ImplementationNarrative: BuildImplementationNarrative(impl),
                 CommonControlProvider: inherit?.Provider,
                 ResponsibilityType: responsibilityType,
                 ComplianceStatus: complianceStatus,
@@ -340,6 +340,23 @@ public class EmassExportService : IEmassExportService
                 ModifiedBy: impl?.AuthoredBy
             );
         }).ToList();
+    }
+
+    /// <summary>Combines dual narratives for eMASS's single implementation statement.</summary>
+    public static string? BuildImplementationNarrative(ControlImplementation? implementation)
+    {
+        if (implementation is null)
+        {
+            return null;
+        }
+
+        var narratives = new[]
+        {
+            implementation.PolicyNarrative,
+            implementation.TechnicalNarrative
+        }.Where(narrative => !string.IsNullOrWhiteSpace(narrative));
+        var combined = string.Join("\n\n", narratives);
+        return string.IsNullOrWhiteSpace(combined) ? implementation.Narrative : combined;
     }
 
     private static List<EmassPoamExportRow> BuildPoamRows(

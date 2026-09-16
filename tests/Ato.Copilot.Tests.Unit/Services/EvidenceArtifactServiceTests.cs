@@ -94,6 +94,25 @@ public class EvidenceArtifactServiceTests : IDisposable
         result.ControlImplementationId.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Upload_WithNarrativeType_PersistsClassification()
+    {
+        // Arrange
+        using var stream = MakeStream();
+
+        // Act
+        var result = await _sut.UploadAsync(
+            "sys-1", "account-policy.pdf", "application/pdf", stream,
+            ArtifactCategory.PolicyDocument, "admin@test.com",
+            controlImplementationId: "ci-1",
+            narrativeType: EvidenceNarrativeType.Policy);
+
+        // Assert
+        result.NarrativeType.Should().Be(EvidenceNarrativeType.Policy);
+        var saved = await _db.EvidenceArtifacts.FindAsync(result.Id);
+        saved!.NarrativeType.Should().Be(EvidenceNarrativeType.Policy);
+    }
+
     // ─── Upload Validation ───────────────────────────────────────────────
 
     [Fact]

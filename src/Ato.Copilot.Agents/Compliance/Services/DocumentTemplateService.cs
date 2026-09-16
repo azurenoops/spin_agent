@@ -364,6 +364,25 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         return value[..497] + "...";
     }
 
+    /// <summary>Formats control narratives for the shared DOCX and PDF merge field.</summary>
+    public static string BuildControlNarratives(IEnumerable<ControlImplementation> implementations)
+    {
+        var sections = implementations
+            .OrderBy(implementation => implementation.ControlId)
+            .Take(50)
+            .Select(implementation =>
+                $"{implementation.ControlId}\n" +
+                "Implementation Statement (Policy):\n" +
+                $"{implementation.PolicyNarrative ?? "[Not Authored]"}\n\n" +
+                "Implementation Statement (Technical):\n" +
+                $"{implementation.TechnicalNarrative ?? "[Not Authored]"}")
+            .ToList();
+
+        return sections.Count == 0
+            ? "No control implementations available."
+            : string.Join("\n\n", sections);
+    }
+
     private static byte[] CreateMinimalDocx(string bodyXml)
     {
         var documentXml = $@"<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>
@@ -633,13 +652,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         data["PlannedControls"] = implementations
             .Count(ci => ci.ImplementationStatus == ImplementationStatus.Planned).ToString();
 
-        // Build narrative summary
-        var narrativeSb = new StringBuilder();
-        foreach (var ci in implementations.Where(ci => !string.IsNullOrEmpty(ci.Narrative)).Take(50))
-        {
-            narrativeSb.AppendLine($"{ci.ControlId}: {ci.Narrative}");
-        }
-        data["ControlNarratives"] = narrativeSb.Length > 0 ? narrativeSb.ToString() : "No narratives authored yet.";
+        data["ControlNarratives"] = BuildControlNarratives(implementations);
 
         var boundaries = await db.AuthorizationBoundaries
             .AsNoTracking()

@@ -359,12 +359,19 @@ export default function Narratives() {
     }
   };
 
-  const handleNarrativeBlur = async (controlId: string, text: string, original: string | null) => {
+  const handleNarrativeBlur = async (
+    controlId: string,
+    part: 'policy' | 'technical',
+    text: string,
+    original: string | null,
+  ) => {
     if (text === (original ?? '')) return; // No change
     if (!systemId) return;
     setSavingIds(prev => new Set([...prev, controlId]));
     try {
-      await saveNarrative(systemId, controlId, text);
+      await saveNarrative(systemId, controlId, part === 'policy'
+        ? { policyNarrative: text }
+        : { technicalNarrative: text });
       setSavedIds(prev => new Set([...prev, controlId]));
       // Clear "Saved" indicator after 2s
       if (savedTimers.current[controlId]) clearTimeout(savedTimers.current[controlId]);
@@ -670,8 +677,11 @@ export default function Narratives() {
                       <tr className="bg-gray-50">
                         <td colSpan={9} className="px-6 py-4">
                           {(() => {
-                            const narrativeValue = editedNarratives[n.controlId] ?? n.narrative ?? '';
-                            const activities = parseControlActivities(narrativeValue);
+                            const policyKey = `${n.controlId}:policy`;
+                            const technicalKey = `${n.controlId}:technical`;
+                            const policyValue = editedNarratives[policyKey] ?? n.policyNarrative ?? '';
+                            const technicalValue = editedNarratives[technicalKey] ?? n.technicalNarrative ?? '';
+                            const activities = parseControlActivities(technicalValue);
                             return (
                           <div className="space-y-2">
                             <div className="flex items-center justify-between text-xs text-gray-500">
@@ -690,12 +700,33 @@ export default function Narratives() {
                                 {regeneratingIds.has(n.controlId) ? 'Regenerating…' : 'Regenerate'}
                               </button>
                             </div>
-                            <textarea
-                              className="w-full rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-700 min-h-[120px] resize-y focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
-                              value={narrativeValue}
-                              onChange={e => setEditedNarratives(prev => ({ ...prev, [n.controlId]: e.target.value }))}
-                              onBlur={e => handleNarrativeBlur(n.controlId, e.target.value, n.narrative)}
-                            />
+                            <div className="grid gap-4 lg:grid-cols-2">
+                              <label className="block text-sm font-semibold text-gray-800">
+                                Policy Narrative
+                                <span className="mt-1 block text-xs font-normal text-gray-500">Governance, ownership, review cadence, and policy citations</span>
+                                <textarea
+                                  aria-label={`Policy narrative for ${n.controlId}`}
+                                  className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                                  value={policyValue}
+                                  onChange={event => setEditedNarratives(previous => ({ ...previous, [policyKey]: event.target.value }))}
+                                  onBlur={event => handleNarrativeBlur(n.controlId, 'policy', event.target.value, n.policyNarrative)}
+                                />
+                              </label>
+                              <label className="block text-sm font-semibold text-gray-800">
+                                Technical Narrative
+                                <span className="mt-1 block text-xs font-normal text-gray-500">
+                                  System configuration, enforcement, scans, and implementation details
+                                  {n.migratedFromLegacy ? ' · Migrated from legacy narrative' : ''}
+                                </span>
+                                <textarea
+                                  aria-label={`Technical narrative for ${n.controlId}`}
+                                  className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                                  value={technicalValue}
+                                  onChange={event => setEditedNarratives(previous => ({ ...previous, [technicalKey]: event.target.value }))}
+                                  onBlur={event => handleNarrativeBlur(n.controlId, 'technical', event.target.value, n.technicalNarrative)}
+                                />
+                              </label>
+                            </div>
                             {activities.length > 0 && (
                               <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Control Activities</p>
@@ -746,7 +777,7 @@ export default function Narratives() {
                                         className="text-xs text-indigo-600 font-medium hover:underline"
                                         onClick={() => setEditedNarratives(prev => ({
                                           ...prev,
-                                          [n.controlId]: (prev[n.controlId] ?? n.narrative ?? '') + '\n\n' + bc.content,
+                                          [policyKey]: (prev[policyKey] ?? n.policyNarrative ?? '') + '\n\n' + bc.content,
                                         }))}
                                       >
                                         Copy to Narrative

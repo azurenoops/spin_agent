@@ -141,6 +141,40 @@ public class EvidenceEndpointsTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task Upload_WithNarrativeType_ReturnsSelectedClassification()
+    {
+        // Arrange
+        using var form = CreateUploadForm("policy.pdf", "application/pdf");
+        form.Add(new StringContent("Policy"), "narrativeType");
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/dashboard/systems/{_systemId}/evidence", form);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(_json);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        body.GetProperty("narrativeType").GetString().Should().Be("Policy");
+    }
+
+    [Fact]
+    public async Task Upload_WithUndefinedNumericNarrativeType_Returns400()
+    {
+        // Arrange
+        using var form = CreateUploadForm("policy.pdf", "application/pdf");
+        form.Add(new StringContent("999"), "narrativeType");
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/dashboard/systems/{_systemId}/evidence", form);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(_json);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        body.GetProperty("errorCode").GetString().Should().Be("INVALID_NARRATIVE_TYPE");
+    }
+
     // ─── List Evidence ───────────────────────────────────────────────────
 
     [Fact]
@@ -242,7 +276,15 @@ public class EvidenceEndpointsTests : IAsyncLifetime
 
     private async Task<HttpResponseMessage> UploadTestEvidence(string fileName, string contentType)
     {
-        using var form = new MultipartFormDataContent();
+        using var form = CreateUploadForm(fileName, contentType);
+
+        return await _client.PostAsync(
+            $"/api/dashboard/systems/{_systemId}/evidence", form);
+    }
+
+    private static MultipartFormDataContent CreateUploadForm(string fileName, string contentType)
+    {
+        var form = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(Encoding.UTF8.GetBytes("test-file-content-123"));
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
         form.Add(fileContent, "file", fileName);
@@ -250,7 +292,6 @@ public class EvidenceEndpointsTests : IAsyncLifetime
         form.Add(new StringContent("ci-1"), "controlImplementationId");
         form.Add(new StringContent("test@integration.com"), "uploadedBy");
 
-        return await _client.PostAsync(
-            $"/api/dashboard/systems/{_systemId}/evidence", form);
+        return form;
     }
 }
