@@ -286,7 +286,7 @@ jobs:
       - name: Build
         run: dotnet build Ato.Copilot.sln -c Release --no-restore -nologo
 
-      # Hard-fail lane: all tests EXCEPT the four pre-existing failures.
+      # Hard-fail lane: all tests EXCEPT the two SSP authoring failures tracked by #856.
       # Any regression here blocks the merge.
       - name: Run integration tests (hard-fail lane)
         run: |
@@ -294,14 +294,13 @@ jobs:
             -c Release --no-build -nologo \
             --logger trx \
             --logger "console;verbosity=normal" \
-            --filter "FullyQualifiedName!~BaselineIntegrationTests.FullBaselineLifecycle_SelectTailorInheritCrm&FullyQualifiedName!~BaselineIntegrationTests.ReselectBaseline_ReplacesPreviousBaseline&FullyQualifiedName!~SspAuthoringIntegrationTests.BatchPopulate_Idempotent_SecondRunSkipsAll&FullyQualifiedName!~SspAuthoringIntegrationTests.FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp"
+            --filter "FullyQualifiedName!~SspAuthoringIntegrationTests.BatchPopulate_Idempotent_SecondRunSkipsAll&FullyQualifiedName!~SspAuthoringIntegrationTests.FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp"
         env:
           ASPNETCORE_ENVIRONMENT: Development
           ATO_DATABASE__PROVIDER: Sqlite
           ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: "Data Source=:memory:"
 
-      # Quarantine lane: four pre-existing failures tracked in GitHub issues.
-      # Baseline: #857 (FullBaselineLifecycle_SelectTailorInheritCrm, ReselectBaseline_ReplacesPreviousBaseline)
+      # Quarantine lane: two pre-existing SSP failures tracked in GitHub issue #856.
       # SspAuthoring: #856 (BatchPopulate_Idempotent_SecondRunSkipsAll, FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp)
       # continue-on-error is scoped to this step only — quarantine lane must trend to zero.
       - name: Run integration tests (quarantine lane)
@@ -311,7 +310,7 @@ jobs:
             -c Release --no-build -nologo \
             --logger trx \
             --logger "console;verbosity=normal" \
-            --filter "FullyQualifiedName~BaselineIntegrationTests.FullBaselineLifecycle_SelectTailorInheritCrm|FullyQualifiedName~BaselineIntegrationTests.ReselectBaseline_ReplacesPreviousBaseline|FullyQualifiedName~SspAuthoringIntegrationTests.BatchPopulate_Idempotent_SecondRunSkipsAll|FullyQualifiedName~SspAuthoringIntegrationTests.FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp"
+            --filter "FullyQualifiedName~SspAuthoringIntegrationTests.BatchPopulate_Idempotent_SecondRunSkipsAll|FullyQualifiedName~SspAuthoringIntegrationTests.FullSspLifecycle_WriteNarrativeSuggestBatchPopulateProgressGenerateSsp"
         env:
           ASPNETCORE_ENVIRONMENT: Development
           ATO_DATABASE__PROVIDER: Sqlite
