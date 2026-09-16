@@ -29,6 +29,7 @@ public class EmassIntegrationTests : IDisposable
 {
     private readonly ServiceProvider _serviceProvider;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IEmassExportService _emassService;
     private readonly ExportEmassTool _exportTool;
     private readonly ImportEmassTool _importTool;
     private readonly ExportOscalTool _oscalTool;
@@ -52,21 +53,21 @@ public class EmassIntegrationTests : IDisposable
                 new List<string>(),
                 new OscalStatistics(2, 1, 0, 0, 0)));
 
-        var emassSvc = new EmassExportService(
+        _emassService = new EmassExportService(
             _scopeFactory, Mock.Of<ILogger<EmassExportService>>(),
             oscalMock.Object);
 
         _exportTool = new ExportEmassTool(
-            emassSvc, Mock.Of<ILogger<ExportEmassTool>>());
+            _emassService, Mock.Of<ILogger<ExportEmassTool>>());
         _importTool = new ImportEmassTool(
-            emassSvc, Mock.Of<ILogger<ImportEmassTool>>());
+            _emassService, Mock.Of<ILogger<ImportEmassTool>>());
         var schemaValidatorMock = new Mock<IOscalSchemaValidationService>();
         schemaValidatorMock
             .Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OscalSchemaValidationResult { IsValid = true, ModelType = "ssp" });
 
         _oscalTool = new ExportOscalTool(
-            emassSvc, Mock.Of<IOscalSapExportService>(), schemaValidatorMock.Object, Mock.Of<ILogger<ExportOscalTool>>());
+            _emassService, Mock.Of<IOscalSapExportService>(), schemaValidatorMock.Object, Mock.Of<ILogger<ExportOscalTool>>());
     }
 
     public void Dispose() => _serviceProvider.Dispose();
@@ -209,6 +210,37 @@ public class EmassIntegrationTests : IDisposable
         oscalDocument.ValueKind.Should().Be(JsonValueKind.Object);
     }
 
+    [Fact]
+    public async Task Exports_IncludeRegisteredSystemIdentifiers()
+    {
+        // Arrange
+        var systemId = await SeedFullSystem();
+
+        // Act
+        var controlsBytes = await _emassService.ExportControlsAsync(systemId);
+        var poamBytes = await _emassService.ExportPoamAsync(systemId);
+        var oscalPoam = await _emassService.ExportOscalAsync(systemId, OscalModelType.Poam);
+        var oscalAssessmentResults = await _emassService.ExportOscalAsync(
+            systemId, OscalModelType.AssessmentResults);
+
+        // Assert
+        using (var controlsWorkbook = new XLWorkbook(new MemoryStream(controlsBytes)))
+        {
+            var controls = controlsWorkbook.Worksheets.First();
+            controls.Cell(2, 3).GetString().Should().Be("DITPR-071");
+            controls.Cell(2, 4).GetString().Should().Be("EMASS-071");
+        }
+
+        using (var poamWorkbook = new XLWorkbook(new MemoryStream(poamBytes)))
+        {
+            poamWorkbook.Worksheets.First().Cell(2, 2).GetString()
+                .Should().Be("EMASS-071");
+        }
+
+        AssertOscalIdentifiers(oscalPoam, "plan-of-action-and-milestones");
+        AssertOscalIdentifiers(oscalAssessmentResults, "assessment-results");
+    }
+
     // ═════════════════════════════════════════════════════════════════════════
     //  Helpers
     // ═════════════════════════════════════════════════════════════════════════
@@ -223,6 +255,8 @@ public class EmassIntegrationTests : IDisposable
         {
             Name = "eMASS Integration Test System",
             Acronym = "EMITS",
+            DitprId = "DITPR-071",
+            EmassId = "EMASS-071",
             SystemType = SystemType.MajorApplication,
             MissionCriticality = MissionCriticality.MissionEssential,
             HostingEnvironment = "AzureGovernment",
@@ -313,5 +347,21 @@ public class EmassIntegrationTests : IDisposable
 
         await db.SaveChangesAsync();
         return system.Id;
+    }
+
+    private static void AssertOscalIdentifiers(string oscalJson, string rootName)
+    {
+        using var document = JsonDocument.Parse(oscalJson);
+        var root = document.RootElement.GetProperty(rootName);
+        root.GetProperty("metadata").GetProperty("oscal-version").GetString()
+            .Should().Be("1.1.2");
+
+        var identifiers = root.GetProperty("metadata").GetProperty("system-id")
+            .EnumerateArray().ToDictionary(
+                identifier => identifier.GetProperty("identifier-type").GetString()!,
+                identifier => identifier.GetProperty("id").GetString());
+
+        identifiers["https://ies.apps.mil/jira/DoD-DITPR"].Should().Be("DITPR-071");
+        identifiers["https://dodea.emass.mil"].Should().Be("EMASS-071");
     }
 }

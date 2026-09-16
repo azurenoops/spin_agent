@@ -88,6 +88,7 @@ nav:
     - Chat App: guides/chat-app.md
     - Knowledge Base: guides/knowledgebase.md
     - eMASS Authorization Package: guides/emass-package.md
+    - eMASS Workflow Sync: guides/emass-workflow.md
   - Reference:
     - Glossary: reference/glossary.md
     - Tool Inventory: reference/tool-inventory.md

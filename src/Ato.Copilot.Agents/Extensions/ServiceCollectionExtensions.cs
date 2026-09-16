@@ -380,6 +380,8 @@ public static class ServiceCollectionExtensions
         // Assessment Artifact service and tools (Feature 015 - US7)
         services.AddSingleton<IAssessmentArtifactService, AssessmentArtifactService>();
         services.AddSingleton<IControlValidationLinkService, ControlValidationLinkService>();
+        services.AddSingleton<EmassGetWorkflowStatusTool>();
+        services.AddSingleton<EmassCheckExportReadinessTool>();
         services.AddSingleton<GetControlValidationTool>();
         services.AddSingleton<AssessControlTool>();
         services.AddSingleton<TakeSnapshotTool>();
@@ -446,6 +448,9 @@ public static class ServiceCollectionExtensions
 
         // ─── US10: eMASS & OSCAL Interoperability tools ──────────────────────
         services.AddSingleton<IEmassExportService, EmassExportService>();
+        services.AddSingleton<IEmassExportReadinessService, EmassExportReadinessService>();
+        services.AddSingleton<IEmassRoundTripSyncService, EmassRoundTripSyncService>();
+        services.AddSingleton<IEmassWorkflowStatusService, EmassWorkflowStatusService>();
         services.AddSingleton<ExportEmassTool>();
         services.AddSingleton<ImportEmassTool>();
         services.AddSingleton<ExportOscalTool>();
@@ -635,6 +640,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<VerifyEvidenceTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<CheckEvidenceCompletenessTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<GenerateSarTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<EmassGetWorkflowStatusTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<EmassCheckExportReadinessTool>());
 
         // Authorization Decision tools as BaseTool (Feature 015 - US8)
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<IssueAuthorizationTool>());
