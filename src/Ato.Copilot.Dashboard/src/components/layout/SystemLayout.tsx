@@ -8,6 +8,7 @@ import apiClient from '../../api/client';
 import { getSystemDetail } from '../../api/systemDetail';
 import { getProfileCompleteness } from '../../api/systemProfile';
 import type { SystemDetailResponse, ProfileCompletenessResponse, TodoList } from '../../types/dashboard';
+import AsyncErrorState from '../AsyncErrorState';
 
 // ─── Context ────────────────────────────────────────────────────────────────
 
@@ -149,6 +150,11 @@ export default function SystemLayout() {
     }
   }, [id, withTimeout]);
 
+  const retryFetchData = useCallback(() => {
+    setLoading(true);
+    void fetchData();
+  }, [fetchData]);
+
   usePolling(fetchData, undefined, !!id);
 
   // fix(#505): useLocation must be called before any early returns to satisfy
@@ -166,7 +172,10 @@ export default function SystemLayout() {
   if (error || !detail) {
     return (
       <PageLayout title="System Detail">
-        <p className="text-red-500">{error ?? 'System not found'}</p>
+        <AsyncErrorState
+          title={error ? 'Unable to load system detail.' : 'System not found.'}
+          onRetry={retryFetchData}
+        />
       </PageLayout>
     );
   }
