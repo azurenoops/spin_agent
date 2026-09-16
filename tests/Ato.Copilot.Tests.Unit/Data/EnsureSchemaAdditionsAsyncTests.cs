@@ -79,6 +79,32 @@ public class EnsureSchemaAdditionsAsyncTests
         Convert.ToInt32(await command.ExecuteScalarAsync()).Should().Be(1);
     }
 
+    [Fact]
+    public async Task EmassConflicts_OnSqlite_CreatesSchemaIdempotently()
+    {
+        // Arrange
+        await using var connection = new SqliteConnection("Filename=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AtoCopilotContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var context = new AtoCopilotContext(options);
+        var logger = BuildLogger();
+
+        // Act
+        await EmassConflictsSchemaAdditions.ApplyAsync(context, logger.Object);
+        await EmassConflictsSchemaAdditions.ApplyAsync(context, logger.Object);
+
+        // Assert
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*) FROM sqlite_master
+            WHERE type = 'index'
+              AND name IN ('IX_EmassConflict_SystemId_Status', 'IX_EmassConflict_BatchId');
+            """;
+        Convert.ToInt32(await command.ExecuteScalarAsync()).Should().Be(2);
+    }
+
     // ─── TenantsAndOrganizationsSchemaAdditions ───────────────────────────────
 
     /// <summary>

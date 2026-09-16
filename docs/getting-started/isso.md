@@ -79,6 +79,7 @@ Beyond narrative authoring and Watch monitoring, ISSOs can also:
 - **Manage narrative governance** — View version history, diff changes, roll back edits, and submit narratives for ISSM approval (`compliance_narrative_history`, `compliance_narrative_diff`, `compliance_rollback_narrative`, `compliance_submit_narrative`, `compliance_batch_submit_narratives`)
 - **Manage HW/SW inventory** — Register hardware and software, auto-seed from boundary, check completeness, and export to eMASS Excel (`inventory_add_item`, `inventory_auto_seed`, `inventory_completeness`, `inventory_export`)
 - **Upload compliance evidence** — Navigate to a control narrative in the dashboard and click **Attach Evidence** to upload screenshots, scan results, or configuration exports. Use the **Evidence** page to browse all evidence for a system, search and filter by category, and review file details with integrity hashes
+- **Reconcile eMASS updates** — Check export readiness and workflow status, upload an eMASS Controls workbook, and resolve field-level differences without overwriting SPIN data (`emass_check_export_readiness`, `emass_get_workflow_status`). See the [eMASS Workflow Sync guide](../guides/emass-workflow.md).
 
 ---
 

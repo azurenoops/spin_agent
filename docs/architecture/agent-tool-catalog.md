@@ -3856,3 +3856,78 @@ Submit, approve, or reject a Security Assessment Report.
 | `comments` | string | No | Review comments |
 
 - **RBAC**: ISSM (submit), SCA (approve/reject), AO (approve)
+
+---
+
+## eMASS Workflow Tools (Feature 071)
+
+### `emass_get_workflow_status`
+
+Show the latest eMASS export watermark, pending records by category, sync time, readiness summary, and unresolved conflict count.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System GUID, name, or acronym |
+
+- **RBAC**: ISSO, ISSM, AO (read-only)
+- **Response**: Standard MCP envelope containing `data.workflowStatus` and `data.markdown`. The markdown includes an exported/pending category table and unresolved conflict count.
+
+```json
+{
+  "status": "success",
+  "data": {
+    "workflowStatus": {
+      "systemId": "system-1",
+      "overallStatus": "PendingExport",
+      "unresolvedConflictCount": 0
+    },
+    "markdown": "| Category | Exported | Pending | Last exported |\n|---|---:|---:|---|\n| Controls | 100 | 4 | 2026-03-01 12:00:00Z |"
+  },
+  "metadata": { "tool": "emass_get_workflow_status", "timestamp": "..." }
+}
+```
+
+Example invocation:
+
+```json
+{ "system_id": "Mission Analytics Platform" }
+```
+
+### `emass_check_export_readiness`
+
+Check whether required registration and categorization data exists before an eMASS export. Blocking gaps are bold in the formatted readiness card; advisory gaps remain visible but do not prevent export.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `system_id` | string | Yes | System GUID, name, or acronym |
+
+- **RBAC**: ISSO, ISSM, AO (read-only)
+- **Response**: Standard MCP envelope containing `data.readiness` and `data.markdown`. Each gap includes its severity and actionable fix URL when available.
+
+```json
+{
+  "status": "success",
+  "data": {
+    "readiness": {
+      "systemId": "system-1",
+      "isReady": false,
+      "gaps": [
+        {
+          "fieldName": "EmassSystemId",
+          "description": "Register the eMASS ID.",
+          "severity": "Blocking",
+          "fixUrl": "/settings"
+        }
+      ]
+    },
+    "markdown": "### Not ready for eMASS export\n\n- **EmassSystemId: Register the eMASS ID.** [Fix](/settings)"
+  },
+  "metadata": { "tool": "emass_check_export_readiness", "timestamp": "..." }
+}
+```
+
+Example invocation:
+
+```json
+{ "system_id": "system-1" }
+```

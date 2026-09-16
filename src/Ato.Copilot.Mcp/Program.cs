@@ -588,6 +588,7 @@ async Task RunHttpModeAsync(string[] args)
 
     // Map Dashboard REST API endpoints (Feature 030)
     app.MapDashboardEndpoints();
+    app.MapEmassWorkflowEndpoints();
     app.MapControlValidationEndpoints();
 
     // Feature 051 [US1]: dashboard login surface — login-config + me.
@@ -1305,6 +1306,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.LoginAuditEventsSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ControlValidationLinksSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.EmassConflictsSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Services.Tenancy.TenantBootstrapService.EnsureSystemTenantAsync(db, logger, ct);
     // T060: Backfill OrganizationContext rows whose TenantId still holds the

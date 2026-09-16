@@ -27,6 +27,7 @@ import PoamManagement from './pages/PoamManagement';
 import ControlInheritance from './pages/ControlInheritance';
 import BaselineManagement from './pages/BaselineManagement';
 import SystemProfile from './pages/SystemProfile';
+import EmassStatusPage from './pages/EmassStatus';
 import SystemLayout from './components/layout/SystemLayout';
 import ChatPanel from './components/chat/ChatPanel';
 import { ChatPanelProvider, useChatPanel } from './components/chat/ChatPanelContext';
@@ -116,6 +117,7 @@ function AppContent() {
             <Route path="legal" element={<LegalRegulatory />} />
             <Route path="documents" element={<Documents />} />
             <Route path="conmon" element={<ConMon />} />
+            <Route path="emass/status" element={<EmassStatusPage />} />
             <Route path="narratives" element={<Narratives />} />
             <Route path="deviations" element={<DeviationsPage />} />
             <Route path="assessments" element={<Assessments />} />

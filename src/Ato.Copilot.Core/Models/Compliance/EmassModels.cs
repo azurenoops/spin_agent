@@ -3,7 +3,68 @@
 // T143: EmassControlExportRow and EmassPoamExportRow records
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
+
 namespace Ato.Copilot.Core.Models.Compliance;
+
+/// <summary>A field-level difference detected during an eMASS round-trip sync.</summary>
+[TenantScoped]
+public class EmassConflict
+{
+    public Guid TenantId { get; set; }
+
+    [Key]
+    [MaxLength(36)]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    [Required]
+    [MaxLength(36)]
+    public string RegisteredSystemId { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(36)]
+    public string SyncBatchId { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(50)]
+    public string EntityType { get; set; } = string.Empty;
+
+    [MaxLength(36)]
+    public string? EntityId { get; set; }
+
+    [Required]
+    [MaxLength(200)]
+    public string FieldName { get; set; } = string.Empty;
+
+    [MaxLength(4000)]
+    public string? SpinValue { get; set; }
+
+    [MaxLength(4000)]
+    public string? EmassValue { get; set; }
+
+    public ConflictStatus ConflictStatus { get; set; } = ConflictStatus.Unresolved;
+
+    public DateTimeOffset DetectedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public DateTimeOffset? ResolvedAt { get; set; }
+
+    [MaxLength(200)]
+    public string? ResolvedBy { get; set; }
+
+    [MaxLength(1000)]
+    public string? Notes { get; set; }
+
+    public RegisteredSystem RegisteredSystem { get; set; } = null!;
+}
+
+public enum ConflictStatus
+{
+    Unresolved,
+    KeepSpin,
+    AcceptEmass,
+    Deferred,
+}
 
 /// <summary>
 /// Represents a single row in an eMASS control-level export.

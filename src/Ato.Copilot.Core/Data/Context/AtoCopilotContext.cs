@@ -204,6 +204,9 @@ public class AtoCopilotContext : DbContext
     /// <summary>Validation references attached to control implementations (Feature 069).</summary>
     public DbSet<ControlValidationLink> ControlValidationLinks => Set<ControlValidationLink>();
 
+    /// <summary>Field-level differences detected by eMASS round-trip syncs (Feature 071).</summary>
+    public DbSet<EmassConflict> EmassConflicts => Set<EmassConflict>();
+
     // ─── Assessment Artifact DbSets (Feature 015 — US7) ─────────────────────
     /// <summary>Per-control effectiveness determinations made by SCAs.</summary>
     public DbSet<ControlEffectiveness> ControlEffectivenessRecords => Set<ControlEffectiveness>();
@@ -1617,6 +1620,30 @@ public class AtoCopilotContext : DbContext
             entity.HasOne(e => e.ControlImplementation)
                 .WithMany(e => e.ValidationLinks)
                 .HasForeignKey(e => e.ControlImplementationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EmassConflict>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.SyncBatchId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.EntityType).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.EntityId).HasMaxLength(36);
+            entity.Property(e => e.FieldName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.SpinValue).HasMaxLength(4000);
+            entity.Property(e => e.EmassValue).HasMaxLength(4000);
+            entity.Property(e => e.ConflictStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.ResolvedBy).HasMaxLength(200);
+            entity.Property(e => e.Notes).HasMaxLength(1000);
+            entity.HasIndex(e => new { e.RegisteredSystemId, e.ConflictStatus })
+                .HasDatabaseName("IX_EmassConflict_SystemId_Status");
+            entity.HasIndex(e => e.SyncBatchId)
+                .HasDatabaseName("IX_EmassConflict_BatchId");
+            entity.HasOne(e => e.RegisteredSystem)
+                .WithMany(e => e.EmassConflicts)
+                .HasForeignKey(e => e.RegisteredSystemId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
