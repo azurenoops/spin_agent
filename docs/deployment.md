@@ -120,6 +120,7 @@ All configuration is passed via environment variables with `ATO_` prefix. See `.
 | Variable | Description |
 |---|---|
 | `SQL_SA_PASSWORD` | SQL Server SA password (meets complexity: 8+ chars, upper+lower+digit+symbol) |
+| `ATO_AZUREAD__INSTANCE` | Azure AD / Entra ID login instance URL (for example, `https://login.microsoftonline.us/`) |
 | `ATO_AZUREAD__TENANTID` | Azure AD / Entra ID tenant GUID |
 | `ATO_AZUREAD__CLIENTID` | App registration client ID |
 | `ATO_AZUREAD__CLIENTSECRET` | App registration secret (load from Key Vault in prod) |

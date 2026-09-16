@@ -369,6 +369,7 @@ registered real-time notification broadcaster.
 | `DASHBOARD_PORT` | ato-copilot-dashboard | — | Dashboard host port (default: 5173) |
 | `REDIS_PORT` | redis | — | Redis host port (default: 6379) |
 | `ATO_DEPLOYMENT__MODE` | ato-copilot | — | `SingleTenant` or `MultiTenant` (default: MultiTenant) |
+| `ATO_AZUREAD__INSTANCE` | ato-copilot | ✅ (prod) | Azure AD / Entra ID login instance URL |
 | `ATO_AZUREAD__TENANTID` | ato-copilot | ✅ (prod) | Azure AD tenant GUID |
 | `ATO_AZUREAD__CLIENTID` | ato-copilot | ✅ (prod) | App registration client ID |
 | `ATO_AZUREAD__CLIENTSECRET` | ato-copilot | ✅ (prod) | App registration secret |
