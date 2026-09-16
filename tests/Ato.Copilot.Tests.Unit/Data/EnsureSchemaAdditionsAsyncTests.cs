@@ -5,9 +5,22 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
+using Ato.Copilot.Mcp;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Data.Sqlite;
 
 namespace Ato.Copilot.Tests.Unit.Data;
+
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class SchemaAdditionsHostCollection
+{
+    public const string Name = "Schema additions host";
+}
 
 /// <summary>
 /// Issue #868 — EnsureSchemaAdditionsAsync must fail startup on DDL error
@@ -27,6 +40,7 @@ namespace Ato.Copilot.Tests.Unit.Data;
 ///   AC1: The exception IS propagated (fail-fast on all providers).
 ///   AC2: LogError is called with the class name in the message.
 /// </summary>
+[Collection(SchemaAdditionsHostCollection.Name)]
 public class EnsureSchemaAdditionsAsyncTests
 {
     // ─── helpers ─────────────────────────────────────────────────────────────
@@ -47,6 +61,81 @@ public class EnsureSchemaAdditionsAsyncTests
 
     private static Mock<ILogger<AtoCopilotContext>> BuildLogger() =>
         new Mock<ILogger<AtoCopilotContext>>(MockBehavior.Loose);
+
+    [Fact]
+    public async Task EnsureSchemaAdditions_OnSecondSqliteStartup_DoesNotThrow()
+    {
+        // Arrange
+        var databaseFile = Path.Combine(Path.GetTempPath(), $"schema-idempotency-{Guid.NewGuid():N}.db");
+        using var environment = new TestEnvironmentVariables(new Dictionary<string, string?>
+        {
+            ["ASPNETCORE_ENVIRONMENT"] = "Testing",
+            ["ATO_RUN_MODE"] = "http",
+            ["ATO_AZUREAI__ENABLED"] = "false",
+            ["ATO_Auth__BypassForTests"] = "true",
+            ["ATO_Auth__Impersonation__SigningKey"] = "schema-idempotency-tests-signing-key-32-bytes!",
+        });
+        try
+        {
+            await using (var firstBoot = new SchemaAdditionsFactory(databaseFile))
+            using (firstBoot.CreateClient())
+            {
+            }
+
+            // Act
+            var act = async () =>
+            {
+                await using var secondBoot = new SchemaAdditionsFactory(databaseFile);
+                using var client = secondBoot.CreateClient();
+            };
+
+            // Assert
+            await act.Should().NotThrowAsync();
+        }
+        finally
+        {
+            File.Delete(databaseFile);
+        }
+    }
+
+    private sealed class SchemaAdditionsFactory(string databaseFile) : WebApplicationFactory<McpProgram>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration(configuration =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Database:Provider"] = "Sqlite",
+                    ["ConnectionStrings:DefaultConnection"] = $"Data Source={databaseFile};Mode=ReadWriteCreate",
+                    ["Deployment:Mode"] = "SingleTenant",
+                }));
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IHostedService>();
+            });
+        }
+    }
+
+    private sealed class TestEnvironmentVariables : IDisposable
+    {
+        private readonly Dictionary<string, string?> _originalValues;
+
+        public TestEnvironmentVariables(IReadOnlyDictionary<string, string?> values)
+        {
+            _originalValues = values.Keys.ToDictionary(
+                key => key,
+                Environment.GetEnvironmentVariable);
+            foreach (var (key, value) in values)
+                Environment.SetEnvironmentVariable(key, value);
+        }
+
+        public void Dispose()
+        {
+            foreach (var (key, value) in _originalValues)
+                Environment.SetEnvironmentVariable(key, value);
+        }
+    }
 
     [Fact]
     public async Task CategorizationHistory_OnSqlite_CreatesSchemaIdempotently()
