@@ -1,9 +1,13 @@
+using System.Net;
+using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
@@ -20,6 +24,8 @@ public class AlertNotificationService : IAlertNotificationService
     private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly IComplianceWatchService _watchService;
     private readonly INotificationBroadcaster? _broadcaster;
+    private readonly NotificationOptions _notificationOptions;
+    private readonly IHttpClientFactory? _httpClientFactory;
     private readonly ILogger<AlertNotificationService> _logger;
 
     // Rate limiter: max 10 notifications per minute per channel
@@ -29,12 +35,16 @@ public class AlertNotificationService : IAlertNotificationService
         IDbContextFactory<AtoCopilotContext> dbFactory,
         IComplianceWatchService watchService,
         ILogger<AlertNotificationService> logger,
-        INotificationBroadcaster? broadcaster = null)
+        INotificationBroadcaster? broadcaster = null,
+        IOptions<NotificationOptions>? notificationOptions = null,
+        IHttpClientFactory? httpClientFactory = null)
     {
         _dbFactory = dbFactory;
         _watchService = watchService;
         _logger = logger;
         _broadcaster = broadcaster;
+        _notificationOptions = notificationOptions?.Value ?? new NotificationOptions();
+        _httpClientFactory = httpClientFactory;
 
         _rateLimiters = new Dictionary<NotificationChannel, SlidingWindowRateLimiter>
         {
@@ -59,18 +69,33 @@ public class AlertNotificationService : IAlertNotificationService
             return;
         }
 
-        // Chat notification — always enabled
+        // Chat notification — delivered through the in-app broadcaster when configured
         await DispatchNotificationAsync(alert, NotificationChannel.Chat, "system", cancellationToken);
 
         // Email — immediate for Critical/High, deferred digest for Medium/Low
         if (alert.Severity is AlertSeverity.Critical or AlertSeverity.High)
         {
-            await DispatchNotificationAsync(alert, NotificationChannel.Email, "system", cancellationToken);
+            var recipients = _notificationOptions.Email.Recipients
+                .Where(recipient => !string.IsNullOrWhiteSpace(recipient))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (recipients.Count == 0)
+            {
+                recipients.Add("system");
+            }
+
+            foreach (var recipient in recipients)
+            {
+                await DispatchNotificationAsync(alert, NotificationChannel.Email, recipient, cancellationToken);
+            }
         }
 
         // Webhook — check for configured escalation paths with webhook URLs
         var webhookPaths = await db.EscalationPaths
-            .Where(p => p.IsEnabled && p.WebhookUrl != null && p.TriggerSeverity <= alert.Severity)
+            .Where(p => p.IsEnabled
+                && p.Channel == NotificationChannel.Webhook
+                && p.WebhookUrl != null
+                && p.TriggerSeverity <= alert.Severity)
             .ToListAsync(cancellationToken);
 
         foreach (var path in webhookPaths)
@@ -127,23 +152,36 @@ public class AlertNotificationService : IAlertNotificationService
             generatedAt = DateTimeOffset.UtcNow
         });
 
-        var notification = new AlertNotification
+        var recipients = _notificationOptions.Email.Recipients
+            .Where(recipient => !string.IsNullOrWhiteSpace(recipient))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (recipients.Count == 0)
         {
-            Id = Guid.NewGuid(),
-            AlertId = alerts.Count > 0 ? alerts.First().Id : Guid.Empty,
-            Channel = NotificationChannel.Email,
-            Recipient = "digest",
-            Subject = subject,
-            Body = body,
-            IsDelivered = true,
-            SentAt = DateTimeOffset.UtcNow,
-            DeliveredAt = DateTimeOffset.UtcNow
-        };
+            recipients.Add("digest");
+        }
 
-        db.AlertNotifications.Add(notification);
+        foreach (var recipient in recipients)
+        {
+            var outcome = await DeliverEmailAsync(recipient, subject, body, cancellationToken);
+            db.AlertNotifications.Add(new AlertNotification
+            {
+                Id = Guid.NewGuid(),
+                AlertId = alerts.Count > 0 ? alerts.First().Id : Guid.Empty,
+                Channel = NotificationChannel.Email,
+                Recipient = recipient,
+                Subject = subject,
+                Body = body,
+                IsDelivered = outcome.IsDelivered,
+                DeliveryError = outcome.Error,
+                SentAt = DateTimeOffset.UtcNow,
+                DeliveredAt = outcome.IsDelivered ? DateTimeOffset.UtcNow : null
+            });
+        }
+
         await db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Sent digest with {AlertCount} alerts, {PendingDeviations} pending deviations for {Sub}",
+        _logger.LogInformation("Processed digest with {AlertCount} alerts, {PendingDeviations} pending deviations for {Sub}",
             alerts.Count, pendingDeviations, subscriptionId);
     }
 
@@ -192,12 +230,25 @@ public class AlertNotificationService : IAlertNotificationService
             createdAt = alert.CreatedAt
         });
 
-        // TODO: Implement actual SMTP/Teams/Slack delivery when channels are configured.
-        // Currently records notification for audit trail but does not deliver externally.
-        _logger.LogDebug("Notification recorded for channel {Channel} (delivery pending external integration)", channel);
+        if (channel == NotificationChannel.Chat && _broadcaster != null)
+        {
+            await RecordNotification(alert, channel, recipient,
+                isDelivered: false, error: null, cancellationToken, subject, body,
+                dispatchToBroadcaster: true);
+            return;
+        }
 
+        if (channel == NotificationChannel.Email)
+        {
+            var outcome = await DeliverEmailAsync(recipient, subject, body, cancellationToken);
+            await RecordNotification(alert, channel, recipient,
+                outcome.IsDelivered, outcome.Error, cancellationToken, subject, body);
+            return;
+        }
+
+        _logger.LogWarning("Notification channel {Channel} is not configured; delivery was not attempted", channel);
         await RecordNotification(alert, channel, recipient,
-            isDelivered: true, error: null, cancellationToken, subject, body);
+            isDelivered: false, error: "CHANNEL_NOT_CONFIGURED", cancellationToken, subject, body);
     }
 
     private async Task DispatchWebhookAsync(
@@ -229,12 +280,121 @@ public class AlertNotificationService : IAlertNotificationService
             timestamp = DateTimeOffset.UtcNow
         });
 
-        // HMAC-SHA256 signature for webhook payload
-        var signature = ComputeHmacSignature(payload);
+        var webhookOptions = _notificationOptions.Webhook;
+        if (!webhookOptions.Enabled
+            || string.IsNullOrWhiteSpace(webhookOptions.Secret)
+            || _httpClientFactory == null)
+        {
+            _logger.LogWarning("Webhook delivery is not configured for alert {AlertId}; delivery was not attempted", alert.AlertId);
+            await RecordNotification(alert, NotificationChannel.Webhook, webhookUrl,
+                isDelivered: false, error: "CHANNEL_NOT_CONFIGURED", cancellationToken,
+                body: payload);
+            return;
+        }
 
-        await RecordNotification(alert, NotificationChannel.Webhook, webhookUrl,
-            isDelivered: true, error: null, cancellationToken,
-            subject: $"X-Signature: {signature}", body: payload);
+        if (!Uri.TryCreate(webhookUrl, UriKind.Absolute, out var webhookUri)
+            || webhookUri.Scheme != Uri.UriSchemeHttps)
+        {
+            _logger.LogWarning("Webhook URL for alert {AlertId} is invalid or does not use HTTPS", alert.AlertId);
+            await RecordNotification(alert, NotificationChannel.Webhook, webhookUrl,
+                isDelivered: false, error: "INVALID_WEBHOOK_URL", cancellationToken,
+                body: payload);
+            return;
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, webhookOptions.TimeoutSeconds)));
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, webhookUri)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            };
+            request.Headers.Add("X-Signature", ComputeHmacSignature(payload, webhookOptions.Secret));
+
+            var client = _httpClientFactory.CreateClient(nameof(AlertNotificationService));
+            using var response = await client.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeoutCts.Token);
+            var isDelivered = response.IsSuccessStatusCode;
+            var error = isDelivered ? null : $"HTTP_{(int)response.StatusCode}";
+
+            await RecordNotification(alert, NotificationChannel.Webhook, webhookUrl,
+                isDelivered, error, cancellationToken, body: payload);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Webhook delivery timed out for alert {AlertId}", alert.AlertId);
+            await RecordNotification(alert, NotificationChannel.Webhook, webhookUrl,
+                isDelivered: false, error: "DELIVERY_TIMEOUT", cancellationToken,
+                body: payload);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Webhook delivery failed for alert {AlertId}", alert.AlertId);
+            await RecordNotification(alert, NotificationChannel.Webhook, webhookUrl,
+                isDelivered: false, error: "DELIVERY_FAILED", cancellationToken,
+                body: payload);
+        }
+    }
+
+    private async Task<(bool IsDelivered, string? Error)> DeliverEmailAsync(
+        string recipient,
+        string subject,
+        string body,
+        CancellationToken cancellationToken)
+    {
+        var emailOptions = _notificationOptions.Email;
+        if (!emailOptions.Enabled
+            || string.IsNullOrWhiteSpace(emailOptions.SmtpHost)
+            || recipient is "system" or "digest")
+        {
+            _logger.LogWarning("Email delivery is not configured; delivery was not attempted");
+            return (false, "CHANNEL_NOT_CONFIGURED");
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, emailOptions.TimeoutSeconds)));
+
+        try
+        {
+            using var client = new SmtpClient(emailOptions.SmtpHost, emailOptions.SmtpPort)
+            {
+                EnableSsl = emailOptions.UseSsl
+            };
+            if (!string.IsNullOrWhiteSpace(emailOptions.Username))
+            {
+                client.Credentials = new NetworkCredential(emailOptions.Username, emailOptions.Password);
+            }
+
+            using var message = new MailMessage(emailOptions.FromAddress, recipient)
+            {
+                Subject = subject,
+                Body = body
+            };
+            await client.SendMailAsync(message, timeoutCts.Token);
+            return (true, null);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Email delivery timed out");
+            return (false, "DELIVERY_TIMEOUT");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Email delivery failed");
+            return (false, "DELIVERY_FAILED");
+        }
     }
 
     private async Task RecordNotification(
@@ -246,7 +406,8 @@ public class AlertNotificationService : IAlertNotificationService
         CancellationToken cancellationToken,
         string? subject = null,
         string? body = null,
-        string? userId = null)
+        string? userId = null,
+        bool dispatchToBroadcaster = false)
     {
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
@@ -265,31 +426,41 @@ public class AlertNotificationService : IAlertNotificationService
             UserId = userId ?? recipient,
         };
 
-        db.AlertNotifications.Add(notification);
-        await db.SaveChangesAsync(cancellationToken);
-
-        // Push real-time notification to connected clients
-        if (_broadcaster != null && notification.UserId != null)
+        if (dispatchToBroadcaster)
         {
             try
             {
-                await _broadcaster.BroadcastToUserAsync(notification.UserId, notification, cancellationToken);
+                notification.IsDelivered = true;
+                notification.DeliveryError = null;
+                notification.DeliveredAt = DateTimeOffset.UtcNow;
+                await _broadcaster!.BroadcastToUserAsync(
+                    notification.UserId!, notification, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Failed to broadcast notification {Id} — client may not be connected", notification.Id);
+                notification.IsDelivered = false;
+                notification.DeliveryError = "DELIVERY_FAILED";
+                notification.DeliveredAt = null;
+                _logger.LogWarning(ex, "Chat delivery failed for notification {Id}", notification.Id);
             }
         }
+
+        db.AlertNotifications.Add(notification);
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
-    /// Compute HMAC-SHA256 signature for webhook payloads.
-    /// Uses a deterministic key derived from the alert ID for demo purposes.
-    /// In production, this would use a configured secret.
+    /// Compute an HMAC-SHA256 signature for a webhook payload using an explicit secret.
     /// </summary>
-    internal static string ComputeHmacSignature(string payload, string? secret = null)
+    internal static string ComputeHmacSignature(string payload, string secret)
     {
-        var key = Encoding.UTF8.GetBytes(secret ?? "ato-copilot-webhook-secret");
+        ArgumentException.ThrowIfNullOrWhiteSpace(secret);
+
+        var key = Encoding.UTF8.GetBytes(secret);
         using var hmac = new HMACSHA256(key);
         var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
         return Convert.ToHexStringLower(hash);

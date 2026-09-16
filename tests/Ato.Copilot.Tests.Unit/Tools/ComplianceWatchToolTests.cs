@@ -1704,6 +1704,7 @@ public class NotificationAndEscalationToolTests
     [Fact]
     public async Task AlertNotificationService_SendNotification_RecordsChatNotification()
     {
+        // Arrange
         var dbFactory = CreateDbFactory();
         var watchService = new Mock<IComplianceWatchService>();
         watchService.Setup(w => w.IsAlertSuppressed(It.IsAny<ComplianceAlert>(), It.IsAny<IReadOnlyList<SuppressionRule>>()))
@@ -1714,17 +1715,98 @@ public class NotificationAndEscalationToolTests
             Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.AlertNotificationService>>());
 
         var alert = CreateTestAlert(AlertSeverity.Medium);
+
+        // Act
         await svc.SendNotificationAsync(alert);
 
+        // Assert
         await using var db = dbFactory.CreateDbContext();
         var notifications = await db.AlertNotifications.Where(n => n.AlertId == alert.Id).ToListAsync();
         notifications.Should().HaveCountGreaterOrEqualTo(1);
-        notifications.Should().Contain(n => n.Channel == NotificationChannel.Chat);
+        var chat = notifications.Should().ContainSingle(n => n.Channel == NotificationChannel.Chat).Subject;
+        chat.IsDelivered.Should().BeFalse();
+        chat.DeliveredAt.Should().BeNull();
+        chat.DeliveryError.Should().Be("CHANNEL_NOT_CONFIGURED");
     }
 
     [Fact]
-    public async Task AlertNotificationService_CriticalAlert_SendsEmailAndChat()
+    public async Task AlertNotificationService_ConfiguredChatBroadcast_RecordsConfirmedDelivery()
     {
+        // Arrange
+        var dbFactory = CreateDbFactory();
+        var watchService = new Mock<IComplianceWatchService>();
+        watchService.Setup(w => w.IsAlertSuppressed(It.IsAny<ComplianceAlert>(), It.IsAny<IReadOnlyList<SuppressionRule>>()))
+            .Returns(false);
+        var broadcaster = new Mock<INotificationBroadcaster>();
+        broadcaster
+            .Setup(service => service.BroadcastToUserAsync(
+                "system",
+                It.IsAny<AlertNotification>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var service = new Ato.Copilot.Agents.Compliance.Services.AlertNotificationService(
+            dbFactory,
+            watchService.Object,
+            Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.AlertNotificationService>>(),
+            broadcaster.Object);
+        var alert = CreateTestAlert(AlertSeverity.Medium);
+
+        // Act
+        await service.SendNotificationAsync(alert);
+
+        // Assert
+        await using var db = dbFactory.CreateDbContext();
+        var chat = await db.AlertNotifications
+            .SingleAsync(n => n.AlertId == alert.Id && n.Channel == NotificationChannel.Chat);
+        chat.IsDelivered.Should().BeTrue();
+        chat.DeliveredAt.Should().NotBeNull();
+        chat.DeliveryError.Should().BeNull();
+        broadcaster.Verify(service => service.BroadcastToUserAsync(
+            "system",
+            It.Is<AlertNotification>(notification => notification.Id == chat.Id
+                && notification.IsDelivered
+                && notification.DeliveredAt != null),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AlertNotificationService_ConfiguredChatBroadcastFailure_RecordsFailure()
+    {
+        // Arrange
+        var dbFactory = CreateDbFactory();
+        var watchService = new Mock<IComplianceWatchService>();
+        watchService.Setup(w => w.IsAlertSuppressed(It.IsAny<ComplianceAlert>(), It.IsAny<IReadOnlyList<SuppressionRule>>()))
+            .Returns(false);
+        var broadcaster = new Mock<INotificationBroadcaster>();
+        broadcaster
+            .Setup(service => service.BroadcastToUserAsync(
+                It.IsAny<string>(),
+                It.IsAny<AlertNotification>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Synthetic broadcast failure"));
+        var service = new Ato.Copilot.Agents.Compliance.Services.AlertNotificationService(
+            dbFactory,
+            watchService.Object,
+            Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.AlertNotificationService>>(),
+            broadcaster.Object);
+        var alert = CreateTestAlert(AlertSeverity.Medium);
+
+        // Act
+        await service.SendNotificationAsync(alert);
+
+        // Assert
+        await using var db = dbFactory.CreateDbContext();
+        var chat = await db.AlertNotifications
+            .SingleAsync(n => n.AlertId == alert.Id && n.Channel == NotificationChannel.Chat);
+        chat.IsDelivered.Should().BeFalse();
+        chat.DeliveredAt.Should().BeNull();
+        chat.DeliveryError.Should().Be("DELIVERY_FAILED");
+    }
+
+    [Fact]
+    public async Task AlertNotificationService_CriticalAlert_UnconfiguredEmailAndChatRecordFailures()
+    {
+        // Arrange
         var dbFactory = CreateDbFactory();
         var watchService = new Mock<IComplianceWatchService>();
         watchService.Setup(w => w.IsAlertSuppressed(It.IsAny<ComplianceAlert>(), It.IsAny<IReadOnlyList<SuppressionRule>>()))
@@ -1735,12 +1817,100 @@ public class NotificationAndEscalationToolTests
             Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.AlertNotificationService>>());
 
         var alert = CreateTestAlert(AlertSeverity.Critical);
+
+        // Act
         await svc.SendNotificationAsync(alert);
 
+        // Assert
         await using var db = dbFactory.CreateDbContext();
         var notifications = await db.AlertNotifications.Where(n => n.AlertId == alert.Id).ToListAsync();
         notifications.Should().Contain(n => n.Channel == NotificationChannel.Chat);
         notifications.Should().Contain(n => n.Channel == NotificationChannel.Email);
+        notifications.Should().OnlyContain(n => !n.IsDelivered);
+        notifications.Should().OnlyContain(n => n.DeliveredAt == null);
+        notifications.Should().OnlyContain(n => n.DeliveryError == "CHANNEL_NOT_CONFIGURED");
+    }
+
+    [Fact]
+    public async Task AlertNotificationService_ConfiguredEmailFailure_RecordsActualOutcome()
+    {
+        // Arrange
+        var dbFactory = CreateDbFactory();
+        var watchService = new Mock<IComplianceWatchService>();
+        watchService.Setup(w => w.IsAlertSuppressed(It.IsAny<ComplianceAlert>(), It.IsAny<IReadOnlyList<SuppressionRule>>()))
+            .Returns(false);
+        var options = Microsoft.Extensions.Options.Options.Create(new Ato.Copilot.Core.Configuration.NotificationOptions
+        {
+            Email = new Ato.Copilot.Core.Configuration.NotificationEmailOptions
+            {
+                Enabled = true,
+                SmtpHost = "127.0.0.1",
+                SmtpPort = 1,
+                UseSsl = false,
+                FromAddress = "noreply@example.test",
+                Recipients = ["security@example.test"],
+                TimeoutSeconds = 1
+            }
+        });
+        var service = new Ato.Copilot.Agents.Compliance.Services.AlertNotificationService(
+            dbFactory,
+            watchService.Object,
+            Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.AlertNotificationService>>(),
+            notificationOptions: options);
+        var alert = CreateTestAlert(AlertSeverity.Critical);
+
+        // Act
+        await service.SendNotificationAsync(alert);
+
+        // Assert
+        await using var db = dbFactory.CreateDbContext();
+        var email = await db.AlertNotifications
+            .SingleAsync(n => n.AlertId == alert.Id && n.Channel == NotificationChannel.Email);
+        email.Recipient.Should().Be("security@example.test");
+        email.IsDelivered.Should().BeFalse();
+        email.DeliveredAt.Should().BeNull();
+        email.DeliveryError.Should().Be("DELIVERY_FAILED");
+    }
+
+    [Fact]
+    public async Task AlertNotificationService_WebhookWithoutConfiguredSecret_RecordsFailure()
+    {
+        // Arrange
+        var dbFactory = CreateDbFactory();
+        var watchService = new Mock<IComplianceWatchService>();
+        watchService.Setup(w => w.IsAlertSuppressed(It.IsAny<ComplianceAlert>(), It.IsAny<IReadOnlyList<SuppressionRule>>()))
+            .Returns(false);
+        await using (var db = dbFactory.CreateDbContext())
+        {
+            db.EscalationPaths.Add(new EscalationPath
+            {
+                Id = Guid.NewGuid(),
+                Name = "Webhook path",
+                TriggerSeverity = AlertSeverity.High,
+                WebhookUrl = "https://hooks.example.test/compliance",
+                Channel = NotificationChannel.Webhook,
+                IsEnabled = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var svc = new Ato.Copilot.Agents.Compliance.Services.AlertNotificationService(
+            dbFactory, watchService.Object,
+            Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.AlertNotificationService>>());
+        var alert = CreateTestAlert(AlertSeverity.High);
+
+        // Act
+        await svc.SendNotificationAsync(alert);
+
+        // Assert
+        await using var resultDb = dbFactory.CreateDbContext();
+        var webhook = await resultDb.AlertNotifications
+            .SingleAsync(n => n.AlertId == alert.Id && n.Channel == NotificationChannel.Webhook);
+        webhook.IsDelivered.Should().BeFalse();
+        webhook.DeliveredAt.Should().BeNull();
+        webhook.DeliveryError.Should().Be("CHANNEL_NOT_CONFIGURED");
     }
 
     [Fact]
@@ -1766,6 +1936,7 @@ public class NotificationAndEscalationToolTests
     [Fact]
     public async Task AlertNotificationService_SendDigest_CreatesDigestNotification()
     {
+        // Arrange
         var dbFactory = CreateDbFactory();
         var subId = "sub-digest-test";
 
@@ -1793,11 +1964,16 @@ public class NotificationAndEscalationToolTests
             dbFactory, watchService.Object,
             Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.AlertNotificationService>>());
 
+        // Act
         await svc.SendDigestAsync(subId);
 
+        // Assert
         await using var db2 = dbFactory.CreateDbContext();
         var notifications = await db2.AlertNotifications.ToListAsync();
-        notifications.Should().ContainSingle(n => n.Subject != null && n.Subject.Contains("Digest"));
+        var digest = notifications.Should().ContainSingle(n => n.Subject != null && n.Subject.Contains("Digest")).Subject;
+        digest.IsDelivered.Should().BeFalse();
+        digest.DeliveredAt.Should().BeNull();
+        digest.DeliveryError.Should().Be("CHANNEL_NOT_CONFIGURED");
     }
 
     [Fact]
@@ -1834,11 +2010,15 @@ public class NotificationAndEscalationToolTests
     [Fact]
     public void AlertNotificationService_HmacSignature_IsDeterministic()
     {
+        // Arrange
         var payload = "{\"alertId\":\"ALT-001\",\"severity\":\"Critical\"}";
+        const string secret = "unit-test-secret";
 
-        var sig1 = Ato.Copilot.Agents.Compliance.Services.AlertNotificationService.ComputeHmacSignature(payload);
-        var sig2 = Ato.Copilot.Agents.Compliance.Services.AlertNotificationService.ComputeHmacSignature(payload);
+        // Act
+        var sig1 = Ato.Copilot.Agents.Compliance.Services.AlertNotificationService.ComputeHmacSignature(payload, secret);
+        var sig2 = Ato.Copilot.Agents.Compliance.Services.AlertNotificationService.ComputeHmacSignature(payload, secret);
 
+        // Assert
         sig1.Should().NotBeNullOrEmpty();
         sig1.Should().Be(sig2);
     }
@@ -1846,10 +2026,30 @@ public class NotificationAndEscalationToolTests
     [Fact]
     public void AlertNotificationService_HmacSignature_DifferentPayloadsDifferentSignatures()
     {
-        var sig1 = Ato.Copilot.Agents.Compliance.Services.AlertNotificationService.ComputeHmacSignature("payload-1");
-        var sig2 = Ato.Copilot.Agents.Compliance.Services.AlertNotificationService.ComputeHmacSignature("payload-2");
+        // Arrange
+        const string secret = "unit-test-secret";
 
+        // Act
+        var sig1 = Ato.Copilot.Agents.Compliance.Services.AlertNotificationService.ComputeHmacSignature("payload-1", secret);
+        var sig2 = Ato.Copilot.Agents.Compliance.Services.AlertNotificationService.ComputeHmacSignature("payload-2", secret);
+
+        // Assert
         sig1.Should().NotBe(sig2);
+    }
+
+    [Fact]
+    public void AlertNotificationService_HmacSignature_MissingSecret_Throws()
+    {
+        // Arrange
+        const string payload = "payload";
+
+        // Act
+        var act = () => Ato.Copilot.Agents.Compliance.Services.AlertNotificationService
+            .ComputeHmacSignature(payload, null!);
+
+        // Assert
+        act.Should().Throw<ArgumentException>()
+            .WithMessage("*secret*");
     }
 
     // ─── EscalationHostedService Tests ──────────────────────────────────────

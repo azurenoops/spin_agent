@@ -18,6 +18,9 @@ public class NotificationOptions
 
     /// <summary>Slack incoming-webhook settings.</summary>
     public NotificationSlackOptions Slack { get; set; } = new();
+
+    /// <summary>Compliance alert webhook delivery settings.</summary>
+    public NotificationWebhookOptions Webhook { get; set; } = new();
 }
 
 /// <summary>
@@ -45,6 +48,12 @@ public class NotificationEmailOptions
 
     /// <summary>SMTP authentication password. Use a secret/vault reference in production.</summary>
     public string Password { get; set; } = "";
+
+    /// <summary>Recipients for compliance alerts and digest notifications.</summary>
+    public List<string> Recipients { get; set; } = new();
+
+    /// <summary>Maximum time allowed for an SMTP delivery attempt.</summary>
+    public int TimeoutSeconds { get; set; } = 30;
 }
 
 /// <summary>
@@ -69,4 +78,19 @@ public class NotificationSlackOptions
 
     /// <summary>Slack incoming-webhook URL (from Slack app configuration).</summary>
     public string WebhookUrl { get; set; } = "";
+}
+
+/// <summary>
+/// Signed webhook settings for compliance alert delivery.
+/// </summary>
+public class NotificationWebhookOptions
+{
+    /// <summary>Enable or disable compliance alert webhook delivery.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>HMAC-SHA256 signing secret. Supply through approved secret configuration.</summary>
+    public string Secret { get; set; } = "";
+
+    /// <summary>Maximum time allowed for an outbound webhook request.</summary>
+    public int TimeoutSeconds { get; set; } = 10;
 }
