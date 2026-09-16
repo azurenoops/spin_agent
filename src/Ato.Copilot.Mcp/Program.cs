@@ -942,6 +942,8 @@ string GetSqlServerColumnType(Microsoft.EntityFrameworkCore.Metadata.IProperty p
 
 /// <summary>
 /// Applies ALTER TABLE ADD COLUMN for known schema additions that EnsureCreated won't cover.
+/// Every DDL operation in this path must remain safe across repeated startup runs; the
+/// full-host SQLite regression in EnsureSchemaAdditionsAsyncTests enforces this contract.
 /// </summary>
 async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions.Logging.ILogger<AtoCopilotContext> logger, CancellationToken ct, Ato.Copilot.Mcp.Configuration.DeploymentOptions? deploymentOptions = null)
 {
