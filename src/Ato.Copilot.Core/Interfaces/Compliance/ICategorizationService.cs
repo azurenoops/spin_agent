@@ -11,7 +11,7 @@ public interface ICategorizationService
 {
     /// <summary>
     /// Perform or update FIPS 199 security categorization for a registered system.
-    /// Creates/replaces the <see cref="SecurityCategorization"/> and its child <see cref="InformationType"/> entities.
+    /// Updates the current <see cref="SecurityCategorization"/> projection and appends an immutable history version.
     /// Computes the C/I/A high-water mark automatically.
     /// </summary>
     /// <param name="systemId">RegisteredSystem ID (GUID string).</param>
@@ -37,6 +37,13 @@ public interface ICategorizationService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The categorization if found; null otherwise.</returns>
     Task<SecurityCategorization?> GetCategorizationAsync(
+        string systemId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieve immutable categorization decisions, newest version first.
+    /// </summary>
+    Task<IReadOnlyList<CategorizationHistoryEntry>> GetCategorizationHistoryAsync(
         string systemId,
         CancellationToken cancellationToken = default);
 

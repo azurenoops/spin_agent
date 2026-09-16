@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
+using Microsoft.Data.Sqlite;
 
 namespace Ato.Copilot.Tests.Unit.Data;
 
@@ -46,6 +47,37 @@ public class EnsureSchemaAdditionsAsyncTests
 
     private static Mock<ILogger<AtoCopilotContext>> BuildLogger() =>
         new Mock<ILogger<AtoCopilotContext>>(MockBehavior.Loose);
+
+    [Fact]
+    public async Task CategorizationHistory_OnSqlite_CreatesSchemaIdempotently()
+    {
+        // Arrange
+        await using var connection = new SqliteConnection("Filename=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AtoCopilotContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var context = new AtoCopilotContext(options);
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE "Tenants" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_Tenants" PRIMARY KEY
+            );
+            """);
+        var logger = BuildLogger();
+
+        // Act
+        await CategorizationHistorySchemaAdditions.ApplyAsync(context, logger.Object);
+        await CategorizationHistorySchemaAdditions.ApplyAsync(context, logger.Object);
+
+        // Assert
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*) FROM sqlite_master
+            WHERE type = 'index'
+              AND name = 'UX_CategorizationHistory_Tenant_System_Version';
+            """;
+        Convert.ToInt32(await command.ExecuteScalarAsync()).Should().Be(1);
+    }
 
     // ─── TenantsAndOrganizationsSchemaAdditions ───────────────────────────────
 

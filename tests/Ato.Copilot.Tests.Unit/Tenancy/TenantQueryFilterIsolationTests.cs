@@ -2,6 +2,7 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Data.Interceptors;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Services.Tenancy;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
@@ -137,6 +138,28 @@ public class TenantQueryFilterIsolationTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task CategorizationHistory_IsRestrictedToTheActiveTenant()
+    {
+        // Arrange
+        await using var scope = _sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.CategorizationHistoryEntries.AddRange(
+            CreateHistoryEntry(TenantA, "system-a"),
+            CreateHistoryEntry(TenantB, "system-b"));
+        await db.SaveChangesAsync();
+
+        // Act
+        using (_accessor.Push(new TenantContext(TenantA)))
+        {
+            var visibleHistory = await db.CategorizationHistoryEntries.ToListAsync();
+
+            // Assert
+            visibleHistory.Should().ContainSingle(entry => entry.TenantId == TenantA);
+            visibleHistory.Should().NotContain(entry => entry.TenantId == TenantB);
+        }
+    }
+
     /// <summary>
     /// IgnoreQueryFilters() allows a CSP-Admin code-path to read all rows, which
     /// confirms the filter IS active (not absent) on the normal path.
@@ -160,4 +183,17 @@ public class TenantQueryFilterIsolationTests : IAsyncLifetime
                 "IgnoreQueryFilters must reveal TenantB rows — proving the filter was hiding them");
         }
     }
+
+    private static CategorizationHistoryEntry CreateHistoryEntry(Guid tenantId, string systemId) => new()
+    {
+        TenantId = tenantId,
+        RegisteredSystemId = systemId,
+        Version = 1,
+        ChangedBy = "test-user",
+        ChangedAt = DateTime.UtcNow,
+        NewConfidentialityImpact = ImpactValue.Low,
+        NewIntegrityImpact = ImpactValue.Low,
+        NewAvailabilityImpact = ImpactValue.Low,
+        NewOverallImpact = ImpactValue.Low,
+    };
 }

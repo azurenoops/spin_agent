@@ -198,6 +198,30 @@ export async function setCategorization(
   return data;
 }
 
+export interface CategorizationHistoryEntry {
+  id: string;
+  version: number;
+  isCurrent: boolean;
+  changedBy: string;
+  changedAt: string;
+  justification: string | null;
+  previousOverallImpact: string | null;
+  newOverallImpact: string;
+  newConfidentialityImpact: string;
+  newIntegrityImpact: string;
+  newAvailabilityImpact: string;
+  newInformationTypes: InfoTypeInput[];
+}
+
+export async function getCategorizationHistory(
+  systemId: string,
+): Promise<CategorizationHistoryEntry[]> {
+  const { data } = await apiClient.get<CategorizationHistoryEntry[]>(
+    `/systems/${systemId}/categorization/history`,
+  );
+  return data;
+}
+
 // ─── Select Baseline ───────────────────────────────────────────────────────
 
 export interface SelectBaselineRequest {

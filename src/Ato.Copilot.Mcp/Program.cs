@@ -1291,6 +1291,9 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // so history outlives a hard-deleted capability per FR-015.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CapabilityHistoryEventsSchemaAdditions
         .ApplyAsync(db, logger, ct);
+    // Issue 889: append-only security categorization decision history.
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CategorizationHistorySchemaAdditions
+        .ApplyAsync(db, logger, ct);
     // Feature 051 (FR-032 / FR-033 / FR-034 / FR-036a): Adds the LoginAuditEvents
     // table for authentication-event auditing across all four surfaces
     // (Dashboard, VS Code, M365, Chat). Tenant-scoped on EffectiveTenantId
