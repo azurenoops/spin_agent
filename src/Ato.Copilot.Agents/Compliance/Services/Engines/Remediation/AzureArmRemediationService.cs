@@ -8,12 +8,16 @@ namespace Ato.Copilot.Agents.Compliance.Services.Engines.Remediation;
 
 /// <summary>
 /// Azure ARM resource operations for remediation (Tier 3).
-/// Supports 8 legacy ARM operations: TLS version update, diagnostic settings,
-/// alert rules, log retention, encryption, NSG configuration, policy assignment,
-/// and HTTPS enforcement. Captures before/after snapshots via GenericResource.
+/// Plans legacy ARM operations in dry-run mode and captures resource snapshots.
+/// Live operations fail explicitly until resource-specific implementations exist.
 /// </summary>
 public class AzureArmRemediationService : IAzureArmRemediationService
 {
+    private const string LiveRemediationNotImplementedMessage =
+        "Live ARM remediation is not implemented for operation '{0}'. Use dry-run mode to preview the planned operation.";
+    private const string SnapshotRestoreNotImplementedMessage =
+        "ARM snapshot restoration is not implemented. No Azure resource changes were applied.";
+
     private readonly ArmClient _armClient;
     private readonly ILogger<AzureArmRemediationService> _logger;
 
@@ -119,18 +123,10 @@ public class AzureArmRemediationService : IAzureArmRemediationService
                 return execution;
             }
 
-            // Execute the appropriate ARM operation
-            var changes = await ExecuteArmOperation(finding, operation, ct);
-
-            execution.Status = RemediationExecutionStatus.Completed;
-            execution.ChangesApplied = changes;
-            execution.StepsExecuted = changes.Count;
-            execution.CompletedAt = DateTime.UtcNow;
-            execution.Duration = execution.CompletedAt - execution.StartedAt;
-
-            _logger.LogInformation(
-                "ARM remediation completed for {FindingId} — {Count} changes applied",
-                finding.Id, changes.Count);
+            throw new NotSupportedException(string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                LiveRemediationNotImplementedMessage,
+                operation));
         }
         catch (Exception ex)
         {
@@ -163,25 +159,14 @@ public class AzureArmRemediationService : IAzureArmRemediationService
 
             _logger.LogInformation("Restoring resource {ResourceId} from snapshot", resourceId);
 
-            var resourceIdentifier = new Azure.Core.ResourceIdentifier(resourceId);
-            var resource = _armClient.GetGenericResource(resourceIdentifier);
-
-            // Parse snapshot to get original properties
+            _ = new Azure.Core.ResourceIdentifier(resourceId);
             using var doc = JsonDocument.Parse(snapshotJson);
 
-            result.RollbackSteps = new List<string>
-            {
-                $"Parsed snapshot for {resourceId}",
-                "Validated snapshot structure",
-                $"Restored resource properties from captured state"
-            };
-            result.RestoredSnapshot = snapshotJson;
-            result.Success = true;
-
-            // In production, would call resource.Update() with original properties
-            await Task.CompletedTask;
-
-            _logger.LogInformation("Resource {ResourceId} restored from snapshot", resourceId);
+            result.Success = false;
+            result.Error = SnapshotRestoreNotImplementedMessage;
+            _logger.LogWarning(
+                "Snapshot restore is not implemented for {ResourceId}; no Azure changes were applied",
+                resourceId);
         }
         catch (Exception ex)
         {
@@ -216,61 +201,4 @@ public class AzureArmRemediationService : IAzureArmRemediationService
         };
     }
 
-    /// <summary>Executes the specific ARM operation and returns changes applied.</summary>
-    private async Task<List<string>> ExecuteArmOperation(
-        ComplianceFinding finding,
-        string operation,
-        CancellationToken ct)
-    {
-        var changes = new List<string>();
-
-        _logger.LogInformation(
-            "Executing ARM operation {Operation} on {ResourceId}",
-            operation, finding.ResourceId);
-
-        switch (operation)
-        {
-            case "TlsVersionUpdate":
-                changes.Add($"Updated minimum TLS version to 1.2 on {finding.ResourceType}");
-                break;
-
-            case "DiagnosticSettings":
-                changes.Add($"Enabled diagnostic logging on {finding.ResourceId}");
-                changes.Add("Configured log retention to 90 days");
-                break;
-
-            case "AlertRules":
-                changes.Add($"Created Azure Monitor alert rule for {finding.ControlId}");
-                break;
-
-            case "LogRetention":
-                changes.Add($"Updated log retention to minimum 90 days on {finding.ResourceId}");
-                break;
-
-            case "Encryption":
-                changes.Add($"Enabled encryption at rest on {finding.ResourceType}");
-                break;
-
-            case "NsgConfiguration":
-                changes.Add($"Updated NSG rules to restrict traffic per {finding.ControlId}");
-                break;
-
-            case "PolicyAssignment":
-                changes.Add($"Assigned Azure Policy for {finding.ControlId}");
-                break;
-
-            case "HttpsEnforcement":
-                changes.Add($"Enforced HTTPS on {finding.ResourceType}");
-                break;
-
-            default:
-                changes.Add($"Applied configuration change for {finding.ControlId} on {finding.ResourceId}");
-                break;
-        }
-
-        // In production, would call GenericResource.UpdateAsync or REST PUT
-        await Task.CompletedTask;
-
-        return changes;
-    }
 }

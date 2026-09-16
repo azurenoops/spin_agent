@@ -165,21 +165,45 @@ public class AzureArmRemediationServiceTests
         result.Duration.Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task ExecuteArmRemediationAsync_LiveOperationWithoutImplementation_ReturnsFailure()
+    {
+        // Arrange
+        var mockArmClient = new Mock<ArmClient>();
+        var service = new AzureArmRemediationService(mockArmClient.Object, _loggerMock.Object);
+        var finding = CreateFinding();
+
+        // Act
+        var result = await service.ExecuteArmRemediationAsync(finding, CreateOptions(dryRun: false));
+
+        // Assert
+        result.Status.Should().Be(RemediationExecutionStatus.Failed);
+        result.Error.Should().Contain("not implemented");
+        result.ChangesApplied.Should().BeEmpty();
+        result.StepsExecuted.Should().Be(0);
+        result.CompletedAt.Should().NotBeNull();
+        result.Duration.Should().NotBeNull();
+    }
+
     // ─── RestoreFromSnapshotAsync ─────────────────────────────────────────────
 
     [Fact]
-    public async Task RestoreFromSnapshotAsync_ValidSnapshot_ReturnsSuccess()
+    public async Task RestoreFromSnapshotAsync_ValidSnapshotWithoutImplementation_ReturnsFailure()
     {
+        // Arrange
         var mockArmClient = new Mock<ArmClient>();
         var service = new AzureArmRemediationService(mockArmClient.Object, _loggerMock.Object);
         var resourceId = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/test";
         var snapshot = """{"resourceId": "/test", "capturedAt": "2024-01-01", "properties": null}""";
 
+        // Act
         var result = await service.RestoreFromSnapshotAsync(resourceId, snapshot);
 
-        result.Success.Should().BeTrue();
-        result.RollbackSteps.Should().NotBeEmpty();
-        result.RestoredSnapshot.Should().Be(snapshot);
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("not implemented");
+        result.RollbackSteps.Should().BeEmpty();
+        result.RestoredSnapshot.Should().BeNull();
     }
 
     [Fact]
