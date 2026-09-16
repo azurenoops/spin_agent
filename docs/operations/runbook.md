@@ -15,6 +15,7 @@
 - [Restarting Services](#restarting-services)
 - [Seeding Dev Data](#seeding-dev-data)
 - [Common Runbook Procedures](#common-runbook-procedures)
+- [Notification Delivery](#notification-delivery)
 - [Environment Variables Quick Reference](#environment-variables-quick-reference)
 
 ---
@@ -330,6 +331,33 @@ docker compose -f docker-compose.mcp.yml logs ato-copilot 2>&1 | grep "RlsPolicy
 
 ---
 
+## Notification Delivery
+
+Alert notification audit records report delivery only after the configured adapter
+confirms success. Unconfigured channels remain undelivered with
+`CHANNEL_NOT_CONFIGURED`; HTTP, SMTP, and timeout failures are recorded separately.
+
+Configure SMTP recipients and signed HTTPS webhooks with environment variables:
+
+```bash
+ATO_NOTIFICATIONS__EMAIL__ENABLED=true
+ATO_NOTIFICATIONS__EMAIL__SMTPHOST=smtp.example.mil
+ATO_NOTIFICATIONS__EMAIL__SMTPPORT=587
+ATO_NOTIFICATIONS__EMAIL__RECIPIENTS__0=security@example.mil
+ATO_NOTIFICATIONS__EMAIL__TIMEOUTSECONDS=30
+
+ATO_NOTIFICATIONS__WEBHOOK__ENABLED=true
+ATO_NOTIFICATIONS__WEBHOOK__SECRET=<secret-reference>
+ATO_NOTIFICATIONS__WEBHOOK__TIMEOUTSECONDS=10
+```
+
+Webhook destinations must use HTTPS. Supply `ATO_NOTIFICATIONS__WEBHOOK__SECRET`
+through Azure Key Vault or the deployment platform's secret store; do not place the
+secret in source-controlled settings files. Chat delivery is confirmed through the
+registered real-time notification broadcaster.
+
+---
+
 ## Environment Variables Quick Reference
 
 | Variable | Service | Required | Description |
@@ -350,4 +378,6 @@ docker compose -f docker-compose.mcp.yml logs ato-copilot 2>&1 | grep "RlsPolicy
 | `ATO_AZUREAI__ENABLED` | ato-copilot | — | Enable AI agent (default: false in compose) |
 | `ATO_AZUREAI__ENDPOINT` | ato-copilot | ✅ (if AI) | Azure OpenAI endpoint |
 | `ATO_AZUREAI__APIKEY` | ato-copilot | ✅ (if AI) | Azure OpenAI API key |
+| `ATO_NOTIFICATIONS__EMAIL__RECIPIENTS__0` | ato-copilot | ✅ (if email enabled) | First compliance email recipient |
+| `ATO_NOTIFICATIONS__WEBHOOK__SECRET` | ato-copilot | ✅ (if webhook enabled) | HMAC secret from the platform secret store |
 | `ASPNETCORE_ENVIRONMENT` | ato-copilot, ato-chat | — | `Development` enables CAC simulation mode |
