@@ -4,7 +4,7 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 
 /// <summary>
 /// Azure ARM resource operations for remediation: snapshot capture,
-/// legacy ARM remediation execution, and snapshot-based rollback.
+/// remediation planning, and snapshot-based rollback validation.
 /// </summary>
 public interface IAzureArmRemediationService
 {
@@ -19,9 +19,8 @@ public interface IAzureArmRemediationService
         CancellationToken ct = default);
 
     /// <summary>
-    /// Executes a legacy ARM remediation operation against a finding's resource.
-    /// Supports 8 operations: TLS, diagnostics, alerts, log retention, encryption,
-    /// NSG, policy assignment, HTTPS enforcement.
+    /// Plans a legacy ARM remediation operation in dry-run mode. Live execution
+    /// returns a failed result until a resource-specific implementation is available.
     /// </summary>
     /// <param name="finding">Finding to remediate</param>
     /// <param name="options">Execution options</param>
@@ -33,7 +32,8 @@ public interface IAzureArmRemediationService
         CancellationToken ct = default);
 
     /// <summary>
-    /// Restores a resource to a previously captured snapshot state.
+    /// Validates snapshot input and returns a failed result until resource-specific
+    /// snapshot restoration is implemented.
     /// </summary>
     /// <param name="resourceId">Azure resource ID to restore</param>
     /// <param name="snapshotJson">JSON snapshot to restore from</param>

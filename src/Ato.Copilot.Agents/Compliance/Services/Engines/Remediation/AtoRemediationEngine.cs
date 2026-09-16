@@ -836,7 +836,7 @@ public class AtoRemediationEngine : IRemediationEngine
                     }
                     else
                     {
-                        tierResult = null;
+                        _logger.LogWarning("Tier 3 (ARM) failed for {FindingId}", findingId);
                     }
                 }
                 catch (Exception ex)
@@ -860,6 +860,7 @@ public class AtoRemediationEngine : IRemediationEngine
             execution.TierUsed = tierResult.TierUsed;
             execution.StepsExecuted = tierResult.StepsExecuted;
             execution.ChangesApplied = tierResult.ChangesApplied;
+            execution.Error = tierResult.Error;
 
             // Capture after-snapshot
             var afterSnapshot = await _armService.CaptureResourceSnapshotAsync(finding.ResourceId, ct);
