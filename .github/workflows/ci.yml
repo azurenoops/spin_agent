@@ -226,7 +226,6 @@ jobs:
   # Epic #129 (T061-01)
   # ---------------------------------------------------------------------------
   m365-test:
-    continue-on-error: true  # pre-existing TS/ESM debt tracked in #844; non-blocking until resolved
     name: M365 Teams Extension
     runs-on: ubuntu-latest
     needs: [detect-changes]
