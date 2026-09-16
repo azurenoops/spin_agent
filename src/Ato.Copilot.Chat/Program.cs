@@ -166,6 +166,8 @@ try
     // AzureAd:RequireCac is enabled.
     var azureAdSection = builder.Configuration.GetSection("AzureAd");
     var requireCac = azureAdSection.GetValue<bool>("RequireCac");
+    builder.Services.AddAzureAdConfiguration(builder.Configuration);
+    var azureAdOptions = azureAdSection.Get<AzureAdOptions>() ?? new AzureAdOptions();
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
