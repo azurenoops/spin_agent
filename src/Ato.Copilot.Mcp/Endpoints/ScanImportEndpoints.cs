@@ -31,7 +31,8 @@ public static class ScanImportEndpoints
             string systemId,
             HttpRequest request,
             ScanImportQueue queue,
-            ScanImportStatusTracker tracker) =>
+            ScanImportStatusTracker tracker,
+            CancellationToken cancellationToken) =>
         {
             if (!request.HasFormContentType || request.Form.Files.Count == 0)
                 return Results.BadRequest(new { error = "No file uploaded", errorCode = "NO_FILE" });
@@ -47,46 +48,81 @@ public static class ScanImportEndpoints
                     errorCode = "FILE_TOO_LARGE",
                 });
 
-            // Read file into memory (streaming refactor is Phase 1+2 which builds on this)
-            byte[] fileBytes;
-            using (var ms = new MemoryStream())
+            var temporaryFilePath = Path.Combine(
+                Path.GetTempPath(),
+                $"ato-copilot-scan-{Guid.NewGuid():N}.upload");
+
+            try
             {
-                await file.CopyToAsync(ms);
-                fileBytes = ms.ToArray();
-            }
-
-            // Detect file type from root XML element
-            var detectedType = DetectFileType(fileBytes, file.FileName);
-            if (detectedType is null)
-                return Results.StatusCode(415); // Unsupported Media Type
-
-            // Create a job ID and register with the in-memory tracker
-            var importJobId = Guid.NewGuid().ToString();
-            tracker.Register(importJobId);
-
-            // Enqueue — the BackgroundWorker drains the channel
-            var enqueued = queue.TryEnqueue(new ScanImportJob
-            {
-                JobId = importJobId,
-                SystemId = systemId,
-                FileName = file.FileName,
-                FileContent = fileBytes,
-                ImportType = detectedType,
-            });
-
-            if (!enqueued)
-                return Results.StatusCode(503); // Queue full — try again later
-
-            return Results.Accepted(
-                $"/api/dashboard/systems/{systemId}/scans/import/{importJobId}/status",
-                new
+                await using (var temporaryFile = new FileStream(
+                                 temporaryFilePath,
+                                 FileMode.CreateNew,
+                                 FileAccess.Write,
+                                 FileShare.None,
+                                 bufferSize: 81920,
+                                 FileOptions.Asynchronous | FileOptions.SequentialScan))
                 {
-                    importJobId,
-                    statusUrl = $"/api/dashboard/systems/{systemId}/scans/import/{importJobId}/status",
-                    detectedFileType = detectedType,
-                    fileName = file.FileName,
-                    fileSizeBytes = file.Length,
+                    await file.CopyToAsync(temporaryFile, cancellationToken);
+                    await temporaryFile.FlushAsync(cancellationToken);
+                }
+
+                // Detect file type from the bounded header after the upload reaches disk.
+                var header = new byte[Math.Min(512, checked((int)file.Length))];
+                await using (var storedFile = new FileStream(
+                                 temporaryFilePath,
+                                 FileMode.Open,
+                                 FileAccess.Read,
+                                 FileShare.Read,
+                                 bufferSize: 512,
+                                 FileOptions.Asynchronous | FileOptions.SequentialScan))
+                {
+                    _ = await storedFile.ReadAsync(header, cancellationToken);
+                }
+
+                var detectedType = DetectFileType(header, file.FileName);
+                if (detectedType is null)
+                {
+                    File.Delete(temporaryFilePath);
+                    return Results.StatusCode(415); // Unsupported Media Type
+                }
+
+                // Create a job ID and register with the in-memory tracker
+                var importJobId = Guid.NewGuid().ToString();
+                tracker.Register(importJobId);
+
+                // Enqueue — the BackgroundWorker drains the channel
+                var enqueued = queue.TryEnqueue(new ScanImportJob
+                {
+                    JobId = importJobId,
+                    SystemId = systemId,
+                    FileName = file.FileName,
+                    TemporaryFilePath = temporaryFilePath,
+                    ImportType = detectedType,
                 });
+
+                if (!enqueued)
+                {
+                    tracker.Remove(importJobId);
+                    File.Delete(temporaryFilePath);
+                    return Results.StatusCode(503); // Queue full — try again later
+                }
+
+                return Results.Accepted(
+                    $"/api/dashboard/systems/{systemId}/scans/import/{importJobId}/status",
+                    new
+                    {
+                        importJobId,
+                        statusUrl = $"/api/dashboard/systems/{systemId}/scans/import/{importJobId}/status",
+                        detectedFileType = detectedType,
+                        fileName = file.FileName,
+                        fileSizeBytes = file.Length,
+                    });
+            }
+            catch
+            {
+                File.Delete(temporaryFilePath);
+                throw;
+            }
         })
         .WithName("UploadScanImport")
         .WithTags("Scan Import")

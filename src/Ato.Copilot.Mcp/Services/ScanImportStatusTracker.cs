@@ -22,12 +22,18 @@ public enum ImportJobStatus
 /// <summary>Mutable snapshot of a scan import job's progress.</summary>
 public sealed class ImportJobState
 {
+    private readonly CancellationTokenSource _cancellation = new();
+
     public string JobId { get; set; } = string.Empty;
     public ImportJobStatus Status { get; set; } = ImportJobStatus.Queued;
     public int ProcessedCount { get; set; }
     public int TotalCount { get; set; }
     public string? ErrorMessage { get; set; }
     public bool CancelRequested { get; set; }
+
+    internal object SyncRoot { get; } = new();
+    internal CancellationToken CancellationToken => _cancellation.Token;
+    internal void Cancel() => _cancellation.Cancel();
 }
 
 /// <summary>
@@ -49,11 +55,48 @@ public sealed class ScanImportStatusTracker
     public ImportJobState? TryGet(string jobId) =>
         _jobs.TryGetValue(jobId, out var s) ? s : null;
 
+    /// <summary>Get the cancellation token associated with a registered job.</summary>
+    public CancellationToken GetCancellationToken(string jobId) =>
+        _jobs.TryGetValue(jobId, out var state)
+            ? state.CancellationToken
+            : throw new KeyNotFoundException($"Import job '{jobId}' was not registered.");
+
+    /// <summary>Transition a queued job to processing unless cancellation was requested.</summary>
+    public bool TryStart(string jobId)
+    {
+        if (!_jobs.TryGetValue(jobId, out var state)) return false;
+
+        lock (state.SyncRoot)
+        {
+            if (state.CancelRequested || state.Status == ImportJobStatus.Cancelled) return false;
+            state.Status = ImportJobStatus.Processing;
+            return true;
+        }
+    }
+
+    /// <summary>Complete a job only when no cancellation request won the race.</summary>
+    public bool TryComplete(string jobId, int processedCount, int totalCount)
+    {
+        if (!_jobs.TryGetValue(jobId, out var state)) return false;
+
+        lock (state.SyncRoot)
+        {
+            if (state.CancelRequested || state.Status == ImportJobStatus.Cancelled) return false;
+            state.Status = ImportJobStatus.Completed;
+            state.ProcessedCount = processedCount;
+            state.TotalCount = totalCount;
+            return true;
+        }
+    }
+
     /// <summary>Update job state in-place (caller mutates the returned reference).</summary>
     public ImportJobState? Update(string jobId, Action<ImportJobState> mutate)
     {
         if (!_jobs.TryGetValue(jobId, out var state)) return null;
-        mutate(state);
+        lock (state.SyncRoot)
+        {
+            mutate(state);
+        }
         return state;
     }
 
@@ -61,7 +104,20 @@ public sealed class ScanImportStatusTracker
     public bool RequestCancel(string jobId)
     {
         if (!_jobs.TryGetValue(jobId, out var state)) return false;
-        state.CancelRequested = true;
+
+        lock (state.SyncRoot)
+        {
+            if (state.Status is ImportJobStatus.Completed or ImportJobStatus.Failed or ImportJobStatus.Cancelled)
+                return false;
+
+            state.CancelRequested = true;
+            state.Status = ImportJobStatus.Cancelled;
+        }
+
+        state.Cancel();
         return true;
     }
+
+    /// <summary>Remove a job that could not be queued.</summary>
+    public bool Remove(string jobId) => _jobs.TryRemove(jobId, out _);
 }

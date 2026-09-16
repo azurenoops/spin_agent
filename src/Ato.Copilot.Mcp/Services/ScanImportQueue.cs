@@ -19,8 +19,8 @@ public sealed class ScanImportJob
     /// <summary>FK to RegisteredSystem.</summary>
     public string SystemId { get; set; } = string.Empty;
 
-    /// <summary>Raw file bytes (full content held in memory; max 256 MB enforced by Kestrel).</summary>
-    public byte[] FileContent { get; set; } = Array.Empty<byte>();
+    /// <summary>Path to bounded temporary storage containing the uploaded scan.</summary>
+    public string TemporaryFilePath { get; set; } = string.Empty;
 
     /// <summary>Original file name as uploaded.</summary>
     public string FileName { get; set; } = string.Empty;
