@@ -77,16 +77,39 @@ assert_skip_first_image "Updating"
 assert_apply_first_image "Succeeded"
 assert_apply_first_image "Unknown"
 
-if [ -n "$(containerapp_no_wait_if_terminal Succeeded)" ]; then
+if [ -n "$(containerapp_no_wait_if_terminal Succeeded update)" ]; then
   echo "FAIL: Succeeded should not add --no-wait."
   exit 1
 fi
-if [ "$(containerapp_no_wait_if_terminal Failed)" != "--no-wait" ]; then
-  echo "FAIL: Failed should add --no-wait."
+if [ "$(containerapp_no_wait_if_terminal Failed update)" != "--no-wait" ]; then
+  echo "FAIL: Failed update should add --no-wait."
   exit 1
 fi
-if [ "$(containerapp_no_wait_if_terminal Canceled)" != "--no-wait" ]; then
-  echo "FAIL: Canceled should add --no-wait."
+if [ "$(containerapp_no_wait_if_terminal Canceled create)" != "--no-wait" ]; then
+  echo "FAIL: Canceled create should add --no-wait."
+  exit 1
+fi
+# Run 35108043923: secret/ingress/identity/registry reject --no-wait.
+if [ -n "$(containerapp_no_wait_if_terminal Failed)" ]; then
+  echo "FAIL: Failed without a create/update command must not add --no-wait."
+  exit 1
+fi
+for unsupported in ingress identity registry secret sticky-sessions; do
+  if [ -n "$(containerapp_no_wait_if_terminal Failed "${unsupported}")" ]; then
+    echo "FAIL: Failed ${unsupported} must not add --no-wait (run 35108043923)."
+    exit 1
+  fi
+  if containerapp_command_supports_no_wait "${unsupported}"; then
+    echo "FAIL: ${unsupported} must not be treated as supporting --no-wait."
+    exit 1
+  fi
+done
+if ! containerapp_command_supports_no_wait create; then
+  echo "FAIL: create must support --no-wait."
+  exit 1
+fi
+if ! containerapp_command_supports_no_wait update; then
+  echo "FAIL: update must support --no-wait."
   exit 1
 fi
 

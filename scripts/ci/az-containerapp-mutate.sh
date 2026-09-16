@@ -81,10 +81,25 @@ containerapp_skip_first_image_update() {
 # --no-wait accepts the ARM patch without waiting for a healthy revision
 # (identity/registry are applied later; smoke check is the health gate).
 # Do not delete+recreate: that rotates the system identity and re-hits #873.
-containerapp_no_wait_if_terminal() {
+#
+# Run 35108043923: only create/update accept --no-wait. Passing the flag to
+# ingress, identity, registry, or secret set prints
+# "ERROR: unrecognized arguments: --no-wait" and kills set -e.
+containerapp_command_supports_no_wait() {
   case "${1:-}" in
+    create|update) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+containerapp_no_wait_if_terminal() {
+  local state="${1:-}"
+  local command="${2:-}"
+  case "${state}" in
     Failed|Canceled)
-      printf '%s\n' --no-wait
+      if containerapp_command_supports_no_wait "${command}"; then
+        printf '%s\n' --no-wait
+      fi
       ;;
   esac
 }
