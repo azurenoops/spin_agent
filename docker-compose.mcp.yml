@@ -56,6 +56,7 @@ services:
       - Logging__LogLevel__Microsoft.Hosting=Information
 
       # ── Azure AD (skip for local testing) ──────────────────
+      - ATO_AZUREAD__INSTANCE=${ATO_AZUREAD__INSTANCE:-https://login.microsoftonline.us/}
       - ATO_AZUREAD__TENANTID=${ATO_AZUREAD__TENANTID}
       - ATO_AZUREAD__CLIENTID=${ATO_AZUREAD__CLIENTID}
       - ATO_AZUREAD__CLIENTSECRET=${ATO_AZUREAD__CLIENTSECRET}

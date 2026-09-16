@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Events;
@@ -13,6 +14,8 @@ using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Interfaces;
 using Ato.Copilot.Core.Models;
+using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Extensions;
 using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Chat.Channels;
@@ -166,9 +169,8 @@ try
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
-            options.Authority = azureAdSection["Authority"]
-                ?? $"https://login.microsoftonline.com/{azureAdSection["TenantId"]}/v2.0";
-            options.Audience = azureAdSection["ClientId"];
+            options.Authority = azureAdOptions.Authority;
+            options.Audience = azureAdOptions.ClientId;
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
@@ -227,6 +229,7 @@ try
         });
     });
     var app = builder.Build();
+    _ = app.Services.GetRequiredService<IOptions<AzureAdOptions>>().Value;
 
     // ─── Database Initialization ─────────────────────────────────────
 
