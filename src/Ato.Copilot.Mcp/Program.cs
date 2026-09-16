@@ -588,6 +588,7 @@ async Task RunHttpModeAsync(string[] args)
 
     // Map Dashboard REST API endpoints (Feature 030)
     app.MapDashboardEndpoints();
+    app.MapEmassWorkflowEndpoints();
     app.MapControlValidationEndpoints();
     app.MapNarrativeDualEndpoints();
 

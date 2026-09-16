@@ -200,6 +200,9 @@ public class RegisteredSystem
     /// <summary>SSP sections for this system.</summary>
     public ICollection<SspSection> SspSections { get; set; } = new List<SspSection>();
 
+    /// <summary>Field-level differences detected by eMASS round-trip syncs.</summary>
+    public ICollection<EmassConflict> EmassConflicts { get; set; } = new List<EmassConflict>();
+
     /// <summary>Contingency plan reference (zero or one per system).</summary>
     public ContingencyPlanReference? ContingencyPlanReference { get; set; }
 }

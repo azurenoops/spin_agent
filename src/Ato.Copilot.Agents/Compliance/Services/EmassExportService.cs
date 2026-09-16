@@ -317,8 +317,8 @@ public class EmassExportService : IEmassExportService
             return new EmassControlExportRow(
                 SystemName: system.Name,
                 SystemAcronym: system.Acronym ?? "",
-                DitprId: "",      // populated if available from system metadata
-                EmassId: "",      // populated if available from system metadata
+                DitprId: system.DitprId ?? "",
+                EmassId: system.EmassId ?? "",
                 ControlIdentifier: controlId.ToUpperInvariant(),
                 ControlName: controlId, // simplified — full name would need catalog lookup
                 ControlFamily: family,
@@ -383,7 +383,7 @@ public class EmassExportService : IEmassExportService
 
             return new EmassPoamExportRow(
                 SystemName: system.Name,
-                EmassId: "",
+                EmassId: system.EmassId ?? "",
                 PoamId: p.Id,
                 Weakness: p.Weakness,
                 WeaknessSource: p.WeaknessSource,
@@ -721,7 +721,8 @@ public class EmassExportService : IEmassExportService
                 ["title"] = $"{system.Name} Assessment Results",
                 ["last-modified"] = DateTime.UtcNow.ToString("o"),
                 ["version"] = "1.0",
-                ["oscal-version"] = "1.1.2"
+                ["oscal-version"] = "1.1.2",
+                ["system-id"] = BuildOscalSystemIdentifiers(system)
             },
             ["results"] = new[] { resultDict }
         };
@@ -762,7 +763,8 @@ public class EmassExportService : IEmassExportService
                 ["title"] = $"{system.Name} Plan of Action and Milestones",
                 ["last-modified"] = DateTime.UtcNow.ToString("o"),
                 ["version"] = "1.0",
-                ["oscal-version"] = "1.1.2"
+                ["oscal-version"] = "1.1.2",
+                ["system-id"] = BuildOscalSystemIdentifiers(system)
             },
             ["import-ssp"] = new Dictionary<string, string>
             {
@@ -813,6 +815,32 @@ public class EmassExportService : IEmassExportService
         };
 
         return JsonSerializer.Serialize(oscal, OscalJsonOpts);
+    }
+
+    private static List<Dictionary<string, string>> BuildOscalSystemIdentifiers(
+        RegisteredSystem system)
+    {
+        var identifiers = new List<Dictionary<string, string>>();
+
+        if (!string.IsNullOrWhiteSpace(system.DitprId))
+        {
+            identifiers.Add(new Dictionary<string, string>
+            {
+                ["identifier-type"] = "https://ies.apps.mil/jira/DoD-DITPR",
+                ["id"] = system.DitprId
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(system.EmassId))
+        {
+            identifiers.Add(new Dictionary<string, string>
+            {
+                ["identifier-type"] = "https://dodea.emass.mil",
+                ["id"] = system.EmassId
+            });
+        }
+
+        return identifiers;
     }
 
     private static Dictionary<string, object> BuildOscalSystemInfo(

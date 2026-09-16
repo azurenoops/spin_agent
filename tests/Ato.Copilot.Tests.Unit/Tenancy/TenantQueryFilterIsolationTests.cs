@@ -70,6 +70,8 @@ public class TenantQueryFilterIsolationTests : IAsyncLifetime
                 Name = "Alpha Org",
                 CreatedBy = "seed",
             });
+            db.RegisteredSystems.Add(CreateSystem(TenantA, "system-a"));
+            db.EmassConflicts.Add(CreateConflict(TenantA, "system-a", "Alpha"));
             await db.SaveChangesAsync();
         }
 
@@ -82,6 +84,8 @@ public class TenantQueryFilterIsolationTests : IAsyncLifetime
                 Name = "Bravo Org",
                 CreatedBy = "seed",
             });
+            db.RegisteredSystems.Add(CreateSystem(TenantB, "system-b"));
+            db.EmassConflicts.Add(CreateConflict(TenantB, "system-b", "Bravo"));
             await db.SaveChangesAsync();
         }
     }
@@ -160,6 +164,24 @@ public class TenantQueryFilterIsolationTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task EmassConflicts_AreRestrictedToTheActiveTenant()
+    {
+        // Arrange
+        await using var scope = _sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+
+        // Act
+        using (_accessor.Push(new TenantContext(TenantA)))
+        {
+            var visibleConflicts = await db.EmassConflicts.ToListAsync();
+
+            // Assert
+            visibleConflicts.Should().ContainSingle(conflict => conflict.TenantId == TenantA);
+            visibleConflicts.Should().NotContain(conflict => conflict.TenantId == TenantB);
+        }
+    }
+
     /// <summary>
     /// IgnoreQueryFilters() allows a CSP-Admin code-path to read all rows, which
     /// confirms the filter IS active (not absent) on the normal path.
@@ -195,5 +217,27 @@ public class TenantQueryFilterIsolationTests : IAsyncLifetime
         NewIntegrityImpact = ImpactValue.Low,
         NewAvailabilityImpact = ImpactValue.Low,
         NewOverallImpact = ImpactValue.Low,
+    };
+
+    private static RegisteredSystem CreateSystem(Guid tenantId, string systemId) => new()
+    {
+        TenantId = tenantId,
+        Id = systemId,
+        Name = systemId,
+        SystemType = SystemType.MajorApplication,
+        MissionCriticality = MissionCriticality.MissionEssential,
+        HostingEnvironment = "Test",
+        CreatedBy = "seed",
+    };
+
+    private static EmassConflict CreateConflict(Guid tenantId, string systemId, string emassValue) => new()
+    {
+        TenantId = tenantId,
+        RegisteredSystemId = systemId,
+        SyncBatchId = Guid.NewGuid().ToString(),
+        EntityType = "SystemInfo",
+        FieldName = "SystemInfo.SystemName",
+        SpinValue = systemId,
+        EmassValue = emassValue,
     };
 }
