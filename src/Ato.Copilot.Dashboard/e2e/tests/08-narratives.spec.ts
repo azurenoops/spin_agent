@@ -61,18 +61,76 @@ test.describe('Narratives', () => {
     }
   });
 
-  test('should edit a narrative', async ({ page }) => {
-    await gotoNarratives(page);
-    const editBtn = page.getByRole('button', { name: /edit/i }).first();
-    if (await editBtn.isVisible()) {
-      await editBtn.click();
-      await page.waitForTimeout(500);
-      // Text editor or form should be visible
-      const textarea = page.locator('textarea');
-      if (await textarea.isVisible()) {
-        await expect(textarea).toBeVisible();
-      }
-      await page.getByRole('button', { name: /cancel|close/i }).click().catch(() => {});
-    }
+  test('should show independent policy and technical narrative editors', async ({ page }) => {
+    // Arrange
+    await page.route('**/api/auth/login-config', route => route.fulfill({
+      json: {
+        status: 'success',
+        data: {
+          branding: { deploymentName: 'ATO Copilot E2E', logoUrl: null, supportEmail: null },
+          defaultMethod: 'Entra', enabledMethods: [{ id: 'Entra', displayName: 'Microsoft Entra ID' }],
+          cloud: 'AzurePublic', idleTimeoutMinutes: 30, rememberTenantCookieDays: 7,
+          simulation: null,
+          msal: {
+            clientId: '00000000-0000-0000-0000-000000000001',
+            authority: 'https://login.microsoftonline.com/common',
+            redirectUri: 'http://127.0.0.1:5173/login/callback',
+            postLogoutRedirectUri: 'http://127.0.0.1:5173/login',
+          },
+        },
+      },
+    }));
+    await page.route('**/api/auth/me', route => route.fulfill({ json: { userId: 'e2e-user' } }));
+    await page.route('**/api/dashboard/systems/e2e-system/profile/completeness', route => route.fulfill({
+      json: {
+        systemId: 'e2e-system', totalSections: 0, statusCounts: {}, approvedPercentage: 0,
+        isProfileComplete: false, incompleteSections: [], missionOwnerAssigned: false,
+        missionOwnerName: null, daysSinceRegistration: 1,
+      },
+    }));
+    await page.route('**/api/dashboard/systems/e2e-system/todos', route => route.fulfill({
+      json: { items: [] },
+    }));
+    await page.route('**/api/dashboard/systems/e2e-system/narratives**', route => route.fulfill({
+      json: [{
+        id: 'narrative-1', controlId: 'AC-2', family: 'AC', narrative: null,
+        policyNarrative: 'Accounts are reviewed quarterly.',
+        technicalNarrative: 'Entra ID enforces conditional access.',
+        migratedFromLegacy: false, implementationStatus: 'Implemented', approvalStatus: 'Draft',
+        authoredBy: 'e2e-user', authoredAt: '2026-01-01T00:00:00Z', version: 1,
+        isAutoPopulated: false, aiSuggested: false,
+      }],
+    }));
+    await page.route('**/api/dashboard/systems/e2e-system', route => route.fulfill({
+      json: {
+        systemId: 'e2e-system', name: 'E2E System', acronym: 'E2E', systemType: 'Application',
+        missionCriticality: 'MissionSupport', hostingEnvironment: 'Cloud', impactLevel: 'IL4',
+        baselineLevel: 'Moderate', currentRmfPhase: 'Implement', rmfPhaseProgress: [],
+        keyMetrics: {
+          complianceScore: 0, complianceScoreDelta: 0, priorScore: 0, totalOpenPoams: 0,
+          overduePoams: 0, atoDaysRemaining: null, atoSeverity: 'None', atoExpirationDate: null,
+          atoStatus: 'NotStarted', catIFindings: 0, catIIFindings: 0, catIIIFindings: 0,
+          totalFindings: 0, narrativeCoverage: 0, activeDeviations: 0,
+        },
+        recentActivity: [], categorization: null,
+      },
+    }));
+    const saveRequest = page.waitForRequest(request =>
+      request.method() === 'PATCH' && request.url().endsWith('/controls/AC-2/narrative'));
+
+    // Act
+    await page.goto('/systems/e2e-system/narratives');
+    const expandButton = page.getByRole('button', { name: 'Expand' }).first();
+    await expect(expandButton).toBeVisible();
+    await expandButton.click();
+    const policyEditor = page.getByLabel('Policy narrative for AC-2');
+    const technicalEditor = page.getByLabel('Technical narrative for AC-2');
+    await policyEditor.fill('Accounts are reviewed monthly.');
+    await policyEditor.blur();
+    const request = await saveRequest;
+
+    // Assert
+    expect(request.postDataJSON()).toEqual({ policyNarrative: 'Accounts are reviewed monthly.' });
+    await expect(technicalEditor).toHaveValue('Entra ID enforces conditional access.');
   });
 });

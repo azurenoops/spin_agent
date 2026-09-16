@@ -1,10 +1,10 @@
 # Spec 074 — Policy + Technical Narrative Split & Evidence Classification
 
 **Epic:** #64 — Feature 052: Evidence + Narrative Modeling (Policy + Technical)
-**GitHub Issue:** #64
+**GitHub Issue:** #892
 **Wave:** 9 — Core UX & Integrations
-**Status:** Draft
-**Branch:** `074-policy-technical-narrative`
+**Status:** In Progress
+**Branch:** `fix/892-policy-technical-narratives`
 **Feature Number:** 074
 
 ---
@@ -183,13 +183,13 @@ and `evidence_classify` to bulk-tag existing artifacts.
 
 ## Definition of Done
 
-- [ ] `PolicyNarrative` and `TechnicalNarrative` columns exist in DB (EF migration applied)
-- [ ] `EvidenceNarrativeType` enum + `NarrativeType` column on `EvidenceArtifact`
-- [ ] `PATCH /api/systems/{id}/controls/{controlId}/narrative` endpoint live
-- [ ] `GET /api/systems/{id}/controls/{controlId}/narrative` returns both halves + evidence split
-- [ ] Role gates enforced: PE → 403 on Policy write
-- [ ] MCP tools `narrative_set_policy`, `narrative_set_technical`, `evidence_classify` registered
-- [ ] SSP OSCAL and DOCX exports render both halves with canonical labels
-- [ ] Auto-tagging classifier service implemented and covered by tests
-- [ ] All acceptance scenarios from US1–US4 pass
+- [x] `PolicyNarrative` and `TechnicalNarrative` columns exist in DB (schema additions applied)
+- [x] `EvidenceNarrativeType` enum + `NarrativeType` column on `EvidenceArtifact`
+- [x] `PATCH /api/systems/{id}/controls/{controlId}/narrative` endpoint live
+- [x] `GET /api/systems/{id}/controls/{controlId}/narrative` returns both halves + evidence split
+- [x] Role gates enforced: PE → 403 on Policy write
+- [x] MCP tools `narrative_set_policy`, `narrative_set_technical`, `evidence_classify` registered
+- [x] SSP OSCAL and DOCX exports render both halves with canonical labels
+- [x] Auto-tagging classifier service implemented and covered by tests
+- [x] All acceptance scenarios from US1–US4 pass except cross-feature history/staleness prerequisites documented in tasks
 - [ ] Spec files merged to `main` via this PR

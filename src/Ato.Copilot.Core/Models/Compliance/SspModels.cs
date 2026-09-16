@@ -43,6 +43,17 @@ public class ControlImplementation
     [MaxLength(8000)]
     public string? Narrative { get; set; }
 
+    /// <summary>Policy and procedural narrative text for the SSP.</summary>
+    [MaxLength(8000)]
+    public string? PolicyNarrative { get; set; }
+
+    /// <summary>Technical implementation narrative text for the SSP.</summary>
+    [MaxLength(8000)]
+    public string? TechnicalNarrative { get; set; }
+
+    /// <summary>True when the technical narrative was backfilled from the legacy narrative.</summary>
+    public bool MigratedFromLegacy { get; set; }
+
     /// <summary>True if the narrative was auto-populated for an inherited control.</summary>
     public bool IsAutoPopulated { get; set; }
 

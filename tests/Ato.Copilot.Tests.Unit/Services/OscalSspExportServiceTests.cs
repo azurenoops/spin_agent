@@ -343,7 +343,8 @@ public class OscalSspExportServiceTests
                 Id = "ci1",
                 RegisteredSystemId = "sys1",
                 ControlId = "AC-1",
-                Narrative = "Access control policy established.",
+                PolicyNarrative = "Access control policy established.",
+                TechnicalNarrative = "Access controls are enforced.",
                 ImplementationStatus = ImplementationStatus.Implemented
             },
             new()
@@ -351,7 +352,8 @@ public class OscalSspExportServiceTests
                 Id = "ci2",
                 RegisteredSystemId = "sys1",
                 ControlId = "AU-2",
-                Narrative = "Audit events configured.",
+                PolicyNarrative = "Audit policy is established.",
+                TechnicalNarrative = "Audit events configured.",
                 ImplementationStatus = ImplementationStatus.PartiallyImplemented
             }
         };
@@ -367,7 +369,7 @@ public class OscalSspExportServiceTests
         reqs.Should().HaveCount(2);
 
         var ac1 = reqs!.First(r => (string)r["control-id"] == "ac-1");
-        ac1["description"].Should().Be("Access control policy established.");
+        ac1["description"].Should().Be("Policy and technical implementation statements for AC-1.");
         var ac1Props = ac1["props"] as Dictionary<string, string>[];
         ac1Props![0]["value"].Should().Be("implemented");
 
@@ -379,6 +381,35 @@ public class OscalSspExportServiceTests
         ac1.Should().ContainKey("by-components");
 
         warnings.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void BuildControlImplementation_DualNarratives_EmitsCanonicalStatementsInOrder()
+    {
+        // Arrange
+        var implementation = new ControlImplementation
+        {
+            Id = "ci-dual",
+            RegisteredSystemId = "sys1",
+            ControlId = "AC-2",
+            PolicyNarrative = "Account policy is reviewed annually.",
+            TechnicalNarrative = null,
+            ImplementationStatus = ImplementationStatus.Implemented
+        };
+
+        // Act
+        var result = OscalSspExportService.BuildControlImplementation(
+            MakeSystem(), [implementation], null,
+            new Dictionary<string, string>(), [], []);
+
+        // Assert
+        var requirements = result["implemented-requirements"] as List<Dictionary<string, object>>;
+        var statements = requirements!.Single()["statements"] as List<Dictionary<string, object>>;
+        statements.Should().HaveCount(2);
+        statements![0]["statement-id"].Should().Be("AC-2_smt.policy");
+        statements[0]["description"].Should().Be("Account policy is reviewed annually.");
+        statements[1]["statement-id"].Should().Be("AC-2_smt.technical");
+        statements[1]["description"].Should().Be("[Not Authored]");
     }
 
     [Fact]

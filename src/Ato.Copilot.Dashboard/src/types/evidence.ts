@@ -17,6 +17,8 @@ export type CollectionMethod =
 
 export type EvidenceSource = 'Manual' | 'Automated';
 
+export type EvidenceNarrativeType = 'Policy' | 'Technical' | 'Combined' | 'Unclassified';
+
 // ─── DTOs ──────────────────────────────────────────────────────────────────────
 
 export interface EvidenceArtifactDto {
@@ -27,6 +29,9 @@ export interface EvidenceArtifactDto {
   fileSizeBytes: number | null;
   artifactCategory: string;
   collectionMethod?: CollectionMethod;
+  narrativeType: EvidenceNarrativeType;
+  autoTagRationale?: string | null;
+  manuallyTaggedBy?: string | null;
   controlId: string | null;
   controlImplementationId: string | null;
   securityCapabilityId: string | null;
@@ -82,6 +87,7 @@ export interface EvidenceUploadParams {
   securityCapabilityId?: string;
   description?: string;
   collectionMethod?: CollectionMethod;
+  narrativeType?: EvidenceNarrativeType;
   /** T280: Optional control ID for the control-linked column in the evidence table. */
   controlId?: string;
 }

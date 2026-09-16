@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { uploadEvidence } from '../api/evidence';
 import apiClient from '../api/client';
-import type { ArtifactCategory, CollectionMethod } from '../types/evidence';
+import type { ArtifactCategory, CollectionMethod, EvidenceNarrativeType } from '../types/evidence';
 
 interface SystemControl {
   controlId: string;
@@ -57,6 +57,7 @@ export default function EvidenceUploadDialog({
   const [file, setFile] = useState<File | null>(null);
   const [category, setCategory] = useState<ArtifactCategory>('Screenshot');
   const [collectionMethod, setCollectionMethod] = useState<CollectionMethod>('Manual');
+  const [narrativeType, setNarrativeType] = useState<EvidenceNarrativeType>('Unclassified');
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +148,7 @@ export default function EvidenceUploadDialog({
         securityCapabilityId: securityCapabilityId ?? undefined,
         description: description.trim() || undefined,
         collectionMethod,
+        narrativeType,
         // T280: pass selected controlId if present
         ...(selectedControlId ? { controlId: selectedControlId } : {}),
       } as Parameters<typeof uploadEvidence>[0]);
@@ -315,6 +317,20 @@ export default function EvidenceUploadDialog({
               {COLLECTION_METHODS.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Narrative Support</label>
+            <select
+              value={narrativeType}
+              onChange={(event) => setNarrativeType(event.target.value as EvidenceNarrativeType)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="Unclassified">Unclassified</option>
+              <option value="Policy">Policy</option>
+              <option value="Technical">Technical</option>
+              <option value="Combined">Policy and Technical</option>
             </select>
           </div>
 

@@ -796,7 +796,9 @@ public static partial class DashboardEndpoints
 
             if (!string.IsNullOrEmpty(search))
                 query = query.Where(ci => ci.ControlId.Contains(search) ||
-                    (ci.Narrative != null && ci.Narrative.Contains(search)));
+                    (ci.Narrative != null && ci.Narrative.Contains(search)) ||
+                    (ci.PolicyNarrative != null && ci.PolicyNarrative.Contains(search)) ||
+                    (ci.TechnicalNarrative != null && ci.TechnicalNarrative.Contains(search)));
 
             var items = await query
                 .OrderBy(ci => ci.ControlId)
@@ -806,6 +808,9 @@ public static partial class DashboardEndpoints
                     ControlId = ci.ControlId,
                     Family = ci.ControlId.Length >= 2 ? ci.ControlId.Substring(0, ci.ControlId.IndexOf('-') > 0 ? ci.ControlId.IndexOf('-') : 2) : ci.ControlId,
                     Narrative = ci.Narrative,
+                    PolicyNarrative = ci.PolicyNarrative,
+                    TechnicalNarrative = ci.TechnicalNarrative,
+                    MigratedFromLegacy = ci.MigratedFromLegacy,
                     ImplementationStatus = ci.ImplementationStatus.ToString(),
                     ApprovalStatus = ci.ApprovalStatus.ToString(),
                     AuthoredBy = ci.AuthoredBy,
@@ -877,23 +882,36 @@ public static partial class DashboardEndpoints
         app.MapPatch("/api/dashboard/systems/{systemId}/controls/{controlId}/narrative", async (
             string systemId,
             string controlId,
-            SaveNarrativeRequest request,
-            AtoCopilotContext context,
+            PatchDualNarrativeRequest request,
+            IDualNarrativeService service,
+            Ato.Copilot.Core.Interfaces.Auth.IUserContext userContext,
             CancellationToken ct) =>
         {
-            var impl = await context.ControlImplementations
-                .FirstOrDefaultAsync(ci => ci.RegisteredSystemId == systemId && ci.ControlId == controlId, ct);
-            if (impl is null)
-                return Results.NotFound(new ErrorResponse { Error = "Control implementation not found", ErrorCode = "CONTROL_NOT_FOUND" });
-
-            impl.Narrative = request.Narrative;
-            impl.AiSuggested = false;
-            impl.ModifiedAt = DateTime.UtcNow;
-            await context.SaveChangesAsync(ct);
-
-            return Results.Ok(new { controlId, narrative = impl.Narrative });
+            try
+            {
+                var result = await service.UpdateAsync(
+                    systemId, controlId,
+                    request.PolicyNarrative, request.PolicyNarrative is not null,
+                    request.TechnicalNarrative, request.TechnicalNarrative is not null,
+                    userContext.Role, userContext.UserId, ct);
+                return Results.Ok(result);
+            }
+            catch (ArgumentException exception)
+            {
+                return Results.BadRequest(new ErrorResponse { Error = exception.Message, ErrorCode = "VALIDATION_ERROR" });
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                return Results.Json(
+                    new ErrorResponse { Error = exception.Message, ErrorCode = "FORBIDDEN" },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+            catch (InvalidOperationException exception) when (exception.Message.StartsWith("NARRATIVE_NOT_FOUND:"))
+            {
+                return Results.NotFound(new ErrorResponse { Error = exception.Message, ErrorCode = "CONTROL_NOT_FOUND" });
+            }
         })
-        .WithName("SaveNarrativeText");
+        .WithName("SaveDualNarrativeText");
 
         // ───────────── Deferred Prerequisites ─────────────────────────────────
 

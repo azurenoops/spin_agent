@@ -30,6 +30,7 @@ using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Services.Compliance;
 using Ato.Copilot.Core.Interfaces.Kanban;
 using Ato.Copilot.Core.Models;
 using Polly;
@@ -339,6 +340,9 @@ public static class ServiceCollectionExtensions
 
         // Narrative Governance service (Feature 024)
         services.AddSingleton<INarrativeGovernanceService, NarrativeGovernanceService>();
+        services.AddSingleton<IDualNarrativeService, DualNarrativeService>();
+        services.AddSingleton<IEvidenceNarrativeClassifier, EvidenceNarrativeClassifier>();
+        services.AddSingleton<EvidenceNarrativeBulkClassifierJob>();
 
         // ─── HW/SW Inventory service (Feature 025) ──────────────────────────
         services.AddSingleton<IInventoryService, InventoryService>();
@@ -352,6 +356,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BatchReviewNarrativesTool>();
         services.AddSingleton<NarrativeApprovalProgressTool>();
         services.AddSingleton<BatchSubmitNarrativesTool>();
+        services.AddSingleton<NarrativePolicyTool>();
+        services.AddSingleton<NarrativeTechnicalTool>();
+        services.AddSingleton<EvidenceClassifyTool>();
 
         // HW/SW Inventory tools (Feature 025)
         services.AddSingleton<InventoryAddItemTool>();
@@ -615,6 +622,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<BatchReviewNarrativesTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<NarrativeApprovalProgressTool>());
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<BatchSubmitNarrativesTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<NarrativePolicyTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<NarrativeTechnicalTool>());
+        services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<EvidenceClassifyTool>());
 
         // HW/SW Inventory tools as BaseTool (Feature 025)
         services.AddSingleton<BaseTool>(sp => sp.GetRequiredService<InventoryAddItemTool>());

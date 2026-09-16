@@ -65,6 +65,7 @@ public class EvidenceArtifactService : IEvidenceArtifactService
         string? securityCapabilityId = null,
         string? description = null,
         CollectionMethod collectionMethod = CollectionMethod.Manual,
+        EvidenceNarrativeType narrativeType = EvidenceNarrativeType.Unclassified,
         CancellationToken cancellationToken = default)
     {
         ValidateTargetIds(controlImplementationId, securityCapabilityId);
@@ -96,6 +97,7 @@ public class EvidenceArtifactService : IEvidenceArtifactService
             Description = description,
             ArtifactCategory = artifactCategory,
             CollectionMethod = collectionMethod,
+            NarrativeType = narrativeType,
             ContentHash = contentHash,
             UploadedBy = uploadedBy,
             UploadedAt = DateTime.UtcNow

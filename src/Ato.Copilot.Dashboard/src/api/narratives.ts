@@ -7,6 +7,9 @@ export interface NarrativeListItem {
   controlId: string;
   family: string;
   narrative: string | null;
+  policyNarrative: string | null;
+  technicalNarrative: string | null;
+  migratedFromLegacy: boolean;
   implementationStatus: string;
   approvalStatus: string;
   authoredBy: string | null;
@@ -55,11 +58,11 @@ export async function bulkUpdateNarratives(
 export async function saveNarrative(
   systemId: string,
   controlId: string,
-  narrative: string,
+  narrative: { policyNarrative?: string; technicalNarrative?: string },
 ): Promise<void> {
   await apiClient.patch(
     `/systems/${encodeURIComponent(systemId)}/controls/${encodeURIComponent(controlId)}/narrative`,
-    { narrative },
+    narrative,
   );
 }
 

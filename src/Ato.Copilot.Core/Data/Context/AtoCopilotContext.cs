@@ -1559,6 +1559,8 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ControlId).HasMaxLength(20).IsRequired();
             entity.Property(e => e.ImplementationStatus).HasConversion<string>().HasMaxLength(30);
             entity.Property(e => e.Narrative).HasMaxLength(8000);
+            entity.Property(e => e.PolicyNarrative).HasMaxLength(8000);
+            entity.Property(e => e.TechnicalNarrative).HasMaxLength(8000);
             entity.Property(e => e.AuthoredBy).HasMaxLength(200).IsRequired();
             entity.Property(e => e.ReviewedBy).HasMaxLength(200);
 
@@ -2747,6 +2749,9 @@ public class AtoCopilotContext : DbContext
         modelBuilder.Entity<EvidenceArtifact>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.NarrativeType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.AutoTagRationale).HasMaxLength(500);
+            entity.Property(x => x.ManuallyTaggedBy).HasMaxLength(200);
 
             entity.HasIndex(x => new { x.RegisteredSystemId, x.ControlImplementationId })
                 .HasDatabaseName("IX_EvidenceArtifact_System_Control");

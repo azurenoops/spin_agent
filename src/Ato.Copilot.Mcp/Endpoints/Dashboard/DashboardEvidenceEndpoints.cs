@@ -87,6 +87,17 @@ public static partial class DashboardEndpoints
                 if (!string.IsNullOrWhiteSpace(methodStr))
                     Enum.TryParse<CollectionMethod>(methodStr, ignoreCase: true, out collectionMethod);
 
+                var narrativeType = EvidenceNarrativeType.Unclassified;
+                var narrativeTypeText = form["narrativeType"].ToString();
+                if (!string.IsNullOrWhiteSpace(narrativeTypeText) &&
+                    (!Enum.TryParse(narrativeTypeText, ignoreCase: true, out narrativeType) ||
+                     !Enum.IsDefined(narrativeType)))
+                    return Results.BadRequest(new ErrorResponse
+                    {
+                        Error = "Valid narrativeType is required",
+                        ErrorCode = "INVALID_NARRATIVE_TYPE",
+                    });
+
                 var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
 
                 try
@@ -103,6 +114,7 @@ public static partial class DashboardEndpoints
                         securityCapabilityId,
                         description,
                         collectionMethod,
+                        narrativeType,
                         ct);
 
                     return Results.Ok(new
@@ -113,6 +125,7 @@ public static partial class DashboardEndpoints
                         artifact.FileSizeBytes,
                         ArtifactCategory = artifact.ArtifactCategory.ToString(),
                         CollectionMethod = artifact.CollectionMethod.ToString(),
+                        NarrativeType = artifact.NarrativeType.ToString(),
                         artifact.ContentHash,
                         artifact.UploadedBy,
                         artifact.UploadedAt,

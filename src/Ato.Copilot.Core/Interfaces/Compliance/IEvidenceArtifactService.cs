@@ -36,6 +36,7 @@ public interface IEvidenceArtifactService
         string? securityCapabilityId = null,
         string? description = null,
         CollectionMethod collectionMethod = CollectionMethod.Manual,
+        EvidenceNarrativeType narrativeType = EvidenceNarrativeType.Unclassified,
         CancellationToken cancellationToken = default);
 
     /// <summary>

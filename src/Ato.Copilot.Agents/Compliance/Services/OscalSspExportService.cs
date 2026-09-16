@@ -620,7 +620,22 @@ public class OscalSspExportService : IOscalSspExportService
             {
                 ["uuid"] = Guid.NewGuid().ToString(),
                 ["control-id"] = impl.ControlId.ToLowerInvariant(),
-                ["description"] = impl.Narrative ?? "Not documented.",
+                ["description"] = $"Policy and technical implementation statements for {impl.ControlId}.",
+                ["statements"] = new List<Dictionary<string, object>>
+                {
+                    new()
+                    {
+                        ["uuid"] = Guid.NewGuid().ToString(),
+                        ["statement-id"] = $"{impl.ControlId}_smt.policy",
+                        ["description"] = impl.PolicyNarrative ?? "[Not Authored]"
+                    },
+                    new()
+                    {
+                        ["uuid"] = Guid.NewGuid().ToString(),
+                        ["statement-id"] = $"{impl.ControlId}_smt.technical",
+                        ["description"] = impl.TechnicalNarrative ?? "[Not Authored]"
+                    }
+                },
                 ["props"] = props.ToArray()
             };
 
@@ -648,7 +663,10 @@ public class OscalSspExportService : IOscalSspExportService
                 {
                     ["component-uuid"] = uuid,
                     ["uuid"] = Guid.NewGuid().ToString(),
-                    ["description"] = impl.Narrative ?? "Not documented."
+                    ["description"] = string.Join(
+                        "\n\n",
+                        impl.PolicyNarrative ?? "[Not Authored]",
+                        impl.TechnicalNarrative ?? "[Not Authored]")
                 }).ToList();
             }
 
