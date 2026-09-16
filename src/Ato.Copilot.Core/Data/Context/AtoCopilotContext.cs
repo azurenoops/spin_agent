@@ -171,6 +171,9 @@ public class AtoCopilotContext : DbContext
     /// <summary>FIPS 199 security categorizations for registered systems.</summary>
     public DbSet<SecurityCategorization> SecurityCategorizations => Set<SecurityCategorization>();
 
+    /// <summary>Immutable versions of system categorization decisions.</summary>
+    public DbSet<CategorizationHistoryEntry> CategorizationHistoryEntries => Set<CategorizationHistoryEntry>();
+
     /// <summary>SP 800-60 information types linked to security categorizations.</summary>
     public DbSet<InformationType> InformationTypes => Set<InformationType>();
 
@@ -1354,6 +1357,27 @@ public class AtoCopilotContext : DbContext
                 .HasForeignKey(it => it.SecurityCategorizationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+            // ─── CategorizationHistoryEntry ────────────────────────────────────────
+            modelBuilder.Entity<CategorizationHistoryEntry>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
+                entity.Property(e => e.ChangedBy).HasMaxLength(200).IsRequired();
+                entity.Property(e => e.Justification).HasMaxLength(4000);
+                entity.Property(e => e.PreviousConfidentialityImpact).HasConversion<string>().HasMaxLength(10);
+                entity.Property(e => e.PreviousIntegrityImpact).HasConversion<string>().HasMaxLength(10);
+                entity.Property(e => e.PreviousAvailabilityImpact).HasConversion<string>().HasMaxLength(10);
+                entity.Property(e => e.PreviousOverallImpact).HasConversion<string>().HasMaxLength(10);
+                entity.Property(e => e.NewConfidentialityImpact).HasConversion<string>().HasMaxLength(10);
+                entity.Property(e => e.NewIntegrityImpact).HasConversion<string>().HasMaxLength(10);
+                entity.Property(e => e.NewAvailabilityImpact).HasConversion<string>().HasMaxLength(10);
+                entity.Property(e => e.NewOverallImpact).HasConversion<string>().HasMaxLength(10);
+
+                entity.HasIndex(e => new { e.TenantId, e.RegisteredSystemId, e.Version })
+                .IsUnique()
+                .HasDatabaseName("UX_CategorizationHistory_Tenant_System_Version");
+            });
 
         // ─── InformationType ─────────────────────────────────────────────────────
         modelBuilder.Entity<InformationType>(entity =>

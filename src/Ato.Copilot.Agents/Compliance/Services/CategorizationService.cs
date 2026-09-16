@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -18,15 +19,18 @@ public class CategorizationService : ICategorizationService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<CategorizationService> _logger;
     private readonly IPrivacyService _privacyService;
+    private readonly IAlertManager? _alertManager;
 
     public CategorizationService(
         IServiceScopeFactory scopeFactory,
         ILogger<CategorizationService> logger,
-        IPrivacyService privacyService)
+        IPrivacyService privacyService,
+        IAlertManager? alertManager = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _privacyService = privacyService;
+        _alertManager = alertManager;
     }
 
     /// <inheritdoc />
@@ -54,27 +58,29 @@ public class CategorizationService : ICategorizationService
             .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken)
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
 
-        // Remove existing categorization if present (full replace)
         var existing = await context.SecurityCategorizations
             .Include(sc => sc.InformationTypes)
             .FirstOrDefaultAsync(sc => sc.RegisteredSystemId == systemId, cancellationToken);
+        var previousSummary = existing == null ? null : CreateSummary(existing);
+        var previousInformationTypes = existing?.InformationTypes.ToList() ?? [];
+        var previousInformationTypesJson = SerializeInformationTypes(previousInformationTypes);
+        var previousCategorizedBy = existing?.CategorizedBy;
+        var previousCategorizedAt = existing?.CategorizedAt;
+        var previousJustification = existing?.Justification;
+        var changedAt = DateTime.UtcNow;
 
+        var categorization = existing ?? new SecurityCategorization { RegisteredSystemId = systemId };
         if (existing != null)
         {
-            context.InformationTypes.RemoveRange(existing.InformationTypes);
-            context.SecurityCategorizations.Remove(existing);
-            await context.SaveChangesAsync(cancellationToken);
+            context.InformationTypes.RemoveRange(previousInformationTypes);
+            existing.InformationTypes.Clear();
         }
 
-        // Create new categorization
-        var categorization = new SecurityCategorization
-        {
-            RegisteredSystemId = systemId,
-            IsNationalSecuritySystem = isNationalSecuritySystem,
-            Justification = justification?.Trim(),
-            CategorizedBy = categorizedBy,
-            CategorizedAt = DateTime.UtcNow
-        };
+        categorization.IsNationalSecuritySystem = isNationalSecuritySystem;
+        categorization.Justification = justification?.Trim();
+        categorization.CategorizedBy = categorizedBy;
+        categorization.CategorizedAt = changedAt;
+        categorization.ModifiedAt = existing == null ? null : changedAt;
 
         // Update system-level NSS flag
         system.IsNationalSecuritySystem = isNationalSecuritySystem;
@@ -100,9 +106,81 @@ public class CategorizationService : ICategorizationService
             categorization.InformationTypes.Add(infoType);
         }
 
-        context.SecurityCategorizations.Add(categorization);
-        system.ModifiedAt = DateTime.UtcNow;
+        if (existing == null)
+            context.SecurityCategorizations.Add(categorization);
+
+        var newSummary = CreateSummary(categorization);
+        var latestVersion = await context.CategorizationHistoryEntries
+            .Where(entry => entry.RegisteredSystemId == systemId)
+            .Select(entry => (int?)entry.Version)
+            .MaxAsync(cancellationToken) ?? 0;
+        if (existing != null && latestVersion == 0 && previousSummary != null)
+        {
+            context.CategorizationHistoryEntries.Add(new CategorizationHistoryEntry
+            {
+                TenantId = system.TenantId,
+                RegisteredSystemId = systemId,
+                Version = 1,
+                ChangedBy = previousCategorizedBy!,
+                ChangedAt = previousCategorizedAt!.Value,
+                Justification = previousJustification,
+                NewConfidentialityImpact = previousSummary.ConfidentialityImpact,
+                NewIntegrityImpact = previousSummary.IntegrityImpact,
+                NewAvailabilityImpact = previousSummary.AvailabilityImpact,
+                NewOverallImpact = previousSummary.OverallCategorization,
+                NewInformationTypesJson = previousInformationTypesJson,
+            });
+            latestVersion = 1;
+        }
+
+        context.CategorizationHistoryEntries.Add(new CategorizationHistoryEntry
+        {
+            TenantId = system.TenantId,
+            RegisteredSystemId = systemId,
+            Version = latestVersion + 1,
+            ChangedBy = categorizedBy,
+            ChangedAt = changedAt,
+            Justification = justification?.Trim(),
+            PreviousConfidentialityImpact = previousSummary?.ConfidentialityImpact,
+            PreviousIntegrityImpact = previousSummary?.IntegrityImpact,
+            PreviousAvailabilityImpact = previousSummary?.AvailabilityImpact,
+            PreviousOverallImpact = previousSummary?.OverallCategorization,
+            NewConfidentialityImpact = newSummary.ConfidentialityImpact,
+            NewIntegrityImpact = newSummary.IntegrityImpact,
+            NewAvailabilityImpact = newSummary.AvailabilityImpact,
+            NewOverallImpact = newSummary.OverallCategorization,
+            PreviousInformationTypesJson = previousInformationTypesJson,
+            NewInformationTypesJson = SerializeInformationTypes(categorization.InformationTypes),
+        });
+
+        system.ModifiedAt = changedAt;
         await context.SaveChangesAsync(cancellationToken);
+
+        if (previousSummary != null &&
+            previousSummary.OverallCategorization != newSummary.OverallCategorization &&
+            system.CurrentRmfStep is RmfPhase.Authorize or RmfPhase.Monitor &&
+            _alertManager != null)
+        {
+            await _alertManager.CreateAlertAsync(new ComplianceAlert
+            {
+                Type = AlertType.Violation,
+                Severity = AlertSeverity.High,
+                Title = $"Security categorization changed for {system.Name}",
+                Description = "An impact-level change requires Authorizing Official review.",
+                SubscriptionId = string.Empty,
+                AffectedResources = [systemId],
+                RegisteredSystemId = systemId,
+                ActorId = categorizedBy,
+                AssignedTo = "AO",
+                RecommendedAction = "Review the categorization change and determine whether reauthorization is required.",
+                ChangeDetails = JsonSerializer.Serialize(new
+                {
+                    previousImpact = previousSummary.OverallCategorization.ToString(),
+                    newImpact = newSummary.OverallCategorization.ToString(),
+                    justification = justification?.Trim(),
+                }),
+            }, cancellationToken);
+        }
 
         // Invalidate existing PTA when info types change (Feature 021)
         try
@@ -146,6 +224,27 @@ public class CategorizationService : ICategorizationService
             .Include(sc => sc.InformationTypes)
             .Include(sc => sc.RegisteredSystem)
             .FirstOrDefaultAsync(sc => sc.RegisteredSystemId == systemId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<CategorizationHistoryEntry>> GetCategorizationHistoryAsync(
+        string systemId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(systemId, nameof(systemId));
+
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var entries = await context.CategorizationHistoryEntries
+            .Where(entry => entry.RegisteredSystemId == systemId)
+            .OrderByDescending(entry => entry.Version)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        if (entries.Count > 0)
+            entries[0].IsCurrent = true;
+
+        return entries;
     }
 
     /// <inheritdoc />
@@ -279,6 +378,31 @@ public class CategorizationService : ICategorizationService
             throw new InvalidOperationException(
                 $"Adjustment justification is required for non-provisional info type '{input.Sp80060Id}'.");
     }
+
+    private static CategorizationSummary CreateSummary(SecurityCategorization categorization) => new()
+    {
+        ConfidentialityImpact = categorization.ConfidentialityImpact,
+        IntegrityImpact = categorization.IntegrityImpact,
+        AvailabilityImpact = categorization.AvailabilityImpact,
+        OverallCategorization = categorization.OverallCategorization,
+        DoDImpactLevel = categorization.DoDImpactLevel,
+        NistBaseline = categorization.NistBaseline,
+        FormalNotation = categorization.FormalNotation,
+        InformationTypeCount = categorization.InformationTypes.Count,
+    };
+
+    private static string SerializeInformationTypes(IEnumerable<InformationType> informationTypes) =>
+        JsonSerializer.Serialize(informationTypes.Select(item => new
+        {
+            item.Sp80060Id,
+            item.Name,
+            item.Category,
+            confidentialityImpact = item.ConfidentialityImpact.ToString(),
+            integrityImpact = item.IntegrityImpact.ToString(),
+            availabilityImpact = item.AvailabilityImpact.ToString(),
+            item.UsesProvisionalImpactLevels,
+            item.AdjustmentJustification,
+        }));
 
     // ─── SP 800-60 Catalog (heuristic lookup) ───────────────────────────────
 

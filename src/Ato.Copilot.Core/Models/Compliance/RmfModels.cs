@@ -335,6 +335,74 @@ public class SecurityCategorization
 }
 
 /// <summary>
+/// Immutable point-in-time record of a system categorization decision.
+/// </summary>
+[TenantScoped]
+public class CategorizationHistoryEntry
+{
+    /// <summary>Tenant that owns the categorization decision.</summary>
+    public Guid TenantId { get; set; }
+
+    /// <summary>Unique history entry identifier.</summary>
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    /// <summary>Registered system whose categorization changed.</summary>
+    [Required]
+    [MaxLength(36)]
+    public string RegisteredSystemId { get; set; } = string.Empty;
+
+    /// <summary>Monotonically increasing version within the system.</summary>
+    public int Version { get; set; }
+
+    /// <summary>Identity that made the decision.</summary>
+    [Required]
+    [MaxLength(200)]
+    public string ChangedBy { get; set; } = string.Empty;
+
+    /// <summary>UTC timestamp of the decision.</summary>
+    public DateTime ChangedAt { get; set; }
+
+    /// <summary>Rationale supplied for the new categorization.</summary>
+    [MaxLength(4000)]
+    public string? Justification { get; set; }
+
+    /// <summary>Previous confidentiality impact, if this is a recategorization.</summary>
+    public ImpactValue? PreviousConfidentialityImpact { get; set; }
+
+    /// <summary>Previous integrity impact, if this is a recategorization.</summary>
+    public ImpactValue? PreviousIntegrityImpact { get; set; }
+
+    /// <summary>Previous availability impact, if this is a recategorization.</summary>
+    public ImpactValue? PreviousAvailabilityImpact { get; set; }
+
+    /// <summary>Previous overall impact, if this is a recategorization.</summary>
+    public ImpactValue? PreviousOverallImpact { get; set; }
+
+    /// <summary>New confidentiality impact.</summary>
+    public ImpactValue NewConfidentialityImpact { get; set; }
+
+    /// <summary>New integrity impact.</summary>
+    public ImpactValue NewIntegrityImpact { get; set; }
+
+    /// <summary>New availability impact.</summary>
+    public ImpactValue NewAvailabilityImpact { get; set; }
+
+    /// <summary>New overall impact.</summary>
+    public ImpactValue NewOverallImpact { get; set; }
+
+    /// <summary>Previous information type collection serialized as JSON.</summary>
+    public string PreviousInformationTypesJson { get; set; } = "[]";
+
+    /// <summary>New information type collection serialized as JSON.</summary>
+    public string NewInformationTypesJson { get; set; } = "[]";
+
+    /// <summary>True only for the latest version returned by a history query.</summary>
+    [NotMapped]
+    public bool IsCurrent { get; set; }
+}
+
+/// <summary>
 /// SP 800-60 information type with provisional or adjusted C/I/A impact levels.
 /// </summary>
 [GlobalReference]

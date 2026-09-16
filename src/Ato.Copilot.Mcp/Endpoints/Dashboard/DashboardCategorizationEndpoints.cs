@@ -17,6 +17,7 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
@@ -137,6 +138,34 @@ public static partial class DashboardEndpoints
                 }
             })
             .WithName("SetCategorization");
+
+        group.MapGet("/systems/{systemId}/categorization/history", async (
+                string systemId,
+                ICategorizationService categorizationService,
+                CancellationToken ct) =>
+            {
+                var history = await categorizationService.GetCategorizationHistoryAsync(systemId, ct);
+                return Results.Ok(history.Select(entry => new
+                {
+                    entry.Id,
+                    entry.Version,
+                    entry.IsCurrent,
+                    entry.ChangedBy,
+                    entry.ChangedAt,
+                    entry.Justification,
+                    previousConfidentialityImpact = entry.PreviousConfidentialityImpact?.ToString(),
+                    previousIntegrityImpact = entry.PreviousIntegrityImpact?.ToString(),
+                    previousAvailabilityImpact = entry.PreviousAvailabilityImpact?.ToString(),
+                    previousOverallImpact = entry.PreviousOverallImpact?.ToString(),
+                    newConfidentialityImpact = entry.NewConfidentialityImpact.ToString(),
+                    newIntegrityImpact = entry.NewIntegrityImpact.ToString(),
+                    newAvailabilityImpact = entry.NewAvailabilityImpact.ToString(),
+                    newOverallImpact = entry.NewOverallImpact.ToString(),
+                    previousInformationTypes = JsonSerializer.Deserialize<JsonElement>(entry.PreviousInformationTypesJson),
+                    newInformationTypes = JsonSerializer.Deserialize<JsonElement>(entry.NewInformationTypesJson),
+                }));
+            })
+            .WithName("GetCategorizationHistory");
 
         // ─── Select Baseline ──────────────────────────────────────────────────
         group.MapPost("/systems/{systemId}/baseline", async (

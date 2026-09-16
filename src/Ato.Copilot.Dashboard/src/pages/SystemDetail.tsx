@@ -7,6 +7,7 @@ import { TrendChart } from '../components/charts/TrendChart';
 import MetricCard from '../components/cards/MetricCard';
 import ProfileReadinessCard from '../components/cards/ProfileReadinessCard';
 import FindingsSeverityCard from '../components/cards/FindingsSeverityCard';
+import CategorizationHistoryPanel from '../components/cards/CategorizationHistoryPanel';
 import AtoCountdown from '../components/cards/AtoCountdown';
 import ActivityFeed from '../components/cards/ActivityFeed';
 import TodoPanel from '../components/cards/TodoPanel';
@@ -213,6 +214,8 @@ export default function SystemDetail() {
           profileLink={`/systems/${detail.systemId}/profile/MissionAndPurpose`}
         />
       </div>
+
+      <CategorizationHistoryPanel systemId={detail.systemId} />
 
       {/* Key Metrics */}
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">

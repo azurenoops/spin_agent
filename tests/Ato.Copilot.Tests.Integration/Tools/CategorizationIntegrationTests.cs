@@ -25,6 +25,8 @@ public class CategorizationIntegrationTests : IDisposable
     private readonly CategorizeSystemTool _categorizeTool;
     private readonly GetCategorizationTool _getCategorizationTool;
     private readonly SuggestInfoTypesTool _suggestInfoTypesTool;
+    private readonly CategorizationService _categorizationService;
+    private readonly Mock<IAlertManager> _alertManager = new();
 
     public CategorizationIntegrationTests()
     {
@@ -40,12 +42,20 @@ public class CategorizationIntegrationTests : IDisposable
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
         var lifecycleSvc = new RmfLifecycleService(scopeFactory, _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(), Mock.Of<ILogger<RmfLifecycleService>>());
-        var categorizationSvc = new CategorizationService(scopeFactory, Mock.Of<ILogger<CategorizationService>>(), Mock.Of<IPrivacyService>());
+        _alertManager
+            .Setup(manager => manager.CreateAlertAsync(
+                It.IsAny<ComplianceAlert>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ComplianceAlert alert, CancellationToken _) => alert);
+        _categorizationService = new CategorizationService(
+            scopeFactory,
+            Mock.Of<ILogger<CategorizationService>>(),
+            Mock.Of<IPrivacyService>(),
+            _alertManager.Object);
 
         _registerTool = new RegisterSystemTool(lifecycleSvc, Mock.Of<ILogger<RegisterSystemTool>>());
-        _categorizeTool = new CategorizeSystemTool(categorizationSvc, Mock.Of<ILogger<CategorizeSystemTool>>());
-        _getCategorizationTool = new GetCategorizationTool(categorizationSvc, Mock.Of<ILogger<GetCategorizationTool>>());
-        _suggestInfoTypesTool = new SuggestInfoTypesTool(categorizationSvc, Mock.Of<ILogger<SuggestInfoTypesTool>>());
+        _categorizeTool = new CategorizeSystemTool(_categorizationService, Mock.Of<ILogger<CategorizeSystemTool>>());
+        _getCategorizationTool = new GetCategorizationTool(_categorizationService, Mock.Of<ILogger<GetCategorizationTool>>());
+        _suggestInfoTypesTool = new SuggestInfoTypesTool(_categorizationService, Mock.Of<ILogger<SuggestInfoTypesTool>>());
     }
 
     public void Dispose() => _serviceProvider.Dispose();
@@ -180,6 +190,139 @@ public class CategorizationIntegrationTests : IDisposable
         var getJson = JsonDocument.Parse(getResult);
         getJson.RootElement.GetProperty("data").GetProperty("dod_impact_level").GetString().Should().Be("IL5");
     }
+
+    [Fact]
+    public async Task Recategorize_ThreeTimes_PreservesHistoryAndNotifiesAoOfImpactChanges()
+    {
+        // Arrange
+        var regResult = await _registerTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["name"] = "Versioned Categorization System",
+            ["system_type"] = "MajorApplication",
+            ["mission_criticality"] = "MissionCritical",
+            ["hosting_environment"] = "AzureGovernment"
+        });
+        var systemId = JsonDocument.Parse(regResult).RootElement
+            .GetProperty("data").GetProperty("id").GetString()!;
+
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var system = await db.RegisteredSystems.SingleAsync(item => item.Id == systemId);
+            system.CurrentRmfStep = RmfPhase.Monitor;
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        await _categorizationService.CategorizeSystemAsync(
+            systemId,
+            [CreateInfoType("C.3.1.1", "Initial Critical", "High")],
+            "isso-one",
+            justification: "Initial mission assessment");
+        await _categorizationService.CategorizeSystemAsync(
+            systemId,
+            [CreateInfoType("C.3.5.8", "Elevated", "Moderate")],
+            "isso-two",
+            justification: "Mission scope expanded");
+        await _categorizationService.CategorizeSystemAsync(
+            systemId,
+            [CreateInfoType("D.1.1", "Reduced", "Low")],
+            "issm-three",
+            justification: "Sensitive data removed");
+
+        var history = await _categorizationService.GetCategorizationHistoryAsync(systemId);
+        var current = await _categorizationService.GetCategorizationAsync(systemId);
+
+        // Assert
+        history.Should().HaveCount(3);
+        history.Select(entry => entry.Version).Should().Equal(3, 2, 1);
+        history.Select(entry => entry.ChangedBy).Should().Equal("issm-three", "isso-two", "isso-one");
+        history.Select(entry => entry.Justification).Should().Equal(
+            "Sensitive data removed", "Mission scope expanded", "Initial mission assessment");
+        history.Select(entry => entry.NewOverallImpact).Should().Equal(
+            ImpactValue.Low, ImpactValue.Moderate, ImpactValue.High);
+        history.Single(entry => entry.IsCurrent).Version.Should().Be(3);
+        history.Single(entry => entry.Version == 1).NewInformationTypesJson.Should().Contain("Initial Critical");
+        history.Single(entry => entry.Version == 2).NewInformationTypesJson.Should().Contain("Elevated");
+        history.Single(entry => entry.Version == 3).NewInformationTypesJson.Should().Contain("Reduced");
+        current.Should().NotBeNull();
+        current!.OverallCategorization.Should().Be(ImpactValue.Low);
+
+        _alertManager.Verify(manager => manager.CreateAlertAsync(
+            It.Is<ComplianceAlert>(alert =>
+                alert.RegisteredSystemId == systemId &&
+                alert.AssignedTo == "AO" &&
+                alert.ChangeDetails != null),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task Recategorize_LegacyCurrentRow_BackfillsOriginalDecision()
+    {
+        // Arrange
+        var regResult = await _registerTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["name"] = "Legacy Categorization System",
+            ["system_type"] = "Enclave",
+            ["mission_criticality"] = "MissionEssential",
+            ["hosting_environment"] = "AzureGovernment"
+        });
+        var systemId = JsonDocument.Parse(regResult).RootElement
+            .GetProperty("data").GetProperty("id").GetString()!;
+        var originalTimestamp = DateTime.UtcNow.AddDays(-30);
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var legacy = new SecurityCategorization
+            {
+                RegisteredSystemId = systemId,
+                CategorizedBy = "legacy-isso",
+                CategorizedAt = originalTimestamp,
+                Justification = "Original legacy rationale",
+            };
+            legacy.InformationTypes.Add(new InformationType
+            {
+                SecurityCategorizationId = legacy.Id,
+                Sp80060Id = "D.1.1",
+                Name = "Legacy Information Type",
+                ConfidentialityImpact = ImpactValue.Low,
+                IntegrityImpact = ImpactValue.Low,
+                AvailabilityImpact = ImpactValue.Low,
+            });
+            db.SecurityCategorizations.Add(legacy);
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        await _categorizationService.CategorizeSystemAsync(
+            systemId,
+            [CreateInfoType("C.3.5.8", "Replacement", "Moderate")],
+            "current-issm",
+            justification: "Current rationale");
+        var history = await _categorizationService.GetCategorizationHistoryAsync(systemId);
+
+        // Assert
+        history.Should().HaveCount(2);
+        var original = history.Single(entry => entry.Version == 1);
+        original.ChangedBy.Should().Be("legacy-isso");
+        original.ChangedAt.Should().BeCloseTo(originalTimestamp, TimeSpan.FromMilliseconds(1));
+        original.Justification.Should().Be("Original legacy rationale");
+        original.NewOverallImpact.Should().Be(ImpactValue.Low);
+        original.NewInformationTypesJson.Should().Contain("Legacy Information Type");
+        history.Single(entry => entry.Version == 2).IsCurrent.Should().BeTrue();
+    }
+
+    private static InformationTypeInput CreateInfoType(
+        string sp80060Id,
+        string name,
+        string impact) => new()
+    {
+        Sp80060Id = sp80060Id,
+        Name = name,
+        ConfidentialityImpact = impact,
+        IntegrityImpact = impact,
+        AvailabilityImpact = impact,
+    };
 
     /// <summary>
     /// Get categorization for uncategorized system returns null data.
