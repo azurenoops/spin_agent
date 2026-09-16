@@ -244,7 +244,7 @@ public class CacAuthenticationMiddleware
                     .Select(c => c.Value)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                if (!amrClaims.Contains("mfa") || !amrClaims.Contains("rsa"))
+                if (!CacAuthenticationMethodValidator.IsCacAuthenticated(jwt.Claims))
                 {
                     _logger.LogWarning(
                         "JWT missing CAC/PIV amr claims (mfa, rsa). Found: {AmrClaims} from {IP}",
