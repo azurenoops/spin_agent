@@ -7,6 +7,7 @@ import { getBusinessContext } from '../api/businessContext';
 import type { NarrativeListItem, AvailableControl } from '../api/narratives';
 import type { BusinessContextDraftResponse } from '../types/dashboard';
 import EvidenceSection from '../components/EvidenceSection';
+import ValidationEvidencePanel from '../features/compliance/components/ValidationEvidencePanel';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -711,11 +712,18 @@ export default function Narratives() {
                               </div>
                             )}
                             {systemId && (
-                              <EvidenceSection
-                                systemId={systemId}
-                                controlId={n.controlId}
-                                controlImplementationId={n.id}
-                              />
+                              <>
+                                <EvidenceSection
+                                  systemId={systemId}
+                                  controlId={n.controlId}
+                                  controlImplementationId={n.id}
+                                />
+                                <ValidationEvidencePanel
+                                  systemId={systemId}
+                                  controlId={n.controlId}
+                                  canManage={settings.role === 'SCA'}
+                                />
+                              </>
                             )}
                             {/* Business Context Side Panel (T048/T049) */}
                             {(() => {

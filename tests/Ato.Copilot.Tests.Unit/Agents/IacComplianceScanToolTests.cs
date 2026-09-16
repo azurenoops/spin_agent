@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 using Ato.Copilot.Agents.Compliance.Tools;
+using Ato.Copilot.Core.Interfaces.Compliance;
 
 namespace Ato.Copilot.Tests.Unit.Agents;
 
@@ -180,5 +181,44 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
 
         doc.RootElement.GetProperty("success").GetBoolean().Should().BeTrue();
         doc.RootElement.GetProperty("totalFindings").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ExecuteCoreAsync_WithSystemId_UpsertsMappedFindingsAndReturnsCreatedCount()
+    {
+        // Arrange
+        var validationLinks = new Mock<IControlValidationLinkService>();
+        validationLinks
+            .Setup(service => service.UpsertScanLinkAsync(
+                "system-1",
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var tool = new IacComplianceScanTool(
+            Mock.Of<ILogger<IacComplianceScanTool>>(),
+            validationLinks.Object);
+        var arguments = new Dictionary<string, object?>
+        {
+            ["system_id"] = "system-1",
+            ["filePath"] = "main.bicep",
+            ["fileContent"] = "blob: 'http://storage.blob.core.windows.net'",
+            ["fileType"] = "bicep",
+        };
+
+        // Act
+        var result = await tool.ExecuteCoreAsync(arguments);
+        using var document = JsonDocument.Parse(result);
+
+        // Assert
+        document.RootElement.GetProperty("metadata")
+            .GetProperty("validationLinksCreated").GetInt32().Should().BeGreaterThan(0);
+        validationLinks.Verify(service => service.UpsertScanLinkAsync(
+            "system-1",
+            "SC-8",
+            It.Is<string>(target => target.Contains("IAC-", StringComparison.Ordinal)),
+            It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
 }

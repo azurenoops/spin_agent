@@ -201,6 +201,9 @@ public class AtoCopilotContext : DbContext
     /// <summary>Per-control implementation narratives for SSP authoring (Feature 015 US5).</summary>
     public DbSet<ControlImplementation> ControlImplementations => Set<ControlImplementation>();
 
+    /// <summary>Validation references attached to control implementations (Feature 069).</summary>
+    public DbSet<ControlValidationLink> ControlValidationLinks => Set<ControlValidationLink>();
+
     // ─── Assessment Artifact DbSets (Feature 015 — US7) ─────────────────────
     /// <summary>Per-control effectiveness determinations made by SCAs.</summary>
     public DbSet<ControlEffectiveness> ControlEffectivenessRecords => Set<ControlEffectiveness>();
@@ -1595,6 +1598,26 @@ public class AtoCopilotContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.ApprovedVersionId)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<ControlValidationLink>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.ControlImplementationId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.LinkType).HasConversion<string>().HasMaxLength(30);
+            entity.Property(e => e.LinkTarget).HasMaxLength(2048).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.AddedBy).HasMaxLength(200).IsRequired();
+            entity.HasIndex(e => new { e.ControlImplementationId, e.LinkTarget })
+                .IsUnique()
+                .HasDatabaseName("IX_ControlValidationLink_Implementation_Target");
+            entity.HasIndex(e => e.ControlImplementationId)
+                .HasDatabaseName("IX_ControlValidationLink_ImplementationId");
+            entity.HasOne(e => e.ControlImplementation)
+                .WithMany(e => e.ValidationLinks)
+                .HasForeignKey(e => e.ControlImplementationId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ═══════════════════════════════════════════════════════════════════════════
