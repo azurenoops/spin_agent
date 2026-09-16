@@ -59,60 +59,91 @@ public sealed class ScanImportBackgroundWorker : BackgroundService
 
     private async Task ProcessJobAsync(ScanImportJob job, CancellationToken stoppingToken)
     {
-        _tracker.Update(job.JobId, s => s.Status = ImportJobStatus.Processing);
-        await BroadcastProgressAsync(job.JobId, ImportJobStatus.Processing, 0, 0, null);
-
         try
         {
+            using var jobCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                stoppingToken,
+                _tracker.GetCancellationToken(job.JobId));
+            var cancellationToken = jobCancellation.Token;
+
+            if (!_tracker.TryStart(job.JobId))
+            {
+                await BroadcastProgressAsync(job.JobId, ImportJobStatus.Cancelled, 0, 0, "Import cancelled.");
+                return;
+            }
+
+            await BroadcastProgressAsync(job.JobId, ImportJobStatus.Processing, 0, 0, null);
+
             // IScanImportService is Scoped — must resolve within a scope
             using var scope = _scopeFactory.CreateScope();
             var importService = scope.ServiceProvider.GetRequiredService<IScanImportService>();
+            var fileContent = await File.ReadAllBytesAsync(job.TemporaryFilePath, cancellationToken);
 
-            ImportResult result;
+            int totalEntries;
+            int openCount;
             if (job.ImportType == "CKL")
             {
-                result = await importService.ImportCklAsync(
+                var result = await importService.ImportCklAsync(
                     job.SystemId,
                     assessmentId: null,
-                    job.FileContent,
+                    fileContent,
                     job.FileName,
                     ImportConflictResolution.Skip,
                     dryRun: false,
                     importedBy: string.IsNullOrEmpty(job.ImportedBy) ? "dashboard-user" : job.ImportedBy,
-                    stoppingToken);
+                    cancellationToken);
+                totalEntries = result.TotalEntries;
+                openCount = result.OpenCount;
+            }
+            else if (job.ImportType == "XCCDF")
+            {
+                var result = await importService.ImportXccdfAsync(
+                    job.SystemId,
+                    assessmentId: null,
+                    fileContent,
+                    job.FileName,
+                    ImportConflictResolution.Skip,
+                    dryRun: false,
+                    importedBy: string.IsNullOrEmpty(job.ImportedBy) ? "dashboard-user" : job.ImportedBy,
+                    cancellationToken);
+                totalEntries = result.TotalEntries;
+                openCount = result.OpenCount;
+            }
+            else if (job.ImportType == "Nessus")
+            {
+                var result = await importService.ImportNessusAsync(
+                    job.SystemId,
+                    assessmentId: null,
+                    fileContent,
+                    job.FileName,
+                    ImportConflictResolution.Skip,
+                    dryRun: false,
+                    importedBy: string.IsNullOrEmpty(job.ImportedBy) ? "dashboard-user" : job.ImportedBy,
+                    cancellationToken);
+                totalEntries = result.TotalPluginResults;
+                openCount = result.CriticalCount + result.HighCount + result.MediumCount + result.LowCount;
             }
             else
             {
-                // XCCDF or Nessus — use XCCDF path for both (Nessus support in future PR)
-                result = await importService.ImportXccdfAsync(
-                    job.SystemId,
-                    assessmentId: null,
-                    job.FileContent,
-                    job.FileName,
-                    ImportConflictResolution.Skip,
-                    dryRun: false,
-                    importedBy: string.IsNullOrEmpty(job.ImportedBy) ? "dashboard-user" : job.ImportedBy,
-                    stoppingToken);
+                throw new InvalidOperationException($"Unsupported scan import type '{job.ImportType}'.");
             }
 
-            // Mark complete and broadcast final progress
-            _tracker.Update(job.JobId, s =>
+            if (!_tracker.TryComplete(job.JobId, totalEntries, totalEntries))
             {
-                s.Status = ImportJobStatus.Completed;
-                s.ProcessedCount = result.TotalEntries;
-                s.TotalCount = result.TotalEntries;
-            });
+                await BroadcastProgressAsync(job.JobId, ImportJobStatus.Cancelled, 0, 0, "Import cancelled.");
+                return;
+            }
 
             await BroadcastProgressAsync(
                 job.JobId,
                 ImportJobStatus.Completed,
-                result.TotalEntries,
-                result.TotalEntries,
+                totalEntries,
+                totalEntries,
                 null);
 
             _logger.LogInformation(
                 "Import job {JobId} completed: {Total} entries, {Open} open findings",
-                job.JobId, result.TotalEntries, result.OpenCount);
+                job.JobId, totalEntries, openCount);
         }
         catch (OperationCanceledException)
         {
@@ -128,6 +159,17 @@ public sealed class ScanImportBackgroundWorker : BackgroundService
                 s.ErrorMessage = ex.Message;
             });
             await BroadcastProgressAsync(job.JobId, ImportJobStatus.Failed, 0, 0, ex.Message);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(job.TemporaryFilePath);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete temporary file for import job {JobId}", job.JobId);
+            }
         }
     }
 
