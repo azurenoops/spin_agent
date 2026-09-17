@@ -88,7 +88,7 @@ public static class ScanImportEndpoints
 
                 // Create a job ID and register with the in-memory tracker
                 var importJobId = Guid.NewGuid().ToString();
-                tracker.Register(importJobId);
+                tracker.Register(importJobId, systemId);
 
                 // Enqueue — the BackgroundWorker drains the channel
                 var enqueued = queue.TryEnqueue(new ScanImportJob
@@ -126,7 +126,8 @@ public static class ScanImportEndpoints
         })
         .WithName("UploadScanImport")
         .WithTags("Scan Import")
-        .DisableAntiforgery();
+        .DisableAntiforgery()
+        .RequireAuthorization();
 
         // ─── GET .../scans/import/{importId}/status ───────────────────────────
         // Returns the current status of an import job for polling fallback.
@@ -135,7 +136,7 @@ public static class ScanImportEndpoints
             string importId,
             ScanImportStatusTracker tracker) =>
         {
-            var state = tracker.TryGet(importId);
+            var state = tracker.TryGet(systemId, importId);
             if (state is null)
                 return Results.NotFound(new { error = "Import job not found", errorCode = "NOT_FOUND" });
 
@@ -150,7 +151,8 @@ public static class ScanImportEndpoints
             });
         })
         .WithName("GetScanImportStatus")
-        .WithTags("Scan Import");
+        .WithTags("Scan Import")
+        .RequireAuthorization();
 
         // ─── DELETE .../scans/import/{importId} ───────────────────────────────
         // Requests cancellation of an in-progress import job.
@@ -159,14 +161,15 @@ public static class ScanImportEndpoints
             string importId,
             ScanImportStatusTracker tracker) =>
         {
-            var cancelled = tracker.RequestCancel(importId);
+            var cancelled = tracker.RequestCancel(systemId, importId);
             if (!cancelled)
                 return Results.NotFound(new { error = "Import job not found", errorCode = "NOT_FOUND" });
 
             return Results.Ok(new { id = importId, cancelRequested = true });
         })
         .WithName("CancelScanImport")
-        .WithTags("Scan Import");
+        .WithTags("Scan Import")
+        .RequireAuthorization();
 
         return app;
     }

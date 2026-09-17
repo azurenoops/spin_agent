@@ -25,6 +25,7 @@ public sealed class ImportJobState
     private readonly CancellationTokenSource _cancellation = new();
 
     public string JobId { get; set; } = string.Empty;
+    public string SystemId { get; set; } = string.Empty;
     public ImportJobStatus Status { get; set; } = ImportJobStatus.Queued;
     public int ProcessedCount { get; set; }
     public int TotalCount { get; set; }
@@ -44,9 +45,14 @@ public sealed class ScanImportStatusTracker
     private readonly ConcurrentDictionary<string, ImportJobState> _jobs = new(StringComparer.Ordinal);
 
     /// <summary>Register a new job in Queued state.</summary>
-    public ImportJobState Register(string jobId)
+    public ImportJobState Register(string jobId, string systemId = "")
     {
-        var state = new ImportJobState { JobId = jobId, Status = ImportJobStatus.Queued };
+        var state = new ImportJobState
+        {
+            JobId = jobId,
+            SystemId = systemId,
+            Status = ImportJobStatus.Queued,
+        };
         _jobs[jobId] = state;
         return state;
     }
@@ -54,6 +60,13 @@ public sealed class ScanImportStatusTracker
     /// <summary>Try to get job state; returns null if not found.</summary>
     public ImportJobState? TryGet(string jobId) =>
         _jobs.TryGetValue(jobId, out var s) ? s : null;
+
+    /// <summary>Try to get job state for the system that owns it.</summary>
+    public ImportJobState? TryGet(string systemId, string jobId) =>
+        _jobs.TryGetValue(jobId, out var state)
+        && string.Equals(state.SystemId, systemId, StringComparison.Ordinal)
+            ? state
+            : null;
 
     /// <summary>Get the cancellation token associated with a registered job.</summary>
     public CancellationToken GetCancellationToken(string jobId) =>
@@ -105,6 +118,20 @@ public sealed class ScanImportStatusTracker
     {
         if (!_jobs.TryGetValue(jobId, out var state)) return false;
 
+        return RequestCancel(state);
+    }
+
+    /// <summary>Request cancellation of a job owned by the specified system.</summary>
+    public bool RequestCancel(string systemId, string jobId)
+    {
+        if (!_jobs.TryGetValue(jobId, out var state)
+            || !string.Equals(state.SystemId, systemId, StringComparison.Ordinal)) return false;
+
+        return RequestCancel(state);
+    }
+
+    private static bool RequestCancel(ImportJobState state)
+    {
         lock (state.SyncRoot)
         {
             if (state.Status is ImportJobStatus.Completed or ImportJobStatus.Failed or ImportJobStatus.Cancelled)
