@@ -598,9 +598,10 @@ public class PoamService
         CancellationToken ct = default)
     {
         var result = new BulkCreateResult();
+        var requestedFindingIds = findingIds.ToList();
         var findings = await _db.Findings
-            .Where(f => findingIds.Contains(f.Id))
-            .ToListAsync(ct);
+            .Where(f => requestedFindingIds.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, ct);
 
         // Load existing active POA&Ms for duplicate detection
         var existingPoams = await _db.PoamItems
@@ -612,8 +613,19 @@ public class PoamService
 
         var compIdList = componentIds?.ToList() ?? new List<string>();
 
-        foreach (var finding in findings)
+        foreach (var findingId in requestedFindingIds)
         {
+            if (!findings.TryGetValue(findingId, out var finding))
+            {
+                result.Results.Add(new BulkCreateItemResult
+                {
+                    FindingId = findingId,
+                    Status = "error",
+                    Error = "Finding not found."
+                });
+                continue;
+            }
+
             // 3-field duplicate detection: findingRef + controlId + componentId
             var controlId = finding.ControlId ?? finding.Id;
             var findingRef = finding.Id;
@@ -666,7 +678,8 @@ public class PoamService
                 result.Results.Add(new BulkCreateItemResult
                 {
                     FindingId = finding.Id,
-                    Status = "error"
+                    Status = "error",
+                    Error = "POA&M creation failed."
                 });
             }
         }
@@ -1209,6 +1222,7 @@ public class BulkCreateItemResult
     public string FindingId { get; set; } = "";
     public string? PoamId { get; set; }
     public string Status { get; set; } = "";
+    public string? Error { get; set; }
 }
 
 // ─── Result DTOs ────────────────────────────────────────────────────────────

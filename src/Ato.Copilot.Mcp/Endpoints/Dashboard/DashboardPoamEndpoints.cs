@@ -200,17 +200,28 @@ public static partial class DashboardEndpoints
             var result = await poamService.BulkCreateFromFindingsAsync(
                 systemId, req.FindingIds, req.ComponentIds, req.LinkRemediationTasks, "dashboard-user", ct);
 
-            return Results.Ok(new
+            var totalFailed = result.Results.Count(r => r.Status == "error");
+            var response = new
             {
+                totalSubmitted = result.Results.Count,
+                totalSucceeded = result.Results.Count - totalFailed,
+                totalFailed,
                 created = result.Created,
                 skippedDuplicates = result.SkippedDuplicates,
                 results = result.Results.Select(r => new
                 {
                     findingId = r.FindingId,
                     poamId = r.PoamId,
-                    status = r.Status
+                    status = r.Status,
+                    error = r.Error
                 })
-            });
+            };
+
+            if (totalFailed == 0)
+                return Results.Ok(response);
+            if (totalFailed == result.Results.Count)
+                return Results.BadRequest(response);
+            return Results.Json(response, statusCode: StatusCodes.Status207MultiStatus);
         }).WithName("BulkCreatePoamFromFindings");
 
         // ── PUT /poam/{poamId}/status — lifecycle status change

@@ -190,9 +190,12 @@ export interface BulkCreateFromFindingsRequest {
 }
 
 export interface BulkCreateResponse {
+  totalSubmitted: number;
+  totalSucceeded: number;
+  totalFailed: number;
   created: number;
   skippedDuplicates: number;
-  results: { findingId: string; poamId?: string; status: 'created' | 'duplicate' | 'error' }[];
+  results: { findingId: string; poamId?: string; status: 'created' | 'duplicate' | 'error'; error?: string | null }[];
 }
 
 // ─── Ticketing ──────────────────────────────────────────────────────────────

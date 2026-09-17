@@ -65,10 +65,18 @@ export default function PostImportPoamPrompt({ findings, systemId: _systemId, on
 
         {result ? (
           <div className="space-y-3">
-            <div className="rounded-lg bg-green-50 p-4">
-              <p className="font-medium text-green-800">
+            <div role={result.totalFailed > 0 ? 'alert' : undefined} className={`rounded-lg p-4 ${result.totalFailed > 0 ? 'bg-amber-50' : 'bg-green-50'}`}>
+              <p className={`font-medium ${result.totalFailed > 0 ? 'text-amber-900' : 'text-green-800'}`}>
                 {result.created} POA&amp;M item(s) created, {result.skippedDuplicates} duplicate(s) skipped
+                {result.totalFailed > 0 ? `, ${result.totalFailed} failed` : ''}
               </p>
+              {result.totalFailed > 0 ? (
+                <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                  {result.results.filter(item => item.status === 'error').map(item => (
+                    <li key={item.findingId}>{item.findingId}: {item.error ?? 'POA&M creation failed.'}</li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
             <div className="flex justify-end">
               <button onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 text-sm hover:bg-gray-200">
