@@ -22,6 +22,7 @@ using Ato.Copilot.Chat.Channels;
 using Ato.Copilot.Chat.Data;
 using Ato.Copilot.Chat.Hubs;
 using Ato.Copilot.Chat.Services;
+using Ato.Copilot.Chat.Services.Auth;
 
 // ────────────────────────────────────────────────────────────────
 //  ATO Copilot — Chat Application
@@ -160,11 +161,11 @@ try
     // section as the MCP server (port 3001). SignalR connections pass the token
     // via the access_token query string (standard SignalR + JWT pattern).
     //
-    // The MCP server uses a custom CacAuthenticationMiddleware to do the same
-    // validation and additionally enforce CAC/PIV amr claims. Chat uses the
-    // standard JwtBearer handler for simplicity; CAC enforcement can be layered
-    // on in a follow-on if Chat users are required to hold PIV cards.
+    // The MCP server uses a custom CacAuthenticationMiddleware. Chat uses the
+    // standard JwtBearer handler and mirrors MCP's CAC/PIV amr-claim check when
+    // AzureAd:RequireCac is enabled.
     var azureAdSection = builder.Configuration.GetSection("AzureAd");
+    var requireCac = azureAdSection.GetValue<bool>("RequireCac");
     builder.Services.AddAzureAdConfiguration(builder.Configuration);
     var azureAdOptions = azureAdSection.Get<AzureAdOptions>() ?? new AzureAdOptions();
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -194,7 +195,10 @@ try
                         context.Token = accessToken;
                     }
                     return Task.CompletedTask;
-                }
+                },
+                OnTokenValidated = requireCac
+                    ? ChatCacTokenValidator.ValidateAsync
+                    : _ => Task.CompletedTask
             };
         });
 
