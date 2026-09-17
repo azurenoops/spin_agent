@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Mcp.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -29,6 +31,7 @@ public static class CapabilitySubscriptionEndpoints
     public static IEndpointRouteBuilder MapCapabilitySubscriptionEndpoints(
         this IEndpointRouteBuilder app)
     {
+        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
         // ─── Capability Library — org-user browse ────────────────────────────
 
         // GET /api/dashboard/capability-library
@@ -180,7 +183,7 @@ public static class CapabilitySubscriptionEndpoints
 
                 existing.IsActive = true;
                 existing.SubscribedAt = DateTime.UtcNow;
-                existing.SubscribedBy = body.SubscribedBy ?? "dashboard-user";
+                existing.SubscribedBy = currentUser.CurrentUserId;
                 await db.SaveChangesAsync(ct);
                 return Results.Ok(new { id = existing.Id, alreadySubscribed = false });
             }
@@ -189,7 +192,7 @@ public static class CapabilitySubscriptionEndpoints
             {
                 RegisteredSystemId = systemId,
                 CspInheritedCapabilityId = body.CapabilityId,
-                SubscribedBy = body.SubscribedBy ?? "dashboard-user",
+                SubscribedBy = currentUser.CurrentUserId,
             };
 
             db.CapabilitySubscriptions.Add(subscription);
@@ -198,7 +201,7 @@ public static class CapabilitySubscriptionEndpoints
             {
                 RegisteredSystemId = systemId,
                 EventType = "CapabilitySubscribed",
-                Actor = body.SubscribedBy ?? "dashboard-user",
+                Actor = currentUser.CurrentUserId,
                 Summary = $"Subscribed to CSP capability: {capability.Name}",
                 RelatedEntityType = "CapabilitySubscription",
                 RelatedEntityId = subscription.Id,
@@ -296,7 +299,7 @@ public static class CapabilitySubscriptionEndpoints
             {
                 RegisteredSystemId = systemId,
                 EventType = "CapabilityUnsubscribed",
-                Actor = "dashboard-user",
+                Actor = currentUser.CurrentUserId,
                 Summary = $"Unsubscribed from CSP capability: {capabilityName}",
                 RelatedEntityType = "CapabilitySubscription",
                 RelatedEntityId = sub.Id,

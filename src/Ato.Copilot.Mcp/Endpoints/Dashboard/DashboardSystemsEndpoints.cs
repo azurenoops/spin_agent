@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Systems domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapSystemRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapSystemRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapGet("/", async (
                 [AsParameters] PortfolioQuery query,
@@ -179,14 +179,14 @@ public static partial class DashboardEndpoints
                 var system = await lifecycleService.RegisterSystemAsync(
                     body.Name, systemType, mission,
                     body.HostingEnvironment ?? "AzureGovernment",
-                    "dashboard-user", body.Acronym, body.Description,
+                    currentUser.CurrentUserId, body.Acronym, body.Description,
                     azureProfile, ct);
 
                 context.DashboardActivities.Add(new DashboardActivity
                 {
                     RegisteredSystemId = system.Id,
                     EventType = "SystemRegistered",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"System '{system.Name}' registered (type: {system.SystemType}, criticality: {system.MissionCriticality})",
                     RelatedEntityType = "RegisteredSystem",
                     RelatedEntityId = system.Id,
@@ -246,7 +246,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "SystemUpdated",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"System '{system.Name}' properties updated",
                     RelatedEntityType = "RegisteredSystem",
                     RelatedEntityId = systemId,
@@ -300,7 +300,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "SystemDeleted",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"System '{system.Name}' deleted",
                     RelatedEntityType = "RegisteredSystem",
                     RelatedEntityId = systemId,
@@ -360,13 +360,13 @@ public static partial class DashboardEndpoints
 
                 var userId = body.UserId ?? body.UserDisplayName.Replace(" ", ".").ToLowerInvariant();
                 var assignment = await boundaryService.AssignRmfRoleAsync(
-                    systemId, rmfRole, userId, body.UserDisplayName, "dashboard-user", ct);
+                    systemId, rmfRole, userId, body.UserDisplayName, currentUser.CurrentUserId, ct);
 
                 context.DashboardActivities.Add(new DashboardActivity
                 {
                     RegisteredSystemId = systemId,
                     EventType = "RoleAssigned",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"{body.UserDisplayName} assigned as {assignment.RmfRole}",
                     RelatedEntityType = "RmfRoleAssignment",
                     RelatedEntityId = assignment.Id,
@@ -404,7 +404,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "RoleRemoved",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"{assignment.UserDisplayName} removed from {assignment.RmfRole}",
                     RelatedEntityType = "RmfRoleAssignment",
                     RelatedEntityId = roleId,

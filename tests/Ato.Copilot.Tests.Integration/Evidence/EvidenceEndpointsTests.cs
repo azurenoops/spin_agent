@@ -80,6 +80,7 @@ public class EvidenceEndpointsTests : IAsyncLifetime
         builder.Services.AddSingleton<ITenantContext>(_ =>
             new TenantContext(Guid.Parse("11111111-1111-1111-1111-111111111111")));
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<ICurrentUserService, CurrentUserService>();
         builder.Services.AddLogging();
 
         builder.WebHost.UseTestServer();

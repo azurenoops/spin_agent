@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: AzureDiscovery domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapAzureDiscoveryRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapAzureDiscoveryRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapPost("/components/discover-azure", async (
                 DiscoverAzureComponentsRequest body,
@@ -84,7 +84,7 @@ public static partial class DashboardEndpoints
                     ResourceGroup = r.ResourceGroup, Location = r.Location,
                 }).ToList();
 
-                var result = await componentService.ImportAzureComponentsAsync(resources, "dashboard-user", ct);
+                var result = await componentService.ImportAzureComponentsAsync(resources, currentUser.CurrentUserId, ct);
 
                 return Results.Ok(new
                 {
@@ -157,7 +157,7 @@ public static partial class DashboardEndpoints
                 }).ToList();
 
                 var result = await componentService.ImportSystemAzureComponentsAsync(
-                    systemId, resources, body.AssignExistingOrgComponents, "dashboard-user", ct);
+                    systemId, resources, body.AssignExistingOrgComponents, currentUser.CurrentUserId, ct);
 
                 return Results.Ok(new
                 {
@@ -211,7 +211,7 @@ public static partial class DashboardEndpoints
             if (body.People == null || body.People.Count == 0)
                 return Results.BadRequest(new ErrorResponse { Error = "people is required", ErrorCode = "INVALID_INPUT" });
 
-            var result = await componentService.ImportEntraIdPeopleAsync(body.People, "dashboard-user", ct);
+            var result = await componentService.ImportEntraIdPeopleAsync(body.People, currentUser.CurrentUserId, ct);
             return Results.Ok(new { imported = result.Imported, skipped = result.Skipped });
         })
         .WithName("ImportEntraComponents");

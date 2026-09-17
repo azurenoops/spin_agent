@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Assessments domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapAssessmentRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapAssessmentRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         app.MapGet("/api/dashboard/assessments", async (
             AtoCopilotContext context,
@@ -292,6 +292,7 @@ public static partial class DashboardEndpoints
             AtoCopilotContext context,
             CancellationToken ct) =>
         {
+            var actorId = currentUser.CurrentUserId;
             var system = await context.RegisteredSystems
                 .FirstOrDefaultAsync(s => s.Id == systemId && s.IsActive, ct);
             if (system is null)
@@ -312,7 +313,7 @@ public static partial class DashboardEndpoints
                 assessment = await complianceEngine.RunComprehensiveAssessmentAsync(
                     subscriptionId, resourceGroup: null, progress: null, cancellationToken: ct);
                 assessment.RegisteredSystemId = systemId;
-                assessment.InitiatedBy = "dashboard-user";
+                assessment.InitiatedBy = actorId;
 
                 // The engine persists assessment via its own DbContext, so update
                 // RegisteredSystemId and InitiatedBy in our context
@@ -321,7 +322,7 @@ public static partial class DashboardEndpoints
                 if (existingAssessment is not null)
                 {
                     existingAssessment.RegisteredSystemId = systemId;
-                    existingAssessment.InitiatedBy = "dashboard-user";
+                    existingAssessment.InitiatedBy = actorId;
                     await context.SaveChangesAsync(ct);
                 }
 
@@ -354,7 +355,7 @@ public static partial class DashboardEndpoints
                                 ? EffectivenessDetermination.OtherThanSatisfied
                                 : EffectivenessDetermination.Satisfied,
                             AssessmentMethod = "Examine",
-                            AssessorId = "dashboard-user",
+                            AssessorId = actorId,
                             AssessedAt = DateTime.UtcNow,
                             CatSeverity = failed && finding?.CatSeverity != null
                                 ? finding.CatSeverity
@@ -515,7 +516,7 @@ public static partial class DashboardEndpoints
                     Framework = "NIST 800-53",
                     ScanType = "combined",
                     Status = AssessmentStatus.Completed,
-                    InitiatedBy = "dashboard-user",
+                    InitiatedBy = actorId,
                     AssessedAt = DateTime.UtcNow,
                     CompletedAt = DateTime.UtcNow,
                     RegisteredSystemId = systemId,
@@ -567,7 +568,7 @@ public static partial class DashboardEndpoints
                             ? EffectivenessDetermination.Satisfied
                             : EffectivenessDetermination.OtherThanSatisfied,
                         AssessmentMethod = "Examine",
-                        AssessorId = "dashboard-user",
+                        AssessorId = actorId,
                         AssessedAt = DateTime.UtcNow,
                         CatSeverity = passed ? null
                             : (implByControl.TryGetValue(controlId, out var imp) && imp.ImplementationStatus == ImplementationStatus.PartiallyImplemented
@@ -584,7 +585,7 @@ public static partial class DashboardEndpoints
             {
                 RegisteredSystemId = systemId,
                 EventType = "AssessmentCompleted",
-                Actor = assessment.InitiatedBy ?? "dashboard-user",
+                Actor = assessment.InitiatedBy ?? actorId,
                 Summary = $"Compliance assessment completed — score {assessment.ComplianceScore:F1}%, {assessment.Findings.Count} findings ({assessment.PassedControls}/{assessment.TotalControls} controls passed)",
                 RelatedEntityType = "ComplianceAssessment",
                 RelatedEntityId = assessment.Id,
@@ -624,7 +625,7 @@ public static partial class DashboardEndpoints
                         finding.Title ?? finding.Description ?? $"Finding for {finding.ControlId}",
                         finding.ControlId ?? "Unknown",
                         severity.ToString(),
-                        "dashboard-user",
+                        actorId,
                         dueDate,
                         finding.Id,
                         finding.RemediationGuidance,
@@ -643,7 +644,7 @@ public static partial class DashboardEndpoints
                     assessment.Id,
                     $"{system.Name} — Assessment {DateTime.UtcNow:yyyy-MM-dd}",
                     system.AzureProfile?.SubscriptionIds.FirstOrDefault() ?? systemId,
-                    assessment.InitiatedBy ?? "dashboard-user",
+                    assessment.InitiatedBy ?? actorId,
                     ct);
                 boardId = board.Id;
                 kanbanTaskCount = board.Tasks.Count;
@@ -759,7 +760,7 @@ public static partial class DashboardEndpoints
                 ApprovalStatus = SspSectionStatus.Draft,
                 Narrative = request.Narrative,
                 AiSuggested = false,
-                AuthoredBy = "dashboard-user",
+                AuthoredBy = currentUser.CurrentUserId,
                 AuthoredAt = now,
                 CurrentVersion = 1,
             };
@@ -846,7 +847,7 @@ public static partial class DashboardEndpoints
             if (narratives.Count == 0)
                 return Results.NotFound(new { error = "No matching narratives found" });
 
-            var updatedBy = request.UpdatedBy ?? "dashboard-user";
+            var updatedBy = currentUser.CurrentUserId;
             var now = DateTime.UtcNow;
 
             foreach (var ci in narratives)
@@ -1004,7 +1005,7 @@ public static partial class DashboardEndpoints
 
             item.IsResolved = true;
             item.ResolvedAt = DateTime.UtcNow;
-            item.ResolvedBy = "dashboard-user";
+            item.ResolvedBy = currentUser.CurrentUserId;
             await context.SaveChangesAsync(ct);
 
             return Results.Ok(new { id = item.Id, resolved = true });

@@ -35,25 +35,26 @@ public static partial class DashboardEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapDashboardEndpoints(this IEndpointRouteBuilder app)
     {
+        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
         var group = app.MapGroup("/api/dashboard")
             .WithTags("Dashboard");
 
-        MapSystemRoutes(group, app);
-        MapComponentRoutes(group, app);
+        MapSystemRoutes(group, app, currentUser);
+        MapComponentRoutes(group, app, currentUser);
         MapCapabilityRoutes(group, app);
         MapRoadmapRoutes(group, app);
-        MapProfileRoutes(group, app);
-        MapBoundaryRoutes(group, app);
-        MapCategorizationRoutes(group, app);
+        MapProfileRoutes(group, app, currentUser);
+        MapBoundaryRoutes(group, app, currentUser);
+        MapCategorizationRoutes(group, app, currentUser);
         MapConMonRoutes(group, app);
-        MapAssessmentRoutes(group, app);
-        MapAuthorizationRoutes(group, app);
-        MapDeviationRoutes(group, app);
-        MapExportRoutes(group, app);
-        MapEvidenceRoutes(group, app);
-        MapPoamRoutes(group, app);
-        MapAzureDiscoveryRoutes(group, app);
-        MapInheritanceRoutes(group, app);
+        MapAssessmentRoutes(group, app, currentUser);
+        MapAuthorizationRoutes(group, app, currentUser);
+        MapDeviationRoutes(group, app, currentUser);
+        MapExportRoutes(group, app, currentUser);
+        MapEvidenceRoutes(group, app, currentUser);
+        MapPoamRoutes(group, app, currentUser);
+        MapAzureDiscoveryRoutes(group, app, currentUser);
+        MapInheritanceRoutes(group, app, currentUser);
         MapControlRoutes(group, app);
 
                 return app;
@@ -65,9 +66,10 @@ public static partial class DashboardEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapDashboardEvidenceEndpoints(this IEndpointRouteBuilder app)
     {
+        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
         var group = app.MapGroup("/api/dashboard")
             .WithTags("Dashboard");
-        MapEvidenceRoutes(group, app);
+        MapEvidenceRoutes(group, app, currentUser);
         return app;
     }
 

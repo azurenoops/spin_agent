@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Profile domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapProfileRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapProfileRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapGet("/systems/{systemId}/profile", async (
                 string systemId,
@@ -148,7 +148,7 @@ public static partial class DashboardEndpoints
                         ErrorCode = "INVALID_INPUT",
                     });
 
-                var userId = ResolveDashboardUserId(httpContext);
+                var userId = currentUser.CurrentUserId;
                 var simulatedRole = ResolveSimulatedRmfRole(httpContext);
                 try
                 {
@@ -197,7 +197,7 @@ public static partial class DashboardEndpoints
                 ISystemProfileService profileService,
                 CancellationToken ct) =>
             {
-                var userId = ResolveDashboardUserId(httpContext);
+                var userId = currentUser.CurrentUserId;
                 var simulatedRole = ResolveSimulatedRmfRole(httpContext);
                 try
                 {
@@ -254,7 +254,7 @@ public static partial class DashboardEndpoints
                 if (!Enum.TryParse<ProfileSectionType>(sectionType, true, out var parsedType))
                     return Results.BadRequest(new ErrorResponse { Error = $"Invalid section type", ErrorCode = "INVALID_INPUT" });
 
-                var userId = ResolveDashboardUserId(httpContext);
+                var userId = currentUser.CurrentUserId;
                 var simulatedRole = ResolveSimulatedRmfRole(httpContext);
                 var decision = body.Decision.Equals("approve", StringComparison.OrdinalIgnoreCase)
                     ? ReviewDecision.Approve
@@ -292,7 +292,7 @@ public static partial class DashboardEndpoints
                 ISystemProfileService profileService,
                 CancellationToken ct) =>
             {
-                var userId = ResolveDashboardUserId(httpContext);
+                var userId = currentUser.CurrentUserId;
                 var simulatedRole = ResolveSimulatedRmfRole(httpContext);
                 try
                 {
@@ -336,21 +336,11 @@ public static partial class DashboardEndpoints
                 ISystemProfileService profileService,
                 CancellationToken ct) =>
             {
-                var userId = ResolveDashboardUserId(httpContext);
+                var userId = currentUser.CurrentUserId;
                 var result = await profileService.GetProfileTodosAsync(systemId, userId, ct);
                 return Results.Ok(result);
             })
             .WithName("GetProfileTodos");
-
-
-static string ResolveDashboardUserId(HttpContext httpContext)
-{
-    var userId = httpContext.User?.Identity?.Name;
-    return string.IsNullOrWhiteSpace(userId)
-        || string.Equals(userId, "anonymous", StringComparison.OrdinalIgnoreCase)
-        ? "dashboard-user"
-        : userId;
-}
 
 static RmfRole? ResolveSimulatedRmfRole(HttpContext httpContext)
 {

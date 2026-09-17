@@ -12,6 +12,7 @@ using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Endpoints;
+using Ato.Copilot.Mcp.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -54,6 +55,7 @@ public sealed class ControlValidationEndpointsTests : IAsyncLifetime
         builder.Services.AddSingleton<IControlValidationLinkService, ControlValidationLinkService>();
         builder.Services.AddSingleton<ITenantContext>(tenantContext);
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<ICurrentUserService, CurrentUserService>();
         builder.Services
             .AddAuthentication(TestAuthScheme)
             .AddScheme<AuthenticationSchemeOptions, RoleHeaderAuthenticationHandler>(TestAuthScheme, _ => { });

@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Deviations domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapDeviationRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapDeviationRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapGet("/systems/{systemId}/deviations", async (
                 string systemId,
@@ -83,7 +83,7 @@ public static partial class DashboardEndpoints
                 try
                 {
                     var deviation = await deviationService.CreateDeviationAsync(
-                        systemId, request, "dashboard-user", ct);
+                        systemId, request, currentUser.CurrentUserId, ct);
                     return Results.Created($"/api/dashboard/deviations/{deviation.Id}", deviation);
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("DUPLICATE_DEVIATION"))
@@ -129,7 +129,7 @@ public static partial class DashboardEndpoints
                 try
                 {
                     var result = await deviationService.ReviewDeviationAsync(
-                        deviationId, request, "dashboard-user", reviewerRole ?? "ISSM", ct);
+                        deviationId, request, currentUser.CurrentUserId, reviewerRole ?? "ISSM", ct);
                     return Results.Ok(result);
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("NOT_PENDING"))
@@ -170,7 +170,7 @@ public static partial class DashboardEndpoints
                 try
                 {
                     var result = await deviationService.RevokeDeviationAsync(
-                        deviationId, request, "dashboard-user", ct);
+                        deviationId, request, currentUser.CurrentUserId, ct);
                     return Results.Ok(result);
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("NOT_APPROVED"))
@@ -202,7 +202,7 @@ public static partial class DashboardEndpoints
                 try
                 {
                     var result = await deviationService.ExtendDeviationAsync(
-                        deviationId, request, "dashboard-user", ct);
+                        deviationId, request, currentUser.CurrentUserId, ct);
                     return Results.Ok(result);
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("NOT_APPROVED"))

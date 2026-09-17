@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Boundary domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapBoundaryRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapBoundaryRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapGet("/systems/{systemId}/boundary-definitions", async (
                 string systemId,
@@ -53,7 +53,7 @@ public static partial class DashboardEndpoints
                     {
                         RegisteredSystemId = systemId,
                         EventType = "BoundaryCreated",
-                        Actor = "dashboard-user",
+                        Actor = currentUser.CurrentUserId,
                         Summary = $"Authorization boundary '{request.Name}' created",
                         RelatedEntityType = "AuthorizationBoundaryDefinition",
                         RelatedEntityId = result.Id,
@@ -227,7 +227,7 @@ public static partial class DashboardEndpoints
                         ResourceName = body.ResourceName?.Trim(),
                         InheritanceProvider = body.InheritanceProvider?.Trim(),
                         IsInBoundary = true,
-                        AddedBy = "dashboard-user",
+                        AddedBy = currentUser.CurrentUserId,
                         AuthorizationBoundaryDefinitionId = id
                     });
                 }
@@ -238,7 +238,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = definition.RegisteredSystemId,
                     EventType = "BoundaryResourceAdded",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Resource '{body.ResourceName ?? body.ResourceId}' added to boundary",
                     RelatedEntityType = "AuthorizationBoundary",
                     RelatedEntityId = id,
@@ -268,7 +268,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = def?.RegisteredSystemId ?? "",
                     EventType = "BoundaryResourceRemoved",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Resource '{entry.ResourceName ?? entry.ResourceId}' removed from boundary",
                     RelatedEntityType = "AuthorizationBoundary",
                     RelatedEntityId = resourceEntryId,
@@ -425,7 +425,7 @@ public static partial class DashboardEndpoints
                     {
                         RegisteredSystemId = systemId,
                         EventType = "AzureResourcesImported",
-                        Actor = "dashboard-user",
+                        Actor = currentUser.CurrentUserId,
                         Summary = $"Azure discovery applied — {boundariesCreated} boundaries, {componentsCreated} components created",
                         RelatedEntityType = "RegisteredSystem",
                         RelatedEntityId = systemId,
