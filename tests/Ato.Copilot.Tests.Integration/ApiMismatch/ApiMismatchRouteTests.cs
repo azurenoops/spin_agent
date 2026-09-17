@@ -360,6 +360,70 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         body.GetProperty("totalFailed").GetInt32().Should().Be(0);
     }
 
+    [Fact]
+    public async Task Issue831_RunAssessmentWithEmptyBaseline_ReturnsBadRequest()
+    {
+        // Arrange
+        using (var scope = _app.Services.CreateScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+            await using var db = await factory.CreateDbContextAsync();
+            var baseline = await db.ControlBaselines.SingleAsync(b => b.RegisteredSystemId == TestSystemId);
+            baseline.ControlIds = [];
+            baseline.TotalControls = 0;
+            db.SecurityCategorizations.Add(new SecurityCategorization
+            {
+                RegisteredSystemId = TestSystemId,
+                CategorizedBy = "test-user",
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/dashboard/systems/{TestSystemId}/run-assessment",
+            content: null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        body.GetProperty("errorCode").GetString().Should().Be("ASSESSMENT_INPUT_REQUIRED");
+        body.GetProperty("error").GetString().Should().NotBeNullOrWhiteSpace();
+
+        using var verificationScope = _app.Services.CreateScope();
+        var verificationFactory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+        await using var verificationDb = await verificationFactory.CreateDbContextAsync();
+        (await verificationDb.Assessments.AnyAsync(a => a.RegisteredSystemId == TestSystemId)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Issue831_RunAssessmentWithValidBaseline_ReturnsOk()
+    {
+        // Arrange
+        using (var scope = _app.Services.CreateScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+            await using var db = await factory.CreateDbContextAsync();
+            db.SecurityCategorizations.Add(new SecurityCategorization
+            {
+                RegisteredSystemId = TestSystemId,
+                CategorizedBy = "test-user",
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/dashboard/systems/{TestSystemId}/run-assessment",
+            content: null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        body.GetProperty("systemId").GetString().Should().Be(TestSystemId);
+        body.GetProperty("totalControls").GetInt32().Should().Be(3);
+    }
+
     // ─── T011: GAP-004 — single POAM status with systemId ───────────────────
 
     /// <summary>
