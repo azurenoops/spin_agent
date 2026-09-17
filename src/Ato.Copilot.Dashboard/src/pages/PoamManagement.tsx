@@ -10,6 +10,7 @@ import PoamTrendCharts from '../components/poam/PoamTrendCharts';
 import TicketingConfig from '../components/poam/TicketingConfig';
 import PoamExportDialog from '../components/poam/PoamExportDialog';
 import type { PoamListItem, PoamListQuery, CreatePoamRequest } from '../types/poam';
+import AsyncErrorState from '../components/AsyncErrorState';
 
 type ViewTab = 'overview' | 'trends' | 'ticketing';
 
@@ -23,8 +24,18 @@ export default function PoamManagement() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPoam, setSelectedPoam] = useState<PoamListItem | null>(null);
 
-  const { data: poamData, loading: listLoading } = usePoamList(systemId, query);
-  const { data: metrics } = usePoamMetrics(systemId);
+  const {
+    data: poamData,
+    loading: listLoading,
+    error: listError,
+    refresh: refreshList,
+  } = usePoamList(systemId, query);
+  const {
+    data: metrics,
+    loading: metricsLoading,
+    error: metricsError,
+    refresh: refreshMetrics,
+  } = usePoamMetrics(systemId);
   const { create, loading: creating } = useCreatePoam();
 
   const items = poamData?.items ?? [];
@@ -95,20 +106,39 @@ export default function PoamManagement() {
           {/* Summary Cards */}
           {metrics && <PoamSummaryCards metrics={metrics} />}
 
+          {metricsLoading && !metrics && (
+            <p className="py-4 text-center text-sm text-gray-500" role="status">Loading POA&amp;M summary...</p>
+          )}
+
+          {metricsError && (
+            <AsyncErrorState
+              title={metrics ? 'Unable to refresh POA&M summary.' : 'Unable to load POA&M summary.'}
+              onRetry={refreshMetrics}
+            />
+          )}
+
           {/* Severity Heatbar */}
           {metrics && metrics.totalOpen > 0 && (
             <PoamSeverityHeatbar catI={metrics.catICount} catII={metrics.catIICount} catIII={metrics.catIIICount} />
           )}
 
           {/* Table */}
-          <PoamTable
-            items={items}
-            totalItems={totalItems}
-            query={query}
-            loading={listLoading}
-            onQueryChange={setQuery}
-            onRowClick={setSelectedPoam}
-          />
+          {listError && poamData && (
+            <AsyncErrorState title="Unable to refresh POA&amp;M items." onRetry={refreshList} />
+          )}
+
+          {listError && !poamData ? (
+            <AsyncErrorState title="Unable to load POA&amp;M items." onRetry={refreshList} />
+          ) : (
+            <PoamTable
+              items={items}
+              totalItems={totalItems}
+              query={query}
+              loading={listLoading}
+              onQueryChange={setQuery}
+              onRowClick={setSelectedPoam}
+            />
+          )}
         </>
       ) : activeTab === 'trends' ? (
         <PoamTrendCharts systemId={systemId} />

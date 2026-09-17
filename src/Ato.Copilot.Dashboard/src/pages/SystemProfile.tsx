@@ -6,6 +6,7 @@ import ProfileSectionForm from '../components/forms/ProfileSectionForm';
 import { getProfileSection, saveProfileSection, submitSections, withdrawSections, reviewSection } from '../api/systemProfile';
 import { getProfileCompleteness } from '../api/systemProfile';
 import { formatProfileSectionLabel } from '../utils/profileSections';
+import AsyncErrorState from '../components/AsyncErrorState';
 import type {
   ProfileSectionDetail,
   ProfileSectionType,
@@ -80,6 +81,7 @@ export default function SystemProfile() {
       setError(null);
     } catch {
       setSection(null);
+      setError('Unable to load profile section.');
     } finally {
       setLoading(false);
     }
@@ -185,6 +187,18 @@ export default function SystemProfile() {
 
   if (loading) {
     return <p className="text-gray-500 py-8 text-center">Loading section...</p>;
+  }
+
+  if (error && !section) {
+    return (
+      <AsyncErrorState
+        title={error}
+        onRetry={() => {
+          setLoading(true);
+          void fetchSection();
+        }}
+      />
+    );
   }
 
   const label = formatProfileSectionLabel(sectionType);

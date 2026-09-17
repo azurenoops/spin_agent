@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rolesApi } from '../../api/roles';
 import { onboarding, type PersonDto } from '../../features/onboarding/api/onboardingApi';
+import AsyncErrorState from '../AsyncErrorState';
 import {
   RBAC_ASSIGNABLE_BY,
   RMF_ROLES,
@@ -78,17 +79,30 @@ export default function AssignRoleDialog(props: AssignRoleDialogProps) {
   const [role, setRole] = useState<RmfRole>(initialRole ?? roleOptions[0] ?? 'Issm');
   const [personId, setPersonId] = useState('');
   const [persons, setPersons] = useState<PersonDto[]>([]);
+  const [personsLoading, setPersonsLoading] = useState(false);
+  const [personsError, setPersonsError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [warnings, setWarnings] = useState<SoDWarning[] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const loadPersons = useCallback(async () => {
+    setPersonsLoading(true);
+    setPersonsError(false);
+    try {
+      setPersons(await onboarding.listPersons());
+    } catch {
+      setPersons([]);
+      setPersonsError(true);
+    } finally {
+      setPersonsLoading(false);
+    }
+  }, []);
+
   // Fix #563: load Person records so users can pick by name instead of typing a GUID
   useEffect(() => {
     if (!open) return;
-    onboarding.listPersons()
-      .then((data) => setPersons(data))
-      .catch(() => { /* non-fatal — falls back to manual GUID input */ });
-  }, [open]);
+    void loadPersons();
+  }, [loadPersons, open]);
 
   if (!open) return null;
 
@@ -161,7 +175,11 @@ export default function AssignRoleDialog(props: AssignRoleDialogProps) {
               Person
             </label>
             {/* Fix #563: show person picker dropdown when Person records exist */}
-            {persons.length > 0 ? (
+            {personsLoading ? (
+              <p className="py-2 text-sm text-gray-500" role="status">Loading people...</p>
+            ) : personsError ? (
+              <AsyncErrorState title="Unable to load people." onRetry={loadPersons} />
+            ) : persons.length > 0 ? (
               <select
                 id="ard-person"
                 value={personId}
@@ -185,7 +203,7 @@ export default function AssignRoleDialog(props: AssignRoleDialogProps) {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               />
             )}
-            {persons.length === 0 && (
+            {!personsLoading && !personsError && persons.length === 0 && (
               <p className="mt-1 text-xs text-amber-700">
                 No Person records found. Add personnel in the Onboarding wizard first, or enter a Person GUID manually.
               </p>

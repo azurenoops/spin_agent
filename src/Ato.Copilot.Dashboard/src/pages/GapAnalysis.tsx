@@ -8,6 +8,7 @@ import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import apiClient from '../api/client';
 import { useCallback } from 'react';
+import AsyncErrorState from '../components/AsyncErrorState';
 
 interface GapItem {
   controlId: string;
@@ -45,17 +46,13 @@ export default function GapAnalysis() {
 
   const fetchGaps = useCallback(async (): Promise<GapAnalysisSummary | null> => {
     if (!systemId) return null;
-    try {
-      const { data } = await apiClient.get<GapAnalysisSummary>(
-        `/systems/${systemId}/gap-analysis`,
-      );
-      return data;
-    } catch {
-      return null;
-    }
+    const { data } = await apiClient.get<GapAnalysisSummary>(
+      `/systems/${systemId}/gap-analysis`,
+    );
+    return data;
   }, [systemId]);
 
-  const { data: summary, loading: gapLoading, refresh } = usePolling(fetchGaps, 60000);
+  const { data: summary, loading: gapLoading, error, refresh } = usePolling(fetchGaps, 60000);
 
   if (!systemId) return null;
 
@@ -93,7 +90,13 @@ export default function GapAnalysis() {
         </div>
       )}
 
-      {gapLoading && !summary ? (
+      {error && summary && (
+        <AsyncErrorState title="Unable to refresh gap analysis." onRetry={refresh} />
+      )}
+
+      {error && !summary ? (
+        <AsyncErrorState title="Unable to load gap analysis." onRetry={refresh} />
+      ) : gapLoading && !summary ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center text-gray-400">
           <p className="text-sm">Loading gap analysis…</p>
         </div>

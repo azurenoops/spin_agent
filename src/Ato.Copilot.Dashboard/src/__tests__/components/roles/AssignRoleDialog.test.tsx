@@ -64,7 +64,7 @@ describe('AssignRoleDialog', () => {
     mockedOnboarding.listPersons.mockResolvedValue([]);
   });
 
-  it('filters role dropdown by RBAC_ASSIGNABLE_BY for Isso callers', () => {
+  it('filters role dropdown by RBAC_ASSIGNABLE_BY for Isso callers', async () => {
     // Arrange — ISSO callers may assign ONLY MissionOwner and SystemOwner.
     render(
       <AssignRoleDialog
@@ -86,9 +86,10 @@ describe('AssignRoleDialog', () => {
     expect(optionValues).not.toEqual(expect.arrayContaining(['Issm']));
     expect(optionValues).not.toEqual(expect.arrayContaining(['Sca']));
     expect(optionValues).not.toEqual(expect.arrayContaining(['Administrator']));
+    await screen.findByPlaceholderText(/guid of the person/i);
   });
 
-  it('disables role dropdown when lockRole=true and pre-selects initialRole', () => {
+  it('disables role dropdown when lockRole=true and pre-selects initialRole', async () => {
     // Arrange
     render(
       <AssignRoleDialog
@@ -108,6 +109,7 @@ describe('AssignRoleDialog', () => {
     // Assert
     expect(dropdown.disabled).toBe(true);
     expect(dropdown.value).toBe('MissionOwner');
+    await screen.findByPlaceholderText(/guid of the person/i);
   });
 
   it('renders inline SoD warning when server response contains one', async () => {
@@ -144,7 +146,7 @@ describe('AssignRoleDialog', () => {
     );
 
     // Provide person id + click Assign
-    const personInput = screen.getByLabelText(/person/i) as HTMLInputElement;
+    const personInput = await screen.findByLabelText(/person/i) as HTMLInputElement;
     fireEvent.change(personInput, { target: { value: '11111111-1111-1111-1111-111111111111' } });
 
     await act(async () => {
@@ -181,7 +183,7 @@ describe('AssignRoleDialog', () => {
     );
 
     // Act — fill person + submit
-    const personInput = screen.getByLabelText(/person/i) as HTMLInputElement;
+    const personInput = await screen.findByLabelText(/person/i) as HTMLInputElement;
     fireEvent.change(personInput, { target: { value: '22222222-2222-2222-2222-222222222222' } });
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /assign/i }));
@@ -218,7 +220,7 @@ describe('AssignRoleDialog', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/person/i), {
+    fireEvent.change(await screen.findByLabelText(/person/i), {
       target: { value: '33333333-3333-3333-3333-333333333333' },
     });
     await act(async () => {
@@ -334,5 +336,35 @@ describe('AssignRoleDialog — #713 person-picker via listPersons()', () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/guid of the person/i)).toBeInTheDocument();
     });
+  });
+
+  it('shows a safe error and recovers when loading people fails', async () => {
+    // Arrange
+    mockedOnboarding.listPersons
+      .mockRejectedValueOnce(new Error('person-service-internal-code'))
+      .mockResolvedValueOnce([
+        { id: 'p-dana', displayName: 'Dana Diaz', email: 'dana@example.mil', isLinkedToDirectory: false },
+      ]);
+
+    render(
+      <AssignRoleDialog
+        open
+        onClose={vi.fn()}
+        scope={{ kind: 'organization' }}
+        callerEffectiveRole="Issm"
+        onAssigned={vi.fn()}
+      />,
+    );
+
+    // Act
+    const alert = await screen.findByRole('alert');
+
+    // Assert
+    expect(alert).toHaveTextContent('Unable to load people');
+    expect(alert).not.toHaveTextContent('person-service-internal-code');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    const select = await screen.findByRole('combobox', { name: /person/i });
+    expect(select).toHaveValue('');
+    expect(screen.getByRole('option', { name: 'Dana Diaz' })).toBeInTheDocument();
   });
 });

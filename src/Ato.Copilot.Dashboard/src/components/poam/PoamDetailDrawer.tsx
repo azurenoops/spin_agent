@@ -7,6 +7,7 @@ import { SeverityBadge, StatusBadge } from './PoamTable';
 import ComponentPicker from './ComponentPicker';
 import PoamLifecycleActions from './PoamLifecycleActions';
 import SyncIndicator from './SyncIndicator';
+import AsyncErrorState from '../AsyncErrorState';
 
 const syncStatusColors: Record<string, string> = {
   Synced: 'bg-green-100 text-green-700',
@@ -21,7 +22,7 @@ interface PoamDetailDrawerProps {
 }
 
 export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerProps) {
-  const { data: detail, loading, refresh } = usePoamDetail(poamId);
+  const { data: detail, loading, error, refresh } = usePoamDetail(poamId);
   const [showComponentPicker, setShowComponentPicker] = useState(false);
   const [pickerComponentIds, setPickerComponentIds] = useState<string[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -45,6 +46,19 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
     );
   }
 
+  if (error && !detail) {
+    return (
+      <div className="fixed inset-0 z-50 flex justify-end bg-black/20" onClick={onClose}>
+        <div className="w-full max-w-lg bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+          <AsyncErrorState title="Unable to load POA&amp;M details." onRetry={refresh} />
+          <button type="button" onClick={onClose} className="mt-4 w-full text-sm text-gray-600 hover:text-gray-900">
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!detail) return null;
 
   return (
@@ -61,6 +75,10 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
 
         {/* Content */}
         <div className="flex-1 space-y-6 p-6">
+          {error && (
+            <AsyncErrorState title="Unable to refresh POA&amp;M details." onRetry={refresh} />
+          )}
+
           {/* Overview */}
           <section>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Overview</h3>
