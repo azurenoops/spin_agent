@@ -296,6 +296,7 @@ jobs:
           ASPNETCORE_ENVIRONMENT: Development
           ATO_DATABASE__PROVIDER: Sqlite
           ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: "Data Source=:memory:"
+          ATO_REQUIRE_DOCKER_TESTS: "1"
 
       - name: Upload integration test results
         if: always()

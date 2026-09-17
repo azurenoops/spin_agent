@@ -21,8 +21,8 @@
     <PackageReference Include="FluentAssertions" Version="7.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0" />
     <!-- T102 [US5]: SQL Server testcontainer for Row-Level Security tests.
-         Tests using these containers are gated with Skip.IfNot(...) so they
-         run only when Docker is available locally / in CI. -->
+         Local runs may skip when Docker is unavailable; CI sets
+         ATO_REQUIRE_DOCKER_TESTS=1 so container failures fail the lane. -->
     <PackageReference Include="Testcontainers.MsSql" Version="3.10.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
