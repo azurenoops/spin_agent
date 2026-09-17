@@ -371,8 +371,14 @@ public static partial class DashboardEndpoints
                 var baseline = await context.ControlBaselines
                     .AsNoTracking()
                     .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, ct);
-                if (baseline is null)
-                    return Results.BadRequest(new { error = "System must have a control baseline selected before running an assessment." });
+                if (baseline is null || baseline.ControlIds.Count == 0)
+                {
+                    return Results.BadRequest(new
+                    {
+                        errorCode = "ASSESSMENT_INPUT_REQUIRED",
+                        error = "System must have a control baseline with at least one control before running an assessment.",
+                    });
+                }
 
                 var implementations = await context.ControlImplementations
                     .Where(ci => ci.RegisteredSystemId == systemId)
