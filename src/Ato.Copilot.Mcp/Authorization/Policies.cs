@@ -51,6 +51,11 @@ public static class Policies
     /// </summary>
     public const string ComplianceAdministrator = "Policy:ComplianceAdministrator";
 
+    /// <summary>
+    /// Policy that requires the Authorizing Official role for formal authorization decisions.
+    /// </summary>
+    public const string AuthorizationDecisionIssuer = "Policy:AuthorizationDecisionIssuer";
+
     // ──────────────────────────────────────────────────────────────────────────
     // Registration helper
     // ──────────────────────────────────────────────────────────────────────────
@@ -90,6 +95,9 @@ public static class Policies
 
         options.AddPolicy(ComplianceAdministrator, policy =>
             policy.RequireRole(Core.Constants.ComplianceRoles.Administrator));
+
+        options.AddPolicy(AuthorizationDecisionIssuer, policy =>
+            policy.RequireRole(Core.Constants.ComplianceRoles.AuthorizingOfficial));
     }
 }
 

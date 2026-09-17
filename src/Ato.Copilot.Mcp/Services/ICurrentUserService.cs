@@ -18,4 +18,9 @@ public interface ICurrentUserService
     ///   3. <c>"unknown"</c> — never <c>"dashboard-user"</c>
     /// </summary>
     string CurrentUserId { get; }
+
+    /// <summary>
+    /// The authenticated user's display name, falling back to <see cref="CurrentUserId"/>.
+    /// </summary>
+    string CurrentUserName { get; }
 }

@@ -98,8 +98,14 @@ public class AuthorizationService : IAuthorizationService
             .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken)
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
 
+        if (system.CurrentRmfStep != RmfPhase.Authorize)
+        {
+            throw new InvalidOperationException(
+                $"System '{systemId}' must be in the Authorize RMF phase before an authorization decision can be issued.");
+        }
+
         // ─── Privacy & Interconnection pre-checks (Feature 021) ────────
-        var warnings = new List<string>();
+        var blockers = new List<string>();
 
         // Privacy: PTA must exist and PIA must be approved if required
         if (system.PrivacyThresholdAnalysis is { } pta)
@@ -107,12 +113,12 @@ public class AuthorizationService : IAuthorizationService
             if (pta.Determination == PtaDetermination.PiaRequired
                 && system.PrivacyImpactAssessment?.Status != PiaStatus.Approved)
             {
-                warnings.Add("PIA is required but not yet approved.");
+                blockers.Add("PIA is required but not approved.");
             }
         }
         else
         {
-            warnings.Add("No Privacy Threshold Analysis (PTA) on file.");
+            blockers.Add("No Privacy Threshold Analysis (PTA) is on file.");
         }
 
         // Interconnections: all active interconnections must have a signed, non-expired agreement
@@ -130,16 +136,15 @@ public class AuthorizationService : IAuthorizationService
 
                 if (!hasSigned)
                 {
-                    warnings.Add($"Interconnection with '{ic.TargetSystemName}' lacks a signed, non-expired agreement.");
+                    blockers.Add($"Interconnection with '{ic.TargetSystemName}' lacks a signed, non-expired agreement.");
                 }
             }
         }
 
-        if (warnings.Count > 0)
+        if (blockers.Count > 0)
         {
-            _logger.LogWarning(
-                "Authorization pre-check warnings for system {SystemId}: {Warnings}",
-                systemId, string.Join("; ", warnings));
+            throw new InvalidOperationException(
+                $"Authorization prerequisites are not met: {string.Join("; ", blockers)}");
         }
 
         // Calculate compliance score from latest assessment

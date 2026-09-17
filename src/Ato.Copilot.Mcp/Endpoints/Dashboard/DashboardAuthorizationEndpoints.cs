@@ -16,6 +16,7 @@ using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Services;
 using System.Text.RegularExpressions;
 
@@ -26,7 +27,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Authorization domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapAuthorizationRoutes(IEndpointRouteBuilder group, ICurrentUserService currentUser)
+    private static void MapIssueAuthorizationRoute(IEndpointRouteBuilder group, ICurrentUserService currentUser)
     {
         group.MapPost("/systems/{systemId}/authorization", async (
             string systemId,
@@ -46,7 +47,7 @@ public static partial class DashboardEndpoints
                     body.ResidualRiskJustification,
                     body.RiskAcceptances,
                     currentUser.CurrentUserId,
-                    body.IssuedByName ?? "Dashboard User",
+                    currentUser.CurrentUserName,
                     ct);
 
                 context.DashboardActivities.Add(new DashboardActivity
@@ -76,7 +77,13 @@ public static partial class DashboardEndpoints
                 return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
             }
         })
-        .WithName("IssueAuthorization");
+        .WithName("IssueAuthorization")
+        .RequireAuthorization(Policies.AuthorizationDecisionIssuer);
+    }
+
+    private static void MapAuthorizationRoutes(IEndpointRouteBuilder group, ICurrentUserService currentUser)
+    {
+        MapIssueAuthorizationRoute(group, currentUser);
 
         // ─── AO Pending Decisions ─────────────────────────────────────────────
         // GET /api/dashboard/ao/pending-decisions
