@@ -218,6 +218,9 @@ public class AtoCopilotContext : DbContext
     /// <summary>AO authorization decisions (ATO/ATOwC/IATT/DATO).</summary>
     public DbSet<AuthorizationDecision> AuthorizationDecisions => Set<AuthorizationDecision>();
 
+    /// <summary>Time-bounded annotations that do not alter AO decisions.</summary>
+    public DbSet<AuthorizationOverride> AuthorizationOverrides => Set<AuthorizationOverride>();
+
     /// <summary>Risk acceptances issued by AOs for specific findings.</summary>
     public DbSet<RiskAcceptance> RiskAcceptances => Set<RiskAcceptance>();
 
@@ -1760,10 +1763,28 @@ public class AtoCopilotContext : DbContext
                 .HasForeignKey(e => e.AuthorizationDecisionId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            entity.HasMany(e => e.Overrides)
+                .WithOne(e => e.AuthorizationDecision)
+                .HasForeignKey(e => e.AuthorizationDecisionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Indexes
             entity.HasIndex(e => e.RegisteredSystemId).HasDatabaseName("IX_AuthorizationDecision_SystemId");
             entity.HasIndex(e => e.IsActive).HasDatabaseName("IX_AuthorizationDecision_IsActive");
             entity.HasIndex(e => e.DecisionDate).HasDatabaseName("IX_AuthorizationDecision_DecisionDate");
+        });
+
+        modelBuilder.Entity<AuthorizationOverride>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.AuthorizationDecisionId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.OverrideStatus).HasConversion<string>().HasMaxLength(30);
+            entity.Property(e => e.AppliedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.AppliedByName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Justification).HasMaxLength(4000).IsRequired();
+            entity.HasIndex(e => new { e.AuthorizationDecisionId, e.ExpirationDate })
+                .HasDatabaseName("IX_AuthorizationOverride_DecisionId_ExpirationDate");
         });
 
         // ─── RiskAcceptance ──────────────────────────────────────────────────────

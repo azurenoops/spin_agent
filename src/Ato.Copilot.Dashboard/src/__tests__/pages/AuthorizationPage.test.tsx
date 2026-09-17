@@ -15,6 +15,10 @@ vi.mock('../../hooks/usePolling', () => ({
   usePolling: vi.fn(() => ({ data: null, refresh: vi.fn() })),
 }));
 
+vi.mock('../../hooks/useSettings', () => ({
+  useSettings: vi.fn(() => ({ settings: { role: 'AO' } })),
+}));
+
 describe('AuthorizationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();

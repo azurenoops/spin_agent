@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Text.Json;
+using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
@@ -27,6 +29,7 @@ public sealed class AuthorizationDecisionEndpointsTests : IAsyncLifetime
 {
     private const string TestAuthScheme = "AuthorizationDecisionTest";
     private const string Route = "/api/dashboard/systems/system-1/authorization";
+    private static readonly Guid TenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     private readonly Mock<IAuthorizationService> _authorizationService = new();
     private WebApplication _app = null!;
@@ -39,8 +42,9 @@ public sealed class AuthorizationDecisionEndpointsTests : IAsyncLifetime
             EnvironmentName = "Development",
         });
 
+        var databaseName = $"AuthorizationDecisionEndpoints_{Guid.NewGuid():N}";
         builder.Services.AddDbContext<AtoCopilotContext>(options =>
-            options.UseInMemoryDatabase($"AuthorizationDecisionEndpoints_{Guid.NewGuid():N}"));
+            options.UseInMemoryDatabase(databaseName));
         builder.Services.AddSingleton(_authorizationService.Object);
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ICurrentUserService, CurrentUserService>();
@@ -73,6 +77,22 @@ public sealed class AuthorizationDecisionEndpointsTests : IAsyncLifetime
             });
 
         _app = builder.Build();
+        var realAuthorizationService = new AuthorizationService(
+            _app.Services.GetRequiredService<IServiceScopeFactory>(),
+            Mock.Of<ILogger<AuthorizationService>>());
+        _authorizationService
+            .Setup(service => service.ApplyOverrideAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((string systemId, string overrideStatus, string justification,
+                DateTime expirationDate, string appliedBy, string appliedByName, CancellationToken ct) =>
+                realAuthorizationService.ApplyOverrideAsync(
+                    systemId, overrideStatus, justification, expirationDate, appliedBy, appliedByName, ct));
         _app.UseAuthentication();
         _app.UseAuthorization();
         _app.MapDashboardAuthorizationEndpoints();
@@ -123,6 +143,62 @@ public sealed class AuthorizationDecisionEndpointsTests : IAsyncLifetime
             "ao-123",
             "Alex Official",
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ApplyOverride_PreservesUnderlyingVerdictAndReturnsAuditAnnotation()
+    {
+        // Arrange
+        await using (var scope = _app.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            context.AuthorizationDecisions.Add(new AuthorizationDecision
+            {
+                TenantId = TenantId,
+                Id = "decision-1",
+                RegisteredSystemId = "system-1",
+                DecisionType = AuthorizationDecisionType.Dato,
+                DecisionDate = DateTime.UtcNow.AddDays(-1),
+                ResidualRiskLevel = ComplianceRiskLevel.High,
+                IssuedBy = "ao-original",
+                IssuedByName = "Original Official",
+                IsActive = true,
+            });
+            await context.SaveChangesAsync();
+        }
+        SetPrincipal(ComplianceRoles.AuthorizingOfficial, "ao-123", "Alex Official");
+        var expirationDate = DateTime.UtcNow.AddDays(7);
+
+        // Act
+        var applyResponse = await _client.PostAsJsonAsync($"{Route}/override", new
+        {
+            overrideStatus = "ATOwC",
+            justification = "Temporary mission authorization pending formal review.",
+            expirationDate,
+        });
+        var getResponse = await _client.GetAsync(Route);
+
+        // Assert
+        var applyBody = await applyResponse.Content.ReadAsStringAsync();
+        applyResponse.StatusCode.Should().Be(HttpStatusCode.Created, applyBody);
+        var applyResult = JsonSerializer.Deserialize<JsonElement>(applyBody);
+        applyResult.GetProperty("overrideStatus").GetString().Should().Be("AtoWithConditions");
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await getResponse.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("decisionType").GetString().Should().Be("Dato");
+        var annotation = body.GetProperty("override");
+        annotation.GetProperty("overrideStatus").GetString().Should().Be("AtoWithConditions");
+        annotation.GetProperty("appliedBy").GetString().Should().Be("ao-123");
+        annotation.GetProperty("appliedByName").GetString().Should().Be("Alex Official");
+        annotation.GetProperty("justification").GetString().Should().Be(
+            "Temporary mission authorization pending formal review.");
+
+        await using var verificationScope = _app.Services.CreateAsyncScope();
+        var verificationContext = verificationScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await verificationContext.AuthorizationDecisions.SingleAsync()).DecisionType
+            .Should().Be(AuthorizationDecisionType.Dato);
+        verificationContext.AuditLogs.Should().ContainSingle(entry =>
+            entry.Action == "AuthorizationOverride.Apply" && entry.UserId == "ao-123");
     }
 
     private void SetPrincipal(string role, string subject, string displayName)

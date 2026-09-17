@@ -76,7 +76,7 @@ public static partial class DashboardEndpoints
     }
 
     /// <summary>
-    /// Maps only the formal authorization-decision route for focused integration tests.
+    /// Maps only formal authorization-decision routes for focused integration tests.
     /// </summary>
     public static IEndpointRouteBuilder MapDashboardAuthorizationEndpoints(this IEndpointRouteBuilder app)
     {
@@ -84,7 +84,7 @@ public static partial class DashboardEndpoints
         var group = app.MapGroup("/api/dashboard")
             .WithTags("Dashboard")
             .RequireAuthorization();
-        MapIssueAuthorizationRoute(group, currentUser);
+        MapAuthorizationDecisionRoutes(group, currentUser);
         return app;
     }
 
@@ -262,6 +262,11 @@ public static partial class DashboardEndpoints
         string? TermsAndConditions,
         string? ResidualRiskJustification,
         List<RiskAcceptanceInput>? RiskAcceptances);
+
+    private record ApplyAuthorizationOverrideRequest(
+        string OverrideStatus,
+        string Justification,
+        DateTime ExpirationDate);
 
     private record CreatePoamRequest(
         string Weakness,

@@ -37,6 +37,16 @@ public interface IAuthorizationService
         string issuedByName = "MCP User",
         CancellationToken cancellationToken = default);
 
+    /// <summary>Applies a time-bounded annotation without changing the underlying AO verdict.</summary>
+    Task<AuthorizationOverride> ApplyOverrideAsync(
+        string systemId,
+        string overrideStatus,
+        string justification,
+        DateTime expirationDate,
+        string appliedBy,
+        string appliedByName,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Accept risk for a specific finding with justification and expiration.
     /// AO-only operation.
