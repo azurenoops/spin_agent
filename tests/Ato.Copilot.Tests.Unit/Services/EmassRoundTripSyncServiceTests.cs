@@ -1,5 +1,6 @@
 using Ato.Copilot.Agents.Compliance.Services;
 using System.Diagnostics;
+using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Models.Compliance;
 using ClosedXML.Excel;
@@ -132,6 +133,47 @@ public sealed class EmassRoundTripSyncServiceTests
             .Should().Be("Original narrative");
         nameConflict.ResolvedBy.Should().Be("isso@example.mil");
         narrativeConflict.ConflictStatus.Should().Be(ConflictStatus.KeepSpin);
+    }
+
+    [Fact]
+    public async Task ConflictResolution_PersistsStateAndAuditAcrossContexts()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<AtoCopilotContext>()
+            .UseInMemoryDatabase($"EmassSync_{Guid.NewGuid():N}")
+            .Options;
+        var factory = new TestDbContextFactory(options);
+        await SeedSystemAsync(factory);
+        var service = new EmassRoundTripSyncService(factory);
+        await using var workbook = BuildControlWorkbook(
+            systemName: "Updated System",
+            implementationStatus: "Implemented",
+            narrative: "Original narrative");
+        await service.StartSyncAsync("system-1", workbook);
+        var conflictId = await factory.Context.EmassConflicts
+            .Select(conflict => conflict.Id)
+            .SingleAsync();
+
+        // Act
+        await service.ResolveConflictAsync(
+            "system-1",
+            conflictId,
+            new ResolveConflictRequest(ConflictStatus.KeepSpin),
+            "isso@example.mil");
+        await using var reloadedContext = new AtoCopilotContext(options);
+        var persistedConflict = await reloadedContext.EmassConflicts.SingleAsync();
+        var persistedAudit = await reloadedContext.AuditLogs.SingleAsync();
+
+        // Assert
+        persistedConflict.ConflictStatus.Should().Be(ConflictStatus.KeepSpin);
+        persistedConflict.ResolvedAt.Should().NotBeNull();
+        persistedConflict.ResolvedBy.Should().Be("isso@example.mil");
+        var unresolvedCount = await reloadedContext.EmassConflicts
+            .CountAsync(conflict => conflict.ConflictStatus == ConflictStatus.Unresolved);
+        unresolvedCount.Should().Be(0);
+        persistedAudit.Action.Should().Be("EmassConflict.Resolve");
+        persistedAudit.UserId.Should().Be("isso@example.mil");
+        persistedAudit.AffectedResources.Should().Contain(["system-1", conflictId]);
     }
 
     [Fact]

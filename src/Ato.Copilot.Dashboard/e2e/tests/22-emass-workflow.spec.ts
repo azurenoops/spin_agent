@@ -44,7 +44,7 @@ async function mockAuthAndSystem(page: Page) {
   }));
 }
 
-test('ISSO reviews readiness, syncs an eMASS workbook, and keeps the SPIN value', async ({ page }) => {
+test('ISSO resolves an eMASS conflict and the resolution persists after reload', async ({ page }) => {
   // Arrange
   await page.addInitScript(() => {
     localStorage.setItem('ato-dashboard-settings', JSON.stringify({ role: 'ISSO' }));
@@ -113,4 +113,11 @@ test('ISSO reviews readiness, syncs an eMASS workbook, and keeps the SPIN value'
 
   // Assert
   await expect(page.getByText('No unresolved conflicts.')).toBeVisible();
+
+  // Act
+  await page.reload();
+
+  // Assert
+  await expect(page.getByText('No unresolved conflicts.')).toBeVisible();
+  await expect(page.getByText('Partially Implemented')).not.toBeVisible();
 });
