@@ -32,13 +32,16 @@ public static class CapabilitySubscriptionEndpoints
         this IEndpointRouteBuilder app)
     {
         var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
+        var group = app.MapGroup("/api/dashboard")
+            .RequireAuthorization();
+
         // ─── Capability Library — org-user browse ────────────────────────────
 
         // GET /api/dashboard/capability-library
         // Returns CSP capabilities with Status == Mapped, in org-user projection.
         // Optional query params: search (name/description), provider (ComponentType enum),
         // systemId (annotates isSubscribed per capability).
-        app.MapGet("/api/dashboard/capability-library", async (
+        group.MapGet("/capability-library", async (
             string? search,
             string? provider,
             string? systemId,
@@ -101,7 +104,7 @@ public static class CapabilitySubscriptionEndpoints
         // GET /api/dashboard/capability-library/{id}
         // Returns a single Mapped capability with full control detail.
         // Used by UF-CSP-02 (OrgCapabilityDetailPage).
-        app.MapGet("/api/dashboard/capability-library/{id:guid}", async (
+        group.MapGet("/capability-library/{id:guid}", async (
             Guid id,
             string? systemId,
             AtoCopilotContext db,
@@ -148,7 +151,7 @@ public static class CapabilitySubscriptionEndpoints
         // POST /api/dashboard/systems/{systemId}/capability-subscriptions
         // Subscribe a system to a Mapped CSP capability (UF-CSP-01).
         // Idempotent: re-subscribe after unsubscribe reactivates the record.
-        app.MapPost("/api/dashboard/systems/{systemId}/capability-subscriptions", async (
+        group.MapPost("/systems/{systemId}/capability-subscriptions", async (
             string systemId,
             SubscribeCapabilityRequest body,
             AtoCopilotContext db,
@@ -220,7 +223,7 @@ public static class CapabilitySubscriptionEndpoints
 
         // GET /api/dashboard/systems/{systemId}/capability-subscriptions
         // Lists active capability subscriptions for a system.
-        app.MapGet("/api/dashboard/systems/{systemId}/capability-subscriptions", async (
+        group.MapGet("/systems/{systemId}/capability-subscriptions", async (
             string systemId,
             AtoCopilotContext db,
             CancellationToken ct) =>
@@ -270,8 +273,8 @@ public static class CapabilitySubscriptionEndpoints
         // DELETE /api/dashboard/systems/{systemId}/capability-subscriptions/{capabilityId}
         // Unsubscribes a system from a CSP capability (UF-CSP-03).
         // Soft-delete: sets IsActive=false to preserve audit trail.
-        app.MapDelete(
-            "/api/dashboard/systems/{systemId}/capability-subscriptions/{capabilityId}",
+        group.MapDelete(
+            "/systems/{systemId}/capability-subscriptions/{capabilityId}",
             async (
                 string systemId,
                 string capabilityId,

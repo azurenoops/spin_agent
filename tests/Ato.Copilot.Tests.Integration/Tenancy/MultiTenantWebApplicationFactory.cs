@@ -1,7 +1,10 @@
+using System.Security.Claims;
+using System.Text.Encodings.Web;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +12,8 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Ato.Copilot.Tests.Integration.Tenancy;
 
@@ -30,6 +35,8 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<TStartup>
     where TStartup : class
 {
+    private const string TestAuthScheme = "MultiTenantTestAuth";
+
     /// <summary>Stable id of seeded Tenant A. Tests use this id when asserting.</summary>
     public static readonly Guid TenantAId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
@@ -164,6 +171,13 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     /// </summary>
     protected virtual string DeploymentModeOverride => "MultiTenant";
 
+    /// <summary>
+    /// Controls whether requests receive the fixture's default authenticated
+    /// principal. Auth endpoint fixtures override this to exercise anonymous
+    /// and header-driven identities.
+    /// </summary>
+    protected virtual bool AuthenticateRequestsByDefault => true;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -192,6 +206,12 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
 
         builder.ConfigureServices(services =>
         {
+            if (AuthenticateRequestsByDefault)
+            {
+                services.AddAuthentication(TestAuthScheme)
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthScheme, _ => { });
+            }
+
             // Ignore unhandled background-service exceptions in tests so the
             // host stays up when ancillary background services (e.g. evidence
             // purges, SSP export retention) hit unexpected schema in our
@@ -228,6 +248,26 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
             // outside the migration history.
             services.AddHostedService<TenancySeedHostedService>();
         });
+    }
+
+    private sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+    {
+        public TestAuthHandler(
+            IOptionsMonitor<AuthenticationSchemeOptions> options,
+            ILoggerFactory logger,
+            UrlEncoder encoder)
+            : base(options, logger, encoder)
+        {
+        }
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var identity = new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, "multi-tenant-test-user")],
+                TestAuthScheme);
+            var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), TestAuthScheme);
+            return Task.FromResult(AuthenticateResult.Success(ticket));
+        }
     }
 
     private static void RemoveHostedService<T>(IServiceCollection services) where T : class

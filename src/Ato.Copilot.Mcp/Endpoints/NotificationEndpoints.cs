@@ -18,7 +18,8 @@ public static class NotificationEndpoints
     {
         var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
         var group = app.MapGroup("/api/dashboard/notifications")
-            .WithTags("Notifications");
+            .WithTags("Notifications")
+            .RequireAuthorization();
 
         // ─── List notifications for the current user ─────────────────────────
         group.MapGet("/", async (

@@ -10,6 +10,8 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,10 +20,12 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
+using Microsoft.AspNetCore.Authentication;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.ApiMismatch;
@@ -93,6 +97,12 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         });
 
         builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
+        builder.Services
+            .AddAuthentication(CacPassthroughAuthHandler.SchemeName)
+            .AddScheme<AuthenticationSchemeOptions, CacPassthroughAuthHandler>(
+                CacPassthroughAuthHandler.SchemeName,
+                _ => { });
+        builder.Services.AddAuthorization();
 
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>
@@ -104,18 +114,28 @@ public class ApiMismatchRouteTests : IAsyncLifetime
 
         _app.Use(async (context, next) =>
         {
-            context.User = new ClaimsPrincipal(new ClaimsIdentity(
-                [new Claim(ClaimTypes.NameIdentifier, TestActorId)],
-                authenticationType: "Test"));
+            if (context.Request.Headers.ContainsKey("X-Test-Authenticated"))
+            {
+                context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim(ClaimTypes.NameIdentifier, TestActorId)],
+                    CacPassthroughAuthHandler.SchemeName));
+            }
+
             await next(context);
         });
         _app.UseCors();
         _app.UseMiddleware<ComplianceAuthorizationMiddleware>();
         _app.UseMiddleware<AuditLoggingMiddleware>();
+        _app.UseAuthentication();
+        _app.UseAuthorization();
 
         var httpBridge = _app.Services.GetRequiredService<McpHttpBridge>();
         httpBridge.MapEndpoints(_app);
         _app.MapDashboardEndpoints();
+        _app.MapEmassWorkflowEndpoints();
+        _app.MapControlValidationEndpoints();
+        _app.MapNotificationEndpoints();
+        _app.MapCapabilitySubscriptionEndpoints();
 
         _app.MapGet("/healthz-test", () => Microsoft.AspNetCore.Http.Results.Json(new
         {
@@ -126,6 +146,7 @@ public class ApiMismatchRouteTests : IAsyncLifetime
 
         await _app.StartAsync();
         _client = _app.GetTestClient();
+        _client.DefaultRequestHeaders.Add("X-Test-Authenticated", "true");
 
         await SeedTestDataAsync();
     }
@@ -135,6 +156,45 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         _client.Dispose();
         await _app.StopAsync();
         await _app.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData("/api/dashboard/systems")]
+    [InlineData("/api/dashboard/assessments")]
+    [InlineData("/api/dashboard/notifications/")]
+    [InlineData("/api/dashboard/capability-library")]
+    public async Task Issue822_DashboardRoutes_RejectAnonymousRequests(string route)
+    {
+        // Arrange
+        using var anonymousClient = _app.GetTestClient();
+
+        // Act
+        var response = await anonymousClient.GetAsync(route);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public void Issue822_AllDashboardRoutes_RequireAuthorization()
+    {
+        // Arrange
+        var routeEndpoints = _app.Services
+            .GetServices<EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Where(endpoint => endpoint.RoutePattern.RawText?
+                .StartsWith("/api/dashboard", StringComparison.OrdinalIgnoreCase) == true);
+
+        // Act
+        var unprotectedRoutes = routeEndpoints
+            .Where(endpoint => endpoint.Metadata.GetMetadata<IAuthorizeData>() is null)
+            .Select(endpoint => endpoint.RoutePattern.RawText)
+            .OrderBy(route => route)
+            .ToList();
+
+        // Assert
+        unprotectedRoutes.Should().BeEmpty("every dashboard API route contains sensitive compliance data");
     }
 
     private async Task SeedTestDataAsync()

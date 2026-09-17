@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
@@ -18,6 +20,7 @@ using Ato.Copilot.Core.Interfaces.Storage;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Services.Tenancy;
+using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Services;
 
@@ -82,10 +85,30 @@ public class EvidenceEndpointsTests : IAsyncLifetime
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ICurrentUserService, CurrentUserService>();
         builder.Services.AddLogging();
+        builder.Services
+            .AddAuthentication(CacPassthroughAuthHandler.SchemeName)
+            .AddScheme<AuthenticationSchemeOptions, CacPassthroughAuthHandler>(
+                CacPassthroughAuthHandler.SchemeName,
+                _ => { });
+        builder.Services.AddAuthorization();
 
         builder.WebHost.UseTestServer();
 
         _app = builder.Build();
+
+        _app.Use(async (context, next) =>
+        {
+            if (context.Request.Headers.ContainsKey("X-Test-Authenticated"))
+            {
+                context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim(ClaimTypes.NameIdentifier, "evidence-test-user")],
+                    CacPassthroughAuthHandler.SchemeName));
+            }
+
+            await next(context);
+        });
+        _app.UseAuthentication();
+        _app.UseAuthorization();
 
         // MapDashboardEndpoints already prefixes /api/dashboard — do not nest
         // another /api/dashboard group or every route 404s / mismatches.
@@ -111,6 +134,7 @@ public class EvidenceEndpointsTests : IAsyncLifetime
 
         await _app.StartAsync();
         _client = _app.GetTestClient();
+        _client.DefaultRequestHeaders.Add("X-Test-Authenticated", "true");
     }
 
     public async Task DisposeAsync()
@@ -121,6 +145,20 @@ public class EvidenceEndpointsTests : IAsyncLifetime
     }
 
     // ─── Upload Evidence ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task EvidenceRoute_RejectsAnonymousRequest()
+    {
+        // Arrange
+        using var anonymousClient = _app.GetTestClient();
+
+        // Act
+        var response = await anonymousClient.GetAsync(
+            $"/api/dashboard/systems/{_systemId}/evidence");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
 
     [Fact]
     public async Task Upload_ValidFile_Returns200WithArtifact()

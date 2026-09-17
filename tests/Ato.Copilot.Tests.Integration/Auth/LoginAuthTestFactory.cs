@@ -26,6 +26,8 @@ namespace Ato.Copilot.Tests.Integration.Auth;
 public sealed class LoginAuthTestFactory
     : MultiTenantWebApplicationFactory<McpProgram>
 {
+    protected override bool AuthenticateRequestsByDefault => false;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);

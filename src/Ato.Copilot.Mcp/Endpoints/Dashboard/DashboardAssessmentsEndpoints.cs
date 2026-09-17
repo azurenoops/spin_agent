@@ -26,9 +26,9 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Assessments domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapAssessmentRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
+    private static void MapAssessmentRoutes(IEndpointRouteBuilder group, ICurrentUserService currentUser)
     {
-        app.MapGet("/api/dashboard/assessments", async (
+        group.MapGet("/assessments", async (
             AtoCopilotContext context,
             CancellationToken ct) =>
         {
@@ -86,7 +86,7 @@ public static partial class DashboardEndpoints
         })
         .WithName("ListAssessments");
 
-        app.MapGet("/api/dashboard/assessments/{assessmentId}", async (
+        group.MapGet("/assessments/{assessmentId}", async (
             string assessmentId,
             AtoCopilotContext context,
             CancellationToken ct) =>
@@ -204,7 +204,7 @@ public static partial class DashboardEndpoints
 
         // ─── Component Risk Summary (Feature 040 US6) ─────────────────────────
 
-        app.MapGet("/api/dashboard/systems/{systemId}/assessments/{assessmentId}/component-risks", async (
+        group.MapGet("/systems/{systemId}/assessments/{assessmentId}/component-risks", async (
             string systemId,
             string assessmentId,
             ComponentService componentService,
@@ -217,7 +217,7 @@ public static partial class DashboardEndpoints
 
         // ─── Assessment Findings with optional componentId filter (Feature 040 US6) ──
 
-        app.MapGet("/api/dashboard/systems/{systemId}/assessments/{assessmentId}/findings", async (
+        group.MapGet("/systems/{systemId}/assessments/{assessmentId}/findings", async (
             string systemId,
             string assessmentId,
             string? componentId,
@@ -261,7 +261,7 @@ public static partial class DashboardEndpoints
 
         // ─── Resolve Finding Components (Feature 040 US6) ─────────────────────
 
-        app.MapPost("/api/dashboard/systems/{systemId}/resolve-finding-components", async (
+        group.MapPost("/systems/{systemId}/resolve-finding-components", async (
             string systemId,
             ComponentService componentService,
             CancellationToken ct) =>
@@ -271,7 +271,7 @@ public static partial class DashboardEndpoints
         })
         .WithName("ResolveFindingComponents");
 
-        app.MapPost("/api/dashboard/systems/{systemId}/components/{componentId}/relink-findings", async (
+        group.MapPost("/systems/{systemId}/components/{componentId}/relink-findings", async (
             string systemId,
             string componentId,
             ComponentService componentService,
@@ -282,7 +282,7 @@ public static partial class DashboardEndpoints
         })
         .WithName("RelinkComponentFindings");
 
-        app.MapPost("/api/dashboard/systems/{systemId}/run-assessment", async (
+        group.MapPost("/systems/{systemId}/run-assessment", async (
             string systemId,
             IAtoComplianceEngine complianceEngine,
             ComplianceTrendSnapshotService trendSnapshotService,
@@ -703,7 +703,7 @@ public static partial class DashboardEndpoints
         // ───────────── Narratives ─────────────────────────────────────────────
 
         // List NIST controls that don't yet have a narrative for this system
-        app.MapGet("/api/dashboard/systems/{systemId}/available-controls", async (
+        group.MapGet("/systems/{systemId}/available-controls", async (
             string systemId,
             string? search,
             AtoCopilotContext context,
@@ -731,7 +731,7 @@ public static partial class DashboardEndpoints
         .WithName("ListAvailableControls");
 
         // Create a new narrative (ControlImplementation) for a control
-        app.MapPost("/api/dashboard/systems/{systemId}/narratives", async (
+        group.MapPost("/systems/{systemId}/narratives", async (
             string systemId,
             CreateNarrativeRequest request,
             AtoCopilotContext context,
@@ -780,7 +780,7 @@ public static partial class DashboardEndpoints
         })
         .WithName("CreateNarrative");
 
-        app.MapGet("/api/dashboard/systems/{systemId}/narratives", async (
+        group.MapGet("/systems/{systemId}/narratives", async (
             string systemId,
             string? family,
             string? status,
@@ -832,7 +832,7 @@ public static partial class DashboardEndpoints
         })
         .WithName("ListNarratives");
 
-        app.MapPut("/api/dashboard/systems/{systemId}/narratives/bulk-update", async (
+        group.MapPut("/systems/{systemId}/narratives/bulk-update", async (
             string systemId,
             BulkNarrativeUpdateRequest request,
             ComplianceTrendSnapshotService trendSnapshotService,
@@ -886,7 +886,7 @@ public static partial class DashboardEndpoints
         .WithName("BulkUpdateNarratives");
 
         // ─── Save single narrative text ────────────────────────────────────
-        app.MapPatch("/api/dashboard/systems/{systemId}/controls/{controlId}/narrative", async (
+        group.MapPatch("/systems/{systemId}/controls/{controlId}/narrative", async (
             string systemId,
             string controlId,
             PatchDualNarrativeRequest request,
@@ -922,7 +922,7 @@ public static partial class DashboardEndpoints
 
         // ───────────── Deferred Prerequisites ─────────────────────────────────
 
-        app.MapPost("/api/dashboard/systems/{systemId}/deferred-prerequisites/{id}/resolve", async (
+        group.MapPost("/systems/{systemId}/deferred-prerequisites/{id}/resolve", async (
             string systemId,
             string id,
             AtoCopilotContext context,

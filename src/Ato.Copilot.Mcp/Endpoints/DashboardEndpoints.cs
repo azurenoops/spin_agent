@@ -37,7 +37,8 @@ public static partial class DashboardEndpoints
     {
         var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
         var group = app.MapGroup("/api/dashboard")
-            .WithTags("Dashboard");
+            .WithTags("Dashboard")
+            .RequireAuthorization();
 
         MapSystemRoutes(group, app, currentUser);
         MapComponentRoutes(group, app, currentUser);
@@ -47,8 +48,8 @@ public static partial class DashboardEndpoints
         MapBoundaryRoutes(group, app, currentUser);
         MapCategorizationRoutes(group, app, currentUser);
         MapConMonRoutes(group, app);
-        MapAssessmentRoutes(group, app, currentUser);
-        MapAuthorizationRoutes(group, app, currentUser);
+    MapAssessmentRoutes(group, currentUser);
+    MapAuthorizationRoutes(group, currentUser);
         MapDeviationRoutes(group, app, currentUser);
         MapExportRoutes(group, app, currentUser);
         MapEvidenceRoutes(group, app, currentUser);
@@ -68,7 +69,8 @@ public static partial class DashboardEndpoints
     {
         var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
         var group = app.MapGroup("/api/dashboard")
-            .WithTags("Dashboard");
+            .WithTags("Dashboard")
+            .RequireAuthorization();
         MapEvidenceRoutes(group, app, currentUser);
         return app;
     }
