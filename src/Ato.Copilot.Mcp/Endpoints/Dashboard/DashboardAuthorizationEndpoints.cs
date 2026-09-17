@@ -26,9 +26,9 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Authorization domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapAuthorizationRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
+    private static void MapAuthorizationRoutes(IEndpointRouteBuilder group, ICurrentUserService currentUser)
     {
-        app.MapPost("/api/dashboard/systems/{systemId}/authorization", async (
+        group.MapPost("/systems/{systemId}/authorization", async (
             string systemId,
             IssueAuthorizationRequest body,
             IAuthorizationService authorizationService,
@@ -81,7 +81,7 @@ public static partial class DashboardEndpoints
         // ─── AO Pending Decisions ─────────────────────────────────────────────
         // GET /api/dashboard/ao/pending-decisions
         // Returns authorization decisions expiring within 30 days or already expired.
-        app.MapGet("/api/dashboard/ao/pending-decisions", async (
+        group.MapGet("/ao/pending-decisions", async (
             AtoCopilotContext context,
             CancellationToken ct) =>
         {
@@ -129,7 +129,7 @@ public static partial class DashboardEndpoints
         .WithName("GetAoPendingDecisions");
 
         // ─── Accept Risk ─────────────────────────────────────────────────────
-        app.MapPost("/api/dashboard/systems/{systemId}/risk-acceptances", async (
+        group.MapPost("/systems/{systemId}/risk-acceptances", async (
             string systemId,
             AcceptRiskRequest body,
             IAuthorizationService authorizationService,
@@ -177,7 +177,7 @@ public static partial class DashboardEndpoints
         .WithName("AcceptRisk");
 
         // ─── Create ConMon Plan ──────────────────────────────────────────────
-        app.MapPost("/api/dashboard/systems/{systemId}/conmon-plan", async (
+        group.MapPost("/systems/{systemId}/conmon-plan", async (
             string systemId,
             CreateConMonPlanRequest body,
             IConMonService conMonService,
@@ -221,7 +221,7 @@ public static partial class DashboardEndpoints
         .WithName("CreateConMonPlan");
 
         // ─── Generate ConMon Report ──────────────────────────────────────────
-        app.MapPost("/api/dashboard/systems/{systemId}/conmon-report", async (
+        group.MapPost("/systems/{systemId}/conmon-report", async (
             string systemId,
             GenerateConMonReportRequest body,
             IConMonService conMonService,
@@ -265,7 +265,7 @@ public static partial class DashboardEndpoints
         .WithName("GenerateConMonReport");
 
         // ─── Report Significant Change ───────────────────────────────────────
-        app.MapPost("/api/dashboard/systems/{systemId}/conmon/significant-change", async (
+        group.MapPost("/systems/{systemId}/conmon/significant-change", async (
             string systemId,
             ReportSignificantChangeRequest body,
             IConMonService conMonService,
@@ -310,7 +310,7 @@ public static partial class DashboardEndpoints
         .WithName("ReportSignificantChange");
 
         // ─── Reauthorization Check ───────────────────────────────────────────
-        app.MapPost("/api/dashboard/systems/{systemId}/conmon/reauthorization-check", async (
+        group.MapPost("/systems/{systemId}/conmon/reauthorization-check", async (
             string systemId,
             ReauthorizationCheckRequest body,
             IConMonService conMonService,
@@ -339,7 +339,7 @@ public static partial class DashboardEndpoints
         .WithName("CheckReauthorization");
 
         // ─── Remediation Summary (cross-system) ─────────────────────────────
-        app.MapGet("/api/dashboard/remediation/summary", async (
+        group.MapGet("/remediation/summary", async (
             string? systemId,
             AtoCopilotContext context,
             CancellationToken ct) =>
@@ -491,7 +491,7 @@ public static partial class DashboardEndpoints
         .WithName("GetRemediationSummary");
 
         // ─── Remediation Tasks (cross-board) ─────────────────────────────────
-        app.MapGet("/api/dashboard/remediation/tasks", async (
+        group.MapGet("/remediation/tasks", async (
             string? systemId,
             string? status,
             string? severity,
@@ -628,7 +628,7 @@ public static partial class DashboardEndpoints
 
         // Fix #554: POST /api/dashboard/remediation/tasks — create a remediation task
         // Looks up or creates the default board for the system, then creates a task.
-        app.MapPost("/api/dashboard/remediation/tasks", async (
+        group.MapPost("/remediation/tasks", async (
             CreateRemediationTaskRequest body,
             AtoCopilotContext context,
             IKanbanService kanbanService,
@@ -700,7 +700,7 @@ public static partial class DashboardEndpoints
         .WithName("CreateRemediationTask");
 
         // ─── Move Remediation Task (Kanban column change) ────────────────────
-        app.MapPut("/api/dashboard/remediation/tasks/{taskId}/move", async (
+        group.MapPut("/remediation/tasks/{taskId}/move", async (
             string taskId,
             MoveTaskRequest body,
             AtoCopilotContext context,
