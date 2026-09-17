@@ -136,6 +136,16 @@ jobs:
           set -euo pipefail
           test -n "${{ vars.AZURE_RESOURCE_GROUP }}" || (echo "Missing environment variable: AZURE_RESOURCE_GROUP" && exit 1)
           if [ "${{ inputs.workload }}" = "chat" ]; then
+            CHAT_CLIENT_ID="${{ vars.ATO_AUTH_MSAL_CLIENTID || '' }}"
+            CHAT_AUTHORITY="${{ vars.ATO_AUTH_MSAL_AUTHORITY || '' }}"
+            test -n "$CHAT_CLIENT_ID" || (echo "Missing environment variable: ATO_AUTH_MSAL_CLIENTID" && exit 1)
+            test -n "$CHAT_AUTHORITY" || (echo "Missing environment variable: ATO_AUTH_MSAL_AUTHORITY" && exit 1)
+            test -n "${{ secrets.ATO_DB_CONNECTION_STRING || '' }}" || (echo "Missing environment secret: ATO_CHAT_DB_CONNECTION_STRING" && exit 1)
+            case "$CHAT_AUTHORITY" in
+              https://*/*/) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected https://host/tenant-id without a trailing slash"; exit 1 ;;
+              https://*/*) ;;
+              *) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected https://host/tenant-id"; exit 1 ;;
+            esac
             if [ -z "${{ inputs.containerapp_name }}" ] && [ -z "${{ vars.AZURE_CHAT_CONTAINERAPP_NAME || '' }}" ]; then
               # Run 33777693029: test/prod have no env vars. Derive from MCP
               # name (${BASE_APP/-mcp/-chat}) the same way dashboard does.
@@ -355,13 +365,27 @@ jobs:
                 ENV_ARGS_BASE="MCP_BASE_URL=https://${MCP_FQDN}"
               fi
             fi
+          elif [ "${{ inputs.workload }}" = "chat" ]; then
+            CHAT_AUTHORITY="${{ vars.ATO_AUTH_MSAL_AUTHORITY }}"
+            CHAT_TENANT_ID="${CHAT_AUTHORITY##*/}"
+            CHAT_INSTANCE="${CHAT_AUTHORITY%/*}/"
+            ENV_ARGS_BASE="ATO_AZUREAD__INSTANCE=${CHAT_INSTANCE}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAD__TENANTID=${CHAT_TENANT_ID}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAD__CLIENTID=${{ vars.ATO_AUTH_MSAL_CLIENTID }}"
+            if [ -n "${{ vars.ATO_DATABASE__MANAGEDIDENTITYCLIENTID || '' }}" ]; then
+              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_DATABASE__MANAGEDIDENTITYCLIENTID=${{ vars.ATO_DATABASE__MANAGEDIDENTITYCLIENTID }}"
+            fi
           fi
 
           SECRETREF_ARGS=""
 
           if [ "${{ inputs.inject_runtime_secrets }}" = "true" ]; then
             if [ -n "${{ secrets.ATO_DB_CONNECTION_STRING || '' }}" ]; then
-              SECRETREF_ARGS="${SECRETREF_ARGS} ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION=secretref:db-connection-string"
+              if [ "${{ inputs.workload }}" = "chat" ]; then
+                SECRETREF_ARGS="${SECRETREF_ARGS} ATO_CONNECTIONSTRINGS__CHATDB=secretref:db-connection-string"
+              else
+                SECRETREF_ARGS="${SECRETREF_ARGS} ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION=secretref:db-connection-string"
+              fi
             fi
             if [ -n "${{ secrets.ATO_AZUREAI_APIKEY || '' }}" ]; then
               SECRETREF_ARGS="${SECRETREF_ARGS} ATO_AZUREAI__APIKEY=secretref:azureai-apikey"
@@ -565,6 +589,28 @@ jobs:
               --resource-group "${RG}" \
               --name "${APP}" \
               --system-assigned
+          fi
+
+          SQL_CLIENT_ID="${{ vars.ATO_DATABASE__MANAGEDIDENTITYCLIENTID || '' }}"
+          if [ -n "${SQL_CLIENT_ID}" ]; then
+            SQL_IDENTITY_ID=$(az identity list \
+              --resource-group "${RG}" \
+              --query "[?clientId=='${SQL_CLIENT_ID}'].id | [0]" -o tsv)
+            test -n "${SQL_IDENTITY_ID}" || (echo "Managed identity with client ID '${SQL_CLIENT_ID}' was not found in '${RG}'" && exit 1)
+
+            CURRENT_SQL_IDENTITY=$(az containerapp show \
+              --resource-group "${RG}" \
+              --name "${APP}" \
+              --query "identity.userAssignedIdentities.\"${SQL_IDENTITY_ID}\".clientId" -o tsv)
+            if [ "${CURRENT_SQL_IDENTITY}" = "${SQL_CLIENT_ID}" ]; then
+              echo "SQL user-assigned identity already present; skipping assign."
+            else
+              az_containerapp_retry_continue_revision_lro "${RG}" "${APP}" \
+                az containerapp identity assign \
+                --resource-group "${RG}" \
+                --name "${APP}" \
+                --user-assigned "${SQL_IDENTITY_ID}"
+            fi
           fi
 
       # Grant the app's pull identity AcrPull on this ACR (least-privilege).

@@ -82,6 +82,9 @@ try
     builder.Configuration
         .GetSection(Ato.Copilot.Core.Configuration.DatabaseOptions.SectionName)
         .Bind(chatDbOptions);
+    connectionString = DatabaseConnectionString.WithManagedIdentityClientId(
+        connectionString,
+        chatDbOptions.ManagedIdentityClientId);
 
     builder.Services.AddDbContext<ChatDbContext>(options =>
     {
@@ -241,7 +244,8 @@ try
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<ChatDbContext>>();
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var cts = new CancellationTokenSource(
+                TimeSpan.FromSeconds(chatDbOptions.MigrationTimeoutSeconds));
             logger.LogInformation("Ensuring chat database is created...");
             await db.Database.EnsureCreatedAsync(cts.Token);
             logger.LogInformation("Chat database ready");
