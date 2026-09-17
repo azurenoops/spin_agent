@@ -161,6 +161,14 @@ public class AuthorizationIntegrationTests : IDisposable
         atoData.GetProperty("is_active").GetBoolean().Should().BeTrue();
         atoData.GetProperty("residual_risk_level").GetString().Should().Be("Medium");
 
+        await _authorizationService.ApplyOverrideAsync(
+            systemId,
+            "ATO",
+            "Temporary mission authorization pending formal review.",
+            DateTime.UtcNow.AddDays(7),
+            "ao-123",
+            "Alex Official");
+
         // ─── Step 4: Accept risk on finding ───────────────────────────
         var riskResult = await _acceptRiskTool.ExecuteAsync(new Dictionary<string, object?>
         {
@@ -251,6 +259,11 @@ public class AuthorizationIntegrationTests : IDisposable
         var bundleData = bundleDoc.RootElement.GetProperty("data");
         bundleData.GetProperty("document_count").GetInt32().Should().BeGreaterOrEqualTo(4);
         bundleData.GetProperty("system_id").GetString().Should().Be(systemId);
+
+        var package = await _authorizationService.BundlePackageAsync(systemId);
+        var authorizationLetter = package.Documents.Single(document => document.DocumentType == "ATO_LETTER");
+        authorizationLetter.Content.Should().Contain("**Decision**: AtoWithConditions");
+        authorizationLetter.Content.Should().Contain("**Override Status**: Ato");
     }
 
     /// <summary>

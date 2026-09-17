@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import { usePolling } from '../hooks/usePolling';
+import { useSettings } from '../hooks/useSettings';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -11,8 +12,19 @@ interface AuthorizationDecision {
   expirationDate: string | null;
   residualRiskLevel: string;
   issuedBy: string;
-  issuedAt: string;
-  riskAcceptanceCount: number;
+  issuedByName: string;
+  decisionDate: string;
+  override: AuthorizationOverride | null;
+}
+
+interface AuthorizationOverride {
+  id: string;
+  overrideStatus: string;
+  appliedBy: string;
+  appliedByName: string;
+  appliedAt: string;
+  justification: string;
+  expirationDate: string;
 }
 
 interface RiskAcceptance {
@@ -72,6 +84,13 @@ async function issueAuthorization(
   return data;
 }
 
+async function applyOverride(
+  systemId: string,
+  body: { overrideStatus: string; justification: string; expirationDate: string },
+): Promise<void> {
+  await apiClient.post(`/systems/${systemId}/authorization/override`, body);
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const DECISION_TYPES = ['ATO', 'ATOwC', 'IATT', 'DATO'] as const;
@@ -91,6 +110,8 @@ const RISK_LEVELS = ['Low', 'Medium', 'High', 'Critical'] as const;
  */
 export default function AuthorizationPage() {
   const { id: systemId = '' } = useParams<{ id: string }>();
+  const { settings } = useSettings();
+  const canApplyOverride = settings.role === 'AO';
 
   const [formOpen, setFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -103,6 +124,10 @@ export default function AuthorizationPage() {
   const [residualRisk, setResidualRisk] = useState<string>('Medium');
   const [terms, setTerms] = useState('');
   const [riskJustification, setRiskJustification] = useState('');
+  const [overrideFormOpen, setOverrideFormOpen] = useState(false);
+  const [overrideStatus, setOverrideStatus] = useState<string>('ATO');
+  const [overrideExpiration, setOverrideExpiration] = useState('');
+  const [overrideJustification, setOverrideJustification] = useState('');
 
   const fetchDecision = useCallback(() => getDecision(systemId), [systemId]);
   const fetchRisks = useCallback(() => getRiskAcceptances(systemId), [systemId]);
@@ -131,6 +156,30 @@ export default function AuthorizationPage() {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
         'Failed to issue authorization. Please check the form and try again.';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOverrideSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await applyOverride(systemId, {
+        overrideStatus,
+        justification: overrideJustification,
+        expirationDate: new Date(`${overrideExpiration}T23:59:59Z`).toISOString(),
+      });
+      setSuccess('Authorization override applied without changing the underlying verdict.');
+      setOverrideFormOpen(false);
+      refreshDecision();
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        'Failed to apply authorization override.';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -181,7 +230,7 @@ export default function AuthorizationPage() {
         <section aria-label="Active authorization decision">
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-medium text-gray-900">Active Decision</h2>
+              <h2 className="text-lg font-medium text-gray-900">Underlying AO Verdict</h2>
               <span
                 className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${decisionBadgeColor(decision.decisionType)}`}
               >
@@ -191,12 +240,12 @@ export default function AuthorizationPage() {
             <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Issued By</dt>
-                <dd className="mt-1 text-sm text-gray-900">{decision.issuedBy}</dd>
+                <dd className="mt-1 text-sm text-gray-900">{decision.issuedByName} ({decision.issuedBy})</dd>
               </div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Issued At</dt>
                 <dd className="mt-1 text-sm text-gray-900">
-                  {new Date(decision.issuedAt).toLocaleDateString()}
+                  {new Date(decision.decisionDate).toLocaleDateString()}
                 </dd>
               </div>
               <div>
@@ -211,11 +260,56 @@ export default function AuthorizationPage() {
                 <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Residual Risk</dt>
                 <dd className="mt-1 text-sm text-gray-900">{decision.residualRiskLevel}</dd>
               </div>
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Risk Acceptances</dt>
-                <dd className="mt-1 text-sm text-gray-900">{decision.riskAcceptanceCount}</dd>
-              </div>
             </dl>
+            {decision.override && (
+              <div className="mt-6 border-t border-amber-200 pt-4" role="region" aria-label="Active authorization override">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-sm font-semibold text-gray-900">Temporary Override</h3>
+                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${decisionBadgeColor(decision.override.overrideStatus)}`}>
+                    {decision.override.overrideStatus}
+                  </span>
+                </div>
+                <dl className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div><dt className="text-xs font-medium uppercase text-gray-500">Applied By</dt><dd className="mt-1 text-sm text-gray-900">{decision.override.appliedByName} ({decision.override.appliedBy})</dd></div>
+                  <div><dt className="text-xs font-medium uppercase text-gray-500">Applied At</dt><dd className="mt-1 text-sm text-gray-900">{new Date(decision.override.appliedAt).toLocaleString()}</dd></div>
+                  <div><dt className="text-xs font-medium uppercase text-gray-500">Override Expires</dt><dd className="mt-1 text-sm text-gray-900">{new Date(decision.override.expirationDate).toLocaleString()}</dd></div>
+                  <div className="sm:col-span-3"><dt className="text-xs font-medium uppercase text-gray-500">Justification</dt><dd className="mt-1 text-sm text-gray-900">{decision.override.justification}</dd></div>
+                </dl>
+              </div>
+            )}
+            {canApplyOverride && !overrideFormOpen && (
+              <button type="button" onClick={() => setOverrideFormOpen(true)} className="mt-5 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+                Apply Temporary Override
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {decision && overrideFormOpen && (
+        <section aria-label="Apply authorization override form">
+          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-medium text-gray-900">Apply Temporary Override</h2>
+            <form onSubmit={(e) => { void handleOverrideSubmit(e); }} className="mt-4 space-y-4">
+              <div>
+                <label htmlFor="override-status" className="block text-sm font-medium text-gray-700">Override Status</label>
+                <select id="override-status" value={overrideStatus} onChange={(e) => setOverrideStatus(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                  {DECISION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="override-expiration" className="block text-sm font-medium text-gray-700">Override Expiration</label>
+                <input id="override-expiration" type="date" required value={overrideExpiration} onChange={(e) => setOverrideExpiration(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+              </div>
+              <div>
+                <label htmlFor="override-justification" className="block text-sm font-medium text-gray-700">Justification</label>
+                <textarea id="override-justification" required rows={3} value={overrideJustification} onChange={(e) => setOverrideJustification(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setOverrideFormOpen(false)} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700">Cancel</button>
+                <button type="submit" disabled={submitting} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{submitting ? 'Applying...' : 'Apply Override'}</button>
+              </div>
+            </form>
           </div>
         </section>
       )}

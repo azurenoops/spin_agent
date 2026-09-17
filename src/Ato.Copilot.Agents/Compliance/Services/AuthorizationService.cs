@@ -240,6 +240,68 @@ public class AuthorizationService : IAuthorizationService
     }
 
     /// <inheritdoc />
+    public async Task<AuthorizationOverride> ApplyOverrideAsync(
+        string systemId,
+        string overrideStatus,
+        string justification,
+        DateTime expirationDate,
+        string appliedBy,
+        string appliedByName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(systemId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(overrideStatus);
+        ArgumentException.ThrowIfNullOrWhiteSpace(justification);
+        ArgumentException.ThrowIfNullOrWhiteSpace(appliedBy);
+        ArgumentException.ThrowIfNullOrWhiteSpace(appliedByName);
+
+        var normalizedStatus = overrideStatus.Equals("ATOwC", StringComparison.OrdinalIgnoreCase)
+            ? nameof(AuthorizationDecisionType.AtoWithConditions)
+            : overrideStatus;
+        if (!Enum.TryParse<AuthorizationDecisionType>(normalizedStatus, true, out var parsedStatus))
+            throw new InvalidOperationException($"Invalid override_status '{overrideStatus}'. Must be ATO, AtoWithConditions, IATT, or DATO.");
+        if (expirationDate <= DateTime.UtcNow)
+            throw new InvalidOperationException("expiration_date must be in the future.");
+
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var decision = await db.AuthorizationDecisions
+            .SingleOrDefaultAsync(d => d.RegisteredSystemId == systemId && d.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException($"No active authorization decision for system '{systemId}'.");
+
+        var appliedAt = DateTime.UtcNow;
+        var annotation = new AuthorizationOverride
+        {
+            TenantId = decision.TenantId,
+            AuthorizationDecisionId = decision.Id,
+            OverrideStatus = parsedStatus,
+            AppliedBy = appliedBy,
+            AppliedByName = appliedByName,
+            AppliedAt = appliedAt,
+            Justification = justification.Trim(),
+            ExpirationDate = expirationDate,
+        };
+        db.AuthorizationOverrides.Add(annotation);
+        db.AuditLogs.Add(new AuditLogEntry
+        {
+            TenantId = decision.TenantId,
+            UserId = appliedBy,
+            UserRole = "AuthorizingOfficial",
+            Action = "AuthorizationOverride.Apply",
+            Timestamp = appliedAt,
+            AffectedResources = [decision.Id, annotation.Id],
+            Details = $"Applied {parsedStatus} override to underlying {decision.DecisionType} decision for system '{systemId}' until {expirationDate:O}.",
+            Outcome = AuditOutcome.Success,
+        });
+        await db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Authorization override {OverrideStatus} applied to decision {DecisionId} by {AppliedBy}",
+            parsedStatus, decision.Id, appliedBy);
+        return annotation;
+    }
+
+    /// <inheritdoc />
     public async Task<RiskAcceptance> AcceptRiskAsync(
         string systemId,
         string findingId,
@@ -777,6 +839,11 @@ public class AuthorizationService : IAuthorizationService
 
         if (activeDecision != null)
         {
+            var now = DateTime.UtcNow;
+            var activeOverride = await db.AuthorizationOverrides
+                .Where(o => o.AuthorizationDecisionId == activeDecision.Id && o.ExpirationDate > now)
+                .OrderByDescending(o => o.AppliedAt)
+                .FirstOrDefaultAsync(cancellationToken);
             var letterSb = new StringBuilder();
             letterSb.AppendLine("# Authorization to Operate Letter");
             letterSb.AppendLine();
@@ -788,6 +855,17 @@ public class AuthorizationService : IAuthorizationService
             letterSb.AppendLine($"**Compliance Score**: {activeDecision.ComplianceScoreAtDecision:F2}%");
             letterSb.AppendLine($"**Issued By**: {activeDecision.IssuedByName}");
             letterSb.AppendLine();
+            if (activeOverride != null)
+            {
+                letterSb.AppendLine("## Temporary Override Annotation");
+                letterSb.AppendLine();
+                letterSb.AppendLine($"**Override Status**: {activeOverride.OverrideStatus}");
+                letterSb.AppendLine($"**Applied By**: {activeOverride.AppliedByName} ({activeOverride.AppliedBy})");
+                letterSb.AppendLine($"**Applied At**: {activeOverride.AppliedAt:O}");
+                letterSb.AppendLine($"**Expires**: {activeOverride.ExpirationDate:O}");
+                letterSb.AppendLine($"**Justification**: {activeOverride.Justification}");
+                letterSb.AppendLine();
+            }
             if (!string.IsNullOrWhiteSpace(activeDecision.TermsAndConditions))
             {
                 letterSb.AppendLine("## Terms and Conditions");

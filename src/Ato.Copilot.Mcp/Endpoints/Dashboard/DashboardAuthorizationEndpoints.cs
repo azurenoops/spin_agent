@@ -27,6 +27,88 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Authorization domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
+    private static void MapAuthorizationDecisionRoutes(IEndpointRouteBuilder group, ICurrentUserService currentUser)
+    {
+        MapIssueAuthorizationRoute(group, currentUser);
+
+        group.MapGet("/systems/{systemId}/authorization", async (
+            string systemId,
+            AtoCopilotContext context,
+            CancellationToken ct) =>
+        {
+            var now = DateTime.UtcNow;
+            var decision = await context.AuthorizationDecisions
+                .Where(d => d.RegisteredSystemId == systemId && d.IsActive)
+                .AsNoTracking()
+                .SingleOrDefaultAsync(ct);
+            if (decision is null)
+                return Results.NotFound();
+
+            var annotation = await context.AuthorizationOverrides
+                .Where(o => o.AuthorizationDecisionId == decision.Id && o.ExpirationDate > now)
+                .OrderByDescending(o => o.AppliedAt)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(ct);
+
+            return Results.Ok(new
+            {
+                decision.Id,
+                decisionType = decision.DecisionType.ToString(),
+                decision.DecisionDate,
+                decision.ExpirationDate,
+                residualRiskLevel = decision.ResidualRiskLevel.ToString(),
+                decision.IssuedBy,
+                decision.IssuedByName,
+                @override = annotation is null ? null : new
+                {
+                    annotation.Id,
+                    overrideStatus = annotation.OverrideStatus.ToString(),
+                    annotation.AppliedBy,
+                    annotation.AppliedByName,
+                    annotation.AppliedAt,
+                    annotation.Justification,
+                    annotation.ExpirationDate,
+                },
+            });
+        })
+        .WithName("GetCurrentAuthorization");
+
+        group.MapPost("/systems/{systemId}/authorization/override", async (
+            string systemId,
+            ApplyAuthorizationOverrideRequest body,
+            IAuthorizationService authorizationService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var annotation = await authorizationService.ApplyOverrideAsync(
+                    systemId,
+                    body.OverrideStatus,
+                    body.Justification,
+                    body.ExpirationDate,
+                    currentUser.CurrentUserId,
+                    currentUser.CurrentUserName,
+                    ct);
+                return Results.Created($"/api/dashboard/systems/{systemId}/authorization/override/{annotation.Id}", new
+                {
+                    annotation.Id,
+                    overrideStatus = annotation.OverrideStatus.ToString(),
+                    annotation.AppliedBy,
+                    annotation.AppliedByName,
+                    annotation.AppliedAt,
+                    annotation.Justification,
+                    annotation.ExpirationDate,
+                });
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            {
+                return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
+            }
+        })
+        .WithName("ApplyAuthorizationOverride")
+        .RequireAuthorization(Policies.AuthorizationDecisionIssuer);
+    }
+
     private static void MapIssueAuthorizationRoute(IEndpointRouteBuilder group, ICurrentUserService currentUser)
     {
         group.MapPost("/systems/{systemId}/authorization", async (
@@ -83,7 +165,7 @@ public static partial class DashboardEndpoints
 
     private static void MapAuthorizationRoutes(IEndpointRouteBuilder group, ICurrentUserService currentUser)
     {
-        MapIssueAuthorizationRoute(group, currentUser);
+        MapAuthorizationDecisionRoutes(group, currentUser);
 
         // ─── AO Pending Decisions ─────────────────────────────────────────────
         // GET /api/dashboard/ao/pending-decisions

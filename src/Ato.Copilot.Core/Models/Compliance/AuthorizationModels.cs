@@ -82,6 +82,42 @@ public class AuthorizationDecision
 
     /// <summary>Risk acceptances associated with this decision.</summary>
     public List<RiskAcceptance> RiskAcceptances { get; set; } = new();
+
+    /// <summary>Time-bounded display overrides associated with this decision.</summary>
+    public List<AuthorizationOverride> Overrides { get; set; } = new();
+}
+
+/// <summary>
+/// Records a time-bounded annotation over an authorization decision without
+/// changing the Authorizing Official's underlying verdict.
+/// </summary>
+[TenantScoped]
+public class AuthorizationOverride
+{
+    public Guid TenantId { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    [Required]
+    public string AuthorizationDecisionId { get; set; } = string.Empty;
+
+    public AuthorizationDecisionType OverrideStatus { get; set; }
+
+    [Required]
+    [MaxLength(200)]
+    public string AppliedBy { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(200)]
+    public string AppliedByName { get; set; } = string.Empty;
+
+    public DateTime AppliedAt { get; set; } = DateTime.UtcNow;
+
+    [Required]
+    [MaxLength(4000)]
+    public string Justification { get; set; } = string.Empty;
+
+    public DateTime ExpirationDate { get; set; }
+    public AuthorizationDecision? AuthorizationDecision { get; set; }
 }
 
 /// <summary>

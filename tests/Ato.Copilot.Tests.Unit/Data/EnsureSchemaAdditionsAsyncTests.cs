@@ -194,6 +194,32 @@ public class EnsureSchemaAdditionsAsyncTests
         Convert.ToInt32(await command.ExecuteScalarAsync()).Should().Be(2);
     }
 
+    [Fact]
+    public async Task AuthorizationOverrides_OnSqlite_CreatesSchemaIdempotently()
+    {
+        // Arrange
+        await using var connection = new SqliteConnection("Filename=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AtoCopilotContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var context = new AtoCopilotContext(options);
+        var logger = BuildLogger();
+
+        // Act
+        await AuthorizationOverridesSchemaAdditions.ApplyAsync(context, logger.Object);
+        await AuthorizationOverridesSchemaAdditions.ApplyAsync(context, logger.Object);
+
+        // Assert
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*) FROM sqlite_master
+            WHERE type = 'index'
+              AND name IN ('IX_AuthorizationOverride_DecisionId_ExpirationDate', 'IX_AuthorizationOverrides_TenantId');
+            """;
+        Convert.ToInt32(await command.ExecuteScalarAsync()).Should().Be(2);
+    }
+
     // ─── TenantsAndOrganizationsSchemaAdditions ───────────────────────────────
 
     /// <summary>
