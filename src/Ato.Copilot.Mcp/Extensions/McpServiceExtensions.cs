@@ -36,6 +36,7 @@ public static class McpServiceExtensions
         // User context — IHttpContextAccessor enables cross-scope access to request identity
         services.AddHttpContextAccessor();
         services.AddScoped<IUserContext, HttpUserContext>();
+        services.TryAddSingleton<ICurrentUserService, CurrentUserService>();
 
         // ── Cross-cutting Singleton dependencies (TryAdd: production overrides win) ──
         // These satisfy strict-scope DI validation when the MCP container is built

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Azure.Identity;
@@ -58,6 +59,7 @@ public class ApiMismatchRouteTests : IAsyncLifetime
 
     private const string TestSystemId = "sys-apimismatch-052-001";
     private const string TestBaselineId = "bl-apimismatch-052-001";
+    private const string TestActorId = "audit.user@example.mil";
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -100,6 +102,13 @@ public class ApiMismatchRouteTests : IAsyncLifetime
 
         _app = builder.Build();
 
+        _app.Use(async (context, next) =>
+        {
+            context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, TestActorId)],
+                authenticationType: "Test"));
+            await next(context);
+        });
         _app.UseCors();
         _app.UseMiddleware<ComplianceAuthorizationMiddleware>();
         _app.UseMiddleware<AuditLoggingMiddleware>();
@@ -402,6 +411,43 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
         body.GetProperty("errorCode").GetString().Should().Be("POAM_NOT_FOUND");
         body.GetProperty("error").GetString().Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task Issue823_RunAssessment_PersistsAuthenticatedActor()
+    {
+        // Arrange
+        using (var scope = _app.Services.CreateScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+            await using var db = await factory.CreateDbContextAsync();
+            db.SecurityCategorizations.Add(new SecurityCategorization
+            {
+                RegisteredSystemId = TestSystemId,
+                CategorizedBy = "test-user",
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/dashboard/systems/{TestSystemId}/run-assessment",
+            content: null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var verificationScope = _app.Services.CreateScope();
+        var verificationFactory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+        await using var verificationDb = await verificationFactory.CreateDbContextAsync();
+        var assessment = await verificationDb.Assessments
+            .SingleAsync(a => a.RegisteredSystemId == TestSystemId);
+        assessment.InitiatedBy.Should().Be(TestActorId);
+        (await verificationDb.ControlEffectivenessRecords
+                .Where(e => e.AssessmentId == assessment.Id)
+                .Select(e => e.AssessorId)
+                .Distinct()
+                .ToListAsync())
+            .Should().Equal(TestActorId);
     }
 
     // ─── T011: GAP-004 — single POAM status with systemId ───────────────────

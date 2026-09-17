@@ -1,9 +1,11 @@
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Mcp.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -14,6 +16,7 @@ public static class PackageEndpoints
 {
     public static IEndpointRouteBuilder MapPackageEndpoints(this IEndpointRouteBuilder app)
     {
+        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
         var systems = app.MapGroup("/api/v1/systems/{systemId}")
             .WithTags("AuthorizationPackage");
 
@@ -160,7 +163,7 @@ public static class PackageEndpoints
                 try
                 {
                     var input = new SapGenerationInput(SystemId: systemId);
-                    var sap = await service.GenerateSapAsync(input, "dashboard-user", ct);
+                    var sap = await service.GenerateSapAsync(input, currentUser.CurrentUserId, ct);
                     return Results.Created($"/api/v1/systems/{systemId}/sap/{sap.SapId}", MapSapResponse(sap));
                 }
                 catch (InvalidOperationException ex)
@@ -190,7 +193,7 @@ public static class PackageEndpoints
             {
                 try
                 {
-                    var sap = await service.FinalizeSapAsync(sapId, "dashboard-user", ct);
+                    var sap = await service.FinalizeSapAsync(sapId, currentUser.CurrentUserId, ct);
                     return Results.Ok(MapSapResponse(sap));
                 }
                 catch (InvalidOperationException ex)
@@ -265,7 +268,7 @@ public static class PackageEndpoints
                 IPackageValidationService service,
                 CancellationToken ct) =>
             {
-                var result = await service.ValidateAsync(systemId, "dashboard-user", ct);
+                var result = await service.ValidateAsync(systemId, currentUser.CurrentUserId, ct);
                 return Results.Ok(new
                 {
                     isValid = result.IsValid,
@@ -294,7 +297,7 @@ public static class PackageEndpoints
             {
                 try
                 {
-                    var package = await service.EnqueuePackageAsync(systemId, request.EvidenceMode, "dashboard-user", ct);
+                    var package = await service.EnqueuePackageAsync(systemId, request.EvidenceMode, currentUser.CurrentUserId, ct);
                     return Results.Accepted(
                         $"/api/v1/systems/{systemId}/packages/{package.Id}",
                         new

@@ -27,7 +27,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Categorization domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapCategorizationRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapCategorizationRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapPost("/systems/{systemId}/categorization", async (
                 string systemId,
@@ -67,7 +67,7 @@ public static partial class DashboardEndpoints
                     var result = await categorizationService.CategorizeSystemAsync(
                         systemId,
                         infoTypes,
-                        "dashboard-user",
+                        currentUser.CurrentUserId,
                         body.IsNationalSecuritySystem,
                         body.Justification,
                         ct);
@@ -76,7 +76,7 @@ public static partial class DashboardEndpoints
                     {
                         RegisteredSystemId = systemId,
                         EventType = "CategorizationSet",
-                        Actor = "dashboard-user",
+                        Actor = currentUser.CurrentUserId,
                         Summary = $"Security categorization set to {result.OverallCategorization} (C:{result.ConfidentialityImpact} I:{result.IntegrityImpact} A:{result.AvailabilityImpact})",
                         RelatedEntityType = "SecurityCategorization",
                         RelatedEntityId = result.Id,
@@ -95,7 +95,7 @@ public static partial class DashboardEndpoints
                         var newBaseline = await baselineService.SelectBaselineAsync(
                             systemId,
                             applyOverlay: true,
-                            selectedBy: "dashboard-user",
+                            selectedBy: currentUser.CurrentUserId,
                             cancellationToken: ct);
 
                         baselineReselected = newBaseline.BaselineLevel;
@@ -106,7 +106,7 @@ public static partial class DashboardEndpoints
                         {
                             RegisteredSystemId = systemId,
                             EventType = "BaselineAutoReselected",
-                            Actor = "dashboard-user",
+                            Actor = currentUser.CurrentUserId,
                             Summary = $"Baseline auto-reselected from {previousBaselineLevel} to {newBaseline.BaselineLevel} ({newBaseline.TotalControls} controls) due to categorization change",
                             RelatedEntityType = "ControlBaseline",
                             RelatedEntityId = newBaseline.Id,
@@ -182,14 +182,14 @@ public static partial class DashboardEndpoints
                         systemId,
                         applyOverlay: body.ApplyOverlay,
                         overlayName: body.OverlayName,
-                        selectedBy: "dashboard-user",
+                        selectedBy: currentUser.CurrentUserId,
                         cancellationToken: ct);
 
                     context.DashboardActivities.Add(new DashboardActivity
                     {
                         RegisteredSystemId = systemId,
                         EventType = "BaselineSelected",
-                        Actor = "dashboard-user",
+                        Actor = currentUser.CurrentUserId,
                         Summary = $"Control baseline selected: {baseline.BaselineLevel} ({baseline.TotalControls} controls)",
                         RelatedEntityType = "ControlBaseline",
                         RelatedEntityId = baseline.Id,
@@ -292,7 +292,7 @@ public static partial class DashboardEndpoints
                     });
 
                 var result = await lifecycleService.AdvanceRmfStepAsync(
-                    systemId, targetStep, body.Force ?? false, "dashboard-user", ct);
+                    systemId, targetStep, body.Force ?? false, currentUser.CurrentUserId, ct);
 
                 if (!result.Success)
                 {
@@ -325,7 +325,7 @@ public static partial class DashboardEndpoints
                             Message = gate.Message,
                             SkippedFromPhase = result.PreviousStep.ToString(),
                             AdvancedToPhase = result.NewStep.ToString(),
-                            CreatedBy = "dashboard-user",
+                            CreatedBy = currentUser.CurrentUserId,
                         });
                     }
                     if (failedGates.Count > 0)
@@ -336,7 +336,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "RmfPhaseAdvanced",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"RMF phase advanced from {result.PreviousStep} to {result.NewStep}{(result.WasForced ? " (force-advanced)" : "")}",
                     RelatedEntityType = "RegisteredSystem",
                     RelatedEntityId = systemId,
@@ -421,7 +421,7 @@ public static partial class DashboardEndpoints
             {
                 var result = await privacyService.CreatePtaAsync(
                     systemId,
-                    analyzedBy: "dashboard-user",
+                    analyzedBy: currentUser.CurrentUserId,
                     manualMode: true,
                     collectsPii: body.CollectsPii,
                     maintainsPii: body.MaintainsPii,
@@ -434,7 +434,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "PtaCreated",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Privacy Threshold Analysis completed — determination: {result.Determination}",
                     RelatedEntityType = "PrivacyThresholdAnalysis",
                     RelatedEntityId = result.PtaId,
@@ -477,7 +477,7 @@ public static partial class DashboardEndpoints
                     connType,
                     direction,
                     body.DataClassification ?? "CUI",
-                    createdBy: "dashboard-user",
+                    createdBy: currentUser.CurrentUserId,
                     protocolsUsed: string.IsNullOrWhiteSpace(body.Protocol) ? null : new List<string> { body.Protocol },
                     portsUsed: string.IsNullOrWhiteSpace(body.Port) ? null : new List<string> { body.Port },
                     cancellationToken: ct);
@@ -486,7 +486,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "InterconnectionAdded",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Interconnection added to {result.TargetSystemName} ({body.Direction})",
                     RelatedEntityType = "SystemInterconnection",
                     RelatedEntityId = result.InterconnectionId,
@@ -515,7 +515,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "NoInterconnectionsCertified",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = "Certified that system has no external interconnections",
                     RelatedEntityType = "RegisteredSystem",
                     RelatedEntityId = systemId,
@@ -535,21 +535,21 @@ public static partial class DashboardEndpoints
             {
                 var piaResult = await privacyService.GeneratePiaAsync(
                     systemId,
-                    createdBy: "dashboard-user",
+                    createdBy: currentUser.CurrentUserId,
                     cancellationToken: ct);
 
                 var reviewResult = await privacyService.ReviewPiaAsync(
                     systemId,
                     PiaReviewDecision.Approved,
                     reviewerComments: "Approved via dashboard.",
-                    reviewedBy: "dashboard-user",
+                    reviewedBy: currentUser.CurrentUserId,
                     cancellationToken: ct);
 
                 context.DashboardActivities.Add(new DashboardActivity
                 {
                     RegisteredSystemId = systemId,
                     EventType = "PiaApproved",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Privacy Impact Assessment generated and approved (expires {reviewResult.ExpirationDate:yyyy-MM-dd})",
                     RelatedEntityType = "PrivacyImpactAssessment",
                     RelatedEntityId = piaResult.PiaId,

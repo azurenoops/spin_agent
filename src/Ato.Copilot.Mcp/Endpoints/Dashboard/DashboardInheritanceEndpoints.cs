@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Inheritance domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapInheritanceRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapInheritanceRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapGet("/systems/{systemId}/inheritance", async (
             string systemId,
@@ -234,7 +234,7 @@ public static partial class DashboardEndpoints
                 CustomerResponsibility = d.CustomerResponsibility
             });
 
-            var result = await baselineService.SetInheritanceAsync(systemId, mappings, "dashboard-user", changeSource, ct);
+            var result = await baselineService.SetInheritanceAsync(systemId, mappings, currentUser.CurrentUserId, changeSource, ct);
 
             var totalControls = result.Baseline.ControlIds.Count;
             var undesignated = totalControls - result.InheritedCount - result.SharedCount - result.CustomerCount;
@@ -244,7 +244,7 @@ public static partial class DashboardEndpoints
             {
                 RegisteredSystemId = systemId,
                 EventType = "InheritanceUpdated",
-                Actor = "dashboard-user",
+                Actor = currentUser.CurrentUserId,
                 Summary = $"Updated {result.ControlsUpdated} control inheritance designations (source: {changeSource})",
                 RelatedEntityType = "ControlBaseline",
                 RelatedEntityId = result.Baseline.Id,
@@ -282,7 +282,7 @@ public static partial class DashboardEndpoints
             if (req.ControlIds == null || req.ControlIds.Count == 0)
                 return Results.BadRequest(new ErrorResponse { Error = "At least one control ID is required.", ErrorCode = "INVALID_INPUT" });
 
-            var revertedBy = req.RevertedBy ?? "dashboard-user";
+            var revertedBy = currentUser.CurrentUserId;
             var result = await orgService.RevertToOrgDefaultsAsync(systemId, req.ControlIds, revertedBy, ct);
 
             context.DashboardActivities.Add(new DashboardActivity
@@ -468,7 +468,7 @@ public static partial class DashboardEndpoints
             });
 
             var result = await baselineService.SetInheritanceAsync(
-                systemId, mappings, "dashboard-user", InheritanceChangeSource.ProfileApply, ct);
+                systemId, mappings, currentUser.CurrentUserId, InheritanceChangeSource.ProfileApply, ct);
 
             return Results.Ok(new
             {
@@ -581,7 +581,7 @@ public static partial class DashboardEndpoints
             AtoCopilotContext context,
             CancellationToken ct) =>
         {
-            var result = await orgService.DeriveOrgDefaultsAsync("dashboard-user", ct);
+            var result = await orgService.DeriveOrgDefaultsAsync(currentUser.CurrentUserId, ct);
 
             return Results.Ok(result);
         }).WithName("DeriveOrgInheritanceDefaults");

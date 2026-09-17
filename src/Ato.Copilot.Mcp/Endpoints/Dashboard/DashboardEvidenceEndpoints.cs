@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Evidence domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapEvidenceRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapEvidenceRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapPost("/systems/{systemId}/evidence", async (
                 string systemId,
@@ -98,7 +98,7 @@ public static partial class DashboardEndpoints
                         ErrorCode = "INVALID_NARRATIVE_TYPE",
                     });
 
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = currentUser.CurrentUserId;
 
                 try
                 {
@@ -557,7 +557,7 @@ public static partial class DashboardEndpoints
                 HttpContext httpContext,
                 CancellationToken ct) =>
             {
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = currentUser.CurrentUserId;
                 var deleted = await evidenceService.DeleteAsync(evidenceId, userId, ct);
 
                 return deleted
@@ -602,7 +602,7 @@ public static partial class DashboardEndpoints
                 if (string.IsNullOrWhiteSpace(description))
                     description = null;
 
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = currentUser.CurrentUserId;
 
                 try
                 {
@@ -736,7 +736,7 @@ public static partial class DashboardEndpoints
                 if (string.IsNullOrWhiteSpace(req.ControlId) || string.IsNullOrWhiteSpace(req.EvidenceReferenceId))
                     return Results.BadRequest(new ErrorResponse { Error = "ControlId and EvidenceReferenceId are required", ErrorCode = "VALIDATION_ERROR" });
 
-                var actor = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var actor = currentUser.CurrentUserId;
                 var mapping = await correlationEngine.CorrelateEvidenceAsync(
                     req.ControlId,
                     req.SubscriptionId ?? string.Empty,

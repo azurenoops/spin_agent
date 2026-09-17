@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Authorization domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapAuthorizationRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapAuthorizationRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         app.MapPost("/api/dashboard/systems/{systemId}/authorization", async (
             string systemId,
@@ -45,7 +45,7 @@ public static partial class DashboardEndpoints
                     body.TermsAndConditions,
                     body.ResidualRiskJustification,
                     body.RiskAcceptances,
-                    body.IssuedBy ?? "dashboard-user",
+                    currentUser.CurrentUserId,
                     body.IssuedByName ?? "Dashboard User",
                     ct);
 
@@ -53,7 +53,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "AuthorizationIssued",
-                    Actor = body.IssuedBy ?? "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Authorization decision issued: {decision.DecisionType} (expires {decision.ExpirationDate:yyyy-MM-dd})",
                     RelatedEntityType = "AuthorizationDecision",
                     RelatedEntityId = decision.Id,
@@ -146,14 +146,14 @@ public static partial class DashboardEndpoints
                     body.Justification,
                     body.ExpirationDate,
                     body.CompensatingControl,
-                    body.AcceptedBy ?? "dashboard-user",
+                    currentUser.CurrentUserId,
                     ct);
 
                 context.DashboardActivities.Add(new DashboardActivity
                 {
                     RegisteredSystemId = systemId,
                     EventType = "RiskAccepted",
-                    Actor = body.AcceptedBy ?? "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Risk accepted for {body.ControlId} ({body.CatSeverity}) — expires {body.ExpirationDate:yyyy-MM-dd}",
                     RelatedEntityType = "RiskAcceptance",
                     RelatedEntityId = risk.Id,
@@ -192,14 +192,14 @@ public static partial class DashboardEndpoints
                     body.AnnualReviewDate ?? DateTime.UtcNow.AddYears(1),
                     body.ReportDistribution,
                     body.SignificantChangeTriggers,
-                    "dashboard-user",
+                    currentUser.CurrentUserId,
                     ct);
 
                 context.DashboardActivities.Add(new DashboardActivity
                 {
                     RegisteredSystemId = systemId,
                     EventType = "ConMonPlanCreated",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Continuous monitoring plan created (frequency: {body.AssessmentFrequency ?? "Monthly"})",
                     RelatedEntityType = "ConMonPlan",
                     RelatedEntityId = plan.Id,
@@ -234,14 +234,14 @@ public static partial class DashboardEndpoints
                     systemId,
                     body.ReportType ?? "Monthly",
                     body.Period ?? DateTime.UtcNow.ToString("yyyy-MM"),
-                    "dashboard-user",
+                    currentUser.CurrentUserId,
                     ct);
 
                 context.DashboardActivities.Add(new DashboardActivity
                 {
                     RegisteredSystemId = systemId,
                     EventType = "ConMonReportGenerated",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"ConMon report generated ({body.ReportType ?? "Monthly"} — {body.Period ?? DateTime.UtcNow.ToString("yyyy-MM")})",
                     RelatedEntityType = "ConMonReport",
                     RelatedEntityId = report.Id,
@@ -278,7 +278,7 @@ public static partial class DashboardEndpoints
                     systemId,
                     body.ChangeType ?? "Hardware",
                     body.Description ?? string.Empty,
-                    body.DetectedBy ?? "dashboard-user",
+                    currentUser.CurrentUserId,
                     ct);
 
                 var desc = body.Description ?? string.Empty;
@@ -287,7 +287,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "SignificantChangeReported",
-                    Actor = body.DetectedBy ?? "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Significant change reported: {body.ChangeType ?? "Hardware"} \u2014 {truncatedDesc}",
                     RelatedEntityType = "SignificantChange",
                     RelatedEntityId = change.Id,
@@ -649,7 +649,7 @@ public static partial class DashboardEndpoints
             {
                 board = await kanbanService.CreateBoardAsync(
                     $"Remediation — {body.SystemId[..Math.Min(8, body.SystemId.Length)]}",
-                    body.SystemId, "dashboard-user", ct);
+                    body.SystemId, currentUser.CurrentUserId, ct);
             }
 
             // Default controlId to "AC-1" if not provided (required by KanbanService)
@@ -668,7 +668,7 @@ public static partial class DashboardEndpoints
             try
             {
                 var task = await kanbanService.CreateTaskAsync(
-                    board.Id, body.Title, controlId, "dashboard-user",
+                    board.Id, body.Title, controlId, currentUser.CurrentUserId,
                     description: body.Description,
                     severity: severity,
                     dueDate: dueDate,
@@ -723,7 +723,7 @@ public static partial class DashboardEndpoints
                 EventType = HistoryEventType.StatusChanged,
                 OldValue = oldStatus.ToString(),
                 NewValue = newStatus.ToString(),
-                ActingUserId = "dashboard-user",
+                ActingUserId = currentUser.CurrentUserId,
                 ActingUserName = "Dashboard User",
                 Timestamp = DateTime.UtcNow,
             });

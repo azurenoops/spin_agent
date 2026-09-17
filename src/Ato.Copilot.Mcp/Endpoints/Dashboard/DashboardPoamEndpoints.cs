@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Poam domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapPoamRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapPoamRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapGet("/systems/{systemId}/poam", async (
             string systemId,
@@ -217,7 +217,7 @@ public static partial class DashboardEndpoints
                 return Results.BadRequest(new ErrorResponse { Error = "At least one findingId is required.", ErrorCode = "INVALID_INPUT" });
 
             var result = await poamService.BulkCreateFromFindingsAsync(
-                systemId, req.FindingIds, req.ComponentIds, req.LinkRemediationTasks, "dashboard-user", ct);
+                systemId, req.FindingIds, req.ComponentIds, req.LinkRemediationTasks, currentUser.CurrentUserId, ct);
 
             var totalFailed = result.Results.Count(r => r.Status == "error");
             var response = new
@@ -256,7 +256,7 @@ public static partial class DashboardEndpoints
             try
             {
                 var updated = await poamService.UpdateStatusAsync(
-                    poamId, newStatus, rv, "dashboard-user",
+                    poamId, newStatus, rv, currentUser.CurrentUserId,
                     req.DelayReason, req.RevisedDate.HasValue ? req.RevisedDate.Value : null,
                     req.DeviationId, req.Comments, req.CascadeToTask, ct);
 
@@ -300,7 +300,7 @@ public static partial class DashboardEndpoints
             try
             {
                 var updated = await poamService.UpdateStatusAsync(
-                    poamId, newStatus, rv, "dashboard-user",
+                    poamId, newStatus, rv, currentUser.CurrentUserId,
                     req.DelayReason, req.RevisedDate.HasValue ? req.RevisedDate.Value : null,
                     req.DeviationId, req.Comments, req.CascadeToTask, ct);
 
@@ -337,7 +337,7 @@ public static partial class DashboardEndpoints
                 return Results.BadRequest(new ErrorResponse { Error = $"Invalid status: {req.Status}.", ErrorCode = "INVALID_INPUT" });
 
             var results = await poamService.BulkUpdateStatusAsync(
-                req.PoamIds, newStatus, "dashboard-user", req.DelayReason, req.RevisedDate, req.Comments, ct);
+                req.PoamIds, newStatus, currentUser.CurrentUserId, req.DelayReason, req.RevisedDate, req.Comments, ct);
 
             return Results.Ok(new
             {
@@ -358,7 +358,7 @@ public static partial class DashboardEndpoints
                 return Results.BadRequest(new ErrorResponse { Error = $"Invalid status: {req.Status}.", ErrorCode = "INVALID_INPUT" });
 
             var results = await poamService.BulkUpdateStatusAsync(
-                req.PoamIds, newStatus, "dashboard-user", req.DelayReason, req.RevisedDate, req.Comments, ct);
+                req.PoamIds, newStatus, currentUser.CurrentUserId, req.DelayReason, req.RevisedDate, req.Comments, ct);
 
             return Results.Ok(new
             {
@@ -377,7 +377,7 @@ public static partial class DashboardEndpoints
 
             try
             {
-                await poamService.LinkComponentsAsync(poamId, req.ComponentIds, "dashboard-user", ct);
+                await poamService.LinkComponentsAsync(poamId, req.ComponentIds, currentUser.CurrentUserId, ct);
                 return Results.Ok(new { linked = req.ComponentIds.Count });
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
@@ -395,7 +395,7 @@ public static partial class DashboardEndpoints
 
             try
             {
-                await poamService.UnlinkComponentsAsync(poamId, req.ComponentIds, "dashboard-user", ct);
+                await poamService.UnlinkComponentsAsync(poamId, req.ComponentIds, currentUser.CurrentUserId, ct);
                 return Results.Ok(new { unlinked = req.ComponentIds.Count });
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
@@ -429,7 +429,7 @@ public static partial class DashboardEndpoints
 
             try
             {
-                var task = await syncService.CreateTaskFromPoamAsync(poamId, req.BoardId, "dashboard-user", ct);
+                var task = await syncService.CreateTaskFromPoamAsync(poamId, req.BoardId, currentUser.CurrentUserId, ct);
                 return Results.Ok(new { taskId = task.Id, poamId, linked = true });
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
@@ -451,7 +451,7 @@ public static partial class DashboardEndpoints
 
             try
             {
-                await syncService.LinkAsync(poamId, req.TaskId, "dashboard-user", ct);
+                await syncService.LinkAsync(poamId, req.TaskId, currentUser.CurrentUserId, ct);
                 return Results.Ok(new { poamId, taskId = req.TaskId, linked = true });
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
@@ -470,7 +470,7 @@ public static partial class DashboardEndpoints
         {
             try
             {
-                await syncService.UnlinkAsync(poamId, "dashboard-user", ct);
+                await syncService.UnlinkAsync(poamId, currentUser.CurrentUserId, ct);
                 return Results.Ok(new { poamId, unlinked = true });
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))

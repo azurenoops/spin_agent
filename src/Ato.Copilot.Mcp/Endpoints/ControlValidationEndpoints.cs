@@ -3,10 +3,12 @@ using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Mcp.Authorization;
+using Ato.Copilot.Mcp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -14,12 +16,13 @@ public static class ControlValidationEndpoints
 {
     public static IEndpointRouteBuilder MapControlValidationEndpoints(this IEndpointRouteBuilder app)
     {
-        MapRoutes(app.MapGroup("/api/systems/{systemId}/controls/{controlId}/validation"));
-        MapRoutes(app.MapGroup("/api/dashboard/systems/{systemId}/controls/{controlId}/validation"));
+        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
+        MapRoutes(app.MapGroup("/api/systems/{systemId}/controls/{controlId}/validation"), currentUser);
+        MapRoutes(app.MapGroup("/api/dashboard/systems/{systemId}/controls/{controlId}/validation"), currentUser);
         return app;
     }
 
-    private static void MapRoutes(RouteGroupBuilder group)
+    private static void MapRoutes(RouteGroupBuilder group, ICurrentUserService currentUser)
     {
         group
             .WithTags("Control Validation")
@@ -68,7 +71,7 @@ public static class ControlValidationEndpoints
                     linkType,
                     request.LinkTarget,
                     request.Description,
-                    user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "dashboard-user",
+                    user.FindFirstValue(ClaimTypes.NameIdentifier) ?? currentUser.CurrentUserId,
                     cancellationToken);
                 return Results.Created($"/api/systems/{systemId}/controls/{controlId}/validation/{link.Id}", ToResponse(link));
             }
@@ -97,7 +100,7 @@ public static class ControlValidationEndpoints
             CancellationToken cancellationToken) =>
             await service.DeleteLinkAsync(
                 linkId,
-                user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "dashboard-user",
+                user.FindFirstValue(ClaimTypes.NameIdentifier) ?? currentUser.CurrentUserId,
                 cancellationToken)
                 ? Results.NoContent()
                 : Results.NotFound())

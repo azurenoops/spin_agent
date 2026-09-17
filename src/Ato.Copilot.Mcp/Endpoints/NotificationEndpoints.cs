@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
+using Ato.Copilot.Mcp.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -14,6 +16,7 @@ public static class NotificationEndpoints
 {
     public static IEndpointRouteBuilder MapNotificationEndpoints(this IEndpointRouteBuilder app)
     {
+        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
         var group = app.MapGroup("/api/dashboard/notifications")
             .WithTags("Notifications");
 
@@ -25,7 +28,7 @@ public static class NotificationEndpoints
                 AtoCopilotContext db,
                 CancellationToken ct) =>
             {
-                var resolvedUserId = userId ?? "dashboard-user";
+                var resolvedUserId = currentUser.CurrentUserId;
                 var take = Math.Clamp(limit ?? 50, 1, 200);
 
                 var query = db.AlertNotifications
@@ -64,7 +67,7 @@ public static class NotificationEndpoints
                 AtoCopilotContext db,
                 CancellationToken ct) =>
             {
-                var resolvedUserId = userId ?? "dashboard-user";
+                var resolvedUserId = currentUser.CurrentUserId;
 
                 var unreadCount = await db.AlertNotifications
                     .CountAsync(n => n.UserId == resolvedUserId && !n.IsRead, ct);
@@ -112,7 +115,7 @@ public static class NotificationEndpoints
                 AtoCopilotContext db,
                 CancellationToken ct) =>
             {
-                var resolvedUserId = userId ?? "dashboard-user";
+                var resolvedUserId = currentUser.CurrentUserId;
                 var now = DateTimeOffset.UtcNow;
 
                 var unread = await db.AlertNotifications
@@ -137,7 +140,7 @@ public static class NotificationEndpoints
                 AtoCopilotContext db,
                 CancellationToken ct) =>
             {
-                var resolvedUserId = userId ?? "dashboard-user";
+                var resolvedUserId = currentUser.CurrentUserId;
 
                 var prefs = await db.NotificationPreferences
                     .FirstOrDefaultAsync(p => p.UserId == resolvedUserId, ct);
@@ -161,7 +164,7 @@ public static class NotificationEndpoints
                 AtoCopilotContext db,
                 CancellationToken ct) =>
             {
-                var resolvedUserId = userId ?? "dashboard-user";
+                var resolvedUserId = currentUser.CurrentUserId;
 
                 var prefs = await db.NotificationPreferences
                     .FirstOrDefaultAsync(p => p.UserId == resolvedUserId, ct);

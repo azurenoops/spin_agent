@@ -9,6 +9,7 @@ using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Endpoints;
+using Ato.Copilot.Mcp.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -49,6 +50,8 @@ public sealed class EmassWorkflowEndpointsTests : IAsyncLifetime
         builder.Services.AddSingleton(statusService.Object);
         builder.Services.AddSingleton(Mock.Of<IEmassExportReadinessService>());
         builder.Services.AddSingleton(Mock.Of<IEmassRoundTripSyncService>());
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<ICurrentUserService, CurrentUserService>();
         builder.Services
             .AddAuthentication(TestAuthScheme)
             .AddScheme<AuthenticationSchemeOptions, RoleHeaderAuthenticationHandler>(TestAuthScheme, _ => { });

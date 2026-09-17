@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Exports domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapExportRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapExportRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapPost("/systems/{systemId}/exports", async (
                 string systemId,
@@ -45,7 +45,7 @@ public static partial class DashboardEndpoints
                         Suggestion = "Use: docx, pdf, json",
                     });
 
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = currentUser.CurrentUserId;
 
                 try
                 {
@@ -171,7 +171,7 @@ public static partial class DashboardEndpoints
                     });
 
                 var description = form["description"].ToString();
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = currentUser.CurrentUserId;
 
                 try
                 {
@@ -219,7 +219,7 @@ public static partial class DashboardEndpoints
                 ISspExportService exportService,
                 CancellationToken ct) =>
             {
-                var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                var userId = currentUser.CurrentUserId;
                 var deleted = await exportService.DeleteTemplateAsync(templateId, userId, ct);
                 return deleted ? Results.NoContent() : Results.NotFound(new ErrorResponse
                 {
@@ -239,7 +239,7 @@ public static partial class DashboardEndpoints
             {
                 try
                 {
-                    var userId = httpContext.User?.Identity?.Name ?? "dashboard-user";
+                    var userId = currentUser.CurrentUserId;
                     var result = await exportService.UpdateTemplateAsync(
                         templateId, body.Name, body.Description, userId, ct);
                     return result is not null

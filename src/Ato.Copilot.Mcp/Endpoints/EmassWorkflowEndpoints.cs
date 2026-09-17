@@ -5,10 +5,12 @@ using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Mcp.Authorization;
+using Ato.Copilot.Mcp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -22,12 +24,13 @@ public static class EmassWorkflowEndpoints
 
     public static IEndpointRouteBuilder MapEmassWorkflowEndpoints(this IEndpointRouteBuilder app)
     {
-        MapRoutes(app.MapGroup("/api/systems/{systemId}/emass"));
-        MapRoutes(app.MapGroup("/api/dashboard/systems/{systemId}/emass"));
+        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
+        MapRoutes(app.MapGroup("/api/systems/{systemId}/emass"), currentUser);
+        MapRoutes(app.MapGroup("/api/dashboard/systems/{systemId}/emass"), currentUser);
         return app;
     }
 
-    private static void MapRoutes(RouteGroupBuilder group)
+    private static void MapRoutes(RouteGroupBuilder group, ICurrentUserService currentUser)
     {
         group.WithTags("eMASS Workflow").DisableAntiforgery();
 
@@ -149,7 +152,7 @@ public static class EmassWorkflowEndpoints
                     systemId,
                     conflictId,
                     request,
-                    user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "dashboard-user",
+                    user.FindFirstValue(ClaimTypes.NameIdentifier) ?? currentUser.CurrentUserId,
                     cancellationToken);
                 return Results.Ok(Envelope(conflict));
             }

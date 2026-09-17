@@ -26,7 +26,7 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Components domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
-    private static void MapComponentRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
+    private static void MapComponentRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
         group.MapGet("/components", async (
                 [AsParameters] OrgComponentQuery query,
@@ -60,7 +60,7 @@ public static partial class DashboardEndpoints
                 ComponentService compService,
                 CancellationToken ct) =>
             {
-                var result = await compService.CreateOrgComponentAsync(request, "dashboard-user", ct);
+                var result = await compService.CreateOrgComponentAsync(request, currentUser.CurrentUserId, ct);
                 return Results.Created($"/api/dashboard/components/{result.Id}", result);
             })
             .WithName("CreateOrgComponent");
@@ -88,7 +88,7 @@ public static partial class DashboardEndpoints
                 ComponentService compService,
                 CancellationToken ct) =>
             {
-                var result = await compService.DeleteComponentAsync(componentId, "dashboard-user", ct);
+                var result = await compService.DeleteComponentAsync(componentId, currentUser.CurrentUserId, ct);
                 return result is not null
                     ? Results.Ok(result)
                     : Results.NotFound(new ErrorResponse
@@ -106,7 +106,7 @@ public static partial class DashboardEndpoints
                 ComponentService compService,
                 CancellationToken ct) =>
             {
-                var (assignment, error) = await compService.AssignToSystemAsync(componentId, request, "dashboard-user", ct);
+                var (assignment, error) = await compService.AssignToSystemAsync(componentId, request, currentUser.CurrentUserId, ct);
                 if (error == "Component not found" || error == "System not found")
                     return Results.NotFound(new ErrorResponse { Error = error, ErrorCode = "NOT_FOUND" });
                 if (error == "Assignment already exists")
@@ -271,7 +271,7 @@ public static partial class DashboardEndpoints
                 }
 
                 var (narrative, errorCode) = await capService.RegenerateNarrativeWithAiAsync(
-                    systemId, controlId, "dashboard-user", ct);
+                    systemId, controlId, currentUser.CurrentUserId, ct);
                 return errorCode switch
                 {
                     "NOT_FOUND" => Results.NotFound(new ErrorResponse
@@ -385,7 +385,7 @@ public static partial class DashboardEndpoints
                 }
 
                 var result = await capService.BulkRegenerateNarrativesForCapabilityAsync(
-                    systemId, capabilityId, "dashboard-user", ct);
+                    systemId, capabilityId, currentUser.CurrentUserId, ct);
                 return result is not null
                     ? Results.Ok(result)
                     : Results.NotFound(new ErrorResponse
@@ -430,7 +430,7 @@ public static partial class DashboardEndpoints
                 try
                 {
                     var (linkedCount, items) = await linkService.LinkCapabilitiesAsync(
-                        systemId, body.CapabilityIds, "dashboard-user", ct);
+                        systemId, body.CapabilityIds, currentUser.CurrentUserId, ct);
                     return Results.Ok(new
                     {
                         linkedCount,
@@ -542,7 +542,7 @@ public static partial class DashboardEndpoints
                 {
                     RegisteredSystemId = systemId,
                     EventType = "ComponentCreated",
-                    Actor = "dashboard-user",
+                    Actor = currentUser.CurrentUserId,
                     Summary = $"Component '{request.Name}' created (type: {request.ComponentType})",
                     RelatedEntityType = "SystemComponent",
                     RelatedEntityId = result.Id,
