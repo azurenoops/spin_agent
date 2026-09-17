@@ -34,6 +34,7 @@ public class AuthorizationIntegrationTests : IDisposable
     private readonly ListPoamTool _listPoamTool;
     private readonly GenerateRarTool _generateRarTool;
     private readonly BundleAuthorizationPackageTool _bundlePackageTool;
+    private readonly AuthorizationService _authorizationService;
 
     public AuthorizationIntegrationTests()
     {
@@ -50,17 +51,17 @@ public class AuthorizationIntegrationTests : IDisposable
 
         var lifecycleSvc = new RmfLifecycleService(_scopeFactory, _serviceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(), Mock.Of<ILogger<RmfLifecycleService>>());
         var assessmentSvc = new AssessmentArtifactService(_scopeFactory, Mock.Of<ILogger<AssessmentArtifactService>>());
-        var authorizationSvc = new AuthorizationService(_scopeFactory, Mock.Of<ILogger<AuthorizationService>>());
+        _authorizationService = new AuthorizationService(_scopeFactory, Mock.Of<ILogger<AuthorizationService>>());
 
         _registerTool = new RegisterSystemTool(lifecycleSvc, Mock.Of<ILogger<RegisterSystemTool>>());
         _assessControlTool = new AssessControlTool(assessmentSvc, Mock.Of<ILogger<AssessControlTool>>());
-        _issueAuthorizationTool = new IssueAuthorizationTool(authorizationSvc, Mock.Of<ILogger<IssueAuthorizationTool>>());
-        _acceptRiskTool = new AcceptRiskTool(authorizationSvc, Mock.Of<ILogger<AcceptRiskTool>>());
-        _showRiskRegisterTool = new ShowRiskRegisterTool(authorizationSvc, Mock.Of<ILogger<ShowRiskRegisterTool>>());
-        _createPoamTool = new CreatePoamTool(authorizationSvc, Mock.Of<ILogger<CreatePoamTool>>());
-        _listPoamTool = new ListPoamTool(authorizationSvc, Mock.Of<ILogger<ListPoamTool>>());
-        _generateRarTool = new GenerateRarTool(authorizationSvc, Mock.Of<ILogger<GenerateRarTool>>());
-        _bundlePackageTool = new BundleAuthorizationPackageTool(authorizationSvc, Mock.Of<ILogger<BundleAuthorizationPackageTool>>());
+        _issueAuthorizationTool = new IssueAuthorizationTool(_authorizationService, Mock.Of<ILogger<IssueAuthorizationTool>>());
+        _acceptRiskTool = new AcceptRiskTool(_authorizationService, Mock.Of<ILogger<AcceptRiskTool>>());
+        _showRiskRegisterTool = new ShowRiskRegisterTool(_authorizationService, Mock.Of<ILogger<ShowRiskRegisterTool>>());
+        _createPoamTool = new CreatePoamTool(_authorizationService, Mock.Of<ILogger<CreatePoamTool>>());
+        _listPoamTool = new ListPoamTool(_authorizationService, Mock.Of<ILogger<ListPoamTool>>());
+        _generateRarTool = new GenerateRarTool(_authorizationService, Mock.Of<ILogger<GenerateRarTool>>());
+        _bundlePackageTool = new BundleAuthorizationPackageTool(_authorizationService, Mock.Of<ILogger<BundleAuthorizationPackageTool>>());
     }
 
     public void Dispose() => _serviceProvider.Dispose();
@@ -142,6 +143,7 @@ public class AuthorizationIntegrationTests : IDisposable
         JsonDocument.Parse(r2).RootElement.GetProperty("status").GetString().Should().Be("success");
 
         // ─── Step 3: Issue ATO ────────────────────────────────────────
+        await SetAuthorizationPrerequisites(systemId);
         var atoResult = await _issueAuthorizationTool.ExecuteAsync(new Dictionary<string, object?>
         {
             ["system_id"] = systemId,
@@ -258,6 +260,7 @@ public class AuthorizationIntegrationTests : IDisposable
     public async Task IssueAuthorization_SupersedesPrevious()
     {
         var systemId = await RegisterSystem("Supersede Test System", "MajorApplication");
+        await SetAuthorizationPrerequisites(systemId);
 
         // Issue first ATO
         var r1 = await _issueAuthorizationTool.ExecuteAsync(new Dictionary<string, object?>
@@ -271,6 +274,14 @@ public class AuthorizationIntegrationTests : IDisposable
         d1.RootElement.GetProperty("status").GetString().Should().Be("success");
 
         // Issue second ATO (should supersede first)
+        using (var reauthorizationScope = _scopeFactory.CreateScope())
+        {
+            var reauthorizationDb = reauthorizationScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var system = await reauthorizationDb.RegisteredSystems.SingleAsync(s => s.Id == systemId);
+            system.CurrentRmfStep = RmfPhase.Authorize;
+            await reauthorizationDb.SaveChangesAsync();
+        }
+
         var r2 = await _issueAuthorizationTool.ExecuteAsync(new Dictionary<string, object?>
         {
             ["system_id"] = systemId,
@@ -343,6 +354,84 @@ public class AuthorizationIntegrationTests : IDisposable
         doc.RootElement.GetProperty("message").GetString().Should().Contain("No active authorization");
     }
 
+    [Fact]
+    public async Task IssueAuthorization_SystemNotInAuthorizePhase_IsRejected()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Wrong Phase System", "MajorApplication");
+
+        // Act
+        var act = () => _authorizationService.IssueAuthorizationAsync(
+            systemId, "ATO", DateTime.UtcNow.AddYears(1), "Low");
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*must be in the Authorize RMF phase*");
+    }
+
+    [Fact]
+    public async Task IssueAuthorization_MissingPta_IsRejected()
+    {
+        // Arrange
+        var systemId = await SetAuthorizationPrerequisites(includePta: false);
+
+        // Act
+        var act = () => _authorizationService.IssueAuthorizationAsync(
+            systemId, "ATO", DateTime.UtcNow.AddYears(1), "Low");
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Privacy Threshold Analysis (PTA)*");
+    }
+
+    [Fact]
+    public async Task IssueAuthorization_RequiredPiaNotApproved_IsRejected()
+    {
+        // Arrange
+        var systemId = await SetAuthorizationPrerequisites(
+            ptaDetermination: PtaDetermination.PiaRequired);
+
+        // Act
+        var act = () => _authorizationService.IssueAuthorizationAsync(
+            systemId, "ATO", DateTime.UtcNow.AddYears(1), "Low");
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*PIA is required but not approved*");
+    }
+
+    [Fact]
+    public async Task IssueAuthorization_ActiveInterconnectionWithoutAgreement_IsRejected()
+    {
+        // Arrange
+        var systemId = await SetAuthorizationPrerequisites(hasExternalInterconnection: true);
+
+        // Act
+        var act = () => _authorizationService.IssueAuthorizationAsync(
+            systemId, "ATO", DateTime.UtcNow.AddYears(1), "Low");
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*lacks a signed, non-expired agreement*");
+    }
+
+    [Fact]
+    public async Task IssueAuthorization_ValidAto_AdvancesSystemToMonitor()
+    {
+        // Arrange
+        var systemId = await SetAuthorizationPrerequisites();
+
+        // Act
+        await _authorizationService.IssueAuthorizationAsync(
+            systemId, "ATO", DateTime.UtcNow.AddYears(1), "Low");
+
+        // Assert
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var system = await db.RegisteredSystems.SingleAsync(s => s.Id == systemId);
+        system.CurrentRmfStep.Should().Be(RmfPhase.Monitor);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // Helper methods
     // ═══════════════════════════════════════════════════════════════════════
@@ -361,5 +450,55 @@ public class AuthorizationIntegrationTests : IDisposable
         doc.RootElement.GetProperty("status").GetString().Should().Be("success",
             because: $"Register system should succeed but got: {result}");
         return doc.RootElement.GetProperty("data").GetProperty("id").GetString()!;
+    }
+
+    private async Task<string> SetAuthorizationPrerequisites(
+        bool includePta = true,
+        PtaDetermination ptaDetermination = PtaDetermination.PiaNotRequired,
+        bool hasExternalInterconnection = false)
+    {
+        var systemId = await RegisterSystem($"Authorization Ready {Guid.NewGuid()}", "MajorApplication");
+        await SetAuthorizationPrerequisites(
+            systemId, includePta, ptaDetermination, hasExternalInterconnection);
+        return systemId;
+    }
+
+    private async Task SetAuthorizationPrerequisites(
+        string systemId,
+        bool includePta = true,
+        PtaDetermination ptaDetermination = PtaDetermination.PiaNotRequired,
+        bool hasExternalInterconnection = false)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var system = await db.RegisteredSystems.SingleAsync(s => s.Id == systemId);
+        system.CurrentRmfStep = RmfPhase.Authorize;
+        system.HasNoExternalInterconnections = !hasExternalInterconnection;
+
+        if (includePta)
+        {
+            db.PrivacyThresholdAnalyses.Add(new PrivacyThresholdAnalysis
+            {
+                RegisteredSystemId = systemId,
+                Determination = ptaDetermination,
+                AnalyzedBy = "integration-test",
+            });
+        }
+
+        if (hasExternalInterconnection)
+        {
+            db.SystemInterconnections.Add(new SystemInterconnection
+            {
+                RegisteredSystemId = systemId,
+                TargetSystemName = "External Partner",
+                InterconnectionType = InterconnectionType.Api,
+                DataFlowDirection = DataFlowDirection.Bidirectional,
+                DataClassification = "CUI",
+                Status = InterconnectionStatus.Active,
+                CreatedBy = "integration-test",
+            });
+        }
+
+        await db.SaveChangesAsync();
     }
 }

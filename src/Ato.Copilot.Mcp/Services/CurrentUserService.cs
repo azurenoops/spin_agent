@@ -41,4 +41,14 @@ public sealed class CurrentUserService : ICurrentUserService
             return "unknown";
         }
     }
+
+    /// <inheritdoc />
+    public string CurrentUserName
+    {
+        get
+        {
+            var name = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.Name);
+            return string.IsNullOrWhiteSpace(name) ? CurrentUserId : name;
+        }
+    }
 }

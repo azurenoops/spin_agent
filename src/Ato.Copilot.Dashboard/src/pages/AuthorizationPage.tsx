@@ -33,8 +33,6 @@ interface IssueAuthorizationBody {
   termsAndConditions: string;
   residualRiskJustification: string;
   riskAcceptances: null;
-  issuedBy: string;
-  issuedByName: string;
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -105,8 +103,6 @@ export default function AuthorizationPage() {
   const [residualRisk, setResidualRisk] = useState<string>('Medium');
   const [terms, setTerms] = useState('');
   const [riskJustification, setRiskJustification] = useState('');
-  const [issuedBy, setIssuedBy] = useState('');
-  const [issuedByName, setIssuedByName] = useState('');
 
   const fetchDecision = useCallback(() => getDecision(systemId), [systemId]);
   const fetchRisks = useCallback(() => getRiskAcceptances(systemId), [systemId]);
@@ -127,8 +123,6 @@ export default function AuthorizationPage() {
         termsAndConditions: terms,
         residualRiskJustification: riskJustification,
         riskAcceptances: null,
-        issuedBy,
-        issuedByName,
       });
       setSuccess(`Authorization decision (${decisionType}) issued successfully.`);
       setFormOpen(false);
@@ -268,48 +262,16 @@ export default function AuthorizationPage() {
                 </div>
               </div>
 
-              {/* Dates */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="expiration" className="block text-sm font-medium text-gray-700">
-                    Expiration Date
-                  </label>
-                  <input
-                    id="expiration"
-                    type="date"
-                    value={expirationDate}
-                    onChange={(e) => setExpirationDate(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="issued-by" className="block text-sm font-medium text-gray-700">
-                    Issued By (User ID) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="issued-by"
-                    type="text"
-                    value={issuedBy}
-                    onChange={(e) => setIssuedBy(e.target.value)}
-                    required
-                    placeholder="e.g. john.doe@agency.mil"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Issued by name */}
+              {/* Expiration date */}
               <div>
-                <label htmlFor="issued-by-name" className="block text-sm font-medium text-gray-700">
-                  Authorizing Official Name <span className="text-red-500">*</span>
+                <label htmlFor="expiration" className="block text-sm font-medium text-gray-700">
+                  Expiration Date
                 </label>
                 <input
-                  id="issued-by-name"
-                  type="text"
-                  value={issuedByName}
-                  onChange={(e) => setIssuedByName(e.target.value)}
-                  required
-                  placeholder="Full name of the Authorizing Official"
+                  id="expiration"
+                  type="date"
+                  value={expirationDate}
+                  onChange={(e) => setExpirationDate(e.target.value)}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 />
               </div>
@@ -355,7 +317,7 @@ export default function AuthorizationPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || !issuedBy || !issuedByName}
+                  disabled={submitting}
                   className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {submitting ? 'Issuing…' : 'Issue Authorization'}

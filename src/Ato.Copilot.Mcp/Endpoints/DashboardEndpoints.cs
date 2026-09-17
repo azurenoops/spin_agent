@@ -75,6 +75,19 @@ public static partial class DashboardEndpoints
         return app;
     }
 
+    /// <summary>
+    /// Maps only the formal authorization-decision route for focused integration tests.
+    /// </summary>
+    public static IEndpointRouteBuilder MapDashboardAuthorizationEndpoints(this IEndpointRouteBuilder app)
+    {
+        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
+        var group = app.MapGroup("/api/dashboard")
+            .WithTags("Dashboard")
+            .RequireAuthorization();
+        MapIssueAuthorizationRoute(group, currentUser);
+        return app;
+    }
+
     // ─── NIST Family Name Lookup ────────────────────────────────────────────
     private static readonly Dictionary<string, string> NistFamilyNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -248,9 +261,7 @@ public static partial class DashboardEndpoints
         string? ResidualRiskLevel,
         string? TermsAndConditions,
         string? ResidualRiskJustification,
-        List<RiskAcceptanceInput>? RiskAcceptances,
-        string? IssuedBy,
-        string? IssuedByName);
+        List<RiskAcceptanceInput>? RiskAcceptances);
 
     private record CreatePoamRequest(
         string Weakness,
