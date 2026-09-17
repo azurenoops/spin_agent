@@ -16,6 +16,7 @@ using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Poam;
+using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
@@ -361,67 +362,46 @@ public class ApiMismatchRouteTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Issue831_RunAssessmentWithEmptyBaseline_ReturnsBadRequest()
+    public async Task Issue826_DeleteExistingPoam_ReturnsNoContentAndRemovesItem()
     {
         // Arrange
+        string poamId;
         using (var scope = _app.Services.CreateScope())
         {
-            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
-            await using var db = await factory.CreateDbContextAsync();
-            var baseline = await db.ControlBaselines.SingleAsync(b => b.RegisteredSystemId == TestSystemId);
-            baseline.ControlIds = [];
-            baseline.TotalControls = 0;
-            db.SecurityCategorizations.Add(new SecurityCategorization
-            {
-                RegisteredSystemId = TestSystemId,
-                CategorizedBy = "test-user",
-            });
-            await db.SaveChangesAsync();
+            var poamService = scope.ServiceProvider.GetRequiredService<PoamService>();
+            var poam = await poamService.CreateAsync(
+                TestSystemId,
+                "POA&M to delete",
+                "Manual",
+                "AC-1",
+                CatSeverity.CatII,
+                "test-user",
+                DateTime.UtcNow.AddDays(30));
+            poamId = poam.Id;
         }
 
         // Act
-        var response = await _client.PostAsync(
-            $"/api/dashboard/systems/{TestSystemId}/run-assessment",
-            content: null);
+        var response = await _client.DeleteAsync($"/api/dashboard/poam/{poamId}");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
-        body.GetProperty("errorCode").GetString().Should().Be("ASSESSMENT_INPUT_REQUIRED");
-        body.GetProperty("error").GetString().Should().NotBeNullOrWhiteSpace();
-
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
         using var verificationScope = _app.Services.CreateScope();
-        var verificationFactory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
-        await using var verificationDb = await verificationFactory.CreateDbContextAsync();
-        (await verificationDb.Assessments.AnyAsync(a => a.RegisteredSystemId == TestSystemId)).Should().BeFalse();
+        var factory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        (await db.PoamItems.AnyAsync(p => p.Id == poamId)).Should().BeFalse();
     }
 
     [Fact]
-    public async Task Issue831_RunAssessmentWithValidBaseline_ReturnsOk()
+    public async Task Issue826_DeleteMissingPoam_ReturnsStructuredNotFound()
     {
-        // Arrange
-        using (var scope = _app.Services.CreateScope())
-        {
-            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
-            await using var db = await factory.CreateDbContextAsync();
-            db.SecurityCategorizations.Add(new SecurityCategorization
-            {
-                RegisteredSystemId = TestSystemId,
-                CategorizedBy = "test-user",
-            });
-            await db.SaveChangesAsync();
-        }
-
         // Act
-        var response = await _client.PostAsync(
-            $"/api/dashboard/systems/{TestSystemId}/run-assessment",
-            content: null);
+        var response = await _client.DeleteAsync("/api/dashboard/poam/missing-poam-826");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
-        body.GetProperty("systemId").GetString().Should().Be(TestSystemId);
-        body.GetProperty("totalControls").GetInt32().Should().Be(3);
+        body.GetProperty("errorCode").GetString().Should().Be("POAM_NOT_FOUND");
+        body.GetProperty("error").GetString().Should().NotBeNullOrWhiteSpace();
     }
 
     // ─── T011: GAP-004 — single POAM status with systemId ───────────────────

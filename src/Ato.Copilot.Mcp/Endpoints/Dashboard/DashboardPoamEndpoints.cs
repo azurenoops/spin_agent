@@ -174,6 +174,25 @@ public static partial class DashboardEndpoints
             }
         }).WithName("UpdatePoamItem");
 
+        // ── DELETE /poam/{poamId} — delete
+        group.MapDelete("/poam/{poamId}", async (
+            string poamId, PoamService poamService, CancellationToken ct) =>
+        {
+            try
+            {
+                await poamService.DeleteAsync(poamId, ct);
+                return Results.NoContent();
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+            {
+                return Results.NotFound(new ErrorResponse
+                {
+                    Error = ex.Message,
+                    ErrorCode = "POAM_NOT_FOUND"
+                });
+            }
+        }).WithName("DeletePoamItem");
+
         // ── GET /systems/{systemId}/poam/metrics
         group.MapGet("/systems/{systemId}/poam/metrics", async (
             string systemId, PoamService poamService, CancellationToken ct) =>
