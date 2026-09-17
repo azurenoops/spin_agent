@@ -171,6 +171,13 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     /// </summary>
     protected virtual string DeploymentModeOverride => "MultiTenant";
 
+    /// <summary>
+    /// Controls whether requests receive the fixture's default authenticated
+    /// principal. Auth endpoint fixtures override this to exercise anonymous
+    /// and header-driven identities.
+    /// </summary>
+    protected virtual bool AuthenticateRequestsByDefault => true;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -199,8 +206,11 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
 
         builder.ConfigureServices(services =>
         {
-            services.AddAuthentication(TestAuthScheme)
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthScheme, _ => { });
+            if (AuthenticateRequestsByDefault)
+            {
+                services.AddAuthentication(TestAuthScheme)
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthScheme, _ => { });
+            }
 
             // Ignore unhandled background-service exceptions in tests so the
             // host stays up when ancillary background services (e.g. evidence

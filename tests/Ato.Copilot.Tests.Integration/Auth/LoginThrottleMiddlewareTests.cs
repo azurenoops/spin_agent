@@ -160,6 +160,8 @@ public class LoginThrottleMiddlewareTests
     /// </summary>
     public sealed class ThrottleFactory : MultiTenantWebApplicationFactory<McpProgram>
     {
+        protected override bool AuthenticateRequestsByDefault => false;
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
