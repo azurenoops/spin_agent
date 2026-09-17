@@ -332,6 +332,18 @@ jobs:
             if [ -n "${{ vars.ATO_DATABASE__MANAGEDIDENTITYCLIENTID || '' }}" ]; then
               ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_DATABASE__MANAGEDIDENTITYCLIENTID=${{ vars.ATO_DATABASE__MANAGEDIDENTITYCLIENTID }}"
             fi
+            if [ -n "${{ vars.ATO_AUTH_MSAL_CLIENTID || '' }}" ]; then
+              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__CLIENTID=${{ vars.ATO_AUTH_MSAL_CLIENTID }}"
+            fi
+            if [ -n "${{ vars.ATO_AUTH_MSAL_AUTHORITY || '' }}" ]; then
+              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__AUTHORITY=${{ vars.ATO_AUTH_MSAL_AUTHORITY }}"
+            fi
+            if [ -n "${{ vars.ATO_AUTH_MSAL_REDIRECTURI || '' }}" ]; then
+              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__REDIRECTURI=${{ vars.ATO_AUTH_MSAL_REDIRECTURI }}"
+            fi
+            if [ -n "${{ vars.ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI || '' }}" ]; then
+              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__POSTLOGOUTREDIRECTURI=${{ vars.ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI }}"
+            fi
           elif [ "${{ inputs.workload }}" = "dashboard" ]; then
             MCP_OVERRIDE="${{ inputs.mcp_base_url_override }}"
             if [ -n "$MCP_OVERRIDE" ]; then
