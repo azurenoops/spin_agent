@@ -120,8 +120,8 @@ public class CrossTenantLookupReturns404Tests
         {
             cmd.CommandText = """
                 INSERT INTO RegisteredSystems
-                    (Id, TenantId, Name, SystemType, MissionCriticality, HostingEnvironment, CurrentRmfStep, RmfStepUpdatedAt, CreatedBy, CreatedAt, IsActive)
-                VALUES (@sys, @ta, 'RLS-404-SysA', 0, 0, 'Azure', 0, SYSUTCDATETIME(), 'seed', SYSUTCDATETIME(), 1);
+                    (Id, TenantId, Name, SystemType, MissionCriticality, HostingEnvironment, CurrentRmfStep, RmfStepUpdatedAt, CreatedBy, CreatedAt, IsActive, IsNationalSecuritySystem, HasNoExternalInterconnections)
+                VALUES (@sys, @ta, 'RLS-404-SysA', 0, 0, 'Azure', 0, SYSUTCDATETIME(), 'seed', SYSUTCDATETIME(), 1, 0, 0);
                 """;
             cmd.Parameters.AddWithValue("@sys", sysA);
             cmd.Parameters.AddWithValue("@ta", _fx.TenantA);

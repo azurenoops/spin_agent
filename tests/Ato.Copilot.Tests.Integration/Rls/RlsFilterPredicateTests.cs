@@ -165,9 +165,9 @@ public class RlsFilterPredicateTests
         {
             cmd.CommandText =
                 "INSERT INTO RegisteredSystems" +
-                " (Id,TenantId,Name,SystemType,MissionCriticality,HostingEnvironment,CurrentRmfStep,RmfStepUpdatedAt,CreatedBy,CreatedAt,IsActive)" +
-                " VALUES (@sA,@ta,'SAP-Filter-SysA',0,0,'Azure',0,SYSUTCDATETIME(),'seed',SYSUTCDATETIME(),1)," +
-                "        (@sB,@tb,'SAP-Filter-SysB',0,0,'Azure',0,SYSUTCDATETIME(),'seed',SYSUTCDATETIME(),1);";
+                " (Id,TenantId,Name,SystemType,MissionCriticality,HostingEnvironment,CurrentRmfStep,RmfStepUpdatedAt,CreatedBy,CreatedAt,IsActive,IsNationalSecuritySystem,HasNoExternalInterconnections)" +
+                " VALUES (@sA,@ta,'SAP-Filter-SysA',0,0,'Azure',0,SYSUTCDATETIME(),'seed',SYSUTCDATETIME(),1,0,0)," +
+                "        (@sB,@tb,'SAP-Filter-SysB',0,0,'Azure',0,SYSUTCDATETIME(),'seed',SYSUTCDATETIME(),1,0,0);";
             cmd.Parameters.AddWithValue("@sA", sysA); cmd.Parameters.AddWithValue("@sB", sysB);
             cmd.Parameters.AddWithValue("@ta", _fx.TenantA); cmd.Parameters.AddWithValue("@tb", _fx.TenantB);
             await cmd.ExecuteNonQueryAsync();

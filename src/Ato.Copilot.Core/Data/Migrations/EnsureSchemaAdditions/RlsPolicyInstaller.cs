@@ -3,6 +3,7 @@ using System.Text;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Tenancy.Attributes;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Logging;
 
 namespace Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
@@ -73,6 +74,7 @@ public static class RlsPolicyInstaller
             {
                 Table = et.GetTableName()!,
                 Schema = et.GetSchema() ?? "dbo",
+                TenantColumn = ResolveTenantColumn(et),
             })
             .Distinct()
             .OrderBy(t => t.Table)
@@ -93,7 +95,9 @@ public static class RlsPolicyInstaller
             // CREATE SECURITY POLICY does not support OR ALTER syntax in
             // pre-2022 SQL Server, so the safe pattern is conditional drop +
             // create.
-            await db.Database.ExecuteSqlRawAsync(BuildPolicySql(targets.Select(t => (t.Schema, t.Table))), cancellationToken);
+            await db.Database.ExecuteSqlRawAsync(
+                BuildPolicySql(targets.Select(t => (t.Schema, t.Table, t.TenantColumn))),
+                cancellationToken);
 
             logger.LogInformation(
                 "Verified Feature 048 RLS policy on {Count} [TenantScoped] table(s)", targets.Count);
@@ -152,12 +156,31 @@ public static class RlsPolicyInstaller
             """;
     }
 
+    private static string ResolveTenantColumn(IReadOnlyEntityType entityType)
+    {
+        var tenantProperty = entityType.FindProperty("TenantId")
+            ?? entityType.FindProperty("EffectiveTenantId");
+        if (tenantProperty is null)
+        {
+            throw new InvalidOperationException(
+                $"Tenant-scoped entity {entityType.DisplayName()} has no supported tenant ownership property.");
+        }
+
+        var table = StoreObjectIdentifier.Table(
+            entityType.GetTableName()!,
+            entityType.GetSchema());
+        return tenantProperty.GetColumnName(table)
+            ?? throw new InvalidOperationException(
+                $"Tenant ownership property {entityType.DisplayName()}.{tenantProperty.Name} has no table column mapping.");
+    }
+
     /// <summary>
     /// Build the <c>CREATE SECURITY POLICY dbo.TenantSecurityPolicy</c>
     /// statement. Drops + re-creates so adding a new <c>[TenantScoped]</c>
     /// table on a later deploy automatically picks up the predicates.
     /// </summary>
-    private static string BuildPolicySql(IEnumerable<(string Schema, string Table)> targets)
+    private static string BuildPolicySql(
+        IEnumerable<(string Schema, string Table, string TenantColumn)> targets)
     {
         var sb = new StringBuilder();
         sb.AppendLine("IF EXISTS (SELECT 1 FROM sys.security_policies WHERE name = 'TenantSecurityPolicy')");
@@ -165,11 +188,11 @@ public static class RlsPolicyInstaller
         sb.AppendLine("CREATE SECURITY POLICY dbo.TenantSecurityPolicy");
 
         var entries = new List<string>();
-        foreach (var (schema, table) in targets)
+        foreach (var (schema, table, tenantColumn) in targets)
         {
-            entries.Add($"    ADD FILTER PREDICATE dbo.fn_TenantPredicate(TenantId) ON [{schema}].[{table}]");
-            entries.Add($"    ADD BLOCK PREDICATE dbo.fn_TenantPredicate(TenantId) ON [{schema}].[{table}] AFTER INSERT");
-            entries.Add($"    ADD BLOCK PREDICATE dbo.fn_TenantPredicate(TenantId) ON [{schema}].[{table}] AFTER UPDATE");
+            entries.Add($"    ADD FILTER PREDICATE dbo.fn_TenantPredicate([{tenantColumn}]) ON [{schema}].[{table}]");
+            entries.Add($"    ADD BLOCK PREDICATE dbo.fn_TenantPredicate([{tenantColumn}]) ON [{schema}].[{table}] AFTER INSERT");
+            entries.Add($"    ADD BLOCK PREDICATE dbo.fn_TenantPredicate([{tenantColumn}]) ON [{schema}].[{table}] AFTER UPDATE");
         }
 
         sb.Append(string.Join(",\n", entries));
