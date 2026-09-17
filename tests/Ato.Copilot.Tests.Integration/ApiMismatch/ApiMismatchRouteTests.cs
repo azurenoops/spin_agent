@@ -279,6 +279,87 @@ public class ApiMismatchRouteTests : IAsyncLifetime
             because: "PUT /api/dashboard/remediation/poam/bulk-status must be registered matching frontend (GAP-003, issue #143)");
     }
 
+    [Fact]
+    public async Task Issue832_BulkCreateMixedBatch_ReturnsMultiStatusWithFailureDetails()
+    {
+        // Arrange
+        const string validFindingId = "finding-832-valid";
+        const string missingFindingId = "finding-832-missing";
+        await CreateTestFindingAsync(validFindingId);
+
+        var request = new
+        {
+            findingIds = new[] { validFindingId, missingFindingId },
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/dashboard/systems/{TestSystemId}/poam/bulk-create",
+            request,
+            _jsonOptions);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.MultiStatus);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        body.GetProperty("totalSubmitted").GetInt32().Should().Be(2);
+        body.GetProperty("totalSucceeded").GetInt32().Should().Be(1);
+        body.GetProperty("totalFailed").GetInt32().Should().Be(1);
+        var failedRecord = body.GetProperty("results").EnumerateArray()
+            .Single(item => item.GetProperty("findingId").GetString() == missingFindingId);
+        failedRecord.GetProperty("status").GetString().Should().Be("error");
+        failedRecord.GetProperty("error").GetString().Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task Issue832_BulkCreateAllFailed_ReturnsBadRequestWithFailureDetails()
+    {
+        // Arrange
+        var request = new
+        {
+            findingIds = new[] { "finding-832-missing-1", "finding-832-missing-2" },
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/dashboard/systems/{TestSystemId}/poam/bulk-create",
+            request,
+            _jsonOptions);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        body.GetProperty("totalSubmitted").GetInt32().Should().Be(2);
+        body.GetProperty("totalSucceeded").GetInt32().Should().Be(0);
+        body.GetProperty("totalFailed").GetInt32().Should().Be(2);
+        body.GetProperty("results").EnumerateArray()
+            .Should().OnlyContain(item => !string.IsNullOrWhiteSpace(item.GetProperty("error").GetString()));
+    }
+
+    [Fact]
+    public async Task Issue832_BulkCreateSuccessfulBatch_ReturnsOk()
+    {
+        // Arrange
+        const string validFindingId = "finding-832-success";
+        await CreateTestFindingAsync(validFindingId);
+        var request = new
+        {
+            findingIds = new[] { validFindingId },
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/dashboard/systems/{TestSystemId}/poam/bulk-create",
+            request,
+            _jsonOptions);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        body.GetProperty("totalSubmitted").GetInt32().Should().Be(1);
+        body.GetProperty("totalSucceeded").GetInt32().Should().Be(1);
+        body.GetProperty("totalFailed").GetInt32().Should().Be(0);
+    }
+
     // ─── T011: GAP-004 — single POAM status with systemId ───────────────────
 
     /// <summary>
@@ -366,6 +447,28 @@ public class ApiMismatchRouteTests : IAsyncLifetime
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────
+
+    private async Task CreateTestFindingAsync(string findingId)
+    {
+        using var scope = _app.Services.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        db.Findings.Add(new ComplianceFinding
+        {
+            Id = findingId,
+            ControlId = "AC-2",
+            ControlFamily = "AC",
+            Title = "Issue 832 test finding",
+            Description = "Valid finding for issue 832 integration coverage",
+            Severity = FindingSeverity.High,
+            Source = "test",
+            Status = FindingStatus.Open,
+            ResourceId = $"resource-{findingId}",
+            ResourceType = "Microsoft.Compute/virtualMachines",
+            AssessmentId = $"assessment-{findingId}",
+        });
+        await db.SaveChangesAsync();
+    }
 
     private async Task<string> CreateTestPoamAsync()
     {
