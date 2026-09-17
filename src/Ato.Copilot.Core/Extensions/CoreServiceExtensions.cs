@@ -284,19 +284,9 @@ public static class CoreServiceExtensions
             var connectionString = cfg.GetConnectionString("DefaultConnection")
                                    ?? "Data Source=ato-copilot.db";
 
-            // ACA + user-assigned MI: SqlClient picks system-assigned identity by default when
-            // both identity types are present. Inject User Id=<client-id> so the correct
-            // user-assigned MI is always selected. Only applied when:
-            //   1. ManagedIdentityClientId is configured, AND
-            //   2. the connection string uses Active Directory Managed Identity auth, AND
-            //   3. User Id is not already present in the connection string.
-            if (!string.IsNullOrWhiteSpace(liveOptions.ManagedIdentityClientId)
-                && connectionString.Contains("Active Directory Managed Identity", StringComparison.OrdinalIgnoreCase)
-                && !connectionString.Contains("User Id=", StringComparison.OrdinalIgnoreCase))
-            {
-                connectionString = connectionString.TrimEnd(';')
-                    + $";User Id={liveOptions.ManagedIdentityClientId};";
-            }
+            connectionString = DatabaseConnectionString.WithManagedIdentityClientId(
+                connectionString,
+                liveOptions.ManagedIdentityClientId);
 
             // Suppress PendingModelChangesWarning — model snapshot may lag behind
             // code-first changes during active development. EnsureCreated/Migrate

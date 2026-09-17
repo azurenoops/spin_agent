@@ -201,13 +201,13 @@ jobs:
       inject_runtime_secrets: true
       # SignalR negotiate requires sticky sessions when max_replicas > 1.
       # enable_session_affinity defaults to true in the reusable workflow.
-      # ASPNETCORE_URLS overrides the default port (5001) to match the Dockerfile EXPOSE 8080.
-      extra_env_vars: "ASPNETCORE_URLS=http://+:8080"
+      # Chat reads Server:Urls explicitly; keep it aligned with ingress and Docker EXPOSE 8080.
+      extra_env_vars: "ATO_SERVER__URLS=http://0.0.0.0:8080"
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_CHAT_DB_CONNECTION_STRING }}
       ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
       ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
 
@@ -258,12 +258,12 @@ jobs:
       include_mcp_env_vars: false
       assign_managed_identity: true
       inject_runtime_secrets: true
-      extra_env_vars: "ASPNETCORE_URLS=http://+:8080"
+      extra_env_vars: "ATO_SERVER__URLS=http://0.0.0.0:8080"
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_CHAT_DB_CONNECTION_STRING }}
       ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
       ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
 
@@ -314,12 +314,12 @@ jobs:
       include_mcp_env_vars: false
       assign_managed_identity: true
       inject_runtime_secrets: true
-      extra_env_vars: "ASPNETCORE_URLS=http://+:8080"
+      extra_env_vars: "ATO_SERVER__URLS=http://0.0.0.0:8080"
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_DB_CONNECTION_STRING }}
+      ATO_DB_CONNECTION_STRING: ${{ secrets.ATO_CHAT_DB_CONNECTION_STRING }}
       ATO_AZUREAI_APIKEY: ${{ secrets.ATO_AZUREAI_APIKEY }}
       ATO_AZUREAD_CLIENTSECRET: ${{ secrets.ATO_AZUREAD_CLIENTSECRET }}
 
