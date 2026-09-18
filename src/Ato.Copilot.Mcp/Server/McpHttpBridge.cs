@@ -496,7 +496,8 @@ public class McpHttpBridge
                     name = entry.Key,
                     status = entry.Value.Status.ToString(),
                     description = entry.Value.Description ?? string.Empty,
-                    durationMs = entry.Value.Duration.TotalMilliseconds
+                    durationMs = entry.Value.Duration.TotalMilliseconds,
+                    data = entry.Value.Data
                 });
             }
         }

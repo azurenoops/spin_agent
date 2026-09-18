@@ -154,6 +154,12 @@ To add or modify data:
 
 ## Configuration
 
+### NIST Catalog Integrity
+
+The NIST SP 800-53 Rev. 5.2.0 catalog is validated before it enters the application cache or database. Validation uses the official OSCAL 1.1.3 catalog JSON schema bundled with the service for disconnected operation, then verifies the expected baseline of 20 families, 324 base controls, 872 enhancements, and 1,196 total controls. Schema, version, or count failures prevent the catalog warmup from completing and make the NIST health check unhealthy; individual system-control mapping drift remains a non-fatal warning.
+
+The schema is pinned from the NIST OSCAL `v1.1.3` release asset `oscal_catalog_schema.json`. Its SHA-256 digest is `5e120afbd14c480a9498ab6388857ef32b3b880e458525e966ff7c7f59333d90`. The default remote catalog is pinned to upstream commit `bc8a528770033611df899b3d52703fb3dc91a20d`; its SHA-256 digest is `1645df6a370dcb931db2e2d5d70c2f77bc89c38499a416c23a70eb2c0e595bcc`, matching the embedded fallback. This prevents a mutable upstream branch from silently advancing to an unsupported OSCAL version.
+
 Configuration is in `appsettings.json` under `Agents:KnowledgeBaseAgent`:
 
 ```json

@@ -68,7 +68,7 @@ public class NistControlsOptions
 {
     /// <summary>OSCAL catalog remote URL.</summary>
     [Required]
-    public string BaseUrl { get; set; } = "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json";
+    public string BaseUrl { get; set; } = "https://raw.githubusercontent.com/usnistgov/oscal-content/bc8a528770033611df899b3d52703fb3dc91a20d/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json";
 
     /// <summary>HTTP request timeout in seconds.</summary>
     [Range(10, 300)]
@@ -96,6 +96,10 @@ public class NistControlsOptions
     /// <summary>Initial warmup delay in seconds after application startup.</summary>
     [Range(5, 60)]
     public int WarmupDelaySeconds { get; set; } = 10;
+
+    /// <summary>Delay between failed startup warmup attempts.</summary>
+    [Range(1, 60)]
+    public int WarmupRetryDelaySeconds { get; set; } = 5;
 }
 
 public class AssessmentPurgeOptions

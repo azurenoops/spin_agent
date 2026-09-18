@@ -3,6 +3,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Ato.Copilot.Agents.Compliance.Configuration;
+using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Interfaces.Compliance;
 
 namespace Ato.Copilot.Agents.Observability;
@@ -21,6 +22,7 @@ public class NistControlsHealthCheck : IHealthCheck
     private readonly INistControlsService _nistService;
     private readonly IOptions<NistControlsOptions> _options;
     private readonly ILogger<NistControlsHealthCheck> _logger;
+    private readonly NistCatalogIntegrityValidator _integrityValidator;
 
     /// <summary>
     /// Initializes a new instance of <see cref="NistControlsHealthCheck"/>.
@@ -31,11 +33,13 @@ public class NistControlsHealthCheck : IHealthCheck
     public NistControlsHealthCheck(
         INistControlsService nistService,
         IOptions<NistControlsOptions> options,
-        ILogger<NistControlsHealthCheck> logger)
+        ILogger<NistControlsHealthCheck> logger,
+        NistCatalogIntegrityValidator integrityValidator)
     {
         _nistService = nistService;
         _options = options;
         _logger = logger;
+        _integrityValidator = integrityValidator;
     }
 
     /// <inheritdoc />
@@ -79,6 +83,30 @@ public class NistControlsHealthCheck : IHealthCheck
                 ["cacheDurationHours"] = _options.Value.CacheDurationHours,
                 ["catalogSource"] = catalogSource
             };
+
+            var integrityResult = _integrityValidator.LastResult;
+            if (integrityResult is not null)
+            {
+                data["integrityValid"] = integrityResult.IsValid;
+                data["schemaValid"] = integrityResult.SchemaValid;
+                data["oscalVersion"] = integrityResult.OscalVersion;
+                data["catalogVersion"] = integrityResult.CatalogVersion;
+                data["groupCount"] = integrityResult.GroupCount;
+                data["baseControlCount"] = integrityResult.BaseControlCount;
+                data["enhancementCount"] = integrityResult.EnhancementCount;
+                data["totalControlCount"] = integrityResult.TotalControlCount;
+                data["integrityViolations"] = string.Join(" | ", integrityResult.Violations);
+
+                if (!integrityResult.IsValid)
+                {
+                    _logger.LogError(
+                        "NIST health check: Unhealthy — catalog integrity validation failed: {Violations}",
+                        string.Join(" | ", integrityResult.Violations));
+                    return HealthCheckResult.Unhealthy(
+                        "NIST catalog failed structural integrity validation",
+                        data: data);
+                }
+            }
 
             // Not loaded yet (still warming up) → Degraded, not Unhealthy.
             // Guard: only enter this path when the service IS the concrete NistControlsService

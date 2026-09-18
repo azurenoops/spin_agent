@@ -64,10 +64,10 @@ public sealed class NistControlsCacheWarmupService : BackgroundService
         }
     }
 
-    private async Task WarmupCacheAsync(CancellationToken stoppingToken)
+    internal async Task WarmupCacheAsync(CancellationToken stoppingToken)
     {
         const int maxRetries = 3;
-        var retryDelay = TimeSpan.FromMinutes(5);
+        var retryDelay = TimeSpan.FromSeconds(_options.Value.WarmupRetryDelaySeconds);
 
         for (var attempt = 1; attempt <= maxRetries; attempt++)
         {
@@ -84,7 +84,7 @@ public sealed class NistControlsCacheWarmupService : BackgroundService
                         await Task.Delay(retryDelay, stoppingToken);
                         continue;
                     }
-                    return;
+                    break;
                 }
 
                 var version = await _nistControlsService.GetVersionAsync(stoppingToken);
@@ -126,6 +126,9 @@ public sealed class NistControlsCacheWarmupService : BackgroundService
                 }
             }
         }
+
+        throw new InvalidOperationException(
+            $"NIST catalog cache warmup failed after {maxRetries} attempts; startup cannot continue without a valid catalog.");
     }
 
     /// <summary>

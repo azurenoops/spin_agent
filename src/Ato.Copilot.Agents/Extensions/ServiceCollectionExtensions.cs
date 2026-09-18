@@ -201,6 +201,7 @@ public static class ServiceCollectionExtensions
 
         // Register NistControlsService as a singleton using the named HttpClient
         // from the factory above (with Polly resilience handlers configured).
+        services.AddSingleton<NistCatalogIntegrityValidator>();
         services.AddSingleton<INistControlsService>(sp =>
         {
             var factory = sp.GetRequiredService<IHttpClientFactory>();
@@ -210,7 +211,8 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<IMemoryCache>(),
                 sp.GetRequiredService<IOptions<NistControlsOptions>>(),
                 httpClient,
-                sp.GetRequiredService<IConfiguration>());
+                sp.GetRequiredService<IConfiguration>(),
+                sp.GetRequiredService<NistCatalogIntegrityValidator>());
         });
 
         // NIST Controls cache warmup background service
