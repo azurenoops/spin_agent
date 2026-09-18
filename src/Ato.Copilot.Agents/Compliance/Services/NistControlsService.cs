@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Ato.Copilot.Agents.Compliance.Configuration;
 using Ato.Copilot.Agents.Compliance.Models;
@@ -34,6 +35,7 @@ public class NistControlsService : INistControlsService
     private readonly NistControlsOptions _options;
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly NistCatalogIntegrityValidator _integrityValidator;
     private readonly SemaphoreSlim _loadLock = new(1, 1);
     private Lazy<Task<NistCatalog?>> _lazyCatalog;
 
@@ -55,13 +57,15 @@ public class NistControlsService : INistControlsService
         IMemoryCache cache,
         IOptions<NistControlsOptions> options,
         HttpClient httpClient,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        NistCatalogIntegrityValidator integrityValidator)
     {
         _logger = logger;
         _cache = cache;
         _options = options.Value;
         _httpClient = httpClient;
         _configuration = configuration;
+        _integrityValidator = integrityValidator;
         _lazyCatalog = new Lazy<Task<NistCatalog?>>(
             () => LoadAndCacheCatalogAsync(CancellationToken.None),
             LazyThreadSafetyMode.ExecutionAndPublication);
@@ -79,7 +83,8 @@ public class NistControlsService : INistControlsService
             new MemoryCache(new MemoryCacheOptions()),
             Options.Create(new NistControlsOptions()),
             httpClient,
-            configuration)
+            configuration,
+            new NistCatalogIntegrityValidator(NullLogger<NistCatalogIntegrityValidator>.Instance))
     {
     }
 
@@ -441,7 +446,17 @@ public class NistControlsService : INistControlsService
 
             _logger.LogInformation("Fetching NIST catalog from {Url}", _options.BaseUrl);
             using var stream = await _httpClient.GetStreamAsync(_options.BaseUrl, cts.Token);
-            var root = await JsonSerializer.DeserializeAsync<NistCatalogRoot>(stream, cancellationToken: cts.Token);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cts.Token);
+            var integrityResult = _integrityValidator.Validate(document);
+            if (!integrityResult.IsValid)
+            {
+                _logger.LogError(
+                    "Online NIST catalog rejected by integrity validation: {Violations}",
+                    string.Join(" | ", integrityResult.Violations));
+                return null;
+            }
+
+            var root = document.RootElement.Deserialize<NistCatalogRoot>();
 
             if (root?.Catalog is null)
             {
@@ -480,7 +495,17 @@ public class NistControlsService : INistControlsService
                 return null;
             }
 
-            var root = await JsonSerializer.DeserializeAsync<NistCatalogRoot>(stream, cancellationToken: ct);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            var integrityResult = _integrityValidator.Validate(document);
+            if (!integrityResult.IsValid)
+            {
+                _logger.LogError(
+                    "Embedded NIST catalog rejected by integrity validation: {Violations}",
+                    string.Join(" | ", integrityResult.Violations));
+                return null;
+            }
+
+            var root = document.RootElement.Deserialize<NistCatalogRoot>();
             if (root?.Catalog is null)
             {
                 _logger.LogWarning("Embedded NIST catalog deserialized as null");

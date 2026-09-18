@@ -1,4 +1,7 @@
 using System.Reflection;
+using System.Net;
+using System.Text;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -49,7 +52,8 @@ public class NistControlsServiceTests
             memoryCache,
             Options.Create(nistOptions),
             httpClient ?? new HttpClient(),
-            config);
+            config,
+            new NistCatalogIntegrityValidator(Mock.Of<ILogger<NistCatalogIntegrityValidator>>()));
     }
 
     // ─── Embedded Resource Fallback ──────────────────────────────────────────────
@@ -502,6 +506,47 @@ public class NistControlsServiceTests
         var catalog = await service.GetCatalogAsync();
 
         catalog.Should().BeNull("no fallback should be attempted when disabled");
+    }
+
+    [Fact]
+    public async Task GetCatalogAsync_TruncatedOnlineCatalog_RejectsBeforeCaching()
+    {
+        // Arrange
+        const string resourceName =
+            "Ato.Copilot.Agents.Compliance.Resources.NIST_SP-800-53_rev5_catalog.json";
+        using var stream = typeof(NistControlsService).Assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' was not found.");
+        var root = JsonNode.Parse(stream)!;
+        root["catalog"]!["groups"]!.AsArray().RemoveAt(0);
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(root.ToJsonString(), Encoding.UTF8, "application/json")
+        };
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+        var service = CreateService(
+            new HttpClient(handler.Object),
+            options: new NistControlsOptions
+            {
+                BaseUrl = "https://example.test/catalog.json",
+                TimeoutSeconds = 10,
+                CacheDurationHours = 1,
+                EnableOfflineFallback = false,
+                WarmupDelaySeconds = 5
+            });
+
+        // Act
+        var catalog = await service.GetCatalogAsync();
+
+        // Assert
+        catalog.Should().BeNull();
+        service.CatalogSource.Should().Be("none");
+        service.LastSyncedAt.Should().BeNull();
     }
 
     [Fact]

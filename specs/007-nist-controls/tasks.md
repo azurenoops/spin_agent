@@ -98,6 +98,18 @@
 
 ---
 
+## Issue #741 — Runtime Catalog Integrity
+
+**Independent Test**: Start the MCP host with the bundled NIST catalog and verify the NIST health check reports the validated OSCAL version and record counts. Supply a malformed or truncated synthetic catalog and verify validation fails before the catalog can be cached or synchronized.
+
+- [X] T033 [US4] Add regression tests for OSCAL schema violations, version mismatch, record-count mismatch, and the valid bundled catalog baseline.
+- [X] T034 [US4] Bundle the official NIST OSCAL 1.1.3 catalog JSON schema with documented provenance and SHA-256 digest.
+- [X] T035 [US4] Validate every remote and embedded catalog before caching; log structured results and reject invalid catalogs.
+- [X] T036 [US4] Surface catalog integrity in `NistControlsHealthCheck` and make startup warmup fail closed after retries.
+- [X] T037 [US4] Add process-level E2E coverage proving the valid bundled catalog is reported through `/health`, plus focused warmup coverage proving an invalid catalog prevents readiness.
+
+---
+
 ## Phase 7: User Story 5 — Observability: Metrics and Distributed Tracing (Priority: P3)
 
 **Goal**: Add `ComplianceMetricsService` with OpenTelemetry-compatible counters/histograms and instrument `GetCatalogAsync` with `Activity` spans for distributed tracing.

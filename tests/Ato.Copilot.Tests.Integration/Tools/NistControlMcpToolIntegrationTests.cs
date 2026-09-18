@@ -49,7 +49,8 @@ public class NistControlMcpToolIntegrationTests : IDisposable
             _cache,
             options,
             new HttpClient(),
-            config);
+            config,
+            new NistCatalogIntegrityValidator(Mock.Of<ILogger<NistCatalogIntegrityValidator>>()));
 
         _searchTool = new NistControlSearchTool(_nistService, Mock.Of<ILogger<NistControlSearchTool>>());
         _explainerTool = new NistControlExplainerTool(_nistService, Mock.Of<ILogger<NistControlExplainerTool>>());

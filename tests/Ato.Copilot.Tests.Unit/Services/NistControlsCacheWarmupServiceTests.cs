@@ -196,6 +196,30 @@ public class NistControlsCacheWarmupServiceTests
         callCount.Should().BeGreaterThanOrEqualTo(1);
     }
 
+    [Fact]
+    public async Task WarmupCache_InvalidCatalogAfterRetries_Throws()
+    {
+        // Arrange
+        _nistServiceMock.Setup(s => s.GetCatalogAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((NistCatalog?)null);
+        var service = CreateService(new NistControlsOptions
+        {
+            WarmupDelaySeconds = 5,
+            WarmupRetryDelaySeconds = 0,
+            CacheDurationHours = 1
+        });
+
+        // Act
+        var act = () => service.WarmupCacheAsync(CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*failed after 3 attempts*");
+        _nistServiceMock.Verify(
+            s => s.GetCatalogAsync(It.IsAny<CancellationToken>()),
+            Times.Exactly(3));
+    }
+
     // ─── Validation Service Integration ──────────────────────────────────────
 
     [Fact]

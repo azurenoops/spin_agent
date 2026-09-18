@@ -1806,7 +1806,7 @@ string DetermineRunMode(string[] args)
 /// <summary>
 /// Custom JSON response writer for the /health endpoint.
 /// Output format: { "status": "Healthy|Degraded|Unhealthy",
-///   "agents": [{ "name": "...", "status": "...", "description": "..." }],
+///   "agents": [{ "name": "...", "status": "...", "description": "...", "data": { ... } }],
 ///   "totalDurationMs": 45 }
 /// </summary>
 async Task WriteHealthCheckResponseAsync(HttpContext context, HealthReport report)
@@ -1817,7 +1817,8 @@ async Task WriteHealthCheckResponseAsync(HttpContext context, HealthReport repor
     {
         name = e.Key,
         status = e.Value.Status.ToString(),
-        description = e.Value.Description ?? string.Empty
+        description = e.Value.Description ?? string.Empty,
+        data = e.Value.Data
     });
 
     var response = new

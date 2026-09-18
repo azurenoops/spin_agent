@@ -219,6 +219,10 @@ Users interacting with the Compliance Agent via chat need to search for controls
 - **FR-036**: `ComplianceValidationService` MUST validate that 11 system control IDs (SC-13, SC-28, AC-3, AC-6, SC-7, AC-4, AU-2, SI-4, CP-9, CP-10, IA-5) exist in the loaded catalog.
 - **FR-037**: Validation MUST produce warnings (not errors) for missing controls, allowing the system to continue operating in a degraded state.
 - **FR-038**: `ValidateConfigurationAsync` MUST check that the NIST version is available and the catalog contains groups with controls.
+- **FR-050**: Before a remote or embedded catalog is cached, the service MUST validate it against the official NIST OSCAL catalog JSON schema matching the catalog's declared `oscal-version`. The OSCAL 1.1.3 schema MUST be bundled for offline validation and its upstream source and SHA-256 digest documented.
+- **FR-051**: Structural integrity validation MUST require OSCAL version `1.1.3`, 20 control families, 324 base controls, 872 control enhancements, and 1,196 total controls. These values are the verified baseline of the bundled NIST SP 800-53 Rev. 5.2.0 catalog.
+- **FR-052**: A catalog that fails schema or baseline validation MUST NOT be cached or synchronized to the database. Startup warmup MUST fail after its configured retries, and the NIST controls health check MUST report `Unhealthy` with structured integrity details. This fail-closed behavior is distinct from FR-037's non-fatal warnings for individual control-mapping drift.
+- **FR-053**: The default remote catalog URL MUST reference an immutable upstream revision whose content matches the validated embedded NIST SP 800-53 Rev. 5.2.0 catalog. It MUST NOT track a mutable branch that can advance to an unsupported OSCAL schema version.
 
 #### Observability
 
@@ -268,6 +272,7 @@ Users interacting with the Compliance Agent via chat need to search for controls
 - **SC-006**: All existing unit tests (10 in `NistControlsServiceTests.cs`) continue to pass after the refactor.
 - **SC-007**: New functionality is covered by at least 20 additional unit tests covering the expanded interface methods, cache warming, health check, validation, and resilience paths.
 - **SC-008**: Users can search for NIST controls and receive explanations via chat within 2 seconds.
+- **SC-009**: The bundled NIST SP 800-53 Rev. 5.2.0 catalog passes OSCAL 1.1.3 schema and record-count validation during application startup; a structurally invalid or truncated catalog causes startup failure and an `Unhealthy` NIST health result.
 
 ## Assumptions
 

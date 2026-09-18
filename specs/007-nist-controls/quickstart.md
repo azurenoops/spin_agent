@@ -29,7 +29,7 @@ Add or update the NIST controls configuration in `appsettings.json`:
   "Agents": {
     "Compliance": {
       "NistControls": {
-        "BaseUrl": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
+        "BaseUrl": "https://raw.githubusercontent.com/usnistgov/oscal-content/bc8a528770033611df899b3d52703fb3dc91a20d/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
         "TimeoutSeconds": 60,
         "CacheDurationHours": 24,
         "MaxRetryAttempts": 3,
