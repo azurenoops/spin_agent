@@ -34,6 +34,13 @@ public class TeamsManifestValidatorTests
         IdleTimeoutMinutes = 30,
         RememberTenantCookieDays = 30,
         Cookie = new AuthCookieOptions { SigningKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" },
+        Msal = new AuthMsalOptions
+        {
+            ClientId = "11111111-2222-3333-4444-555555555555",
+            Authority = "https://login.microsoftonline.com/organizations",
+            RedirectUri = "https://dashboard.example.com/auth/callback",
+            PostLogoutRedirectUri = "https://dashboard.example.com/login",
+        },
         Throttle = new AuthThrottleOptions
         {
             Development = new ThrottleBucket { PerIpPerMinute = 100, PerIdentityPerMinute = 100 },
