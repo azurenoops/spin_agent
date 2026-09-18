@@ -14,14 +14,22 @@ public class PolicyTechnicalNarrativeSchemaAdditionsTests
     [Fact]
     public void SqlServerScript_UsesMaxForEightThousandCharacterNarratives()
     {
-        var script = typeof(PolicyTechnicalNarrativeSchemaAdditions)
-            .GetField("SqlServerScript", BindingFlags.NonPublic | BindingFlags.Static)!
-            .GetRawConstantValue() as string;
+        var script = GetSqlServerScript();
 
         script
             .Should().Contain("PolicyNarrative NVARCHAR(MAX)")
             .And.Contain("TechnicalNarrative NVARCHAR(MAX)")
             .And.NotContain("NVARCHAR(8000)");
+    }
+
+    [Fact]
+    public void SqlServerScript_DefersBackfillsUntilAddedColumnsExist()
+    {
+        var script = GetSqlServerScript();
+
+        script
+            .Should().Contain("EXEC(N'UPDATE ControlImplementations")
+            .And.Contain("EXEC(N'UPDATE EvidenceArtifacts");
     }
 
     [Fact]
@@ -74,4 +82,9 @@ public class PolicyTechnicalNarrativeSchemaAdditionsTests
         reader.GetString(2).Should().Be("Combined");
         reader.GetString(3).Should().Be("Unclassified");
     }
+
+    private static string GetSqlServerScript() =>
+        (string)typeof(PolicyTechnicalNarrativeSchemaAdditions)
+            .GetField("SqlServerScript", BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetRawConstantValue()!;
 }
