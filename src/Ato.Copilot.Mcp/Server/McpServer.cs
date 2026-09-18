@@ -320,6 +320,13 @@ public class McpServer
                 EmptyResultsCount = response.SkippedToolCallCount
             };
 
+            if (!string.IsNullOrWhiteSpace(response.BackendProvider))
+                chatResponse.Metadata["backendProvider"] = response.BackendProvider;
+            if (!string.IsNullOrWhiteSpace(response.BackendModel))
+                chatResponse.Metadata["backendModel"] = response.BackendModel;
+            if (response.Warnings.Count > 0)
+                chatResponse.Metadata["warnings"] = response.Warnings;
+
             // T047: Server-side pagination enforcement (FR-029/FR-030/FR-031)
             ApplyPagination(chatResponse, context);
 

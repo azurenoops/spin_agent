@@ -47,6 +47,7 @@ public class AzureAiOptionsTests
         options.ConversationWindowSize.Should().Be(20);
         options.RunTimeoutSeconds.Should().Be(60);
         options.Provider.Should().Be(AiProvider.OpenAi);
+        options.AllowBackendFallback.Should().BeFalse();
     }
 
     [Fact]
@@ -65,7 +66,8 @@ public class AzureAiOptionsTests
                 ["AzureAi:MaxToolIterations"] = "15",
                 ["AzureAi:Temperature"] = "0.7",
                 ["AzureAi:FoundryProjectEndpoint"] = "https://foundry.azure.us/proj",
-                ["AzureAi:RunTimeoutSeconds"] = "120"
+                ["AzureAi:RunTimeoutSeconds"] = "120",
+                ["AzureAi:AllowBackendFallback"] = "true"
             })
             .Build();
 
@@ -86,6 +88,7 @@ public class AzureAiOptionsTests
         options.Temperature.Should().Be(0.7);
         options.FoundryProjectEndpoint.Should().Be("https://foundry.azure.us/proj");
         options.RunTimeoutSeconds.Should().Be(120);
+        options.AllowBackendFallback.Should().BeTrue();
     }
 
     [Fact]
