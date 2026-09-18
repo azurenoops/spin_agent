@@ -145,9 +145,11 @@ jobs:
             test -n "$AUTH_REDIRECT_URI" || (echo "Missing environment variable: ATO_AUTH_MSAL_REDIRECTURI" && exit 1)
             test -n "$AUTH_POST_LOGOUT_REDIRECT_URI" || (echo "Missing environment variable: ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI" && exit 1)
             case "$AUTH_AUTHORITY" in
-              https://*/*/) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected https://host/tenant-id without a trailing slash"; exit 1 ;;
-              https://*/*) ;;
-              *) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected https://host/tenant-id"; exit 1 ;;
+              https://login.microsoftonline.com/*/) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected https://host/tenant-id without a trailing slash"; exit 1 ;;
+              https://login.microsoftonline.com/*) ;;
+              https://login.microsoftonline.us/*/) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected https://host/tenant-id without a trailing slash"; exit 1 ;;
+              https://login.microsoftonline.us/*) ;;
+              *) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected an Azure Public or Government authority with tenant ID"; exit 1 ;;
             esac
             case "$AUTH_REDIRECT_URI" in
               https://*) ;;
@@ -370,8 +372,14 @@ jobs:
             AUTH_AUTHORITY="${{ vars.ATO_AUTH_MSAL_AUTHORITY }}"
             AUTH_TENANT_ID="${AUTH_AUTHORITY##*/}"
             AUTH_INSTANCE="${AUTH_AUTHORITY%/*}/"
+            case "${AUTH_INSTANCE}" in
+              https://login.microsoftonline.com/) AUTH_CLOUD="AzurePublic" ;;
+              https://login.microsoftonline.us/) AUTH_CLOUD="AzureUSGovernment" ;;
+              *) echo "::error::Unsupported Entra authority instance '${AUTH_INSTANCE}'"; exit 1 ;;
+            esac
             # Entra v2 access tokens identify a custom API by its application client ID in aud.
             AUTH_AUDIENCE="${AUTH_CLIENT_ID}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__CLOUD=${AUTH_CLOUD}"
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__CLIENTID=${AUTH_CLIENT_ID}"
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__AUTHORITY=${AUTH_AUTHORITY}"
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__REDIRECTURI=${{ vars.ATO_AUTH_MSAL_REDIRECTURI }}"

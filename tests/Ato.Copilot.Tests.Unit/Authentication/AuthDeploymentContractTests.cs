@@ -19,6 +19,9 @@ public class AuthDeploymentContractTests
         workflow.Should().Contain("Missing environment variable: ATO_AUTH_MSAL_REDIRECTURI");
         workflow.Should().Contain("Missing environment variable: ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI");
         workflow.Should().Contain("AUTH_AUDIENCE=\"${AUTH_CLIENT_ID}\"");
+        workflow.Should().Contain("https://login.microsoftonline.com/) AUTH_CLOUD=\"AzurePublic\"");
+        workflow.Should().Contain("https://login.microsoftonline.us/) AUTH_CLOUD=\"AzureUSGovernment\"");
+        workflow.Should().Contain("ATO_AUTH__CLOUD=${AUTH_CLOUD}");
         workflow.Should().Contain("ATO_AZUREAD__INSTANCE=${AUTH_INSTANCE}");
         workflow.Should().Contain("ATO_AZUREAD__TENANTID=${AUTH_TENANT_ID}");
         workflow.Should().Contain("ATO_AZUREAD__CLIENTID=${AUTH_CLIENT_ID}");
