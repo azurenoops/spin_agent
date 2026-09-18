@@ -328,6 +328,7 @@ ATO_AZUREAI__PROVIDER=Foundry
 ATO_AZUREAI__ENDPOINT=https://<resource>.openai.azure.us/
 ATO_AZUREAI__FOUNDRYPROJECTENDPOINT=https://<resource>.services.ai.azure.com/api/projects/<project>
 ATO_AZUREAI__DEPLOYMENTNAME=gpt-4o
+ATO_AZUREAI__ALLOWBACKENDFALLBACK=false
 ```
 
 **Trade-offs:**
@@ -339,6 +340,13 @@ ATO_AZUREAI__DEPLOYMENTNAME=gpt-4o
 | Tool execution | Local — tools still run inside the MCP process |
 | Foundry features | Code interpreter, file search, Foundry-hosted runs |
 | Startup validation | **Fails fast** if `FOUNDRYPROJECTENDPOINT` is empty (`InvalidOperationException`) |
+
+Backend fallback is denied by default. Set
+`ATO_AZUREAI__ALLOWBACKENDFALLBACK=true` only when Azure OpenAI is an approved
+alternate backend for the deployment. An allowed Foundry-to-OpenAI swap is logged
+at Error level with configured and resolved backend/model details, returned to the
+caller as warning code `AI_BACKEND_FALLBACK`, and persisted using the actual
+OpenAI provider/model in model-call provenance.
 
 **Startup fail-fast:** If `Provider=Foundry` is set but `FOUNDRYPROJECTENDPOINT` is
 empty or missing, `Program.cs::ValidateFoundryConfig()` throws at startup rather

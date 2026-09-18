@@ -1,9 +1,25 @@
 using Xunit;
 using FluentAssertions;
 using Moq;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Azure.Identity;
+using Azure.ResourceManager;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Ato.Copilot.Agents.Common;
+using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Mcp.Extensions;
 
 namespace Ato.Copilot.Tests.Integration.Agents;
 
@@ -16,23 +32,31 @@ public class FoundryFallbackTests
     private readonly Mock<ILogger<TestFallbackAgent>> _loggerMock = new();
 
     /// <summary>
-    /// SC-009: Foundry failure triggers IChatClient fallback, then deterministic.
-    /// Simulates Foundry returning null (client unavailable) and verifies fallback chain.
+    /// Issue #698: Foundry failure must not cross the configured backend boundary
+    /// unless an operator explicitly enables fallback.
     /// </summary>
     [Fact]
-    public async Task FallbackChain_FoundryFails_FallsBackToIchatClient_ThenDeterministic()
+    public async Task FallbackChain_FoundryFails_DefaultPolicy_DoesNotCallOpenAi()
     {
-        // Foundry provider with no client — Foundry returns null, IChatClient also null → deterministic null
+        // Arrange
+        var chatClient = new Mock<IChatClient>();
         var agent = new TestFallbackAgent(
             _loggerMock.Object,
             azureAiOptions: new AzureAiOptions { Enabled = true, Provider = AiProvider.Foundry },
+            chatClient: chatClient.Object,
             foundryClient: null);
-
         var context = new AgentConversationContext { ConversationId = "fallback-1" };
+
+        // Act
         var result = await agent.InvokeTryProcessWithBackendAsync("test", context);
 
+        // Assert
         result.Should().BeNull("when both Foundry and IChatClient are unavailable, result should be null for deterministic fallback");
         agent.FoundryAttempted.Should().BeTrue("Foundry path should be attempted first");
+        chatClient.Verify(c => c.GetResponseAsync(
+            It.IsAny<IList<ChatMessage>>(),
+            It.IsAny<ChatOptions>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     /// <summary>
@@ -49,6 +73,56 @@ public class FoundryFallbackTests
 
         result.Should().BeNull("default provider with no IChatClient should fall through to deterministic");
         agent.FoundryAttempted.Should().BeFalse("OpenAi provider should not attempt Foundry path");
+    }
+
+    [Fact]
+    public async Task FallbackChain_FoundryFails_ExplicitFallback_ReturnsAuditableOpenAiResponse()
+    {
+        // Arrange
+        var chatClient = new Mock<IChatClient>();
+        chatClient.Setup(c => c.GetResponseAsync(
+                It.IsAny<IList<ChatMessage>>(),
+                It.IsAny<ChatOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse([
+                new ChatMessage(ChatRole.Assistant, "Fallback response")
+            ]));
+        var options = new AzureAiOptions
+        {
+            Enabled = true,
+            Provider = AiProvider.Foundry,
+            DeploymentName = "approved-openai-deployment",
+            AllowBackendFallback = true
+        };
+        var agent = new TestFallbackAgent(
+            _loggerMock.Object,
+            azureAiOptions: options,
+            chatClient: chatClient.Object,
+            foundryClient: null);
+
+        // Act
+        var result = await agent.InvokeTryProcessWithBackendAsync(
+            "test", new AgentConversationContext { ConversationId = "fallback-opt-in" });
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.BackendProvider.Should().Be(AiProvider.OpenAi.ToString());
+        result.BackendModel.Should().Be("approved-openai-deployment");
+        result.Warnings.Should().ContainSingle(w => w.Code == "AI_BACKEND_FALLBACK");
+        result.ModelCallRecords.Should().ContainSingle();
+        result.ModelCallRecords[0].Provider.Should().Be(AiProvider.OpenAi.ToString());
+        result.ModelCallRecords[0].ModelId.Should().Be("approved-openai-deployment");
+        _loggerMock.Verify(
+            logger => logger.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains("ConfiguredProvider=Foundry") &&
+                    state.ToString()!.Contains("ResolvedProvider=OpenAi") &&
+                    state.ToString()!.Contains("ResolvedModel=approved-openai-deployment")),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 
     /// <summary>
@@ -69,23 +143,131 @@ public class FoundryFallbackTests
     }
 
     /// <summary>
-    /// SC-009: When Foundry exception is thrown, fallback to IChatClient still works.
+    /// Issue #698: Exceptions follow the same secure-default policy as null responses.
     /// </summary>
     [Fact]
-    public async Task FallbackChain_FoundryThrowsException_FallsBackGracefully()
+    public async Task FallbackChain_FoundryThrowsException_DefaultPolicy_DoesNotCallOpenAi()
     {
+        // Arrange
+        var chatClient = new Mock<IChatClient>();
         var agent = new TestFallbackAgent(
             _loggerMock.Object,
             azureAiOptions: new AzureAiOptions { Enabled = true, Provider = AiProvider.Foundry },
+            chatClient: chatClient.Object,
             foundryClient: null,
             throwOnFoundry: true);
-
         var context = new AgentConversationContext { ConversationId = "fallback-4" };
+
+        // Act
         var result = await agent.InvokeTryProcessWithBackendAsync("test", context);
 
-        // Foundry throws, IChatClient is null → deterministic fallback
+        // Assert
         result.Should().BeNull();
         agent.FoundryAttempted.Should().BeTrue("Foundry should be attempted even though it will throw");
+        chatClient.Verify(c => c.GetResponseAsync(
+            It.IsAny<IList<ChatMessage>>(),
+            It.IsAny<ChatOptions>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task FallbackChain_RequestCancelled_DoesNotCallOpenAi()
+    {
+        // Arrange
+        var chatClient = new Mock<IChatClient>();
+        var agent = new TestFallbackAgent(
+            _loggerMock.Object,
+            azureAiOptions: new AzureAiOptions
+            {
+                Enabled = true,
+                Provider = AiProvider.Foundry,
+                AllowBackendFallback = true
+            },
+            chatClient: chatClient.Object,
+            cancelOnFoundry: true);
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+
+        // Act
+        var act = () => agent.InvokeTryProcessWithBackendAsync(
+            "test",
+            new AgentConversationContext { ConversationId = "fallback-cancelled" },
+            cancellationSource.Token);
+
+        // Assert
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        chatClient.Verify(c => c.GetResponseAsync(
+            It.IsAny<IList<ChatMessage>>(),
+            It.IsAny<ChatOptions>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChatEndpoint_ExplicitFallback_ReturnsBackendMetadataAndWarning()
+    {
+        // Arrange
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = "Development"
+        });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AzureAi:Enabled"] = "true",
+            ["AzureAi:Provider"] = "Foundry",
+            ["AzureAi:DeploymentName"] = "approved-openai-deployment",
+            ["AzureAi:AllowBackendFallback"] = "true"
+        });
+        builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(GatewayOptions.SectionName));
+        builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
+        builder.Services.AddHttpClient();
+        builder.Services.AddSingleton(_ => new ArmClient(
+            new DefaultAzureCredential(new DefaultAzureCredentialOptions
+            {
+                AuthorityHost = AzureAuthorityHosts.AzureGovernment
+            }),
+            default,
+            new ArmClientOptions { Environment = ArmEnvironment.AzureGovernment }));
+        builder.Services.AddAtoCopilotMcpForTesting(
+            builder.Configuration, $"FoundryFallbackE2e_{Guid.NewGuid():N}");
+        builder.Services.RemoveAll<IHostedService>();
+
+        var chatClient = new Mock<IChatClient>();
+        chatClient.Setup(c => c.GetResponseAsync(
+                It.IsAny<IList<ChatMessage>>(),
+                It.IsAny<ChatOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse([
+                new ChatMessage(ChatRole.Assistant, "Fallback response")
+            ]));
+        builder.Services.RemoveAll<IChatClient>();
+        builder.Services.AddSingleton(chatClient.Object);
+        builder.Services.AddSingleton<BaseAgent>(sp => new TestFallbackAgent(
+            sp.GetRequiredService<ILogger<TestFallbackAgent>>(),
+            sp.GetRequiredService<IOptions<AzureAiOptions>>().Value,
+            sp.GetRequiredService<IChatClient>()));
+        builder.WebHost.UseTestServer();
+
+        await using var app = builder.Build();
+        app.Services.GetRequiredService<Ato.Copilot.Mcp.Server.McpHttpBridge>().MapEndpoints(app);
+        await app.StartAsync();
+        var client = app.GetTestClient();
+
+        // Act
+        var httpResponse = await client.PostAsJsonAsync("/mcp/chat", new
+        {
+            message = "exercise explicit backend fallback",
+            conversationId = "fallback-e2e"
+        });
+        var responseJson = JsonDocument.Parse(await httpResponse.Content.ReadAsStringAsync()).RootElement;
+
+        // Assert
+        httpResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        responseJson.GetProperty("response").GetString().Should().Be("Fallback response");
+        var metadata = responseJson.GetProperty("metadata");
+        metadata.GetProperty("backendProvider").GetString().Should().Be("OpenAi");
+        metadata.GetProperty("backendModel").GetString().Should().Be("approved-openai-deployment");
+        metadata.GetProperty("warnings")[0].GetProperty("code").GetString()
+            .Should().Be("AI_BACKEND_FALLBACK");
     }
 }
 
@@ -96,35 +278,40 @@ public class TestFallbackAgent : BaseAgent
 {
     public bool FoundryAttempted { get; private set; }
     private readonly bool _throwOnFoundry;
+    private readonly bool _cancelOnFoundry;
 
     public TestFallbackAgent(
         ILogger logger,
         AzureAiOptions? azureAiOptions = null,
+        IChatClient? chatClient = null,
         Azure.AI.Agents.Persistent.PersistentAgentsClient? foundryClient = null,
-        bool throwOnFoundry = false)
-        : base(logger, null, foundryClient, azureAiOptions)
+        bool throwOnFoundry = false,
+        bool cancelOnFoundry = false)
+        : base(logger, chatClient, foundryClient, azureAiOptions)
     {
         _throwOnFoundry = throwOnFoundry;
+        _cancelOnFoundry = cancelOnFoundry;
     }
 
     public override string AgentId => "test-fallback-agent";
     public override string AgentName => "Test Fallback Agent";
     public override string Description => "A test agent for fallback testing";
-    public override double CanHandle(string message) => 0.5;
+    public override double CanHandle(string message) => 1.0;
     public override string GetSystemPrompt() => "You are a test agent.";
 
-    public override Task<AgentResponse> ProcessAsync(
+    public override async Task<AgentResponse> ProcessAsync(
         string message,
         AgentConversationContext context,
         CancellationToken cancellationToken = default,
         IProgress<string>? progress = null)
     {
-        return Task.FromResult(new AgentResponse
+        return await TryProcessWithBackendAsync(message, context, cancellationToken, progress)
+            ?? new AgentResponse
         {
             Success = true,
             Response = "test",
             AgentName = AgentName
-        });
+        };
     }
 
     protected override Task<AgentResponse?> TryProcessWithFoundryAsync(
@@ -134,6 +321,9 @@ public class TestFallbackAgent : BaseAgent
         IProgress<string>? progress = null)
     {
         FoundryAttempted = true;
+
+        if (_cancelOnFoundry)
+            throw new OperationCanceledException(cancellationToken);
 
         if (_throwOnFoundry)
             throw new InvalidOperationException("Simulated Foundry failure");

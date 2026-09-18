@@ -8,8 +8,10 @@
 
 ## Background
 
-`BaseAgent.cs` implements a three-tier fallback chain: Azure AI Foundry →
-`IChatClient` (Azure OpenAI) → deterministic tool routing. The Foundry tier is
+`BaseAgent.cs` supports Azure AI Foundry, `IChatClient` (Azure OpenAI), and
+deterministic tool routing. A Foundry-to-OpenAI backend transition requires
+explicit operator approval; deterministic routing remains available when the
+selected AI backend cannot process a request. The Foundry tier is
 enabled by setting `AzureAi:Provider = Foundry` and supplying a
 `AzureAi:FoundryProjectEndpoint`. `PersistentAgentsClient` is registered as a
 singleton via `CoreServiceExtensions.RegisterFoundryClient`, which reads
@@ -44,7 +46,8 @@ nothing) if the value is absent.
 3. **`BaseAgent.cs` fallback chain**:
    - `_foundryClient = sp.GetService<PersistentAgentsClient>()` — nullable
    - `TryProcessWithFoundryAsync` returns `null` if `_foundryClient is null`
-   - Fallback proceeds to `IChatClient` then deterministic
+   - Fallback proceeds to `IChatClient` only when `AllowBackendFallback=true`;
+     otherwise the caller proceeds to deterministic routing
 
 4. **`FoundryFallbackTests.cs`** (147 lines, 4 tests):
    - All tests mock `_foundryClient = null` or throw exceptions
@@ -80,7 +83,9 @@ should be a first-class health check target.
   **A:** Log a warning only — do not crash. The fallback chain (IChatClient →
   deterministic) still works even when Foundry is unreachable. A crash on
   startup would take down a working server just because Foundry is temporarily
-  unavailable. The health check reports `Degraded` (not `Unhealthy`) so load
+  unavailable. Deterministic routing remains available, and an explicitly
+  approved OpenAI fallback may also be configured. The health check reports
+  `Degraded` (not `Unhealthy`) so load
   balancers continue to route traffic.
 
 - **Q: Which `GetAgentAsync` call should the startup validation use?**
@@ -137,7 +142,8 @@ startup; assert the server reaches `Application started` status (does not crash)
 - When `AzureAiOptions.IsFoundry` is true, it calls `FoundryHealthCheck.CheckHealthAsync`
   with a 5-second `CancellationToken`.
 - If the result is not `Healthy`, it logs at `Warning` level:
-  `"Foundry connectivity check failed at startup: {description}. Agent calls will fall back to IChatClient."`.
+  `"Foundry connectivity check failed at startup: {description}."` and states
+  whether backend fallback is enabled.
 - If `AzureAiOptions.IsFoundry` is false, `FoundryStartupValidator` is a no-op.
 - The server always reaches `ApplicationStarted` regardless of the outcome.
 
@@ -222,3 +228,20 @@ able to configure and verify Foundry connectivity within 30 minutes.
   - Example `appsettings.Foundry.json`
   - How to verify configuration using `GET /health`
 - `quickstart.md` includes a Foundry-specific section.
+
+### User Story 5 — Explicit and auditable backend fallback (Priority: P1)
+
+**As a** platform operator whose approved AI backend is Azure AI Foundry
+**I want** fallback to Azure OpenAI to require explicit configuration and be visible to callers
+**So that** requests never cross an AI trust boundary silently and the audit trail identifies the backend that actually processed each model call.
+
+**Independent Test**: Configure `Provider=Foundry` with an unavailable Foundry client. With `AllowBackendFallback=false` (the default), assert Azure OpenAI is not called. With `AllowBackendFallback=true`, assert Azure OpenAI is called and the response identifies the resolved provider and model, includes a structured fallback warning, and records Azure OpenAI in model-call provenance.
+
+**Acceptance**
+- `AzureAi:AllowBackendFallback` defaults to `false`.
+- When Foundry processing is unavailable and fallback is disabled, the agent does not invoke `IChatClient`; deterministic routing remains available to the caller.
+- When Foundry processing is unavailable and fallback is enabled, the agent may invoke `IChatClient` and logs an `Error` event containing the configured provider, configured model, resolved provider, resolved model, and fallback reason.
+- A fallback response exposes `BackendProvider`, `BackendModel`, and a structured warning with code `AI_BACKEND_FALLBACK`.
+- `McpChatResponse.Metadata` propagates the resolved provider, resolved model, and structured warnings.
+- `ModelCallRecord.Provider` and `ModelCallRecord.ModelId` identify the backend and deployment that actually executed the call, including fallback calls.
+- No database migration is required; the existing provenance fields retain their meaning as actual execution data.

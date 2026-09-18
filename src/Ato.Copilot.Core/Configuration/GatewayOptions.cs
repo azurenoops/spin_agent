@@ -103,6 +103,9 @@ public class AzureAiOptions
     /// <summary>Maximum seconds to poll a Foundry run before cancelling and triggering fallback.</summary>
     public int RunTimeoutSeconds { get; set; } = 60;
 
+    /// <summary>Whether a failed Foundry request may fall back to the configured Azure OpenAI deployment.</summary>
+    public bool AllowBackendFallback { get; set; }
+
     /// <summary>Custom system prompt template. When set, overrides the agent's default prompt resource.</summary>
     public string? SystemPromptTemplate { get; set; }
 

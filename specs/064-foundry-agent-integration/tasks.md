@@ -58,7 +58,8 @@
   - Create a 5-second `CancellationToken`
   - Call `FoundryHealthCheck.CheckHealthAsync`
   - If result is not `Healthy`: log `Warning`:
-    `"Foundry connectivity check failed at startup: {description}. Agent calls will fall back to IChatClient."`
+    `"Foundry connectivity check failed at startup: {description}."` and report
+    whether explicit backend fallback is enabled
   - If result is `Healthy`: log `Information`:
     `"Foundry connectivity verified at startup (endpoint: {endpoint})."`
   - Never throw — exceptions caught and logged as `Warning`
@@ -127,6 +128,29 @@
   - Skips gracefully on forks without environment access
   - Runs `FoundryProvisioningTests` and `FoundryFallbackTests` with real config
   _Owner: devops · Est: 3h_
+
+---
+
+## Phase 6 — Explicit Backend Fallback (US5, issue #698)
+
+- [x] **T-064-17** — Add integration tests proving Foundry failure does not
+  invoke `IChatClient` by default and invokes it only when
+  `AzureAi:AllowBackendFallback=true`.
+  _Owner: backend · Est: 1h_
+
+- [x] **T-064-18** — Gate Foundry-to-OpenAI fallback in `BaseAgent`, emit an
+  Error-level structured audit event, and annotate the agent response with the
+  resolved backend/model and warning code `AI_BACKEND_FALLBACK`.
+  _Owner: backend · Est: 2h_
+
+- [x] **T-064-19** — Record the actual OpenAI provider/model for fallback model
+  calls and propagate fallback metadata through `McpChatResponse`.
+  _Owner: backend · Est: 1h_
+
+- [x] **T-064-20** — Document `ATO_AZUREAI__ALLOWBACKENDFALLBACK`, its secure
+  default, and the response/audit evidence operators can use to detect a model
+  swap.
+  _Owner: docs · Est: 1h_
 
 ---
 
