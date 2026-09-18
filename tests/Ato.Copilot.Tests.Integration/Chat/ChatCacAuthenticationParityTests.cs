@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text;
 using Ato.Copilot.Chat.Services.Auth;
 using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Configuration;
 using Ato.Copilot.Mcp.Middleware;
 using FluentAssertions;
@@ -18,6 +19,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Moq;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Chat;
@@ -120,12 +122,18 @@ public class ChatCacAuthenticationParityTests
 
     private static async Task<int> SendToMcpAsync(string token)
     {
+        var tokenValidator = new Mock<IEntraJwtTokenValidator>();
+        tokenValidator
+            .Setup(validator => validator.ValidateAsync(token, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClaimsPrincipal(
+                new ClaimsIdentity(new JwtSecurityTokenHandler().ReadJwtToken(token).Claims, "Bearer")));
         var middleware = new CacAuthenticationMiddleware(
             _ => Task.CompletedTask,
             Options.Create(new AzureAdOptions { RequireCac = true }),
             Options.Create(new CacAuthOptions()),
             Options.Create(new RoleClaimMappingsOptions()),
             new TestHostEnvironment(),
+            tokenValidator.Object,
             NullLogger<CacAuthenticationMiddleware>.Instance);
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();

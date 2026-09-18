@@ -11,6 +11,7 @@ using Moq;
 using Xunit;
 using FluentAssertions;
 using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Configuration;
 using Ato.Copilot.Mcp.Middleware;
 
@@ -36,18 +37,33 @@ public class CacAuthenticationMiddlewareTests
         RequestDelegate next,
         AzureAdOptions? options = null,
         CacAuthOptions? cacOptions = null,
-        string environmentName = "Production")
+        string environmentName = "Production",
+        IEntraJwtTokenValidator? validator = null)
     {
         var opts = options ?? new AzureAdOptions { RequireCac = true };
         var cacOpts = cacOptions ?? new CacAuthOptions();
         var hostEnv = new Mock<IHostEnvironment>();
         hostEnv.Setup(h => h.EnvironmentName).Returns(environmentName);
+        var tokenValidator = new Mock<IEntraJwtTokenValidator>();
+        tokenValidator
+            .Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string token, CancellationToken _) =>
+            {
+                var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+                if (jwt.ValidTo < DateTime.UtcNow)
+                {
+                    throw new SecurityTokenExpiredException();
+                }
+
+                return new ClaimsPrincipal(new ClaimsIdentity(jwt.Claims, "Bearer"));
+            });
         return new CacAuthenticationMiddleware(
             next,
             Options.Create(opts),
             Options.Create(cacOpts),
             Options.Create(new RoleClaimMappingsOptions()),
             hostEnv.Object,
+            validator ?? tokenValidator.Object,
             _logger.Object);
     }
 
@@ -261,6 +277,26 @@ public class CacAuthenticationMiddlewareTests
         nextCalled.Should().BeFalse();
         context.Response.StatusCode.Should().Be(401);
 
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
+    }
+
+    [Fact]
+    public async Task UnexpectedValidatorFailure_ShouldPropagate()
+    {
+        var validator = new Mock<IEntraJwtTokenValidator>();
+        validator
+            .Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("metadata unavailable"));
+        var middleware = CreateMiddleware(
+            _ => Task.CompletedTask,
+            validator: validator.Object);
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Authorization = "Bearer token";
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
+
+        var action = () => middleware.InvokeAsync(context);
+
+        await action.Should().ThrowAsync<InvalidOperationException>();
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
     }
 

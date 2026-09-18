@@ -100,7 +100,7 @@ describe('LoginPage', () => {
 
     expect(loginRedirect).toHaveBeenCalledTimes(1);
     const arg = loginRedirect.mock.calls[0]?.[0] as { scopes: string[]; state: unknown };
-    expect(arg.scopes).toEqual(expect.arrayContaining(['api://ato-copilot/.default']));
+    expect(arg.scopes).toEqual(expect.arrayContaining(['api://ato-copilot/access_as_user']));
     // `state` is the deep-link path; MemoryRouter starts at /login so the
     // default should be the dashboard root.
     expect(typeof arg.state).toBe('string');

@@ -135,7 +135,31 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${{ vars.AZURE_RESOURCE_GROUP }}" || (echo "Missing environment variable: AZURE_RESOURCE_GROUP" && exit 1)
-          if [ "${{ inputs.workload }}" = "chat" ]; then
+          if [ "${{ inputs.workload }}" = "mcp" ]; then
+            AUTH_CLIENT_ID="${{ vars.ATO_AUTH_MSAL_CLIENTID || '' }}"
+            AUTH_AUTHORITY="${{ vars.ATO_AUTH_MSAL_AUTHORITY || '' }}"
+            AUTH_REDIRECT_URI="${{ vars.ATO_AUTH_MSAL_REDIRECTURI || '' }}"
+            AUTH_POST_LOGOUT_REDIRECT_URI="${{ vars.ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI || '' }}"
+            test -n "$AUTH_CLIENT_ID" || (echo "Missing environment variable: ATO_AUTH_MSAL_CLIENTID" && exit 1)
+            test -n "$AUTH_AUTHORITY" || (echo "Missing environment variable: ATO_AUTH_MSAL_AUTHORITY" && exit 1)
+            test -n "$AUTH_REDIRECT_URI" || (echo "Missing environment variable: ATO_AUTH_MSAL_REDIRECTURI" && exit 1)
+            test -n "$AUTH_POST_LOGOUT_REDIRECT_URI" || (echo "Missing environment variable: ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI" && exit 1)
+            case "$AUTH_AUTHORITY" in
+              https://login.microsoftonline.com/*/) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected https://host/tenant-id without a trailing slash"; exit 1 ;;
+              https://login.microsoftonline.com/*) ;;
+              https://login.microsoftonline.us/*/) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected https://host/tenant-id without a trailing slash"; exit 1 ;;
+              https://login.microsoftonline.us/*) ;;
+              *) echo "Invalid ATO_AUTH_MSAL_AUTHORITY: expected an Azure Public or Government authority with tenant ID"; exit 1 ;;
+            esac
+            case "$AUTH_REDIRECT_URI" in
+              https://*) ;;
+              *) echo "Invalid ATO_AUTH_MSAL_REDIRECTURI: expected an https URL"; exit 1 ;;
+            esac
+            case "$AUTH_POST_LOGOUT_REDIRECT_URI" in
+              https://*) ;;
+              *) echo "Invalid ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI: expected an https URL"; exit 1 ;;
+            esac
+          elif [ "${{ inputs.workload }}" = "chat" ]; then
             CHAT_CLIENT_ID="${{ vars.ATO_AUTH_MSAL_CLIENTID || '' }}"
             CHAT_AUTHORITY="${{ vars.ATO_AUTH_MSAL_AUTHORITY || '' }}"
             test -n "$CHAT_CLIENT_ID" || (echo "Missing environment variable: ATO_AUTH_MSAL_CLIENTID" && exit 1)
@@ -336,24 +360,34 @@ jobs:
                 ;;
             esac
             ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAI__DEPLOYMENTNAME=${DEPLOYMENT_NAME}"
+            DATABASE_PROVIDER="${{ vars.ATO_DATABASE_PROVIDER || 'SqlServer' }}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_DATABASE__PROVIDER=${DATABASE_PROVIDER}"
             # ATO_DATABASE__MANAGEDIDENTITYCLIENTID: user-assigned MI client ID for SQL Server auth.
             # Without this, SqlClient falls back to the system-assigned identity on ACA hosts that
             # have both identity types — causing Error 18456 (Login failed). Set via repo variable.
             if [ -n "${{ vars.ATO_DATABASE__MANAGEDIDENTITYCLIENTID || '' }}" ]; then
               ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_DATABASE__MANAGEDIDENTITYCLIENTID=${{ vars.ATO_DATABASE__MANAGEDIDENTITYCLIENTID }}"
             fi
-            if [ -n "${{ vars.ATO_AUTH_MSAL_CLIENTID || '' }}" ]; then
-              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__CLIENTID=${{ vars.ATO_AUTH_MSAL_CLIENTID }}"
-            fi
-            if [ -n "${{ vars.ATO_AUTH_MSAL_AUTHORITY || '' }}" ]; then
-              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__AUTHORITY=${{ vars.ATO_AUTH_MSAL_AUTHORITY }}"
-            fi
-            if [ -n "${{ vars.ATO_AUTH_MSAL_REDIRECTURI || '' }}" ]; then
-              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__REDIRECTURI=${{ vars.ATO_AUTH_MSAL_REDIRECTURI }}"
-            fi
-            if [ -n "${{ vars.ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI || '' }}" ]; then
-              ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__POSTLOGOUTREDIRECTURI=${{ vars.ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI }}"
-            fi
+            AUTH_CLIENT_ID="${{ vars.ATO_AUTH_MSAL_CLIENTID }}"
+            AUTH_AUTHORITY="${{ vars.ATO_AUTH_MSAL_AUTHORITY }}"
+            AUTH_TENANT_ID="${AUTH_AUTHORITY##*/}"
+            AUTH_INSTANCE="${AUTH_AUTHORITY%/*}/"
+            case "${AUTH_INSTANCE}" in
+              https://login.microsoftonline.com/) AUTH_CLOUD="AzurePublic" ;;
+              https://login.microsoftonline.us/) AUTH_CLOUD="AzureUSGovernment" ;;
+              *) echo "::error::Unsupported Entra authority instance '${AUTH_INSTANCE}'"; exit 1 ;;
+            esac
+            # Entra v2 access tokens identify a custom API by its application client ID in aud.
+            AUTH_AUDIENCE="${AUTH_CLIENT_ID}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__CLOUD=${AUTH_CLOUD}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__CLIENTID=${AUTH_CLIENT_ID}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__AUTHORITY=${AUTH_AUTHORITY}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__REDIRECTURI=${{ vars.ATO_AUTH_MSAL_REDIRECTURI }}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AUTH__MSAL__POSTLOGOUTREDIRECTURI=${{ vars.ATO_AUTH_MSAL_POSTLOGOUTREDIRECTURI }}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAD__INSTANCE=${AUTH_INSTANCE}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAD__TENANTID=${AUTH_TENANT_ID}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAD__CLIENTID=${AUTH_CLIENT_ID}"
+            ENV_ARGS_BASE="${ENV_ARGS_BASE} ATO_AZUREAD__AUDIENCE=${AUTH_AUDIENCE}"
           elif [ "${{ inputs.workload }}" = "dashboard" ]; then
             MCP_OVERRIDE="${{ inputs.mcp_base_url_override }}"
             if [ -n "$MCP_OVERRIDE" ]; then

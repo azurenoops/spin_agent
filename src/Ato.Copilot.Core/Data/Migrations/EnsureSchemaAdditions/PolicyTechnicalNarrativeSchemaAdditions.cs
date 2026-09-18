@@ -130,24 +130,24 @@ public static class PolicyTechnicalNarrativeSchemaAdditions
 
     private const string SqlServerScript = """
         IF COL_LENGTH('ControlImplementations', 'PolicyNarrative') IS NULL
-            ALTER TABLE ControlImplementations ADD PolicyNarrative NVARCHAR(8000) NULL;
+            ALTER TABLE ControlImplementations ADD PolicyNarrative NVARCHAR(MAX) NULL;
 
         IF COL_LENGTH('ControlImplementations', 'TechnicalNarrative') IS NULL
-            ALTER TABLE ControlImplementations ADD TechnicalNarrative NVARCHAR(8000) NULL;
+            ALTER TABLE ControlImplementations ADD TechnicalNarrative NVARCHAR(MAX) NULL;
 
         IF COL_LENGTH('ControlImplementations', 'MigratedFromLegacy') IS NULL
             ALTER TABLE ControlImplementations ADD MigratedFromLegacy BIT NOT NULL
                 CONSTRAINT DF_ControlImplementations_MigratedFromLegacy DEFAULT 0;
 
-        UPDATE ControlImplementations
-        SET TechnicalNarrative = Narrative, MigratedFromLegacy = 1
-        WHERE Narrative IS NOT NULL AND TechnicalNarrative IS NULL;
+        EXEC(N'UPDATE ControlImplementations
+            SET TechnicalNarrative = Narrative, MigratedFromLegacy = 1
+            WHERE Narrative IS NOT NULL AND TechnicalNarrative IS NULL;');
 
         IF COL_LENGTH('EvidenceArtifacts', 'NarrativeType') IS NULL
         BEGIN
             ALTER TABLE EvidenceArtifacts ADD NarrativeType NVARCHAR(20) NOT NULL
                 CONSTRAINT DF_EvidenceArtifacts_NarrativeType DEFAULT 'Unclassified';
-            UPDATE EvidenceArtifacts SET NarrativeType = 'Combined';
+            EXEC(N'UPDATE EvidenceArtifacts SET NarrativeType = ''Combined'';');
         END;
 
         IF COL_LENGTH('EvidenceArtifacts', 'AutoTagRationale') IS NULL

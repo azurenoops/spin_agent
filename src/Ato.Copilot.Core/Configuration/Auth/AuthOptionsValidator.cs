@@ -65,6 +65,17 @@ public sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
             errors.Add("Auth:Cookie:SigningKey is required outside Development.");
         }
 
+        if (!_env.IsDevelopment() && !_env.IsEnvironment("Testing"))
+        {
+            RequireMsalSetting(errors, nameof(options.Msal.ClientId), options.Msal.ClientId);
+            RequireMsalSetting(errors, nameof(options.Msal.Authority), options.Msal.Authority);
+            RequireMsalSetting(errors, nameof(options.Msal.RedirectUri), options.Msal.RedirectUri);
+            RequireMsalSetting(
+                errors,
+                nameof(options.Msal.PostLogoutRedirectUri),
+                options.Msal.PostLogoutRedirectUri);
+        }
+
         // IdleTimeoutMinutes range (FR-007).
         if (options.IdleTimeoutMinutes < 5 || options.IdleTimeoutMinutes > 480)
         {
@@ -123,6 +134,14 @@ public sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
         return errors.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(errors);
+    }
+
+    private static void RequireMsalSetting(List<string> errors, string name, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            errors.Add($"Auth:Msal:{name} is required outside Development.");
+        }
     }
 
     private string? ValidateTeamsManifestForRequiredMode()
