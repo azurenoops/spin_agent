@@ -7,6 +7,7 @@ using Moq;
 using Xunit;
 using FluentAssertions;
 using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Configuration;
 using Ato.Copilot.Mcp.Middleware;
 
@@ -51,6 +52,7 @@ public class DevAuthBypassGuardTests : IDisposable
             Options.Create(new CacAuthOptions()),       // SimulationMode = false
             Options.Create(new RoleClaimMappingsOptions()),
             hostEnv.Object,
+            Mock.Of<IEntraJwtTokenValidator>(),
             _logger.Object);
     }
 

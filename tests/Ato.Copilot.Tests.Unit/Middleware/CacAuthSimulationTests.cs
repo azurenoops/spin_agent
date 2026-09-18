@@ -8,6 +8,7 @@ using Xunit;
 using FluentAssertions;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Models.Auth;
+using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Configuration;
 using Ato.Copilot.Mcp.Middleware;
 
@@ -17,6 +18,7 @@ namespace Ato.Copilot.Tests.Unit.Middleware;
 /// Tests for CAC simulation mode in CacAuthenticationMiddleware.
 /// Covers US1 (core simulation), US2 (configurability), US4 (production safety guard).
 /// </summary>
+[Collection("MiddlewareEnvTests")]
 public class CacAuthSimulationTests
 {
     private readonly Mock<ILogger<CacAuthenticationMiddleware>> _logger = new();
@@ -36,6 +38,7 @@ public class CacAuthSimulationTests
             Options.Create(cacOptions),
             Options.Create(new RoleClaimMappingsOptions()),
             hostEnv.Object,
+            Mock.Of<IEntraJwtTokenValidator>(),
             _logger.Object);
     }
 

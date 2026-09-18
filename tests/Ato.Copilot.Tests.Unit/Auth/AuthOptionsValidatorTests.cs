@@ -46,6 +46,13 @@ public class AuthOptionsValidatorTests
             ConnectionName = string.Empty,
         },
         Archive = new AuthArchiveOptions { RunHourUtc = 2 },
+        Msal = new AuthMsalOptions
+        {
+            ClientId = "11111111-2222-3333-4444-555555555555",
+            Authority = "https://login.microsoftonline.com/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            RedirectUri = "https://dashboard.example/login/callback",
+            PostLogoutRedirectUri = "https://dashboard.example/login?reason=signed_out",
+        },
     };
 
     [Fact]
@@ -76,6 +83,41 @@ public class AuthOptionsValidatorTests
         // Assert
         result.Failed.Should().BeTrue();
         result.FailureMessage.Should().Contain("Auth:Cookie:SigningKey");
+    }
+
+    [Theory]
+    [InlineData("ClientId")]
+    [InlineData("Authority")]
+    [InlineData("RedirectUri")]
+    [InlineData("PostLogoutRedirectUri")]
+    public void Validate_MissingMsalSettingInProduction_Fails(string setting)
+    {
+        // Arrange
+        var validator = Validator(Environments.Production);
+        var options = ValidOptions();
+        typeof(AuthMsalOptions).GetProperty(setting)!.SetValue(options.Msal, string.Empty);
+
+        // Act
+        var result = validator.Validate(name: null, options);
+
+        // Assert
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain($"Auth:Msal:{setting}");
+    }
+
+    [Fact]
+    public void Validate_MissingMsalSettingsInDevelopment_Succeeds()
+    {
+        // Arrange
+        var validator = Validator(Environments.Development);
+        var options = ValidOptions();
+        options.Msal = new AuthMsalOptions();
+
+        // Act
+        var result = validator.Validate(name: null, options);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
     }
 
     [Fact]

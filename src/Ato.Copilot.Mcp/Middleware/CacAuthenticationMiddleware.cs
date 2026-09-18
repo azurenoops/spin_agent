@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Auth;
@@ -29,6 +30,7 @@ public class CacAuthenticationMiddleware
     private readonly CacAuthOptions _cacAuthOptions;
     private readonly RoleClaimMappingsOptions _roleClaimMappings;
     private readonly IHostEnvironment _hostEnvironment;
+    private readonly Authentication.IEntraJwtTokenValidator _tokenValidator;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CacAuthenticationMiddleware"/> class.
@@ -39,6 +41,7 @@ public class CacAuthenticationMiddleware
         IOptions<CacAuthOptions> cacAuthOptions,
         IOptions<RoleClaimMappingsOptions> roleClaimMappings,
         IHostEnvironment hostEnvironment,
+        Authentication.IEntraJwtTokenValidator tokenValidator,
         ILogger<CacAuthenticationMiddleware> logger)
     {
         _next = next;
@@ -46,6 +49,7 @@ public class CacAuthenticationMiddleware
         _cacAuthOptions = cacAuthOptions.Value;
         _roleClaimMappings = roleClaimMappings.Value;
         _hostEnvironment = hostEnvironment;
+        _tokenValidator = tokenValidator;
         _logger = logger;
     }
 
@@ -176,75 +180,17 @@ public class CacAuthenticationMiddleware
 
         try
         {
-            var handler = new JwtSecurityTokenHandler();
-            if (!handler.CanReadToken(token))
-            {
-                _logger.LogWarning("Invalid JWT token format from {IP}", context.Connection.RemoteIpAddress);
-                context.Response.StatusCode = 401;
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    status = "error",
-                    data = new
-                    {
-                        errorCode = "TOKEN_EXPIRED",
-                        message = "Invalid token format.",
-                        suggestion = "Provide a valid JWT Bearer token."
-                    }
-                });
-                return;
-            }
-
-            var jwt = handler.ReadJwtToken(token);
-
-            // Validate expiration
-            if (jwt.ValidTo < DateTime.UtcNow)
-            {
-                _logger.LogWarning("Expired JWT token from {IP}", context.Connection.RemoteIpAddress);
-                context.Response.StatusCode = 401;
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    status = "error",
-                    data = new
-                    {
-                        errorCode = "TOKEN_EXPIRED",
-                        message = "JWT token has expired.",
-                        suggestion = "Re-authenticate with your CAC/PIV smart card."
-                    }
-                });
-                return;
-            }
-
-            // Validate issuer
-            var issuer = jwt.Issuer;
-            if (!string.IsNullOrEmpty(_azureAdOptions.TenantId) &&
-                !string.IsNullOrEmpty(issuer) &&
-                _azureAdOptions.ValidIssuers.Count > 0 &&
-                !_azureAdOptions.ValidIssuers.Any(vi => issuer.Contains(vi, StringComparison.OrdinalIgnoreCase)))
-            {
-                _logger.LogWarning("Invalid issuer {Issuer} from {IP}", issuer, context.Connection.RemoteIpAddress);
-                context.Response.StatusCode = 401;
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    status = "error",
-                    data = new
-                    {
-                        errorCode = "CAC_NOT_DETECTED",
-                        message = "Token issuer is not trusted.",
-                        suggestion = "Authenticate through your organization's Azure AD tenant."
-                    }
-                });
-                return;
-            }
+            var principal = await _tokenValidator.ValidateAsync(token, context.RequestAborted);
 
             // Validate amr claims for CAC/PIV when RequireCac is enabled
             if (_azureAdOptions.RequireCac)
             {
-                var amrClaims = jwt.Claims
+                var amrClaims = principal.Claims
                     .Where(c => c.Type == "amr")
                     .Select(c => c.Value)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                if (!CacAuthenticationMethodValidator.IsCacAuthenticated(jwt.Claims))
+                if (!CacAuthenticationMethodValidator.IsCacAuthenticated(principal.Claims))
                 {
                     _logger.LogWarning(
                         "JWT missing CAC/PIV amr claims (mfa, rsa). Found: {AmrClaims} from {IP}",
@@ -258,7 +204,7 @@ public class CacAuthenticationMiddleware
                     // wasn't satisfied).
                     await WriteLoginFailureAsync(
                         context, dbFactory, loginAudit, auditContextAccessor,
-                        jwt, LoginErrorClass.MfaFailure);
+                        principal, LoginErrorClass.MfaFailure);
 
                     context.Response.StatusCode = 401;
                     await context.Response.WriteAsJsonAsync(new
@@ -278,11 +224,9 @@ public class CacAuthenticationMiddleware
             }
 
             // Extract user identity from claims and populate HttpContext.User
-            var claims = new List<Claim>();
-            foreach (var claim in jwt.Claims)
-            {
-                claims.Add(new Claim(claim.Type, claim.Value));
-            }
+            var claims = principal.Claims
+                .Select(claim => new Claim(claim.Type, claim.Value))
+                .ToList();
 
             // Feature 048 FR-050: Translate configured Entra Security-Group object IDs
             // (carried as `groups` claims on the JWT) into named roles on the principal.
@@ -300,7 +244,7 @@ public class CacAuthenticationMiddleware
             // Detect client type from headers (T071)
             context.Items["ClientType"] = DetectClientType(context);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is SecurityTokenException or SecurityTokenMalformedException)
         {
             _logger.LogError(ex, "JWT validation error from {IP}", context.Connection.RemoteIpAddress);
             context.Response.StatusCode = 401;
@@ -309,7 +253,7 @@ public class CacAuthenticationMiddleware
                 status = "error",
                 data = new
                 {
-                    errorCode = "TOKEN_EXPIRED",
+                    errorCode = ex is SecurityTokenExpiredException ? "TOKEN_EXPIRED" : "TOKEN_INVALID",
                     message = "Token validation failed.",
                     suggestion = "Re-authenticate with your CAC/PIV smart card."
                 }
@@ -431,7 +375,7 @@ public class CacAuthenticationMiddleware
         IDbContextFactory<AtoCopilotContext>? dbFactory,
         ILoginAuditService? loginAudit,
         LoginAuditContextAccessor? auditContextAccessor,
-        JwtSecurityToken? jwt,
+        ClaimsPrincipal? principal,
         LoginErrorClass errorClass)
     {
         // Defensive: in unit-test contexts the audit collaborators may
@@ -452,9 +396,9 @@ public class CacAuthenticationMiddleware
             // FR-033: oid is the ONLY PII allowed on the row; tid is
             // forensic context (Entra tenant the caller authenticated
             // against). Both are well-known JWT claim names.
-            var oid = jwt?.Claims.FirstOrDefault(c =>
+            var oid = principal?.Claims.FirstOrDefault(c =>
                 string.Equals(c.Type, "oid", StringComparison.OrdinalIgnoreCase))?.Value;
-            var tid = jwt?.Claims.FirstOrDefault(c =>
+            var tid = principal?.Claims.FirstOrDefault(c =>
                 string.Equals(c.Type, "tid", StringComparison.OrdinalIgnoreCase))?.Value;
 
             var auditCtx = auditContextAccessor.FromHttpContext(context);

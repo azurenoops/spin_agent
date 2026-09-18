@@ -40,7 +40,7 @@ export function getMsalInstance(): IPublicClientApplication {
 }
 
 /** The default API scopes used by every feature-level axios client. */
-export const DEFAULT_API_SCOPES = ['api://ato-copilot/.default'];
+export const DEFAULT_API_SCOPES = ['api://ato-copilot/access_as_user'];
 
 /**
  * Best-effort bearer-token acquisition for non-axios callers

@@ -4,12 +4,26 @@ using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Reflection;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Unit.Data;
 
 public class PolicyTechnicalNarrativeSchemaAdditionsTests
 {
+    [Fact]
+    public void SqlServerScript_UsesMaxForEightThousandCharacterNarratives()
+    {
+        var script = typeof(PolicyTechnicalNarrativeSchemaAdditions)
+            .GetField("SqlServerScript", BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetRawConstantValue() as string;
+
+        script
+            .Should().Contain("PolicyNarrative NVARCHAR(MAX)")
+            .And.Contain("TechnicalNarrative NVARCHAR(MAX)")
+            .And.NotContain("NVARCHAR(8000)");
+    }
+
     [Fact]
     public async Task ApplyAsync_OnLegacySqliteSchema_BackfillsOnceAndIsIdempotent()
     {

@@ -403,6 +403,9 @@ async Task RunHttpModeAsync(string[] args)
     builder.Services.AddSingleton<
         Microsoft.Extensions.Options.IValidateOptions<Ato.Copilot.Core.Configuration.Auth.AuthOptions>,
         Ato.Copilot.Core.Configuration.Auth.AuthOptionsValidator>();
+    builder.Services.AddSingleton<
+        Ato.Copilot.Mcp.Authentication.IEntraJwtTokenValidator,
+        Ato.Copilot.Mcp.Authentication.EntraJwtTokenValidator>();
 
     // Feature 051 (T028): the audit-write service. Scoped because it uses
     // IDbContextFactory<AtoCopilotContext> and follows the F050

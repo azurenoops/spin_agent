@@ -130,10 +130,10 @@ public static class PolicyTechnicalNarrativeSchemaAdditions
 
     private const string SqlServerScript = """
         IF COL_LENGTH('ControlImplementations', 'PolicyNarrative') IS NULL
-            ALTER TABLE ControlImplementations ADD PolicyNarrative NVARCHAR(8000) NULL;
+            ALTER TABLE ControlImplementations ADD PolicyNarrative NVARCHAR(MAX) NULL;
 
         IF COL_LENGTH('ControlImplementations', 'TechnicalNarrative') IS NULL
-            ALTER TABLE ControlImplementations ADD TechnicalNarrative NVARCHAR(8000) NULL;
+            ALTER TABLE ControlImplementations ADD TechnicalNarrative NVARCHAR(MAX) NULL;
 
         IF COL_LENGTH('ControlImplementations', 'MigratedFromLegacy') IS NULL
             ALTER TABLE ControlImplementations ADD MigratedFromLegacy BIT NOT NULL
