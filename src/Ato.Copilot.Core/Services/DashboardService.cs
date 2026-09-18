@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Text.Json;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
@@ -476,6 +477,32 @@ public class DashboardService
             })
             .ToListAsync(cancellationToken);
 
+        var transitionEntries = await _db.AuditLogs
+            .Where(entry => entry.Action == "RmfPhase.Transitioned"
+                && entry.Details.Contains(systemId))
+            .OrderByDescending(entry => entry.Timestamp)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+        var phaseTransitions = transitionEntries
+            .Where(entry => entry.AffectedResources.Contains(systemId))
+            .Select(entry =>
+            {
+                var details = JsonSerializer.Deserialize<RmfPhaseTransitionAuditDetails>(
+                    entry.Details, JsonSerializerOptions.Web)
+                    ?? throw new InvalidOperationException($"Audit entry '{entry.Id}' has empty transition details.");
+                return new RmfPhaseTransitionDto
+                {
+                    Id = entry.Id,
+                    PreviousPhase = details.PreviousPhase,
+                    TargetPhase = details.TargetPhase,
+                    Actor = entry.UserId,
+                    Timestamp = entry.Timestamp,
+                    Forced = details.Forced,
+                    Notes = details.Notes,
+                };
+            })
+            .ToList();
+
         var (atoStatus, atoDaysRemaining, atoSeverity) = ComputeAtoFields(decision);
         var baselineLevel = system.ControlBaseline?.BaselineLevel ?? "Unknown";
 
@@ -510,6 +537,7 @@ public class DashboardService
                 ActiveDeviations = activeDeviations,
             },
             RecentActivity = activities,
+            RmfPhaseTransitions = phaseTransitions,
             Categorization = system.SecurityCategorization is null ? null : new CategorizationDto
             {
                 Confidentiality = system.SecurityCategorization.ConfidentialityImpact.ToString(),

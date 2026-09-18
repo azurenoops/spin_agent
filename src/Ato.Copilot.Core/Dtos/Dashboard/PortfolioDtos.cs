@@ -190,6 +190,7 @@ public class AdvanceRmfStepRequest
 {
     public required string TargetStep { get; init; }
     public bool? Force { get; init; }
+    public string? Notes { get; init; }
 }
 
 /// <summary>

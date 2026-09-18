@@ -198,6 +198,50 @@ export default function SystemDetail() {
         />
       </div>
 
+      <section
+        aria-label="RMF phase transition history"
+        className="mb-6 border-y border-gray-200 bg-white py-4 sm:border sm:px-5 sm:shadow-sm"
+      >
+        <div className="mb-4 flex items-end justify-between gap-4 px-4 sm:px-0">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Phase Transition History</h2>
+            <p className="mt-1 text-xs text-gray-500">Immutable advancement record</p>
+          </div>
+          <span className="text-xs tabular-nums text-gray-500">
+            {detail.rmfPhaseTransitions?.length ?? 0} recorded
+          </span>
+        </div>
+        {detail.rmfPhaseTransitions?.length ? (
+          <ol className="divide-y divide-gray-100">
+            {detail.rmfPhaseTransitions.map((transition) => (
+              <li key={transition.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-0">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-medium text-gray-700">{transition.previousPhase}</span>
+                    <span aria-hidden="true" className="text-gray-400">→</span>
+                    <span className="font-semibold text-gray-900">{transition.targetPhase}</span>
+                    {transition.forced && (
+                      <span className="border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                        Forced
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 break-words text-xs text-gray-500">
+                    {transition.actor}
+                    {transition.notes ? ` · ${transition.notes}` : ''}
+                  </p>
+                </div>
+                <time className="text-xs tabular-nums text-gray-500" dateTime={transition.timestamp}>
+                  {new Date(transition.timestamp).toLocaleString()}
+                </time>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="px-4 text-sm text-gray-500 sm:px-0">No phase transitions recorded.</p>
+        )}
+      </section>
+
       {/* Phase Readiness Panel */}
       <div className="mb-6">
         <PhaseReadinessPanel

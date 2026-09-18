@@ -832,7 +832,49 @@ public class AuthorizationService : IAuthorizationService
             Status = crm != null ? "generated" : "not_available"
         });
 
-        // 6. ATO Letter
+        // 6. RMF phase transition history
+        var transitionEntries = await db.AuditLogs
+            .Where(entry => entry.Action == "RmfPhase.Transitioned"
+                && entry.Details.Contains(systemId))
+            .OrderBy(entry => entry.Timestamp)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+        var phaseHistory = transitionEntries
+            .Where(entry => entry.AffectedResources.Contains(systemId))
+            .Select(entry => new
+            {
+                Entry = entry,
+                Details = JsonSerializer.Deserialize<RmfPhaseTransitionAuditDetails>(
+                    entry.Details, JsonSerializerOptions.Web)
+                    ?? throw new InvalidOperationException($"Audit entry '{entry.Id}' has empty transition details.")
+            })
+            .ToList();
+
+        var historySb = new StringBuilder();
+        historySb.AppendLine("# RMF Phase Transition History");
+        historySb.AppendLine();
+        historySb.AppendLine($"**System**: {system.Name}");
+        historySb.AppendLine();
+        historySb.AppendLine("| Timestamp (UTC) | From | To | Actor | Forced | Notes |");
+        historySb.AppendLine("|---|---|---|---|---|---|");
+        foreach (var transition in phaseHistory)
+        {
+            historySb.AppendLine(
+                $"| {transition.Entry.Timestamp:O} | {EscapeMarkdownCell(transition.Details.PreviousPhase)} | {EscapeMarkdownCell(transition.Details.TargetPhase)} | {EscapeMarkdownCell(transition.Entry.UserId)} | {(transition.Details.Forced ? "Yes" : "No")} | {EscapeMarkdownCell(transition.Details.Notes)} |");
+        }
+        if (phaseHistory.Count == 0)
+            historySb.AppendLine("| — | — | — | — | — | No phase transitions recorded. |");
+
+        package.Documents.Add(new PackageDocument
+        {
+            Name = "RMF Phase Transition History",
+            FileName = $"rmf-phase-history.{(docFormat == "markdown" ? "md" : docFormat)}",
+            DocumentType = "RMF_PHASE_HISTORY",
+            Content = historySb.ToString(),
+            Status = phaseHistory.Count > 0 ? "generated" : "not_available"
+        });
+
+        // 7. ATO Letter
         var activeDecision = await db.AuthorizationDecisions
             .Where(d => d.RegisteredSystemId == systemId && d.IsActive)
             .FirstOrDefaultAsync(cancellationToken);
@@ -900,4 +942,11 @@ public class AuthorizationService : IAuthorizationService
 
         return package;
     }
+
+    private static string EscapeMarkdownCell(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? "—"
+            : value.Replace("|", "\\|", StringComparison.Ordinal)
+                .Replace("\r", " ", StringComparison.Ordinal)
+                .Replace("\n", " ", StringComparison.Ordinal);
 }

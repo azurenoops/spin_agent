@@ -2148,6 +2148,19 @@ public class AuditLogEntry
 }
 
 /// <summary>
+/// Structured details stored for an immutable RMF phase transition audit entry.
+/// </summary>
+public sealed class RmfPhaseTransitionAuditDetails
+{
+    public required string SystemId { get; init; }
+    public required string SystemName { get; init; }
+    public required string PreviousPhase { get; init; }
+    public required string TargetPhase { get; init; }
+    public bool Forced { get; init; }
+    public string? Notes { get; init; }
+}
+
+/// <summary>
 /// A user-defined or default rule that specifies alert conditions, severity overrides, and recipients.
 /// </summary>
 [TenantScoped]

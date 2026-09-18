@@ -43,6 +43,8 @@ The RMF defines seven phases that take an information system from initial regist
 
 Each phase transition is guarded by gate conditions enforced by `compliance_advance_rmf_step`:
 
+Successful transitions are recorded in the immutable compliance audit log with the previous phase, target phase, acting identity, timestamp, override status, and transition notes. The same history is visible from system detail and included in authorization package exports. A transition rejected by gate checks does not create a successful audit record.
+
 | Transition | Gate Conditions |
 |-----------|----------------|
 | Prepare → Categorize | ≥ 1 RMF role assigned + ≥ 1 boundary resource |
