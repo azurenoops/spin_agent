@@ -360,7 +360,8 @@ public class AdvanceRmfStepTool : BaseTool
     {
         ["system_id"] = new() { Name = "system_id", Description = "System GUID, name, or acronym", Type = "string", Required = true },
         ["target_step"] = new() { Name = "target_step", Description = "Target RMF step: Prepare | Categorize | Select | Implement | Assess | Authorize | Monitor", Type = "string", Required = true },
-        ["force"] = new() { Name = "force", Description = "Override gate failures (will be audit-logged)", Type = "boolean", Required = false }
+        ["force"] = new() { Name = "force", Description = "Override gate failures (will be audit-logged)", Type = "boolean", Required = false },
+        ["notes"] = new() { Name = "notes", Description = "Optional rationale or context for the phase transition audit trail", Type = "string", Required = false }
     };
 
     public override async Task<string> ExecuteCoreAsync(
@@ -371,6 +372,7 @@ public class AdvanceRmfStepTool : BaseTool
         var systemId = GetArg<string>(arguments, "system_id");
         var targetStepStr = GetArg<string>(arguments, "target_step");
         var force = GetArg<bool?>(arguments, "force") ?? false;
+        var notes = GetArg<string>(arguments, "notes");
 
         if (string.IsNullOrWhiteSpace(systemId))
             return JsonSerializer.Serialize(new { status = "error", errorCode = "INVALID_INPUT", message = "The 'system_id' parameter is required." }, JsonOpts);
@@ -381,7 +383,7 @@ public class AdvanceRmfStepTool : BaseTool
         try
         {
             var result = await _lifecycleService.AdvanceRmfStepAsync(
-                systemId, targetStep, force, "mcp-user", cancellationToken);
+                systemId, targetStep, force, "mcp-user", notes, cancellationToken);
 
             sw.Stop();
 

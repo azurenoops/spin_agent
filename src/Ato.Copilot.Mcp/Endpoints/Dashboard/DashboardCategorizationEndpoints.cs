@@ -292,7 +292,7 @@ public static partial class DashboardEndpoints
                     });
 
                 var result = await lifecycleService.AdvanceRmfStepAsync(
-                    systemId, targetStep, body.Force ?? false, currentUser.CurrentUserId, ct);
+                    systemId, targetStep, body.Force ?? false, currentUser.CurrentUserId, body.Notes, ct);
 
                 if (!result.Success)
                 {

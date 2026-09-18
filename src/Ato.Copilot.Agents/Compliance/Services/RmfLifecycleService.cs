@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -163,6 +164,7 @@ public class RmfLifecycleService : IRmfLifecycleService
         RmfPhase targetStep,
         bool force = false,
         string? userId = null,
+        string? notes = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(systemId, nameof(systemId));
@@ -256,9 +258,27 @@ public class RmfLifecycleService : IRmfLifecycleService
         }
 
         // Perform the transition
+        var transitionedAt = DateTime.UtcNow;
         system.CurrentRmfStep = targetStep;
-        system.RmfStepUpdatedAt = DateTime.UtcNow;
-        system.ModifiedAt = DateTime.UtcNow;
+        system.RmfStepUpdatedAt = transitionedAt;
+        system.ModifiedAt = transitionedAt;
+        context.AuditLogs.Add(new AuditLogEntry
+        {
+            Action = "RmfPhase.Transitioned",
+            UserId = string.IsNullOrWhiteSpace(userId) ? "system" : userId,
+            Timestamp = transitionedAt,
+            AffectedResources = [system.Id],
+            Outcome = AuditOutcome.Success,
+            Details = JsonSerializer.Serialize(new RmfPhaseTransitionAuditDetails
+            {
+                SystemId = system.Id,
+                SystemName = system.Name,
+                PreviousPhase = previousStep.ToString(),
+                TargetPhase = targetStep.ToString(),
+                Forced = force,
+                Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim()
+            }, JsonSerializerOptions.Web)
+        });
         await context.SaveChangesAsync(cancellationToken);
 
         var logLevel = force ? LogLevel.Warning : LogLevel.Information;

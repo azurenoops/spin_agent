@@ -319,6 +319,78 @@ public class RmfRegistrationIntegrationTests : IDisposable
         json.RootElement.GetProperty("data").GetProperty("was_forced").GetBoolean().Should().BeTrue();
     }
 
+    [Fact]
+    public async Task AdvanceRmfStep_Success_PersistsTransitionAuditEntry()
+    {
+        // Arrange
+        var regResult = await _registerTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["name"] = "Audited Transition System",
+            ["system_type"] = "MajorApplication",
+            ["mission_criticality"] = "MissionCritical",
+            ["hosting_environment"] = "AzureGovernment"
+        });
+        var systemId = JsonDocument.Parse(regResult).RootElement.GetProperty("data").GetProperty("id").GetString()!;
+        var startedAt = DateTime.UtcNow;
+
+        // Act
+        await _advanceTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = systemId,
+            ["target_step"] = "Categorize",
+            ["force"] = true
+        });
+
+        // Assert
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var audit = await db.AuditLogs.SingleAsync(entry => entry.Action == "RmfPhase.Transitioned");
+        audit.UserId.Should().Be("mcp-user");
+        audit.Timestamp.Should().BeOnOrAfter(startedAt);
+        audit.AffectedResources.Should().ContainSingle().Which.Should().Be(systemId);
+        audit.Outcome.Should().Be(AuditOutcome.Success);
+
+        using var details = JsonDocument.Parse(audit.Details);
+        details.RootElement.GetProperty("previousPhase").GetString().Should().Be("Prepare");
+        details.RootElement.GetProperty("targetPhase").GetString().Should().Be("Categorize");
+        details.RootElement.GetProperty("forced").GetBoolean().Should().BeTrue();
+
+        var dashboardService = new Ato.Copilot.Core.Services.DashboardService(
+            db, Mock.Of<ILogger<Ato.Copilot.Core.Services.DashboardService>>());
+        var detail = await dashboardService.GetSystemDetailAsync(systemId);
+        detail!.RmfPhaseTransitions.Should().ContainSingle();
+        detail.RmfPhaseTransitions[0].PreviousPhase.Should().Be("Prepare");
+        detail.RmfPhaseTransitions[0].TargetPhase.Should().Be("Categorize");
+        detail.RmfPhaseTransitions[0].Actor.Should().Be("mcp-user");
+        detail.RmfPhaseTransitions[0].Forced.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AdvanceRmfStep_RejectedByGates_DoesNotPersistTransitionAuditEntry()
+    {
+        // Arrange
+        var regResult = await _registerTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["name"] = "Rejected Transition System",
+            ["system_type"] = "MajorApplication",
+            ["mission_criticality"] = "MissionCritical",
+            ["hosting_environment"] = "AzureGovernment"
+        });
+        var systemId = JsonDocument.Parse(regResult).RootElement.GetProperty("data").GetProperty("id").GetString()!;
+
+        // Act
+        await _advanceTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = systemId,
+            ["target_step"] = "Categorize"
+        });
+
+        // Assert
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await db.AuditLogs.AnyAsync(entry => entry.Action == "RmfPhase.Transitioned")).Should().BeFalse();
+    }
+
     /// <summary>
     /// Backward step movement requires force=true.
     /// </summary>

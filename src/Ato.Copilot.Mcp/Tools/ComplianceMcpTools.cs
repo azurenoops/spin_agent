@@ -1619,11 +1619,13 @@ public class ComplianceMcpTools
         string systemId,
         string targetStep,
         bool? force = null,
+        string? notes = null,
         CancellationToken cancellationToken = default)
     {
         var args = new Dictionary<string, object?>
         {
-            ["system_id"] = systemId, ["target_step"] = targetStep, ["force"] = force
+            ["system_id"] = systemId, ["target_step"] = targetStep, ["force"] = force,
+            ["notes"] = notes
         };
         return await _advanceRmfStepTool.ExecuteAsync(args, cancellationToken);
     }

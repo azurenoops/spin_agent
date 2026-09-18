@@ -692,6 +692,16 @@ The spec, plan, and tasks use different granularity. Plan phase numbers match pl
 
 ---
 
+## Phase 18: RMF Phase Transition Audit Trail
+
+- [X] T256 [US1] Persist immutable `RmfPhase.Transitioned` audit entries atomically with successful phase changes and test rejected-transition behavior in `tests/Ato.Copilot.Tests.Integration/Tools/RmfRegistrationIntegrationTests.cs`
+- [X] T257 [US1] Expose system phase history through the Dashboard API and render it on system detail with HTTP and browser E2E coverage
+- [X] T258 [US1] Include RMF phase transition history in authorization package exports and verify package contents
+
+**Checkpoint**: Successful RMF transitions are auditable from the system detail experience and authorization package; rejected transitions do not create success records.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -713,6 +723,7 @@ The spec, plan, and tasks use different granularity. Plan phase numbers match pl
 - **Phase 15 (US13)**: Can start after Phase 10 (needs all RMF entities for cards)
 - **Phase 16 (Polish)**: Depends on all desired phases being complete
 - **Phase 17 (Integration)**: Depends on Phase 11 (US9 — ConMon) and Phase 16 (Polish). Requires ComplianceWatchService, AlertManager, AlertNotificationService, and ConMonService all implemented.
+- **Phase 18 (RMF Audit Trail)**: Depends on Phase 3 (US1), Phase 10 (US8), and Phase 15 (US13).
 
 ### Critical Path
 

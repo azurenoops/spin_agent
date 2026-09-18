@@ -113,6 +113,12 @@ The RMF is a **7-step lifecycle** (NIST SP 800-37 Rev 2 added "Prepare" as Step 
 
 **Key artifacts**: Authorization Decision Letter, Terms & Conditions, Risk Acceptance Memorandum
 
+### RMF Phase Transition Audit Trail
+
+Every successful RMF phase transition MUST persist an immutable audit entry in the same database transaction as the system phase update. The entry records the system, previous phase, target phase, actor identity, timestamp, whether gate failures were overridden, and optional transition notes. Rejected transitions MUST NOT create successful transition entries.
+
+The system detail experience MUST expose the transition history in reverse chronological order. Authorization package generation MUST include the same history so reviewers can establish when and by whom the system advanced through RMF.
+
 **Who decides**: AO (and only the AO)
 
 ### Step 6: Monitor

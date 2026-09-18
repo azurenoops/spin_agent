@@ -41,8 +41,25 @@ public class SystemDetailDto
     /// <summary>Most recent dashboard activity events (max 10).</summary>
     public required IReadOnlyList<RecentActivityDto> RecentActivity { get; init; }
 
+    /// <summary>Immutable RMF phase transitions, newest first.</summary>
+    public required IReadOnlyList<RmfPhaseTransitionDto> RmfPhaseTransitions { get; init; }
+
     /// <summary>FIPS 199 security categorization (null if not yet categorized).</summary>
     public CategorizationDto? Categorization { get; init; }
+}
+
+/// <summary>
+/// An immutable RMF phase transition projected from the compliance audit log.
+/// </summary>
+public class RmfPhaseTransitionDto
+{
+    public required string Id { get; init; }
+    public required string PreviousPhase { get; init; }
+    public required string TargetPhase { get; init; }
+    public required string Actor { get; init; }
+    public DateTime Timestamp { get; init; }
+    public bool Forced { get; init; }
+    public string? Notes { get; init; }
 }
 
 /// <summary>
