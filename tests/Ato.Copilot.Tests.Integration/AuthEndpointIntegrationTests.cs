@@ -9,15 +9,18 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Auth;
+using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
 using Ato.Copilot.State.Extensions;
 using FluentAssertions;
+using Moq;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Integration;
@@ -73,6 +76,14 @@ public class AuthEndpointIntegrationTests : IAsyncLifetime
                 Environment = ArmEnvironment.AzureGovernment
             });
         });
+
+        var tokenValidator = new Mock<IEntraJwtTokenValidator>();
+        tokenValidator
+            .Setup(validator => validator.ValidateAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new SecurityTokenMalformedException("Invalid test token."));
+        builder.Services.AddSingleton(tokenValidator.Object);
 
         builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
         builder.Services.AddCors(options =>

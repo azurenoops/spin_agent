@@ -248,6 +248,9 @@ public static class AtoCopilotMcpServiceExtensions
         services.TryAddScoped<
             Ato.Copilot.Core.Interfaces.Auth.ILoginAuditService,
             Ato.Copilot.Core.Services.Auth.LoginAuditService>();
+        services.TryAddSingleton<
+            Ato.Copilot.Mcp.Authentication.IEntraJwtTokenValidator,
+            Ato.Copilot.Mcp.Authentication.EntraJwtTokenValidator>();
         // CacAuthenticationMiddleware.InvokeAsync takes LoginAuditContextAccessor
         // as a method parameter; ASP.NET resolves it from DI even when the C#
         // parameter is optional. Tests that boot via AddAtoCopilotMcpForTesting
