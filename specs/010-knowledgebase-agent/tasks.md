@@ -269,6 +269,7 @@
 
 > **US10 Note**: Offline operation (US10) is satisfied by construction — all 5 replacement services and 2 new services use `LoadDataFileAsync` from local disk (Phases 4–10) with no external HTTP calls. T066 validates this property via integration tests. No separate implementation tasks are required because every service task (T023, T031, T032, T033, T043–T046, T051, T052, T057, T058) inherently implements the offline-first design.
 - [X] T067 [P] Create knowledgebase agent documentation covering capabilities, 7 tools, data file format, configuration options, and orchestrator routing in docs/knowledgebase.md
+- [X] T070 [P] Add regression coverage that executes the crash-inducing RMF query through `KnowledgeBaseAgent` with a size-limited `IMemoryCache` and verifies a structured successful response (issues #632 and #696)
 - [X] T068 Run full test suite (`dotnet test Ato.Copilot.sln`) and verify zero regressions against existing 2,000+ tests (SC-011)
 - [X] T069 Run quickstart.md validation — build solution, execute KB-related unit tests, start MCP server, verify kb_explain_nist_control tool dispatch end-to-end
 
