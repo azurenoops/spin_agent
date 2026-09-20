@@ -95,7 +95,8 @@ public class OscalSchemaValidationService : IOscalSchemaValidationService
 
         var options = new EvaluationOptions
         {
-            OutputFormat = OutputFormat.List
+            OutputFormat = OutputFormat.List,
+            EvaluateAs = SpecVersion.Draft7
         };
 
         var result = schema.Evaluate(document, options);
@@ -212,7 +213,10 @@ public class OscalSchemaValidationService : IOscalSchemaValidationService
                     continue;
                 }
 
-                var schema = JsonSchema.FromStream(stream).Result;
+                var schemaDocument = JsonNode.Parse(stream)
+                    ?? throw new InvalidOperationException($"OSCAL schema resource '{resourceName}' is empty.");
+                NormalizeDraft7FragmentIdentifiers(schemaDocument);
+                var schema = JsonSchema.FromText(schemaDocument.ToJsonString());
                 SchemaCache[schemaFileName] = schema;
                 _logger.LogInformation("Loaded OSCAL schema: {SchemaFile}", schemaFileName);
             }
@@ -220,4 +224,67 @@ public class OscalSchemaValidationService : IOscalSchemaValidationService
             _schemasLoaded = true;
         }
     }
+
+    private static void NormalizeDraft7FragmentIdentifiers(JsonNode schemaDocument)
+    {
+        var fragmentPointers = new Dictionary<string, string>(StringComparer.Ordinal);
+        CollectFragmentPointers(schemaDocument, string.Empty, fragmentPointers);
+        RewriteFragmentReferences(schemaDocument, fragmentPointers);
+    }
+
+    private static void CollectFragmentPointers(
+        JsonNode node,
+        string pointer,
+        IDictionary<string, string> fragmentPointers)
+    {
+        if (node is JsonObject obj)
+        {
+            if (obj["$id"]?.GetValue<string>() is { } id && id.StartsWith('#'))
+                fragmentPointers[id] = pointer;
+
+            foreach (var property in obj)
+                if (property.Value is not null)
+                    CollectFragmentPointers(
+                        property.Value,
+                        $"{pointer}/{EscapeJsonPointerToken(property.Key)}",
+                        fragmentPointers);
+        }
+        else if (node is JsonArray array)
+        {
+            for (var index = 0; index < array.Count; index++)
+                if (array[index] is { } item)
+                    CollectFragmentPointers(item, $"{pointer}/{index}", fragmentPointers);
+        }
+    }
+
+    private static void RewriteFragmentReferences(
+        JsonNode node,
+        IReadOnlyDictionary<string, string> fragmentPointers)
+    {
+        if (node is JsonObject obj)
+        {
+            if (obj["$ref"]?.GetValue<string>() is { } reference
+                && fragmentPointers.TryGetValue(reference, out var pointer))
+            {
+                obj["$ref"] = $"#{pointer}";
+            }
+
+            if (obj["$id"]?.GetValue<string>() is { } id && id.StartsWith('#'))
+                obj.Remove("$id");
+
+            foreach (var property in obj.ToList())
+                if (property.Value is not null)
+                    RewriteFragmentReferences(property.Value, fragmentPointers);
+        }
+        else if (node is JsonArray array)
+        {
+            foreach (var item in array)
+                if (item is not null)
+                    RewriteFragmentReferences(item, fragmentPointers);
+        }
+    }
+
+    private static string EscapeJsonPointerToken(string token) =>
+        token.Replace("~", "~0", StringComparison.Ordinal)
+            .Replace("/", "~1", StringComparison.Ordinal);
 }

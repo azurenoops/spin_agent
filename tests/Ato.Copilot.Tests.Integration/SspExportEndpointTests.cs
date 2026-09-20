@@ -59,6 +59,7 @@ public class SspExportEndpointTests : IAsyncLifetime
         builder.Services.AddSingleton(Mock.Of<ISspService>());
         builder.Services.AddSingleton(Mock.Of<IDocumentTemplateService>());
         builder.Services.AddSingleton(Mock.Of<IOscalSspExportService>());
+        builder.Services.AddSingleton(Mock.Of<IOscalSchemaValidationService>());
         builder.Services.AddSingleton(Mock.Of<ISspExportNotifier>());
         builder.Services.AddLogging();
 

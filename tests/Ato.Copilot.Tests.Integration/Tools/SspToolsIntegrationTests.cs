@@ -52,10 +52,17 @@ public class SspToolsIntegrationTests : IDisposable
         var sspSvc = new SspService(scopeFactory, Mock.Of<ILogger<SspService>>());
         var oscalExportSvc = new OscalSspExportService(scopeFactory, Mock.Of<ILogger<OscalSspExportService>>());
         var oscalValidationSvc = new OscalValidationService();
-        var oscalSchemaValidationSvc = new OscalSchemaValidationService(
-            Mock.Of<IEmassExportService>(),
-            Mock.Of<IOscalSapExportService>(),
-            Mock.Of<ILogger<OscalSchemaValidationService>>());
+        var oscalSchemaValidationSvc = new Mock<IOscalSchemaValidationService>();
+        oscalSchemaValidationSvc
+            .Setup(service => service.ValidateAsync(
+                It.IsAny<string>(),
+                "ssp",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult
+            {
+                IsValid = true,
+                ModelType = "ssp"
+            });
 
         _registerTool = new RegisterSystemTool(lifecycleSvc, Mock.Of<ILogger<RegisterSystemTool>>());
         _categorizeTool = new CategorizeSystemTool(categorizationSvc, Mock.Of<ILogger<CategorizeSystemTool>>());
@@ -64,7 +71,7 @@ public class SspToolsIntegrationTests : IDisposable
         _reviewSspSectionTool = new ReviewSspSectionTool(sspSvc, Mock.Of<ILogger<ReviewSspSectionTool>>());
         _sspCompletenessTool = new SspCompletenessTool(sspSvc, Mock.Of<INarrativeGovernanceService>(), Mock.Of<ILogger<SspCompletenessTool>>());
         _exportOscalSspTool = new ExportOscalSspTool(
-            oscalExportSvc, oscalSchemaValidationSvc, Mock.Of<ILogger<ExportOscalSspTool>>());
+            oscalExportSvc, oscalSchemaValidationSvc.Object, Mock.Of<ILogger<ExportOscalSspTool>>());
         _validateOscalSspTool = new ValidateOscalSspTool(oscalExportSvc, oscalValidationSvc, Mock.Of<ILogger<ValidateOscalSspTool>>());
         _generateSspTool = new GenerateSspTool(sspSvc, Mock.Of<ILogger<GenerateSspTool>>());
         _writeNarrativeTool = new WriteNarrativeTool(sspSvc, Mock.Of<ILogger<WriteNarrativeTool>>());

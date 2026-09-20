@@ -28,6 +28,7 @@
 28|- Gate runs on PR when any `OscalSsp*.cs` or `OscalPoam*.cs` file changes
 29|- Reference: `references/ato-copilot-oscal-ci-gate.md`
 29a|- Add regression tests proving each public HTTP and MCP export boundary invokes schema validation and blocks invalid OSCAL (issue #704 follow-up)
+29b|- Normalize legacy Draft 7 fragment identifiers from the official OSCAL 1.1.2 schemas before JsonSchema.Net evaluation and cover the compatibility path with a regression test
 30|- **Owner**: Cyborg
 31|
 32|## Phase 2 — Export Completion (Sprint 2)
