@@ -158,6 +158,7 @@ function CapabilityRow({
 }) {
   const [regenerating, setRegenerating] = useState(false);
   const [regenResult, setRegenResult] = useState<BulkRegenerateResult | null>(null);
+  const [regenError, setRegenError] = useState<string | null>(null);
   const ns = cap.narrativeStatus;
   const total = ns.populated + ns.custom + ns.empty;
   const filled = ns.populated + ns.custom;
@@ -166,6 +167,7 @@ function CapabilityRow({
     if (!systemId || regenerating) return;
     setRegenerating(true);
     setRegenResult(null);
+    setRegenError(null);
     try {
       const result = await bulkRegenerateNarratives(
         systemId,
@@ -174,8 +176,15 @@ function CapabilityRow({
       );
       setRegenResult(result);
       onRefresh();
-    } catch {
-      setRegenResult({ totalControls: 0, regenerated: 0, skippedCustom: 0, failed: 1, regeneratedControlIds: [] });
+    } catch (error) {
+      const response = error as { error?: unknown; suggestion?: unknown };
+      const message = typeof response?.error === 'string'
+        ? response.error
+        : 'Regeneration failed';
+      const suggestion = typeof response?.suggestion === 'string'
+        ? response.suggestion
+        : null;
+      setRegenError(suggestion ? `${message}. ${suggestion}` : message);
     } finally {
       setRegenerating(false);
     }
@@ -276,17 +285,17 @@ function CapabilityRow({
                 {sourceUrls.length > 0 && (
                   <span className="text-xs text-indigo-600">Using configured SharePoint/document sources</span>
                 )}
+                {regenError && (
+                  <span role="alert" className="text-xs text-red-600">{regenError}</span>
+                )}
                 {regenResult && (
                   <span className="text-xs text-gray-600">
-                    {regenResult.failed > 0 ? (
-                      <span className="text-red-600">Regeneration failed</span>
-                    ) : (
-                      <>
-                        <span className="text-green-600 font-medium">{regenResult.regenerated} regenerated</span>
-                        {regenResult.skippedCustom > 0 && (
-                          <span className="text-amber-600 ml-2">{regenResult.skippedCustom} custom skipped</span>
-                        )}
-                      </>
+                    <span className="text-green-600 font-medium">{regenResult.regenerated} regenerated</span>
+                    {regenResult.skippedCustom > 0 && (
+                      <span className="text-amber-600 ml-2">{regenResult.skippedCustom} custom skipped</span>
+                    )}
+                    {regenResult.failed > 0 && (
+                      <span className="text-red-600 ml-2">{regenResult.failed} failed</span>
                     )}
                   </span>
                 )}

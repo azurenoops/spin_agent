@@ -292,3 +292,15 @@ _Issue #932 | Priority: P1_
 - [x] **T028**: Include active CSP subscriptions in capability coverage summaries and narrative status using the same control-implementation semantics as organization capabilities.
 - [x] **T029**: Update the Add Capability dialog to render Organization/CSP provenance and dispatch additions through the correct mapping or subscription API.
 - [x] **T030**: Add backend, frontend, and Playwright regression coverage for mixed catalogs, lifecycle exclusions, already-added entries, tenant isolation, empty/error states, filtering, subscription dispatch, and combined coverage.
+
+---
+
+## Phase 10 — Issue #951: CSP Narrative Regeneration
+
+- [x] **T031**: Add failing `CapabilityService` tests for subscribed CSP regeneration with missing, existing, and manually customized control implementations; assert repeat execution creates no duplicates and never writes a CSP ID to `SecurityCapabilityId`.
+- [x] **T032**: Add failing endpoint tests proving default and document-source regeneration share CSP subscription validation and reject unsubscribed or ineligible catalog entries.
+- [x] **T033**: Implement source-aware capability resolution and missing implementation creation in `CapabilityService`; preserve organization behavior and tenant isolation.
+- [x] **T034**: Route document-source regeneration through the source-aware resolver and return actionable errors/counts.
+- [x] **T035**: Update `CapabilityCoverage` to show safe backend errors and partial-result counts; add Vitest coverage.
+- [x] **T036**: Add Chromium coverage for successful inherited CSP regeneration and actionable failure rendering.
+- [x] **T037**: Run focused unit, integration, dashboard type-check/build, and Chromium validation, followed by broad affected suites.

@@ -310,4 +310,84 @@ test.describe('System Capability Coverage', () => {
     await expect.poll(() => subscriptionBody).toEqual({ capabilityId: 'csp-capability' });
     await expect(page.getByText('CSP Managed Audit Logging')).not.toBeVisible();
   });
+
+  test('regenerates inherited CSP narratives and reports partial results', async ({ page }) => {
+    // Arrange
+    await mockCapabilityCoverageShell(page);
+    await page.route(
+      `**/api/dashboard/systems/${mixedCatalogSystemId}/capability-coverage`,
+      (route) => route.fulfill({
+        json: {
+          systemId: mixedCatalogSystemId,
+          systemName: 'Mixed Capability System',
+          capabilities: [{
+            capabilityId: 'csp-capability',
+            capabilityName: 'CSP Managed Audit Logging',
+            source: 'CSP',
+            provider: 'Azure Government',
+            category: 'Service',
+            implementationStatus: 'Inherited',
+            owner: null,
+            role: 'Shared',
+            mappedControlCount: 4,
+            narrativeStatus: { populated: 1, custom: 1, empty: 2, aiGenerated: 0 },
+            components: [],
+          }],
+          summary: {
+            totalCapabilities: 1,
+            totalMappedControls: 4,
+            totalNarrativesPopulated: 1,
+            totalNarrativesCustom: 1,
+            totalNarrativesEmpty: 2,
+            coveragePercent: 50,
+          },
+        },
+      }),
+    );
+    let regenerationRequests = 0;
+    await page.route(
+      `**/api/dashboard/systems/${mixedCatalogSystemId}/capabilities/csp-capability/bulk-regenerate**`,
+      async (route) => {
+        regenerationRequests++;
+        if (regenerationRequests > 1) {
+          await route.fulfill({
+            status: 404,
+            json: {
+              error: 'System or capability not found',
+              errorCode: 'NOT_FOUND',
+              suggestion: 'Confirm the system has an active subscription',
+            },
+          });
+          return;
+        }
+
+        await route.fulfill({
+          json: {
+            totalControls: 4,
+            regenerated: 2,
+            skippedCustom: 1,
+            failed: 1,
+            regeneratedControlIds: ['AC-2', 'AU-6'],
+          },
+        });
+      },
+    );
+
+    // Act
+    await page.goto(`/systems/${mixedCatalogSystemId}/capability-coverage`);
+    await page.getByText('CSP Managed Audit Logging').click();
+    await page.getByRole('button', { name: 'Regenerate Narratives' }).click();
+
+    // Assert
+    await expect.poll(() => regenerationRequests).toBe(1);
+    await expect(page.getByText('2 regenerated')).toBeVisible();
+    await expect(page.getByText('1 custom skipped')).toBeVisible();
+    await expect(page.getByText('1 failed')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Regenerate Narratives' }).click();
+    await expect.poll(() => regenerationRequests).toBe(2);
+    await expect(page.getByRole('alert')).toContainText(
+      'System or capability not found. Confirm the system has an active subscription',
+    );
+  });
 });

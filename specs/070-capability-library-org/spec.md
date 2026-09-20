@@ -220,6 +220,9 @@ controls are removed from the SSP, reflecting a change in the cloud service conf
 | FR-023 | System capability coverage MUST include active CSP subscriptions using their mapped NIST controls and identify every item as `Organization` or `CSP`. Narrative counts use the system's existing control implementations for those mapped controls. |
 | FR-024 | Every system-scoped catalog, subscription, and coverage operation MUST first resolve the system through tenant-filtered `RegisteredSystems`; a system outside the effective tenant MUST return not found without exposing catalog or subscription data. |
 | FR-025 | The Add Capability dialog MUST preserve API failures as visible errors and distinguish an empty eligible catalog from an all-already-added catalog. |
+| FR-026 | Bulk narrative regeneration MUST resolve either an organization capability or a Published + Mapped CSP capability with an active subscription for the requested tenant-scoped system. An unsubscribed, unpublished, unmapped, cross-tenant, or unknown capability MUST return not found without invoking generation. |
+| FR-027 | CSP regeneration MUST process every distinct mapped control, reuse an existing `(system, control)` implementation, create a missing implementation explicitly, preserve manually customized narratives, and remain idempotent across repeated requests. A CSP identifier MUST NOT be stored in `ControlImplementation.SecurityCapabilityId`, which references organization-owned `SecurityCapability`. |
+| FR-028 | Default and document-source bulk regeneration MUST use the same source-aware capability resolution. The dashboard MUST display safe backend error guidance and accurate regenerated, skipped, and failed counts, including partial results. |
 
 ---
 
