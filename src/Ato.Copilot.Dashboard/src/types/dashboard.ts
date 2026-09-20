@@ -254,45 +254,6 @@ export interface CreateMappingsResponse {
   narrativesGenerated: number;
 }
 
-// ─── Gap Analysis (US4) ──────────────────────────────────────────────────────
-
-export interface GapFamilyBreakdown {
-  familyCode: string;
-  familyName: string;
-  totalControls: number;
-  coveredControls: number;
-  waivedControls: number;
-  gapCount: number;
-  coveragePercent: number;
-  isBelow50: boolean;
-  unmappedControls: { controlId: string; controlTitle: string }[];
-  waivedControlIds: string[];
-}
-
-export interface GapAnalysisResponse {
-  systemId: string;
-  baselineLevel: string;
-  totalBaselineControls: number;
-  coveredControls: number;
-  waivedControls: number;
-  gapCount: number;
-  coveragePercent: number;
-  familyBreakdown: GapFamilyBreakdown[];
-  boundaryComparison?: BoundaryComparisonItem[] | null;
-}
-
-export interface BoundaryComparisonItem {
-  boundaryId: string;
-  boundaryName: string;
-  boundaryType: string;
-  isPrimary: boolean;
-  totalControls: number;
-  coveredControls: number;
-  waivedControls: number;
-  gapCount: number;
-  coveragePercent: number;
-}
-
 // ─── Components (US5) ─────────────────────────────────────────────────────────
 
 export interface SystemComponentDto {

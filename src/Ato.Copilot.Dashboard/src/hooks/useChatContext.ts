@@ -17,11 +17,8 @@ const PAGE_MAP: Record<string, string> = {
 
 function resolvePageName(pathname: string): string {
   if (PAGE_MAP[pathname]) return PAGE_MAP[pathname];
-  // Wave 6 GAP-006
-  if (pathname.includes('/gap-analysis')) return 'gap-analysis';
   if (pathname.includes('/boundaries')) return 'boundaries';
   if (pathname.includes('/components')) return 'components';
-  if (pathname.includes('/gaps')) return 'gap-analysis';
   if (pathname.includes('/roadmap') || pathname.includes('/implementation-roadmap')) return 'roadmap';
   if (pathname.includes('/documents')) return 'documents';
   if (pathname.includes('/narratives')) return 'narratives';

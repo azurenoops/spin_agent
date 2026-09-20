@@ -82,6 +82,11 @@ A compliance analyst manages the many-to-many mappings between Security Capabili
 2. **Given** capability "MFA" is mapped to IA-2 as primary, **When** another capability "SSO Gateway" is also mapped to IA-2 as primary, **Then** the system warns about the duplicate primary assignment and asks the user to designate one as primary and the other as supporting.
 3. **Given** a Moderate baseline, **When** the user views the capability gap matrix, **Then** each control family row shows: total controls, covered controls, gap count, and coverage percentage, with families below 50% coverage highlighted.
 
+**UI retirement note (2026-09-20)**: The dedicated system Gap Analysis page and
+sidebar link are retired. Gap-analysis data remains available through the
+dashboard API and may be surfaced through other capability, assessment, and
+remediation workflows.
+
 ---
 
 ### User Story 5 — System Component Inventory (People/Places/Things) (Priority: P2)
@@ -171,7 +176,7 @@ The backend exposes RESTful API endpoints that aggregate compliance data into da
 
 **Navigation:**
 
-- **FR-036**: The system-level sidebar navigation MUST organize navigation items into logical groups: System Profile (Overview, Components, Boundaries, Capabilities), Compliance Posture (Narratives, Legal & Regulatory, Gap Analysis), Assessment & Remediation (Assessments, Remediation, POA&M, Evidence, Deviations), and Planning & Delivery (Implementation Roadmap, Documents).
+- **FR-036**: The system-level sidebar navigation MUST organize navigation items into logical groups: System Profile (Overview, Components, Boundaries, Capabilities), Compliance Posture (Narratives, Legal & Regulatory), Assessment & Remediation (Assessments, Remediation, POA&M, Evidence, Deviations), and Planning & Delivery (Implementation Roadmap, Documents).
 - **FR-037**: When the sidebar is expanded, group labels MUST be displayed above their items. When the sidebar is collapsed, a thin divider MUST separate groups visually.
 
 **Security Capabilities Library:**

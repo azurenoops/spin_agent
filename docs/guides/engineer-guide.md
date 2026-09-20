@@ -655,7 +655,6 @@ Engineers can manage authorization boundaries through both the dashboard and MCP
 1. Navigate to Portfolio → System → Boundaries
 2. Click "+ Add Boundary" to create Physical, Logical, or Hybrid boundaries
 3. Use "Discover Azure Resources" to auto-discover and import resources from Azure
-4. View boundary-scoped gap analysis via the boundary selector on the Gap Analysis page
 
 ### MCP Chat Workflow
 - `@ato list boundary definitions for [system]` — view all boundaries

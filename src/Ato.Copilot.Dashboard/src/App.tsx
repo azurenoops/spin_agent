@@ -47,8 +47,6 @@ import OrgCapabilityDetailPage from './pages/OrgCapabilityDetailPage';
 import ImportedDocumentsView from './features/admin/imported-documents/ImportedDocumentsView';
 import TemplatesAdminPage from './pages/TemplatesAdminPage';
 import AzureSettingsPage from './pages/AzureSettingsPage';
-// Wave 6 GAP-006/GAP-016/GAP-017
-import GapAnalysis from './pages/GapAnalysis';
 import AuditLogPage from './pages/AuditLogPage';
 import AdminMigrationPage from './pages/AdminMigrationPage';
 import KnowledgeBaseManagementPage from './pages/KnowledgeBaseManagementPage';
@@ -160,8 +158,6 @@ function AppContent() {
             <Route path="authorize" element={<AuthorizationPage />} />
             {/* Epic #121 / Task #147 — Roles management page */}
             <Route path="roles" element={<RolesManagementPage />} />
-            {/* Wave 6 GAP-006: Gap Analysis */}
-            <Route path="gap-analysis" element={<GapAnalysis />} />
           </Route>
           <Route path="/capabilities" element={<RequireAuth><CapabilitiesRoute /></RequireAuth>} />
           <Route path="/components" element={<RequireAuth><ComponentsRoute /></RequireAuth>} />

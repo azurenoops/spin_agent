@@ -262,13 +262,6 @@ export function getIntelligentSuggestions(context: ChatContext): SuggestedAction
     );
   }
 
-  if (page === 'gap-analysis') {
-    suggestions.push(
-      { label: 'Prioritise gaps', prompt: 'Which control gaps have the highest risk and should be fixed first?', icon: '🎯', priority: 75 },
-      { label: 'Remediation plan', prompt: 'Create a remediation plan for the top failing control families', icon: '📋', priority: 65 },
-    );
-  }
-
   if (page === 'documents') {
     suggestions.push(
       { label: 'Generate SSP', prompt: 'Generate a System Security Plan for this system', icon: '📄', priority: 55 },
