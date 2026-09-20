@@ -159,6 +159,74 @@ The engine provides a data access layer for historical queries, audit logs, find
 - **FR-019**: System MUST handle non-fatal persistence and storage failures without failing the assessment.
 - **FR-020**: System MUST perform full risk assessments across 8 risk categories with per-category scoring (1-10 scale) and overall risk level determination.
 
+### Issue #981 - Azure-backed system assessment admission
+
+The dashboard's **Run Assessment** action means an Azure-backed assessment of
+the registered system. It MUST NOT evaluate narratives or a baseline as a
+substitute when Azure configuration is missing.
+
+- **FR-021**: Remove the dashboard endpoint's non-Azure fallback. A rejected run
+  MUST NOT create assessment/effectiveness/findings, change implementation
+  status, or trigger successful trend, POA&M or remediation processing.
+- **FR-022**: Both readiness display and execution MUST use the same server-side
+  validation of active system, categorization, Azure profile, nonempty valid
+  subscription identifiers and tenant-owned eligible subscription registrations.
+  Execution MUST revalidate rather than trust a prior UI result.
+- **FR-023**: Preserve the existing deployment-configured assessment cloud.
+  Commercial and connected Government are supported only when the profile
+  matches that configured cloud. Unknown clouds, cloud mismatches, custom
+  endpoints/proxies unsupported by the deployed client, and disconnected
+  GovernmentAirGappedIl5/Il6 MUST fail closed. Do not add opposite-cloud fallback.
+- **FR-024**: Readiness MUST verify the assessment identity can access the
+  configured subscriptions and required Azure service surfaces using bounded,
+  cancellable checks. Authentication/access/connectivity failures MUST return
+  safe actionable errors and MUST NOT select another assessment mode.
+- **FR-025**: Provide a visible disabled Run Assessment action while readiness
+  is unknown or blocked, with the reason, retry and Configure Environment
+  navigation. Consume the shared dashboard ErrorResponse contract.
+- **FR-026**: The Environment page MUST provide real Azure attachment management,
+  separate from descriptive Mission Profile text. Authorized writers can choose
+  eligible tenant subscriptions, save a profile using trusted cloud defaults,
+  and detach it. Saving configuration is not proof of connectivity; readiness
+  is checked separately.
+- **FR-027**: Configuration changes and Run Assessment require the existing
+  ComplianceWriter policy. Readiness requires ComplianceReader and confirms
+  operation authorization before probing Azure. Tenant/system filtering MUST
+  apply to every path, including CSP-admin cross-organization views.
+- **FR-028**: Preserve historical assessment records and provenance without
+  silently relabeling documentation/manual/imported evidence as Azure evidence.
+- **FR-029**: Regression coverage MUST include missing/detached profile, missing
+  or malformed scope, unavailable/wrong-tenant registration, supported and
+  mismatched clouds, unsupported modes, Azure failures, cancellation and direct
+  API calls. Automated tests use synthetic data and mocked Azure transports.
+
+Issue #982 tracks complete resource/multi-subscription scan scope; #983 tracks
+scan-result failure/coverage integrity. This admission fix does not claim those
+separate defects are resolved or introduce a documentation-review workflow.
+
+#### Dashboard contract
+
+- `GET /api/dashboard/systems/{id}/assessment-readiness`: readiness with
+  `systemId`, `isReady`, `errorCode`, `message`, `suggestion`, `configurationUrl`,
+  `deploymentCloud`, `cloudEnvironment`, `subscriptions` (ID/display name),
+  and UTC-offset `checkedAt`. Not-ready configuration is an explicit result,
+  not an empty/successful assessment.
+- `GET /api/dashboard/systems/{id}/assessment-environment`: writer-authorized
+  configuration with `systemId`, `deploymentCloud`, `cloudEnvironment`,
+  `subscriptionIds`, and `availableSubscriptions` (ID, display name, cloud,
+  availability).
+- `PUT` to that configuration route accepts `cloudEnvironment` and
+  `subscriptionIds`; it validates and persists attachment metadata and returns
+  the configuration. It does not claim the environment is connected.
+- `DELETE` to that configuration route detaches the profile and returns 204.
+- `POST /api/dashboard/systems/{id}/run-assessment` retains its existing successful
+  response shape, but rejects failed admission with the repository's structured
+  `error`, `errorCode`, `suggestion` envelope before assessment side effects.
+
+`configurationUrl` targets
+`/systems/{id}/profile/EnvironmentAndDeployment#azure-assessment-environment`.
+No credentials or secrets are accepted by the configuration API.
+
 ### Key Entities
 
 - **ComplianceAssessment** *(extended)*: Existing EF Core entity extended with control family results, executive summary, risk profile, environment scope, and timing data.

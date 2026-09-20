@@ -9,6 +9,47 @@ Enhance the existing `AtoComplianceEngine` (550 lines, 4-method interface, 5 dep
 
 ## Technical Context
 
+### Issue #981 implementation boundary (2026-09-20)
+
+Implement Azure-backed dashboard admission on
+`fix/981-azure-assessment-prerequisites`, linked to GitHub issue #981.
+The user selected the existing deployment-configured cloud model: reject
+mismatched/unsupported profiles rather than introduce per-system client routing.
+
+- Use an injected assessment-environment service for tenant-filtered attachment
+  configuration and shared readiness rules.
+- Isolate Azure SDK connectivity/access checks behind a testable probe interface;
+  do not reuse adapters that turn failures into empty results.
+- Reuse existing tenant subscription registrations and the existing default
+  ArmClient. No new tables, credentials store, provider abstraction or global
+  JSON/error-contract change.
+- Add readiness/configuration routes to the existing dashboard minimal-API
+  domain. Preserve ErrorResponse compatibility rather than introducing a
+  separate Problem Details envelope for this fix.
+- Remove the endpoint's narrative/baseline fallback. Revalidate readiness on
+  each execution; only admitted Azure execution reaches downstream processing.
+- Add an Azure attachment panel to the existing Environment page and readiness
+  guidance to Assessments. Descriptive profile governance remains independent.
+- Add failing API and UI tests before behavior changes, then unit coverage for
+  validation/probe failures and local Playwright coverage for user workflow.
+  No automated test uses production data or live Azure.
+- Leave #982 resource-scope propagation and #983 result-integrity changes as
+  explicit separate follow-ups. Do not rename historical assessments.
+
+The additional service/probe split is required to test authorization/configuration
+separately from Azure IO and avoid success-shaped adapter fallbacks. A UI-only
+guard or checking only a nonempty subscription string was rejected because direct
+API calls and stale/invalid configuration would bypass it.
+
+Constitution gates: TDD/AAA; tenant filtering and writer authorization; bounded
+queries and cancellation; structured safe errors; dashboard `tsc --noEmit`;
+modified-path coverage target 100% under current section VI (the older 80% text
+elsewhere is not used to reduce that target). Full proposal validation commands
+are `dotnet build Ato.Copilot.sln` and `dotnet test Ato.Copilot.sln`, expected to
+build and pass; focused selectors run first and broader gates run after them.
+
+### Original feature technical context
+
 **Language/Version**: C# 13 / .NET 9.0
 **Primary Dependencies**: Azure.ResourceManager (1.13.2), Azure.ResourceManager.PolicyInsights (1.2.0), Azure.ResourceManager.SecurityCenter (1.2.0-beta.6), Azure.ResourceManager.Resources (1.9.0), Azure.ResourceManager.ResourceGraph (1.1.0), Azure.Identity (1.13.2), Microsoft.EntityFrameworkCore (9.0.0), Microsoft.Extensions.Caching.Memory (9.0.0), Microsoft.Extensions.AI (9.4.0-preview), Serilog (4.2.0), Microsoft.Graph (5.70.0)
 **Storage**: EF Core with SQLite (dev) / SQL Server (prod) via `IDbContextFactory<AtoCopilotContext>`; Azure Blob Storage via `IEvidenceStorageService`

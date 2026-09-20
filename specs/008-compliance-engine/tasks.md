@@ -293,6 +293,20 @@
 
 ## Dependencies & Execution Order
 
+### Issue #981 regression fix
+
+- [ ] Add and run failing direct-API and dashboard readiness regressions.
+- [ ] Commit the failing-test checkpoint before production behavior changes.
+- [ ] Implement tenant-scoped Azure attachment and readiness services/DTOs.
+- [ ] Implement bounded Azure access probes and safe error classification.
+- [ ] Wire authorized dashboard APIs and remove the non-Azure fallback.
+- [ ] Add Assessments readiness guidance and functional Environment configuration.
+- [ ] Run backend unit/integration, frontend unit, type-check/build and local E2E tests.
+- [ ] Measure modified-path coverage and review the complete diff.
+- [ ] Provide local manual-test instructions and obtain push/PR approval.
+
+The existing Feature 008 work below remains complete independently of this fix.
+
 ### Phase Dependencies
 
 - **Setup (Phase 1)**: No dependencies — can start immediately
