@@ -886,13 +886,16 @@ public class SspCompletenessTool : BaseTool
 public class ExportOscalSspTool : BaseTool
 {
     private readonly IOscalSspExportService _exportService;
+    private readonly IOscalSchemaValidationService _schemaValidator;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public ExportOscalSspTool(
         IOscalSspExportService exportService,
+        IOscalSchemaValidationService schemaValidator,
         ILogger<ExportOscalSspTool> logger) : base(logger)
     {
         _exportService = exportService;
+        _schemaValidator = schemaValidator;
     }
 
     public override string Name => "compliance_export_oscal_ssp";
@@ -923,6 +926,23 @@ public class ExportOscalSspTool : BaseTool
 
             var result = await _exportService.ExportAsync(
                 systemId, includeBackMatter, prettyPrint, cancellationToken);
+
+            var validation = await _schemaValidator.ValidateAsync(
+                result.OscalJson, "ssp", cancellationToken);
+            if (!validation.IsValid)
+            {
+                Logger.LogWarning(
+                    "OSCAL SSP export blocked for system {SystemId}: {ViolationCount} schema violation(s)",
+                    systemId, validation.Violations.Count);
+                return JsonSerializer.Serialize(new
+                {
+                    status = "error",
+                    errorCode = "OSCAL_SCHEMA_VALIDATION_FAILED",
+                    message = "The generated OSCAL SSP artifact failed schema validation and was not exported.",
+                    schemaVersion = validation.SchemaVersion,
+                    violations = validation.Violations
+                }, JsonOpts);
+            }
 
             sw.Stop();
             return JsonSerializer.Serialize(new

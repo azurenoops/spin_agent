@@ -52,6 +52,17 @@ public class SspToolsIntegrationTests : IDisposable
         var sspSvc = new SspService(scopeFactory, Mock.Of<ILogger<SspService>>());
         var oscalExportSvc = new OscalSspExportService(scopeFactory, Mock.Of<ILogger<OscalSspExportService>>());
         var oscalValidationSvc = new OscalValidationService();
+        var oscalSchemaValidationSvc = new Mock<IOscalSchemaValidationService>();
+        oscalSchemaValidationSvc
+            .Setup(service => service.ValidateAsync(
+                It.IsAny<string>(),
+                "ssp",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult
+            {
+                IsValid = true,
+                ModelType = "ssp"
+            });
 
         _registerTool = new RegisterSystemTool(lifecycleSvc, Mock.Of<ILogger<RegisterSystemTool>>());
         _categorizeTool = new CategorizeSystemTool(categorizationSvc, Mock.Of<ILogger<CategorizeSystemTool>>());
@@ -59,13 +70,60 @@ public class SspToolsIntegrationTests : IDisposable
         _writeSspSectionTool = new WriteSspSectionTool(sspSvc, Mock.Of<ILogger<WriteSspSectionTool>>());
         _reviewSspSectionTool = new ReviewSspSectionTool(sspSvc, Mock.Of<ILogger<ReviewSspSectionTool>>());
         _sspCompletenessTool = new SspCompletenessTool(sspSvc, Mock.Of<INarrativeGovernanceService>(), Mock.Of<ILogger<SspCompletenessTool>>());
-        _exportOscalSspTool = new ExportOscalSspTool(oscalExportSvc, Mock.Of<ILogger<ExportOscalSspTool>>());
+        _exportOscalSspTool = new ExportOscalSspTool(
+            oscalExportSvc, oscalSchemaValidationSvc.Object, Mock.Of<ILogger<ExportOscalSspTool>>());
         _validateOscalSspTool = new ValidateOscalSspTool(oscalExportSvc, oscalValidationSvc, Mock.Of<ILogger<ValidateOscalSspTool>>());
         _generateSspTool = new GenerateSspTool(sspSvc, Mock.Of<ILogger<GenerateSspTool>>());
         _writeNarrativeTool = new WriteNarrativeTool(sspSvc, Mock.Of<ILogger<WriteNarrativeTool>>());
     }
 
     public void Dispose() => _serviceProvider.Dispose();
+
+    [Fact]
+    public async Task ExportOscalSsp_WithSchemaInvalidDocument_BlocksOutput()
+    {
+        // Arrange
+        var exportService = new Mock<IOscalSspExportService>();
+        exportService
+            .Setup(service => service.ExportAsync(
+                It.IsAny<string>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalExportResult(
+                "{\"invalid\":true}",
+                [],
+                new OscalStatistics(0, 0, 0, 0, 0)));
+        var schemaValidator = new Mock<IOscalSchemaValidationService>();
+        schemaValidator
+            .Setup(service => service.ValidateAsync(
+                It.IsAny<string>(),
+                "ssp",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult
+            {
+                IsValid = false,
+                ModelType = "ssp",
+                Violations = [new OscalSchemaViolation { JsonPath = "$", Message = "Invalid SSP." }]
+            });
+        var tool = new ExportOscalSspTool(
+            exportService.Object,
+            schemaValidator.Object,
+            Mock.Of<ILogger<ExportOscalSspTool>>());
+
+        // Act
+        var result = await tool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = "system-1"
+        });
+
+        // Assert
+        using var response = JsonDocument.Parse(result);
+        response.RootElement.GetProperty("status").GetString().Should().Be("error");
+        response.RootElement.GetProperty("errorCode").GetString()
+            .Should().Be("OSCAL_SCHEMA_VALIDATION_FAILED");
+        response.RootElement.GetRawText().Should().NotContain("oscal_ssp_json");
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // End-to-end lifecycle

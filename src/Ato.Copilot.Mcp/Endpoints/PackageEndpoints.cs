@@ -234,9 +234,14 @@ public static class PackageEndpoints
         systems.MapGet("/exports/oscal-poam", async (
                 string systemId,
                 IEmassExportService emassService,
+                IOscalSchemaValidationService schemaValidator,
                 CancellationToken ct) =>
             {
                 var json = await emassService.ExportOscalAsync(systemId, OscalModelType.Poam, ct);
+                var validation = await schemaValidator.ValidateAsync(json, "poam", ct);
+                if (!validation.IsValid)
+                    return OscalExportValidationFailure("poam", validation);
+
                 return Results.Text(json, "application/json");
             })
             .WithName("ExportOscalPoam");
@@ -244,9 +249,14 @@ public static class PackageEndpoints
         systems.MapGet("/exports/oscal-assessment-results", async (
                 string systemId,
                 IEmassExportService emassService,
+                IOscalSchemaValidationService schemaValidator,
                 CancellationToken ct) =>
             {
                 var json = await emassService.ExportOscalAsync(systemId, OscalModelType.AssessmentResults, ct);
+                var validation = await schemaValidator.ValidateAsync(json, "assessment-results", ct);
+                if (!validation.IsValid)
+                    return OscalExportValidationFailure("assessment-results", validation);
+
                 return Results.Text(json, "application/json");
             })
             .WithName("ExportOscalAssessmentResults");
@@ -254,9 +264,14 @@ public static class PackageEndpoints
         systems.MapGet("/exports/oscal-sap", async (
                 string systemId,
                 IOscalSapExportService sapService,
+                IOscalSchemaValidationService schemaValidator,
                 CancellationToken ct) =>
             {
                 var json = await sapService.ExportAsync(systemId, ct);
+                var validation = await schemaValidator.ValidateAsync(json, "assessment-plan", ct);
+                if (!validation.IsValid)
+                    return OscalExportValidationFailure("assessment-plan", validation);
+
                 return Results.Text(json, "application/json");
             })
             .WithName("ExportOscalSap");
@@ -475,4 +490,16 @@ public static class PackageEndpoints
             warnings = sap.Warnings
         };
     }
+
+    private static IResult OscalExportValidationFailure(
+        string documentType,
+        OscalSchemaValidationResult validation) =>
+        Results.UnprocessableEntity(new
+        {
+            errorCode = "OSCAL_SCHEMA_VALIDATION_FAILED",
+            message = $"The generated OSCAL {documentType} artifact failed schema validation and was not exported.",
+            documentType,
+            schemaVersion = validation.SchemaVersion,
+            violations = validation.Violations
+        });
 }
