@@ -237,6 +237,14 @@ curl -s http://localhost:3001/api/dashboard/systems/{systemId}/inheritance/AC-2/
 
 ---
 
+## Phase 12 — Issue #954: Relational Stale-Default Reconciliation
+
+- [X] **T049**: Add SQLite foreign-key regression tests for stale defaults referenced by `OrgDerived` and overridden system designations.
+- [X] **T050**: Reconcile dependent designations before deleting stale org defaults in one save operation; remove obsolete `OrgDerived` rows and detach surviving overrides without changing their values or responsibility notes.
+- [X] **T051**: Verify repeated derivation, remaining mappings, mixed systems, rollback, audit output, and tenant isolation through focused and broad affected test suites.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

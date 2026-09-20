@@ -115,6 +115,7 @@ public class OrgInheritanceService : IOrgInheritanceService
 
         // 5. Upsert derived defaults
         var upsertCount = 0;
+        var finalOrgDefaults = new Dictionary<string, OrgInheritanceDefault>(StringComparer.OrdinalIgnoreCase);
         foreach (var derived in derivedDefaults)
         {
             if (existingByControl.TryGetValue(derived.ControlId, out var existing))
@@ -126,29 +127,18 @@ public class OrgInheritanceService : IOrgInheritanceService
                 existing.SourceCapabilityNames = derived.SourceCapabilityNames;
                 existing.MappingRole = derived.MappingRole;
                 existing.DerivedAt = now;
+                finalOrgDefaults[derived.ControlId] = existing;
             }
             else
             {
                 // Insert new
                 context.OrgInheritanceDefaults.Add(derived);
+                finalOrgDefaults[derived.ControlId] = derived;
             }
             upsertCount++;
         }
 
-        // 6. Remove stale defaults (controls no longer mapped by any org-wide capability)
-        var removedCount = 0;
-        foreach (var existing in existingDefaults)
-        {
-            if (!derivedByControl.ContainsKey(existing.ControlId))
-            {
-                context.OrgInheritanceDefaults.Remove(existing);
-                removedCount++;
-            }
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-
-        // 7. Cascade: Update all systems with baselines — push new org defaults
+        // 6. Cascade: Update all systems with baselines — push new org defaults
         //    to OrgDerived designations (skip overrides: Manual/ProfileApply/CrmImport/BulkUpdate)
         var affectedSystems = 0;
 
@@ -156,9 +146,12 @@ public class OrgInheritanceService : IOrgInheritanceService
             .Include(b => b.Inheritances)
             .ToListAsync(cancellationToken);
 
-        // Build final org defaults lookup (after save, IDs are stable)
-        var finalOrgDefaults = await context.OrgInheritanceDefaults
-            .ToDictionaryAsync(d => d.ControlId, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var staleDefaults = existingDefaults
+            .Where(existing => !derivedByControl.ContainsKey(existing.ControlId))
+            .ToList();
+        var staleDefaultIds = staleDefaults
+            .Select(existing => existing.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var baseline in baselines)
         {
@@ -214,6 +207,12 @@ public class OrgInheritanceService : IOrgInheritanceService
                     context.ControlInheritances.Remove(des);
                     systemChanged = true;
                 }
+                else if (des.OrgInheritanceDefaultId is not null &&
+                         staleDefaultIds.Contains(des.OrgInheritanceDefaultId))
+                {
+                    des.OrgInheritanceDefaultId = null;
+                    systemChanged = true;
+                }
             }
 
             if (systemChanged)
@@ -232,8 +231,9 @@ public class OrgInheritanceService : IOrgInheritanceService
             }
         }
 
-        if (affectedSystems > 0)
-            await context.SaveChangesAsync(cancellationToken);
+        context.OrgInheritanceDefaults.RemoveRange(staleDefaults);
+        var removedCount = staleDefaults.Count;
+        await context.SaveChangesAsync(cancellationToken);
 
         var inheritedCount = derivedDefaults.Count(d => d.InheritanceType == InheritanceType.Inherited);
         var sharedCount = derivedDefaults.Count(d => d.InheritanceType == InheritanceType.Shared);

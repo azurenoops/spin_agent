@@ -175,6 +175,7 @@ An ISSM onboarding a new system notices that org defaults have already pre-popul
 - **FR-013**: System MUST support bulk override of multiple controls at the system level, including the ability to revert multiple overrides to org defaults.
 - **FR-014**: System MUST use a precedence rule when multiple capabilities map to the same control: Primary/Supporting role takes precedence over Shared; only capabilities with ImplementationStatus = "Implemented" are considered. When multiple capabilities map with the same role, all contributing capabilities and components are merged into the provider list.
 - **FR-015**: System MUST reorganize the Control Inheritance page action buttons to reflect org-level inheritance primacy, demoting "Apply CSP Profile" and promoting org-default status visibility (see UX Layout below).
+- **FR-016**: When re-derivation removes a stale org default, the system MUST reconcile all referencing system designations in the same unit of work before deleting the default. Obsolete `OrgDerived` rows MUST be removed; Manual, ProfileApply, CrmImport, and BulkUpdate rows MUST retain their designation values and responsibility notes while clearing the obsolete org-default reference. The operation MUST remain atomic under relational foreign-key enforcement.
 
 ### Control Inheritance Page — Action Button Layout
 
