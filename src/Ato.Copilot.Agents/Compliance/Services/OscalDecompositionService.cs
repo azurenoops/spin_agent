@@ -298,7 +298,7 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
                 .OrderBy(f => f.StatementId)
                 .Select(f => $"[{f.StatementId}] {f.Description}"));
 
-            controlImpl.Narrative = compositeNarrative;
+            controlImpl.SetCombinedNarrative(compositeNarrative);
             controlImpl.AiSuggested = true;
             controlImpl.ModifiedAt = DateTime.UtcNow;
         }

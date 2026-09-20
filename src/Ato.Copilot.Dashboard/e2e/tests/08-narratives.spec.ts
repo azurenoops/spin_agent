@@ -101,6 +101,9 @@ test.describe('Narratives', () => {
         isAutoPopulated: false, aiSuggested: false,
       }],
     }));
+    await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/regenerate-ai**', route => route.fulfill({
+      json: { narrative: 'Regenerated technical narrative.' },
+    }));
     await page.route('**/api/dashboard/systems/e2e-system', route => route.fulfill({
       json: {
         systemId: 'e2e-system', name: 'E2E System', acronym: 'E2E', systemType: 'Application',
@@ -132,5 +135,12 @@ test.describe('Narratives', () => {
     // Assert
     expect(request.postDataJSON()).toEqual({ policyNarrative: 'Accounts are reviewed monthly.' });
     await expect(technicalEditor).toHaveValue('Entra ID enforces conditional access.');
+
+    // Act
+    await page.getByRole('button', { name: 'Regenerate' }).click();
+
+    // Assert
+    await expect(technicalEditor).toHaveValue('Regenerated technical narrative.');
+    await expect(policyEditor).toHaveValue('Accounts are reviewed monthly.');
   });
 });

@@ -396,7 +396,7 @@ export default function Narratives() {
         sourceUrls.length > 0 ? { sourceUrls } : undefined,
       );
       if (newNarrative) {
-        setEditedNarratives(prev => ({ ...prev, [controlId]: newNarrative }));
+        setEditedNarratives(prev => ({ ...prev, [`${controlId}:technical`]: newNarrative }));
       }
       refresh();
     } catch (err: unknown) {

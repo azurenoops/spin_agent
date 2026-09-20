@@ -397,7 +397,9 @@ public class DashboardService
         {
             totalControls = baselineControlCount;
             narrativeCount = await _db.ControlImplementations
-                .Where(ci => ci.RegisteredSystemId == systemId && ci.Narrative != null && ci.Narrative != "")
+                .Where(ci => ci.RegisteredSystemId == systemId &&
+                    ((ci.PolicyNarrative != null && ci.PolicyNarrative != "") ||
+                     (ci.TechnicalNarrative != null && ci.TechnicalNarrative != "")))
                 .CountAsync(cancellationToken);
         }
         else
@@ -408,7 +410,9 @@ public class DashboardService
                 .CountAsync(cancellationToken);
             narrativeCount = totalControls > 0
                 ? await _db.ControlImplementations
-                    .Where(ci => ci.RegisteredSystemId == systemId && ci.Narrative != null && ci.Narrative != "")
+                    .Where(ci => ci.RegisteredSystemId == systemId &&
+                        ((ci.PolicyNarrative != null && ci.PolicyNarrative != "") ||
+                         (ci.TechnicalNarrative != null && ci.TechnicalNarrative != "")))
                     .CountAsync(cancellationToken)
                 : 0;
         }
@@ -708,7 +712,7 @@ public class DashboardService
                 ControlId = controlId,
                 ControlTitle = nist?.Title ?? controlId,
                 ComplianceStatus = status,
-                HasNarrative = impl?.Narrative != null && impl.Narrative != "",
+                HasNarrative = impl?.HasCanonicalNarrative() ?? false,
                 IsManuallyCustomized = impl?.IsManuallyCustomized ?? false,
                 SecurityCapabilityName = impl?.SecurityCapability?.Name,
                 CatSeverity = eff?.CatSeverity?.ToString(),

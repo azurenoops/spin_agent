@@ -299,7 +299,7 @@ public class CapabilityService
                         continue;
                     }
 
-                    var previousNarrative = impl.Narrative;
+                    var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
 
                     // Find all mappings for this control + system to build composite narrative
                     var mappings = await _db.CapabilityControlMappings
@@ -318,11 +318,11 @@ public class CapabilityService
                     if (mappings.Count <= 1)
                     {
                         var boundaryName = mappings.FirstOrDefault()?.AuthorizationBoundaryDefinition?.Name;
-                        impl.Narrative = _narrativeService.GenerateEnrichedNarrative(
+                        impl.SetCombinedNarrative(_narrativeService.GenerateEnrichedNarrative(
                             entity.Name, entity.Provider, entity.Description,
                             impl.ControlId, controlTitle,
                             componentContexts.Count > 0 ? componentContexts : null,
-                            boundaryName);
+                            boundaryName));
                     }
                     else
                     {
@@ -342,8 +342,8 @@ public class CapabilityService
                             })
                             .ToList();
 
-                        impl.Narrative = _narrativeService.GenerateCompositeNarrative(
-                            impl.ControlId, controlTitle, contexts);
+                        impl.SetCombinedNarrative(_narrativeService.GenerateCompositeNarrative(
+                            impl.ControlId, controlTitle, contexts));
                     }
 
                     // Create NarrativeVersion to track the change
@@ -656,7 +656,7 @@ public class CapabilityService
                 {
                     if (impl.IsManuallyCustomized)
                         custom++;
-                    else if (!string.IsNullOrEmpty(impl.Narrative))
+                    else if (impl.HasCanonicalNarrative())
                         populated++;
                     else
                         empty++;
@@ -746,7 +746,7 @@ public class CapabilityService
 
                 if (implementation.IsManuallyCustomized)
                     custom++;
-                else if (!string.IsNullOrEmpty(implementation.Narrative))
+                else if (implementation.HasCanonicalNarrative())
                     populated++;
                 else
                     empty++;
@@ -973,7 +973,7 @@ public class CapabilityService
         }
 
         // Save old narrative as NarrativeVersion
-        var previousNarrative = impl.Narrative;
+        var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
         if (previousNarrative is not null)
         {
             _db.NarrativeVersions.Add(new NarrativeVersion
@@ -989,7 +989,7 @@ public class CapabilityService
             impl.CurrentVersion++;
         }
 
-        impl.Narrative = narrative;
+        impl.SetCombinedNarrative(narrative);
         impl.AiSuggested = aiGenerated;
         impl.ModifiedAt = DateTime.UtcNow;
 
@@ -1070,7 +1070,7 @@ public class CapabilityService
                 boundaryName);
 
             // Save version history
-            var previousNarrative = impl.Narrative;
+            var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
             if (previousNarrative is not null)
             {
                 _db.NarrativeVersions.Add(new NarrativeVersion
@@ -1084,7 +1084,7 @@ public class CapabilityService
                 impl.CurrentVersion++;
             }
 
-            impl.Narrative = narrative;
+            impl.SetCombinedNarrative(narrative);
             impl.AiSuggested = true;
             impl.IsAutoPopulated = true;
             impl.ModifiedAt = DateTime.UtcNow;
@@ -1499,16 +1499,16 @@ public class CapabilityService
 
                 if (narrative is not null && !string.IsNullOrWhiteSpace(narrative))
                 {
-                    impl.Narrative = narrative;
+                    impl.SetCombinedNarrative(narrative);
                     impl.AiSuggested = true;
                 }
                 else
                 {
-                    impl.Narrative = _narrativeService.GenerateEnrichedNarrative(
+                    impl.SetCombinedNarrative(_narrativeService.GenerateEnrichedNarrative(
                         cap.Name, cap.Provider, cap.Description,
                         normalizedControlId, nist.Title,
                         componentContexts.Count > 0 ? componentContexts : null,
-                        boundaryName);
+                        boundaryName));
                 }
 
                 impl.IsAutoPopulated = true;
@@ -1933,7 +1933,7 @@ public class CapabilityService
             if (unmappedImplsByControlId.TryGetValue(controlId, out var impl))
             {
                 // ControlImplementation exists — check narrative state
-                if (string.IsNullOrWhiteSpace(impl.Narrative))
+                if (!impl.HasCanonicalNarrative())
                 {
                     gapType = "NoNarrative";
                     detail = "No implementation narrative has been written for this control.";

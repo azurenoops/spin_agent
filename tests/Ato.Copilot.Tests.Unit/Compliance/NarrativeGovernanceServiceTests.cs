@@ -652,6 +652,7 @@ public class NarrativeGovernanceServiceTests : IDisposable
             RegisteredSystemId = system.Id,
             ControlId = "AC-1",
             Narrative = "Some narrative content",
+            TechnicalNarrative = "Some narrative content",
             ImplementationStatus = ImplementationStatus.Implemented,
             ApprovalStatus = SspSectionStatus.Draft,
             CurrentVersion = 1
@@ -925,6 +926,26 @@ public class NarrativeGovernanceServiceTests : IDisposable
             "user", expectedVersion: 1);
 
         result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task WriteNarrative_UpdatesTechnicalAndPreservesPolicyNarrative()
+    {
+        // Arrange
+        var (system, seeded) = await SeedSystemWithNarrativeAsync();
+        var implementation = await _db.ControlImplementations.FindAsync(seeded.Id);
+        implementation!.PolicyNarrative = "Existing policy content";
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        // Act
+        var result = await _sspService.WriteNarrativeAsync(
+            system.Id, "AC-1", "Updated technical content", "Implemented", "user");
+
+        // Assert
+        result.Narrative.Should().Be("Updated technical content");
+        result.TechnicalNarrative.Should().Be("Updated technical content");
+        result.PolicyNarrative.Should().Be("Existing policy content");
     }
 
     [Fact]

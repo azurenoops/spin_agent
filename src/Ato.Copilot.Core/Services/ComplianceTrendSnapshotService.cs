@@ -160,7 +160,8 @@ public class ComplianceTrendSnapshotService : BackgroundService
         {
             var withNarrative = await db.ControlImplementations
                 .CountAsync(ci => ci.RegisteredSystemId == systemId
-                            && ci.Narrative != null && ci.Narrative != "", ct);
+                            && ((ci.PolicyNarrative != null && ci.PolicyNarrative != "")
+                                || (ci.TechnicalNarrative != null && ci.TechnicalNarrative != "")), ct);
             narrativeCoverage = Math.Round((double)withNarrative / baseline.TotalControls * 100, 1);
         }
 

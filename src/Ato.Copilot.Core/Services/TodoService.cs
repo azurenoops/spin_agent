@@ -288,7 +288,8 @@ public class TodoService
 
         var narrativeCount = await _db.ControlImplementations
             .Where(ci => ci.RegisteredSystemId == systemId &&
-                         ci.Narrative != null && ci.Narrative != "")
+                         ((ci.PolicyNarrative != null && ci.PolicyNarrative != "") ||
+                          (ci.TechnicalNarrative != null && ci.TechnicalNarrative != "")))
             .CountAsync(ct);
 
         var coverage = Math.Round(100.0 * narrativeCount / baselineControlCount, 1);

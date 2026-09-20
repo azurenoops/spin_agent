@@ -569,7 +569,7 @@ public class EmassExportService : IEmassExportService
                             existing.ImplementationStatus = importedStatus;
                             if (options.ImportNarratives && !string.IsNullOrWhiteSpace(importedNarrative))
                             {
-                                existing.Narrative = importedNarrative;
+                                existing.SetCombinedNarrative(importedNarrative);
                             }
                             existing.ModifiedAt = DateTime.UtcNow;
                         }
@@ -588,9 +588,10 @@ public class EmassExportService : IEmassExportService
                             // Text fields: append
                             if (options.ImportNarratives && !string.IsNullOrWhiteSpace(importedNarrative))
                             {
-                                existing.Narrative = string.IsNullOrWhiteSpace(existing.Narrative)
+                                var mergedNarrative = string.IsNullOrWhiteSpace(existing.TechnicalNarrative ?? existing.Narrative)
                                     ? importedNarrative
-                                    : $"{existing.Narrative}\n---\nImported from eMASS:\n{importedNarrative}";
+                                    : $"{existing.TechnicalNarrative ?? existing.Narrative}\n---\nImported from eMASS:\n{importedNarrative}";
+                                existing.SetCombinedNarrative(mergedNarrative);
                             }
                             existing.ModifiedAt = DateTime.UtcNow;
                         }
@@ -612,9 +613,10 @@ public class EmassExportService : IEmassExportService
                         RegisteredSystemId = systemId,
                         ControlId = controlId,
                         ImplementationStatus = importedStatus,
-                        Narrative = options.ImportNarratives ? importedNarrative : null,
                         AuthoredBy = "eMASS Import"
                     };
+                    if (options.ImportNarratives)
+                        ci.SetCombinedNarrative(importedNarrative);
                     db.ControlImplementations.Add(ci);
                 }
                 imported++;

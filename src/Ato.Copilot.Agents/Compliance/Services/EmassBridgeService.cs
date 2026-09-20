@@ -99,23 +99,25 @@ public class EmassBridgeService : IEmassBridgeService
 
             if (existing.TryGetValue(controlId, out var ci))
             {
-                ci.Narrative = dto.ImplementationNarrative ?? ci.Narrative;
+                if (dto.ImplementationNarrative is not null)
+                    ci.SetCombinedNarrative(dto.ImplementationNarrative);
                 ci.ImplementationStatus = MapEmassStatusToOscal(dto.ImplementationStatus);
                 ci.ModifiedAt = DateTime.UtcNow;
             }
             else
             {
-                db.ControlImplementations.Add(new ControlImplementation
+                var implementation = new ControlImplementation
                 {
                     Id = Guid.NewGuid().ToString(),
                     RegisteredSystemId = systemId,
                     ControlId = controlId,
-                    Narrative = dto.ImplementationNarrative ?? string.Empty,
                     ImplementationStatus = MapEmassStatusToOscal(dto.ImplementationStatus),
                     AuthoredBy = "emass-import",
                     AuthoredAt = DateTime.UtcNow,
                     ModifiedAt = DateTime.UtcNow
-                });
+                };
+                implementation.SetCombinedNarrative(dto.ImplementationNarrative ?? string.Empty);
+                db.ControlImplementations.Add(implementation);
             }
             upserted++;
         }

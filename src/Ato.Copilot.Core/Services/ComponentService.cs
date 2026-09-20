@@ -1594,7 +1594,7 @@ public class ComponentService
                     continue;
                 }
 
-                var previousNarrative = impl.Narrative;
+                var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
                 var capId = impl.SecurityCapabilityId!;
 
                 var cap = await _db.SecurityCapabilities
@@ -1631,11 +1631,11 @@ public class ComponentService
                 if (mappings.Count <= 1)
                 {
                     var boundaryName = mappings.FirstOrDefault()?.AuthorizationBoundaryDefinition?.Name;
-                    impl.Narrative = _narrativeService.GenerateEnrichedNarrative(
+                    impl.SetCombinedNarrative(_narrativeService.GenerateEnrichedNarrative(
                         cap.Name, cap.Provider, cap.Description,
                         impl.ControlId, controlTitle,
                         componentContexts.Count > 0 ? componentContexts : null,
-                        boundaryName);
+                        boundaryName));
                 }
                 else
                 {
@@ -1653,8 +1653,8 @@ public class ComponentService
                         })
                         .ToList();
 
-                    impl.Narrative = _narrativeService.GenerateCompositeNarrative(
-                        impl.ControlId, controlTitle, contexts);
+                    impl.SetCombinedNarrative(_narrativeService.GenerateCompositeNarrative(
+                        impl.ControlId, controlTitle, contexts));
                 }
 
                 if (previousNarrative is not null)

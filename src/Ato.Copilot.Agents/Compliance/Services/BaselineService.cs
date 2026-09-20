@@ -174,20 +174,22 @@ public class BaselineService : IBaselineService
 
             capabilityMappings.TryGetValue(controlId, out var capabilityId);
 
-            newImplementations.Add(new ControlImplementation
+            var technicalNarrative = SspService.GenerateCustomerNarrativeTemplate(family, controlId, system) ?? string.Empty;
+            var implementation = new ControlImplementation
             {
                 ControlId = controlId,
                 RegisteredSystemId = systemId,
                 SecurityCapabilityId = capabilityId,
                 ImplementationStatus = ImplementationStatus.Planned,
                 ApprovalStatus = SspSectionStatus.NotStarted,
-                Narrative = SspService.GenerateCustomerNarrativeTemplate(family, controlId, system) ?? string.Empty,
                 IsAutoPopulated = true,
                 AiSuggested = true,
                 AuthoredBy = selectedBy,
                 AuthoredAt = now,
                 CurrentVersion = 1,
-            });
+            };
+            implementation.SetCombinedNarrative(technicalNarrative);
+            newImplementations.Add(implementation);
         }
 
         if (newImplementations.Count > 0)

@@ -271,3 +271,25 @@ _Issue #892 | Priority: P1_
 
 - [x] **T022**: Integration test — OSCAL export emits `_smt.policy` + `_smt.technical` statement IDs
   - File: `tests/Ato.Copilot.Tests.Integration/Compliance/Feature052OscalExportTests.cs`
+
+---
+
+## Phase 8 — Issue #960: Canonical Narrative Persistence
+
+- [x] **T023**: Add regression tests for post-startup baseline creation, governed combined writes,
+  single/bulk capability regeneration, and supported imports persisting Technical narrative content
+  without overwriting Policy narrative content.
+- [x] **T024**: Synchronize combined/legacy-compatible writers to `TechnicalNarrative` while retaining
+  `Narrative` only where compatibility consumers still require it; keep explicit dual writes independent.
+- [x] **T025**: Update readiness/completeness checks and document exporters to use the canonical dual
+  contract, including safe legacy-only startup repair coverage.
+- [x] **T026**: Update dashboard regeneration state under the Technical editor key and add refresh/error
+  regression coverage.
+- [x] **T027**: Run focused unit, integration, dashboard, and browser E2E validation plus the affected
+  broad suites.
+  - Full backend unit: 5,664 passed.
+  - Full backend integration: 824 passed, 40 skipped.
+  - Dashboard production build: passed.
+  - Focused Narratives Vitest: 2 passed; focused Playwright: 1 passed.
+  - Full dashboard Vitest run: 441 passed, 13 failures in untouched auth, chat attachment,
+    chat input, and system registration tests; the focused Narratives tests pass.

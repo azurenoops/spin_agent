@@ -56,20 +56,51 @@ public class OscalSspImportService : IOscalSspImportService
         }
 
         // Extract all implemented requirements
-        var incoming = new List<(string ControlId, string Narrative, string Status)>();
+        var incoming = new List<(string ControlId, string? PolicyNarrative, string? TechnicalNarrative, string Status)>();
         foreach (var req in reqs.EnumerateArray())
         {
             var controlId = req.TryGetProperty("control-id", out var cid) ? cid.GetString() ?? "" : "";
             if (string.IsNullOrWhiteSpace(controlId)) continue;
 
-            // Collapse by-components descriptions
-            var parts = new List<string>();
+            var policyParts = new List<string>();
+            var technicalParts = new List<string>();
+            var combinedParts = new List<string>();
             if (req.TryGetProperty("statements", out var stmts))
+            {
                 foreach (var stmt in stmts.EnumerateArray())
-                    if (stmt.TryGetProperty("by-components", out var byComp))
-                        foreach (var bc in byComp.EnumerateArray())
-                            if (bc.TryGetProperty("description", out var desc) && desc.GetString() is { Length: > 0 } d)
-                                parts.Add(d);
+                {
+                    var statementId = stmt.TryGetProperty("statement-id", out var sid)
+                        ? sid.GetString()
+                        : null;
+                    var target = statementId?.EndsWith(".policy", StringComparison.OrdinalIgnoreCase) == true
+                        ? policyParts
+                        : statementId?.EndsWith(".technical", StringComparison.OrdinalIgnoreCase) == true
+                            ? technicalParts
+                            : combinedParts;
+
+                    if (stmt.TryGetProperty("description", out var description) &&
+                        description.GetString() is { Length: > 0 } text)
+                    {
+                        target.Add(text);
+                    }
+
+                    if (stmt.TryGetProperty("by-components", out var byComponents))
+                    {
+                        foreach (var component in byComponents.EnumerateArray())
+                        {
+                            if (component.TryGetProperty("description", out var componentDescription) &&
+                                componentDescription.GetString() is { Length: > 0 } componentText)
+                            {
+                                target.Add(componentText);
+                            }
+                        }
+                    }
+                }
+            }
+
+            technicalParts.AddRange(combinedParts);
+            var policyNarrative = JoinNarrativeParts(policyParts);
+            var technicalNarrative = JoinNarrativeParts(technicalParts);
 
             // Extract implementation-status from FedRAMP props
             var status = "Planned";
@@ -83,7 +114,7 @@ public class OscalSspImportService : IOscalSspImportService
                         break;
                     }
 
-            incoming.Add((controlId.ToUpperInvariant(), string.Join("\n\n", parts), status));
+            incoming.Add((controlId.ToUpperInvariant(), policyNarrative, technicalNarrative, status));
         }
 
         using var scope = _scopeFactory.CreateScope();
@@ -97,22 +128,28 @@ public class OscalSspImportService : IOscalSspImportService
         int created = 0, updated = 0, skipped = 0, failed = 0;
         var preview = new List<OscalImportPreviewItem>();
 
-        foreach (var (controlId, narrative, statusStr) in incoming)
+        foreach (var (controlId, policyNarrative, technicalNarrative, statusStr) in incoming)
         {
             try
             {
                 existing.TryGetValue(controlId, out var current);
                 var isNew = current == null;
                 var unchanged = current != null &&
-                    string.Equals(current.Narrative?.Trim(), narrative.Trim(), StringComparison.OrdinalIgnoreCase);
+                    (policyNarrative is null || string.Equals(current.PolicyNarrative?.Trim(), policyNarrative, StringComparison.OrdinalIgnoreCase)) &&
+                    (technicalNarrative is null || string.Equals(current.TechnicalNarrative?.Trim(), technicalNarrative, StringComparison.OrdinalIgnoreCase));
+
+                var currentNarrative = string.Join("\n\n", new[] { current?.PolicyNarrative, current?.TechnicalNarrative }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)));
+                var newNarrative = string.Join("\n\n", new[] { policyNarrative, technicalNarrative }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)));
 
                 var action = isNew ? "create" : unchanged ? "skip" : "update";
                 preview.Add(new OscalImportPreviewItem
                 {
                     ControlId       = controlId,
                     Action          = action,
-                    CurrentNarrative = current?.Narrative,
-                    NewNarrative    = unchanged ? null : narrative
+                    CurrentNarrative = currentNarrative,
+                    NewNarrative    = unchanged ? null : newNarrative
                 });
 
                 if (action == "skip") { skipped++; continue; }
@@ -121,22 +158,27 @@ public class OscalSspImportService : IOscalSspImportService
                 {
                     if (isNew)
                     {
-                        db.ControlImplementations.Add(new ControlImplementation
+                        var implementation = new ControlImplementation
                         {
                             Id = Guid.NewGuid().ToString(),
                             RegisteredSystemId = systemId,
                             ControlId = controlId,
-                            Narrative = narrative,
+                            PolicyNarrative = policyNarrative,
                             ImplementationStatus = Enum.TryParse<ImplementationStatus>(statusStr, out var s) ? s : ImplementationStatus.Planned,
                             AuthoredBy = "oscal-import",
                             AuthoredAt = DateTime.UtcNow,
                             ModifiedAt = DateTime.UtcNow
-                        });
+                        };
+                        implementation.SetCombinedNarrative(technicalNarrative);
+                        db.ControlImplementations.Add(implementation);
                         created++;
                     }
                     else
                     {
-                        current!.Narrative = narrative;
+                        if (policyNarrative is not null)
+                            current!.PolicyNarrative = policyNarrative;
+                        if (technicalNarrative is not null)
+                            current!.SetCombinedNarrative(technicalNarrative);
                         current.ModifiedAt = DateTime.UtcNow;
                         updated++;
                     }
@@ -175,4 +217,10 @@ public class OscalSspImportService : IOscalSspImportService
     private static string CapitaliseFirstWord(string s) =>
         string.IsNullOrEmpty(s) ? s :
         char.ToUpper(s[0]) + s[1..].Replace("-", string.Empty);
+
+    private static string? JoinNarrativeParts(IEnumerable<string> parts)
+    {
+        var narrative = string.Join("\n\n", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+        return string.IsNullOrWhiteSpace(narrative) ? null : narrative;
+    }
 }

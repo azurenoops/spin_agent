@@ -356,7 +356,7 @@ public sealed class EmassRoundTripSyncService(
                     implementation.ImplementationStatus = ParseStatus(conflict.EmassValue);
                     break;
                 case "ControlImplementation.Narrative":
-                    implementation.Narrative = conflict.EmassValue;
+                    implementation.SetCombinedNarrative(conflict.EmassValue);
                     break;
                 default: throw new InvalidOperationException($"Unsupported conflict field '{conflict.FieldName}'.");
             }

@@ -583,7 +583,8 @@ public class RmfLifecycleService : IRmfLifecycleService
 
         var narrativeCount = await context.Set<ControlImplementation>()
             .CountAsync(ci => ci.RegisteredSystemId == system.Id
-                && !string.IsNullOrEmpty(ci.Narrative), cancellationToken);
+                && (!string.IsNullOrEmpty(ci.PolicyNarrative)
+                    || !string.IsNullOrEmpty(ci.TechnicalNarrative)), cancellationToken);
 
         var coverage = (double)narrativeCount / totalControls;
         var passed = coverage >= 0.80;
