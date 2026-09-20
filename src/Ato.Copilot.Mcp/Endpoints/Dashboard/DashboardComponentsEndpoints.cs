@@ -297,32 +297,20 @@ public static partial class DashboardEndpoints
             {
                 if (!string.IsNullOrWhiteSpace(sourceUrl) || !string.IsNullOrWhiteSpace(sourceUrls))
                 {
-                    var systemExists = await context.RegisteredSystems
-                        .AnyAsync(s => s.Id == systemId && s.IsActive, ct);
-                    if (!systemExists)
+                    var regenerationScope = await capService.PrepareCapabilityRegenerationAsync(
+                        systemId, capabilityId, currentUser.CurrentUserId, ct);
+                    if (regenerationScope is null)
                     {
                         return Results.NotFound(new ErrorResponse
                         {
                             Error = "System or capability not found",
                             ErrorCode = "NOT_FOUND",
+                            Suggestion = "Verify system access and, for CSP capabilities, confirm the system has an active subscription to a published and mapped capability",
                         });
                     }
 
-                    var capabilityExists = await context.SecurityCapabilities
-                        .AnyAsync(c => c.Id == capabilityId, ct);
-                    if (!capabilityExists)
-                    {
-                        return Results.NotFound(new ErrorResponse
-                        {
-                            Error = "System or capability not found",
-                            ErrorCode = "NOT_FOUND",
-                        });
-                    }
-
-                    var impls = await context.ControlImplementations
-                        .Where(ci => ci.RegisteredSystemId == systemId && ci.SecurityCapabilityId == capabilityId)
-                        .Select(ci => new { ci.ControlId, ci.IsManuallyCustomized })
-                        .ToListAsync(ct);
+                    await context.SaveChangesAsync(ct);
+                    var impls = regenerationScope.Implementations;
 
                     var totalControls = impls.Count;
                     var regenerated = 0;
@@ -392,6 +380,7 @@ public static partial class DashboardEndpoints
                     {
                         Error = "System or capability not found",
                         ErrorCode = "NOT_FOUND",
+                        Suggestion = "Verify system access and, for CSP capabilities, confirm the system has an active subscription to a published and mapped capability",
                     });
             })
             .WithName("BulkRegenerateNarrativesForCapability");

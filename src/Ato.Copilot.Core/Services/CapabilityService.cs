@@ -39,6 +39,19 @@ public class CapabilityService
         _orgInheritanceService = orgInheritanceService;
     }
 
+    /// <summary>
+    /// Resolved capability metadata and tracked control implementations for narrative regeneration.
+    /// Callers that invoke downstream services must save newly added implementations first.
+    /// </summary>
+    public sealed class CapabilityRegenerationScope
+    {
+        public required string CapabilityName { get; init; }
+        public required string Provider { get; init; }
+        public required string Description { get; init; }
+        public required List<ControlImplementation> Implementations { get; init; }
+        public required List<ComponentContext> ComponentContexts { get; init; }
+    }
+
     // ─── List / Search ───────────────────────────────────────────────────────
 
     /// <summary>
@@ -1000,36 +1013,19 @@ public class CapabilityService
         string modifiedBy,
         CancellationToken cancellationToken = default)
     {
-        var systemExists = await _db.RegisteredSystems
-            .AnyAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
-        if (!systemExists) return null;
+        var scope = await PrepareCapabilityRegenerationAsync(
+            systemId, capabilityId, modifiedBy, cancellationToken);
+        if (scope is null)
+            return null;
 
-        var cap = await _db.SecurityCapabilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == capabilityId, cancellationToken);
-        if (cap is null) return null;
-
-        // Find all control implementations for this capability + system
-        var impls = await _db.ControlImplementations
-            .Where(ci => ci.RegisteredSystemId == systemId && ci.SecurityCapabilityId == capabilityId)
-            .ToListAsync(cancellationToken);
+        var capabilityName = scope.CapabilityName;
+        var provider = scope.Provider;
+        var description = scope.Description;
+        var impls = scope.Implementations;
+        var componentContexts = scope.ComponentContexts;
 
         if (impls.Count == 0)
             return new BulkRegenerateResult { TotalControls = 0 };
-
-        // Gather component context once (shared across all controls)
-        var componentContexts = await _db.ComponentCapabilityLinks
-            .Where(cl => cl.SecurityCapabilityId == capabilityId)
-            .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == systemId),
-                cl => cl.SystemComponentId,
-                a => a.SystemComponentId,
-                (cl, a) => new { cl.SystemComponent, a.AuthorizationBoundaryDefinition })
-            .Select(x => new ComponentContext(
-                x.SystemComponent.Name,
-                x.SystemComponent.ComponentType.ToString(),
-                x.SystemComponent.Owner,
-                x.SystemComponent.PersonName))
-            .ToListAsync(cancellationToken);
 
         var boundaryName = await _db.ComponentSystemAssignments
             .Where(a => a.RegisteredSystemId == systemId && a.AuthorizationBoundaryDefinition != null)
@@ -1061,14 +1057,14 @@ public class CapabilityService
 
             // Try AI first, fall back to deterministic
             string? narrative = await _narrativeService.GenerateNarrativeWithAiAsync(
-                cap.Name, cap.Provider, cap.Description,
+                capabilityName, provider, description,
                 controlId, controlTitle,
                 componentContexts.Count > 0 ? componentContexts : null,
                 boundaryName,
                 cancellationToken);
 
             narrative ??= _narrativeService.GenerateEnrichedNarrative(
-                cap.Name, cap.Provider, cap.Description,
+                capabilityName, provider, description,
                 controlId, controlTitle,
                 componentContexts.Count > 0 ? componentContexts : null,
                 boundaryName);
@@ -1090,6 +1086,7 @@ public class CapabilityService
 
             impl.Narrative = narrative;
             impl.AiSuggested = true;
+            impl.IsAutoPopulated = true;
             impl.ModifiedAt = DateTime.UtcNow;
             regenerated++;
             regeneratedControlIds.Add(controlId);
@@ -1108,6 +1105,122 @@ public class CapabilityService
             SkippedCustom = skippedCustom,
             Failed = failed,
             RegeneratedControlIds = regeneratedControlIds,
+        };
+    }
+
+    /// <summary>
+    /// Resolves an organization capability or an eligible subscribed CSP capability and tracks
+    /// any missing system/control implementations without saving them.
+    /// </summary>
+    public async Task<CapabilityRegenerationScope?> PrepareCapabilityRegenerationAsync(
+        string systemId,
+        string capabilityId,
+        string modifiedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var systemExists = await _db.RegisteredSystems
+            .AnyAsync(s => s.Id == systemId && s.IsActive, cancellationToken);
+        if (!systemExists) return null;
+
+        var cap = await _db.SecurityCapabilities
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == capabilityId, cancellationToken);
+
+        string capabilityName;
+        string provider;
+        string description;
+        List<ControlImplementation> implementations;
+        List<ComponentContext> componentContexts;
+
+        if (cap is not null)
+        {
+            capabilityName = cap.Name;
+            provider = cap.Provider;
+            description = cap.Description;
+            implementations = await _db.ControlImplementations
+                .Where(ci => ci.RegisteredSystemId == systemId && ci.SecurityCapabilityId == capabilityId)
+                .ToListAsync(cancellationToken);
+
+            componentContexts = await _db.ComponentCapabilityLinks
+                .Where(cl => cl.SecurityCapabilityId == capabilityId)
+                .Join(_db.ComponentSystemAssignments.Where(a => a.RegisteredSystemId == systemId),
+                    cl => cl.SystemComponentId,
+                    a => a.SystemComponentId,
+                    (cl, a) => new { cl.SystemComponent, a.AuthorizationBoundaryDefinition })
+                .Select(x => new ComponentContext(
+                    x.SystemComponent.Name,
+                    x.SystemComponent.ComponentType.ToString(),
+                    x.SystemComponent.Owner,
+                    x.SystemComponent.PersonName))
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            if (!Guid.TryParse(capabilityId, out var cspCapabilityId))
+                return null;
+
+            var canonicalCapabilityId = cspCapabilityId.ToString();
+            var hasActiveSubscription = await _db.CapabilitySubscriptions
+                .AnyAsync(subscription =>
+                    subscription.RegisteredSystemId == systemId &&
+                    subscription.CspInheritedCapabilityId == canonicalCapabilityId &&
+                    subscription.IsActive,
+                    cancellationToken);
+            if (!hasActiveSubscription)
+                return null;
+
+            var cspCapability = await _db.CspInheritedCapabilities
+                .AsNoTracking()
+                .Include(candidate => candidate.CspInheritedComponent)
+                .FirstOrDefaultAsync(candidate =>
+                    candidate.Id == cspCapabilityId &&
+                    candidate.Status == CspInheritedCapabilityStatus.Mapped &&
+                    candidate.CspInheritedComponent.Status == CspInheritedComponentStatus.Published,
+                    cancellationToken);
+            if (cspCapability is null)
+                return null;
+
+            capabilityName = cspCapability.Name;
+            provider = cspCapability.CspInheritedComponent.Name;
+            description = cspCapability.Description;
+            componentContexts = new List<ComponentContext>();
+
+            var existingImplementations = await _db.ControlImplementations
+                .Where(implementation => implementation.RegisteredSystemId == systemId)
+                .ToListAsync(cancellationToken);
+            var implementationsByControl = existingImplementations
+                .GroupBy(implementation => NormalizeControlId(implementation.ControlId), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            implementations = new List<ControlImplementation>();
+            foreach (var controlId in cspCapability.MappedNistControlIds
+                         .Where(controlId => !string.IsNullOrWhiteSpace(controlId))
+                         .Select(controlId => controlId.Trim())
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!implementationsByControl.TryGetValue(controlId, out var implementation))
+                {
+                    implementation = new ControlImplementation
+                    {
+                        RegisteredSystemId = systemId,
+                        ControlId = controlId,
+                        AuthoredBy = modifiedBy,
+                    };
+                    _db.ControlImplementations.Add(implementation);
+                    implementationsByControl.Add(controlId, implementation);
+                }
+
+                implementations.Add(implementation);
+            }
+        }
+
+        return new CapabilityRegenerationScope
+        {
+            CapabilityName = capabilityName,
+            Provider = provider,
+            Description = description,
+            Implementations = implementations,
+            ComponentContexts = componentContexts,
         };
     }
 

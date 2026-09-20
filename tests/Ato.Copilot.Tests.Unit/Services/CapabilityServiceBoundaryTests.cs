@@ -294,6 +294,138 @@ public class CapabilityServiceBoundaryTests : IDisposable
         result.Summary.TotalMappedControls.Should().Be(5);
     }
 
+    [Fact]
+    public async Task BulkRegenerate_WithSubscribedCspCapability_CreatesMissingImplementations()
+    {
+        // Arrange
+        var component = CreateCspComponent("Microsoft Entra ID P2", CspInheritedComponentStatus.Published);
+        var capability = CreateCspCapability(
+            component,
+            "Access Reviews & Governance",
+            CspInheritedCapabilityStatus.Mapped,
+            "AC-2",
+            "AC-6",
+            "AU-6");
+        _db.AddRange(component, capability);
+        _db.CapabilitySubscriptions.Add(new CapabilitySubscription
+        {
+            RegisteredSystemId = SystemId,
+            CspInheritedCapabilityId = capability.Id.ToString(),
+            IsActive = true,
+            SubscribedBy = "test",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.BulkRegenerateNarrativesForCapabilityAsync(
+            SystemId, capability.Id.ToString(), "test-user");
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.TotalControls.Should().Be(3);
+        result.Regenerated.Should().Be(3);
+        result.SkippedCustom.Should().Be(0);
+        result.Failed.Should().Be(0);
+        result.RegeneratedControlIds.Should().BeEquivalentTo("AC-2", "AC-6", "AU-6");
+
+        var implementations = await _db.ControlImplementations
+            .Where(implementation => implementation.RegisteredSystemId == SystemId)
+            .ToListAsync();
+        implementations.Should().HaveCount(3);
+        implementations.Should().OnlyContain(implementation =>
+            implementation.SecurityCapabilityId == null &&
+            implementation.IsAutoPopulated &&
+            implementation.Narrative != null &&
+            implementation.Narrative.Contains("Microsoft Entra ID P2"));
+    }
+
+    [Fact]
+    public async Task BulkRegenerate_WithSubscribedCspCapability_PreservesCustomAndDoesNotDuplicateRows()
+    {
+        // Arrange
+        var component = CreateCspComponent("Microsoft Entra ID P2", CspInheritedComponentStatus.Published);
+        var capability = CreateCspCapability(
+            component,
+            "Access Reviews & Governance",
+            CspInheritedCapabilityStatus.Mapped,
+            "AC-2",
+            "AC-6");
+        _db.AddRange(component, capability);
+        _db.CapabilitySubscriptions.Add(new CapabilitySubscription
+        {
+            RegisteredSystemId = SystemId,
+            CspInheritedCapabilityId = capability.Id.ToString(),
+            IsActive = true,
+            SubscribedBy = "test",
+        });
+        _db.ControlImplementations.Add(new ControlImplementation
+        {
+            RegisteredSystemId = SystemId,
+            ControlId = "AC-2",
+            Narrative = "Approved custom narrative",
+            IsManuallyCustomized = true,
+            AuthoredBy = "author",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var first = await _sut.BulkRegenerateNarrativesForCapabilityAsync(
+            SystemId, capability.Id.ToString(), "test-user");
+        var second = await _sut.BulkRegenerateNarrativesForCapabilityAsync(
+            SystemId, capability.Id.ToString(), "test-user");
+
+        // Assert
+        first.Should().NotBeNull();
+        first!.Regenerated.Should().Be(1);
+        first.SkippedCustom.Should().Be(1);
+        second.Should().NotBeNull();
+        second!.Regenerated.Should().Be(1);
+        second.SkippedCustom.Should().Be(1);
+
+        var implementations = await _db.ControlImplementations
+            .Where(implementation => implementation.RegisteredSystemId == SystemId)
+            .ToListAsync();
+        implementations.Should().HaveCount(2);
+        implementations.Single(implementation => implementation.ControlId == "AC-2")
+            .Narrative.Should().Be("Approved custom narrative");
+        (await _db.NarrativeVersions.CountAsync()).Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData(false, CspInheritedComponentStatus.Published, CspInheritedCapabilityStatus.Mapped)]
+    [InlineData(true, CspInheritedComponentStatus.Draft, CspInheritedCapabilityStatus.Mapped)]
+    [InlineData(true, CspInheritedComponentStatus.Published, CspInheritedCapabilityStatus.NeedsReview)]
+    public async Task BulkRegenerate_WithIneligibleCspCapability_ReturnsNotFound(
+        bool isSubscribed,
+        CspInheritedComponentStatus componentStatus,
+        CspInheritedCapabilityStatus capabilityStatus)
+    {
+        // Arrange
+        var component = CreateCspComponent("CSP", componentStatus);
+        var capability = CreateCspCapability(component, "Capability", capabilityStatus, "AC-2");
+        _db.AddRange(component, capability);
+        if (isSubscribed)
+        {
+            _db.CapabilitySubscriptions.Add(new CapabilitySubscription
+            {
+                RegisteredSystemId = SystemId,
+                CspInheritedCapabilityId = capability.Id.ToString(),
+                IsActive = true,
+                SubscribedBy = "test",
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.BulkRegenerateNarrativesForCapabilityAsync(
+            SystemId, capability.Id.ToString(), "test-user");
+
+        // Assert
+        result.Should().BeNull();
+        (await _db.ControlImplementations.CountAsync(implementation =>
+            implementation.RegisteredSystemId == SystemId)).Should().Be(0);
+    }
+
     private static CspInheritedComponent CreateCspComponent(
         string name,
         CspInheritedComponentStatus status) => new()
