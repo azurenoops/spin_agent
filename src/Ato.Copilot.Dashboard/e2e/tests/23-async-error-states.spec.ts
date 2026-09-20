@@ -222,7 +222,7 @@ test.describe('Dashboard async error states', () => {
     await expect(page.getByText('No POA&M items found')).toBeVisible();
   });
 
-  test('POA&M detail drawer shows a user-readable error and recovers on retry', async ({ page }) => {
+  test('POA&M detail drawer recovers on retry and shows finding traceability', async ({ page }) => {
     // Arrange
     await mockSystemShell(page);
     const poamItem = {
@@ -258,14 +258,14 @@ test.describe('Dashboard async error states', () => {
       : route.fulfill({
         json: {
           ...poamItem,
-          weaknessSource: 'Assessment',
+          weaknessSource: 'STIG',
           pocEmail: null,
           resourcesRequired: null,
           costEstimate: null,
           scheduledCompletionDate: poamItem.dueDate,
           actualCompletionDate: null,
           comments: null,
-          findingId: null,
+          findingId: 'finding-stig-V-12345',
           deviationId: null,
           createdAt: '2026-09-01T00:00:00Z',
           modifiedAt: null,
@@ -288,5 +288,9 @@ test.describe('Dashboard async error states', () => {
     shouldFail = false;
     await page.getByRole('button', { name: 'Retry' }).click();
     await expect(page.getByRole('heading', { name: 'AC-2' })).toBeVisible();
+    await expect(page.getByText('Source', { exact: true })).toBeVisible();
+    await expect(page.getByText('STIG', { exact: true })).toBeVisible();
+    await expect(page.getByText('Finding', { exact: true })).toBeVisible();
+    await expect(page.getByText('finding-stig-V-12345', { exact: true })).toBeVisible();
   });
 });

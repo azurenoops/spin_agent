@@ -276,7 +276,15 @@
 
 ---
 
-## Phase 14: Polish & Cross-Cutting Concerns
+## Phase 14: Source Finding Traceability (Issue #674)
+
+- [X] T108 [US3] Enforce that manually and bulk-created POA&M items can only link findings owned by the target registered system
+- [X] T109 [US7] Include the linked source finding ID in eMASS Excel, OSCAL JSON, and CSV exports
+- [X] T110 [US1] Add unit and browser regression coverage for same-system finding traceability in the POA&M detail workflow
+
+---
+
+## Phase 15: Polish & Cross-Cutting Concerns
 
 **Purpose**: Testing, performance validation, security review, and final integration verification
 
@@ -307,7 +315,8 @@
 - **US7 (Phase 11)**: Depends on Phase 2; independent of other stories (read-only export)
 - **US8 (Phase 12)**: Depends on Phases 3–11 (all tools must be registered before chat validation)
 - **US9 (Phase 13)**: Depends on Phases 3–11 (docs describe implemented behavior)
-- **Polish (Phase 14)**: Depends on all desired user stories being complete
+- **Source Finding Traceability (Phase 14)**: Depends on US1, US3, and US7
+- **Polish (Phase 15)**: Depends on all desired user stories being complete
 
 ### User Story Dependencies
 
@@ -326,7 +335,7 @@ Phase 1 (Setup) ─────────────► Phase 2 (Foundation) 
                                                           │
                                                           └──► Phase 11 (US7) ── independent
                                                           
-All stories complete ──► Phase 12 (US8) ──► Phase 13 (US9) ──► Phase 14 (Polish)
+All stories complete ──► Phase 12 (US8) ──► Phase 13 (US9) ──► Phase 14 (Traceability) ──► Phase 15 (Polish)
 ```
 
 ### Within Each User Story
@@ -360,7 +369,9 @@ All stories complete ──► Phase 12 (US8) ──► Phase 13 (US9) ──►
 
 **Phase 13**: T093-T099 (all different doc files, all parallel)
 
-**Phase 14**: T101+T102+T103+T104 (all different test/validation files)
+**Phase 14**: T108+T109+T110 (service, export, and regression coverage)
+
+**Phase 15**: T101+T102+T103+T104 (all different test/validation files)
 
 ---
 

@@ -211,6 +211,7 @@ An ISSM exports POA&M data in eMASS-compatible Excel format for submission to th
 2. **Given** selecting eMASS Excel export, **When** the export runs, **Then** the downloaded file matches the 24-column eMASS POA&M template structure with deviation justification and type columns populated where applicable.
 3. **Given** selecting OSCAL JSON export, **When** the export runs, **Then** the output conforms to the NIST OSCAL POA&M schema with all required elements.
 4. **Given** filtered POA&M data, **When** the user selects "Export All (unfiltered)", **Then** all POA&M items for the selected system(s) are included regardless of active filters.
+5. **Given** a POA&M item linked to a finding, **When** the item is viewed or exported in eMASS Excel, OSCAL JSON, or CSV format, **Then** the weakness source and source finding ID are present, and the system rejects links to findings owned by another system.
 
 ---
 
@@ -294,7 +295,8 @@ As each POA&M Management capability ships, the user-facing documentation must be
 - **FR-008e**: System MUST display a sync indicator on both the POA&M detail drawer and the remediation task card showing link status, linked entity name, and last sync timestamp.
 - **FR-009**: System MUST provide trend charts: open count over time, time-to-close distribution, aging breakdown by severity, and monthly closure rate.
 - **FR-010**: System MUST support configuring Jira and ServiceNow integrations with field mapping and webhook-based bidirectional sync. Authentication credentials MUST be stored in Azure Key Vault; the `TicketingIntegration` entity stores a Key Vault secret URI reference, not the credential. The configuration UI collects the credential and writes it to Key Vault on save.
-- **FR-011**: System MUST support exporting POA&M data in eMASS Excel, OSCAL JSON, and CSV formats with an option to export filtered or all items.
+- **FR-011**: System MUST support exporting POA&M data in eMASS Excel, OSCAL JSON, and CSV formats with an option to export filtered or all items. Each format MUST preserve the weakness source and linked source finding ID when present.
+- **FR-011a**: System MUST reject POA&M creation when the requested source finding does not belong to the target registered system.
 - **FR-012**: System MUST provide a detail drawer for each POA&M item showing full metadata, linked entities (finding, remediation task, deviation, components, external ticket), milestones, and audit history.
 - **FR-013**: System MUST expose all POA&M operations through MCP tools (new and updated) for chat-driven access across dashboard, Teams, and VS Code surfaces. See the MCP Tools section below for the complete tool inventory.
 - **FR-014**: System MUST handle concurrent edits with optimistic concurrency and display conflict resolution UI when detected.
