@@ -702,6 +702,15 @@ The spec, plan, and tasks use different granularity. Plan phase numbers match pl
 
 ---
 
+## Phase 19: Authorization Package Decision Gate
+
+- [X] T259 [US8] Reject authorization package bundling when no active, unexpired AO decision exists and preserve the decision identity, timestamp, expiration, residual-risk justification, and terms in successful exports
+- [X] T260 [US8] Add integration and browser E2E coverage for blocked and successful authorization package exports
+
+**Checkpoint**: Authorization packages cannot be exported without a current, identity-bound AO decision, and successful packages contain that decision record.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

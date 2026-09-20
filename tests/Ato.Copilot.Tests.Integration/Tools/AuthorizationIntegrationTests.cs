@@ -342,6 +342,15 @@ public class AuthorizationIntegrationTests : IDisposable
                     notes = "Approved readiness exception"
                 })
             });
+            db.AuthorizationDecisions.Add(new AuthorizationDecision
+            {
+                RegisteredSystemId = systemId,
+                DecisionType = AuthorizationDecisionType.Ato,
+                ExpirationDate = DateTime.UtcNow.AddYears(1),
+                IssuedBy = "ao@contoso.com",
+                IssuedByName = "Test Authorizing Official",
+                IsActive = true
+            });
             await db.SaveChangesAsync();
         }
 
@@ -355,6 +364,129 @@ public class AuthorizationIntegrationTests : IDisposable
         history.Content.Should().Contain("Categorize");
         history.Content.Should().Contain("issm@contoso.com");
         history.Content.Should().Contain("Approved readiness exception");
+    }
+
+    [Fact]
+    public async Task BundlePackage_NoActiveAuthorization_ReturnsError()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Unauthorized Package System", "MajorApplication");
+
+        // Act
+        var result = await _bundlePackageTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = systemId
+        });
+
+        // Assert
+        var resultDocument = JsonDocument.Parse(result);
+        resultDocument.RootElement.GetProperty("status").GetString().Should().Be("error");
+        resultDocument.RootElement.GetProperty("errorCode").GetString().Should().Be("BUNDLE_PACKAGE_FAILED");
+        resultDocument.RootElement.GetProperty("message").GetString()
+            .Should().Contain("active authorization decision");
+    }
+
+    [Fact]
+    public async Task BundlePackage_ExpiredAuthorization_ReturnsError()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Expired Authorization System", "MajorApplication");
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.AuthorizationDecisions.Add(new AuthorizationDecision
+            {
+                RegisteredSystemId = systemId,
+                DecisionType = AuthorizationDecisionType.Ato,
+                ExpirationDate = DateTime.UtcNow.AddMinutes(-1),
+                IssuedBy = "ao@contoso.com",
+                IssuedByName = "Expired Authorizing Official",
+                IsActive = true
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var result = await _bundlePackageTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = systemId
+        });
+
+        // Assert
+        var resultDocument = JsonDocument.Parse(result);
+        resultDocument.RootElement.GetProperty("status").GetString().Should().Be("error");
+        resultDocument.RootElement.GetProperty("errorCode").GetString().Should().Be("BUNDLE_PACKAGE_FAILED");
+    }
+
+    [Fact]
+    public async Task BundlePackage_ActiveAuthorization_IncludesIdentityBoundDecision()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Authorized Package System", "MajorApplication");
+        var decisionDate = new DateTime(2026, 4, 10, 14, 30, 0, DateTimeKind.Utc);
+        var expirationDate = DateTime.UtcNow.AddYears(1);
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.AuthorizationDecisions.Add(new AuthorizationDecision
+            {
+                RegisteredSystemId = systemId,
+                DecisionType = AuthorizationDecisionType.AtoWithConditions,
+                DecisionDate = decisionDate,
+                ExpirationDate = expirationDate,
+                TermsAndConditions = "Complete quarterly control reviews.",
+                ResidualRiskLevel = ComplianceRiskLevel.Medium,
+                ResidualRiskJustification = "Mission need outweighs the documented residual risk.",
+                IssuedBy = "ao-123",
+                IssuedByName = "Rear Adm. Avery Stone",
+                IsActive = true
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var package = await _authorizationService.BundlePackageAsync(systemId);
+
+        // Assert
+        var authorizationLetter = package.Documents.Single(document => document.DocumentType == "ATO_LETTER");
+        authorizationLetter.Status.Should().Be("generated");
+        authorizationLetter.Content.Should().Contain($"**Decision Timestamp**: {decisionDate:O}");
+        authorizationLetter.Content.Should().Contain($"**Expiration**: {expirationDate:O}");
+        authorizationLetter.Content.Should().Contain("**Issued By**: Rear Adm. Avery Stone (ao-123)");
+        authorizationLetter.Content.Should().Contain("**Residual Risk Justification**: Mission need outweighs the documented residual risk.");
+        authorizationLetter.Content.Should().Contain("Complete quarterly control reviews.");
+    }
+
+    [Fact]
+    public async Task ValidatePackage_NoActiveAuthorization_ReturnsBlockingFinding()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Dashboard Package Gate System", "MajorApplication");
+        var schemaValidator = new Mock<IOscalSchemaValidationService>();
+        schemaValidator
+            .Setup(service => service.ValidateForSystemAsync(
+                systemId,
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult { IsValid = true });
+        var evidenceService = new Mock<IEvidenceArtifactService>();
+        evidenceService
+            .Setup(service => service.GetSummaryAsync(systemId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EvidenceSummary { CoveragePercentage = 100 });
+        var validationService = new PackageValidationService(
+            _scopeFactory,
+            schemaValidator.Object,
+            evidenceService.Object,
+            Mock.Of<ILogger<PackageValidationService>>());
+
+        // Act
+        var result = await validationService.ValidateAsync(systemId, "issm@contoso.com");
+
+        // Assert
+        result.Findings.Should().ContainSingle(finding =>
+            finding.Category == "authorization-decision"
+            && finding.Severity == ValidationSeverity.Error
+            && finding.Description.Contains("active authorization decision"));
     }
 
     /// <summary>
