@@ -41,7 +41,21 @@ public class PackageValidationService : IPackageValidationService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
-        // ─── 1. Authorization Boundary (FR-020a — block if missing) ─────────
+        // ─── 1. AO Authorization Decision ──────────────────────────────────
+        var now = DateTime.UtcNow;
+        var hasActiveDecision = await db.AuthorizationDecisions
+            .AnyAsync(decision => decision.RegisteredSystemId == systemId
+                && decision.IsActive
+                && (decision.ExpirationDate == null || decision.ExpirationDate > now),
+                cancellationToken);
+        if (!hasActiveDecision)
+        {
+            findings.Add(Error("authorization-decision", "ato-letter",
+                "No active authorization decision found, or the latest decision has expired.",
+                "Go to Authorize and have an Authorizing Official issue a current decision before generating the package."));
+        }
+
+        // ─── 2. Authorization Boundary (FR-020a — block if missing) ─────────
         var hasBoundary = await db.AuthorizationBoundaryDefinitions
             .AnyAsync(b => b.RegisteredSystemId == systemId, cancellationToken);
         if (!hasBoundary)
@@ -51,7 +65,7 @@ public class PackageValidationService : IPackageValidationService
                 "Go to Boundaries and define at least one authorization boundary for this system."));
         }
 
-        // ─── 2. SSP Section Completeness ────────────────────────────────────
+        // ─── 3. SSP Section Completeness ────────────────────────────────────
         var sspSections = await db.SspSections
             .Where(s => s.RegisteredSystemId == systemId)
             .Select(s => new { s.SectionNumber, s.SectionTitle, s.Status })
@@ -74,7 +88,7 @@ public class PackageValidationService : IPackageValidationService
             }
         }
 
-        // ─── 3. SAR Status ──────────────────────────────────────────────────
+        // ─── 4. SAR Status ──────────────────────────────────────────────────
         var sar = await db.SecurityAssessmentReports
             .Where(s => s.RegisteredSystemId == systemId)
             .OrderByDescending(s => s.CreatedAt)
@@ -93,7 +107,7 @@ public class PackageValidationService : IPackageValidationService
                 "Go to Assessments and complete the SAR review/approval workflow."));
         }
 
-        // ─── 4. SAP Status ──────────────────────────────────────────────────
+        // ─── 5. SAP Status ──────────────────────────────────────────────────
         var sap = await db.SecurityAssessmentPlans
             .Where(s => s.RegisteredSystemId == systemId)
             .OrderByDescending(s => s.GeneratedAt)
@@ -112,7 +126,7 @@ public class PackageValidationService : IPackageValidationService
                 "Go to Assessments and finalize the SAP to lock its contents and integrity hash."));
         }
 
-        // ─── 5. POA&M Items Exist ───────────────────────────────────────────
+        // ─── 6. POA&M Items Exist ───────────────────────────────────────────
         var poamCount = await db.PoamItems
             .CountAsync(p => p.RegisteredSystemId == systemId, cancellationToken);
         // POA&M is required for the package, but having zero items is a warning, not a blocker
@@ -123,7 +137,7 @@ public class PackageValidationService : IPackageValidationService
                 "Go to POA&M to create items from assessment findings, or import scan results from Assessments."));
         }
 
-        // ─── 6. Cross-Artifact Control ID Matching ──────────────────────────
+        // ─── 7. Cross-Artifact Control ID Matching ──────────────────────────
         var sspControlIds = await db.ControlImplementations
             .Where(ci => ci.RegisteredSystemId == systemId)
             .Select(ci => ci.ControlId)
@@ -147,7 +161,7 @@ public class PackageValidationService : IPackageValidationService
                 $"Go to POA&M and verify that '{controlId}' is the correct control ID, or add it to the SSP via Gap Analysis."));
         }
 
-        // ─── 7. OSCAL Schema Validation ─────────────────────────────────────
+        // ─── 8. OSCAL Schema Validation ─────────────────────────────────────
         var models = new[] { "ssp", "poam", "assessment-results", "assessment-plan" };
         foreach (var model in models)
         {
@@ -182,7 +196,7 @@ public class PackageValidationService : IPackageValidationService
             }
         }
 
-        // ─── 8. Evidence Coverage (Warnings) ────────────────────────────────
+        // ─── 9. Evidence Coverage (Warnings) ────────────────────────────────
         try
         {
             var evidenceSummary = await _evidenceService.GetSummaryAsync(systemId, cancellationToken);

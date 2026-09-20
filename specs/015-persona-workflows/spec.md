@@ -392,7 +392,7 @@ All Azure SDK calls use the registered system's environment profile rather than 
 | 3.10 | **Authorization Decision Workflow** | AO | Issue ATO/ATOwC/IATT/DATO with terms, conditions, expiration, residual risk acceptance. Requires `Compliance.AuthorizingOfficial` role (not `Administrator`). |
 | 3.11 | **Risk Acceptance with Expiration** | AO | Accept risk per-finding with justification, compensating control, expiration date. Auto-expire and revert: when a risk acceptance expires, `RiskAcceptance.IsActive` is set to `false`, the associated finding's CAT severity is restored to active status, any linked POA&M item reverts from `RiskAccepted` to `Ongoing`, and an alert is sent to both the AO and ISSM. Compensating controls are flagged for re-evaluation. Requires `Compliance.AuthorizingOfficial` role. |
 | 3.12 | **Risk Register** | All | View all active/expired/revoked acceptances. Read-only for SCA. |
-| 3.13 | **Authorization Package Bundling** | ISSM | Generate complete package (SSP + SAR + RAR + POA&M + CRM + ATO Letter) as ZIP. Each document rendered using the system's selected template (ATO Copilot default or custom organizational template). |
+| 3.13 | **Authorization Package Bundling** | ISSM | Generate complete package (SSP + SAR + RAR + POA&M + CRM + ATO Letter) as ZIP. Export is blocked unless the system has an active, unexpired AO authorization decision. The package includes the identity-bound AO decision, decision timestamp, expiration, residual-risk justification, and terms or conditions. Each document is rendered using the system's selected template (ATO Copilot default or custom organizational template). |
 
 **New entities**: `AssessmentRecord`, `ControlEffectiveness`, `AuthorizationDecision`, `RiskAcceptance`, `PoamItem` (enriched)
 

@@ -133,7 +133,7 @@
 | Authorization Decision Letter | AO | Generated | Authorize → Monitor |
 | Risk Acceptance Memorandum | AO | Generated | Informational |
 | Terms & Conditions (ATOwC) | AO | Generated | Informational |
-| Authorization Package (bundled) | ISSM | ZIP | Informational |
+| Authorization Package (bundled) | ISSM | ZIP | Active, unexpired AO authorization decision |
 
 ---
 
@@ -142,6 +142,7 @@
 | Gate | Condition | Checked By |
 |------|-----------|-----------|
 | Authorization issued | An authorization decision has been recorded | `compliance_advance_rmf_step` |
+| Package export | An active AO authorization decision exists and has not expired | `compliance_bundle_authorization_package` |
 | SSP complete | All 13 SSP sections Approved | `compliance_ssp_completeness` |
 | SAP finalized | SAP locked before assessment | `compliance_get_sap` |
 | Privacy compliant | PTA complete; PIA approved (if applicable) | `compliance_check_privacy_compliance` |

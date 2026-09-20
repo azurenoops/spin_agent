@@ -35,6 +35,8 @@ const ARTIFACT_SEQUENCE = [
 /** Maps validation finding category to a dashboard route suffix and label */
 function getCategoryRoute(category: string, artifactType?: string | null): { path: string; label: string } | null {
   switch (category) {
+    case 'authorization-decision':
+      return { path: 'authorize', label: 'Authorize' };
     case 'boundary':
       return { path: 'boundaries', label: 'Boundaries' };
     case 'ssp':

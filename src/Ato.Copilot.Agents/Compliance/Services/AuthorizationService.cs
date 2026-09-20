@@ -702,6 +702,16 @@ public class AuthorizationService : IAuthorizationService
         var system = await db.RegisteredSystems.FindAsync([systemId], cancellationToken)
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
 
+        var now = DateTime.UtcNow;
+        var activeDecision = await db.AuthorizationDecisions
+            .Where(decision => decision.RegisteredSystemId == systemId
+                && decision.IsActive
+                && (decision.ExpirationDate == null || decision.ExpirationDate > now))
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"System '{systemId}' does not have an active authorization decision. " +
+                "An Authorizing Official must issue a current decision before the authorization package can be exported.");
+
         var docFormat = format ?? "markdown";
         var package = new AuthorizationPackageBundle
         {
@@ -875,66 +885,52 @@ public class AuthorizationService : IAuthorizationService
         });
 
         // 7. ATO Letter
-        var activeDecision = await db.AuthorizationDecisions
-            .Where(d => d.RegisteredSystemId == systemId && d.IsActive)
+        var activeOverride = await db.AuthorizationOverrides
+            .Where(o => o.AuthorizationDecisionId == activeDecision.Id && o.ExpirationDate > now)
+            .OrderByDescending(o => o.AppliedAt)
             .FirstOrDefaultAsync(cancellationToken);
-
-        if (activeDecision != null)
+        var letterSb = new StringBuilder();
+        letterSb.AppendLine("# Authorization to Operate Letter");
+        letterSb.AppendLine();
+        letterSb.AppendLine($"**System**: {system.Name}");
+        letterSb.AppendLine($"**Decision**: {activeDecision.DecisionType}");
+        letterSb.AppendLine($"**Decision Timestamp**: {activeDecision.DecisionDate:O}");
+        letterSb.AppendLine($"**Expiration**: {activeDecision.ExpirationDate?.ToString("O") ?? "N/A"}");
+        letterSb.AppendLine($"**Residual Risk**: {activeDecision.ResidualRiskLevel}");
+        letterSb.AppendLine($"**Compliance Score**: {activeDecision.ComplianceScoreAtDecision:F2}%");
+        letterSb.AppendLine($"**Issued By**: {activeDecision.IssuedByName} ({activeDecision.IssuedBy})");
+        if (!string.IsNullOrWhiteSpace(activeDecision.ResidualRiskJustification))
         {
-            var now = DateTime.UtcNow;
-            var activeOverride = await db.AuthorizationOverrides
-                .Where(o => o.AuthorizationDecisionId == activeDecision.Id && o.ExpirationDate > now)
-                .OrderByDescending(o => o.AppliedAt)
-                .FirstOrDefaultAsync(cancellationToken);
-            var letterSb = new StringBuilder();
-            letterSb.AppendLine("# Authorization to Operate Letter");
             letterSb.AppendLine();
-            letterSb.AppendLine($"**System**: {system.Name}");
-            letterSb.AppendLine($"**Decision**: {activeDecision.DecisionType}");
-            letterSb.AppendLine($"**Date**: {activeDecision.DecisionDate:yyyy-MM-dd}");
-            letterSb.AppendLine($"**Expiration**: {activeDecision.ExpirationDate?.ToString("yyyy-MM-dd") ?? "N/A"}");
-            letterSb.AppendLine($"**Residual Risk**: {activeDecision.ResidualRiskLevel}");
-            letterSb.AppendLine($"**Compliance Score**: {activeDecision.ComplianceScoreAtDecision:F2}%");
-            letterSb.AppendLine($"**Issued By**: {activeDecision.IssuedByName}");
-            letterSb.AppendLine();
-            if (activeOverride != null)
-            {
-                letterSb.AppendLine("## Temporary Override Annotation");
-                letterSb.AppendLine();
-                letterSb.AppendLine($"**Override Status**: {activeOverride.OverrideStatus}");
-                letterSb.AppendLine($"**Applied By**: {activeOverride.AppliedByName} ({activeOverride.AppliedBy})");
-                letterSb.AppendLine($"**Applied At**: {activeOverride.AppliedAt:O}");
-                letterSb.AppendLine($"**Expires**: {activeOverride.ExpirationDate:O}");
-                letterSb.AppendLine($"**Justification**: {activeOverride.Justification}");
-                letterSb.AppendLine();
-            }
-            if (!string.IsNullOrWhiteSpace(activeDecision.TermsAndConditions))
-            {
-                letterSb.AppendLine("## Terms and Conditions");
-                letterSb.AppendLine();
-                letterSb.AppendLine(activeDecision.TermsAndConditions);
-            }
-
-            package.Documents.Add(new PackageDocument
-            {
-                Name = "Authorization Letter",
-                FileName = $"ato-letter.{(docFormat == "markdown" ? "md" : docFormat)}",
-                DocumentType = "ATO_LETTER",
-                Content = letterSb.ToString(),
-                Status = "generated"
-            });
+            letterSb.AppendLine($"**Residual Risk Justification**: {activeDecision.ResidualRiskJustification}");
         }
-        else
+        letterSb.AppendLine();
+        if (activeOverride != null)
         {
-            package.Documents.Add(new PackageDocument
-            {
-                Name = "Authorization Letter",
-                FileName = $"ato-letter.{(docFormat == "markdown" ? "md" : docFormat)}",
-                DocumentType = "ATO_LETTER",
-                Content = "# Authorization Letter\n\n*No active authorization decision. Run compliance_issue_authorization first.*",
-                Status = "not_available"
-            });
+            letterSb.AppendLine("## Temporary Override Annotation");
+            letterSb.AppendLine();
+            letterSb.AppendLine($"**Override Status**: {activeOverride.OverrideStatus}");
+            letterSb.AppendLine($"**Applied By**: {activeOverride.AppliedByName} ({activeOverride.AppliedBy})");
+            letterSb.AppendLine($"**Applied At**: {activeOverride.AppliedAt:O}");
+            letterSb.AppendLine($"**Expires**: {activeOverride.ExpirationDate:O}");
+            letterSb.AppendLine($"**Justification**: {activeOverride.Justification}");
+            letterSb.AppendLine();
         }
+        if (!string.IsNullOrWhiteSpace(activeDecision.TermsAndConditions))
+        {
+            letterSb.AppendLine("## Terms and Conditions");
+            letterSb.AppendLine();
+            letterSb.AppendLine(activeDecision.TermsAndConditions);
+        }
+
+        package.Documents.Add(new PackageDocument
+        {
+            Name = "Authorization Letter",
+            FileName = $"ato-letter.{(docFormat == "markdown" ? "md" : docFormat)}",
+            DocumentType = "ATO_LETTER",
+            Content = letterSb.ToString(),
+            Status = "generated"
+        });
 
         _logger.LogInformation(
             "Authorization package bundled for system {SystemId}: {Count} documents, format: {Format}",
