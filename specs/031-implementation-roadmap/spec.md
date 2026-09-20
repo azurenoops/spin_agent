@@ -5,6 +5,21 @@
 **Status**: Draft  
 **Input**: User description: "Implementation Roadmap — Turn gaps into a sequenced, prioritized action plan with estimated effort. Integrates with M365 Teams chat and the Visual Compliance Dashboard."
 
+## Dashboard retirement (2026-09-20)
+
+The standalone Implementation Roadmap page is retired. This supersedes
+User Story 2 and the dashboard-page requirements and success criteria below;
+they are retained as historical context. Backend API requirements remain active.
+
+- Remove `/systems/:id/roadmap` and its `/systems/:id/implementation-roadmap`
+  alias, the sidebar link, and page-specific help and chat suggestions.
+- Remove the page-only API client, charts, TypeScript models, and obsolete
+  dashboard tests. Retired URLs follow the existing unmatched-route behavior.
+- Retain roadmap REST endpoints, MCP tools, persisted data, PDF export, and
+  Kanban integration without contract changes.
+- Verify retirement with route, navigation, help, and chat-context regressions;
+  preserve the other system navigation routes.
+
 ## Clarifications
 
 ### Session 2026-03-15

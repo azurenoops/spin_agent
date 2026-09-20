@@ -1449,7 +1449,8 @@ Parameters:
   include_items: true
 ```
 
-Or view in the dashboard at `/systems/<id>/roadmap` with timeline visualization, risk reduction curve, and expandable phase tables.
+The standalone dashboard page has been retired. Use the MCP tools in this
+workflow to view roadmaps and progress, or export a PDF for offline review.
 
 ### Track Progress
 

@@ -44,6 +44,21 @@ describe('useChatContext', () => {
     expect(result.current.page).toBe('unknown');
   });
 
+  it.each(['roadmap', 'implementation-roadmap'])(
+    'returns unknown for retired roadmap path %s',
+    (slug) => {
+      // Arrange
+      const wrapper = createWrapper(`/systems/abc/${slug}`);
+
+      // Act
+      const { result } = renderHook(() => useChatContext(), { wrapper });
+
+      // Assert
+      expect(result.current.page).toBe('unknown');
+      expect(result.current.systemId).toBe('abc');
+    },
+  );
+
   // ── Existing sub-page aliases that already work ───────────────────────────
 
   it('resolves /systems/abc/profile/ to system-profile', () => {

@@ -19,7 +19,6 @@ function resolvePageName(pathname: string): string {
   if (PAGE_MAP[pathname]) return PAGE_MAP[pathname];
   if (pathname.includes('/boundaries')) return 'boundaries';
   if (pathname.includes('/components')) return 'components';
-  if (pathname.includes('/roadmap') || pathname.includes('/implementation-roadmap')) return 'roadmap';
   if (pathname.includes('/documents')) return 'documents';
   if (pathname.includes('/narratives')) return 'narratives';
   if (pathname.includes('/legal') || pathname.includes('/legal-regulatory')) return 'legal';

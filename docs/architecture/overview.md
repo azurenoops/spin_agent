@@ -568,7 +568,7 @@ Unifies CSP profile import, CRM spreadsheet import, and capability management in
 
 ### Architecture
 
-Transforms gap analysis data into AI-driven, phased implementation roadmaps with effort estimates, risk reduction projections, and bi-directional Kanban integration. Surfaces through three channels: MCP tools (Teams Adaptive Cards), Visual Compliance Dashboard (React SPA), and PDF export.
+Transforms gap analysis data into AI-driven, phased implementation roadmaps with effort estimates, risk reduction projections, and bi-directional Kanban integration. Roadmaps remain available through MCP tools (Teams Adaptive Cards), REST endpoints, and PDF export. The standalone dashboard page and sidebar link have been retired.
 
 ```
 ┌────────────────────────┐     MCP Tools       ┌──────────────────────────┐
@@ -579,16 +579,6 @@ Transforms gap analysis data into AI-driven, phased implementation roadmaps with
 │  • View Progress       │                     │  • KanbanService (sync)  │
 │  • Export PDF          │                     │  • QuestPDF (PDF export) │
 └────────────────────────┘                     └──────────────────────────┘
-                                                         │
-┌────────────────────────┐     REST/JSON                 │
-│  Dashboard SPA         │ ──────────────────────────────┘
-│  /systems/:id/roadmap  │
-│                        │
-│  • Metric Cards        │
-│  • Phase Timeline      │
-│  • Risk Curve (dual)   │
-│  • Phase Detail Tables │
-└────────────────────────┘
 ```
 
 ### MCP Tools (6)

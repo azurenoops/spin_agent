@@ -288,39 +288,6 @@ export const helpSections: HelpSection[] = [
     ],
   },
   {
-    id: 'roadmap',
-    title: 'Implementation Roadmap',
-    content:
-      'The Implementation Roadmap shows a sequenced plan for closing security gaps. It includes a Gantt-style timeline, risk reduction curve, and per-phase item breakdowns.',
-    subsections: [
-      {
-        title: 'Summary Metrics',
-        content:
-          'Four cards at the top show Total Gaps (items to remediate), Total Effort (estimated days), Risk Reduction (percentage achieved), and Timeline (total weeks with phase count).',
-      },
-      {
-        title: 'Phase Timeline',
-        content:
-          'A horizontal Gantt-style chart shows each phase as a bar spanning its target weeks. Overlapping phases indicate parallel work streams. Click a phase bar for details.',
-      },
-      {
-        title: 'Risk Reduction Curve',
-        content:
-          'A line chart showing projected risk reduction over time. If actual progress data is available, a second line shows how reality compares to the plan. Falling behind the projected curve signals a need to accelerate.',
-      },
-      {
-        title: 'Phase Progress',
-        content:
-          'When progress data is available, a progress section shows completion bars for each phase. Overdue phases are highlighted in red with the number of days overdue.',
-      },
-      {
-        title: 'Phase Details',
-        content:
-          'Click any phase heading to expand a table showing individual items — control ID, gap type, severity, effort, assigned role, dependencies, and status. Use this to plan and delegate work.',
-      },
-    ],
-  },
-  {
     id: 'reference',
     title: 'Reference & Glossary',
     content:

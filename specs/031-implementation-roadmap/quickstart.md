@@ -21,14 +21,15 @@ The AI clusters unresolved gaps into prioritized phases:
 
 Each phase includes effort estimates (days) and risk reduction percentages.
 
-## 2. View in Dashboard
+## 2. View Roadmap and Progress (MCP / Chat)
 
-Navigate to **Systems → Eagle Eye → Roadmap** tab.
+```text
+Show the implementation roadmap for Eagle Eye
+Show roadmap progress for Eagle Eye
+```
 
-The dashboard shows:
-- Phase timeline with progress bars
-- Risk reduction curve (Recharts area chart)
-- Per-item status cards with severity badges
+The standalone dashboard page and sidebar link are retired. Roadmap retrieval,
+progress reporting, PDF export, and Kanban integration remain available.
 
 ## 3. Restructure Phases (ISSM Only)
 
@@ -80,18 +81,19 @@ New files:
 - `Tools/Compliance/UpdateRoadmapTool.cs`
 - `Tools/Compliance/ExportRoadmapPdfTool.cs`
 
-### Frontend
+### Dashboard Retirement Verification
 
 ```bash
 cd src/Ato.Copilot.Dashboard
 npm run dev
 ```
 
-New files:
-- `src/pages/Roadmap.tsx` — main roadmap page
-- `src/components/roadmap/PhaseTimeline.tsx`
-- `src/components/roadmap/RiskReductionChart.tsx`
-- `src/components/roadmap/RoadmapItemCard.tsx`
+1. Open a system and confirm **Implementation Roadmap** is absent from the sidebar.
+2. Confirm **Documents**, **Authorize**, and the other system navigation links remain available.
+3. Open the help panel and confirm it no longer advertises the retired page.
+4. Visit `/systems/{id}/roadmap` and `/systems/{id}/implementation-roadmap`.
+   Neither URL renders or redirects to the retired page; both follow the app's
+   existing unmatched-route behavior.
 
 ### Tests
 

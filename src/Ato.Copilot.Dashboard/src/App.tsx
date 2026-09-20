@@ -11,7 +11,6 @@ import OverrideReviewPage from './pages/OverrideReviewPage';
 import SystemDetail from './pages/SystemDetail';
 import AuthorizationPage from './pages/AuthorizationPage';
 import RolesManagementPage from './pages/RolesManagementPage';
-import Roadmap from './pages/Roadmap';
 import BoundaryManagement from './pages/BoundaryManagement';
 import Documents from './pages/Documents';
 import ConMon from './pages/ConMon';
@@ -110,7 +109,6 @@ function AppContent() {
           <Route path="/systems/new" element={<RequireAuth><SystemsNewRoute /></RequireAuth>} />
           <Route path="/systems/:id" element={<RequireAuth><SystemLayout /></RequireAuth>}>
             <Route index element={<SystemDetail />} />
-            <Route path="roadmap" element={<Roadmap />} />
             <Route path="boundaries" element={<BoundaryManagement />} />
             <Route path="legal" element={<LegalRegulatory />} />
             <Route path="documents" element={<Documents />} />
@@ -151,8 +149,6 @@ function AppContent() {
             <Route path="leveraged-auth" element={<SystemRedirect to="profile/LeveragedAuthorizations" />} />
             {/* Sidebar nav: legal, but direct links use /legal-regulatory */}
             <Route path="legal-regulatory" element={<SystemRedirect to="legal" />} />
-            {/* Sidebar nav: roadmap, but direct links use /implementation-roadmap */}
-            <Route path="implementation-roadmap" element={<SystemRedirect to="roadmap" />} />
             <Route path="profile/:sectionType" element={<SystemProfile />} />
             {/* Epic #121 / Task #146 — Authorization phase page */}
             <Route path="authorize" element={<AuthorizationPage />} />

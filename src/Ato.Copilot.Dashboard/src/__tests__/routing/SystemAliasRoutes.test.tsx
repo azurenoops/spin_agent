@@ -1,5 +1,5 @@
 /**
- * Regression tests for the 11 system sub-page alias routes.
+ * Regression tests for the remaining system sub-page alias routes.
  *
  * Issues: #523 (critical) + #516 (high, duplicate)
  *
@@ -82,7 +82,7 @@ function renderAliasRoute(aliasSlug: string, canonicalSlug: string, systemId = '
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The 11 alias routes from App.tsx (Wave 9, #438)
+// The remaining alias routes from App.tsx (Wave 9, #438)
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('SystemRedirect — Wave 9 alias routes (#523 / #516 regression)', () => {
@@ -154,12 +154,6 @@ describe('SystemRedirect — Wave 9 alias routes (#523 / #516 regression)', () =
   it('legal-regulatory redirects to legal', () => {
     const pathname = renderAliasRoute('legal-regulatory', 'legal', SYSTEM_ID);
     expect(pathname).toBe(`/systems/${SYSTEM_ID}/legal`);
-  });
-
-  // ── 11. implementation-roadmap → roadmap ─────────────────────────────────
-  it('implementation-roadmap redirects to roadmap', () => {
-    const pathname = renderAliasRoute('implementation-roadmap', 'roadmap', SYSTEM_ID);
-    expect(pathname).toBe(`/systems/${SYSTEM_ID}/roadmap`);
   });
 
   // ── Contract: SystemRedirect preserves the :id param ─────────────────────
