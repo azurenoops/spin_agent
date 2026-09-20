@@ -49,6 +49,17 @@ public class PoamService
             .FirstOrDefaultAsync(s => s.Id == systemId, ct)
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
 
+        if (!string.IsNullOrWhiteSpace(findingId))
+        {
+            var belongsToSystem = await _db.Findings.AnyAsync(f =>
+                f.Id == findingId &&
+                _db.Assessments.Any(a =>
+                    a.Id == f.AssessmentId && a.RegisteredSystemId == systemId), ct);
+
+            if (!belongsToSystem)
+                throw new InvalidOperationException($"Finding '{findingId}' does not belong to system '{systemId}'.");
+        }
+
         var poam = new PoamItem
         {
             RegisteredSystemId = systemId,
@@ -600,7 +611,9 @@ public class PoamService
         var result = new BulkCreateResult();
         var requestedFindingIds = findingIds.ToList();
         var findings = await _db.Findings
-            .Where(f => requestedFindingIds.Contains(f.Id))
+            .Where(f => requestedFindingIds.Contains(f.Id) &&
+                        _db.Assessments.Any(a =>
+                            a.Id == f.AssessmentId && a.RegisteredSystemId == systemId))
             .ToDictionaryAsync(f => f.Id, ct);
 
         // Load existing active POA&Ms for duplicate detection
@@ -1055,7 +1068,9 @@ public class PoamService
             sheet.Cell(row, 6).Value = p.ScheduledCompletionDate.ToString("yyyy-MM-dd");
             sheet.Cell(row, 7).Value = milestoneText;
             sheet.Cell(row, 8).Value = "";
-            sheet.Cell(row, 9).Value = p.WeaknessSource;
+            sheet.Cell(row, 9).Value = string.IsNullOrEmpty(p.FindingId)
+                ? p.WeaknessSource
+                : $"{p.WeaknessSource} (Finding: {p.FindingId})";
             sheet.Cell(row, 10).Value = p.Status.ToString();
             sheet.Cell(row, 11).Value = p.Comments ?? "";
             sheet.Cell(row, 12).Value = p.CatSeverity.ToString();
@@ -1097,12 +1112,16 @@ public class PoamService
             description = p.Weakness,
             status = p.Status.ToString().ToLowerInvariant(),
             props = new object[]
-            {
-                new { name = "security-control-number", value = p.SecurityControlNumber },
-                new { name = "cat-severity", value = p.CatSeverity.ToString() },
-                new { name = "weakness-source", value = p.WeaknessSource },
-                new { name = "poc", value = p.PointOfContact },
-            },
+                {
+                    new { name = "security-control-number", value = p.SecurityControlNumber },
+                    new { name = "cat-severity", value = p.CatSeverity.ToString() },
+                    new { name = "weakness-source", value = p.WeaknessSource },
+                    new { name = "poc", value = p.PointOfContact },
+                }
+                .Concat(string.IsNullOrEmpty(p.FindingId)
+                    ? Array.Empty<object>()
+                    : new object[] { new { name = "source-finding-id", value = p.FindingId } })
+                .ToArray(),
             start = p.CreatedAt.ToString("o"),
             end = p.ActualCompletionDate?.ToString("o"),
             milestones = p.Milestones?.Select(m => new
@@ -1153,7 +1172,7 @@ public class PoamService
         var items = await GetFilteredPoamsForExport(systemId, statusFilter, severityFilter, includeAll, ct);
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("ID,SecurityControlNumber,Weakness,WeaknessSource,CatSeverity,Status,POC,POCEmail,ScheduledCompletionDate,ActualCompletionDate,ResourcesRequired,CostEstimate,ExternalTicketRef,Comments");
+        sb.AppendLine("ID,SecurityControlNumber,Weakness,WeaknessSource,FindingId,CatSeverity,Status,POC,POCEmail,ScheduledCompletionDate,ActualCompletionDate,ResourcesRequired,CostEstimate,ExternalTicketRef,Comments");
 
         foreach (var p in items)
         {
@@ -1162,6 +1181,7 @@ public class PoamService
                 CsvEscape(p.SecurityControlNumber),
                 CsvEscape(p.Weakness),
                 CsvEscape(p.WeaknessSource),
+                CsvEscape(p.FindingId ?? ""),
                 CsvEscape(p.CatSeverity.ToString()),
                 CsvEscape(p.Status.ToString()),
                 CsvEscape(p.PointOfContact),

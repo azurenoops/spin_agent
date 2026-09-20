@@ -125,6 +125,7 @@ When a linked remediation task is completed, a cascade confirmation dialog appea
 POA&M items can be auto-generated from scan findings:
 
 - After importing ACAS/Nessus, STIG, or SCAP scan results, a prompt appears offering to create POA&M items for new findings
+- Linked findings must belong to the same registered system as the POA&M item
 - Deduplication prevents creating items for findings that already have POA&M entries
 - Bulk creation supports processing multiple findings at once
 
@@ -141,6 +142,8 @@ Click **Export** in the toolbar to download POA&M data:
 | eMASS Excel | 24-column eMASS template | .xlsx |
 | OSCAL JSON | NIST OSCAL POA&M schema | .json |
 | CSV | Comma-separated values | .csv |
+
+Every export preserves the weakness source and linked source finding ID when one exists.
 
 Toggle **Include All** to export all items regardless of current filters, or export only the filtered view.
 

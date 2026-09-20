@@ -7,6 +7,7 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
+using ClosedXML.Excel;
 
 namespace Ato.Copilot.Tests.Integration.Poam;
 
@@ -66,6 +67,36 @@ public class PoamEndpointTests : IDisposable
             controlId, severity, "test-poc",
             DateTime.UtcNow.AddDays(dueDays),
             createdBy: "test-user");
+    }
+
+    private async Task<PoamItem> CreateLinkedPoamAsync(string findingId)
+    {
+        const string assessmentId = "assessment-export-source";
+        _db.Assessments.Add(new ComplianceAssessment
+        {
+            Id = assessmentId,
+            RegisteredSystemId = SystemId,
+            SubscriptionId = "sub-export",
+            InitiatedBy = "test-user",
+        });
+        _db.Findings.Add(new ComplianceFinding
+        {
+            Id = findingId,
+            AssessmentId = assessmentId,
+            ControlId = "AC-12",
+            ControlFamily = "AC",
+            Title = "Export traceability finding",
+            Description = "Finding source reference must survive export.",
+            Source = "STIG",
+            ResourceId = "resource-export",
+            ResourceType = "Microsoft.Compute/virtualMachines",
+        });
+        await _db.SaveChangesAsync();
+
+        return await _sut.CreateAsync(
+            SystemId, "Export traceability weakness", "STIG", "AC-12",
+            CatSeverity.CatII, "test-poc", DateTime.UtcNow.AddDays(30),
+            findingId: findingId, createdBy: "test-user");
     }
 
     // ─── CRUD Happy Path ────────────────────────────────────────────────────
@@ -153,6 +184,13 @@ public class PoamEndpointTests : IDisposable
     [Fact]
     public async Task BulkCreateFromFindings_CreatesPOAMs()
     {
+        _db.Assessments.Add(new ComplianceAssessment
+        {
+            Id = "assess-001",
+            RegisteredSystemId = SystemId,
+            SubscriptionId = "sub-bulk",
+            InitiatedBy = "test-user",
+        });
         _db.Findings.Add(new ComplianceFinding
         {
             Id = "finding-int-001",
@@ -175,6 +213,57 @@ public class PoamEndpointTests : IDisposable
 
         result.Created.Should().BeGreaterOrEqualTo(1);
         result.Results.Should().Contain(r => r.FindingId == "finding-int-001" && r.Status == "created");
+    }
+
+    [Fact]
+    public async Task BulkCreateFromFindings_FindingFromDifferentSystem_ReturnsError()
+    {
+        // Arrange
+        const string otherSystemId = "sys-poam-int-002";
+        const string assessmentId = "assess-other-system";
+        const string findingId = "finding-other-system";
+        _db.RegisteredSystems.Add(new RegisteredSystem
+        {
+            Id = otherSystemId,
+            Name = "Other Integration System",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Gov",
+            CreatedBy = "test",
+            IsActive = true,
+        });
+        _db.Assessments.Add(new ComplianceAssessment
+        {
+            Id = assessmentId,
+            RegisteredSystemId = otherSystemId,
+            SubscriptionId = "sub-other",
+            InitiatedBy = "test-user",
+        });
+        _db.Findings.Add(new ComplianceFinding
+        {
+            Id = findingId,
+            AssessmentId = assessmentId,
+            ControlId = "AC-6",
+            ControlFamily = "AC",
+            Title = "Foreign-system finding",
+            Description = "Finding belongs to another system.",
+            Severity = FindingSeverity.High,
+            Source = "ACAS",
+            ResourceId = "resource-other",
+            ResourceType = "Microsoft.Compute/virtualMachines",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.BulkCreateFromFindingsAsync(
+            SystemId, new[] { findingId }, createdBy: "test-user");
+
+        // Assert
+        result.Created.Should().Be(0);
+        result.Results.Should().ContainSingle()
+            .Which.Should().Match<BulkCreateItemResult>(item =>
+                item.FindingId == findingId && item.Status == "error");
+        (await _db.PoamItems.AnyAsync(p => p.FindingId == findingId)).Should().BeFalse();
     }
 
     // ─── Component Linkage ──────────────────────────────────────────────────
@@ -248,5 +337,55 @@ public class PoamEndpointTests : IDisposable
         var csv = System.Text.Encoding.UTF8.GetString(data);
 
         csv.Should().Contain("SecurityControlNumber");
+    }
+
+    [Fact]
+    public async Task ExportCsv_LinkedFinding_IncludesSourceFindingId()
+    {
+        // Arrange
+        const string findingId = "finding-csv-source";
+        await CreateLinkedPoamAsync(findingId);
+
+        // Act
+        var data = await _sut.ExportCsvAsync(SystemId);
+        var csv = System.Text.Encoding.UTF8.GetString(data);
+
+        // Assert
+        csv.Should().Contain("FindingId");
+        csv.Should().Contain(findingId);
+    }
+
+    [Fact]
+    public async Task ExportOscalJson_LinkedFinding_IncludesSourceFindingId()
+    {
+        // Arrange
+        const string findingId = "finding-oscal-source";
+        await CreateLinkedPoamAsync(findingId);
+
+        // Act
+        var data = await _sut.ExportOscalJsonAsync(SystemId);
+        var json = System.Text.Encoding.UTF8.GetString(data);
+
+        // Assert
+        json.Should().Contain("source-finding-id");
+        json.Should().Contain(findingId);
+    }
+
+    [Fact]
+    public async Task ExportEmassExcel_LinkedFinding_IncludesSourceFindingId()
+    {
+        // Arrange
+        const string findingId = "finding-emass-source";
+        await CreateLinkedPoamAsync(findingId);
+
+        // Act
+        var data = await _sut.ExportEmassExcelAsync(SystemId);
+        using var stream = new MemoryStream(data);
+        using var workbook = new XLWorkbook(stream);
+        var sourceCell = workbook.Worksheet("POA&M").Cell(2, 9).GetString();
+
+        // Assert
+        sourceCell.Should().Contain("STIG");
+        sourceCell.Should().Contain(findingId);
     }
 }

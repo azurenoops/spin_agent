@@ -603,6 +603,14 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         using var scope = _app.Services.CreateScope();
         var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
         await using var db = await factory.CreateDbContextAsync();
+        var assessmentId = $"assessment-{findingId}";
+        db.Assessments.Add(new ComplianceAssessment
+        {
+            Id = assessmentId,
+            RegisteredSystemId = TestSystemId,
+            SubscriptionId = "subscription-issue-832",
+            InitiatedBy = "test",
+        });
         db.Findings.Add(new ComplianceFinding
         {
             Id = findingId,
@@ -615,7 +623,7 @@ public class ApiMismatchRouteTests : IAsyncLifetime
             Status = FindingStatus.Open,
             ResourceId = $"resource-{findingId}",
             ResourceType = "Microsoft.Compute/virtualMachines",
-            AssessmentId = $"assessment-{findingId}",
+            AssessmentId = assessmentId,
         });
         await db.SaveChangesAsync();
     }

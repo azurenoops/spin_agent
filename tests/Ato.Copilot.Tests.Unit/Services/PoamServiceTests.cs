@@ -153,6 +153,94 @@ public class PoamServiceTests : IDisposable
             .WithMessage("*not found*");
     }
 
+    [Fact]
+    public async Task CreateAsync_FindingFromDifferentSystem_Throws()
+    {
+        // Arrange
+        const string otherSystemId = "sys-poam-002";
+        const string assessmentId = "assessment-other-system";
+        const string findingId = "finding-other-system";
+        _db.RegisteredSystems.Add(new RegisteredSystem
+        {
+            Id = otherSystemId,
+            Name = "Other POA&M System",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Government",
+            CreatedBy = "test",
+            IsActive = true,
+        });
+        _db.Assessments.Add(new ComplianceAssessment
+        {
+            Id = assessmentId,
+            RegisteredSystemId = otherSystemId,
+            SubscriptionId = "sub-other",
+            InitiatedBy = "test",
+        });
+        _db.Findings.Add(new ComplianceFinding
+        {
+            Id = findingId,
+            AssessmentId = assessmentId,
+            ControlId = "AC-2",
+            ControlFamily = "AC",
+            Title = "Foreign-system finding",
+            Description = "Finding belongs to another registered system.",
+            Source = "STIG",
+            ResourceId = "resource-other",
+            ResourceType = "Microsoft.Compute/virtualMachines",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var act = () => _sut.CreateAsync(
+            SystemId, "Foreign weakness", "STIG", "AC-2",
+            CatSeverity.CatII, "POC", DateTime.UtcNow.AddDays(30),
+            findingId: findingId);
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*does not belong to system*");
+    }
+
+    [Fact]
+    public async Task CreateAsync_FindingFromTargetSystem_PersistsFindingId()
+    {
+        // Arrange
+        const string assessmentId = "assessment-target-system";
+        const string findingId = "finding-target-system";
+        _db.Assessments.Add(new ComplianceAssessment
+        {
+            Id = assessmentId,
+            RegisteredSystemId = SystemId,
+            SubscriptionId = "sub-target",
+            InitiatedBy = "test",
+        });
+        _db.Findings.Add(new ComplianceFinding
+        {
+            Id = findingId,
+            AssessmentId = assessmentId,
+            ControlId = "AC-2",
+            ControlFamily = "AC",
+            Title = "Target-system finding",
+            Description = "Finding belongs to the target registered system.",
+            Source = "STIG",
+            ResourceId = "resource-target",
+            ResourceType = "Microsoft.Compute/virtualMachines",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.CreateAsync(
+            SystemId, "Linked weakness", "STIG", "AC-2",
+            CatSeverity.CatII, "POC", DateTime.UtcNow.AddDays(30),
+            findingId: findingId);
+
+        // Assert
+        result.FindingId.Should().Be(findingId);
+        (await _db.PoamItems.SingleAsync(p => p.Id == result.Id))
+            .FindingId.Should().Be(findingId);
+    }
+
     // ─── GetById Tests ───────────────────────────────────────────────────────
 
     [Fact]
