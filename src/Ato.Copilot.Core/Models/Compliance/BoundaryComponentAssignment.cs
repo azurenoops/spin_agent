@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy.Attributes;
 
 namespace Ato.Copilot.Core.Models.Compliance;
@@ -22,10 +23,12 @@ public class BoundaryComponentAssignment
     [MaxLength(36)]
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
-    /// <summary>FK to the component.</summary>
-    [Required]
+    /// <summary>FK to a tenant-local component. Null for CSP references.</summary>
     [MaxLength(36)]
-    public string SystemComponentId { get; set; } = string.Empty;
+    public string? SystemComponentId { get; set; }
+
+    /// <summary>FK to a global CSP component. Null for tenant-local assignments.</summary>
+    public Guid? CspInheritedComponentId { get; set; }
 
     /// <summary>FK to the boundary definition.</summary>
     [Required]
@@ -61,8 +64,11 @@ public class BoundaryComponentAssignment
 
     // ─── Navigation ──────────────────────────────────────────────────────────
 
-    /// <summary>Linked component.</summary>
-    public SystemComponent SystemComponent { get; set; } = null!;
+    /// <summary>Linked tenant-local component.</summary>
+    public SystemComponent? SystemComponent { get; set; }
+
+    /// <summary>Linked global CSP component.</summary>
+    public CspInheritedComponent? CspInheritedComponent { get; set; }
 
     /// <summary>Linked boundary definition.</summary>
     public AuthorizationBoundaryDefinition AuthorizationBoundaryDefinition { get; set; } = null!;

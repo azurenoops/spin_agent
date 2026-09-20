@@ -1,6 +1,7 @@
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -74,6 +75,234 @@ public class BoundaryComponentAssignmentTests : IDisposable
     }
 
     // ─── Assignment Tests ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetCandidates_ExcludesPeopleAndAssignedComponents_IncludesPublishedCsp()
+    {
+        // Arrange
+        _db.SystemComponents.AddRange(
+            new SystemComponent
+            {
+                Id = "place-001", Name = "Primary Datacenter",
+                ComponentType = ComponentType.Place, RegisteredSystemId = null, CreatedBy = "test",
+            },
+            new SystemComponent
+            {
+                Id = "policy-001", Name = "Access Policy",
+                ComponentType = ComponentType.Policy, RegisteredSystemId = null, CreatedBy = "test",
+            },
+            new SystemComponent
+            {
+                Id = "person-001", Name = "Vanguard AO",
+                ComponentType = ComponentType.Person, RegisteredSystemId = null, CreatedBy = "test",
+            },
+            new SystemComponent
+            {
+                Id = "system-thing-001", Name = "System App Service",
+                ComponentType = ComponentType.Thing, RegisteredSystemId = SystemId, CreatedBy = "test",
+            });
+        var publishedCspId = Guid.NewGuid();
+        _db.CspInheritedComponents.AddRange(
+            new CspInheritedComponent
+            {
+                Id = publishedCspId, Name = "Azure Key Vault", Description = "Managed key storage",
+                ComponentType = CspComponentType.Service, Status = CspInheritedComponentStatus.Published,
+                SourceFormat = SourceFormat.Manual, ImportedBy = "test",
+            },
+            new CspInheritedComponent
+            {
+                Id = Guid.NewGuid(), Name = "Draft CSP Service", Description = "Not published",
+                ComponentType = CspComponentType.Service, Status = CspInheritedComponentStatus.Draft,
+                SourceFormat = SourceFormat.Manual, ImportedBy = "test",
+            });
+        _db.BoundaryComponentAssignments.Add(new BoundaryComponentAssignment
+        {
+            SystemComponentId = "comp-001", AuthorizationBoundaryDefinitionId = BoundaryId,
+            CreatedBy = "test",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetBoundaryCandidatesAsync(SystemId, BoundaryId);
+
+        // Assert
+        result.Error.Should().BeNull();
+        result.Items.Should().Contain(c => c.Id == "place-001" && c.Source == "Organization");
+        result.Items.Should().Contain(c => c.Id == "policy-001" && c.Source == "Organization");
+        result.Items.Should().Contain(c => c.Id == "system-thing-001" && c.Source == "System");
+        result.Items.Should().Contain(c => c.Id == publishedCspId.ToString() && c.Source == "CSP");
+        result.Items.Should().NotContain(c => c.Id == "person-001");
+        result.Items.Should().NotContain(c => c.Id == "comp-001");
+        result.Items.Should().NotContain(c => c.Name == "Draft CSP Service");
+    }
+
+    [Fact]
+    public async Task Assign_PersonComponent_ReturnsInvalidComponentType()
+    {
+        // Arrange
+        _db.SystemComponents.Add(new SystemComponent
+        {
+            Id = "person-001", Name = "Vanguard ISSM",
+            ComponentType = ComponentType.Person, RegisteredSystemId = null, CreatedBy = "test",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var (dto, error) = await _service.AssignComponentToBoundaryAsync(
+            SystemId, BoundaryId, "person-001", "Organization", true, null, null, "test-user");
+
+        // Assert
+        dto.Should().BeNull();
+        error.Should().Be("INVALID_COMPONENT_TYPE");
+        _db.BoundaryComponentAssignments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Assign_PublishedCspComponent_PersistsReadOnlyReference()
+    {
+        // Arrange
+        var cspComponentId = Guid.NewGuid();
+        _db.CspInheritedComponents.Add(new CspInheritedComponent
+        {
+            Id = cspComponentId, Name = "Azure Firewall", Description = "Managed network boundary",
+            ComponentType = CspComponentType.Network, Status = CspInheritedComponentStatus.Published,
+            SourceFormat = SourceFormat.Manual, ImportedBy = "test",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var (dto, error) = await _service.AssignComponentToBoundaryAsync(
+            SystemId, BoundaryId, cspComponentId.ToString(), "CSP", true, null, "Azure", "test-user");
+
+        // Assert
+        error.Should().BeNull();
+        dto.Should().NotBeNull();
+        dto!.Source.Should().Be("CSP");
+        dto.ComponentName.Should().Be("Azure Firewall");
+        var assignment = await _db.BoundaryComponentAssignments.SingleAsync();
+        assignment.SystemComponentId.Should().BeNull();
+        assignment.CspInheritedComponentId.Should().Be(cspComponentId);
+        _db.SystemComponents.Should().ContainSingle(c => c.Id == "comp-001");
+    }
+
+    [Fact]
+    public async Task Assign_DraftCspComponent_ReturnsNotFound()
+    {
+        // Arrange
+        var cspComponentId = Guid.NewGuid();
+        _db.CspInheritedComponents.Add(new CspInheritedComponent
+        {
+            Id = cspComponentId, Name = "Draft Service", Description = "Not published",
+            ComponentType = CspComponentType.Service, Status = CspInheritedComponentStatus.Draft,
+            SourceFormat = SourceFormat.Manual, ImportedBy = "test",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var (dto, error) = await _service.AssignComponentToBoundaryAsync(
+            SystemId, BoundaryId, cspComponentId.ToString(), "CSP", true, null, null, "test-user");
+
+        // Assert
+        dto.Should().BeNull();
+        error.Should().Be("NOT_FOUND");
+        _db.BoundaryComponentAssignments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Assign_ExcludedCspComponentWithoutRationale_ReturnsRationaleRequired()
+    {
+        // Arrange
+        var cspComponentId = Guid.NewGuid();
+        _db.CspInheritedComponents.Add(new CspInheritedComponent
+        {
+            Id = cspComponentId, Name = "Published Service", Description = "Published",
+            ComponentType = CspComponentType.Service, Status = CspInheritedComponentStatus.Published,
+            SourceFormat = SourceFormat.Manual, ImportedBy = "test",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var (dto, error) = await _service.AssignComponentToBoundaryAsync(
+            SystemId, BoundaryId, cspComponentId.ToString(), "CSP", false, null, null, "test-user");
+
+        // Assert
+        dto.Should().BeNull();
+        error.Should().Be("RATIONALE_REQUIRED");
+        _db.BoundaryComponentAssignments.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Unknown")]
+    public async Task Assign_InvalidSource_ReturnsInvalidSource(string? source)
+    {
+        // Arrange
+
+        // Act
+        var (dto, error) = await _service.AssignComponentToBoundaryAsync(
+            SystemId, BoundaryId, "comp-001", source, true, null, null, "test-user");
+
+        // Assert
+        dto.Should().BeNull();
+        error.Should().Be("INVALID_SOURCE");
+        _db.BoundaryComponentAssignments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CspAssignment_CanBeListedUpdatedAndRemoved()
+    {
+        // Arrange
+        var cspComponentId = Guid.NewGuid();
+        _db.CspInheritedComponents.Add(new CspInheritedComponent
+        {
+            Id = cspComponentId, Name = "Azure Monitor", Description = "Managed monitoring",
+            ComponentType = CspComponentType.Service, Status = CspInheritedComponentStatus.Published,
+            SourceFormat = SourceFormat.Manual, ImportedBy = "test",
+        });
+        await _db.SaveChangesAsync();
+        var (created, _) = await _service.AssignComponentToBoundaryAsync(
+            SystemId, BoundaryId, cspComponentId.ToString(), "CSP", true, null, null, "test-user");
+
+        // Act
+        var listed = await _service.ListBoundaryComponentsAsync(BoundaryId, new BoundaryComponentQuery());
+        var (updated, updateError) = await _service.UpdateBoundaryAssignmentAsync(
+            created!.AssignmentId, false, "Covered by CSP", "Azure", "test-user");
+        var removed = await _service.RemoveComponentFromBoundaryAsync(created.AssignmentId);
+
+        // Assert
+        listed.Items.Should().ContainSingle();
+        listed.Items[0].Source.Should().Be("CSP");
+        listed.Items[0].ComponentName.Should().Be("Azure Monitor");
+        updateError.Should().BeNull();
+        updated!.Source.Should().Be("CSP");
+        updated.IsInScope.Should().BeFalse();
+        removed.Should().BeTrue();
+        _db.CspInheritedComponents.Should().ContainSingle(c => c.Id == cspComponentId);
+    }
+
+    [Fact]
+    public async Task Assign_ComponentToBoundaryFromDifferentRouteSystem_ReturnsBoundaryNotFound()
+    {
+        // Arrange
+        const string otherSystemId = "sys-test-002";
+        _db.RegisteredSystems.Add(new RegisteredSystem
+        {
+            Id = otherSystemId, Name = "Other System",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "AzureGovernment", CreatedBy = "test",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var (dto, error) = await _service.AssignComponentToBoundaryAsync(
+            otherSystemId, BoundaryId, "comp-001", "Organization", true, null, null, "test-user");
+
+        // Assert
+        dto.Should().BeNull();
+        error.Should().Be("BOUNDARY_NOT_FOUND");
+        _db.BoundaryComponentAssignments.Should().BeEmpty();
+    }
 
     [Fact]
     public async Task Assign_InScope_Succeeds()

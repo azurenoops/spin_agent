@@ -480,6 +480,7 @@ public static partial class DashboardEndpoints
 
     private record AssignComponentToBoundaryRequest(
         string ComponentId,
+        string? Source = "Organization",
         bool IsInScope = true,
         string? ExclusionRationale = null,
         string? InheritanceProvider = null,

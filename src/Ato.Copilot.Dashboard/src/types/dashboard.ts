@@ -667,10 +667,22 @@ export interface BoundaryComponentDto {
   azureLocation: string | null;
   createdAt: string;
   createdBy: string;
+  source: BoundaryComponentSource;
+}
+
+export type BoundaryComponentSource = 'Organization' | 'System' | 'CSP';
+
+export interface BoundaryComponentCandidateDto {
+  id: string;
+  name: string;
+  componentType: ComponentType;
+  description: string | null;
+  source: BoundaryComponentSource;
 }
 
 export interface AssignComponentRequest {
   componentId: string;
+  source: BoundaryComponentSource;
   isInScope: boolean;
   exclusionRationale?: string | null;
   inheritanceProvider?: string | null;

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Dtos.Dashboard;
 
 namespace Ato.Copilot.Core.Services;
@@ -510,6 +511,181 @@ public class ComponentService
     // ─── Boundary Component Assignment (Feature 040 — US3) ─────────────────
 
     /// <summary>
+    /// Lists tenant and published CSP components eligible for assignment to a boundary.
+    /// </summary>
+    public async Task<BoundaryComponentCandidateResponse> GetBoundaryCandidatesAsync(
+        string systemId,
+        string boundaryId,
+        string? search = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var boundaryExists = await _db.AuthorizationBoundaryDefinitions
+            .AnyAsync(b => b.Id == boundaryId && b.RegisteredSystemId == systemId, cancellationToken);
+        if (!boundaryExists)
+            return new BoundaryComponentCandidateResponse { Error = "BOUNDARY_NOT_FOUND" };
+
+        var assignedComponentIds = _db.BoundaryComponentAssignments
+            .Where(a => a.AuthorizationBoundaryDefinitionId == boundaryId && a.SystemComponentId != null)
+            .Select(a => a.SystemComponentId!);
+        var assignedCspComponentIds = _db.BoundaryComponentAssignments
+            .Where(a => a.AuthorizationBoundaryDefinitionId == boundaryId && a.CspInheritedComponentId != null)
+            .Select(a => a.CspInheritedComponentId!.Value);
+
+        var localQuery = _db.SystemComponents
+            .Where(c => (c.RegisteredSystemId == null || c.RegisteredSystemId == systemId)
+                && c.ComponentType != ComponentType.Person
+                && c.Status == ComponentStatus.Active
+                && !assignedComponentIds.Contains(c.Id));
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            localQuery = localQuery.Where(c => c.Name.Contains(term)
+                || (c.Description != null && c.Description.Contains(term)));
+        }
+
+        var localItems = await localQuery
+            .Select(c => new BoundaryComponentCandidateDto
+            {
+                Id = c.Id,
+                Name = c.Name,
+                ComponentType = c.ComponentType.ToString(),
+                Description = c.Description,
+                Source = c.RegisteredSystemId == null ? "Organization" : "System",
+            })
+            .ToListAsync(cancellationToken);
+
+        var cspQuery = _db.CspInheritedComponents
+            .Where(c => c.Status == CspInheritedComponentStatus.Published
+                && !assignedCspComponentIds.Contains(c.Id));
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            cspQuery = cspQuery.Where(c => c.Name.Contains(term) || c.Description.Contains(term));
+        }
+
+        var cspItems = await cspQuery
+            .Select(c => new BoundaryComponentCandidateDto
+            {
+                Id = c.Id.ToString(),
+                Name = c.Name,
+                ComponentType = c.ComponentType.ToString(),
+                Description = c.Description,
+                Source = "CSP",
+            })
+            .ToListAsync(cancellationToken);
+
+        return new BoundaryComponentCandidateResponse
+        {
+            Items = localItems.Concat(cspItems).OrderBy(c => c.Name).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// Assigns a source-aware component after validating its system and boundary context.
+    /// </summary>
+    public async Task<(BoundaryComponentDto? Dto, string? Error)> AssignComponentToBoundaryAsync(
+        string systemId,
+        string boundaryId,
+        string componentId,
+        string? source,
+        bool isInScope,
+        string? exclusionRationale,
+        string? inheritanceProvider,
+        string createdBy,
+        CancellationToken cancellationToken = default)
+    {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var boundaryExists = await _db.AuthorizationBoundaryDefinitions
+            .AnyAsync(b => b.Id == boundaryId && b.RegisteredSystemId == systemId, cancellationToken);
+        if (!boundaryExists)
+            return (null, "BOUNDARY_NOT_FOUND");
+        if (!isInScope && string.IsNullOrWhiteSpace(exclusionRationale))
+            return (null, "RATIONALE_REQUIRED");
+
+        var isCspSource = string.Equals(source, "CSP", StringComparison.OrdinalIgnoreCase);
+        var isLocalSource = string.Equals(source, "Organization", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(source, "System", StringComparison.OrdinalIgnoreCase);
+        if (!isCspSource && !isLocalSource)
+            return (null, "INVALID_SOURCE");
+
+        if (isCspSource)
+        {
+            if (!Guid.TryParse(componentId, out var cspComponentId))
+                return (null, "NOT_FOUND");
+
+            var cspComponent = await _db.CspInheritedComponents
+                .FirstOrDefaultAsync(c => c.Id == cspComponentId
+                    && c.Status == CspInheritedComponentStatus.Published, cancellationToken);
+            if (cspComponent == null)
+                return (null, "NOT_FOUND");
+
+            var duplicate = await _db.BoundaryComponentAssignments.AnyAsync(
+                a => a.CspInheritedComponentId == cspComponentId
+                    && a.AuthorizationBoundaryDefinitionId == boundaryId,
+                cancellationToken);
+            if (duplicate)
+                return (null, "DUPLICATE_ASSIGNMENT");
+
+            var cspAssignment = new BoundaryComponentAssignment
+            {
+                CspInheritedComponentId = cspComponentId,
+                AuthorizationBoundaryDefinitionId = boundaryId,
+                IsInScope = isInScope,
+                ExclusionRationale = isInScope ? null : exclusionRationale,
+                InheritanceProvider = inheritanceProvider,
+                CreatedBy = createdBy,
+            };
+            _db.BoundaryComponentAssignments.Add(cspAssignment);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            return (new BoundaryComponentDto
+            {
+                AssignmentId = cspAssignment.Id,
+                ComponentId = cspComponent.Id.ToString(),
+                ComponentName = cspComponent.Name,
+                ComponentType = cspComponent.ComponentType.ToString(),
+                Source = "CSP",
+                IsInScope = cspAssignment.IsInScope,
+                ExclusionRationale = cspAssignment.ExclusionRationale,
+                InheritanceProvider = cspAssignment.InheritanceProvider,
+                CreatedAt = cspAssignment.CreatedAt,
+                CreatedBy = cspAssignment.CreatedBy,
+            }, null);
+        }
+
+        var component = await _db.SystemComponents
+            .FirstOrDefaultAsync(c => c.Id == componentId
+                && (c.RegisteredSystemId == null || c.RegisteredSystemId == systemId), cancellationToken);
+        if (component == null)
+            return (null, "NOT_FOUND");
+        if (component.ComponentType == ComponentType.Person)
+            return (null, "INVALID_COMPONENT_TYPE");
+
+        return await AssignComponentToBoundaryAsync(
+            boundaryId, componentId, isInScope, exclusionRationale,
+            inheritanceProvider, createdBy, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists components assigned to a boundary definition with scope, filter, and pagination.
+    /// </summary>
+    public async Task<BoundaryComponentListResponse> ListBoundaryComponentsAsync(
+        string systemId,
+        string boundaryId,
+        BoundaryComponentQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await BoundaryBelongsToSystemAsync(systemId, boundaryId, cancellationToken))
+            return new BoundaryComponentListResponse { Error = "BOUNDARY_NOT_FOUND" };
+
+        return await ListBoundaryComponentsAsync(boundaryId, query, cancellationToken);
+    }
+
+    /// <summary>
     /// Lists components assigned to a boundary definition with scope, filter, and pagination.
     /// </summary>
     public async Task<BoundaryComponentListResponse> ListBoundaryComponentsAsync(
@@ -519,41 +695,46 @@ public class ComponentService
     {
         await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
-        IQueryable<BoundaryComponentAssignment> q = _db.BoundaryComponentAssignments
+        IQueryable<BoundaryComponentAssignment> assignments = _db.BoundaryComponentAssignments
             .Where(a => a.AuthorizationBoundaryDefinitionId == boundaryId);
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            var term = query.Search.Trim();
-            q = q.Where(a => a.SystemComponent!.Name.Contains(term));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.TypeFilter))
-        {
-            if (Enum.TryParse<ComponentType>(query.TypeFilter, true, out var ct))
-                q = q.Where(a => a.SystemComponent!.ComponentType == ct);
-        }
 
         if (!string.IsNullOrWhiteSpace(query.ScopeFilter))
         {
             var inScope = query.ScopeFilter.Equals("InScope", StringComparison.OrdinalIgnoreCase);
-            q = q.Where(a => a.IsInScope == inScope);
+            assignments = assignments.Where(a => a.IsInScope == inScope);
         }
 
-        var totalCount = await q.CountAsync(cancellationToken);
-        var page = Math.Max(1, query.Page);
-        var pageSize = Math.Clamp(query.PageSize, 1, 200);
+        var localQuery = assignments.Where(a => a.SystemComponentId != null);
+        var cspQuery = assignments.Where(a => a.CspInheritedComponentId != null);
 
-        var items = await q
-            .OrderBy(a => a.SystemComponent!.Name)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var term = query.Search.Trim();
+            localQuery = localQuery.Where(a => a.SystemComponent!.Name.Contains(term));
+            cspQuery = cspQuery.Where(a => a.CspInheritedComponent!.Name.Contains(term));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.TypeFilter))
+        {
+            if (Enum.TryParse<ComponentType>(query.TypeFilter, true, out var localType))
+                localQuery = localQuery.Where(a => a.SystemComponent!.ComponentType == localType);
+            else
+                localQuery = localQuery.Where(_ => false);
+
+            if (Enum.TryParse<CspComponentType>(query.TypeFilter, true, out var cspType))
+                cspQuery = cspQuery.Where(a => a.CspInheritedComponent!.ComponentType == cspType);
+            else
+                cspQuery = cspQuery.Where(_ => false);
+        }
+
+        var localItems = await localQuery
             .Select(a => new BoundaryComponentDto
             {
                 AssignmentId = a.Id,
-                ComponentId = a.SystemComponentId,
+                ComponentId = a.SystemComponentId!,
                 ComponentName = a.SystemComponent!.Name,
                 ComponentType = a.SystemComponent.ComponentType.ToString(),
+                Source = a.SystemComponent.RegisteredSystemId == null ? "Organization" : "System",
                 SubType = a.SystemComponent.SubType,
                 IsInScope = a.IsInScope,
                 ExclusionRationale = a.ExclusionRationale,
@@ -567,10 +748,31 @@ public class ComponentService
             })
             .ToListAsync(cancellationToken);
 
+        var cspItems = await cspQuery
+            .Select(a => new BoundaryComponentDto
+            {
+                AssignmentId = a.Id,
+                ComponentId = a.CspInheritedComponentId!.Value.ToString(),
+                ComponentName = a.CspInheritedComponent!.Name,
+                ComponentType = a.CspInheritedComponent.ComponentType.ToString(),
+                Source = "CSP",
+                IsInScope = a.IsInScope,
+                ExclusionRationale = a.ExclusionRationale,
+                InheritanceProvider = a.InheritanceProvider,
+                CreatedAt = a.CreatedAt,
+                CreatedBy = a.CreatedBy,
+            })
+            .ToListAsync(cancellationToken);
+
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 200);
+        var allItems = localItems.Concat(cspItems).OrderBy(a => a.ComponentName).ToList();
+        var items = allItems.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
         return new BoundaryComponentListResponse
         {
             Items = items,
-            TotalCount = totalCount,
+            TotalCount = allItems.Count,
             Page = page,
             PageSize = pageSize,
         };
@@ -601,6 +803,8 @@ public class ComponentService
         var component = await _db.SystemComponents.FindAsync(new object[] { componentId }, cancellationToken);
         if (component == null)
             return (null, "NOT_FOUND");
+        if (component.ComponentType == ComponentType.Person)
+            return (null, "INVALID_COMPONENT_TYPE");
 
         var assignment = new BoundaryComponentAssignment
         {
@@ -621,6 +825,7 @@ public class ComponentService
             ComponentId = componentId,
             ComponentName = component.Name,
             ComponentType = component.ComponentType.ToString(),
+            Source = component.RegisteredSystemId == null ? "Organization" : "System",
             SubType = component.SubType,
             IsInScope = assignment.IsInScope,
             ExclusionRationale = assignment.ExclusionRationale,
@@ -632,6 +837,33 @@ public class ComponentService
             CreatedAt = assignment.CreatedAt,
             CreatedBy = assignment.CreatedBy,
         }, null);
+    }
+
+    /// <summary>
+    /// Updates an existing boundary-component assignment's scope and rationale.
+    /// </summary>
+    public async Task<(BoundaryComponentDto? Dto, string? Error)> UpdateBoundaryAssignmentAsync(
+        string systemId,
+        string boundaryId,
+        string assignmentId,
+        bool isInScope,
+        string? exclusionRationale,
+        string? inheritanceProvider,
+        string modifiedBy,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await BoundaryBelongsToSystemAsync(systemId, boundaryId, cancellationToken))
+            return (null, "BOUNDARY_NOT_FOUND");
+
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var assignmentExists = await _db.BoundaryComponentAssignments.AnyAsync(
+            a => a.Id == assignmentId && a.AuthorizationBoundaryDefinitionId == boundaryId,
+            cancellationToken);
+        if (!assignmentExists)
+            return (null, "NOT_FOUND");
+
+        return await UpdateBoundaryAssignmentAsync(
+            assignmentId, isInScope, exclusionRationale, inheritanceProvider, modifiedBy, cancellationToken);
     }
 
     /// <summary>
@@ -652,6 +884,7 @@ public class ComponentService
 
         var assignment = await _db.BoundaryComponentAssignments
             .Include(a => a.SystemComponent)
+            .Include(a => a.CspInheritedComponent)
             .FirstOrDefaultAsync(a => a.Id == assignmentId, cancellationToken);
         if (assignment == null)
             return (null, "NOT_FOUND");
@@ -664,23 +897,58 @@ public class ComponentService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        var componentId = assignment.SystemComponentId
+            ?? assignment.CspInheritedComponentId?.ToString()
+            ?? string.Empty;
+        var componentName = assignment.SystemComponent?.Name
+            ?? assignment.CspInheritedComponent?.Name
+            ?? string.Empty;
+        var componentType = assignment.SystemComponent?.ComponentType.ToString()
+            ?? assignment.CspInheritedComponent?.ComponentType.ToString()
+            ?? string.Empty;
+
         return (new BoundaryComponentDto
         {
             AssignmentId = assignment.Id,
-            ComponentId = assignment.SystemComponentId,
-            ComponentName = assignment.SystemComponent!.Name,
-            ComponentType = assignment.SystemComponent.ComponentType.ToString(),
-            SubType = assignment.SystemComponent.SubType,
+            ComponentId = componentId,
+            ComponentName = componentName,
+            ComponentType = componentType,
+            Source = assignment.CspInheritedComponentId == null
+                ? assignment.SystemComponent?.RegisteredSystemId == null ? "Organization" : "System"
+                : "CSP",
+            SubType = assignment.SystemComponent?.SubType,
             IsInScope = assignment.IsInScope,
             ExclusionRationale = assignment.ExclusionRationale,
             InheritanceProvider = assignment.InheritanceProvider,
-            AzureResourceId = assignment.SystemComponent.AzureResourceId,
-            AzureResourceType = assignment.SystemComponent.AzureResourceType,
-            AzureResourceGroup = assignment.SystemComponent.AzureResourceGroup,
-            AzureLocation = assignment.SystemComponent.AzureLocation,
+            AzureResourceId = assignment.SystemComponent?.AzureResourceId,
+            AzureResourceType = assignment.SystemComponent?.AzureResourceType,
+            AzureResourceGroup = assignment.SystemComponent?.AzureResourceGroup,
+            AzureLocation = assignment.SystemComponent?.AzureLocation,
             CreatedAt = assignment.CreatedAt,
             CreatedBy = assignment.CreatedBy,
         }, null);
+    }
+
+    /// <summary>
+    /// Removes a component from a boundary (deletes the assignment only, not the component).
+    /// </summary>
+    public async Task<bool> RemoveComponentFromBoundaryAsync(
+        string systemId,
+        string boundaryId,
+        string assignmentId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await BoundaryBelongsToSystemAsync(systemId, boundaryId, cancellationToken))
+            return false;
+
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var assignmentExists = await _db.BoundaryComponentAssignments.AnyAsync(
+            a => a.Id == assignmentId && a.AuthorizationBoundaryDefinitionId == boundaryId,
+            cancellationToken);
+        if (!assignmentExists)
+            return false;
+
+        return await RemoveComponentFromBoundaryAsync(assignmentId, cancellationToken);
     }
 
     /// <summary>
@@ -699,6 +967,17 @@ public class ComponentService
         _db.BoundaryComponentAssignments.Remove(assignment);
         await _db.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    private async Task<bool> BoundaryBelongsToSystemAsync(
+        string systemId,
+        string boundaryId,
+        CancellationToken cancellationToken)
+    {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await _db.AuthorizationBoundaryDefinitions.AnyAsync(
+            b => b.Id == boundaryId && b.RegisteredSystemId == systemId,
+            cancellationToken);
     }
 
     // ─── Finding–Component Resolution (Feature 040 US6) ─────────────────────
