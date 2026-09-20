@@ -202,6 +202,116 @@ public class OrgInheritanceServiceTests : IDisposable
         (await _db.OrgInheritanceDefaults.CountAsync()).Should().Be(0);
     }
 
+    [Fact]
+    public async Task DeriveOrgDefaults_StaleDefault_ReconcilesSystemDesignations()
+    {
+        // Arrange
+        var staleDefault = new OrgInheritanceDefault
+        {
+            ControlId = "AC-2",
+            InheritanceType = InheritanceType.Inherited,
+            Provider = "Retired Provider",
+            SourceCapabilityIds = "cap-old",
+            SourceCapabilityNames = "Old Capability",
+            MappingRole = CapabilityMappingRole.Primary,
+            DerivedAt = DateTime.UtcNow.AddDays(-1),
+        };
+        var orgDerivedBaseline = new ControlBaseline
+        {
+            RegisteredSystemId = "system-derived",
+            BaselineLevel = "Moderate",
+            TotalControls = 1,
+            ControlIds = ["AC-2"],
+            CreatedBy = "test",
+        };
+        var overrideBaseline = new ControlBaseline
+        {
+            RegisteredSystemId = "system-override",
+            BaselineLevel = "Moderate",
+            TotalControls = 1,
+            ControlIds = ["AC-2"],
+            CreatedBy = "test",
+        };
+        _db.AddRange(staleDefault, orgDerivedBaseline, overrideBaseline);
+        _db.ControlInheritances.AddRange(
+            new ControlInheritance
+            {
+                ControlBaselineId = orgDerivedBaseline.Id,
+                ControlId = "AC-2",
+                InheritanceType = InheritanceType.Inherited,
+                Provider = "Retired Provider",
+                DesignationSource = "OrgDerived",
+                OrgInheritanceDefaultId = staleDefault.Id,
+                SetBy = "system",
+            },
+            new ControlInheritance
+            {
+                ControlBaselineId = overrideBaseline.Id,
+                ControlId = "AC-2",
+                InheritanceType = InheritanceType.Shared,
+                Provider = "Override Provider",
+                CustomerResponsibility = "Maintain local account reviews",
+                DesignationSource = "Manual",
+                OrgInheritanceDefaultId = staleDefault.Id,
+                SetBy = "reviewer",
+            });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.DeriveOrgDefaultsAsync("test");
+
+        // Assert
+        result.RemovedCount.Should().Be(1);
+        result.AffectedSystems.Should().Be(2);
+        _db.ChangeTracker.Clear();
+        var remaining = await _db.ControlInheritances.SingleAsync();
+        remaining.ControlId.Should().Be("AC-2");
+        remaining.DesignationSource.Should().Be("Manual");
+        remaining.OrgInheritanceDefaultId.Should().BeNull();
+        remaining.Provider.Should().Be("Override Provider");
+        remaining.CustomerResponsibility.Should().Be("Maintain local account reviews");
+    }
+
+    [Fact]
+    public async Task DeriveOrgDefaults_RemovingOneMapping_RetainsDefaultFromRemainingMapping()
+    {
+        // Arrange
+        var primary = AddCapability("Primary Auth", "Primary Provider");
+        var shared = AddCapability("Shared Auth", "Shared Provider");
+        var primaryMapping = AddOrgMapping(primary, "IA-2", CapabilityMappingRole.Primary);
+        AddOrgMapping(shared, "IA-2", CapabilityMappingRole.Shared);
+        var baseline = new ControlBaseline
+        {
+            RegisteredSystemId = "system-1",
+            BaselineLevel = "Moderate",
+            TotalControls = 1,
+            ControlIds = ["IA-2"],
+            CreatedBy = "test",
+        };
+        _db.ControlBaselines.Add(baseline);
+        await _db.SaveChangesAsync();
+        await _sut.DeriveOrgDefaultsAsync("initial-derivation");
+        _db.CapabilityControlMappings.Remove(primaryMapping);
+        await _db.SaveChangesAsync();
+        var originalDefaultId = (await _db.OrgInheritanceDefaults.SingleAsync()).Id;
+
+        // Act
+        var result = await _sut.DeriveOrgDefaultsAsync("re-derivation");
+
+        // Assert
+        result.RemovedCount.Should().Be(0);
+        _db.ChangeTracker.Clear();
+        var retainedDefault = await _db.OrgInheritanceDefaults.SingleAsync();
+        retainedDefault.Id.Should().Be(originalDefaultId);
+        retainedDefault.InheritanceType.Should().Be(InheritanceType.Shared);
+        retainedDefault.Provider.Should().Be("Shared Provider");
+        retainedDefault.SourceCapabilityIds.Should().Be(shared.Id);
+        var designation = await _db.ControlInheritances.SingleAsync();
+        designation.OrgInheritanceDefaultId.Should().Be(originalDefaultId);
+        designation.InheritanceType.Should().Be(InheritanceType.Shared);
+        designation.Provider.Should().Be("Shared Provider");
+    }
+
     // ─── PropagateToSystemAsync Tests ────────────────────────────────────────
 
     [Fact]
