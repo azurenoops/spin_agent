@@ -48,10 +48,12 @@ public static class CapabilitySubscriptionEndpoints
             AtoCopilotContext db,
             CancellationToken ct) =>
         {
-            // Base query: only Mapped (consumable by org tenants)
+            // Base query: only published, mapped capabilities are consumable by org tenants.
             var query = db.CspInheritedCapabilities
                 .Include(c => c.CspInheritedComponent)
-                .Where(c => c.Status == CspInheritedCapabilityStatus.Mapped)
+                .Where(c =>
+                    c.Status == CspInheritedCapabilityStatus.Mapped &&
+                    c.CspInheritedComponent.Status == CspInheritedComponentStatus.Published)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -80,6 +82,9 @@ public static class CapabilitySubscriptionEndpoints
             HashSet<string> subscribed = new(StringComparer.OrdinalIgnoreCase);
             if (!string.IsNullOrWhiteSpace(systemId))
             {
+                if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
+                    return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
+
                 subscribed = (await db.CapabilitySubscriptions
                     .Where(s => s.RegisteredSystemId == systemId && s.IsActive)
                     .Select(s => s.CspInheritedCapabilityId)
@@ -113,7 +118,9 @@ public static class CapabilitySubscriptionEndpoints
             var capability = await db.CspInheritedCapabilities
                 .Include(c => c.CspInheritedComponent)
                 .FirstOrDefaultAsync(c =>
-                    c.Id == id && c.Status == CspInheritedCapabilityStatus.Mapped, ct);
+                    c.Id == id &&
+                    c.Status == CspInheritedCapabilityStatus.Mapped &&
+                    c.CspInheritedComponent.Status == CspInheritedComponentStatus.Published, ct);
 
             if (capability is null)
                 return Results.NotFound(new { error = "Capability not found", errorCode = "NOT_FOUND" });
@@ -122,6 +129,9 @@ public static class CapabilitySubscriptionEndpoints
             bool isSubscribed = false;
             if (!string.IsNullOrWhiteSpace(systemId))
             {
+                if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
+                    return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
+
                 isSubscribed = await db.CapabilitySubscriptions.AnyAsync(s =>
                     s.RegisteredSystemId == systemId &&
                     s.CspInheritedCapabilityId == id.ToString() &&
@@ -157,11 +167,15 @@ public static class CapabilitySubscriptionEndpoints
             AtoCopilotContext db,
             CancellationToken ct) =>
         {
+            if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
+                return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
+
             // Validate capability exists and is Mapped
             if (!Guid.TryParse(body.CapabilityId, out var capGuid))
                 return Results.BadRequest(new { error = "Invalid capabilityId", errorCode = "INVALID_INPUT" });
 
             var capability = await db.CspInheritedCapabilities
+                .Include(c => c.CspInheritedComponent)
                 .FirstOrDefaultAsync(c => c.Id == capGuid, ct);
 
             if (capability is null)
@@ -172,6 +186,13 @@ public static class CapabilitySubscriptionEndpoints
                 {
                     error = "Only Mapped capabilities can be subscribed to.",
                     errorCode = "CAPABILITY_NOT_MAPPED",
+                });
+
+            if (capability.CspInheritedComponent.Status != CspInheritedComponentStatus.Published)
+                return Results.BadRequest(new
+                {
+                    error = "Only capabilities from Published components can be subscribed to.",
+                    errorCode = "COMPONENT_NOT_PUBLISHED",
                 });
 
             // Idempotency: re-activate if previously unsubscribed
@@ -228,6 +249,9 @@ public static class CapabilitySubscriptionEndpoints
             AtoCopilotContext db,
             CancellationToken ct) =>
         {
+            if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
+                return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
+
             // Fetch subscriptions + enrich with capability names from CspInheritedCapabilities
             var subs = await db.CapabilitySubscriptions
                 .Where(s => s.RegisteredSystemId == systemId && s.IsActive)
@@ -281,6 +305,9 @@ public static class CapabilitySubscriptionEndpoints
                 AtoCopilotContext db,
                 CancellationToken ct) =>
         {
+            if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
+                return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
+
             var sub = await db.CapabilitySubscriptions.FirstOrDefaultAsync(s =>
                 s.RegisteredSystemId == systemId &&
                 s.CspInheritedCapabilityId == capabilityId &&

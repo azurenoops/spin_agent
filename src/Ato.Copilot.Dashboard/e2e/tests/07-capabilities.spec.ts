@@ -1,5 +1,163 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { CapabilitiesPage } from '../pages/capabilities.page';
+
+const mixedCatalogSystemId = 'mixed-capability-system';
+
+async function mockCapabilityCoverageShell(page: Page) {
+  await page.route('**/api/csp/onboarding/state', (route) => route.fulfill({ status: 404 }));
+  await page.route('**/api/onboarding/organization-context', (route) => route.fulfill({
+    json: { ok: true, data: null },
+  }));
+  await page.route('**/api/onboarding/state', (route) => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        tenantId: 'tenant-1',
+        status: 'Completed',
+        lastStep: 'Roles',
+        startedAt: '2026-03-01T12:00:00Z',
+        completedAt: '2026-03-01T12:05:00Z',
+        lastReRunAt: null,
+        steps: [
+          { step: 'OrganizationContext', status: 'Completed', completedAt: '2026-03-01T12:01:00Z', durationMs: 1000 },
+          { step: 'Roles', status: 'Completed', completedAt: '2026-03-01T12:02:00Z', durationMs: 1000 },
+        ],
+      },
+    },
+  }));
+  await page.route('**/api/onboarding/tenant/state', (route) => route.fulfill({
+    json: {
+      status: 'success',
+      data: {
+        tenantId: 'tenant-1',
+        currentStep: 'Submitted',
+        completedSteps: ['Submitted'],
+        onboardingState: 'Active',
+        firstOrganizationId: 'organization-1',
+      },
+    },
+  }));
+  await page.route('**/api/deployment/mode', (route) => route.fulfill({
+    json: { mode: 'MultiTenant' },
+  }));
+  await page.route('**/api/auth/login-config', (route) => route.fulfill({
+    json: {
+      status: 'success',
+      data: {
+        branding: { deploymentName: 'ATO Copilot', logoUrl: null, supportEmail: null },
+        defaultMethod: 'Simulation',
+        enabledMethods: [{ id: 'Simulation', displayName: 'Simulation' }],
+        cloud: 'AzurePublic',
+        idleTimeoutMinutes: 30,
+        rememberTenantCookieDays: 7,
+        simulation: { identities: [] },
+        msal: {
+          clientId: '00000000-0000-0000-0000-000000000001',
+          authority: 'https://login.microsoftonline.com/common',
+          redirectUri: 'http://localhost:5173/login/callback',
+          postLogoutRedirectUri: 'http://localhost:5173/login',
+        },
+      },
+    },
+  }));
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    json: {
+      oid: 'e2e-user',
+      displayName: 'E2E User',
+      persona: 'ISSO',
+      homeTenant: { id: 'tenant-1', displayName: 'Test Tenant', status: 'Active' },
+      effectiveTenant: { id: 'tenant-1', displayName: 'Test Tenant', status: 'Active' },
+      isImpersonating: false,
+      impersonation: null,
+      pimRoles: [],
+      isCspAdmin: false,
+      isSocAnalyst: false,
+      tenantMemberships: [],
+    },
+  }));
+  await page.route(`**/api/dashboard/systems/${mixedCatalogSystemId}/profile/completeness`, (route) =>
+    route.fulfill({
+      json: {
+        systemId: mixedCatalogSystemId,
+        totalSections: 0,
+        statusCounts: {},
+        approvedPercentage: 0,
+        isProfileComplete: false,
+        incompleteSections: [],
+        missionOwnerAssigned: false,
+        missionOwnerName: null,
+        daysSinceRegistration: 1,
+      },
+    }));
+  await page.route(`**/api/dashboard/systems/${mixedCatalogSystemId}/todos`, (route) =>
+    route.fulfill({ json: { items: [] } }));
+  await page.route(`**/api/dashboard/systems/${mixedCatalogSystemId}`, (route) => route.fulfill({
+    json: {
+      systemId: mixedCatalogSystemId,
+      name: 'Mixed Capability System',
+      acronym: 'MCS',
+      systemType: 'MajorApplication',
+      missionCriticality: 'MissionSupport',
+      hostingEnvironment: 'AzureGovernment',
+      impactLevel: 'IL4',
+      baselineLevel: 'Moderate',
+      currentRmfPhase: 'Implement',
+      rmfPhaseProgress: [],
+      keyMetrics: {},
+      recentActivity: [],
+      categorization: null,
+    },
+  }));
+  await page.route(
+    `**/api/dashboard/systems/${mixedCatalogSystemId}/capability-coverage`,
+    (route) => route.fulfill({
+      json: {
+        systemId: mixedCatalogSystemId,
+        systemName: 'Mixed Capability System',
+        capabilities: [],
+        summary: {
+          totalCapabilities: 0,
+          totalMappedControls: 0,
+          totalNarrativesPopulated: 0,
+          totalNarrativesCustom: 0,
+          totalNarrativesEmpty: 0,
+          coveragePercent: 0,
+        },
+      },
+    }),
+  );
+  await page.route(
+    `**/api/dashboard/systems/${mixedCatalogSystemId}/available-capabilities**`,
+    (route) => route.fulfill({
+      json: {
+        totalCount: 2,
+        excludedCount: 0,
+        items: [
+          {
+            id: 'org-capability',
+            name: 'Organization Endpoint Protection',
+            description: 'Organization-managed endpoint protection',
+            provider: 'Organization SOC',
+            category: 'SI',
+            source: 'Organization',
+            mappedControlIds: ['SI-3'],
+            mappedControlCount: 1,
+          },
+          {
+            id: 'csp-capability',
+            name: 'CSP Managed Audit Logging',
+            description: 'Provider-managed audit collection',
+            provider: 'Azure Government',
+            category: 'Service',
+            source: 'CSP',
+            mappedControlIds: ['AU-2'],
+            mappedControlCount: 1,
+          },
+        ],
+      },
+    }),
+  );
+}
 
 test.describe('Capabilities Library (Org-wide)', () => {
   let caps: CapabilitiesPage;
@@ -126,5 +284,30 @@ test.describe('System Capability Coverage', () => {
         await page.getByRole('button', { name: /cancel/i }).click();
       }
     }
+  });
+
+  test('shows both capability sources and subscribes to a CSP capability', async ({ page }) => {
+    // Arrange
+    await mockCapabilityCoverageShell(page);
+    let subscriptionBody: unknown;
+    await page.route(
+      `**/api/dashboard/systems/${mixedCatalogSystemId}/capability-subscriptions`,
+      async (route) => {
+        subscriptionBody = route.request().postDataJSON();
+        await route.fulfill({ status: 201, json: { id: 'subscription-1', alreadySubscribed: false } });
+      },
+    );
+
+    // Act
+    await page.goto(`/systems/${mixedCatalogSystemId}/capability-coverage`);
+    await page.getByRole('button', { name: 'Add Capability' }).click();
+
+    // Assert
+    await expect(page.getByText('Organization', { exact: true })).toBeVisible();
+    await expect(page.getByText('CSP', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: /CSP Managed Audit Logging/ }).click();
+    await page.getByRole('button', { name: 'Add Capability' }).last().click();
+    await expect.poll(() => subscriptionBody).toEqual({ capabilityId: 'csp-capability' });
+    await expect(page.getByText('CSP Managed Audit Logging')).not.toBeVisible();
   });
 });

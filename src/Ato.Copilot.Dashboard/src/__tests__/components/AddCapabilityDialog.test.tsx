@@ -4,28 +4,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 vi.mock('../../api/capabilities', () => ({
-  getCapabilities: vi.fn(),
-  getCapabilityMappings: vi.fn(),
+  getAvailableCapabilities: vi.fn(),
   createCapabilityMappings: vi.fn(),
+  subscribeCapability: vi.fn(),
 }));
 
 import * as capApi from '../../api/capabilities';
 import AddCapabilityDialog from '../../components/AddCapabilityDialog';
 
-const mockGetCapabilities = capApi.getCapabilities as ReturnType<typeof vi.fn>;
+const mockGetAvailableCapabilities = capApi.getAvailableCapabilities as ReturnType<typeof vi.fn>;
+const mockCreateCapabilityMappings = capApi.createCapabilityMappings as ReturnType<typeof vi.fn>;
+const mockSubscribeCapability = capApi.subscribeCapability as ReturnType<typeof vi.fn>;
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
-const makeCap = (id: string, name: string) => ({
+const makeCap = (id: string, name: string, source: 'Organization' | 'CSP' = 'Organization') => ({
   id,
   name,
   provider: 'Acme',
   category: 'IAM',
-  categoryName: 'Identity & Access Management',
   description: `${name} description`,
-  implementationStatus: 'Implemented' as const,
+  source,
+  mappedControlIds: ['IA-2', 'IA-5'],
   mappedControlCount: 3,
-  systemsUsingCount: 1,
 });
 
 const defaultProps = {
@@ -44,12 +45,12 @@ beforeEach(() => {
 describe('AddCapabilityDialog — empty-state messages', () => {
   /**
    * SCENARIO A: org has zero capabilities (none created yet)
-   * Expected: "No capabilities in your organization yet." + Capabilities Hub link
+  * Expected: actionable copy covering both organization and CSP sources.
    * Bug before fix: showed "All capabilities are already linked to this system."
    */
   it('shows hub-redirect copy when org has no capabilities at all (totalOrgCapabilities === 0)', async () => {
     // Arrange — API returns empty items
-    mockGetCapabilities.mockResolvedValue({ items: [], totalCount: 0 });
+    mockGetAvailableCapabilities.mockResolvedValue({ items: [], totalCount: 0, excludedCount: 0 });
 
     // Act
     render(<AddCapabilityDialog {...defaultProps} />);
@@ -60,7 +61,7 @@ describe('AddCapabilityDialog — empty-state messages', () => {
     });
 
     expect(
-      screen.getByText('No capabilities in your organization yet.'),
+      screen.getByText('No eligible capabilities are available.'),
     ).toBeInTheDocument();
 
     expect(
@@ -80,9 +81,8 @@ describe('AddCapabilityDialog — empty-state messages', () => {
    * but totalOrgCapabilities > 0.
    */
   it('shows "all linked" copy when org has caps but all are already linked', async () => {
-    // Arrange — 2 caps in org, both already linked
-    const caps = [makeCap('cap-1', 'MFA Enforcement'), makeCap('cap-2', 'RBAC Roles')];
-    mockGetCapabilities.mockResolvedValue({ items: caps, totalCount: 2 });
+    // Arrange — 2 caps exist, both already linked
+    mockGetAvailableCapabilities.mockResolvedValue({ items: [], totalCount: 2, excludedCount: 2 });
 
     render(
       <AddCapabilityDialog
@@ -101,7 +101,7 @@ describe('AddCapabilityDialog — empty-state messages', () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.queryByText(/no capabilities in your organization yet/i),
+      screen.queryByText(/no eligible capabilities are available/i),
     ).not.toBeInTheDocument();
   });
 
@@ -117,7 +117,7 @@ describe('AddCapabilityDialog — empty-state messages', () => {
   it('shows "no match" copy when unlinked caps exist but search has no results', async () => {
     // Arrange — 1 cap in org, not yet linked
     const caps = [makeCap('cap-1', 'MFA Enforcement')];
-    mockGetCapabilities.mockResolvedValue({ items: caps, totalCount: 1 });
+    mockGetAvailableCapabilities.mockResolvedValue({ items: caps, totalCount: 1, excludedCount: 0 });
 
     const { getByPlaceholderText } = render(
       <AddCapabilityDialog {...defaultProps} existingCapabilityIds={[]} />,
@@ -143,7 +143,7 @@ describe('AddCapabilityDialog — empty-state messages', () => {
     });
 
     expect(
-      screen.queryByText(/no capabilities in your organization yet/i),
+      screen.queryByText(/no eligible capabilities are available/i),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText(/all capabilities are already linked/i),
@@ -157,7 +157,7 @@ describe('AddCapabilityDialog — empty-state messages', () => {
       makeCap('cap-1', 'MFA Enforcement'),
       makeCap('cap-2', 'RBAC Roles'),
     ];
-    mockGetCapabilities.mockResolvedValue({ items: caps, totalCount: 2 });
+    mockGetAvailableCapabilities.mockResolvedValue({ items: [caps[0]], totalCount: 2, excludedCount: 1 });
 
     render(
       <AddCapabilityDialog
@@ -174,7 +174,7 @@ describe('AddCapabilityDialog — empty-state messages', () => {
 
     // None of the empty-state messages should appear
     expect(
-      screen.queryByText(/no capabilities in your organization yet/i),
+      screen.queryByText(/no eligible capabilities are available/i),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText(/all capabilities are already linked/i),
@@ -186,8 +186,89 @@ describe('AddCapabilityDialog — empty-state messages', () => {
 
   it('shows loading state while fetch is in-flight', () => {
     // Arrange — never-resolving promise keeps loading=true
-    mockGetCapabilities.mockReturnValue(new Promise(() => {}));
+    mockGetAvailableCapabilities.mockReturnValue(new Promise(() => {}));
     render(<AddCapabilityDialog {...defaultProps} />);
     expect(screen.getByText(/loading capabilities/i)).toBeInTheDocument();
+  });
+
+  it('renders organization and CSP capabilities with source provenance', async () => {
+    // Arrange
+    mockGetAvailableCapabilities.mockResolvedValue({
+      items: [
+        makeCap('org-1', 'Organization MFA'),
+        makeCap('csp-1', 'CSP Key Management', 'CSP'),
+      ],
+      totalCount: 2,
+      excludedCount: 0,
+    });
+
+    // Act
+    render(<AddCapabilityDialog {...defaultProps} />);
+
+    // Assert
+    await waitFor(() => expect(screen.getByText('Organization MFA')).toBeInTheDocument());
+    expect(screen.getByText('CSP Key Management')).toBeInTheDocument();
+    expect(screen.getByText('Organization')).toBeInTheDocument();
+    expect(screen.getByText('CSP')).toBeInTheDocument();
+  });
+
+  it('subscribes a selected CSP capability without creating organization mappings', async () => {
+    // Arrange
+    const { fireEvent } = await import('@testing-library/react');
+    mockGetAvailableCapabilities.mockResolvedValue({
+      items: [makeCap('csp-1', 'CSP Key Management', 'CSP')],
+      totalCount: 1,
+      excludedCount: 0,
+    });
+    mockSubscribeCapability.mockResolvedValue({ id: 'subscription-1' });
+    render(<AddCapabilityDialog {...defaultProps} />);
+    await waitFor(() => expect(screen.getByText('CSP Key Management')).toBeInTheDocument());
+
+    // Act
+    fireEvent.click(screen.getByText('CSP Key Management'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Capability' }));
+
+    // Assert
+    await waitFor(() => expect(mockSubscribeCapability).toHaveBeenCalledWith('sys-001', 'csp-1'));
+    expect(mockCreateCapabilityMappings).not.toHaveBeenCalled();
+    expect(defaultProps.onAdded).toHaveBeenCalled();
+  });
+
+  it('creates system mappings for a selected organization capability', async () => {
+    // Arrange
+    const { fireEvent } = await import('@testing-library/react');
+    mockGetAvailableCapabilities.mockResolvedValue({
+      items: [makeCap('org-1', 'Organization MFA')],
+      totalCount: 1,
+      excludedCount: 0,
+    });
+    mockCreateCapabilityMappings.mockResolvedValue({ created: 2 });
+    render(<AddCapabilityDialog {...defaultProps} />);
+    await waitFor(() => expect(screen.getByText('Organization MFA')).toBeInTheDocument());
+
+    // Act
+    fireEvent.click(screen.getByText('Organization MFA'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Capability' }));
+
+    // Assert
+    await waitFor(() => expect(mockCreateCapabilityMappings).toHaveBeenCalledWith('org-1', {
+      mappings: [
+        { controlId: 'IA-2', role: 'Primary', registeredSystemId: 'sys-001' },
+        { controlId: 'IA-5', role: 'Primary', registeredSystemId: 'sys-001' },
+      ],
+    }));
+    expect(mockSubscribeCapability).not.toHaveBeenCalled();
+  });
+
+  it('shows an API failure instead of an empty catalog', async () => {
+    // Arrange
+    mockGetAvailableCapabilities.mockRejectedValue(new Error('network'));
+
+    // Act
+    render(<AddCapabilityDialog {...defaultProps} />);
+
+    // Assert
+    await waitFor(() => expect(screen.getByText('Failed to load capabilities')).toBeInTheDocument());
+    expect(screen.queryByText(/no eligible capabilities are available/i)).not.toBeInTheDocument();
   });
 });

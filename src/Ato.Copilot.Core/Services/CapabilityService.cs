@@ -6,6 +6,7 @@ using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Dtos.Dashboard;
 
 namespace Ato.Copilot.Core.Services;
@@ -461,6 +462,105 @@ public class CapabilityService
     // ─── Capability Coverage ─────────────────────────────────────────────────
 
     /// <summary>
+    /// Returns tenant organization and published CSP capabilities that may be added to a system.
+    /// </summary>
+    public async Task<AvailableCapabilitiesResponse?> GetAvailableCapabilitiesAsync(
+        string systemId,
+        string? search,
+        CancellationToken cancellationToken = default)
+    {
+        var systemExists = await _db.RegisteredSystems
+            .AsNoTracking()
+            .AnyAsync(system => system.Id == systemId && system.IsActive, cancellationToken);
+        if (!systemExists)
+            return null;
+
+        var mappedOrganizationIds = await _db.CapabilityControlMappings
+            .Where(mapping => mapping.RegisteredSystemId == systemId || mapping.RegisteredSystemId == null)
+            .Select(mapping => mapping.SecurityCapabilityId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var linkedOrganizationIds = await _db.SystemCapabilityLinks
+            .Where(link => link.RegisteredSystemId == systemId)
+            .Select(link => link.SecurityCapabilityId)
+            .ToListAsync(cancellationToken);
+        var existingOrganizationIds = mappedOrganizationIds
+            .Concat(linkedOrganizationIds)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var organizationCapabilities = await _db.SecurityCapabilities
+            .AsNoTracking()
+            .OrderBy(capability => capability.Name)
+            .ToListAsync(cancellationToken);
+        var organizationIds = organizationCapabilities.Select(capability => capability.Id).ToList();
+        var organizationControls = await _db.CapabilityControlMappings
+            .Where(mapping => organizationIds.Contains(mapping.SecurityCapabilityId))
+            .Select(mapping => new { mapping.SecurityCapabilityId, mapping.ControlId })
+            .ToListAsync(cancellationToken);
+        var controlsByOrganization = organizationControls
+            .GroupBy(mapping => mapping.SecurityCapabilityId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(mapping => mapping.ControlId).Distinct().Order().ToList());
+
+        var cspCapabilities = await _db.CspInheritedCapabilities
+            .AsNoTracking()
+            .Include(capability => capability.CspInheritedComponent)
+            .Where(capability =>
+                capability.Status == CspInheritedCapabilityStatus.Mapped &&
+                capability.CspInheritedComponent.Status == CspInheritedComponentStatus.Published)
+            .OrderBy(capability => capability.Name)
+            .ToListAsync(cancellationToken);
+        var subscribedCspIds = (await _db.CapabilitySubscriptions
+            .Where(subscription => subscription.RegisteredSystemId == systemId && subscription.IsActive)
+            .Select(subscription => subscription.CspInheritedCapabilityId)
+            .ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var allItems = organizationCapabilities.Select(capability => new AvailableCapabilityDto
+        {
+            Id = capability.Id,
+            Name = capability.Name,
+            Description = capability.Description,
+            Provider = capability.Provider,
+            Category = capability.Category,
+            Source = "Organization",
+            MappedControlIds = controlsByOrganization.GetValueOrDefault(capability.Id, []),
+        }).Concat(cspCapabilities.Select(capability => new AvailableCapabilityDto
+        {
+            Id = capability.Id.ToString(),
+            Name = capability.Name,
+            Description = capability.Description,
+            Provider = capability.CspInheritedComponent.Name,
+            Category = capability.CspInheritedComponent.ComponentType.ToString(),
+            Source = "CSP",
+            MappedControlIds = capability.MappedNistControlIds.Distinct().Order().ToList(),
+        })).ToList();
+
+        var unlinkedItems = allItems
+            .Where(item => item.Source == "Organization"
+                ? !existingOrganizationIds.Contains(item.Id)
+                : !subscribedCspIds.Contains(item.Id))
+            .ToList();
+        var available = unlinkedItems
+            .Where(item => string.IsNullOrWhiteSpace(search) ||
+                item.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                item.Provider.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                item.Category.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                item.MappedControlIds.Any(controlId => controlId.Contains(search, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(item => item.Source)
+            .ThenBy(item => item.Name)
+            .ToList();
+
+        return new AvailableCapabilitiesResponse
+        {
+            Items = available,
+            TotalCount = allItems.Count,
+            ExcludedCount = allItems.Count - unlinkedItems.Count,
+        };
+    }
+
+    /// <summary>
     /// Returns capability coverage view for a system — capabilities, linked components,
     /// mapped control counts, and narrative generation status.
     /// Returns null if system not found.
@@ -582,6 +682,7 @@ public class CapabilityService
             {
                 CapabilityId = cap.Id,
                 CapabilityName = cap.Name,
+                Source = "Organization",
                 Provider = cap.Provider,
                 Category = cap.Category,
                 ImplementationStatus = cap.ImplementationStatus.ToString(),
@@ -596,6 +697,69 @@ public class CapabilityService
                     AiGenerated = aiGenerated,
                 },
                 Components = components,
+            });
+        }
+
+        var activeSubscriptions = await _db.CapabilitySubscriptions
+            .Where(subscription => subscription.RegisteredSystemId == systemId && subscription.IsActive)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+        var subscribedCapabilityIds = activeSubscriptions
+            .Select(subscription => Guid.TryParse(subscription.CspInheritedCapabilityId, out var id) ? id : (Guid?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+        var subscribedCapabilities = await _db.CspInheritedCapabilities
+            .AsNoTracking()
+            .Include(capability => capability.CspInheritedComponent)
+            .Where(capability => subscribedCapabilityIds.Contains(capability.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var capability in subscribedCapabilities)
+        {
+            var controlIds = capability.MappedNistControlIds.Distinct().ToList();
+            var populated = 0;
+            var custom = 0;
+            var empty = 0;
+            var aiGenerated = 0;
+            foreach (var controlId in controlIds)
+            {
+                if (!implByControl.TryGetValue(controlId, out var implementation))
+                {
+                    empty++;
+                    continue;
+                }
+
+                if (implementation.IsManuallyCustomized)
+                    custom++;
+                else if (!string.IsNullOrEmpty(implementation.Narrative))
+                    populated++;
+                else
+                    empty++;
+
+                if (implementation.AiSuggested)
+                    aiGenerated++;
+            }
+
+            capabilities.Add(new CapabilityCoverageDto
+            {
+                CapabilityId = capability.Id.ToString(),
+                CapabilityName = capability.Name,
+                Source = "CSP",
+                Provider = capability.CspInheritedComponent.Name,
+                Category = capability.CspInheritedComponent.ComponentType.ToString(),
+                ImplementationStatus = capability.Status.ToString(),
+                Owner = null,
+                Role = "Inherited",
+                MappedControlCount = controlIds.Count,
+                NarrativeStatus = new NarrativeStatusDto
+                {
+                    Populated = populated,
+                    Custom = custom,
+                    Empty = empty,
+                    AiGenerated = aiGenerated,
+                },
             });
         }
 

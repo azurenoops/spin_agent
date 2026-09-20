@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
-import { getCapabilities, getCapabilityMappings, createCapabilityMappings } from '../api/capabilities';
-import type { SecurityCapabilityDto, CapabilityMappingRole } from '../types/dashboard';
+import {
+  getAvailableCapabilities,
+  createCapabilityMappings,
+  subscribeCapability,
+  type AvailableCapabilityDto,
+} from '../api/capabilities';
+import type { CapabilityMappingRole } from '../types/dashboard';
 
 interface Props {
   systemId: string;
@@ -16,8 +21,9 @@ const ROLES: { value: CapabilityMappingRole; label: string; description: string 
 ];
 
 export default function AddCapabilityDialog({ systemId, existingCapabilityIds, onClose, onAdded }: Props) {
-  const [capabilities, setCapabilities] = useState<SecurityCapabilityDto[]>([]);
-  const [totalOrgCapabilities, setTotalOrgCapabilities] = useState(0);
+  const [capabilities, setCapabilities] = useState<AvailableCapabilityDto[]>([]);
+  const [totalCapabilities, setTotalCapabilities] = useState(0);
+  const [excludedCount, setExcludedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -29,9 +35,10 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
     let cancelled = false;
     (async () => {
       try {
-        const result = await getCapabilities({ pageSize: 200 });
+        const result = await getAvailableCapabilities(systemId);
         if (!cancelled) {
-          setTotalOrgCapabilities(result.items.length);
+          setTotalCapabilities(result.totalCount);
+          setExcludedCount(result.excludedCount);
           setCapabilities(result.items.filter((c) => !existingCapabilityIds.includes(c.id)));
         }
       } catch {
@@ -41,7 +48,7 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
       }
     })();
     return () => { cancelled = true; };
-  }, [existingCapabilityIds]);
+  }, [existingCapabilityIds, systemId]);
 
   const filtered = capabilities.filter(
     (c) =>
@@ -58,9 +65,13 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
     setSaving(true);
     setError(null);
     try {
-      // Get the capability's existing control mappings
-      const mappingData = await getCapabilityMappings(selectedId);
-      const controls = mappingData.mappings.map((m) => m.controlId);
+      if (selected?.source === 'CSP') {
+        await subscribeCapability(systemId, selectedId);
+        onAdded();
+        return;
+      }
+
+      const controls = selected?.mappedControlIds ?? [];
 
       if (controls.length === 0) {
         setError('This capability has no control mappings. Map controls to the capability first in the Component Library.');
@@ -97,7 +108,7 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Add Capability</h3>
-            <p className="text-sm text-gray-500">Link an organizational capability to this system</p>
+            <p className="text-sm text-gray-500">Add an organization or CSP capability to this system</p>
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-500">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -148,25 +159,23 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
           {/* Capability list */}
           {loading ? (
             <p className="text-sm text-gray-500 text-center py-8">Loading capabilities...</p>
-          ) : filtered.length === 0 ? (
+          ) : error ? null : filtered.length === 0 ? (
             <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
-              {totalOrgCapabilities === 0 ? (
-                // No capabilities exist in this org yet — direct to Capabilities Hub
+              {totalCapabilities === 0 ? (
                 <div>
-                  <p className="text-sm font-medium text-gray-700">No capabilities in your organization yet.</p>
+                  <p className="text-sm font-medium text-gray-700">No eligible capabilities are available.</p>
                   <p className="text-sm text-gray-500 mt-1">
-                    Create capabilities in the{' '}
+                    Create an organization capability in the{' '}
                     <a
                       href="/capabilities"
                       className="text-indigo-600 underline hover:text-indigo-800"
                     >
                       Capabilities Hub
                     </a>{' '}
-                    before linking them to a system.
+                    or ask a CSP administrator to publish and map CSP capabilities.
                   </p>
                 </div>
-              ) : capabilities.length === 0 ? (
-                // Org has caps but every one is already linked to this system
+              ) : capabilities.length === 0 && excludedCount > 0 ? (
                 <p className="text-sm text-gray-500">
                   All capabilities are already linked to this system.
                 </p>
@@ -192,20 +201,17 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
                     <div className="min-w-0">
                       <div className="font-medium text-gray-900 truncate">{cap.name}</div>
                       <div className="text-xs text-gray-500 mt-0.5">
-                        {cap.provider} · {cap.categoryName} · {cap.mappedControlCount} controls ·{' '}
-                        {cap.systemsUsingCount} system{cap.systemsUsingCount !== 1 ? 's' : ''}
+                        {cap.provider} · {cap.category} · {cap.mappedControlCount} controls
                       </div>
                     </div>
                     <span
                       className={`ml-3 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        cap.implementationStatus === 'Implemented'
+                        cap.source === 'CSP'
                           ? 'bg-green-100 text-green-700'
-                          : cap.implementationStatus === 'InProgress'
-                            ? 'bg-indigo-100 text-indigo-700'
-                            : 'bg-gray-100 text-gray-600'
+                          : 'bg-indigo-100 text-indigo-700'
                       }`}
                     >
-                      {cap.implementationStatus}
+                      {cap.source}
                     </span>
                   </div>
                   {cap.description && (
@@ -221,7 +227,9 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
         <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4">
           <p className="text-xs text-gray-500">
             {selected
-              ? `Will map ${selected.mappedControlCount} control${selected.mappedControlCount !== 1 ? 's' : ''} as ${role}`
+              ? selected.source === 'CSP'
+                ? `Will subscribe to ${selected.mappedControlCount} inherited control${selected.mappedControlCount !== 1 ? 's' : ''}`
+                : `Will map ${selected.mappedControlCount} control${selected.mappedControlCount !== 1 ? 's' : ''} as ${role}`
               : 'Select a capability to add'}
           </p>
           <div className="flex gap-3">

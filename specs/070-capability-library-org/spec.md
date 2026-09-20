@@ -213,6 +213,13 @@ controls are removed from the SSP, reflecting a change in the cloud service conf
 | FR-016 | The `CapabilityDetailPage.tsx` route is `/capability-library/:id` (capability UUID). |
 | FR-017 | The `CapabilityLibraryPage` is linked from the global nav (PageLayout top bar or dedicated sidebar entry under Prepare phase). |
 | FR-018 | Subscribe/Unsubscribe buttons are hidden (not just disabled) for `SCA` and `AO` roles. |
+| FR-019 | `GET /api/dashboard/systems/{systemId}/available-capabilities` MUST return eligible tenant-scoped organization capabilities and globally readable CSP capabilities in one source-tagged projection. |
+| FR-020 | The available-capabilities endpoint MUST exclude organization capabilities already linked or mapped to the system and CSP capabilities with an active subscription. |
+| FR-021 | CSP capabilities offered for selection MUST have `Status == Mapped` and a parent component with `Status == Published`; `NeedsReview`, archived, and unpublished-parent capabilities MUST be excluded. |
+| FR-022 | Adding an organization capability MUST use the organization mapping flow; adding a CSP capability MUST create or reactivate a `CapabilitySubscription`. |
+| FR-023 | System capability coverage MUST include active CSP subscriptions using their mapped NIST controls and identify every item as `Organization` or `CSP`. Narrative counts use the system's existing control implementations for those mapped controls. |
+| FR-024 | Every system-scoped catalog, subscription, and coverage operation MUST first resolve the system through tenant-filtered `RegisteredSystems`; a system outside the effective tenant MUST return not found without exposing catalog or subscription data. |
+| FR-025 | The Add Capability dialog MUST preserve API failures as visible errors and distinguish an empty eligible catalog from an all-already-added catalog. |
 
 ---
 
