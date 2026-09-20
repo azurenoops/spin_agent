@@ -36,6 +36,14 @@ describe('useChatContext', () => {
     expect(result.current.page).toBe('unknown');
   });
 
+  it.each([
+    '/systems/abc/gap-analysis',
+    '/systems/abc/gaps',
+  ])('returns unknown for retired gap analysis path %s', (path) => {
+    const { result } = renderHook(() => useChatContext(), { wrapper: createWrapper(path) });
+    expect(result.current.page).toBe('unknown');
+  });
+
   // ── Existing sub-page aliases that already work ───────────────────────────
 
   it('resolves /systems/abc/profile/ to system-profile', () => {

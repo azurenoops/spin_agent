@@ -89,53 +89,6 @@ async function mockSystemShell(page: Page) {
 }
 
 test.describe('Dashboard async error states', () => {
-  test('Gap Analysis shows a user-readable error and retry when loading fails', async ({ page }) => {
-    // Arrange
-    await mockSystemShell(page);
-    await page.route(`**/api/dashboard/systems/${systemId}/gap-analysis`, (route) =>
-      route.fulfill({ status: 500, json: { error: 'internal-code-123' } }),
-    );
-
-    // Act
-    await page.goto(`/systems/${systemId}/gap-analysis`);
-
-    // Assert
-    await expect(page.getByRole('alert')).toContainText('Unable to load gap analysis');
-    await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
-    await expect(page.getByText('internal-code-123')).not.toBeVisible();
-    await expect(page.getByText(/endpoint may not be configured/i)).not.toBeVisible();
-  });
-
-  test('Gap Analysis identifies a failed refresh while retaining stale data', async ({ page }) => {
-    // Arrange
-    await mockSystemShell(page);
-    let shouldFail = false;
-    await page.route(`**/api/dashboard/systems/${systemId}/gap-analysis`, (route) => shouldFail
-      ? route.fulfill({ status: 500, json: { error: 'refresh-internal-code' } })
-      : route.fulfill({
-        json: {
-          totalGaps: 1,
-          criticalCount: 1,
-          highCount: 0,
-          moderateCount: 0,
-          lowCount: 0,
-          items: [{ controlId: 'AC-2', controlTitle: 'Account Management', gapType: 'Narrative', severity: 'Critical', description: 'Evidence required' }],
-        },
-      }),
-    );
-    await page.goto(`/systems/${systemId}/gap-analysis`);
-    await expect(page.getByText('AC-2')).toBeVisible();
-
-    // Act
-    shouldFail = true;
-    await page.getByRole('button', { name: /refresh/i }).click();
-
-    // Assert
-    await expect(page.getByRole('alert')).toContainText('Unable to refresh gap analysis');
-    await expect(page.getByText('AC-2')).toBeVisible();
-    await expect(page.getByText('refresh-internal-code')).not.toBeVisible();
-  });
-
   test('System Detail shows a user-readable error and recovers on retry', async ({ page }) => {
     // Arrange
     await mockSystemShell(page);

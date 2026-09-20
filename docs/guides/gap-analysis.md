@@ -1,8 +1,11 @@
-# Gap Analysis
+# Gap Analysis API
 
 > Feature 030: Visual Compliance Dashboard & Risk Solutions Library
 
-The Gap Analysis page shows which NIST 800-53 controls in your system's baseline are covered by Security Capabilities and which remain unmapped.
+The gap-analysis API reports which NIST 800-53 controls in a system's baseline
+are covered by Security Capabilities and which remain unmapped. The dedicated
+dashboard page and sidebar link have been retired; use capability, assessment,
+and remediation views for interactive workflows.
 
 ---
 
@@ -14,13 +17,9 @@ It compares the system's `ControlBaseline` (all applicable controls) against `Ca
 
 ---
 
-## Reading the Coverage Matrix
+## Response Metrics
 
-Navigate to `/systems/{systemId}/gaps` to view the gap analysis.
-
-### Summary Metrics
-
-Four metric cards at the top show:
+The response includes:
 
 - **Total Controls** — Total baseline controls for this system
 - **Covered** — Controls with at least one capability mapping
@@ -29,7 +28,7 @@ Four metric cards at the top show:
 
 ### Per-Family Breakdown
 
-The coverage matrix table shows one row per NIST 800-53 control family:
+The response contains one entry per NIST 800-53 control family:
 
 | Column | Description |
 |--------|-------------|
@@ -39,18 +38,7 @@ The coverage matrix table shows one row per NIST 800-53 control family:
 | **Gaps** | Controls without mappings |
 | **Coverage** | Visual bar + percentage |
 
-### Highlighting
-
-- Families with **<50% coverage** are highlighted in **red** to draw attention
-- The coverage bar uses green for covered portion and gray for gaps
-
----
-
-## Expanding Family Details
-
-Click the expand arrow on any family row to see the list of **unmapped controls** — these are the specific controls that need security capabilities assigned.
-
-Each unmapped control shows:
+Each family entry lists its **unmapped controls**, including:
 - Control ID (e.g., "AC-4")
 - Control title
 
@@ -89,12 +77,7 @@ Coverage varies significantly by baseline level:
 
 ## Boundary-Scoped Gap Analysis (Feature 033)
 
-When a system has multiple boundary definitions, the gap analysis page adds a **boundary selector** dropdown:
-
-- **All Boundaries** (default): Shows combined coverage across all boundaries, plus a **Boundary Comparison Table** with color-coded per-boundary coverage percentages
-- **Specific Boundary**: Filters gap results to show only controls covered by capabilities mapped to the selected boundary (including organization-wide/null-FK mappings)
-
-The boundary comparison table uses color coding:
-- 🟢 Green (≥80%): Strong coverage
-- 🟡 Yellow (50–79%): Partial coverage  
-- 🔴 Red (<50%): Needs attention
+Supply the optional `boundaryDefinitionId` query parameter to limit results to
+controls covered by capabilities mapped to that boundary, including
+organization-wide mappings. Without the parameter, the response includes
+combined coverage and per-boundary comparison data.

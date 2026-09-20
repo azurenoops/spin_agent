@@ -50,7 +50,6 @@ Deviation information surfaces on other dashboard pages:
 - **Remediation** — "View Deviation" link on risk-accepted POA&M items in the detail drawer
 - **Assessments** — Purple deviation badges (False Positive / Risk Accepted) on flagged findings
 - **Documents** — Waiver count badge in the SSP Sections header
-- **Gap Analysis** — "Waived" column and purple badges on control families with active waivers
 
 ## Chat Commands (MCP Tools)
 

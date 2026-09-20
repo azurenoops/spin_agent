@@ -408,7 +408,6 @@ The dashboard is a **standalone React SPA** that communicates with the MCP serve
 │  • System Detail         │                     │  • CapabilityService     │
 │  • Capabilities Library  │                     │  • ComponentService      │
 │  • Component Inventory   │                     │  • NarrativeTemplate     │
-│  • Gap Analysis          │                     │  • TrendSnapshotService  │
 │  • Control Inheritance   │                     │  • OrgInheritanceService │
 │  • Compliance Trends     │                     │    (BackgroundService)   │
 └─────────────────────────┘                     └──────────────────────────┘
@@ -657,4 +656,3 @@ Feature 043 adds a dedicated Control Inheritance management page to the dashboar
 - [Control Inheritance Guide](../guides/control-inheritance.md) — Inheritance & CRM management
 - [Capabilities Guide](../guides/security-capabilities.md) — Security Capabilities Library
 - [Components Guide](../guides/component-inventory.md) — Component Inventory
-- [Gap Analysis Guide](../guides/gap-analysis.md) — Gap Analysis

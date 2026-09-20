@@ -88,7 +88,6 @@ Shows the 10 most recent events for the system: assessments, narrative updates, 
 
 ### Quick Links
 
-- **Gap Analysis** — Navigate to `/systems/{systemId}/gaps`
 - **Component Inventory** — Navigate to `/systems/{systemId}/components`
 - **Implementation Roadmap** — Navigate to `/systems/{systemId}/roadmap`
 
@@ -180,33 +179,6 @@ Deleting a component flags linked capabilities for review. A confirmation dialog
 ### Risk Visibility
 
 The Components page focuses on asset inventory management. Per-component risk summaries (open finding count, severity, overdue remediations) are displayed on the **Assessment detail view** and **Remediation page**, where findings are automatically linked to components by matching Azure resource IDs.
-
----
-
-## Gap Analysis
-
-Navigate to `/systems/{systemId}/gaps` to view control coverage gaps.
-
-### Summary Metrics
-
-| Metric | Description |
-|--------|-------------|
-| **Total Controls** | Number of controls in the system's baseline |
-| **Covered** | Controls mapped to one or more capabilities |
-| **Gaps** | Unmapped controls requiring capability assignments |
-| **Coverage** | Coverage percentage with family-level alerts |
-
-### Coverage Matrix Colors
-
-| Color | Meaning |
-|-------|---------|
-| 🟢 Green | ≥80% coverage — well covered |
-| 🟡 Yellow | 50–79% coverage — needs attention |
-| 🔴 Red | <50% coverage — critical gap |
-
-### Using the Matrix
-
-Click any family cell to expand and see individual unmapped controls. Focus on red families first to address the largest security gaps.
 
 ---
 
@@ -376,7 +348,6 @@ The Boundary Management page (`/systems/{id}/boundaries`) provides a dedicated i
 - **Boundary summary cards** showing resource count, component count, and coverage percentage
 - **Primary boundary protection** — the primary boundary cannot be deleted; deleting other boundaries reassigns resources to Primary
 - **Azure Resource Discovery** — click "Discover Azure Resources" to auto-discover resources from the system's Azure subscription, grouped by resource group as suggested boundaries
-- **Boundary selector** on Gap Analysis page filters coverage results by specific boundary
 
 ### Navigation
 
