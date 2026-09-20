@@ -7,6 +7,7 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services;
 
 namespace Ato.Copilot.Tests.Unit.Services;
@@ -155,6 +156,171 @@ public class CapabilityServiceBoundaryTests : IDisposable
         devTest.Should().Contain("AC-2");
         all.Should().Contain("AC-2");
     }
+
+    [Fact]
+    public async Task GetAvailableCapabilities_WithOrganizationAndCspSources_ReturnsOnlyEligibleItems()
+    {
+        // Arrange
+        var organizationCapability = new SecurityCapability
+        {
+            Id = "cap-available",
+            Name = "Endpoint Protection",
+            Provider = "Organization SOC",
+            Category = "SI",
+            Description = "Organization-managed endpoint protection",
+            ImplementationStatus = CapabilityStatus.Implemented,
+            Owner = "ISSO",
+            CreatedBy = "test",
+        };
+        _db.SecurityCapabilities.Add(organizationCapability);
+        _db.CapabilityControlMappings.Add(new CapabilityControlMapping
+        {
+            SecurityCapabilityId = organizationCapability.Id,
+            ControlId = "SI-3",
+            RegisteredSystemId = "another-system",
+            Role = CapabilityMappingRole.Primary,
+            CreatedBy = "test",
+        });
+
+        var published = CreateCspComponent("Published CSP", CspInheritedComponentStatus.Published);
+        var draft = CreateCspComponent("Draft CSP", CspInheritedComponentStatus.Draft);
+        var eligibleCsp = CreateCspCapability(published, "CSP Key Management", CspInheritedCapabilityStatus.Mapped, "SC-12");
+        var needsReview = CreateCspCapability(published, "Needs Review", CspInheritedCapabilityStatus.NeedsReview, "AC-2");
+        var unpublished = CreateCspCapability(draft, "Draft Parent", CspInheritedCapabilityStatus.Mapped, "AU-2");
+        var subscribed = CreateCspCapability(published, "Already Subscribed", CspInheritedCapabilityStatus.Mapped, "IA-2");
+        _db.AddRange(published, draft, eligibleCsp, needsReview, unpublished, subscribed);
+        _db.CapabilitySubscriptions.Add(new CapabilitySubscription
+        {
+            RegisteredSystemId = SystemId,
+            CspInheritedCapabilityId = subscribed.Id.ToString(),
+            IsActive = true,
+            SubscribedBy = "test",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.GetAvailableCapabilitiesAsync(SystemId, search: null);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Items.Should().ContainSingle(item =>
+            item.Id == organizationCapability.Id && item.Source == "Organization");
+        result.Items.Should().ContainSingle(item =>
+            item.Id == eligibleCsp.Id.ToString() && item.Source == "CSP");
+        result.Items.Should().NotContain(item => item.Id == CapId);
+        result.Items.Should().NotContain(item => item.Id == needsReview.Id.ToString());
+        result.Items.Should().NotContain(item => item.Id == unpublished.Id.ToString());
+        result.Items.Should().NotContain(item => item.Id == subscribed.Id.ToString());
+    }
+
+    [Fact]
+    public async Task GetAvailableCapabilities_WithSearch_PreservesExistingExclusionCount()
+    {
+        // Arrange
+        var matching = new SecurityCapability
+        {
+            Id = "cap-search-match",
+            Name = "Endpoint Protection",
+            Provider = "Organization SOC",
+            Category = "SI",
+            Description = "Organization-managed endpoint protection",
+            ImplementationStatus = CapabilityStatus.Implemented,
+            Owner = "ISSO",
+            CreatedBy = "test",
+        };
+        var nonmatching = new SecurityCapability
+        {
+            Id = "cap-search-other",
+            Name = "Backup Service",
+            Provider = "Continuity Team",
+            Category = "CP",
+            Description = "Organization-managed backups",
+            ImplementationStatus = CapabilityStatus.Implemented,
+            Owner = "ISSO",
+            CreatedBy = "test",
+        };
+        _db.SecurityCapabilities.AddRange(matching, nonmatching);
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.GetAvailableCapabilitiesAsync(SystemId, "Organization SOC");
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Items.Should().ContainSingle(item => item.Id == matching.Id);
+        result.TotalCount.Should().Be(3);
+        result.ExcludedCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetCapabilityCoverage_WithActiveCspSubscription_IncludesCspNarrativeStatus()
+    {
+        // Arrange
+        var component = CreateCspComponent("Azure Government", CspInheritedComponentStatus.Published);
+        var capability = CreateCspCapability(
+            component,
+            "Managed Audit Logging",
+            CspInheritedCapabilityStatus.Mapped,
+            "AU-2",
+            "AU-6");
+        _db.AddRange(component, capability);
+        _db.CapabilitySubscriptions.Add(new CapabilitySubscription
+        {
+            RegisteredSystemId = SystemId,
+            CspInheritedCapabilityId = capability.Id.ToString(),
+            IsActive = true,
+            SubscribedBy = "test",
+        });
+        _db.ControlImplementations.Add(new ControlImplementation
+        {
+            RegisteredSystemId = SystemId,
+            ControlId = "AU-2",
+            Narrative = "Audit events are centrally collected.",
+            AuthoredBy = "test",
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.GetCapabilityCoverageAsync(SystemId);
+
+        // Assert
+        var cspCoverage = result!.Capabilities.Should().ContainSingle(item =>
+            item.CapabilityId == capability.Id.ToString()).Subject;
+        cspCoverage.Source.Should().Be("CSP");
+        cspCoverage.MappedControlCount.Should().Be(2);
+        cspCoverage.NarrativeStatus.Populated.Should().Be(1);
+        cspCoverage.NarrativeStatus.Empty.Should().Be(1);
+        result.Summary.TotalCapabilities.Should().Be(2);
+        result.Summary.TotalMappedControls.Should().Be(5);
+    }
+
+    private static CspInheritedComponent CreateCspComponent(
+        string name,
+        CspInheritedComponentStatus status) => new()
+    {
+        CspProfileId = Guid.NewGuid(),
+        Name = name,
+        Description = $"{name} description",
+        ComponentType = CspComponentType.Service,
+        SourceFormat = SourceFormat.OscalJson,
+        Status = status,
+        ImportedBy = "test",
+    };
+
+    private static CspInheritedCapability CreateCspCapability(
+        CspInheritedComponent component,
+        string name,
+        CspInheritedCapabilityStatus status,
+        params string[] controls) => new()
+    {
+        CspInheritedComponentId = component.Id,
+        CspInheritedComponent = component,
+        Name = name,
+        Description = $"{name} description",
+        Status = status,
+        MappedNistControlIds = [.. controls],
+        CreatedBy = "test",
+    };
 
     [Fact]
     public async Task UpdateCapability_BoundaryScoped_ReturnsNarrativesByBoundary()

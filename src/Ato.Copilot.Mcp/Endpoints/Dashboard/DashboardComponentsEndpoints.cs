@@ -397,6 +397,23 @@ public static partial class DashboardEndpoints
             .WithName("BulkRegenerateNarrativesForCapability");
 
         // ─── Capability Coverage (US5) ────────────────────────────────────────
+        group.MapGet("/systems/{systemId}/available-capabilities", async (
+                string systemId,
+                string? search,
+                CapabilityService capService,
+                CancellationToken ct) =>
+            {
+                var result = await capService.GetAvailableCapabilitiesAsync(systemId, search, ct);
+                return result is not null
+                    ? Results.Ok(result)
+                    : Results.NotFound(new ErrorResponse
+                    {
+                        Error = "System not found",
+                        ErrorCode = "SYSTEM_NOT_FOUND",
+                    });
+            })
+            .WithName("GetAvailableSystemCapabilities");
+
         group.MapGet("/systems/{systemId}/capability-coverage", async (
                 string systemId,
                 CapabilityService capService,

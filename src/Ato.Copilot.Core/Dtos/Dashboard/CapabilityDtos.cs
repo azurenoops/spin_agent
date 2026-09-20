@@ -106,6 +106,7 @@ public class CapabilityCoverageDto
 {
     public required string CapabilityId { get; init; }
     public required string CapabilityName { get; init; }
+    public required string Source { get; init; }
     public required string Provider { get; init; }
     public required string Category { get; init; }
     public required string ImplementationStatus { get; init; }
@@ -114,6 +115,31 @@ public class CapabilityCoverageDto
     public int MappedControlCount { get; init; }
     public required NarrativeStatusDto NarrativeStatus { get; init; }
     public List<CoverageComponentDto> Components { get; init; } = [];
+}
+
+/// <summary>
+/// Capabilities that may be added to a system from tenant or CSP sources.
+/// </summary>
+public class AvailableCapabilitiesResponse
+{
+    public List<AvailableCapabilityDto> Items { get; init; } = [];
+    public int TotalCount { get; init; }
+    public int ExcludedCount { get; init; }
+}
+
+/// <summary>
+/// Source-tagged capability selectable for a system.
+/// </summary>
+public class AvailableCapabilityDto
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required string Description { get; init; }
+    public required string Provider { get; init; }
+    public required string Category { get; init; }
+    public required string Source { get; init; }
+    public List<string> MappedControlIds { get; init; } = [];
+    public int MappedControlCount => MappedControlIds.Count;
 }
 
 /// <summary>

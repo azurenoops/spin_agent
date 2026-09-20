@@ -68,6 +68,39 @@ export async function createCapabilityMappings(id: string, request: CreateMappin
   return data;
 }
 
+export interface AvailableCapabilityDto {
+  id: string;
+  name: string;
+  description: string;
+  provider: string;
+  category: string;
+  source: 'Organization' | 'CSP';
+  mappedControlIds: string[];
+  mappedControlCount: number;
+}
+
+export interface AvailableCapabilitiesResponse {
+  items: AvailableCapabilityDto[];
+  totalCount: number;
+  excludedCount: number;
+}
+
+export async function getAvailableCapabilities(systemId: string, search?: string) {
+  const { data } = await apiClient.get<AvailableCapabilitiesResponse>(
+    `/systems/${systemId}/available-capabilities`,
+    { params: search ? { search } : undefined },
+  );
+  return data;
+}
+
+export async function subscribeCapability(systemId: string, capabilityId: string) {
+  const { data } = await apiClient.post<{ id: string; alreadySubscribed: boolean }>(
+    `/systems/${systemId}/capability-subscriptions`,
+    { capabilityId },
+  );
+  return data;
+}
+
 export async function updateCapabilityMapping(
   capabilityId: string,
   mappingId: string,
@@ -124,6 +157,7 @@ export interface CapabilityCoverageResponse {
 export interface CapabilityCoverageDto {
   capabilityId: string;
   capabilityName: string;
+  source: 'Organization' | 'CSP';
   provider: string;
   category: string;
   implementationStatus: string;

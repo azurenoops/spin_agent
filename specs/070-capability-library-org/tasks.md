@@ -281,3 +281,14 @@ _Issue #225 | Priority: P2_
 - [ ] **T026**: Mark spec `Status: Implemented` after all DoD items checked
   - File: `specs/070-capability-library-org/spec.md`
   - Change `Status: Draft` → `Status: Implemented`
+
+---
+
+## Phase 9 — System Coverage Catalog Integration
+
+_Issue #932 | Priority: P1_
+
+- [x] **T027**: Add a tenant-safe, source-tagged available-capabilities query for a system that combines organization capabilities with Published + Mapped CSP capabilities and excludes existing links, mappings, and active subscriptions.
+- [x] **T028**: Include active CSP subscriptions in capability coverage summaries and narrative status using the same control-implementation semantics as organization capabilities.
+- [x] **T029**: Update the Add Capability dialog to render Organization/CSP provenance and dispatch additions through the correct mapping or subscription API.
+- [x] **T030**: Add backend, frontend, and Playwright regression coverage for mixed catalogs, lifecycle exclusions, already-added entries, tenant isolation, empty/error states, filtering, subscription dispatch, and combined coverage.
