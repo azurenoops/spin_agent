@@ -414,7 +414,7 @@ public static partial class DashboardEndpoints
                         bool hasNarrative = impl.HasCanonicalNarrative();
                         bool isReviewed = impl.ReviewedBy is not null;
 
-                        if (hasNarrative && (isReviewed || !impl.AiSuggested))
+                        if (hasNarrative && (isReviewed || (!impl.AiSuggested && !impl.IsAutoPopulated)))
                         {
                             // Reviewed narrative or manually-authored → Implemented
                             impl.ImplementationStatus = ImplementationStatus.Implemented;

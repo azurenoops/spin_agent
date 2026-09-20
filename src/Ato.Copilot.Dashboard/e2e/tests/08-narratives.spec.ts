@@ -63,6 +63,12 @@ test.describe('Narratives', () => {
 
   test('should show independent policy and technical narrative editors', async ({ page }) => {
     // Arrange
+    const pageErrors: string[] = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await page.route(/^https?:\/\/[^/]+\/api\//, route => route.fulfill({
+      status: 404, json: { error: 'Endpoint not configured in this isolated UI fixture' },
+    }));
+    await page.route('**/business-context/AC-2', route => route.fulfill({ json: null }));
     await page.route('**/api/auth/login-config', route => route.fulfill({
       json: {
         status: 'success',
@@ -91,19 +97,33 @@ test.describe('Narratives', () => {
     await page.route('**/api/dashboard/systems/e2e-system/todos', route => route.fulfill({
       json: { items: [] },
     }));
-    await page.route('**/api/dashboard/systems/e2e-system/narratives**', route => route.fulfill({
-      json: [{
+    const modelNarrative = {
         id: 'narrative-1', controlId: 'AC-2', family: 'AC', narrative: null,
         policyNarrative: 'Accounts are reviewed quarterly.',
         technicalNarrative: 'Entra ID enforces conditional access.',
         migratedFromLegacy: false, implementationStatus: 'Implemented', approvalStatus: 'Draft',
         authoredBy: 'e2e-user', authoredAt: '2026-01-01T00:00:00Z', version: 1,
-        isAutoPopulated: false, aiSuggested: false,
-      }],
+        isAutoPopulated: true, aiSuggested: true,
+    };
+    await page.route('**/api/dashboard/systems/e2e-system/narratives**', route => route.fulfill({
+      json: [modelNarrative,
+        { ...modelNarrative, id: 'template', controlId: 'AC-3', aiSuggested: false },
+        { ...modelNarrative, id: 'migrated', controlId: 'AC-4', migratedFromLegacy: true },
+        { ...modelNarrative, id: 'empty', controlId: 'AC-5', technicalNarrative: null, isAutoPopulated: false },
+      ],
     }));
     await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/regenerate-ai**', route => route.fulfill({
       json: { narrative: 'Regenerated technical narrative.' },
     }));
+    await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/narrative', async route => {
+      const patch = route.request().postDataJSON();
+      Object.assign(modelNarrative, patch);
+      if ('technicalNarrative' in patch) {
+        modelNarrative.aiSuggested = false;
+        modelNarrative.isAutoPopulated = false;
+      }
+      await route.fulfill({ json: modelNarrative });
+    });
     await page.route('**/api/dashboard/systems/e2e-system', route => route.fulfill({
       json: {
         systemId: 'e2e-system', name: 'E2E System', acronym: 'E2E', systemType: 'Application',
@@ -123,7 +143,8 @@ test.describe('Narratives', () => {
 
     // Act
     await page.goto('/systems/e2e-system/narratives');
-    const expandButton = page.getByRole('button', { name: 'Expand' }).first();
+    const expandButton = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'AC-2', exact: true }) })
+      .getByRole('button', { name: 'Expand' });
     await expect(expandButton).toBeVisible();
     await expandButton.click();
     const policyEditor = page.getByLabel('Policy narrative for AC-2');
@@ -135,12 +156,22 @@ test.describe('Narratives', () => {
     // Assert
     expect(request.postDataJSON()).toEqual({ policyNarrative: 'Accounts are reviewed monthly.' });
     await expect(technicalEditor).toHaveValue('Entra ID enforces conditional access.');
+    await expect(page.getByTitle('AI-assisted Technical narrative')).toHaveCount(1);
+    await expect(page.getByText('AI Suggested', { exact: true }).locator('..')).toContainText('1');
+    await expect(page.getByText('Auto', { exact: true })).toHaveCount(1);
+    await expect(page.getByText('Migrated', { exact: true })).toHaveCount(1);
 
-    // Act
+    await technicalEditor.fill('Human-authored technical narrative.');
+    await technicalEditor.blur();
+    await expect(page.getByTitle('AI-assisted Technical narrative')).toHaveCount(0);
+    await expect(page.getByText('AI Suggested', { exact: true }).locator('..')).toContainText('0');
+    await expect(policyEditor).toHaveValue('Accounts are reviewed monthly.');
     await page.getByRole('button', { name: 'Regenerate' }).click();
-
-    // Assert
     await expect(technicalEditor).toHaveValue('Regenerated technical narrative.');
     await expect(policyEditor).toHaveValue('Accounts are reviewed monthly.');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(technicalEditor).toBeVisible();
+    await page.screenshot({ path: 'test-results/narrative-provenance-mobile.png', fullPage: true });
+    expect(pageErrors).toEqual([]);
   });
 });

@@ -183,7 +183,7 @@ public class BaselineService : IBaselineService
                 ImplementationStatus = ImplementationStatus.Planned,
                 ApprovalStatus = SspSectionStatus.NotStarted,
                 IsAutoPopulated = true,
-                AiSuggested = true,
+                AiSuggested = false,
                 AuthoredBy = selectedBy,
                 AuthoredAt = now,
                 CurrentVersion = 1,
@@ -197,7 +197,7 @@ public class BaselineService : IBaselineService
             context.ControlImplementations.AddRange(newImplementations);
             await context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation(
-                "Auto-populated {Count} control implementations with AI narrative templates for system '{SystemId}'",
+                "Auto-populated {Count} control implementations with deterministic narrative templates for system '{SystemId}'",
                 newImplementations.Count, systemId);
         }
 
