@@ -283,7 +283,7 @@ public class RmfRegistrationToolTests
     {
         var mock = new Mock<IRmfLifecycleService>();
         var system = MakeSystem("Step System", SystemType.MajorApplication, MissionCriticality.MissionCritical);
-        mock.Setup(s => s.AdvanceRmfStepAsync("sys-1", RmfPhase.Categorize, false, "mcp-user", It.IsAny<CancellationToken>()))
+        mock.Setup(s => s.AdvanceRmfStepAsync("sys-1", RmfPhase.Categorize, false, "mcp-user", "Readiness review complete", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new RmfStepAdvanceResult
             {
                 Success = true,
@@ -301,7 +301,8 @@ public class RmfRegistrationToolTests
         var result = await tool.ExecuteAsync(new Dictionary<string, object?>
         {
             ["system_id"] = "sys-1",
-            ["target_step"] = "Categorize"
+            ["target_step"] = "Categorize",
+            ["notes"] = "Readiness review complete"
         });
 
         var json = JsonDocument.Parse(result);
@@ -315,7 +316,7 @@ public class RmfRegistrationToolTests
     public async Task AdvanceRmfStep_GateFailure_ReturnsError()
     {
         var mock = new Mock<IRmfLifecycleService>();
-        mock.Setup(s => s.AdvanceRmfStepAsync("sys-1", RmfPhase.Categorize, false, "mcp-user", It.IsAny<CancellationToken>()))
+        mock.Setup(s => s.AdvanceRmfStepAsync("sys-1", RmfPhase.Categorize, false, "mcp-user", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new RmfStepAdvanceResult
             {
                 Success = false,
@@ -345,7 +346,7 @@ public class RmfRegistrationToolTests
     {
         var mock = new Mock<IRmfLifecycleService>();
         var system = MakeSystem("Force System", SystemType.MajorApplication, MissionCriticality.MissionCritical);
-        mock.Setup(s => s.AdvanceRmfStepAsync("sys-1", RmfPhase.Categorize, true, "mcp-user", It.IsAny<CancellationToken>()))
+        mock.Setup(s => s.AdvanceRmfStepAsync("sys-1", RmfPhase.Categorize, true, "mcp-user", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new RmfStepAdvanceResult
             {
                 Success = true,

@@ -317,6 +317,46 @@ public class AuthorizationIntegrationTests : IDisposable
         activeDecisions[0].DecisionType.Should().Be(AuthorizationDecisionType.AtoWithConditions);
     }
 
+    [Fact]
+    public async Task BundlePackage_WithPhaseTransitions_IncludesAuditHistory()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Phase History Package System", "MajorApplication");
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.AuditLogs.Add(new AuditLogEntry
+            {
+                Action = "RmfPhase.Transitioned",
+                UserId = "issm@contoso.com",
+                Timestamp = new DateTime(2026, 4, 10, 14, 30, 0, DateTimeKind.Utc),
+                AffectedResources = [systemId],
+                Outcome = AuditOutcome.Success,
+                Details = JsonSerializer.Serialize(new
+                {
+                    systemId,
+                    systemName = "Phase History Package System",
+                    previousPhase = "Prepare",
+                    targetPhase = "Categorize",
+                    forced = true,
+                    notes = "Approved readiness exception"
+                })
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var package = await _authorizationService.BundlePackageAsync(systemId);
+
+        // Assert
+        var history = package.Documents.Single(document => document.DocumentType == "RMF_PHASE_HISTORY");
+        history.Status.Should().Be("generated");
+        history.Content.Should().Contain("Prepare");
+        history.Content.Should().Contain("Categorize");
+        history.Content.Should().Contain("issm@contoso.com");
+        history.Content.Should().Contain("Approved readiness exception");
+    }
+
     /// <summary>
     /// Accepting risk without an active authorization fails.
     /// </summary>

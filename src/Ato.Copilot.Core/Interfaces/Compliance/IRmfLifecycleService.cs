@@ -71,6 +71,7 @@ public interface IRmfLifecycleService
     /// <param name="targetStep">Target RMF phase.</param>
     /// <param name="force">If true, override gate failures (audit-logged).</param>
     /// <param name="userId">Identity of the user performing the transition.</param>
+    /// <param name="notes">Optional rationale or context retained in the audit trail.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing updated system, gate check results, and any warnings.</returns>
     Task<RmfStepAdvanceResult> AdvanceRmfStepAsync(
@@ -78,6 +79,7 @@ public interface IRmfLifecycleService
         RmfPhase targetStep,
         bool force = false,
         string? userId = null,
+        string? notes = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

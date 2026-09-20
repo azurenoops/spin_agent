@@ -92,6 +92,16 @@ export interface RecentActivity {
   relatedEntityId: string | null;
 }
 
+export interface RmfPhaseTransition {
+  id: string;
+  previousPhase: string;
+  targetPhase: string;
+  actor: string;
+  timestamp: string;
+  forced: boolean;
+  notes: string | null;
+}
+
 export interface SystemDetailResponse {
   systemId: string;
   name: string;
@@ -105,6 +115,7 @@ export interface SystemDetailResponse {
   rmfPhaseProgress: RmfPhaseProgress[];
   keyMetrics: KeyMetrics;
   recentActivity: RecentActivity[];
+  rmfPhaseTransitions?: RmfPhaseTransition[];
   categorization: CategorizationInfo | null;
 }
 
