@@ -27,6 +27,7 @@
 27|- Add `oscal-cli validate` step to `ci.yml` using Docker: `ghcr.io/metaschema-framework/oscal-cli:latest`
 28|- Gate runs on PR when any `OscalSsp*.cs` or `OscalPoam*.cs` file changes
 29|- Reference: `references/ato-copilot-oscal-ci-gate.md`
+29a|- Add regression tests proving each public HTTP and MCP export boundary invokes schema validation and blocks invalid OSCAL (issue #704 follow-up)
 30|- **Owner**: Cyborg
 31|
 32|## Phase 2 — Export Completion (Sprint 2)

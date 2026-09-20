@@ -54,12 +54,16 @@ public class OscalMcpTools
         [Description("Export mode: strict (default) or advisory")] string mode = "strict")
     {
         var result = await _sspExport.ExportAsync(systemId, includeBackMatter: true, prettyPrint: false);
+        var validationFailure = await ValidateExportAsync(result.OscalJson, "ssp", systemId);
+        if (validationFailure is not null)
+            return validationFailure;
+
         _logger.LogInformation("MCP oscal_export_ssp: {SystemId}, {Controls} controls", systemId, result.Statistics.ControlCount);
         return new
         {
             documentUuid    = ExtractUuid(result.OscalJson),
             oscalJson       = result.OscalJson,
-            schemaValid     = true,  // OscalSspExportService always produces valid output
+            schemaValid     = true,
             warnings        = result.Warnings,
             statistics      = result.Statistics
         };
@@ -74,6 +78,10 @@ public class OscalMcpTools
         [Description("Registered system ID")] string systemId)
     {
         var result = await _sarExport.ExportAsync(systemId, prettyPrint: false);
+        var validationFailure = await ValidateExportAsync(result.OscalJson, "assessment-results", systemId);
+        if (validationFailure is not null)
+            return validationFailure;
+
         _logger.LogInformation("MCP oscal_export_sar: {SystemId}, {Findings} findings", systemId, result.FindingCount);
         return new
         {
@@ -94,6 +102,10 @@ public class OscalMcpTools
         [Description("Registered system ID")] string systemId)
     {
         var result = await _poamExport.ExportAsync(systemId, prettyPrint: false);
+        var validationFailure = await ValidateExportAsync(result.OscalJson, "poam", systemId);
+        if (validationFailure is not null)
+            return validationFailure;
+
         _logger.LogInformation("MCP oscal_export_poam: {SystemId}, {Items} items", systemId, result.PoamItemCount);
         return new
         {
@@ -158,6 +170,26 @@ public class OscalMcpTools
         _logger.LogInformation("MCP oscal_emass_transform: {SystemId}, {Count} controls, {Trunc} truncated",
             systemId, result.Controls.Count, result.TruncatedNarratives);
         return result;
+    }
+
+    private async Task<object?> ValidateExportAsync(string oscalJson, string documentType, string systemId)
+    {
+        var validation = await _schemaValidation.ValidateAsync(oscalJson, documentType);
+        if (validation.IsValid)
+            return null;
+
+        _logger.LogWarning(
+            "OSCAL MCP export blocked for system {SystemId}, document type {DocumentType}: {ViolationCount} schema violation(s)",
+            systemId, documentType, validation.Violations.Count);
+
+        return new
+        {
+            errorCode = "OSCAL_SCHEMA_VALIDATION_FAILED",
+            message = $"The generated OSCAL {documentType} artifact failed schema validation and was not exported.",
+            documentType,
+            schemaVersion = validation.SchemaVersion,
+            violations = validation.Violations
+        };
     }
 
     private static string ExtractUuid(string json)

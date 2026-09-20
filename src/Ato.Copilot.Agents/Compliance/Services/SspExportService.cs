@@ -23,6 +23,7 @@ public class SspExportService : ISspExportService
     private readonly ISspService _sspService;
     private readonly IDocumentTemplateService _templateService;
     private readonly IOscalSspExportService _oscalService;
+    private readonly IOscalSchemaValidationService _schemaValidator;
     private readonly ISspExportNotifier _notifier;
     private readonly ILogger<SspExportService> _logger;
     private readonly ExportSettings _settings;
@@ -33,6 +34,7 @@ public class SspExportService : ISspExportService
         ISspService sspService,
         IDocumentTemplateService templateService,
         IOscalSspExportService oscalService,
+        IOscalSchemaValidationService schemaValidator,
         ISspExportNotifier notifier,
         ILogger<SspExportService> logger,
         IOptions<ExportSettings> settings,
@@ -42,6 +44,7 @@ public class SspExportService : ISspExportService
         _sspService = sspService;
         _templateService = templateService;
         _oscalService = oscalService;
+        _schemaValidator = schemaValidator;
         _notifier = notifier;
         _logger = logger;
         _settings = settings.Value;
@@ -558,6 +561,15 @@ public class SspExportService : ISspExportService
             includeBackMatter: true,
             prettyPrint: true,
             cancellationToken);
+
+        var validation = await _schemaValidator.ValidateAsync(
+            result.OscalJson, "ssp", cancellationToken);
+        if (!validation.IsValid)
+        {
+            var violations = string.Join("; ", validation.Violations.Select(v => $"{v.JsonPath}: {v.Message}"));
+            throw new InvalidOperationException(
+                $"OSCAL_SCHEMA_VALIDATION_FAILED: Generated SSP failed schema validation. {violations}");
+        }
 
         var jsonBytes = System.Text.Encoding.UTF8.GetBytes(result.OscalJson);
 

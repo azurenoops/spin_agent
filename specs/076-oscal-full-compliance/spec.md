@@ -72,6 +72,8 @@
 72|### FR-006: oscal-cli Schema Validation
 73|The system SHALL invoke oscal-cli (as a Docker sidecar or subprocess) for Metaschema constraint validation beyond JSON Schema checks. Validation SHALL run in CI/CD via GitHub Actions job.
 74|
+74a|Every public HTTP and MCP export boundary SHALL validate generated OSCAL against the declared 1.1.2 schema before returning it. Schema-invalid output SHALL be withheld and replaced with a structured validation error; no export path may infer validity from the exporter implementation alone.
+74b|
 75|### FR-007: AI-Assisted Control Statement Decomposition
 76|The system SHALL provide an AI-assisted workflow that:
 77|1. Accepts a control narrative (from SPIN Agent NarrativeVersion)

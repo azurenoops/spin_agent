@@ -26,6 +26,7 @@ public class SspExportServiceTests : IDisposable
     private readonly Mock<ISspService> _sspServiceMock;
     private readonly Mock<IDocumentTemplateService> _templateServiceMock;
     private readonly Mock<IOscalSspExportService> _oscalServiceMock;
+    private readonly Mock<IOscalSchemaValidationService> _schemaValidatorMock;
     private readonly Mock<ISspExportNotifier> _notifierMock;
     private readonly Channel<SspExportJob> _channel;
     private readonly ExportSettings _settings;
@@ -43,6 +44,13 @@ public class SspExportServiceTests : IDisposable
         _sspServiceMock = new Mock<ISspService>();
         _templateServiceMock = new Mock<IDocumentTemplateService>();
         _oscalServiceMock = new Mock<IOscalSspExportService>();
+        _schemaValidatorMock = new Mock<IOscalSchemaValidationService>();
+        _schemaValidatorMock
+            .Setup(service => service.ValidateAsync(
+                It.IsAny<string>(),
+                "ssp",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult { IsValid = true, ModelType = "ssp" });
         _notifierMock = new Mock<ISspExportNotifier>();
         _channel = Channel.CreateBounded<SspExportJob>(100);
 
@@ -61,6 +69,7 @@ public class SspExportServiceTests : IDisposable
             _sspServiceMock.Object,
             _templateServiceMock.Object,
             _oscalServiceMock.Object,
+            _schemaValidatorMock.Object,
             _notifierMock.Object,
             Mock.Of<ILogger<SspExportService>>(),
             Options.Create(_settings),
@@ -127,6 +136,51 @@ public class SspExportServiceTests : IDisposable
         result.ExpiresAt.Should().BeCloseTo(
             DateTimeOffset.UtcNow.AddDays(_settings.RetentionDays),
             TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task ProcessExportAsync_WithSchemaInvalidOscal_MarksExportFailedWithoutWritingFile()
+    {
+        // Arrange
+        _oscalServiceMock
+            .Setup(service => service.ExportAsync(
+                "sys-invalid",
+                true,
+                true,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalExportResult(
+                "{\"invalid\":true}",
+                [],
+                new OscalStatistics(0, 0, 0, 0, 0)));
+        _schemaValidatorMock
+            .Setup(service => service.ValidateAsync(
+                It.IsAny<string>(),
+                "ssp",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalSchemaValidationResult
+            {
+                IsValid = false,
+                ModelType = "ssp",
+                Violations = [new OscalSchemaViolation { JsonPath = "$", Message = "Invalid SSP." }]
+            });
+        var export = await _service.EnqueueExportAsync("sys-invalid", "json", null, "user@test.com");
+        _channel.Reader.TryRead(out var job).Should().BeTrue();
+
+        // Act
+        await _service.ProcessExportAsync(job!);
+
+        // Assert
+        await using var db = CreateDb();
+        var failed = await db.SspExports.FindAsync(export.Id);
+        failed.Should().NotBeNull();
+        failed!.Status.Should().Be("Failed");
+        failed.ErrorMessage.Should().StartWith("OSCAL_SCHEMA_VALIDATION_FAILED");
+        Directory.Exists(Path.Combine(_settings.ExportsPath, "sys-invalid")).Should().BeFalse();
+        _notifierMock.Verify(notifier => notifier.SendExportFailedAsync(
+            "user@test.com",
+            export.Id,
+            It.Is<string>(error => error.StartsWith("OSCAL_SCHEMA_VALIDATION_FAILED")),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

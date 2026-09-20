@@ -594,6 +594,7 @@ public static partial class DashboardEndpoints
             string? catSeverity,
             bool? includeAll,
             PoamService poamService,
+            IOscalSchemaValidationService schemaValidator,
             CancellationToken ct) =>
         {
             try
@@ -611,6 +612,20 @@ public static partial class DashboardEndpoints
                         break;
                     case "oscal_json":
                         data = await poamService.ExportOscalJsonAsync(systemId, status, catSeverity, includeAll ?? false, ct);
+                        var oscalJson = System.Text.Encoding.UTF8.GetString(data);
+                        var validation = await schemaValidator.ValidateAsync(oscalJson, "poam", ct);
+                        if (!validation.IsValid)
+                        {
+                            return Results.UnprocessableEntity(new
+                            {
+                                errorCode = "OSCAL_SCHEMA_VALIDATION_FAILED",
+                                message = "The generated OSCAL poam artifact failed schema validation and was not exported.",
+                                documentType = "poam",
+                                schemaVersion = validation.SchemaVersion,
+                                violations = validation.Violations
+                            });
+                        }
+
                         contentType = "application/json";
                         fileName = $"poam-{systemId}-{DateTime.UtcNow:yyyy-MM-dd}.oscal.json";
                         break;
