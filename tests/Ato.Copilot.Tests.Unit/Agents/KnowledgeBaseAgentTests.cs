@@ -26,7 +26,7 @@ public class KnowledgeBaseAgentTests
 
         // Create a real ExplainNistControlTool with mocked dependencies
         var nistServiceMock = new Mock<INistControlsService>();
-        var cache = new MemoryCache(new MemoryCacheOptions());
+        var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 100 });
         var toolOptions = Options.Create(new KnowledgeBaseAgentOptions());
         var toolLogger = Mock.Of<ILogger<ExplainNistControlTool>>();
         var explainNistControlTool = new ExplainNistControlTool(
@@ -220,6 +220,26 @@ public class KnowledgeBaseAgentTests
 
         result.Should().NotBeNull();
         result.AgentName.Should().Be("KnowledgeBase Agent");
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WithRmfQueryAndSizeLimitedCache_ReturnsStructuredSuccess()
+    {
+        // Arrange
+        var context = new AgentConversationContext
+        {
+            ConversationId = "cache-regression-632",
+            UserId = "test-user"
+        };
+
+        // Act
+        var result = await _agent.ProcessAsync("What is the NIST RMF?", context);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Response.Should().NotContain("Cache entry must specify a value for Size");
+        result.ToolsExecuted.Should().ContainSingle(tool =>
+            tool.ToolName == "kb_explain_rmf" && tool.Success);
     }
 
     // ──────────────── US9: Cross-Agent State Sharing Tests ────────────────
