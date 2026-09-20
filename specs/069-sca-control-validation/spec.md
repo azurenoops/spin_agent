@@ -127,6 +127,7 @@ This feature introduces:
 | FR-013 | Empty-state message when no links exist |
 | FR-014 | Warning surfaced if SCA marks control Satisfied with 0 validation links (non-blocking) |
 | FR-015 | Tenant isolation enforced — `[TenantScoped]` on entity, stamped by `TenantStampingSaveChangesInterceptor` |
+| FR-016 | Production MCP startup registers every named authorization policy required by validation endpoints. `ComplianceReader` resolves for both API route variants; authorized readers receive normal results, unauthorized roles remain denied, and startup-to-endpoint tests detect missing registrations. |
 
 ---
 

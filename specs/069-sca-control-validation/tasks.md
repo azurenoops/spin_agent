@@ -85,3 +85,11 @@
 - Playwright Chromium validation workflow: 1 passed.
 - Full solution build passes.
 - Repository-wide baselines remain red outside this feature: .NET has 19 `CapabilityImportServiceTests` working-directory failures; Dashboard Vitest has 13 failures across 6 existing test files plus 2 existing BroadcastChannel errors.
+
+---
+
+## Phase 10 — Issue #959: Validation Policy Registration
+
+- [x] **T031**: Add shared-service registration coverage proving every canonical named policy resolves from the production MCP DI path.
+- [x] **T032**: Register the canonical policy set through `AddAtoCopilotMcp` startup without weakening existing role requirements.
+- [x] **T033**: Add full-host validation endpoint coverage for authorized empty results, unauthorized denial, both route variants, and tenant isolation; run focused and broad affected suites.

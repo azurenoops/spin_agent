@@ -60,4 +60,16 @@ describe('ValidationEvidencePanel', () => {
     expect(screen.getByText('No validation evidence linked. Adding evidence strengthens your ATO package.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /add validation link/i })).not.toBeInTheDocument();
   });
+
+  it('shows a load error instead of the no-evidence warning when the request fails', async () => {
+    // Arrange
+    getLinks.mockRejectedValue(new Error('Internal Server Error'));
+
+    // Act
+    render(<ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} />);
+
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load validation links.');
+    expect(screen.queryByText('No validation links attached to this control.')).not.toBeInTheDocument();
+  });
 });
