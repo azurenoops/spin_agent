@@ -48,6 +48,7 @@ public static class AtoCopilotMcpServiceExtensions
     {
         // Core infrastructure
         services.AddAtoCopilotCore(configuration);
+        services.AddAuthorization(Ato.Copilot.Mcp.Authorization.Policies.RegisterPolicies);
 
         // State management
         services.AddInMemoryStateManagement();
