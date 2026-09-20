@@ -45,11 +45,23 @@ public sealed class CallerEffectiveRoleResolver : ICallerEffectiveRoleResolver
     {
         await using var db = await _contextFactory.CreateDbContextAsync(ct);
 
+        var resolvedPersonId = await db.Persons
+            .AsNoTracking()
+            .Where(p => p.TenantId == tenantId
+                     && (p.Id == principalPersonId || p.EntraObjectId == principalPersonId))
+            .Select(p => (Guid?)p.Id)
+            .FirstOrDefaultAsync(ct);
+
+        if (resolvedPersonId is null)
+        {
+            return CallerEffectiveRole.None;
+        }
+
         // ── Source 1: OrganizationRoleAssignments (active, tenant-scoped) ──
         var orgRoles = await db.OrganizationRoleAssignments
             .AsNoTracking()
             .Where(r => r.TenantId == tenantId
-                     && r.PersonId == principalPersonId
+                     && r.PersonId == resolvedPersonId.Value
                      && r.RemovedAt == null)
             .Select(r => r.Role)
             .ToListAsync(ct);
@@ -58,7 +70,7 @@ public sealed class CallerEffectiveRoleResolver : ICallerEffectiveRoleResolver
         var systemRoles = await db.SystemRoleAssignments
             .AsNoTracking()
             .Where(r => r.TenantId == tenantId
-                     && r.PersonId == principalPersonId
+                     && r.PersonId == resolvedPersonId.Value
                      && r.RemovedAt == null)
             .Select(r => r.Role)
             .ToListAsync(ct);
@@ -68,7 +80,7 @@ public sealed class CallerEffectiveRoleResolver : ICallerEffectiveRoleResolver
         //              Person FK. Look up the email first, then probe legacy rows.
         var personEmail = await db.Persons
             .AsNoTracking()
-            .Where(p => p.TenantId == tenantId && p.Id == principalPersonId)
+            .Where(p => p.TenantId == tenantId && p.Id == resolvedPersonId.Value)
             .Select(p => p.Email)
             .FirstOrDefaultAsync(ct);
 

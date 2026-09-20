@@ -47,13 +47,17 @@ public class CallerEffectiveRoleResolverTests
     }
 
     private static async Task SeedPersonAsync(
-        IDbContextFactory<AtoCopilotContext> factory, Guid tenantId, Guid personId)
+        IDbContextFactory<AtoCopilotContext> factory,
+        Guid tenantId,
+        Guid personId,
+        Guid? entraObjectId = null)
     {
         await using var db = factory.CreateDbContext();
         db.Persons.Add(new Person
         {
             Id = personId,
             TenantId = tenantId,
+            EntraObjectId = entraObjectId,
             DisplayName = $"P-{personId:N}".Substring(0, 10),
             Email = $"{personId:N}@x.mil",
         });
@@ -105,6 +109,66 @@ public class CallerEffectiveRoleResolverTests
         // Assert
         caller.RmfRole.Should().Be(RmfRole.Isso);
         caller.IsTenantAdministrator.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Caller_EntraOid_resolves_to_tenant_person_role()
+    {
+        // Arrange
+        var (factory, _) = NewFactory();
+        var tenantId = Guid.NewGuid();
+        var personId = Guid.NewGuid();
+        var entraObjectId = Guid.NewGuid();
+        await SeedPersonAsync(factory, tenantId, personId, entraObjectId);
+        await using (var db = factory.CreateDbContext())
+        {
+            db.OrganizationRoleAssignments.Add(new OrganizationRoleAssignment
+            {
+                TenantId = tenantId,
+                Role = OrganizationRole.Isso,
+                PersonId = personId,
+            });
+            await db.SaveChangesAsync();
+        }
+        ICallerEffectiveRoleResolver resolver = new CallerEffectiveRoleResolver(factory);
+
+        // Act
+        var caller = await resolver.ResolveAsync(tenantId, entraObjectId, CancellationToken.None);
+
+        // Assert
+        caller.RmfRole.Should().Be(RmfRole.Isso);
+        caller.IsTenantAdministrator.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Caller_EntraOid_does_not_resolve_role_from_another_tenant()
+    {
+        // Arrange
+        var (factory, _) = NewFactory();
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        var entraObjectId = Guid.NewGuid();
+        var personAId = Guid.NewGuid();
+        var personBId = Guid.NewGuid();
+        await SeedPersonAsync(factory, tenantA, personAId, entraObjectId);
+        await SeedPersonAsync(factory, tenantB, personBId, entraObjectId);
+        await using (var db = factory.CreateDbContext())
+        {
+            db.OrganizationRoleAssignments.Add(new OrganizationRoleAssignment
+            {
+                TenantId = tenantA,
+                Role = OrganizationRole.Issm,
+                PersonId = personAId,
+            });
+            await db.SaveChangesAsync();
+        }
+        ICallerEffectiveRoleResolver resolver = new CallerEffectiveRoleResolver(factory);
+
+        // Act
+        var caller = await resolver.ResolveAsync(tenantB, entraObjectId, CancellationToken.None);
+
+        // Assert
+        caller.Should().Be(CallerEffectiveRole.None);
     }
 
     [Fact]

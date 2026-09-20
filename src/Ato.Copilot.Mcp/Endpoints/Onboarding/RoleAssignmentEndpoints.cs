@@ -56,7 +56,7 @@ public static class RoleAssignmentEndpoints
                     return Envelope.Failure(
                         WizardErrorCodes.JobFailed,
                         $"Unknown role '{request.Role}'.",
-                        suggestion: "Use one of: Issm, Isso, Administrator, Assessor.");
+                        suggestion: $"Use one of: {string.Join(", ", Enum.GetNames<OrganizationRole>())}.");
                 }
                 if (request.PersonId == Guid.Empty)
                 {

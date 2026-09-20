@@ -132,6 +132,47 @@ public class RoleAssignmentEndpointsTests : IAsyncLifetime
         body.GetProperty("data").GetProperty("isPrimary").GetBoolean().Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("MissionOwner")]
+    [InlineData("AuthorizingOfficial")]
+    [InlineData("SystemOwner")]
+    public async Task Post_AddExtendedRole_ReturnsOkAndPersistsRole(string role)
+    {
+        // Arrange
+        var personId = await SeedPersonAsync(role);
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/onboarding/role-assignments", new
+        {
+            role,
+            personId,
+        });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        body.GetProperty("data").GetProperty("role").GetString().Should().Be(role);
+    }
+
+    [Fact]
+    public async Task Post_UnknownRole_ReturnsCanonicalRoleSuggestion()
+    {
+        // Arrange
+        var personId = await SeedPersonAsync("InvalidRole");
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/onboarding/role-assignments", new
+        {
+            role = "NotARole",
+            personId,
+        });
+
+        // Assert
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        body.GetProperty("suggestion").GetString().Should().Be(
+            "Use one of: Issm, Isso, Administrator, Assessor, MissionOwner, AuthorizingOfficial, SystemOwner.");
+    }
+
     [Fact]
     public async Task Get_ListsActiveAssignments()
     {

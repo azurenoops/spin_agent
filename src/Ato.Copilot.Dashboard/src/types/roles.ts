@@ -20,6 +20,21 @@ export const RMF_ROLES = [
 
 export type RmfRole = (typeof RMF_ROLES)[number];
 
+export const RMF_ROLE_LABELS: Record<RmfRole, string> = {
+  AuthorizingOfficial: 'Authorizing Official (AO)',
+  Issm: 'Information System Security Manager (ISSM)',
+  Isso: 'Information System Security Officer (ISSO)',
+  Sca: 'Security Control Assessor (SCA)',
+  SystemOwner: 'System Owner',
+  MissionOwner: 'Mission Owner',
+  Administrator: 'Administrator',
+};
+
+export const RMF_ROLE_OPTIONS = RMF_ROLES.map((value) => ({
+  value,
+  label: RMF_ROLE_LABELS[value],
+}));
+
 /**
  * FR-027 RBAC matrix. Key = caller's effective role. Value = roles the caller
  * may assign (or remove). Roles not listed cannot assign anything.

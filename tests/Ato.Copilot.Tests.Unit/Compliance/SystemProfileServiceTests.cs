@@ -2,6 +2,7 @@ using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Services.Roles;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,7 @@ public class SystemProfileServiceTests : IDisposable
     private readonly ServiceProvider _serviceProvider;
     private readonly AtoCopilotContext _db;
     private readonly SystemProfileService _service;
+    private readonly Mock<IUnifiedRoleReader> _unifiedRoleReader = new();
 
     private const string MoUserId = "mo-user";
     private const string IssmUserId = "issm-user";
@@ -32,6 +34,10 @@ public class SystemProfileServiceTests : IDisposable
         var dbName = $"SystemProfileSvc_{Guid.NewGuid()}";
         var services = new ServiceCollection();
         services.AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(dbName));
+        _unifiedRoleReader
+            .Setup(r => r.GetMissionOwnerAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ResolvedRoleAssignment?)null);
+        services.AddSingleton(_unifiedRoleReader.Object);
         services.AddLogging();
         _serviceProvider = services.BuildServiceProvider();
         _db = _serviceProvider.GetRequiredService<AtoCopilotContext>();
@@ -564,6 +570,34 @@ public class SystemProfileServiceTests : IDisposable
 
         result.MissionOwnerAssigned.Should().BeTrue();
         result.MissionOwnerName.Should().Be(MoUserId);
+    }
+
+    [Theory]
+    [InlineData(RoleAssignmentSource.OrgFallback)]
+    [InlineData(RoleAssignmentSource.Override)]
+    public async Task Completeness_UnifiedMissionOwner_ReturnsInfo(RoleAssignmentSource source)
+    {
+        // Arrange
+        var system = await SeedSystemAsync();
+        var personId = Guid.NewGuid();
+        _unifiedRoleReader
+            .Setup(r => r.GetMissionOwnerAsync(system.TenantId, system.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedRoleAssignment(
+                RmfRole.MissionOwner,
+                personId,
+                "Mission Owner One",
+                source,
+                source == RoleAssignmentSource.OrgFallback ? Guid.NewGuid() : null));
+
+        // Act
+        var result = await _service.GetCompletenessAsync(system.Id);
+
+        // Assert
+        result.MissionOwnerAssigned.Should().BeTrue();
+        result.MissionOwnerName.Should().Be("Mission Owner One");
+        _unifiedRoleReader.Verify(
+            r => r.GetMissionOwnerAsync(system.TenantId, system.Id, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
