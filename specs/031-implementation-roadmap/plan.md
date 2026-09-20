@@ -5,7 +5,16 @@
 
 ## Summary
 
-Transform compliance gap analysis data into AI-driven, phased implementation roadmaps with effort estimates, risk reduction projections, and bi-directional Kanban integration. Surfaces roadmaps through three channels: MCP tools (Teams Adaptive Cards), Visual Compliance Dashboard (React SPA), and PDF export. Follows existing BaseTool/BaseAgent architecture, EF Core entity patterns, and dashboard endpoint conventions.
+Transform compliance gap analysis data into AI-driven, phased implementation roadmaps with effort estimates, risk reduction projections, and bi-directional Kanban integration. Roadmaps remain available through MCP tools (Teams Adaptive Cards), REST endpoints, and PDF export. Follows existing BaseTool/BaseAgent architecture, EF Core entity patterns, and dashboard endpoint conventions.
+
+### Dashboard retirement (2026-09-20)
+
+Remove only the standalone dashboard UI and its page-specific dependencies.
+The original frontend layout and tasks below describe historical implementation.
+Backend storage, authorization, tenant isolation, and MCP envelopes are unchanged.
+Use failing retirement regressions before removal, then validate the affected
+tests and dashboard TypeScript/production build. No new dependencies or abstractions
+are required.
 
 ## Technical Context
 

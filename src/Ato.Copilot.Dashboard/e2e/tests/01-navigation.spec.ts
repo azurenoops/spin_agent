@@ -49,8 +49,10 @@ test.describe('Navigation', () => {
     const tabs = [
       'Components', 'Boundaries', 'Capabilities', 'Narratives',
       'Deviations', 'Remediation', 'Evidence', 'POA', 'Gaps',
-      'Documents', 'Legal', 'Roadmap',
+      'Documents', 'Legal',
     ];
+
+    await expect(page.getByRole('link', { name: /implementation roadmap/i })).toHaveCount(0);
 
     for (const tab of tabs) {
       const link = page.getByRole('link', { name: new RegExp(tab, 'i') });

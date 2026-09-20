@@ -282,12 +282,6 @@ export function getIntelligentSuggestions(context: ChatContext): SuggestedAction
     );
   }
 
-  if (page === 'roadmap') {
-    suggestions.push(
-      { label: 'Roadmap progress', prompt: 'Show me overall RMF roadmap progress and what needs attention', icon: '🗺️', priority: 55 },
-    );
-  }
-
   if (page === 'deviations') {
     suggestions.push(
       { label: 'Pending reviews', prompt: 'List all pending deviation requests that need my review', icon: '📋', priority: 60 },

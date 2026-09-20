@@ -7,6 +7,22 @@
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+## Dashboard retirement (2026-09-20)
+
+The original dashboard tasks below are historical and superseded by this
+UI-only retirement.
+
+- [X] R001 Add failing regressions for retired routes, navigation, help, and chat behavior.
+- [X] R002 Remove the dashboard page, route alias, sidebar link, and page-only dependencies; preserve roadmap APIs and tools.
+- [X] R003 Update current user documentation and navigation requirements.
+- [X] R004 Verify affected tests, TypeScript checking, and production build; provide local manual checks.
+
+Validation: seven retirement regressions failed before removal; all 36 targeted
+tests passed afterward. Dashboard `tsc --noEmit` and the production build passed.
+Local browser checks with mocked auth/system responses confirmed the menu link
+is absent, Documents and Authorize remain, and both retired URLs are unmatched.
+Manual checks are documented in [quickstart.md](quickstart.md).
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)

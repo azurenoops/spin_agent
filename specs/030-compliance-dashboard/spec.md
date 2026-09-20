@@ -176,7 +176,7 @@ The backend exposes RESTful API endpoints that aggregate compliance data into da
 
 **Navigation:**
 
-- **FR-036**: The system-level sidebar navigation MUST organize navigation items into logical groups: System Profile (Overview, Components, Boundaries, Capabilities), Compliance Posture (Narratives, Legal & Regulatory), Assessment & Remediation (Assessments, Remediation, POA&M, Evidence, Deviations), and Planning & Delivery (Implementation Roadmap, Documents).
+- **FR-036**: The system-level sidebar navigation MUST organize navigation items into logical groups: System Profile (Overview, Components, Boundaries, Capabilities), Compliance Posture (Narratives, Legal & Regulatory), Assessment & Remediation (Assessments, Remediation, POA&M, Evidence, Deviations), and Planning & Delivery (Documents). The retired Implementation Roadmap page MUST NOT appear in navigation.
 - **FR-037**: When the sidebar is expanded, group labels MUST be displayed above their items. When the sidebar is collapsed, a thin divider MUST separate groups visually.
 
 **Security Capabilities Library:**

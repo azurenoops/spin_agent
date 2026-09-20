@@ -89,7 +89,6 @@ Shows the 10 most recent events for the system: assessments, narrative updates, 
 ### Quick Links
 
 - **Component Inventory** — Navigate to `/systems/{systemId}/components`
-- **Implementation Roadmap** — Navigate to `/systems/{systemId}/roadmap`
 
 ---
 
@@ -179,41 +178,6 @@ Deleting a component flags linked capabilities for review. A confirmation dialog
 ### Risk Visibility
 
 The Components page focuses on asset inventory management. Per-component risk summaries (open finding count, severity, overdue remediations) are displayed on the **Assessment detail view** and **Remediation page**, where findings are automatically linked to components by matching Azure resource IDs.
-
----
-
-## Implementation Roadmap
-
-Navigate to `/systems/{systemId}/roadmap` to view the implementation plan.
-
-### Summary Metrics
-
-- **Total Gaps** — Number of items to remediate
-- **Total Effort** — Estimated days of work
-- **Risk Reduction** — Percentage of risk addressed
-- **Timeline** — Total weeks with phase count
-
-### Phase Timeline
-
-A Gantt-style chart shows each phase as a horizontal bar spanning its target weeks. Overlapping bars indicate parallel work streams.
-
-### Risk Reduction Curve
-
-A line chart showing projected risk reduction over time. When actual progress data is available, a second line compares reality to the plan. Falling behind the curve signals a need to accelerate remediation.
-
-### Phase Details
-
-Click any phase heading to expand a table showing:
-
-| Column | Description |
-|--------|-------------|
-| Control ID | The NIST control being addressed |
-| Gap Type | Type of coverage gap |
-| Severity | CAT I, II, or III |
-| Effort | Estimated days |
-| Role | Assigned team role |
-| Dependencies | Controls that must be completed first |
-| Status | Current completion status |
 
 ---
 
