@@ -126,6 +126,46 @@ public class McpServerResponseEnrichmentTests
     }
 
     [Fact]
+    public async Task ProcessChatRequestAsync_MapsBackendFallbackMetadata()
+    {
+        // Arrange
+        _complianceAgent.Setup(a => a.ProcessAsync(
+                It.IsAny<string>(), It.IsAny<AgentConversationContext>(),
+                It.IsAny<CancellationToken>(), It.IsAny<IProgress<string>>()))
+            .ReturnsAsync(new AgentResponse
+            {
+                Success = true,
+                Response = "fallback response",
+                AgentName = "Compliance Agent",
+                BackendProvider = "OpenAi",
+                BackendModel = "approved-openai-deployment",
+                Warnings =
+                [
+                    new AgentWarning
+                    {
+                        Code = "AI_BACKEND_FALLBACK",
+                        Message = "Azure AI Foundry was unavailable."
+                    }
+                ]
+            });
+
+        // Act
+        var result = await CreateServer().ProcessChatRequestAsync("test");
+
+        // Assert
+        result.Metadata["backendProvider"].Should().Be("OpenAi");
+        result.Metadata["backendModel"].Should().Be("approved-openai-deployment");
+        result.Metadata["warnings"].Should().BeEquivalentTo(new[]
+        {
+            new AgentWarning
+            {
+                Code = "AI_BACKEND_FALLBACK",
+                Message = "Azure AI Foundry was unavailable."
+            }
+        });
+    }
+
+    [Fact]
     public async Task ProcessChatRequestAsync_DefaultsWhenAgentReturnsNoEnrichment()
     {
         _complianceAgent.Setup(a => a.ProcessAsync(

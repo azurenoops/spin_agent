@@ -141,6 +141,7 @@ All configuration is passed via environment variables with `ATO_` prefix. See `.
 | `ATO_AZUREAD__CLOUDENVIRONMENT` | `AzureUSGovernment` | Azure cloud (`AzureCloud` for commercial) |
 | `ATO_DATABASE__PROVIDER` | `SqlServer` | `SQLite` (dev) or `SqlServer` (prod) |
 | `ATO_AZUREAI__ENABLED` | `false` | Enable AI-assisted recommendations |
+| `ATO_AZUREAI__ALLOWBACKENDFALLBACK` | `false` | Permit an audited Foundry-to-OpenAI fallback when both backends are approved |
 | `ATO_AUTH__IDLETIMEOUTMINUTES` | `30` | Session idle timeout (FedRAMP: must be ≤ 15) |
 | `ATO_AUTH__DEFAULTMETHOD` | `Cac` | Auth method: `Cac` (DoD) or `Msal` (Azure AD) |
 
