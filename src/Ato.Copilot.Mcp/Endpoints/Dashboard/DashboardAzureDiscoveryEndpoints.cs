@@ -218,6 +218,21 @@ public static partial class DashboardEndpoints
 
         // ─── Boundary Component Assignment Endpoints (Feature 040 — US3) ─────
 
+        group.MapGet("/systems/{systemId}/boundary-definitions/{boundaryId}/component-candidates", async (
+            string systemId,
+            string boundaryId,
+            string? search,
+            ComponentService componentService,
+            CancellationToken ct) =>
+            {
+                var result = await componentService.GetBoundaryCandidatesAsync(systemId, boundaryId, search, ct);
+                if (result.Error == "BOUNDARY_NOT_FOUND")
+                    return Results.NotFound(new { error = result.Error, message = "Boundary not found for this system." });
+
+                return Results.Ok(result);
+            })
+            .WithName("ListBoundaryComponentCandidates");
+
         group.MapGet("/systems/{systemId}/boundary-definitions/{boundaryId}/components", async (
             string systemId,
             string boundaryId,
@@ -236,7 +251,10 @@ public static partial class DashboardEndpoints
                     Page = page ?? 1,
                     PageSize = pageSize ?? 50,
                 };
-                var result = await componentService.ListBoundaryComponentsAsync(boundaryId, query);
+                var result = await componentService.ListBoundaryComponentsAsync(systemId, boundaryId, query);
+                if (result.Error == "BOUNDARY_NOT_FOUND")
+                    return Results.NotFound(new { error = result.Error, message = "Boundary not found for this system." });
+
                 return Results.Ok(result);
             })
             .WithName("ListBoundaryComponents");
@@ -248,8 +266,10 @@ public static partial class DashboardEndpoints
             ComponentService componentService) =>
             {
                 var (dto, error) = await componentService.AssignComponentToBoundaryAsync(
+                    systemId,
                     boundaryId,
                     request.ComponentId,
+                    request.Source,
                     request.IsInScope,
                     request.ExclusionRationale,
                     request.InheritanceProvider,
@@ -259,6 +279,12 @@ public static partial class DashboardEndpoints
                     return Results.Conflict(new { error, message = "Component already assigned to this boundary." });
                 if (error == "RATIONALE_REQUIRED")
                     return Results.BadRequest(new { error, message = "Exclusion rationale is required when component is excluded." });
+                if (error == "INVALID_COMPONENT_TYPE")
+                    return Results.BadRequest(new { error, message = "Person components cannot be assigned to authorization boundaries." });
+                if (error == "INVALID_SOURCE")
+                    return Results.BadRequest(new { error, message = "Source must be Organization, System, or CSP." });
+                if (error == "BOUNDARY_NOT_FOUND")
+                    return Results.NotFound(new { error, message = "Boundary not found for this system." });
                 if (error == "NOT_FOUND")
                     return Results.NotFound(new { error, message = "Component not found." });
 
@@ -274,6 +300,8 @@ public static partial class DashboardEndpoints
             ComponentService componentService) =>
             {
                 var (dto, error) = await componentService.UpdateBoundaryAssignmentAsync(
+                    systemId,
+                    boundaryId,
                     assignmentId,
                     request.IsInScope,
                     request.ExclusionRationale,
@@ -282,6 +310,8 @@ public static partial class DashboardEndpoints
 
                 if (error == "RATIONALE_REQUIRED")
                     return Results.BadRequest(new { error, message = "Exclusion rationale is required when component is excluded." });
+                if (error == "BOUNDARY_NOT_FOUND")
+                    return Results.NotFound(new { error, message = "Boundary not found for this system." });
                 if (error == "NOT_FOUND")
                     return Results.NotFound(new { error, message = "Assignment not found." });
 
@@ -295,7 +325,7 @@ public static partial class DashboardEndpoints
             string assignmentId,
             ComponentService componentService) =>
             {
-                var removed = await componentService.RemoveComponentFromBoundaryAsync(assignmentId);
+                var removed = await componentService.RemoveComponentFromBoundaryAsync(systemId, boundaryId, assignmentId);
                 if (!removed)
                     return Results.NotFound(new { error = "NOT_FOUND", message = "Assignment not found." });
 

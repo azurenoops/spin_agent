@@ -248,6 +248,21 @@
 
 ---
 
+## Phase 12: Authorization-Boundary Candidate Integrity (Issue #936)
+
+**Goal**: Exclude people, expose eligible tenant and CSP components, and enforce source-aware assignment at the API boundary.
+
+- [X] T067 [P] Add service and endpoint tests for Person exclusion, eligible Place/Thing/Policy candidates, published CSP visibility, direct assignment rejection, route consistency, and tenant isolation
+- [X] T068 Add nullable CSP reference and source discriminator to BoundaryComponentAssignment, including EF migration and idempotent startup schema additions
+- [X] T069 Implement the unified boundary candidate query and source-aware assignment validation
+- [X] T070 [P] Update Boundary Management and intake wizard pickers to consume the unified candidate contract
+- [X] T071 [P] Add focused component tests and deterministic browser coverage for mixed tenant/CSP candidates and CSP assignment
+- [X] T072 Run focused backend/frontend tests, full affected project tests, dashboard build, and Chromium E2E
+
+**Checkpoint**: Person records cannot be assigned, eligible tenant and published CSP records are visible, and all assignment paths preserve tenant isolation.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

@@ -4,6 +4,7 @@ import type {
   CreateBoundaryDefinitionRequest,
   DeleteBoundaryDefinitionResponse,
   BoundaryComponentDto,
+  BoundaryComponentCandidateDto,
   AssignComponentRequest,
   UpdateAssignmentRequest,
   BoundaryLockStatus,
@@ -131,6 +132,18 @@ export interface BoundaryComponentListResponse {
   totalCount: number;
   page: number;
   pageSize: number;
+}
+
+export async function listBoundaryComponentCandidates(
+  systemId: string,
+  boundaryId: string,
+  search?: string,
+): Promise<BoundaryComponentCandidateDto[]> {
+  const { data } = await apiClient.get<{ items: BoundaryComponentCandidateDto[] }>(
+    `/systems/${systemId}/boundary-definitions/${boundaryId}/component-candidates`,
+    { params: { search: search || undefined } },
+  );
+  return data.items;
 }
 
 export async function listBoundaryComponents(

@@ -9,9 +9,9 @@ import {
   deleteBoundaryDefinition,
   fetchBoundaryResources,
   fetchBoundaryComponents,
-  assignComponentToBoundary,
   removeComponentFromBoundary,
   listBoundaryComponents,
+  listBoundaryComponentCandidates,
   assignComponent,
   updateAssignment,
   removeAssignment as removeBoundaryAssignment,
@@ -28,6 +28,7 @@ import type {
   CreateBoundaryDefinitionRequest,
   DeleteBoundaryDefinitionResponse,
   BoundaryComponentDto,
+  BoundaryComponentCandidateDto,
   BoundaryLockStatus,
 } from '../types/dashboard';
 
@@ -436,7 +437,7 @@ function BoundaryComponentsTab({
   onRefresh: () => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [allComponents, setAllComponents] = useState<OrgComponentDto[]>([]);
+  const [candidates, setCandidates] = useState<BoundaryComponentCandidateDto[]>([]);
   const [search, setSearch] = useState('');
   const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
 
@@ -470,16 +471,17 @@ function BoundaryComponentsTab({
     checkLockStatus(systemId, boundaryId).then(setLockStatus).catch(() => {});
   }, [systemId, boundaryId]);
 
-  useEffect(() => {
-    if (showAdd && allComponents.length === 0) {
-      listComponents({ pageSize: 200 }).then((r) => setAllComponents(r.items)).catch(() => setLoadError('Failed to load components'));
+  const fetchCandidates = useCallback(async () => {
+    if (!showAdd) return;
+    try {
+      setCandidates(await listBoundaryComponentCandidates(systemId, boundaryId, search));
+      setLoadError(null);
+    } catch {
+      setLoadError('Failed to load eligible components');
     }
-  }, [showAdd, allComponents.length]);
+  }, [showAdd, systemId, boundaryId, search]);
 
-  const assignedIds = new Set([...components.map((c) => c.id), ...bcAssignments.map((a) => a.componentId)]);
-  const available = allComponents.filter(
-    (c) => !assignedIds.has(c.id) && (!search || c.name.toLowerCase().includes(search.toLowerCase())),
-  );
+  useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 
   const handleAcquireLock = async () => {
     try {
@@ -501,20 +503,21 @@ function BoundaryComponentsTab({
     }
   };
 
-  const handleAdd = async (comp: OrgComponentDto) => {
-    setAddingIds((prev) => new Set([...prev, comp.id]));
+  const handleAdd = async (candidate: BoundaryComponentCandidateDto) => {
+    setAddingIds((prev) => new Set([...prev, candidate.id]));
     try {
-      await assignComponent(systemId, boundaryId, { componentId: comp.id, isInScope: true });
+      await assignComponent(systemId, boundaryId, {
+        componentId: candidate.id,
+        source: candidate.source,
+        isInScope: true,
+      });
       await fetchAssignments();
+      await fetchCandidates();
       onRefresh();
     } catch {
-      // fall back to legacy assign
-      try {
-        await assignComponentToBoundary(comp.id, systemId, boundaryId);
-        onRefresh();
-      } catch { /* ignore */ }
+      setLoadError('Failed to assign component');
     } finally {
-      setAddingIds((prev) => { const next = new Set(prev); next.delete(comp.id); return next; });
+      setAddingIds((prev) => { const next = new Set(prev); next.delete(candidate.id); return next; });
     }
   };
 
@@ -611,32 +614,33 @@ function BoundaryComponentsTab({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search org components..."
+            placeholder="Search eligible components..."
             className="w-full text-sm border border-gray-300 rounded-md px-3 py-1.5 mb-2 bg-white"
           />
           <div className="max-h-48 overflow-y-auto space-y-1">
-            {available.length === 0 ? (
+            {candidates.length === 0 ? (
               <p className="text-xs text-gray-500 italic py-2 text-center">
-                {allComponents.length === 0 ? 'Loading...' : 'All components already assigned'}
+                No eligible components found
               </p>
             ) : (
-              available.map((c) => (
-                <div key={c.id} className="flex items-center justify-between bg-white rounded p-2 border border-gray-100">
+              candidates.map((candidate) => (
+                <div key={`${candidate.source}-${candidate.id}`} className="flex items-center justify-between bg-white rounded p-2 border border-gray-100">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-800 truncate">{c.name}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${TYPE_COLORS[c.componentType] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {c.componentType}
+                      <span className="text-sm font-medium text-gray-800 truncate">{candidate.name}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${TYPE_COLORS[candidate.componentType] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {candidate.componentType}
                       </span>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">{candidate.source}</span>
                     </div>
-                    {c.subType && <p className="text-xs text-gray-500">{c.subType}</p>}
+                    {candidate.description && <p className="text-xs text-gray-500 truncate">{candidate.description}</p>}
                   </div>
                   <button
-                    onClick={() => handleAdd(c)}
-                    disabled={addingIds.has(c.id)}
+                    onClick={() => handleAdd(candidate)}
+                    disabled={addingIds.has(candidate.id)}
                     className="ml-2 px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 flex-shrink-0"
                   >
-                    {addingIds.has(c.id) ? 'Adding...' : 'Add'}
+                    {addingIds.has(candidate.id) ? 'Adding...' : 'Add'}
                   </button>
                 </div>
               ))
@@ -662,6 +666,7 @@ function BoundaryComponentsTab({
               <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase text-gray-500">
                 <th className="py-2 pr-3">Name</th>
                 <th className="py-2 pr-3">Type</th>
+                <th className="py-2 pr-3">Source</th>
                 <th className="py-2 pr-3">Scope</th>
                 <th className="py-2 pr-3">Rationale / Provider</th>
                 <th className="py-2"></th>
@@ -676,6 +681,7 @@ function BoundaryComponentsTab({
                       {a.componentType}
                     </span>
                   </td>
+                  <td className="py-2 pr-3 text-xs text-gray-600">{a.source}</td>
                   <td className="py-2 pr-3">
                     {editingScope === a.assignmentId ? (
                       <div className="space-y-1">

@@ -1235,19 +1235,44 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'BoundaryComponentAssignments')
         CREATE TABLE BoundaryComponentAssignments (
             Id NVARCHAR(450) NOT NULL PRIMARY KEY,
-            SystemComponentId NVARCHAR(450) NOT NULL,
+            SystemComponentId NVARCHAR(450) NULL,
+            CspInheritedComponentId UNIQUEIDENTIFIER NULL,
             AuthorizationBoundaryDefinitionId NVARCHAR(450) NOT NULL,
             IsInScope BIT NOT NULL DEFAULT 1,
             ExclusionRationale NVARCHAR(1000) NULL,
             InheritanceProvider NVARCHAR(500) NULL,
             CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-            CreatedBy NVARCHAR(200) NULL
+            CreatedBy NVARCHAR(200) NULL,
+            CONSTRAINT CK_BCA_ExactlyOneComponent CHECK (
+                (SystemComponentId IS NOT NULL AND CspInheritedComponentId IS NULL) OR
+                (SystemComponentId IS NULL AND CspInheritedComponentId IS NOT NULL))
         );
 
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_ComponentBoundary')
-            CREATE UNIQUE INDEX IX_BCA_ComponentBoundary ON BoundaryComponentAssignments (SystemComponentId, AuthorizationBoundaryDefinitionId);
+        IF COL_LENGTH('BoundaryComponentAssignments', 'CspInheritedComponentId') IS NULL
+            ALTER TABLE BoundaryComponentAssignments ADD CspInheritedComponentId UNIQUEIDENTIFIER NULL;
+        ALTER TABLE BoundaryComponentAssignments ALTER COLUMN SystemComponentId NVARCHAR(450) NULL;
+
+        IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_ComponentBoundary' AND object_id = OBJECT_ID('BoundaryComponentAssignments'))
+            DROP INDEX IX_BCA_ComponentBoundary ON BoundaryComponentAssignments;
+        CREATE UNIQUE INDEX IX_BCA_ComponentBoundary
+            ON BoundaryComponentAssignments (SystemComponentId, AuthorizationBoundaryDefinitionId)
+            WHERE SystemComponentId IS NOT NULL;
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_CspComponentBoundary' AND object_id = OBJECT_ID('BoundaryComponentAssignments'))
+            CREATE UNIQUE INDEX IX_BCA_CspComponentBoundary
+                ON BoundaryComponentAssignments (CspInheritedComponentId, AuthorizationBoundaryDefinitionId)
+                WHERE CspInheritedComponentId IS NOT NULL;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_BoundaryId')
             CREATE INDEX IX_BCA_BoundaryId ON BoundaryComponentAssignments (AuthorizationBoundaryDefinitionId);
+
+        IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_BCA_ExactlyOneComponent')
+            ALTER TABLE BoundaryComponentAssignments ADD CONSTRAINT CK_BCA_ExactlyOneComponent CHECK (
+                (SystemComponentId IS NOT NULL AND CspInheritedComponentId IS NULL) OR
+                (SystemComponentId IS NULL AND CspInheritedComponentId IS NOT NULL));
+
+        IF OBJECT_ID('CspInheritedComponents', 'U') IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_BoundaryComponentAssignments_CspInheritedComponents_CspInheritedComponentId')
+            ALTER TABLE BoundaryComponentAssignments ADD CONSTRAINT FK_BoundaryComponentAssignments_CspInheritedComponents_CspInheritedComponentId
+                FOREIGN KEY (CspInheritedComponentId) REFERENCES CspInheritedComponents(Id);
         """;
 
     if (isSqlServer)
@@ -1382,6 +1407,27 @@ static async Task<HashSet<string>> GetSqliteColumnsAsync(
     while (await reader.ReadAsync(ct))
         cols.Add(reader.GetString(1)); // column index 1 = name
     return cols;
+}
+
+/// <summary>Returns whether a SQLite column currently has a NOT NULL constraint.</summary>
+static async Task<bool> IsSqliteColumnNotNullAsync(
+    AtoCopilotContext db,
+    string table,
+    string column,
+    CancellationToken ct)
+{
+    await using var cmd = db.Database.GetDbConnection().CreateCommand();
+    cmd.CommandText = $"PRAGMA table_info('{table}')";
+    if (cmd.Connection!.State != System.Data.ConnectionState.Open)
+        await cmd.Connection.OpenAsync(ct);
+    await using var reader = await cmd.ExecuteReaderAsync(ct);
+    while (await reader.ReadAsync(ct))
+    {
+        if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+            return reader.GetInt32(3) == 1;
+    }
+
+    return false;
 }
 
 /// <summary>
@@ -1568,19 +1614,74 @@ static async Task ApplySqliteFeature040SchemaAsync(AtoCopilotContext db, Cancell
     await db.Database.ExecuteSqlRawAsync("""
         CREATE TABLE IF NOT EXISTS "BoundaryComponentAssignments" (
             "Id"                                  TEXT NOT NULL PRIMARY KEY,
-            "SystemComponentId"                   TEXT NOT NULL,
+            "TenantId"                            TEXT NULL,
+            "SystemComponentId"                   TEXT NULL,
+            "CspInheritedComponentId"              TEXT NULL,
             "AuthorizationBoundaryDefinitionId"   TEXT NOT NULL,
             "IsInScope"                           INTEGER NOT NULL DEFAULT 1,
             "ExclusionRationale"                  TEXT NULL,
             "InheritanceProvider"                 TEXT NULL,
             "CreatedAt"                           TEXT NOT NULL DEFAULT (datetime('now')),
-            "CreatedBy"                           TEXT NULL
+            "CreatedBy"                           TEXT NULL,
+            "ModifiedAt"                          TEXT NULL,
+            "ModifiedBy"                          TEXT NULL,
+            CONSTRAINT "CK_BCA_ExactlyOneComponent" CHECK (
+                ("SystemComponentId" IS NOT NULL AND "CspInheritedComponentId" IS NULL) OR
+                ("SystemComponentId" IS NULL AND "CspInheritedComponentId" IS NOT NULL))
         )
         """, ct);
 
+    var assignmentCols = await GetSqliteColumnsAsync(db, "BoundaryComponentAssignments", ct);
+    var localReferenceIsRequired = await IsSqliteColumnNotNullAsync(
+        db, "BoundaryComponentAssignments", "SystemComponentId", ct);
+    if (!assignmentCols.Contains("CspInheritedComponentId") || localReferenceIsRequired)
+    {
+        var tenantId = assignmentCols.Contains("TenantId") ? "\"TenantId\"" : "NULL";
+        var modifiedAt = assignmentCols.Contains("ModifiedAt") ? "\"ModifiedAt\"" : "NULL";
+        var modifiedBy = assignmentCols.Contains("ModifiedBy") ? "\"ModifiedBy\"" : "NULL";
+
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"BoundaryComponentAssignments\" RENAME TO \"BoundaryComponentAssignments_Legacy936\"", ct);
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE "BoundaryComponentAssignments" (
+                "Id"                                  TEXT NOT NULL PRIMARY KEY,
+                "TenantId"                            TEXT NULL,
+                "SystemComponentId"                   TEXT NULL,
+                "CspInheritedComponentId"              TEXT NULL,
+                "AuthorizationBoundaryDefinitionId"   TEXT NOT NULL,
+                "IsInScope"                           INTEGER NOT NULL DEFAULT 1,
+                "ExclusionRationale"                  TEXT NULL,
+                "InheritanceProvider"                 TEXT NULL,
+                "CreatedAt"                           TEXT NOT NULL DEFAULT (datetime('now')),
+                "CreatedBy"                           TEXT NULL,
+                "ModifiedAt"                          TEXT NULL,
+                "ModifiedBy"                          TEXT NULL,
+                CONSTRAINT "CK_BCA_ExactlyOneComponent" CHECK (
+                    ("SystemComponentId" IS NOT NULL AND "CspInheritedComponentId" IS NULL) OR
+                    ("SystemComponentId" IS NULL AND "CspInheritedComponentId" IS NOT NULL))
+            )
+            """, ct);
+        await db.Database.ExecuteSqlRawAsync($"""
+            INSERT INTO "BoundaryComponentAssignments" (
+                "Id", "TenantId", "SystemComponentId", "CspInheritedComponentId",
+                "AuthorizationBoundaryDefinitionId", "IsInScope", "ExclusionRationale",
+                "InheritanceProvider", "CreatedAt", "CreatedBy", "ModifiedAt", "ModifiedBy")
+            SELECT "Id", {tenantId}, "SystemComponentId", NULL,
+                "AuthorizationBoundaryDefinitionId", "IsInScope", "ExclusionRationale",
+                "InheritanceProvider", "CreatedAt", "CreatedBy", {modifiedAt}, {modifiedBy}
+            FROM "BoundaryComponentAssignments_Legacy936"
+            """, ct);
+        await db.Database.ExecuteSqlRawAsync("DROP TABLE \"BoundaryComponentAssignments_Legacy936\"", ct);
+    }
+
     await db.Database.ExecuteSqlRawAsync(
         "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_BCA_ComponentBoundary\" " +
-        "ON \"BoundaryComponentAssignments\" (\"SystemComponentId\", \"AuthorizationBoundaryDefinitionId\")", ct);
+        "ON \"BoundaryComponentAssignments\" (\"SystemComponentId\", \"AuthorizationBoundaryDefinitionId\") " +
+        "WHERE \"SystemComponentId\" IS NOT NULL", ct);
+
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_BCA_CspComponentBoundary\" " +
+        "ON \"BoundaryComponentAssignments\" (\"CspInheritedComponentId\", \"AuthorizationBoundaryDefinitionId\") " +
+        "WHERE \"CspInheritedComponentId\" IS NOT NULL", ct);
 
     await db.Database.ExecuteSqlRawAsync(
         "CREATE INDEX IF NOT EXISTS \"IX_BCA_BoundaryId\" " +

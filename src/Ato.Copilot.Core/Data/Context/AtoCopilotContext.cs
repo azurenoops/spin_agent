@@ -2504,7 +2504,7 @@ public class AtoCopilotContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasMaxLength(36);
-            entity.Property(e => e.SystemComponentId).HasMaxLength(36).IsRequired();
+            entity.Property(e => e.SystemComponentId).HasMaxLength(36);
             entity.Property(e => e.AuthorizationBoundaryDefinitionId).HasMaxLength(36).IsRequired();
             entity.Property(e => e.ExclusionRationale).HasMaxLength(1000);
             entity.Property(e => e.InheritanceProvider).HasMaxLength(200);
@@ -2513,7 +2513,13 @@ public class AtoCopilotContext : DbContext
 
             entity.HasIndex(e => new { e.SystemComponentId, e.AuthorizationBoundaryDefinitionId })
                 .IsUnique()
+                .HasFilter("[SystemComponentId] IS NOT NULL")
                 .HasDatabaseName("IX_BCA_ComponentBoundary");
+
+            entity.HasIndex(e => new { e.CspInheritedComponentId, e.AuthorizationBoundaryDefinitionId })
+                .IsUnique()
+                .HasFilter("[CspInheritedComponentId] IS NOT NULL")
+                .HasDatabaseName("IX_BCA_CspComponentBoundary");
 
             entity.HasIndex(e => e.AuthorizationBoundaryDefinitionId)
                 .HasDatabaseName("IX_BCA_BoundaryId");
@@ -2523,10 +2529,19 @@ public class AtoCopilotContext : DbContext
                 .HasForeignKey(e => e.SystemComponentId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            entity.HasOne(e => e.CspInheritedComponent)
+                .WithMany()
+                .HasForeignKey(e => e.CspInheritedComponentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             entity.HasOne(e => e.AuthorizationBoundaryDefinition)
                 .WithMany(b => b.ComponentAssignments)
                 .HasForeignKey(e => e.AuthorizationBoundaryDefinitionId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(table => table.HasCheckConstraint(
+                "CK_BCA_ExactlyOneComponent",
+                "([SystemComponentId] IS NOT NULL AND [CspInheritedComponentId] IS NULL) OR ([SystemComponentId] IS NULL AND [CspInheritedComponentId] IS NOT NULL)"));
         });
 
         // ─── SystemCapabilityLink (Feature 042) ─────────────────────────────────

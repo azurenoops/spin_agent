@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchBoundaryDefinitions, createBoundaryDefinition, assignComponent, listBoundaryComponents, addBoundaryResource } from '../../../api/boundaries';
-import { getComponents, listComponents } from '../../../api/components';
-import type { OrgComponentDto } from '../../../api/components';
-import type { BoundaryDefinitionDto, CreateBoundaryDefinitionRequest, SystemComponentDto, BoundaryComponentDto } from '../../../types/dashboard';
+import { fetchBoundaryDefinitions, createBoundaryDefinition, assignComponent, listBoundaryComponents, listBoundaryComponentCandidates, addBoundaryResource } from '../../../api/boundaries';
+import type { BoundaryDefinitionDto, CreateBoundaryDefinitionRequest, BoundaryComponentDto, BoundaryComponentCandidateDto } from '../../../types/dashboard';
 
 interface AuthorizationBoundariesProps {
   systemId: string;
@@ -18,16 +16,13 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
 
   // Component assignment state
   const [selectedBoundary, setSelectedBoundary] = useState<string | null>(null);
-  const [systemComponents, setSystemComponents] = useState<SystemComponentDto[]>([]);
-  const [orgComponents, setOrgComponents] = useState<OrgComponentDto[]>([]);
+  const [candidates, setCandidates] = useState<BoundaryComponentCandidateDto[]>([]);
   const [assignedComponentIds, setAssignedComponentIds] = useState<Set<string>>(new Set());
   const [compSearch, setCompSearch] = useState('');
-  const [compTab, setCompTab] = useState<'system' | 'org'>('system');
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBoundaryDefinitions(systemId).then(setBoundaries).catch(() => setLoadError('Failed to load boundary definitions'));
-    getComponents(systemId).then((res) => setSystemComponents(res.items)).catch(() => setLoadError('Failed to load system components'));
   }, [systemId]);
 
   // Load already-assigned components when a boundary is selected
@@ -49,12 +44,11 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
   }, [selectedBoundary, loadAssignedComponents]);
 
   useEffect(() => {
-    if (compTab === 'org') {
-      listComponents({ search: compSearch || undefined, pageSize: 50 })
-        .then((res) => setOrgComponents(res.items))
-        .catch(() => setLoadError('Failed to load organization components'));
-    }
-  }, [compTab, compSearch]);
+    if (!selectedBoundary) return;
+    listBoundaryComponentCandidates(systemId, selectedBoundary, compSearch)
+      .then(setCandidates)
+      .catch(() => setLoadError('Failed to load boundary component candidates'));
+  }, [systemId, selectedBoundary, compSearch]);
 
   const handleAdd = async () => {
     if (!form.name.trim()) {
@@ -79,27 +73,31 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
     }
   };
 
-  const handleAssignComponent = async (componentId: string, componentName: string, componentType: string, boundaryId: string) => {
+  const handleAssignComponent = async (candidate: BoundaryComponentCandidateDto, boundaryId: string) => {
+    const { id: componentId, name: componentName, componentType, source } = candidate;
     if (assignedComponentIds.has(componentId)) return;
     setAssigningId(componentId);
     try {
       await assignComponent(systemId, boundaryId, {
         componentId,
+        source,
         isInScope: true,
       });
-      // Also create a legacy AuthorizationBoundary resource entry so the RMF gate passes
-      await addBoundaryResource(boundaryId, {
-        resourceId: componentId,
-        resourceType: componentType,
-        resourceName: componentName,
-      }).catch((err: unknown) => {
-        const status = err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { status?: number } }).response?.status
-          : undefined;
-        if (status !== 409) onErrors({ _form: ['Failed to assign component'] });
-      }); // Ignore 409 duplicates
+      if (source !== 'CSP') {
+        await addBoundaryResource(boundaryId, {
+          resourceId: componentId,
+          resourceType: componentType,
+          resourceName: componentName,
+        }).catch((err: unknown) => {
+          const status = err && typeof err === 'object' && 'response' in err
+            ? (err as { response?: { status?: number } }).response?.status
+            : undefined;
+          if (status !== 409) onErrors({ _form: ['Failed to assign component'] });
+        });
+      }
       // Update local tracking immediately
       setAssignedComponentIds((prev) => new Set([...prev, componentId]));
+      setCandidates((prev) => prev.filter((item) => item.id !== componentId));
       // Refresh boundaries to update counts
       const updated = await fetchBoundaryDefinitions(systemId);
       setBoundaries(updated);
@@ -154,92 +152,32 @@ export default function AuthorizationBoundaries({ systemId, onNext, onErrors }: 
             Assign Components to: <span className="text-indigo-700">{boundaries.find((b) => b.id === selectedBoundary)?.name}</span>
           </h3>
 
-          {/* Sub-tabs for system vs org components */}
-          <div className="mb-3 flex border-b border-gray-200">
-            <button
-              onClick={() => setCompTab('system')}
-              className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
-                compTab === 'system' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              System Components
-            </button>
-            <button
-              onClick={() => setCompTab('org')}
-              className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
-                compTab === 'org' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Organization Library
-            </button>
-          </div>
-
-          {compTab === 'org' && (
-            <input
-              value={compSearch}
-              onChange={(e) => setCompSearch(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-2"
-              placeholder="Search org components..."
-            />
-          )}
+          <input
+            value={compSearch}
+            onChange={(e) => setCompSearch(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm mb-2"
+            placeholder="Search eligible components..."
+          />
 
           <div className="max-h-40 overflow-y-auto space-y-1">
-            {compTab === 'system' ? (
-              systemComponents.length === 0 ? (
-                <p className="text-xs text-gray-400">No system components. Add components in Step 3 first.</p>
-              ) : (
-                systemComponents.map((c) => {
-                  const isAssigned = assignedComponentIds.has(c.id);
-                  return (
-                  <div key={c.id} className="flex items-center justify-between rounded border border-gray-100 bg-white px-3 py-1.5 text-sm">
-                    <div>
-                      <span className="font-medium">{c.name}</span>
-                      <span className="ml-2 rounded bg-gray-200 px-1 py-0.5 text-xs text-gray-600">{c.componentType}</span>
-                    </div>
-                    {isAssigned ? (
-                      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Assigned &#10003;</span>
-                    ) : (
-                    <button
-                      onClick={() => handleAssignComponent(c.id, c.name, c.componentType, selectedBoundary)}
-                      disabled={assigningId === c.id}
-                      className="rounded bg-indigo-600 px-2 py-0.5 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                      {assigningId === c.id ? 'Assigning...' : 'Assign'}
-                    </button>
-                    )}
-                  </div>
-                  );
-                })
-              )
-            ) : (
-              orgComponents.length === 0 ? (
-                <p className="text-xs text-gray-400">No organization components found.</p>
-              ) : (
-                orgComponents.map((oc) => {
-                  const isAssigned = assignedComponentIds.has(oc.id);
-                  return (
-                  <div key={oc.id} className="flex items-center justify-between rounded border border-gray-100 bg-white px-3 py-1.5 text-sm">
-                    <div>
-                      <span className="font-medium">{oc.name}</span>
-                      <span className="ml-2 rounded bg-gray-200 px-1 py-0.5 text-xs text-gray-600">{oc.componentType}</span>
-                      {oc.subType && <span className="ml-1 text-xs text-gray-400">{oc.subType}</span>}
-                    </div>
-                    {isAssigned ? (
-                      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Assigned &#10003;</span>
-                    ) : (
-                    <button
-                      onClick={() => handleAssignComponent(oc.id, oc.name, oc.componentType, selectedBoundary)}
-                      disabled={assigningId === oc.id}
-                      className="rounded bg-indigo-600 px-2 py-0.5 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                      {assigningId === oc.id ? 'Assigning...' : 'Assign'}
-                    </button>
-                    )}
-                  </div>
-                  );
-                })
-              )
-            )}
+            {candidates.length === 0 ? (
+              <p className="text-xs text-gray-400">No eligible components found.</p>
+            ) : candidates.map((candidate) => (
+              <div key={`${candidate.source}-${candidate.id}`} className="flex items-center justify-between rounded border border-gray-100 bg-white px-3 py-1.5 text-sm">
+                <div>
+                  <span className="font-medium">{candidate.name}</span>
+                  <span className="ml-2 rounded bg-gray-200 px-1 py-0.5 text-xs text-gray-600">{candidate.componentType}</span>
+                  <span className="ml-1 rounded bg-sky-100 px-1 py-0.5 text-xs text-sky-700">{candidate.source}</span>
+                </div>
+                <button
+                  onClick={() => handleAssignComponent(candidate, selectedBoundary)}
+                  disabled={assigningId === candidate.id || assignedComponentIds.has(candidate.id)}
+                  className="rounded bg-indigo-600 px-2 py-0.5 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {assigningId === candidate.id ? 'Assigning...' : 'Assign'}
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}

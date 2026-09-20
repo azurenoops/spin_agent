@@ -250,6 +250,7 @@ public class BoundaryComponentDto
     public string ComponentId { get; set; } = string.Empty;
     public string ComponentName { get; set; } = string.Empty;
     public string ComponentType { get; set; } = string.Empty;
+    public string Source { get; set; } = "Organization";
     public string? SubType { get; set; }
     public bool IsInScope { get; set; }
     public string? ExclusionRationale { get; set; }
@@ -279,6 +280,24 @@ public class BoundaryComponentListResponse
     public int TotalCount { get; set; }
     public int Page { get; set; }
     public int PageSize { get; set; }
+    public string? Error { get; set; }
+}
+
+/// <summary>A component that may be assigned to an authorization boundary.</summary>
+public class BoundaryComponentCandidateDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string ComponentType { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Source { get; set; } = string.Empty;
+}
+
+/// <summary>Eligible candidates for a system boundary.</summary>
+public class BoundaryComponentCandidateResponse
+{
+    public List<BoundaryComponentCandidateDto> Items { get; set; } = [];
+    public string? Error { get; set; }
 }
 
 // ─── Component Risk Summary (Feature 040 US6) ──────────────────────────────
