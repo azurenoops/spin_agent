@@ -452,6 +452,51 @@ public class SystemRolesEndpointsTests
     }
 
     [Fact]
+    public async Task EntraOid_resolves_effective_role_and_authorizes_MissionOwner_override()
+    {
+        // Arrange
+        var w = await SeedAsync(nameof(EntraOid_resolves_effective_role_and_authorizes_MissionOwner_override));
+        var entraObjectId = Guid.NewGuid();
+        await using (var db = w.Factory.CreateDbContext())
+        {
+            var issm = await db.Persons.SingleAsync(p => p.Id == w.IssmPersonId);
+            issm.EntraObjectId = entraObjectId;
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var effectiveResult = await SystemRolesEndpoints.GetCallerEffectiveRoleAsync(
+            w.TenantId, entraObjectId, w.Resolver, CancellationToken.None);
+        var assignmentResult = await SystemRolesEndpoints.AssignSystemRoleAsync(
+            w.SystemId,
+            new AssignSystemRoleBody("MissionOwner", w.OtherPersonId),
+            w.TenantId,
+            entraObjectId,
+            w.Factory,
+            w.Resolver,
+            w.Authz,
+            w.Sod,
+            w.Metrics,
+            CancellationToken.None);
+
+        // Assert
+        StatusOf(effectiveResult).Should().Be(200);
+        BodyOf(effectiveResult).GetProperty("data").GetProperty("effectiveRole")
+            .GetString().Should().Be("Issm");
+        StatusOf(assignmentResult).Should().Be(200);
+
+        await using var verificationDb = w.Factory.CreateDbContext();
+        var missionOwner = await verificationDb.SystemRoleAssignments
+            .AsNoTracking()
+            .SingleAsync(r => r.TenantId == w.TenantId
+                           && r.RegisteredSystemId == w.SystemId
+                           && r.Role == OrganizationRole.MissionOwner
+                           && r.RemovedAt == null);
+        missionOwner.PersonId.Should().Be(w.OtherPersonId);
+        missionOwner.IsInherited.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task GET_effective_returns_null_when_caller_has_no_roles()
     {
         // Arrange — caller with no role rows

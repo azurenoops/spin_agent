@@ -2,27 +2,16 @@ import { useState, useEffect } from 'react';
 // Issue #366 — migrate from deprecated fetchRoles/assignRole to rolesApi
 // (FR-008 / FR-010 unified role endpoints, Feature 049).
 import { rolesApi } from '../../../api/roles';
-import type { ResolvedRoleAssignment, RmfRole } from '../../../types/roles';
+import {
+  RMF_ROLES,
+  RMF_ROLE_LABELS,
+  type ResolvedRoleAssignment,
+  type RmfRole,
+} from '../../../types/roles';
 // Issue #469 — fix persons fetch: use onboarding persons API (not /api/dashboard/components)
 // /api/onboarding/persons returns Person records created during the wizard;
 // /api/dashboard/components?type=Person returns org-level SystemComponents (different table).
 import { onboarding, type PersonDto } from '../../../features/onboarding/api/onboardingApi';
-
-const RMF_ROLES = [
-  'AuthorizingOfficial',
-  'Issm',
-  'Isso',
-  'Sca',
-  'SystemOwner',
-] as const;
-
-const ROLE_LABELS: Record<string, string> = {
-  AuthorizingOfficial: 'Authorizing Official (AO)',
-  Issm: 'Information System Security Manager (ISSM)',
-  Isso: 'Information System Security Officer (ISSO)',
-  Sca: 'Security Control Assessor (SCA)',
-  SystemOwner: 'System Owner',
-};
 
 interface AssignRolesProps {
   systemId: string;
@@ -84,7 +73,7 @@ export default function AssignRoles({ systemId, onNext, onErrors }: AssignRolesP
           return (
             <div key={role} className="flex items-center gap-4 rounded-md border border-gray-200 px-4 py-3">
               <div className="flex-1">
-                <div className="text-sm font-medium text-gray-900">{ROLE_LABELS[role]}</div>
+                <div className="text-sm font-medium text-gray-900">{RMF_ROLE_LABELS[role]}</div>
                 {current ? (
                   <div className="text-xs text-green-600 mt-0.5">
                     Assigned to: {current.person?.displayName ?? '—'}

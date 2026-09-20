@@ -252,6 +252,21 @@ dotnet test --filter "FullyQualifiedName~Roles" # ALL should fail at this point 
 
 ---
 
+## Phase 8: Issue #937 — Mission Owner workflow regression
+
+- [x] T064 Add failing tenant-scoped Entra OID resolution tests in `tests/Ato.Copilot.Tests.Unit/Roles/CallerEffectiveRoleResolverTests.cs`
+- [x] T065 Add failing unified Mission Owner completeness tests in `tests/Ato.Copilot.Tests.Unit/Compliance/SystemProfileServiceTests.cs`
+- [x] T066 [P] Add failing Mission Owner option and permission-explanation component tests under `src/Ato.Copilot.Dashboard/src/__tests__/`, including the organization onboarding role-assignment step
+- [x] T067 [P] Add failing Roles & Permissions navigation coverage under `src/Ato.Copilot.Dashboard/src/__tests__/`
+- [x] T068 Resolve Entra OIDs to tenant-scoped internal Person IDs in `src/Ato.Copilot.Core/Services/Roles/CallerEffectiveRoleResolver.cs`
+- [x] T069 Read Mission Owner completeness through `IUnifiedRoleReader` in `src/Ato.Copilot.Agents/Compliance/Services/SystemProfileService.cs`
+- [x] T070 Use the canonical seven-role domain in `src/Ato.Copilot.Dashboard/src/components/cards/GateActionDialog.tsx`, `src/Ato.Copilot.Dashboard/src/components/wizard/steps/AssignRoles.tsx`, and the organization onboarding role-assignment API/UI; keep invalid-role guidance aligned with all seven roles
+- [x] T071 Add Roles & Permissions navigation and assignment permission explanation in `src/Ato.Copilot.Dashboard/src/components/layout/SystemLayout.tsx` and role-assignment surfaces
+- [x] T072 Add Chromium coverage for system override persistence, organization fallback, and read-only guidance; verify authorization and tenant isolation in backend integration/unit tests
+- [x] T073 Run focused unit, integration, Vitest, type-check, build, and Chromium E2E validation for issue #937; record unrelated full-dashboard baseline failures in the PR
+
+---
+
 ## Implementation strategy
 
 **MVP**: complete Phases 1–3 (Setup, Foundational, US1). At that point the banner clears for every tenant that names a Mission Owner via the existing Org-level surface (wizard or MCP tool). This is the customer's primary complaint resolved. The dashboard banner remains read-only — that's US2 territory — but the underlying loop is closed.

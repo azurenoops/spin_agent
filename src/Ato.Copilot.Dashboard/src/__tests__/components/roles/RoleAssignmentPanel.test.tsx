@@ -165,4 +165,16 @@ describe('RoleAssignmentPanel', () => {
       expect(moRow.querySelector('button[data-action="assign"]')).not.toBeNull();
     });
   });
+
+  it('explains read-only access when the caller has no assignable role', async () => {
+    // Arrange
+    render(<RoleAssignmentPanel registeredSystemId="sys-1" callerEffectiveRole={null} />);
+
+    // Act
+    await screen.findByTestId('role-row-MissionOwner');
+
+    // Assert
+    expect(screen.getByText(/read-only access/i)).toBeInTheDocument();
+    expect(screen.getByText(/administrator, ISSM, or ISSO/i)).toBeInTheDocument();
+  });
 });

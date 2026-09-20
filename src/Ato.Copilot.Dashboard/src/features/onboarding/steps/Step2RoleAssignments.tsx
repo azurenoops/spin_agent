@@ -9,7 +9,7 @@ import {
 /**
  * Step 2 — RMF role assignment (FR-020..FR-026).
  *
- * - Assigns ISSM / ISSO / Administrator / Assessor at the tenant level.
+ * - Assigns the seven supported organization roles at the tenant level.
  * - Supports local-only Person creation, directory-search-and-promote, and
  *   promotion of a previously local Person.
  * - Last-Administrator removal returns `WIZARD_LAST_ADMIN_PROTECTED` (FR-002),
@@ -25,6 +25,9 @@ const ROLES: { value: OrganizationRole; label: string; description: string }[] =
   { value: 'Isso', label: 'ISSO', description: 'Information System Security Officer' },
   { value: 'Administrator', label: 'Administrator', description: 'Organization administrator' },
   { value: 'Assessor', label: 'Assessor (SCA)', description: 'Security control assessor' },
+  { value: 'MissionOwner', label: 'Mission Owner', description: 'Mission system authority' },
+  { value: 'AuthorizingOfficial', label: 'Authorizing Official', description: 'Authorization decision authority' },
+  { value: 'SystemOwner', label: 'System Owner', description: 'System implementation owner' },
 ];
 
 export default function Step2RoleAssignments({ onSaved }: Step2RoleAssignmentsProps) {

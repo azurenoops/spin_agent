@@ -2,15 +2,7 @@ import { useState, useEffect } from 'react';
 // Issue #366 — migrate from deprecated fetchRoles to rolesApi
 // (FR-008 unified role endpoints, Feature 049).
 import { rolesApi } from '../../../api/roles';
-import type { ResolvedRoleAssignment } from '../../../types/roles';
-
-const ROLE_LABELS: Record<string, string> = {
-  AuthorizingOfficial: 'Authorizing Official (AO)',
-  Issm: 'Information System Security Manager (ISSM)',
-  Isso: 'Information System Security Officer (ISSO)',
-  Sca: 'Security Control Assessor (SCA)',
-  SystemOwner: 'System Owner',
-};
+import { RMF_ROLE_LABELS, type ResolvedRoleAssignment } from '../../../types/roles';
 
 interface VerifyRolesProps {
   systemId: string;
@@ -58,7 +50,7 @@ export default function VerifyRoles({ systemId, onNext }: VerifyRolesProps) {
               {assignments.map((a) => (
                 <tr key={`${a.role}:${a.person?.id ?? 'none'}`}>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {ROLE_LABELS[a.role] ?? a.role}
+                    {RMF_ROLE_LABELS[a.role]}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
                     {a.person?.displayName ?? '—'}

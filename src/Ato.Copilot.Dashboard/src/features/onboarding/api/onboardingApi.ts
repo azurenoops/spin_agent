@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { attachAuthInterceptor } from '../../auth/interceptors';
 import { getMsalInstance, DEFAULT_API_SCOPES } from '../../auth/msalInstance';
+import type { RmfRole } from '../../../types/roles';
 
 /**
  * Foundational onboarding-wizard API client (Feature 047).
@@ -467,7 +468,7 @@ export interface OrganizationContextDto {
   primaryPocEmail?: string | null;
 }
 
-export type OrganizationRole = 'Issm' | 'Isso' | 'Administrator' | 'Assessor';
+export type OrganizationRole = Exclude<RmfRole, 'Sca'> | 'Assessor';
 
 export interface PersonDto {
   id: string;

@@ -542,10 +542,27 @@ public class SystemProfileService : ISystemProfileService
             }
         }
 
-        var moAssignment = await db.RmfRoleAssignments
-            .FirstOrDefaultAsync(r => r.RegisteredSystemId == systemId
-                && r.RmfRole == RmfRole.MissionOwner
-                && r.IsActive, cancellationToken);
+        var unifiedReader = scope.ServiceProvider.GetService<IUnifiedRoleReader>();
+        var resolvedMo = unifiedReader is null
+            ? (ResolvedRoleAssignment?)null
+            : await unifiedReader.GetMissionOwnerAsync(
+                system.TenantId, systemId, cancellationToken);
+
+        var missionOwnerAssigned = resolvedMo.HasValue
+            && resolvedMo.Value.Source != RoleAssignmentSource.Legacy;
+        var missionOwnerName = missionOwnerAssigned
+            ? resolvedMo!.Value.PersonDisplayName
+            : null;
+
+        if (!missionOwnerAssigned)
+        {
+            var legacyAssignment = await db.RmfRoleAssignments
+                .FirstOrDefaultAsync(r => r.RegisteredSystemId == systemId
+                    && r.RmfRole == RmfRole.MissionOwner
+                    && r.IsActive, cancellationToken);
+            missionOwnerAssigned = legacyAssignment is not null;
+            missionOwnerName = legacyAssignment?.UserDisplayName ?? legacyAssignment?.UserId;
+        }
 
         return new ProfileCompletenessResult
         {
@@ -557,8 +574,8 @@ public class SystemProfileService : ISystemProfileService
                 : 0,
             IsProfileComplete = approvedCount == MandatorySections.Length,
             IncompleteSections = incompleteSections,
-            MissionOwnerAssigned = moAssignment != null,
-            MissionOwnerName = moAssignment?.UserDisplayName ?? moAssignment?.UserId,
+            MissionOwnerAssigned = missionOwnerAssigned,
+            MissionOwnerName = missionOwnerName,
             DaysSinceRegistration = (int)(DateTime.UtcNow - system.CreatedAt).TotalDays
         };
     }

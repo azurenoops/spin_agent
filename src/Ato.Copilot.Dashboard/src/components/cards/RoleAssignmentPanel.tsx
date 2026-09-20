@@ -3,6 +3,7 @@ import { rolesApi } from '../../api/roles';
 import {
   RBAC_ASSIGNABLE_BY,
   RMF_ROLES,
+  RMF_ROLE_LABELS,
   type ResolvedRoleAssignment,
   type RmfRole,
 } from '../../types/roles';
@@ -33,16 +34,6 @@ interface Props {
    */
   callerEffectiveRole: RmfRole | null;
 }
-
-const ROLE_LABELS: Record<RmfRole, string> = {
-  AuthorizingOfficial: 'Authorizing Official',
-  Issm: 'ISSM',
-  Isso: 'ISSO',
-  Sca: 'Security Control Assessor',
-  SystemOwner: 'System Owner',
-  MissionOwner: 'Mission Owner',
-  Administrator: 'Administrator',
-};
 
 function roleBadgeColor(role: RmfRole): string {
   switch (role) {
@@ -138,6 +129,12 @@ export default function RoleAssignmentPanel({ registeredSystemId, callerEffectiv
           </div>
         )}
 
+        {!callerEffectiveRole && (
+          <p className="mb-3 text-xs text-gray-600" role="status">
+            You have read-only access. An Administrator, ISSM, or ISSO can assign supported system roles.
+          </p>
+        )}
+
         {loading ? (
           <div className="space-y-2">
             {[1, 2, 3, 4, 5, 6, 7].map((i) => (
@@ -155,7 +152,7 @@ export default function RoleAssignmentPanel({ registeredSystemId, callerEffectiv
                 {/* ── Identity column ─────────────────────────────────────── */}
                 <div className="flex items-center gap-3 min-w-0">
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${roleBadgeColor(r.role)}`}>
-                    {ROLE_LABELS[r.role]}
+                    {RMF_ROLE_LABELS[r.role]}
                   </span>
                   <span className="text-sm text-gray-900 truncate">
                     {r.person?.displayName ?? <span className="italic text-gray-400">unassigned</span>}
