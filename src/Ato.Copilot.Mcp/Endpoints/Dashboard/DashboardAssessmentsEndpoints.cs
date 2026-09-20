@@ -411,7 +411,7 @@ public static partial class DashboardEndpoints
                             continue;
                         }
 
-                        bool hasNarrative = !string.IsNullOrWhiteSpace(impl.Narrative);
+                        bool hasNarrative = impl.HasCanonicalNarrative();
                         bool isReviewed = impl.ReviewedBy is not null;
 
                         if (hasNarrative && (isReviewed || !impl.AiSuggested))
@@ -758,12 +758,12 @@ public static partial class DashboardEndpoints
                 ImplementationStatus = Enum.TryParse<ImplementationStatus>(request.ImplementationStatus, true, out var s)
                     ? s : ImplementationStatus.Planned,
                 ApprovalStatus = SspSectionStatus.Draft,
-                Narrative = request.Narrative,
                 AiSuggested = false,
                 AuthoredBy = currentUser.CurrentUserId,
                 AuthoredAt = now,
                 CurrentVersion = 1,
             };
+            impl.SetCombinedNarrative(request.Narrative);
 
             context.ControlImplementations.Add(impl);
             await context.SaveChangesAsync(ct);

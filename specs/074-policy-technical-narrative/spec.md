@@ -97,6 +97,18 @@ Policy Narrative staleness is triggered by `OrgDefaultUpdated` events (Feature 0
 Narrative staleness is event-based (no cadence). Both halves expose `IsStale` and `StaleReason`
 in the GET response.
 
+### FR-011 — Canonical Persistence and Legacy Compatibility
+All combined or generated narrative write paths MUST persist their content to
+`TechnicalNarrative` immediately and MAY also maintain `Narrative` for backward compatibility.
+They MUST NOT populate or overwrite `PolicyNarrative`. Explicit dual-field writes continue to
+update only the supplied half. The rerunnable startup repair copies `Narrative` to
+`TechnicalNarrative` only when Technical is null and marks the row as migrated, preserving any
+authored dual content. Readiness and export completeness MUST use the canonical Policy and
+Technical fields rather than treating a legacy-only value as authored canonical content.
+
+Single-control regeneration MUST return and persist the Technical value, and the dashboard MUST
+place that response in the Technical editor state so refresh and export observe the same content.
+
 ---
 
 ## Non-Functional Requirements
@@ -110,6 +122,7 @@ in the GET response.
 | NFR-005 | Legacy `Narrative` field remains in the API response under `legacyNarrative` for backward compatibility |
 | NFR-006 | Auto-tagging classifier completes < 1 s per 1000 rows on SQLite (dev) |
 | NFR-007 | MCP tools follow existing `BaseTool` response envelope pattern |
+| NFR-008 | Compatibility synchronization is atomic with its originating write and never overwrites a non-null Policy narrative |
 
 ---
 

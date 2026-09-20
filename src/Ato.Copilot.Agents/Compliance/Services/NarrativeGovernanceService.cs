@@ -155,7 +155,7 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
 
         // Update ControlImplementation
         impl.CurrentVersion = newVersionNumber;
-        impl.Narrative = target.Content;
+        impl.SetCombinedNarrative(target.Content);
         impl.ApprovalStatus = SspSectionStatus.Draft;
         impl.ModifiedAt = DateTime.UtcNow;
         impl.AuthoredBy = authoredBy;
@@ -396,7 +396,7 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
             query = query.Where(ci => ci.ControlId.StartsWith(familyFilter + "-"));
 
         var implementations = await query
-            .Select(ci => new { ci.ControlId, ci.ApprovalStatus, ci.Narrative })
+            .Select(ci => new { ci.ControlId, ci.ApprovalStatus, ci.PolicyNarrative, ci.TechnicalNarrative })
             .ToListAsync(cancellationToken);
 
         // Group by family prefix (text before first hyphen)
@@ -426,7 +426,8 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
         // In a system-wide context, these are Draft/NeedsRevision narratives that have content but aren't approved
         var stalenessWarnings = implementations
             .Where(ci => ci.ApprovalStatus is SspSectionStatus.Draft or SspSectionStatus.NeedsRevision
-                         && !string.IsNullOrWhiteSpace(ci.Narrative))
+                         && (!string.IsNullOrWhiteSpace(ci.PolicyNarrative)
+                             || !string.IsNullOrWhiteSpace(ci.TechnicalNarrative)))
             .Select(ci => new StalenessWarning
             {
                 ControlId = ci.ControlId,

@@ -586,7 +586,8 @@ public static partial class DashboardEndpoints
                 var completedNarratives = await context.ControlImplementations
                     .CountAsync(ci => ci.RegisteredSystemId == systemId &&
                         ci.ImplementationStatus != ImplementationStatus.Planned &&
-                        ci.Narrative != null && ci.Narrative != "", ct);
+                        ((ci.PolicyNarrative != null && ci.PolicyNarrative != "") ||
+                         (ci.TechnicalNarrative != null && ci.TechnicalNarrative != "")), ct);
                 var narrativePct = totalNarratives > 0 ? Math.Round((double)completedNarratives / totalNarratives * 100, 1) : 0;
 
                 // SAP (latest)

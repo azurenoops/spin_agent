@@ -201,6 +201,30 @@ public class BaselineIntegrationTests : IDisposable
         data.GetProperty("total_controls").GetInt32().Should().Be(152); // Pure Low baseline
     }
 
+    [Fact]
+    public async Task SelectBaseline_PersistsGeneratedTemplatesAsTechnicalNarratives()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Canonical Narrative System", "Enclave");
+        await CategorizeSystem(systemId, "Low", "Low", "Low");
+
+        // Act
+        await _selectBaselineTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = systemId,
+            ["apply_overlay"] = false
+        });
+
+        // Assert
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var implementation = await db.ControlImplementations
+            .FirstAsync(item => item.RegisteredSystemId == systemId);
+        implementation.TechnicalNarrative.Should().Be(implementation.Narrative);
+        implementation.TechnicalNarrative.Should().NotBeNullOrWhiteSpace();
+        implementation.PolicyNarrative.Should().BeNull();
+    }
+
     /// <summary>
     /// Reselecting baseline replaces the previous baseline.
     /// </summary>

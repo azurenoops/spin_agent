@@ -371,4 +371,41 @@ public class PrivacyGateTests
         var gate4 = results.FirstOrDefault(r => r.GateName == "Interconnection Documentation");
         gate4.Should().BeNull("interconnection gate only applies to Prepare→Categorize transition");
     }
+
+    [Theory]
+    [InlineData("legacy only", null, null, false)]
+    [InlineData(null, "policy only", null, true)]
+    [InlineData(null, null, "technical only", true)]
+    public async Task ImplementGate_CountsOnlyCanonicalNarratives(
+        string? narrative,
+        string? policyNarrative,
+        string? technicalNarrative,
+        bool expectedPassed)
+    {
+        // Arrange
+        var system = await SeedSystemWithRolesAndBoundary();
+        system.CurrentRmfStep = RmfPhase.Implement;
+        system.ControlBaseline = new ControlBaseline
+        {
+            RegisteredSystemId = system.Id,
+            BaselineLevel = "Low",
+            TotalControls = 1
+        };
+        _db.ControlImplementations.Add(new ControlImplementation
+        {
+            RegisteredSystemId = system.Id,
+            ControlId = "AC-1",
+            Narrative = narrative,
+            PolicyNarrative = policyNarrative,
+            TechnicalNarrative = technicalNarrative
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var results = await _service.CheckGateConditionsAsync(system.Id, RmfPhase.Assess);
+
+        // Assert
+        results.Single(r => r.GateName == "Implementation Narratives")
+            .Passed.Should().Be(expectedPassed);
+    }
 }

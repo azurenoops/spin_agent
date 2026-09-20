@@ -82,7 +82,8 @@ public class SspService : ISspService
                     $"CONCURRENCY_CONFLICT: Expected version {expectedVersion.Value} but current version is {existing.CurrentVersion}. " +
                     $"Last modified by '{existing.AuthoredBy}' at {existing.ModifiedAt?.ToString("O") ?? existing.AuthoredAt.ToString("O")}.");
 
-            existing.Narrative = narrative.Trim();
+            var technicalNarrative = narrative.Trim();
+            existing.SetCombinedNarrative(technicalNarrative);
             existing.ImplementationStatus = implStatus;
             existing.ModifiedAt = DateTime.UtcNow;
             existing.AiSuggested = false;
@@ -118,13 +119,13 @@ public class SspService : ISspService
         {
             RegisteredSystemId = systemId,
             ControlId = controlId.Trim(),
-            Narrative = narrative.Trim(),
             ImplementationStatus = implStatus,
             AuthoredBy = authoredBy,
             AuthoredAt = DateTime.UtcNow,
             CurrentVersion = 1,
             ApprovalStatus = SspSectionStatus.Draft
         };
+        implementation.SetCombinedNarrative(narrative.Trim());
 
         context.ControlImplementations.Add(implementation);
 
@@ -317,7 +318,7 @@ public class SspService : ISspService
                     continue;
                 }
 
-                existing.Narrative = narrative;
+                existing.SetCombinedNarrative(narrative);
                 existing.ImplementationStatus = targetStatus;
                 existing.IsAutoPopulated = true;
                 existing.AiSuggested = false;
@@ -327,17 +328,18 @@ public class SspService : ISspService
             }
             else
             {
-                context.ControlImplementations.Add(new ControlImplementation
+                var implementation = new ControlImplementation
                 {
                     RegisteredSystemId = systemId,
                     ControlId = inh.ControlId,
-                    Narrative = narrative,
                     ImplementationStatus = targetStatus,
                     IsAutoPopulated = true,
                     AiSuggested = false,
                     AuthoredBy = authoredBy,
                     AuthoredAt = DateTime.UtcNow
-                });
+                };
+                implementation.SetCombinedNarrative(narrative);
+                context.ControlImplementations.Add(implementation);
             }
 
             result.PopulatedCount++;
@@ -419,7 +421,7 @@ public class SspService : ISspService
             foreach (var controlId in familyGroup)
             {
                 fp.Total++;
-                if (narrativeMap.TryGetValue(controlId, out var n) && !string.IsNullOrWhiteSpace(n.Narrative))
+                if (narrativeMap.TryGetValue(controlId, out var n) && n.HasCanonicalNarrative())
                 {
                     if (n.ImplementationStatus == ImplementationStatus.Implemented ||
                         n.ImplementationStatus == ImplementationStatus.NotApplicable)
@@ -569,7 +571,7 @@ public class SspService : ISspService
         // ─── YAML Front-Matter (T044) ────────────────────────────────────
         var approvedCount = sspSections.Values.Count(s => s.Status == SspSectionStatus.Approved);
         var narrativeCompletion = baseline != null && baseline.TotalControls > 0
-            ? Math.Round((double)narratives.Count(n => !string.IsNullOrWhiteSpace(n.Narrative)) / baseline.TotalControls * 100, 1)
+            ? Math.Round((double)narratives.Count(n => n.HasCanonicalNarrative()) / baseline.TotalControls * 100, 1)
             : 0;
 
         sb.AppendLine("---");
@@ -673,7 +675,8 @@ public class SspService : ISspService
                 var controlIds = baseline?.ControlIds ?? new List<string>();
                 doc.TotalControls = controlIds.Count;
                 var narrativeMap = narratives.ToDictionary(n => n.ControlId, StringComparer.OrdinalIgnoreCase);
-                doc.ControlsWithNarratives = controlIds.Count(c => narrativeMap.ContainsKey(c));
+                doc.ControlsWithNarratives = controlIds.Count(c =>
+                    narrativeMap.TryGetValue(c, out var implementation) && implementation.HasCanonicalNarrative());
                 doc.ControlsMissingNarratives = doc.TotalControls - doc.ControlsWithNarratives;
 
                 if (doc.ControlsMissingNarratives > 0)
@@ -688,11 +691,12 @@ public class SspService : ISspService
         var groundingViolations = new List<string>();
         foreach (var ci in narratives)
         {
-            if (string.IsNullOrWhiteSpace(ci.Narrative)) continue; // missing → warning already added above
+            if (!ci.HasCanonicalNarrative()) continue; // missing → warning already added above
 
             bool isUngroundedScaffold = ci.AiSuggested && string.IsNullOrWhiteSpace(ci.ApprovedVersionId);
-            bool hasSourceMissingMarker = ci.Narrative.Contains("[SOURCE MISSING", StringComparison.OrdinalIgnoreCase);
-            bool hasUnverifiedScaffold = ci.Narrative.Contains("[scaffold reference — unverified]", StringComparison.OrdinalIgnoreCase);
+            var canonicalNarrative = $"{ci.PolicyNarrative}\n{ci.TechnicalNarrative}";
+            bool hasSourceMissingMarker = canonicalNarrative.Contains("[SOURCE MISSING", StringComparison.OrdinalIgnoreCase);
+            bool hasUnverifiedScaffold = canonicalNarrative.Contains("[scaffold reference — unverified]", StringComparison.OrdinalIgnoreCase);
 
             if (hasSourceMissingMarker || hasUnverifiedScaffold)
                 groundingViolations.Add($"Control {ci.ControlId}: narrative contains unresolved [SOURCE MISSING] or unverified scaffold markers.");
@@ -898,7 +902,8 @@ public class SspService : ISspService
         foreach (var family in familyGroups)
         {
             var familyTotal = family.Count();
-            var familyWithNarrative = family.Count(c => narrativeMap.ContainsKey(c));
+            var familyWithNarrative = family.Count(c =>
+                narrativeMap.TryGetValue(c, out var implementation) && implementation.HasCanonicalNarrative());
             var familyPercent = familyTotal > 0 ? Math.Round((double)familyWithNarrative / familyTotal * 100, 0) : 0;
 
             sb.AppendLine($"### {family.Key} Family ({familyPercent}% documented)");
@@ -922,7 +927,7 @@ public class SspService : ISspService
                         sb.AppendLine();
                         sb.AppendLine(approvedContent);
                     }
-                    else if (!string.IsNullOrWhiteSpace(impl.Narrative))
+                    else if (impl.HasCanonicalNarrative())
                     {
                         // Fix #685: Reviewer gate — no silent Approved→Draft bypass.
                         // Draft narratives are rendered with an explicit block marker so
@@ -935,7 +940,7 @@ public class SspService : ISspService
                                           $"Replace with sourced, reviewer-approved content before including in an ATO package.]");
                             sb.AppendLine();
                         }
-                        sb.AppendLine(impl.Narrative);
+                        AppendCanonicalNarratives(sb, impl);
                     }
                     else
                     {
@@ -955,6 +960,21 @@ public class SspService : ISspService
         }
 
         return sb.ToString();
+    }
+
+    private static void AppendCanonicalNarratives(StringBuilder builder, ControlImplementation implementation)
+    {
+        builder.AppendLine("**Implementation Statement (Policy):**");
+        builder.AppendLine();
+        builder.AppendLine(string.IsNullOrWhiteSpace(implementation.PolicyNarrative)
+            ? "[Not Authored]"
+            : implementation.PolicyNarrative);
+        builder.AppendLine();
+        builder.AppendLine("**Implementation Statement (Technical):**");
+        builder.AppendLine();
+        builder.AppendLine(string.IsNullOrWhiteSpace(implementation.TechnicalNarrative)
+            ? "[Not Authored]"
+            : implementation.TechnicalNarrative);
     }
 
     // ─── Private Helpers ─────────────────────────────────────────────────────

@@ -55,7 +55,9 @@ public sealed class CspCapabilityNarrativeRegenerationEndpointTests :
         implementations.Should().OnlyContain(implementation =>
             implementation.SecurityCapabilityId == null &&
             implementation.IsAutoPopulated &&
-            !string.IsNullOrWhiteSpace(implementation.Narrative));
+            !string.IsNullOrWhiteSpace(implementation.Narrative) &&
+            implementation.TechnicalNarrative == implementation.Narrative &&
+            implementation.PolicyNarrative == null);
     }
 
     [Fact]
@@ -92,6 +94,8 @@ public sealed class CspCapabilityNarrativeRegenerationEndpointTests :
             .SingleAsync(candidate => candidate.RegisteredSystemId == systemId && candidate.ControlId == "AU-6");
         implementation.SecurityCapabilityId.Should().BeNull();
         implementation.Narrative.Should().Contain("Reference Sources Used:");
+        implementation.TechnicalNarrative.Should().Be(implementation.Narrative);
+        implementation.PolicyNarrative.Should().BeNull();
     }
 
     [Fact]

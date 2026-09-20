@@ -309,6 +309,7 @@ public class AtoFabricationGroundingTests : IDisposable
             RegisteredSystemId = system.Id,
             ControlId = "AC-1",
             Narrative = "Some narrative with [SOURCE MISSING: describe the actual mechanism]",
+            TechnicalNarrative = "Some narrative with [SOURCE MISSING: describe the actual mechanism]",
             AiSuggested = true,
             ApprovedVersionId = null,
             AuthoredBy = "test"
@@ -348,6 +349,7 @@ public class AtoFabricationGroundingTests : IDisposable
             RegisteredSystemId = system.Id,
             ControlId = "AC-1",
             Narrative = "The system implements AC-1 using Azure Active Directory with conditional access policies configured per the organization's security baseline.",
+            TechnicalNarrative = "The system implements AC-1 using Azure Active Directory with conditional access policies configured per the organization's security baseline.",
             AiSuggested = false,
             ApprovedVersionId = "some-approved-version-id",
             AuthoredBy = "reviewer@test.com"
@@ -389,6 +391,7 @@ public class AtoFabricationGroundingTests : IDisposable
             RegisteredSystemId = system.Id,
             ControlId = "AC-2",
             Narrative = "This is an AI-suggested narrative about access control.",
+            TechnicalNarrative = "This is an AI-suggested narrative about access control.",
             AiSuggested = true,
             IsAutoPopulated = false,
             ApprovedVersionId = null, // not approved
@@ -410,6 +413,60 @@ public class AtoFabricationGroundingTests : IDisposable
         // The document should contain the reviewer-gate marker, not silently render as approved
         doc.Content.Should().Contain("reviewer gate required",
             "AI-suggested narratives without approval must be marked as requiring reviewer gate (fix #685)");
+    }
+
+    [Fact]
+    public async Task GenerateSspAsync_RendersAndCountsOnlyCanonicalNarratives()
+    {
+        // Arrange
+        var system = new RegisteredSystem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Canonical Narrative System",
+            SystemType = SystemType.MajorApplication,
+            MissionCriticality = MissionCriticality.MissionEssential,
+            HostingEnvironment = "Azure Government"
+        };
+        _db.RegisteredSystems.Add(system);
+        _db.ControlBaselines.Add(new ControlBaseline
+        {
+            RegisteredSystemId = system.Id,
+            BaselineLevel = "Low",
+            TotalControls = 3,
+            ControlIds = ["AC-1", "AC-2", "AC-3"]
+        });
+        _db.ControlImplementations.AddRange(
+            new ControlImplementation
+            {
+                RegisteredSystemId = system.Id,
+                ControlId = "AC-1",
+                PolicyNarrative = "Canonical policy content"
+            },
+            new ControlImplementation
+            {
+                RegisteredSystemId = system.Id,
+                ControlId = "AC-2",
+                TechnicalNarrative = "Canonical technical content"
+            },
+            new ControlImplementation
+            {
+                RegisteredSystemId = system.Id,
+                ControlId = "AC-3",
+                Narrative = "Legacy-only content"
+            });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var doc = await _sspService.GenerateSspAsync(system.Id, sections: ["controls"]);
+
+        // Assert
+        doc.ControlsWithNarratives.Should().Be(2);
+        doc.ControlsMissingNarratives.Should().Be(1);
+        doc.Content.Should().Contain("**Implementation Statement (Policy):**");
+        doc.Content.Should().Contain("Canonical policy content");
+        doc.Content.Should().Contain("**Implementation Statement (Technical):**");
+        doc.Content.Should().Contain("Canonical technical content");
+        doc.Content.Should().NotContain("Legacy-only content");
     }
 
     // ─── Helper ─────────────────────────────────────────────────────────────

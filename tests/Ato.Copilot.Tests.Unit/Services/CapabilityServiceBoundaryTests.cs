@@ -276,6 +276,7 @@ public class CapabilityServiceBoundaryTests : IDisposable
             RegisteredSystemId = SystemId,
             ControlId = "AU-2",
             Narrative = "Audit events are centrally collected.",
+            TechnicalNarrative = "Audit events are centrally collected.",
             AuthoredBy = "test",
         });
         await _db.SaveChangesAsync();
@@ -336,7 +337,9 @@ public class CapabilityServiceBoundaryTests : IDisposable
             implementation.SecurityCapabilityId == null &&
             implementation.IsAutoPopulated &&
             implementation.Narrative != null &&
-            implementation.Narrative.Contains("Microsoft Entra ID P2"));
+            implementation.Narrative.Contains("Microsoft Entra ID P2") &&
+            implementation.TechnicalNarrative == implementation.Narrative &&
+            implementation.PolicyNarrative == null);
     }
 
     [Fact]
