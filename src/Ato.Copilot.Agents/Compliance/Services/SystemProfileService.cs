@@ -169,6 +169,18 @@ public class SystemProfileService : ISystemProfileService
 
     // ─── Draft Save ──────────────────────────────────────────────────────
 
+    public async Task<bool> CanEditProfileAsync(
+        string systemId,
+        string userId,
+        RmfRole? simulatedRole = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        return await db.RegisteredSystems.AnyAsync(system => system.Id == systemId && system.IsActive, cancellationToken)
+            && await HasRoleAsync(db, systemId, userId, SaveRoles, simulatedRole, cancellationToken);
+    }
+
     /// <inheritdoc />
     public async Task<SystemProfileSection> SaveDraftAsync(
         string systemId,
@@ -862,8 +874,21 @@ public class SystemProfileService : ISystemProfileService
         RmfRole? simulatedRole,
         CancellationToken cancellationToken)
     {
+        if (!await HasRoleAsync(db, systemId, userId, allowedRoles, simulatedRole, cancellationToken))
+            throw new InvalidOperationException(
+                $"UNAUTHORIZED: User '{userId}' does not have a required role ({string.Join(", ", allowedRoles)}) for system '{systemId}'.");
+    }
+
+    private static async Task<bool> HasRoleAsync(
+        AtoCopilotContext db,
+        string systemId,
+        string userId,
+        RmfRole[] allowedRoles,
+        RmfRole? simulatedRole,
+        CancellationToken cancellationToken)
+    {
         if (simulatedRole.HasValue && allowedRoles.Contains(simulatedRole.Value))
-            return;
+            return true;
 
         // fix(#545): "dashboard-user" is the unauthenticated dev/QA identity produced by
         // ResolveDashboardUserId when no MSAL token is present. Every other dashboard
@@ -874,18 +899,14 @@ public class SystemProfileService : ISystemProfileService
         // silently discarded on page reload. Authenticated MSAL users are unaffected
         // (simulatedRole is always null for authenticated users and userId is their real OID).
         if (string.Equals(userId, "dashboard-user", StringComparison.OrdinalIgnoreCase))
-            return;
+            return true;
 
-        var hasRole = await db.RmfRoleAssignments
+        return await db.RmfRoleAssignments
             .AnyAsync(r => r.RegisteredSystemId == systemId
                 && r.UserId == userId
                 && r.IsActive
                 && allowedRoles.Contains(r.RmfRole),
                 cancellationToken);
-
-        if (!hasRole)
-            throw new InvalidOperationException(
-                $"UNAUTHORIZED: User '{userId}' does not have a required role ({string.Join(", ", allowedRoles)}) for system '{systemId}'.");
     }
 
     private static void AddAuditEntry(

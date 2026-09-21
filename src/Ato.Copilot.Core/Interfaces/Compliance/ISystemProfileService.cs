@@ -28,6 +28,12 @@ public interface ISystemProfileService
 
     // ─── Draft Save ──────────────────────────────────────────────────────
 
+    Task<bool> CanEditProfileAsync(
+        string systemId,
+        string userId,
+        RmfRole? simulatedRole = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Save draft content for a specific profile section. Creates the section record on first save.
     /// Requires MissionOwner, SystemOwner, or Issm role for the system (FR-016).

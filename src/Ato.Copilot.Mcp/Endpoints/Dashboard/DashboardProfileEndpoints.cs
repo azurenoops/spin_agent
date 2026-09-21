@@ -166,6 +166,7 @@ public static partial class DashboardEndpoints
         group.MapGet("/systems/{systemId}/profile/{sectionType}", async (
                 string systemId,
                 string sectionType,
+                HttpContext httpContext,
                 ISystemProfileService profileService,
                 CancellationToken ct) =>
             {
@@ -176,6 +177,8 @@ public static partial class DashboardEndpoints
                         ErrorCode = "INVALID_INPUT",
                     });
 
+                var canEditProfile = await profileService.CanEditProfileAsync(
+                    systemId, currentUser.CurrentUserId, ResolveSimulatedRmfRole(httpContext), ct);
                 var result = await profileService.GetSectionDetailAsync(systemId, parsedType, ct);
                 if (result is null)
                 {
@@ -183,6 +186,7 @@ public static partial class DashboardEndpoints
                     return Results.Ok(new
                     {
                         id = (string?)null,
+                        canEditProfile,
                         sectionType = parsedType.ToString(),
                         governanceStatus = "NotStarted",
                         draftContent = (string?)null,
@@ -205,6 +209,7 @@ public static partial class DashboardEndpoints
                 return Results.Ok(new
                 {
                     id = result.Id,
+                    canEditProfile,
                     sectionType = result.SectionType.ToString(),
                     governanceStatus = result.GovernanceStatus.ToString(),
                     draftContent = result.DraftContent,
@@ -271,6 +276,7 @@ public static partial class DashboardEndpoints
                     return Results.Ok(new
                     {
                         id = result.Id,
+                        canEditProfile = await profileService.CanEditProfileAsync(systemId, userId, simulatedRole, ct),
                         sectionType = result.SectionType.ToString(),
                         governanceStatus = result.GovernanceStatus.ToString(),
                         draftContent = result.DraftContent,
