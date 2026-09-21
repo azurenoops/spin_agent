@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { usePolling } from '../hooks/usePolling';
+import { useAssessmentReadiness } from '../hooks/useAssessmentReadiness';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { getAssessments, runAssessment, getAssessmentDetail } from '../api/assessments';
 import { getAssessmentComponentRisks } from '../api/components';
@@ -70,7 +71,8 @@ export default function Assessments() {
   const [filter, setFilter] = useState('');
   const [showRunDialog, setShowRunDialog] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
-  const [runError, setRunError] = useState<string | null>(null);
+  const readiness = useAssessmentReadiness(systemId);
+  const runGeneration = useRef(0);
   const [detailData, setDetailData] = useState<AssessmentDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -120,22 +122,27 @@ export default function Assessments() {
   // Filter to current system
   const assessments = (allAssessments ?? []).filter(a => a.systemId === systemId);
 
+  useEffect(() => {
+    setShowRunDialog(false);
+    setRunLoading(false);
+    return () => { runGeneration.current += 1; };
+  }, [systemId]);
+
   const handleRunAssessment = async () => {
+    if (!readiness.isReady || runLoading) return;
+    const request = ++runGeneration.current;
     setRunLoading(true);
-    setRunError(null);
     try {
       await runAssessment(systemId);
+      if (request !== runGeneration.current) return;
       setShowRunDialog(false);
       refresh();
     } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { error?: string } } };
-        setRunError(axiosErr.response?.data?.error ?? 'Assessment failed');
-      } else {
-        setRunError(err instanceof Error ? err.message : 'Assessment failed');
-      }
+      if (request !== runGeneration.current) return;
+      setShowRunDialog(false);
+      readiness.block(err);
     } finally {
-      setRunLoading(false);
+      if (request === runGeneration.current) setRunLoading(false);
     }
   };
 
@@ -280,14 +287,32 @@ export default function Assessments() {
               Generate SAR
             </button>
             <button
-              onClick={() => { setShowRunDialog(true); setRunError(null); }}
-              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 transition-colors"
+              onClick={() => setShowRunDialog(true)}
+              disabled={!readiness.isReady || runLoading}
+              aria-describedby="assessment-readiness"
+              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               Run Assessment
+            </button>
+          </div>
+        </div>
+
+        <div id="assessment-readiness" aria-live="polite" className="rounded-lg border border-gray-200 bg-white p-4 text-sm">
+          <p className="font-medium text-gray-900">Run Assessment uses real Azure resources only.</p>
+          <p className="mt-1 text-gray-700">
+            {readiness.loading ? 'Checking Azure assessment readiness…' : readiness.error?.message ?? readiness.result?.message}
+          </p>
+          {(readiness.error?.suggestion ?? readiness.result?.suggestion) && (
+            <p className="mt-1 text-gray-700">{readiness.error?.suggestion ?? readiness.result?.suggestion}</p>
+          )}
+          <div className="mt-2 flex items-center gap-4">
+            <Link to={readiness.configurationUrl} className="text-indigo-700 underline">Configure Environment</Link>
+            <button type="button" disabled={readiness.loading || runLoading} onClick={() => void readiness.refresh()} className="text-indigo-700 underline disabled:opacity-50">
+              Retry readiness check
             </button>
           </div>
         </div>
@@ -838,11 +863,6 @@ export default function Assessments() {
                   </div>
                 </div>
 
-                {runError && (
-                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {runError}
-                  </div>
-                )}
               </div>
 
               {/* Footer */}
@@ -857,7 +877,7 @@ export default function Assessments() {
                 <button
                   type="button"
                   onClick={() => void handleRunAssessment()}
-                  disabled={runLoading}
+                  disabled={runLoading || !readiness.isReady}
                   className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
                   {runLoading ? 'Running...' : 'Run Assessment'}

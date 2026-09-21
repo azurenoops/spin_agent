@@ -181,6 +181,39 @@ The Components page focuses on asset inventory management. Per-component risk su
 
 ---
 
+## Azure Assessment Prerequisites
+
+**Run Assessment performs an Azure-backed assessment.** Narrative or baseline
+completeness is not a substitute for a connected Azure environment.
+
+The Assessments page checks system readiness and explains blocked prerequisites.
+If you are a CSP administrator viewing **All organizations**, select the system's
+organization first so assessment data is written under the correct organization.
+Use **Configure Environment** to open the Azure assessment panel on the system's
+Environment page. This panel manages the system's actual Azure attachment;
+the descriptive Environment and Deployment form does not configure connectivity.
+
+An authorized compliance writer selects eligible organization subscriptions in
+the deployment's supported Azure cloud, saves the attachment, and checks
+readiness. Organization subscription registration is managed separately under
+Azure Subscription Settings. Saving an attachment does not establish access:
+the assessment identity also needs the required Azure read permissions and
+network connectivity. Contact the platform administrator for identity/access
+problems; do not enter credentials into the system profile.
+
+Commercial and connected Government assessments require a matching deployment
+cloud. Mismatched, unknown, custom/proxied or disconnected air-gapped profiles are
+blocked unless the deployed assessment client explicitly supports them. This fix
+does not add a live classified/air-gapped collection workflow.
+
+Readiness is rechecked by the backend when Run Assessment is submitted. Removing
+the attachment or revoking access cannot be bypassed by a previously enabled
+button. A rejection does not create a documentation-only assessment or successful
+downstream artifacts. Existing historical assessments are preserved.
+
+Complete scan-scope propagation and scan-result integrity are separately tracked
+in issues #982 and #983; passing admission does not certify those follow-ups.
+
 ## Contextual Help
 
 The dashboard includes built-in contextual help accessible in two ways:

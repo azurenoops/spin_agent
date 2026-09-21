@@ -29,6 +29,7 @@ public class CapabilityImportEndpointTests : IAsyncLifetime
     private WebApplication _app = null!;
     private HttpClient _client = null!;
     private string _tempDir = null!;
+    private readonly WorkingDirectoryLogger _profileLogger = new();
     private readonly JsonSerializerOptions _json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -39,7 +40,9 @@ public class CapabilityImportEndpointTests : IAsyncLifetime
     {
         _tempDir = Path.Combine(Path.GetTempPath(), $"import-integration-{Guid.NewGuid()}");
         var profileDir = Path.Combine(_tempDir, "src", "seed-data", "csp-profiles");
+        var contentRoot = Path.Combine(_tempDir, "src", "Ato.Copilot.Mcp");
         Directory.CreateDirectory(profileDir);
+        Directory.CreateDirectory(contentRoot);
 
         var profile = new
         {
@@ -81,6 +84,7 @@ public class CapabilityImportEndpointTests : IAsyncLifetime
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             EnvironmentName = "Development",
+            ContentRootPath = contentRoot,
         });
 
         var dbName = $"CapImportEndpoints_{Guid.NewGuid():N}";
@@ -92,11 +96,12 @@ public class CapabilityImportEndpointTests : IAsyncLifetime
 
         builder.Services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(dbName));
+        builder.Services.AddSingleton<ILogger<CspProfileService>>(_profileLogger);
 
         builder.Services.AddSingleton<CspProfileService>(sp =>
         {
             var envMock = new Mock<IWebHostEnvironment>();
-            envMock.Setup(e => e.ContentRootPath).Returns(Path.Combine(_tempDir, "src", "seed-data"));
+            envMock.Setup(e => e.ContentRootPath).Returns(contentRoot);
             return new CspProfileService(
                 sp.GetRequiredService<ILogger<CspProfileService>>(), envMock.Object);
         });
@@ -127,6 +132,34 @@ public class CapabilityImportEndpointTests : IAsyncLifetime
 
         await _app.StartAsync();
         _client = _app.GetTestClient();
+    }
+
+    [Fact]
+    public void ResolveProfileCatalog_DoesNotChangeProcessWorkingDirectory()
+    {
+        // Arrange
+        var expectedDirectory = Directory.GetCurrentDirectory();
+
+        // Act
+        var profiles = _app.Services.GetRequiredService<CspProfileService>().GetProfiles();
+
+        // Assert
+        profiles.Should().ContainSingle(p => p.ProfileId == "int-test-azure-high");
+        _profileLogger.ObservedDirectories.Should().NotBeEmpty()
+            .And.OnlyContain(directory => directory == expectedDirectory);
+        Directory.GetCurrentDirectory().Should().Be(expectedDirectory);
+    }
+
+    private sealed class WorkingDirectoryLogger : ILogger<CspProfileService>
+    {
+        public List<string> ObservedDirectories { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter) =>
+            ObservedDirectories.Add(Directory.GetCurrentDirectory());
     }
 
     private static void MapCapabilityImportEndpoints(RouteGroupBuilder group)

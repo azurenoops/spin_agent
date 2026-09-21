@@ -692,47 +692,8 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         body.GetProperty("error").GetString().Should().NotBeNullOrWhiteSpace();
     }
 
-    [Theory]
-    [InlineData(false, ImplementationStatus.PartiallyImplemented)]
-    [InlineData(true, ImplementationStatus.Implemented)]
-    public async Task Issue961_RunAssessment_TemplateProvenanceDoesNotImplyReview(
-        bool reviewed, ImplementationStatus expectedStatus)
-    {
-        // Arrange
-        using (var scope = _app.Services.CreateScope())
-        {
-            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
-            await using var db = await factory.CreateDbContextAsync();
-            db.SecurityCategorizations.Add(new SecurityCategorization
-            {
-                RegisteredSystemId = TestSystemId, CategorizedBy = "test-user"
-            });
-            db.ControlImplementations.Add(new ControlImplementation
-            {
-                RegisteredSystemId = TestSystemId, ControlId = "AC-1", AuthoredBy = "template",
-                Narrative = "Deterministic scaffold", TechnicalNarrative = "Deterministic scaffold",
-                IsAutoPopulated = true, AiSuggested = false,
-                ReviewedBy = reviewed ? "reviewer" : null,
-                ImplementationStatus = ImplementationStatus.Planned
-            });
-            await db.SaveChangesAsync();
-        }
-
-        // Act
-        var response = await _client.PostAsync($"/api/dashboard/systems/{TestSystemId}/run-assessment", null);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        using var verificationScope = _app.Services.CreateScope();
-        var verificationFactory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
-        await using var verificationDb = await verificationFactory.CreateDbContextAsync();
-        var implementation = await verificationDb.ControlImplementations.SingleAsync(item =>
-            item.RegisteredSystemId == TestSystemId && item.ControlId == "AC-1");
-        implementation.ImplementationStatus.Should().Be(expectedStatus);
-    }
-
     [Fact]
-    public async Task Issue823_RunAssessment_PersistsAuthenticatedActor()
+    public async Task Issue981_RunAssessment_IdentityWithoutWriterRole_IsForbidden()
     {
         // Arrange
         using (var scope = _app.Services.CreateScope())
@@ -753,19 +714,14 @@ public class ApiMismatchRouteTests : IAsyncLifetime
             content: null);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         using var verificationScope = _app.Services.CreateScope();
         var verificationFactory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
         await using var verificationDb = await verificationFactory.CreateDbContextAsync();
-        var assessment = await verificationDb.Assessments
-            .SingleAsync(a => a.RegisteredSystemId == TestSystemId);
-        assessment.InitiatedBy.Should().Be(TestActorId);
-        (await verificationDb.ControlEffectivenessRecords
-                .Where(e => e.AssessmentId == assessment.Id)
-                .Select(e => e.AssessorId)
-                .Distinct()
-                .ToListAsync())
-            .Should().Equal(TestActorId);
+        (await verificationDb.Assessments.AnyAsync(a => a.RegisteredSystemId == TestSystemId))
+            .Should().BeFalse();
+        (await verificationDb.ControlEffectivenessRecords.AnyAsync(e => e.RegisteredSystemId == TestSystemId))
+            .Should().BeFalse();
     }
 
     // ─── T011: GAP-004 — single POAM status with systemId ───────────────────
