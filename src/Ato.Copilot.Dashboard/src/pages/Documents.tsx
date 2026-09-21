@@ -16,6 +16,7 @@ import TemplateManagementDialog from '../components/TemplateManagementDialog';
 import PackageGenerationDialog from '../components/PackageGenerationDialog';
 import { listPackages, downloadPackageUrl } from '../api/package';
 import type { PackageSummary } from '../api/package';
+import AuthenticatedDownload from '../components/AuthenticatedDownload';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -473,17 +474,17 @@ function ExportsSection({ data, onExportClick, onManageTemplates }: { data: Syst
               <p className="text-xs text-gray-500">{exp.format}</p>
             </div>
             {exp.href ? (
-              <a
-                href={exp.available ? exp.href : undefined}
-                target="_blank"
-                rel="noopener noreferrer"
+              <AuthenticatedDownload
+                url={exp.href}
+                disabled={!exp.available}
+                fileName={`${exp.label}${exp.format}`}
                 className={`inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors ${!exp.available ? 'pointer-events-none opacity-50' : ''}`}
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                 </svg>
                 Download
-              </a>
+              </AuthenticatedDownload>
             ) : (
               <button
                 disabled={!exp.available}
@@ -534,16 +535,16 @@ function ExportsSection({ data, onExportClick, onManageTemplates }: { data: Syst
                     </td>
                     <td className="px-5 py-2.5">
                       {exp.status === 'Completed' && (
-                        <a
-                          href={downloadExportUrl(data.systemId, exp.exportId)}
+                        <AuthenticatedDownload
+                          url={downloadExportUrl(data.systemId, exp.exportId)}
+                          fileName={`ssp-${exp.exportId}.${exp.format}`}
                           className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                          download
                         >
                           <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                           </svg>
                           Download
-                        </a>
+                        </AuthenticatedDownload>
                       )}
                     </td>
                   </tr>
@@ -671,16 +672,16 @@ function PackageHistorySection({
                     <td className="px-5 py-2.5 text-gray-500">{pkg.generatedBy}</td>
                     <td className="px-5 py-2.5">
                       {pkg.status === 'Completed' && (
-                        <a
-                          href={downloadPackageUrl(systemId, pkg.packageId)}
+                        <AuthenticatedDownload
+                          url={downloadPackageUrl(systemId, pkg.packageId)}
+                          fileName={`ato-package-${pkg.packageId}.zip`}
                           className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                          download
                         >
                           <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                           </svg>
                           Download
-                        </a>
+                        </AuthenticatedDownload>
                       )}
                     </td>
                   </tr>

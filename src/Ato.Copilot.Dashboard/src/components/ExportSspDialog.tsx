@@ -7,6 +7,7 @@ import { acquireBearer, getMsalInstance } from '../features/auth/msalInstance';
 import apiClient from '../api/client';
 import { enqueuePackage, getPackageStatus, getPackageDownloadUrl } from '../api/packages';
 import { ValidationBadge } from '../features/oscal';
+import AuthenticatedDownload from './AuthenticatedDownload';
 
 // ── Contract types for OSCAL SSP export ─────────────────────────────────────
 // GET /api/v1/systems/{systemId}/exports/oscal-ssp
@@ -421,16 +422,16 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                 />
               </div>
               {status === 'completed' && exportId && (
-                <a
-                  href={downloadExportUrl(systemId, exportId)}
+                <AuthenticatedDownload
+                  url={downloadExportUrl(systemId, exportId)}
+                  fileName={`ssp-${systemId}.${format}`}
                   className="inline-flex items-center gap-2 mt-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-                  download
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Download {formatLabel[format]}
-                </a>
+                </AuthenticatedDownload>
               )}
             </div>
           )}
