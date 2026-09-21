@@ -2,6 +2,9 @@
 
 > System architecture, component diagram, data flow, and deployment topology for ATO Copilot.
 
+Approved design: [CSP and organization workspaces](workspaces.md) (#1002).
+Implementation is authorized; this feature is not shipped.
+
 ---
 
 ## Table of Contents
