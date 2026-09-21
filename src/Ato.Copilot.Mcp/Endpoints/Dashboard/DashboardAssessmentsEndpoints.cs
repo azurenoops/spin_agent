@@ -698,8 +698,16 @@ public static partial class DashboardEndpoints
                     systemId, controlId,
                     request.PolicyNarrative, request.PolicyNarrative is not null,
                     request.TechnicalNarrative, request.TechnicalNarrative is not null,
-                    userContext.Role, userContext.UserId, ct);
+                    userContext.Role, userContext.UserId, ct, request.ExpectedVersion);
                 return Results.Ok(result);
+            }
+            catch (InvalidOperationException exception) when (
+                exception.Message.StartsWith("UNDER_REVIEW:") || exception.Message.StartsWith("CONCURRENCY_CONFLICT:"))
+            {
+                return Results.Conflict(new ErrorResponse
+                {
+                    Error = exception.Message, ErrorCode = exception.Message.Split(':', 2)[0],
+                });
             }
             catch (ArgumentException exception)
             {

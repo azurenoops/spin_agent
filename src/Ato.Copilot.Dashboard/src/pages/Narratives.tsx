@@ -3,11 +3,16 @@ import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { useSettings } from '../hooks/useSettings';
 import { getNarratives, bulkUpdateNarratives, saveNarrative, regenerateNarrative, getAvailableControls, createNarrative } from '../api/narratives';
-import { getBusinessContext } from '../api/businessContext';
+import { getBusinessContext, getFlaggedControls } from '../api/businessContext';
 import type { NarrativeListItem, AvailableControl } from '../api/narratives';
-import type { BusinessContextDraftResponse } from '../types/dashboard';
+import type { BusinessContextDraftResponse, FlaggedControlItem } from '../types/dashboard';
 import EvidenceSection from '../components/EvidenceSection';
 import ValidationEvidencePanel from '../features/compliance/components/ValidationEvidencePanel';
+
+function hasAiTechnicalNarrative(narrative: NarrativeListItem): boolean {
+  return narrative.aiSuggested && !narrative.migratedFromLegacy &&
+    Boolean(narrative.technicalNarrative?.trim());
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -232,6 +237,64 @@ function AddNarrativeDialog({
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
+type ContextResult<T> = { status: 'loading' } | { status: 'error' } | { status: 'ready'; data: T };
+
+function BusinessContextPanel({ systemId, controlId, flags, canCopy, onCopy, onRefresh }: {
+  systemId: string;
+  controlId: string;
+  flags: ContextResult<FlaggedControlItem[]>;
+  canCopy: boolean;
+  onCopy: (content: string) => void;
+  onRefresh: () => void;
+}) {
+  const [draft, setDraft] = useState<ContextResult<BusinessContextDraftResponse | null>>({ status: 'loading' });
+  useEffect(() => {
+    let active = true;
+    getBusinessContext(systemId, controlId).then(
+      data => { if (active) setDraft({ status: 'ready', data }); },
+      () => { if (active) setDraft({ status: 'error' }); },
+    );
+    return () => { active = false; };
+  }, [systemId, controlId]);
+
+  const context = draft.status === 'ready' ? draft.data : null;
+  return (
+    <section aria-label={`Business context for ${controlId}`} className="mt-3 border-t border-indigo-200 pt-3 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-indigo-700">Mission Owner Business Context</span>
+        <button type="button" className="text-xs text-indigo-600 hover:underline" onClick={onRefresh}>Refresh business context</button>
+      </div>
+      {draft.status === 'loading' && <p role="status" className="text-xs text-gray-500">Loading business context...</p>}
+      {draft.status === 'error' && (
+        <div role="alert" className="text-xs text-red-700">
+          <p>Unable to load business context</p>
+          <button type="button" className="mt-1 font-medium hover:underline" onClick={onRefresh}>Retry business context</button>
+        </div>
+      )}
+      {context && (
+        <>
+          <StatusBadge status={context.governanceStatus} variant={approvalVariant(context.governanceStatus)} />
+          <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{context.content}</p>
+          <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+            <span>By {context.authoredBy}</span><span>{formatDate(context.authoredAt)}</span>
+          </div>
+          {canCopy && <button type="button" className="text-xs text-indigo-600 font-medium hover:underline" onClick={() => onCopy(context.content)}>Copy to Narrative</button>}
+        </>
+      )}
+      {draft.status === 'ready' && !context && (
+        flags.status === 'loading' ? <p role="status" className="text-xs text-gray-500">Loading business context flags...</p>
+          : flags.status === 'error' ? (
+            <div role="alert" className="text-xs text-red-700">
+              <p>Unable to load business context flags</p>
+              <button type="button" className="mt-1 font-medium hover:underline" onClick={onRefresh}>Retry business context flags</button>
+            </div>
+          ) : <p className="text-xs text-gray-500 italic">{flags.data.some(flag => flag.controlId === controlId)
+            ? 'Awaiting business context from Mission Owner' : 'No business context provided'}</p>
+      )}
+    </section>
+  );
+}
+
 export default function Narratives() {
   const { id: systemId } = useParams<{ id: string }>();
   const { settings } = useSettings();
@@ -248,9 +311,22 @@ export default function Narratives() {
   const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const savedTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const draftVersions = useRef<Record<string, number>>({});
+  const activeWrites = useRef(new Set<string>());
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [regenError, setRegenError] = useState('');
-  const [businessContextCache, setBusinessContextCache] = useState<Record<string, BusinessContextDraftResponse | null>>({});
+  const [contextRevision, setContextRevision] = useState(0);
+  const contextKey = `${systemId}:${contextRevision}`;
+  const [contextFlags, setContextFlags] = useState<{ key: string; result: ContextResult<FlaggedControlItem[]> }>({ key: '', result: { status: 'loading' } });
+  useEffect(() => {
+    if (!systemId) return;
+    let active = true;
+    getFlaggedControls(systemId).then(
+      data => { if (active) setContextFlags({ key: contextKey, result: { status: 'ready', data } }); },
+      () => { if (active) setContextFlags({ key: contextKey, result: { status: 'error' } }); },
+    );
+    return () => { active = false; };
+  }, [systemId, contextKey]);
 
   const buildConfiguredSourceUrls = () => {
     if (!settings?.sharePointSiteUrl || !settings?.sourceDocuments) {
@@ -302,7 +378,7 @@ export default function Narratives() {
     const partial = items.filter(n => n.implementationStatus === 'PartiallyImplemented').length;
     const planned = items.filter(n => n.implementationStatus === 'Planned').length;
     const approved = items.filter(n => n.approvalStatus === 'Approved').length;
-    const ai = items.filter(n => n.aiSuggested).length;
+    const ai = items.filter(hasAiTechnicalNarrative).length;
     return { total, implemented, partial, planned, approved, ai };
   }, [items]);
 
@@ -327,16 +403,7 @@ export default function Narratives() {
     setExpanded(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
-      else {
-        next.add(id);
-        // Fetch business context on expand if not cached
-        const item = items.find(n => n.id === id);
-        if (item && systemId && !(item.controlId in businessContextCache)) {
-          getBusinessContext(systemId, item.controlId)
-            .then(bc => setBusinessContextCache(c => ({ ...c, [item.controlId]: bc })))
-            .catch(() => setBusinessContextCache(c => ({ ...c, [item.controlId]: null })));
-        }
-      }
+      else next.add(id);
       return next;
     });
   };
@@ -367,11 +434,23 @@ export default function Narratives() {
   ) => {
     if (text === (original ?? '')) return; // No change
     if (!systemId) return;
+    const current = narratives?.find(item => item.controlId === controlId);
+    if (!current || current.approvalStatus === 'UnderReview') return;
+    const draftKey = `${systemId}:${controlId}`;
+    if (activeWrites.current.has(draftKey)) {
+      setRegenError(`Save failed for ${controlId}: Another write is pending. Your draft is retained; retry after it completes.`);
+      return;
+    }
+    const expectedVersion = draftVersions.current[draftKey] ?? current.version;
+    activeWrites.current.add(draftKey);
+    setRegenError('');
+    setSavedIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
     setSavingIds(prev => new Set([...prev, controlId]));
     try {
-      await saveNarrative(systemId, controlId, part === 'policy'
-        ? { policyNarrative: text }
-        : { technicalNarrative: text });
+      const saved = await saveNarrative(systemId, controlId, part === 'policy'
+        ? { policyNarrative: text, expectedVersion }
+        : { technicalNarrative: text, expectedVersion });
+      draftVersions.current[draftKey] = saved.currentVersion;
       setSavedIds(prev => new Set([...prev, controlId]));
       // Clear "Saved" indicator after 2s
       if (savedTimers.current[controlId]) clearTimeout(savedTimers.current[controlId]);
@@ -379,13 +458,23 @@ export default function Narratives() {
         setSavedIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
       }, 2000);
       refresh();
+    } catch (err: unknown) {
+      const response = (err as { response?: { data?: { error?: string } } })?.response;
+      const detail = response?.data ?? err as { error?: string };
+      setRegenError(`Save failed for ${controlId}: ${detail?.error || 'Unable to save. Your draft has been retained.'}`);
     } finally {
+      activeWrites.current.delete(draftKey);
       setSavingIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
     }
   };
 
   const handleRegenerate = async (controlId: string) => {
     if (!systemId) return;
+    const current = narratives?.find(item => item.controlId === controlId);
+    const draftKey = `${systemId}:${controlId}`;
+    if (!current || current.approvalStatus === 'UnderReview' || activeWrites.current.has(draftKey)) return;
+    const expectedVersion = draftVersions.current[draftKey] ?? current.version;
+    activeWrites.current.add(draftKey);
     setRegeneratingIds(prev => new Set([...prev, controlId]));
     setRegenError('');
     try {
@@ -393,23 +482,26 @@ export default function Narratives() {
       const newNarrative = await regenerateNarrative(
         systemId,
         controlId,
-        sourceUrls.length > 0 ? { sourceUrls } : undefined,
+        { sourceUrls: sourceUrls.length > 0 ? sourceUrls : undefined, expectedVersion },
       );
+      draftVersions.current[draftKey] = expectedVersion + 1;
       if (newNarrative) {
         setEditedNarratives(prev => ({ ...prev, [`${controlId}:technical`]: newNarrative }));
       }
       refresh();
     } catch (err: unknown) {
       const resp = (err as { response?: { status?: number; data?: { error?: string; errorCode?: string } } })?.response;
+      const detail = resp?.data ?? err as { error?: string; errorCode?: string };
       if (resp?.status === 503) {
         setRegenError(`Regeneration failed for ${controlId}: AI service is not configured.`);
-      } else if (resp?.data?.errorCode === 'NO_CAPABILITY') {
+      } else if (detail?.errorCode === 'NO_CAPABILITY') {
         setRegenError(`Regeneration failed for ${controlId}: No security capability is linked to this control. Assign a capability first.`);
       } else {
-        const msg = resp?.data?.error || (err instanceof Error ? err.message : 'Unknown error');
+        const msg = detail?.error || (err instanceof Error ? err.message : 'Unknown error');
         setRegenError(`Regeneration failed for ${controlId}: ${msg}`);
       }
     } finally {
+      activeWrites.current.delete(draftKey);
       setRegeneratingIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
     }
   };
@@ -496,7 +588,7 @@ export default function Narratives() {
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Partial ({stats.partial})</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-400" /> Planned ({stats.planned})</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-gray-300" /> Approved ({stats.approved})</span>
-              {stats.ai > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-purple-400" /> AI-generated ({stats.ai})</span>}
+              {stats.ai > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-purple-400" /> AI-assisted Technical ({stats.ai})</span>}
             </div>
           </div>
         )}
@@ -614,7 +706,7 @@ export default function Narratives() {
                   <th className="px-3 py-3 text-left font-medium text-gray-500">Approval</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-500">Author</th>
                   <th className="px-3 py-3 text-center font-medium text-gray-500">Ver</th>
-                  <th className="px-3 py-3 text-center font-medium text-gray-500">AI</th>
+                  <th className="px-3 py-3 text-center font-medium text-gray-500">Source</th>
                   <th className="px-3 py-3 w-8" />
                 </tr>
               </thead>
@@ -659,8 +751,10 @@ export default function Narratives() {
                       <td className="px-3 py-3 text-gray-500">{n.authoredBy ?? '—'}</td>
                       <td className="px-3 py-3 text-center text-gray-500">{n.version}</td>
                       <td className="px-3 py-3 text-center">
-                        {n.aiSuggested ? (
-                          <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700" title="AI-generated narrative">AI</span>
+                        {n.migratedFromLegacy ? (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500" title="Migrated legacy text; generation provenance unverified">Migrated</span>
+                        ) : hasAiTechnicalNarrative(n) ? (
+                          <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700" title="AI-assisted Technical narrative">AI</span>
                         ) : n.isAutoPopulated ? (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500" title="Auto-populated">Auto</span>
                         ) : null}
@@ -688,13 +782,13 @@ export default function Narratives() {
                               <div className="flex items-center gap-4">
                                 <span>Authored: {formatDate(n.authoredAt)}</span>
                                 <span>Version: {n.version}</span>
-                                {n.aiSuggested && <span className="text-purple-600 font-medium">AI-generated narrative</span>}
+                                {hasAiTechnicalNarrative(n) && <span className="text-purple-600 font-medium">AI-assisted Technical narrative</span>}
                                 {savingIds.has(n.controlId) && <span className="text-indigo-600 font-medium">Saving…</span>}
                                 {savedIds.has(n.controlId) && !savingIds.has(n.controlId) && <span className="text-green-600 font-medium">Saved ✓</span>}
                               </div>
                               <button
                                 className="inline-flex items-center gap-1 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-                                disabled={regeneratingIds.has(n.controlId)}
+                                disabled={regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview'}
                                 onClick={() => handleRegenerate(n.controlId)}
                               >
                                 {regeneratingIds.has(n.controlId) ? 'Regenerating…' : 'Regenerate'}
@@ -708,7 +802,11 @@ export default function Narratives() {
                                   aria-label={`Policy narrative for ${n.controlId}`}
                                   className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                                   value={policyValue}
-                                  onChange={event => setEditedNarratives(previous => ({ ...previous, [policyKey]: event.target.value }))}
+                                  readOnly={n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
+                                  onChange={event => {
+                                    draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
+                                    setEditedNarratives(previous => ({ ...previous, [policyKey]: event.target.value }));
+                                  }}
                                   onBlur={event => handleNarrativeBlur(n.controlId, 'policy', event.target.value, n.policyNarrative)}
                                 />
                               </label>
@@ -722,7 +820,11 @@ export default function Narratives() {
                                   aria-label={`Technical narrative for ${n.controlId}`}
                                   className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                                   value={technicalValue}
-                                  onChange={event => setEditedNarratives(previous => ({ ...previous, [technicalKey]: event.target.value }))}
+                                  readOnly={n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
+                                  onChange={event => {
+                                    draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
+                                    setEditedNarratives(previous => ({ ...previous, [technicalKey]: event.target.value }));
+                                  }}
                                   onBlur={event => handleNarrativeBlur(n.controlId, 'technical', event.target.value, n.technicalNarrative)}
                                 />
                               </label>
@@ -757,44 +859,21 @@ export default function Narratives() {
                               </>
                             )}
                             {/* Business Context Side Panel (T048/T049) */}
-                            {(() => {
-                              const bc = businessContextCache[n.controlId];
-                              if (bc) {
-                                return (
-                                  <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-xs font-semibold text-indigo-700">Mission Owner Business Context</span>
-                                      <StatusBadge status={bc.governanceStatus} variant={approvalVariant(bc.governanceStatus)} />
-                                    </div>
-                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{bc.content}</p>
-                                    <div className="flex items-center gap-3 text-xs text-gray-500">
-                                      <span>By {bc.authoredBy}</span>
-                                      <span>{formatDate(bc.authoredAt)}</span>
-                                    </div>
-                                    {settings.role === 'ISSO' && (
-                                      <button
-                                        type="button"
-                                        className="text-xs text-indigo-600 font-medium hover:underline"
-                                        onClick={() => setEditedNarratives(prev => ({
-                                          ...prev,
-                                          [policyKey]: (prev[policyKey] ?? n.policyNarrative ?? '') + '\n\n' + bc.content,
-                                        }))}
-                                      >
-                                        Copy to Narrative
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              if (bc === null) {
-                                return (
-                                  <p className="mt-3 text-xs text-gray-400 italic">
-                                    Awaiting business context from Mission Owner
-                                  </p>
-                                );
-                              }
-                              return null;
-                            })()}
+                            <BusinessContextPanel
+                              key={`${contextKey}:${n.controlId}`}
+                              systemId={systemId}
+                              controlId={n.controlId}
+                              flags={contextFlags.key === contextKey ? contextFlags.result : { status: 'loading' }}
+                              canCopy={settings.role === 'ISSO' && n.approvalStatus !== 'UnderReview' && !regeneratingIds.has(n.controlId)}
+                              onRefresh={() => setContextRevision(revision => revision + 1)}
+                              onCopy={content => {
+                                draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
+                                setEditedNarratives(prev => ({
+                                  ...prev,
+                                  [policyKey]: (prev[policyKey] ?? n.policyNarrative ?? '') + '\n\n' + content,
+                                }));
+                              }}
+                            />
                           </div>
                             );
                           })()}

@@ -17,6 +17,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
@@ -26,6 +27,7 @@ using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
 using Microsoft.AspNetCore.Authentication;
+using Moq;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.ApiMismatch;
@@ -65,9 +67,224 @@ public class ApiMismatchRouteTests : IAsyncLifetime
     private const string TestBaselineId = "bl-apimismatch-052-001";
     private const string TestActorId = "audit.user@example.mil";
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Issue962_BusinessContextRead_DistinguishesDraftFromAbsence(bool hasDraft)
+    {
+        // Arrange
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var implementation = new ControlImplementation
+        {
+            RegisteredSystemId = TestSystemId, ControlId = "AC-2",
+            PolicyNarrative = "Policy text", TechnicalNarrative = "Technical text"
+        };
+        db.ControlImplementations.Add(implementation);
+        if (hasDraft)
+            db.BusinessContextDrafts.Add(new BusinessContextDraft
+            {
+                ControlImplementationId = implementation.Id,
+                Content = "Synthetic mission context", AuthoredBy = "mission-owner"
+            });
+        await db.SaveChangesAsync();
+
+        // Act
+        var response = await _client.GetAsync($"/api/dashboard/systems/{TestSystemId}/business-context/AC-2");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        if (hasDraft)
+        {
+            payload.GetProperty("content").GetString().Should().Be("Synthetic mission context");
+            payload.GetProperty("controlId").GetString().Should().Be("AC-2");
+            payload.GetProperty("governanceStatus").GetString().Should().Be("Draft");
+            payload.GetProperty("id").GetString().Should().NotBeNullOrEmpty();
+        }
+        else
+            payload.ValueKind.Should().Be(JsonValueKind.Null);
+        await db.Entry(implementation).ReloadAsync();
+        implementation.PolicyNarrative.Should().Be("Policy text");
+        implementation.TechnicalNarrative.Should().Be("Technical text");
+    }
+
+    [Theory]
+    [InlineData(RmfRole.MissionOwner, false, true)]
+    [InlineData(RmfRole.Issm, false, false)]
+    [InlineData(RmfRole.Isso, false, false)]
+    [InlineData(RmfRole.MissionOwner, true, false)]
+    [InlineData(RmfRole.Issm, true, true)]
+    [InlineData(RmfRole.Isso, true, false)]
+    public async Task Issue962_BusinessContextWrites_UseAssignedRoles(RmfRole role, bool flag, bool allowed)
+    {
+        // Arrange
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.ControlImplementations.Add(new ControlImplementation
+        {
+            RegisteredSystemId = TestSystemId, ControlId = "AC-2",
+            PolicyNarrative = "Policy text", TechnicalNarrative = "Technical text"
+        });
+        db.RmfRoleAssignments.Add(new RmfRoleAssignment
+        {
+            RegisteredSystemId = TestSystemId, UserId = TestActorId,
+            UserDisplayName = "Synthetic actor", RmfRole = role,
+            AssignedBy = "test", IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var endpoint = $"/api/dashboard/systems/{TestSystemId}/business-context";
+
+        // Act
+        var response = flag
+            ? await _client.PostAsJsonAsync($"{endpoint}/flags", new { controlId = "AC-2", isFlagged = true })
+            : await _client.PutAsJsonAsync($"{endpoint}/AC-2", new { content = "Owner context" });
+
+        // Assert
+        response.StatusCode.Should().Be(allowed ? (flag ? HttpStatusCode.NoContent : HttpStatusCode.OK) : HttpStatusCode.Forbidden);
+        if (allowed && flag)
+        {
+            var flags = await _client.GetFromJsonAsync<JsonElement>($"{endpoint}/flagged-controls");
+            flags.EnumerateArray().Should().ContainSingle();
+            flags[0].GetProperty("controlId").GetString().Should().Be("AC-2");
+            flags[0].GetProperty("hasDraft").GetBoolean().Should().BeFalse();
+            var unflag = await _client.PostAsJsonAsync($"{endpoint}/flags", new { controlId = "AC-2", isFlagged = false });
+            unflag.StatusCode.Should().Be(HttpStatusCode.NoContent);
+            (await _client.GetFromJsonAsync<JsonElement>($"{endpoint}/flagged-controls")).GetArrayLength().Should().Be(0);
+        }
+        if (allowed && !flag)
+        {
+            var saved = await response.Content.ReadFromJsonAsync<JsonElement>();
+            saved.GetProperty("authoredBy").GetString().Should().Be(TestActorId);
+            var update = await _client.PutAsJsonAsync($"{endpoint}/AC-2", new { content = "Updated owner context" });
+            update.StatusCode.Should().Be(HttpStatusCode.OK);
+            var loaded = await _client.GetFromJsonAsync<JsonElement>($"{endpoint}/AC-2");
+            loaded.GetProperty("content").GetString().Should().Be("Updated owner context");
+            loaded.GetProperty("id").GetString().Should().Be(saved.GetProperty("id").GetString());
+        }
+        var implementation = await db.ControlImplementations.AsNoTracking().SingleAsync();
+        implementation.PolicyNarrative.Should().Be("Policy text");
+        implementation.TechnicalNarrative.Should().Be("Technical text");
+        (await db.BusinessContextDrafts.CountAsync()).Should().Be(allowed && !flag ? 1 : 0);
+    }
+
+    [Theory]
+    [InlineData("GET", "AC-2")]
+    [InlineData("GET", "flagged-controls")]
+    [InlineData("PUT", "AC-2")]
+    [InlineData("POST", "flags")]
+    public async Task Issue962_BusinessContextRoutes_RequireAuthentication(string method, string suffix)
+    {
+        // Arrange
+        using var anonymous = _app.GetTestClient();
+        using var request = new HttpRequestMessage(new HttpMethod(method), $"/api/dashboard/systems/{TestSystemId}/business-context/{suffix}");
+        if (method != "GET")
+            request.Content = JsonContent.Create(new { content = "Synthetic context", controlId = "AC-2", isFlagged = true });
+
+        // Act
+        var response = await anonymous.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Theory]
+    [InlineData("GET", "AC-2", false)]
+    [InlineData("GET", "flagged-controls", false)]
+    [InlineData("PUT", "AC-2", false)]
+    [InlineData("POST", "flags", false)]
+    [InlineData("GET", "AC-2", true)]
+    [InlineData("PUT", "AC-2", true)]
+    [InlineData("POST", "flags", true)]
+    public async Task Issue962_BusinessContextRoutes_RejectMissingTargets(string method, string suffix, bool existingSystem)
+    {
+        // Arrange
+        var systemId = existingSystem ? TestSystemId : "missing-system";
+        using var request = new HttpRequestMessage(new HttpMethod(method), $"/api/dashboard/systems/{systemId}/business-context/{suffix}");
+        if (method != "GET")
+            request.Content = JsonContent.Create(new { content = "Synthetic context", controlId = "AC-2", isFlagged = true });
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var error = await response.Content.ReadFromJsonAsync<JsonElement>();
+        error.GetProperty("errorCode").GetString().Should().Be(existingSystem ? "CONTROL_NOT_FOUND" : "SYSTEM_NOT_FOUND");
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    [InlineData("oversized", false)]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    public async Task Issue962_BusinessContextWrites_RejectInvalidInput(string? input, bool flag)
+    {
+        // Arrange
+        var endpoint = $"/api/dashboard/systems/{TestSystemId}/business-context";
+        var content = input == "oversized" ? new string('x', 8001) : input;
+
+        // Act
+        var response = flag
+            ? await _client.PostAsJsonAsync($"{endpoint}/flags", new { controlId = input, isFlagged = true })
+            : await _client.PutAsJsonAsync($"{endpoint}/AC-2", new { content });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
-    public async Task InitializeAsync()
+    [Theory]
+    [InlineData("SYSTEM_NOT_FOUND", 404, false)]
+    [InlineData("CONTROL_NOT_FOUND", 404, false)]
+    [InlineData("CONCURRENCY_CONFLICT", 409, false)]
+    [InlineData("UNEXPECTED", 0, false)]
+    [InlineData("SYSTEM_NOT_FOUND", 404, true)]
+    [InlineData("CONCURRENCY_CONFLICT", 409, true)]
+    [InlineData("UNEXPECTED", 0, true)]
+    public async Task Issue962_BusinessContextWrites_MapOnlyKnownServiceFailures(string code, int expectedStatus, bool flag)
+    {
+        // Arrange
+        var service = new Mock<ISystemProfileService>();
+        service.Setup(profile => profile.SaveBusinessContextAsync(TestSystemId, "AC-2", "Context", TestActorId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException($"{code}: synthetic failure"));
+        service.Setup(profile => profile.SetControlFlagAsync(TestSystemId, "AC-2", true, TestActorId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException($"{code}: synthetic failure"));
+        await DisposeAsync();
+        await StartAppAsync(service.Object);
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.ControlImplementations.Add(new ControlImplementation { RegisteredSystemId = TestSystemId, ControlId = "AC-2" });
+        await db.SaveChangesAsync();
+        var endpoint = $"/api/dashboard/systems/{TestSystemId}/business-context";
+
+        // Act
+        Func<Task<HttpResponseMessage>> send = () => flag
+            ? _client.PostAsJsonAsync($"{endpoint}/flags", new { controlId = "AC-2", isFlagged = true })
+            : _client.PutAsJsonAsync($"{endpoint}/AC-2", new { content = "Context" });
+
+        // Assert
+        if (expectedStatus == 0)
+        {
+            var response = await send();
+            response.StatusCode.Should().Be(HttpStatusCode.InternalServerError,
+                await response.Content.ReadAsStringAsync());
+        }
+        else
+        {
+            var response = await send();
+            ((int)response.StatusCode).Should().Be(expectedStatus);
+            var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+            payload.GetProperty("errorCode").GetString().Should().Be(code);
+        }
+    }
+
+    public Task InitializeAsync() => StartAppAsync();
+
+    private async Task StartAppAsync(ISystemProfileService? profileOverride = null)
     {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ATO_Auth__BypassForTests", "true");
@@ -97,6 +314,8 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         });
 
         builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
+        if (profileOverride is not null)
+            builder.Services.AddSingleton(profileOverride);
         builder.Services
             .AddAuthentication(CacPassthroughAuthHandler.SchemeName)
             .AddScheme<AuthenticationSchemeOptions, CacPassthroughAuthHandler>(

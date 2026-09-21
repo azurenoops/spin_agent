@@ -21,7 +21,7 @@ export interface UseLoginRaceListenerOptions {
  *
  * Channel messages:  { type: 'login_complete' }
  *
- * Fallback: when `'BroadcastChannel' in window` is false, falls back to the
+ * Fallback: when BroadcastChannel is not a function, falls back to the
  * original storage-event listener on msal.account.keys.* keys.
  */
 export function useLoginRaceListener(opts: UseLoginRaceListenerOptions): void {
@@ -30,9 +30,9 @@ export function useLoginRaceListener(opts: UseLoginRaceListenerOptions): void {
   const channelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => {
-    if ('BroadcastChannel' in window) {
+    if (typeof window.BroadcastChannel === 'function') {
       // Primary path — BroadcastChannel
-      const channel = new BroadcastChannel('ato-login');
+      const channel = new window.BroadcastChannel('ato-login');
       channelRef.current = channel;
 
       channel.onmessage = (event: MessageEvent<{ type?: string }>) => {

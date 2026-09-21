@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Ato.Copilot.Core.Configuration;
+using Microsoft.Extensions.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -105,6 +107,138 @@ public class CapabilityServiceBoundaryTests : IDisposable
         });
 
         _db.SaveChanges();
+    }
+
+    [Theory]
+    [InlineData(SspSectionStatus.UnderReview)]
+    public async Task Regenerate_UnderReview_RejectsBeforeModelCall(SspSectionStatus reviewStatus)
+    {
+        // Arrange
+        var client = new Mock<IChatClient>(MockBehavior.Strict);
+        var generator = new NarrativeTemplateService(client.Object,
+            new AzureAiOptions { Enabled = true, Endpoint = "https://test.openai.azure.us/" },
+            Mock.Of<ILogger<NarrativeTemplateService>>());
+        var service = new CapabilityService(_db, Mock.Of<ILogger<CapabilityService>>(),
+            generator, Mock.Of<IDeviationService>(), Mock.Of<IOrgInheritanceService>());
+        var implementation = new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "AC-2", SecurityCapabilityId = CapId,
+            PolicyNarrative = "Human policy", TechnicalNarrative = "Custom technical",
+            Narrative = "Custom technical", ApprovalStatus = reviewStatus,
+            AuthoredBy = "original-author", IsManuallyCustomized = true,
+        };
+        _db.ControlImplementations.Add(implementation);
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await service.RegenerateNarrativeWithAiAsync(SystemId, "AC-2", "requesting-author");
+
+        // Assert
+        result.ErrorCode.Should().Be("UNDER_REVIEW");
+        result.Narrative.Should().BeNull();
+        client.VerifyNoOtherCalls();
+        await _db.Entry(implementation).ReloadAsync();
+        implementation.TechnicalNarrative.Should().Be("Custom technical");
+        implementation.PolicyNarrative.Should().Be("Human policy");
+        implementation.ApprovalStatus.Should().Be(reviewStatus);
+        implementation.AuthoredBy.Should().Be("original-author");
+        implementation.CurrentVersion.Should().Be(1);
+        implementation.IsManuallyCustomized.Should().BeTrue();
+        (await _db.NarrativeVersions.CountAsync()).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false, null, false)]
+    [InlineData(true, null, false)]
+    [InlineData(false, "", false)]
+    [InlineData(true, "   ", false)]
+    [InlineData(false, "Template text", true)]
+    [InlineData(true, "Model text", true)]
+    public async Task Regenerate_ProvenanceUsesModelOutcome(bool bulk, string? modelText, bool expectedAi)
+    {
+        // Arrange
+        var fallback = new NarrativeTemplateService().GenerateEnrichedNarrative(
+            "MFA", "Entra ID", "MFA", "AC-2", "AC-2", null, "Primary");
+        var responseText = modelText == "Template text" ? fallback : modelText;
+        var client = new Mock<IChatClient>();
+        client.Setup(service => service.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(),
+            It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
+        var generator = new NarrativeTemplateService(client.Object,
+            new AzureAiOptions { Enabled = true, Endpoint = "https://test.openai.azure.us/" },
+            Mock.Of<ILogger<NarrativeTemplateService>>());
+        var service = new CapabilityService(_db, Mock.Of<ILogger<CapabilityService>>(),
+            generator, Mock.Of<IDeviationService>(), Mock.Of<IOrgInheritanceService>());
+        var implementation = new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "AC-2", SecurityCapabilityId = CapId,
+            PolicyNarrative = "Human policy", AuthoredBy = "author",
+            TechnicalNarrative = "Previous model text", Narrative = "Previous model text",
+            AiSuggested = true, IsAutoPopulated = true,
+            ImplementationStatus = ImplementationStatus.Planned, ApprovalStatus = SspSectionStatus.Draft
+        };
+        _db.ControlImplementations.Add(implementation);
+        await _db.SaveChangesAsync();
+
+        // Act
+        if (bulk)
+            await service.BulkRegenerateNarrativesForCapabilityAsync(SystemId, CapId, "author");
+        else
+            await service.RegenerateNarrativeWithAiAsync(SystemId, "AC-2", "author");
+
+        // Assert
+        await _db.Entry(implementation).ReloadAsync();
+        implementation.AiSuggested.Should().Be(expectedAi);
+        implementation.IsAutoPopulated.Should().BeTrue();
+        implementation.Narrative.Should().Be(expectedAi ? responseText : fallback);
+        implementation.PolicyNarrative.Should().Be("Human policy");
+        implementation.ImplementationStatus.Should().Be(ImplementationStatus.Planned);
+        implementation.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
+        var version = await _db.NarrativeVersions.SingleAsync(item => item.VersionNumber == 1);
+        version.SnapshotJson.Should().NotBeNull();
+        var restored = new ControlImplementation();
+        NarrativeContentSnapshot.Restore(restored, version.SnapshotJson!);
+        restored.TechnicalNarrative.Should().Be("Previous model text");
+        restored.PolicyNarrative.Should().Be("Human policy");
+        restored.AiSuggested.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Regenerate_ApprovedCustomContent_CreatesDraftWithoutReplacingApprovedSnapshot()
+    {
+        // Arrange
+        var implementation = new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "AC-2", SecurityCapabilityId = CapId,
+            PolicyNarrative = "Policy", TechnicalNarrative = "Custom technical", Narrative = "Custom technical",
+            IsManuallyCustomized = true, ApprovalStatus = SspSectionStatus.Approved, AuthoredBy = "original-author",
+        };
+        var approved = new NarrativeVersion
+        {
+            ControlImplementationId = implementation.Id, VersionNumber = 1,
+            Content = "Custom technical", SnapshotJson = NarrativeContentSnapshot.Capture(implementation),
+            Status = SspSectionStatus.Approved, AuthoredBy = "original-author",
+        };
+        implementation.ApprovedVersionId = approved.Id;
+        _db.AddRange(implementation, approved);
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.RegenerateNarrativeWithAiAsync(SystemId, "AC-2", "regeneration-author");
+
+        // Assert
+        result.ErrorCode.Should().BeNull();
+        var versions = await _db.NarrativeVersions.OrderBy(item => item.VersionNumber).ToListAsync();
+        versions.Select(item => item.VersionNumber).Should().Equal(1, 2);
+        versions[0].Content.Should().Be("Custom technical");
+        versions[0].Status.Should().Be(SspSectionStatus.Approved);
+        versions[1].Content.Should().Be(result.Narrative);
+        versions[1].AuthoredBy.Should().Be("regeneration-author");
+        implementation.AuthoredBy.Should().Be("regeneration-author");
+        implementation.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
+        implementation.ApprovedVersionId.Should().Be(approved.Id);
+        implementation.PolicyNarrative.Should().Be("Policy");
+        implementation.IsManuallyCustomized.Should().BeFalse();
     }
 
     [Fact]
@@ -295,6 +429,40 @@ public class CapabilityServiceBoundaryTests : IDisposable
         result.Summary.TotalMappedControls.Should().Be(5);
     }
 
+    [Theory]
+    [InlineData("Model content", false, true, 1)]
+    [InlineData("Migrated content", true, true, 0)]
+    [InlineData(null, false, true, 0)]
+    [InlineData("   ", false, true, 0)]
+    [InlineData("Template content", false, false, 0)]
+    public async Task GetCapabilityCoverage_CountsOnlyCanonicalModelContent(
+        string? technical, bool migrated, bool aiSuggested, int expectedCount)
+    {
+        // Arrange
+        var component = CreateCspComponent("Synthetic provider", CspInheritedComponentStatus.Published);
+        var capability = CreateCspCapability(component, "Synthetic capability", CspInheritedCapabilityStatus.Mapped, "AC-2");
+        _db.AddRange(component, capability);
+        _db.CapabilitySubscriptions.Add(new CapabilitySubscription
+        {
+            RegisteredSystemId = SystemId, CspInheritedCapabilityId = capability.Id.ToString(),
+            IsActive = true, SubscribedBy = "test",
+        });
+        _db.ControlImplementations.Add(new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "AC-2", TechnicalNarrative = technical,
+            PolicyNarrative = "Human policy", Narrative = "Legacy projection",
+            MigratedFromLegacy = migrated, AiSuggested = aiSuggested,
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.GetCapabilityCoverageAsync(SystemId);
+
+        // Assert
+        result!.Capabilities.Should().HaveCount(2);
+        result.Capabilities.Should().OnlyContain(item => item.NarrativeStatus.AiGenerated == expectedCount);
+    }
+
     [Fact]
     public async Task BulkRegenerate_WithSubscribedCspCapability_CreatesMissingImplementations()
     {
@@ -460,7 +628,7 @@ public class CapabilityServiceBoundaryTests : IDisposable
     [Fact]
     public async Task UpdateCapability_BoundaryScoped_ReturnsNarrativesByBoundary()
     {
-        // Setup: add a ControlImplementation linked to the capability
+        // Arrange
         _db.NistControls.Add(new NistControl
         {
             Id = "AC-2", Family = "AC", Title = "Account Management",
@@ -470,6 +638,7 @@ public class CapabilityServiceBoundaryTests : IDisposable
             RegisteredSystemId = SystemId,
             ControlId = "AC-2",
             SecurityCapabilityId = CapId,
+            AiSuggested = true,
             AuthoredBy = "test",
         });
         await _db.SaveChangesAsync();
@@ -481,14 +650,44 @@ public class CapabilityServiceBoundaryTests : IDisposable
             ImplementationStatus = "Implemented", Owner = "Test",
         };
 
+        // Act
         var (result, conflict) = await _sut.UpdateCapabilityAsync(CapId, request, "test");
 
+        // Assert
+        var implementation = await _db.ControlImplementations.SingleAsync();
+        implementation.AiSuggested.Should().BeFalse();
+        implementation.IsAutoPopulated.Should().BeTrue();
         conflict.Should().BeFalse();
         result.Should().NotBeNull();
         result!.NarrativesUpdated.Should().Be(1);
         result.NarrativesByBoundary.Should().NotBeNull();
         // AC-2 mapping has null boundary FK → tracked as "Organization-Wide"
         result.NarrativesByBoundary.Should().ContainKey("Organization-Wide");
+    }
+
+    [Fact]
+    public async Task CreateMappings_DeterministicFallback_ClearsPriorAiProvenance()
+    {
+        // Arrange
+        _db.NistControls.Add(new NistControl { Id = "ac-3", Family = "AC", Title = "Access Enforcement" });
+        var implementation = new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "ac-3", AiSuggested = true,
+            Narrative = "Previous model output", AuthoredBy = "author"
+        };
+        _db.ControlImplementations.Add(implementation);
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.CreateMappingsAsync(CapId, new CreateMappingsRequest
+        {
+            Mappings = [new CreateMappingItem { ControlId = "ac-3", Role = "Primary", RegisteredSystemId = SystemId }]
+        }, "author");
+
+        // Assert
+        result!.NarrativesGenerated.Should().Be(1);
+        implementation.AiSuggested.Should().BeFalse();
+        implementation.IsAutoPopulated.Should().BeTrue();
     }
 
     [Fact]

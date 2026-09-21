@@ -45,12 +45,9 @@ public class CoverageComputationTests : IDisposable
             JsonSerializer.Serialize(testProfile));
 
         var envMock = new Mock<IWebHostEnvironment>();
-        envMock.Setup(e => e.ContentRootPath).Returns(Path.Combine(_tempDir, "non-existent"));
-        var origDir = Directory.GetCurrentDirectory();
-        Directory.SetCurrentDirectory(_tempDir);
+        envMock.Setup(e => e.ContentRootPath).Returns(Path.Combine(_tempDir, "src", "seed-data"));
         var cspService = new CspProfileService(
             Mock.Of<ILogger<CspProfileService>>(), envMock.Object);
-        Directory.SetCurrentDirectory(origDir);
 
         var orgMock = new Mock<IOrgInheritanceService>();
         orgMock.Setup(o => o.DeriveOrgDefaultsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))

@@ -56,7 +56,7 @@ function makeFile(name: string, type: string, sizeBytes: number): File {
 // ── tests ────────────────────────────────────────────────────────────────────
 
 describe('useChat — attachment validation (T260)', () => {
-  it('returns no errors for valid PDF under 20 MB', () => {
+  it('returns no errors for valid PDF under 10 MB', () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     const file = makeFile('scan.pdf', 'application/pdf', 1024 * 1024);
     expect(result.current.validateAttachments([file])).toHaveLength(0);
@@ -64,19 +64,29 @@ describe('useChat — attachment validation (T260)', () => {
 
   it('returns an error for an unsupported type', () => {
     const { result } = renderHook(() => useChat(), { wrapper });
-    const file = makeFile('data.csv', 'text/csv', 1024);
+    const file = makeFile('photo.png', 'image/png', 1024);
     const errors = result.current.validateAttachments([file]);
     expect(errors).toHaveLength(1);
-    expect(errors[0]!.fileName).toBe('data.csv');
+    expect(errors[0]!.fileName).toBe('photo.png');
     expect(errors[0]!.reason).toMatch(/unsupported type/i);
   });
 
-  it('returns an error for a file exceeding 20 MB', () => {
+  it('returns an error for a file exceeding 10 MB', () => {
     const { result } = renderHook(() => useChat(), { wrapper });
-    const file = makeFile('huge.pdf', 'application/pdf', 21 * 1024 * 1024);
+    const file = makeFile('huge.pdf', 'application/pdf', 10 * 1024 * 1024 + 1);
     const errors = result.current.validateAttachments([file]);
     expect(errors).toHaveLength(1);
-    expect(errors[0]!.reason).toMatch(/20 MB/i);
+    expect(errors[0]!.reason).toMatch(/10 MB/i);
+  });
+
+  it.each(['text/plain', 'text/csv', 'application/pdf'])('accepts %s at the exact 10 MB limit', (type) => {
+    // Arrange
+    const { result } = renderHook(() => useChat(), { wrapper });
+    const file = makeFile('synthetic-document', type, 10 * 1024 * 1024);
+    // Act
+    const errors = result.current.validateAttachments([file]);
+    // Assert
+    expect(errors).toHaveLength(0);
   });
 
   it('passes valid files as attachments in the ChatRequest', async () => {
@@ -96,8 +106,8 @@ describe('useChat — attachment validation (T260)', () => {
 
   it('excludes invalid files from ChatRequest attachments', async () => {
     const { result } = renderHook(() => useChat(), { wrapper });
-    const good = makeFile('report.png', 'image/png', 100 * 1024);
-    const bad = makeFile('sheet.csv', 'text/csv', 1024);
+    const good = makeFile('sheet.csv', 'text/csv', 100 * 1024);
+    const bad = makeFile('report.png', 'image/png', 1024);
 
     await act(async () => {
       await result.current.sendMessage('Attach these', [good, bad]);
@@ -105,12 +115,12 @@ describe('useChat — attachment validation (T260)', () => {
 
     const [request] = mockStream.mock.calls[0] as [{ attachments?: File[] }];
     expect(request.attachments).toHaveLength(1);
-    expect(request.attachments![0]!.name).toBe('report.png');
+    expect(request.attachments![0]!.name).toBe('sheet.csv');
   });
 
   it('adds an inline error message when invalid files are present', async () => {
     const { result } = renderHook(() => useChat(), { wrapper });
-    const bad = makeFile('data.txt', 'text/plain', 1024);
+    const bad = makeFile('program.exe', 'application/octet-stream', 1024);
 
     await act(async () => {
       await result.current.sendMessage('Hello', [bad]);

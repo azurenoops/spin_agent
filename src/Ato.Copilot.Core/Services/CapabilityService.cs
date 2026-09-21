@@ -300,6 +300,7 @@ public class CapabilityService
                     }
 
                     var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
+                    var previousSnapshot = NarrativeContentSnapshot.Capture(impl);
 
                     // Find all mappings for this control + system to build composite narrative
                     var mappings = await _db.CapabilityControlMappings
@@ -354,12 +355,15 @@ public class CapabilityService
                             ControlImplementationId = impl.Id,
                             VersionNumber = impl.CurrentVersion,
                             Content = previousNarrative,
+                            SnapshotJson = previousSnapshot,
                             AuthoredBy = modifiedBy,
                             ChangeReason = changeReason,
                         });
                         impl.CurrentVersion++;
                     }
 
+                    impl.AiSuggested = false;
+                    impl.IsAutoPopulated = true;
                     impl.ModifiedAt = DateTime.UtcNow;
                     narrativesUpdated++;
                     systemUpdated++;
@@ -661,7 +665,8 @@ public class CapabilityService
                     else
                         empty++;
 
-                    if (impl.AiSuggested) aiGenerated++;
+                    if (impl.AiSuggested && !impl.MigratedFromLegacy
+                        && !string.IsNullOrWhiteSpace(impl.TechnicalNarrative)) aiGenerated++;
                 }
                 else
                 {
@@ -751,7 +756,8 @@ public class CapabilityService
                 else
                     empty++;
 
-                if (implementation.AiSuggested)
+                if (implementation.AiSuggested && !implementation.MigratedFromLegacy
+                    && !string.IsNullOrWhiteSpace(implementation.TechnicalNarrative))
                     aiGenerated++;
             }
 
@@ -877,12 +883,16 @@ public class CapabilityService
         string systemId,
         string controlId,
         string modifiedBy,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? expectedVersion = null)
     {
         var impl = await _db.ControlImplementations
             .FirstOrDefaultAsync(ci => ci.RegisteredSystemId == systemId && ci.ControlId == controlId,
                 cancellationToken);
         if (impl is null) return (null, "NOT_FOUND");
+        if (impl.ApprovalStatus == SspSectionStatus.UnderReview) return (null, "UNDER_REVIEW");
+        if (expectedVersion.HasValue && expectedVersion.Value != impl.CurrentVersion)
+            return (null, "CONCURRENCY_CONFLICT");
 
         var capId = impl.SecurityCapabilityId;
         var cap = capId is not null
@@ -936,17 +946,13 @@ public class CapabilityService
                 cancellationToken);
 
             // Fall back to deterministic enriched narrative when AI is not enabled
+            aiGenerated = !string.IsNullOrWhiteSpace(narrative);
             narrative ??= _narrativeService.GenerateEnrichedNarrative(
                 cap.Name, cap.Provider, cap.Description,
                 controlId, controlTitle,
                 componentContexts.Count > 0 ? componentContexts : null,
                 boundaryName);
 
-            aiGenerated = narrative != _narrativeService.GenerateEnrichedNarrative(
-                cap.Name, cap.Provider, cap.Description,
-                controlId, controlTitle,
-                componentContexts.Count > 0 ? componentContexts : null,
-                boundaryName);
         }
         else
         {
@@ -974,26 +980,52 @@ public class CapabilityService
 
         // Save old narrative as NarrativeVersion
         var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
-        if (previousNarrative is not null)
+        var previousSnapshot = NarrativeContentSnapshot.Capture(impl);
+        if (!await _db.NarrativeVersions.AnyAsync(version =>
+            version.ControlImplementationId == impl.Id && version.VersionNumber == impl.CurrentVersion, cancellationToken))
         {
             _db.NarrativeVersions.Add(new NarrativeVersion
             {
+                TenantId = impl.TenantId,
                 ControlImplementationId = impl.Id,
                 VersionNumber = impl.CurrentVersion,
-                Content = previousNarrative,
-                AuthoredBy = modifiedBy,
-                ChangeReason = aiGenerated
-                    ? "AI regeneration requested by user"
-                    : "Deterministic regeneration requested by user",
+                Content = previousNarrative ?? string.Empty,
+                SnapshotJson = previousSnapshot,
+                Status = impl.ApprovalStatus,
+                AuthoredBy = impl.AuthoredBy,
+                AuthoredAt = impl.AuthoredAt,
+                ChangeReason = "Before explicit regeneration",
             });
-            impl.CurrentVersion++;
         }
 
         impl.SetCombinedNarrative(narrative);
         impl.AiSuggested = aiGenerated;
+        impl.IsAutoPopulated = true;
+        impl.IsManuallyCustomized = false;
         impl.ModifiedAt = DateTime.UtcNow;
+        impl.CurrentVersion++;
+        impl.ApprovalStatus = SspSectionStatus.Draft;
+        impl.AuthoredBy = modifiedBy;
+        _db.NarrativeVersions.Add(new NarrativeVersion
+        {
+            TenantId = impl.TenantId,
+            ControlImplementationId = impl.Id,
+            VersionNumber = impl.CurrentVersion,
+            Content = narrative ?? string.Empty,
+            SnapshotJson = NarrativeContentSnapshot.Capture(impl),
+            Status = SspSectionStatus.Draft,
+            AuthoredBy = modifiedBy,
+            ChangeReason = aiGenerated ? "AI regeneration requested by user" : "Deterministic regeneration requested by user",
+        });
 
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return (null, "CONCURRENCY_CONFLICT");
+        }
 
         _logger.LogInformation(
             "{Mode} narrative for system {SystemId} control {ControlId}",
@@ -1063,6 +1095,7 @@ public class CapabilityService
                 boundaryName,
                 cancellationToken);
 
+            var aiGenerated = !string.IsNullOrWhiteSpace(narrative);
             narrative ??= _narrativeService.GenerateEnrichedNarrative(
                 capabilityName, provider, description,
                 controlId, controlTitle,
@@ -1071,6 +1104,7 @@ public class CapabilityService
 
             // Save version history
             var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
+            var previousSnapshot = NarrativeContentSnapshot.Capture(impl);
             if (previousNarrative is not null)
             {
                 _db.NarrativeVersions.Add(new NarrativeVersion
@@ -1078,6 +1112,7 @@ public class CapabilityService
                     ControlImplementationId = impl.Id,
                     VersionNumber = impl.CurrentVersion,
                     Content = previousNarrative,
+                    SnapshotJson = previousSnapshot,
                     AuthoredBy = modifiedBy,
                     ChangeReason = "Bulk regeneration for capability",
                 });
@@ -1085,7 +1120,7 @@ public class CapabilityService
             }
 
             impl.SetCombinedNarrative(narrative);
-            impl.AiSuggested = true;
+            impl.AiSuggested = aiGenerated;
             impl.IsAutoPopulated = true;
             impl.ModifiedAt = DateTime.UtcNow;
             regenerated++;
@@ -1504,6 +1539,7 @@ public class CapabilityService
                 }
                 else
                 {
+                    impl.AiSuggested = false;
                     impl.SetCombinedNarrative(_narrativeService.GenerateEnrichedNarrative(
                         cap.Name, cap.Provider, cap.Description,
                         normalizedControlId, nist.Title,

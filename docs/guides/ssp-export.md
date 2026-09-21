@@ -82,6 +82,57 @@ Exported files are automatically cleaned up after **30 days** (configurable). Th
 
 To download an export before it expires, use the Download link in the Export History table.
 
+## Narrative Provenance and Import History
+
+OSCAL decomposition records model or fallback origin separately from confidence.
+Drafts created before origin tracking remain `Unknown`; a confidence score alone
+does not make their approved content AI-generated. Empty drafts cannot be approved.
+
+Document-source generation preserves AI provenance when model synthesis succeeds.
+Deterministic fallback is automatic, not AI-generated. Manual Technical edits clear
+generation provenance. Capability AI coverage counts only nonempty, canonical,
+non-migrated Technical narratives marked as model-generated.
+
+OSCAL import replaces only the supplied Policy or Technical half. Technical
+replacements clear the previous text's generation flags; Policy-only replacements
+preserve Technical provenance. Full imports record narrative snapshots with the
+import run ID in the version change reason. Preview and unchanged controls do not
+add versions. Narratives under review cannot be overwritten by an import.
+
+Rollback restores both narrative halves and provenance from snapshots, recording
+a new draft version. Legacy versions without snapshots restore their stored text
+with non-AI, non-automatic provenance and leave Policy unchanged. These snapshots
+are narrative audit records, not a general import-run ledger or database backup.
+
+### Editing and Regeneration Conflicts
+
+Policy and Technical edits create a new Draft version with a content/provenance
+snapshot and the requesting author. Omitted halves remain unchanged. Existing
+approved versions and the approved-version pointer remain unchanged; editing does
+not approve the new text. Manual Technical edits are marked customized so existing
+automatic-population protections apply.
+
+Dual narrative PATCH requests accept an optional `expectedVersion` integer.
+Dashboard single-control `regenerate-ai` requests accept it as a query parameter,
+including when document sources are supplied. The `narrative_set_policy`,
+`narrative_set_technical`, and `document_generate_narrative` MCP tools accept
+`expected_version`. The dashboard sends the version captured with its local draft.
+Clients that omit it retain compatibility but cannot detect edits completed before
+their request reads the narrative; EF still checks version and review state when
+persisting the write.
+
+Under-review edits/regeneration return HTTP 409 with `UNDER_REVIEW`; stale writes
+return 409 with `CONCURRENCY_CONFLICT`. MCP errors preserve these codes. The
+dashboard retains rejected local edits and displays the server error. Preserve
+that text before reloading, compare it with the current narrative, and reapply the
+intended change. Local drafts are not durable across page reloads.
+
+Explicit single-control regeneration may replace customized Technical content,
+clears the replaced text's customization marker, preserves Policy, and creates a
+new Draft version. Default and document-source routes reject under-review or stale
+requests before generation and check concurrency again when saving. Automatic and
+bulk generation retain their existing rules; this change does not redesign them.
+
 ## API Reference
 
 For programmatic access to exports and templates, see the [API documentation](../api/mcp-server.md).

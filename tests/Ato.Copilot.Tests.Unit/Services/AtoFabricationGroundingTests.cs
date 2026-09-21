@@ -373,9 +373,12 @@ public class AtoFabricationGroundingTests : IDisposable
 
     // ─── #685 Fix: Reviewer gate — no silent Approved→Draft bypass ──────────
 
-    [Fact]
-    public async Task GenerateSspAsync_AiSuggestedNarrativeWithNoApproval_MarkedInDocument()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GenerateSspAsync_AiSuggestedNarrativeWithNoApproval_MarkedInDocument(bool modelGenerated)
     {
+        // Arrange
         var system = new RegisteredSystem
         {
             Id = Guid.NewGuid().ToString(),
@@ -392,8 +395,8 @@ public class AtoFabricationGroundingTests : IDisposable
             ControlId = "AC-2",
             Narrative = "This is an AI-suggested narrative about access control.",
             TechnicalNarrative = "This is an AI-suggested narrative about access control.",
-            AiSuggested = true,
-            IsAutoPopulated = false,
+            AiSuggested = modelGenerated,
+            IsAutoPopulated = !modelGenerated,
             ApprovedVersionId = null, // not approved
             AuthoredBy = "ai-system"
         };
@@ -408,9 +411,11 @@ public class AtoFabricationGroundingTests : IDisposable
         _db.ControlBaselines.Add(baseline);
         await _db.SaveChangesAsync();
 
+        // Act
         var doc = await _sspService.GenerateSspAsync(system.Id);
 
-        // The document should contain the reviewer-gate marker, not silently render as approved
+        // Assert
+        doc.Warnings.Should().Contain(warning => warning.Contains("GROUNDING_VIOLATION"));
         doc.Content.Should().Contain("reviewer gate required",
             "AI-suggested narratives without approval must be marked as requiring reviewer gate (fix #685)");
     }

@@ -20,7 +20,7 @@ public class DualNarrativeToolTests
         var service = new Mock<IDualNarrativeService>();
         service.Setup(item => item.UpdateAsync(
                 "system-1", "AC-1", "Policy text", true, null, false,
-                "Compliance.Analyst", "user-1", It.IsAny<CancellationToken>()))
+                "Compliance.Analyst", "user-1", It.IsAny<CancellationToken>(), 7))
             .ReturnsAsync(EmptyResponse());
         using var provider = CreateProvider();
         var tool = new NarrativePolicyTool(
@@ -33,7 +33,8 @@ public class DualNarrativeToolTests
         {
             ["system_id"] = "system-1",
             ["control_id"] = "AC-1",
-            ["policy_narrative"] = "Policy text"
+            ["policy_narrative"] = "Policy text",
+            ["expected_version"] = 7,
         });
 
         // Assert
@@ -48,7 +49,7 @@ public class DualNarrativeToolTests
         var service = new Mock<IDualNarrativeService>();
         service.Setup(item => item.UpdateAsync(
                 "system-1", "AC-1", null, false, "Technical text", true,
-                "Compliance.Analyst", "user-1", It.IsAny<CancellationToken>()))
+                "Compliance.Analyst", "user-1", It.IsAny<CancellationToken>(), 7))
             .ReturnsAsync(EmptyResponse());
         using var provider = CreateProvider();
         var tool = new NarrativeTechnicalTool(
@@ -61,7 +62,8 @@ public class DualNarrativeToolTests
         {
             ["system_id"] = "system-1",
             ["control_id"] = "AC-1",
-            ["technical_narrative"] = "Technical text"
+            ["technical_narrative"] = "Technical text",
+            ["expected_version"] = 7,
         });
 
         // Assert

@@ -47,12 +47,16 @@ public sealed class NarrativePolicyTool : BaseTool
             var stopwatch = Stopwatch.StartNew();
             var result = await _service.UpdateAsync(
                 systemId, controlId, narrative, true, null, false,
-                user.Role, user.UserId, cancellationToken);
+                user.Role, user.UserId, cancellationToken,
+                arguments.ContainsKey("expected_version") ? GetArg<int>(arguments, "expected_version") : null);
             return Success(Name, stopwatch, new
             {
                 systemId = result.SystemId,
                 controlId = result.ControlId,
-                policyNarrative = result.PolicyNarrative
+                policyNarrative = result.PolicyNarrative,
+                currentVersion = result.CurrentVersion,
+                approvalStatus = result.ApprovalStatus.ToString(),
+                authoredBy = result.AuthoredBy,
             });
         }
         catch (Exception exception) when (exception is ArgumentException or UnauthorizedAccessException or InvalidOperationException)
@@ -66,7 +70,8 @@ public sealed class NarrativePolicyTool : BaseTool
         {
             ["system_id"] = new() { Name = "system_id", Description = "System identifier", Type = "string", Required = true },
             ["control_id"] = new() { Name = "control_id", Description = "NIST control identifier", Type = "string", Required = true },
-            [narrativeName] = new() { Name = narrativeName, Description = "Narrative text (maximum 8000 characters)", Type = "string", Required = true }
+            [narrativeName] = new() { Name = narrativeName, Description = "Narrative text (maximum 8000 characters)", Type = "string", Required = true },
+            ["expected_version"] = new() { Name = "expected_version", Description = "Version read by the caller; rejects stale edits", Type = "integer", Required = false },
         };
 
     internal static string Success(string tool, Stopwatch stopwatch, object data) => JsonSerializer.Serialize(new
@@ -109,7 +114,8 @@ public sealed class NarrativeTechnicalTool : BaseTool
     {
         ["system_id"] = new() { Name = "system_id", Description = "System identifier", Type = "string", Required = true },
         ["control_id"] = new() { Name = "control_id", Description = "NIST control identifier", Type = "string", Required = true },
-        ["technical_narrative"] = new() { Name = "technical_narrative", Description = "Narrative text (maximum 8000 characters)", Type = "string", Required = true }
+        ["technical_narrative"] = new() { Name = "technical_narrative", Description = "Narrative text (maximum 8000 characters)", Type = "string", Required = true },
+        ["expected_version"] = new() { Name = "expected_version", Description = "Version read by the caller; rejects stale edits", Type = "integer", Required = false },
     };
 
     public override async Task<string> ExecuteCoreAsync(
@@ -131,12 +137,16 @@ public sealed class NarrativeTechnicalTool : BaseTool
             var stopwatch = Stopwatch.StartNew();
             var result = await _service.UpdateAsync(
                 systemId, controlId, null, false, narrative, true,
-                user.Role, user.UserId, cancellationToken);
+                user.Role, user.UserId, cancellationToken,
+                arguments.ContainsKey("expected_version") ? GetArg<int>(arguments, "expected_version") : null);
             return NarrativePolicyTool.Success(Name, stopwatch, new
             {
                 systemId = result.SystemId,
                 controlId = result.ControlId,
-                technicalNarrative = result.TechnicalNarrative
+                technicalNarrative = result.TechnicalNarrative,
+                currentVersion = result.CurrentVersion,
+                approvalStatus = result.ApprovalStatus.ToString(),
+                authoredBy = result.AuthoredBy,
             });
         }
         catch (Exception exception) when (exception is ArgumentException or UnauthorizedAccessException or InvalidOperationException)

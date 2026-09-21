@@ -39,6 +39,14 @@ assessment execution context.
 - Leave #982 resource-scope propagation and #983 result-integrity changes as
   explicit separate follow-ups. Do not rename historical assessments.
 
+Integration with the narrative provenance/review fixes from main (#984, #985,
+#1003) preserves their narrative-write guards, but does not restore the removed
+documentation-only assessment fallback. The incoming #961 assessment regression
+must instead verify that neither reviewed nor unreviewed template narratives
+satisfy Azure admission, and that rejection leaves narrative status unchanged.
+Exercise this with an authorized writer so the test reaches environment admission
+rather than stopping at role authorization.
+
 The additional service/probe split is required to test authorization/configuration
 separately from Azure IO and avoid success-shaped adapter fallbacks. A UI-only
 guard or checking only a nonempty subscription string was rejected because direct

@@ -135,8 +135,8 @@ public class OscalSspImportService : IOscalSspImportService
                 existing.TryGetValue(controlId, out var current);
                 var isNew = current == null;
                 var unchanged = current != null &&
-                    (policyNarrative is null || string.Equals(current.PolicyNarrative?.Trim(), policyNarrative, StringComparison.OrdinalIgnoreCase)) &&
-                    (technicalNarrative is null || string.Equals(current.TechnicalNarrative?.Trim(), technicalNarrative, StringComparison.OrdinalIgnoreCase));
+                    (policyNarrative is null || string.Equals(current.PolicyNarrative?.Trim(), policyNarrative, StringComparison.Ordinal)) &&
+                    (technicalNarrative is null || string.Equals(current.TechnicalNarrative?.Trim(), technicalNarrative, StringComparison.Ordinal));
 
                 var currentNarrative = string.Join("\n\n", new[] { current?.PolicyNarrative, current?.TechnicalNarrative }
                     .Where(value => !string.IsNullOrWhiteSpace(value)));
@@ -171,15 +171,37 @@ public class OscalSspImportService : IOscalSspImportService
                         };
                         implementation.SetCombinedNarrative(technicalNarrative);
                         db.ControlImplementations.Add(implementation);
+                        db.NarrativeVersions.Add(CreateImportVersion(implementation, runId));
+                        existing[controlId] = implementation;
                         created++;
                     }
                     else
                     {
+                        if (current!.ApprovalStatus == SspSectionStatus.UnderReview)
+                            throw new InvalidOperationException("UNDER_REVIEW: Cannot import into a narrative under review.");
+                        if (!db.NarrativeVersions.Local.Any(version =>
+                            version.ControlImplementationId == current.Id && version.VersionNumber == current.CurrentVersion) &&
+                            !await db.NarrativeVersions.AnyAsync(version =>
+                            version.ControlImplementationId == current.Id && version.VersionNumber == current.CurrentVersion,
+                            cancellationToken))
+                        {
+                            db.NarrativeVersions.Add(CreateImportVersion(current, runId, "Before OSCAL import"));
+                        }
                         if (policyNarrative is not null)
-                            current!.PolicyNarrative = policyNarrative;
-                        if (technicalNarrative is not null)
-                            current!.SetCombinedNarrative(technicalNarrative);
+                            current.PolicyNarrative = policyNarrative;
+                        if (technicalNarrative is not null &&
+                            !string.Equals(current.TechnicalNarrative, technicalNarrative, StringComparison.Ordinal))
+                        {
+                            current.SetCombinedNarrative(technicalNarrative);
+                            current.AiSuggested = false;
+                            current.IsAutoPopulated = false;
+                            current.IsManuallyCustomized = false;
+                        }
+                        current.CurrentVersion++;
+                        current.ApprovalStatus = SspSectionStatus.Draft;
+                        current.AuthoredBy = "oscal-import";
                         current.ModifiedAt = DateTime.UtcNow;
+                        db.NarrativeVersions.Add(CreateImportVersion(current, runId));
                         updated++;
                     }
                 }
@@ -213,6 +235,19 @@ public class OscalSspImportService : IOscalSspImportService
             Preview          = preview
         };
     }
+
+    private static NarrativeVersion CreateImportVersion(
+        ControlImplementation implementation, string runId, string reason = "OSCAL import") => new()
+    {
+        TenantId = implementation.TenantId,
+        ControlImplementationId = implementation.Id,
+        VersionNumber = implementation.CurrentVersion,
+        Content = implementation.TechnicalNarrative ?? implementation.Narrative ?? string.Empty,
+        SnapshotJson = NarrativeContentSnapshot.Capture(implementation),
+        Status = implementation.ApprovalStatus,
+        AuthoredBy = implementation.AuthoredBy,
+        ChangeReason = $"{reason}; run {runId}",
+    };
 
     private static string CapitaliseFirstWord(string s) =>
         string.IsNullOrEmpty(s) ? s :

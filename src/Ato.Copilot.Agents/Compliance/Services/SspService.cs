@@ -27,7 +27,7 @@ public class SspService : ISspService
     }
 
     /// <inheritdoc />
-    public async Task<ControlImplementation> WriteNarrativeAsync(
+    public Task<ControlImplementation> WriteNarrativeAsync(
         string systemId,
         string controlId,
         string narrative,
@@ -36,6 +36,25 @@ public class SspService : ISspService
         int? expectedVersion = null,
         string? changeReason = null,
         CancellationToken cancellationToken = default)
+        => WriteNarrativeCoreAsync(systemId, controlId, narrative, status, authoredBy,
+            expectedVersion, changeReason, null, cancellationToken);
+
+    public Task<ControlImplementation> WriteGeneratedNarrativeAsync(
+        string systemId,
+        string controlId,
+        string narrative,
+        bool generatedByModel,
+        string authoredBy = "mcp-user",
+        string? changeReason = null,
+        CancellationToken cancellationToken = default,
+        int? expectedVersion = null)
+        => WriteNarrativeCoreAsync(systemId, controlId, narrative, null, authoredBy,
+            expectedVersion, changeReason, generatedByModel, cancellationToken);
+
+    private async Task<ControlImplementation> WriteNarrativeCoreAsync(
+        string systemId, string controlId, string narrative, string? status,
+        string authoredBy, int? expectedVersion, string? changeReason,
+        bool? generatedByModel, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(systemId, nameof(systemId));
         ArgumentException.ThrowIfNullOrWhiteSpace(controlId, nameof(controlId));
@@ -86,8 +105,10 @@ public class SspService : ISspService
             existing.SetCombinedNarrative(technicalNarrative);
             existing.ImplementationStatus = implStatus;
             existing.ModifiedAt = DateTime.UtcNow;
-            existing.AiSuggested = false;
-            existing.IsAutoPopulated = false;
+            existing.AiSuggested = generatedByModel == true;
+            existing.IsAutoPopulated = generatedByModel.HasValue;
+            if (generatedByModel.HasValue)
+                existing.IsManuallyCustomized = false;
             existing.CurrentVersion += 1;
             existing.ApprovalStatus = SspSectionStatus.Draft;
             existing.AuthoredBy = authoredBy;
@@ -98,6 +119,7 @@ public class SspService : ISspService
                 ControlImplementationId = existing.Id,
                 VersionNumber = existing.CurrentVersion,
                 Content = narrative.Trim(),
+                SnapshotJson = NarrativeContentSnapshot.Capture(existing),
                 Status = SspSectionStatus.Draft,
                 AuthoredBy = authoredBy,
                 AuthoredAt = DateTime.UtcNow,
@@ -123,6 +145,8 @@ public class SspService : ISspService
             AuthoredBy = authoredBy,
             AuthoredAt = DateTime.UtcNow,
             CurrentVersion = 1,
+            AiSuggested = generatedByModel == true,
+            IsAutoPopulated = generatedByModel.HasValue,
             ApprovalStatus = SspSectionStatus.Draft
         };
         implementation.SetCombinedNarrative(narrative.Trim());
@@ -135,6 +159,7 @@ public class SspService : ISspService
             ControlImplementationId = implementation.Id,
             VersionNumber = 1,
             Content = narrative.Trim(),
+            SnapshotJson = NarrativeContentSnapshot.Capture(implementation),
             Status = SspSectionStatus.Draft,
             AuthoredBy = authoredBy,
             AuthoredAt = DateTime.UtcNow,
@@ -305,12 +330,10 @@ public class SspService : ISspService
 
             if (existingByControl.TryGetValue(inh.ControlId, out var existing))
             {
-                // SelectBaseline writes AiSuggested Planned templates; SetInheritance
-                // may already flip those to Implemented without replacing the
-                // customer-template text. Both are still replaceable drafts.
-                // Human-authored (!IsAutoPopulated) and prior batch-populate
-                // rows (IsAutoPopulated && !AiSuggested) are skipped.
-                var isReplaceableTemplate = existing.IsAutoPopulated && existing.AiSuggested;
+                var family = inh.ControlId.Split('-')[0];
+                var template = GenerateCustomerNarrativeTemplate(family, inh.ControlId, system);
+                var isReplaceableTemplate = existing.IsAutoPopulated &&
+                    (existing.TechnicalNarrative ?? existing.Narrative) == template;
                 if (!isReplaceableTemplate)
                 {
                     result.SkippedCount++;
@@ -693,7 +716,7 @@ public class SspService : ISspService
         {
             if (!ci.HasCanonicalNarrative()) continue; // missing → warning already added above
 
-            bool isUngroundedScaffold = ci.AiSuggested && string.IsNullOrWhiteSpace(ci.ApprovedVersionId);
+            bool isUngroundedScaffold = (ci.AiSuggested || ci.IsAutoPopulated) && string.IsNullOrWhiteSpace(ci.ApprovedVersionId);
             var canonicalNarrative = $"{ci.PolicyNarrative}\n{ci.TechnicalNarrative}";
             bool hasSourceMissingMarker = canonicalNarrative.Contains("[SOURCE MISSING", StringComparison.OrdinalIgnoreCase);
             bool hasUnverifiedScaffold = canonicalNarrative.Contains("[scaffold reference — unverified]", StringComparison.OrdinalIgnoreCase);

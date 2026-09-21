@@ -1,5 +1,12 @@
 using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Models.Compliance;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Moq;
 using FluentAssertions;
 using Xunit;
 
@@ -11,6 +18,109 @@ namespace Ato.Copilot.Tests.Unit.Services;
 /// </summary>
 public class OscalDecompositionServiceTests
 {
+    [Theory]
+    [InlineData("model", "ModelSelfReported", true)]
+    [InlineData("no-confidence", "ModelSelfReported", true)]
+    [InlineData("invalid-json", "Fallback", false)]
+    [InlineData("exception", "Fallback", false)]
+    [InlineData("empty-fragments", "Fallback", false)]
+    [InlineData("empty-description", "Fallback", false)]
+    public async Task Decompose_Reload_Approve_PreservesActualOrigin(
+        string responseKind, string expectedOrigin, bool expectedAi)
+    {
+        // Arrange
+        var tenantId = Guid.NewGuid();
+        var databaseName = Guid.NewGuid().ToString();
+        var services = new ServiceCollection();
+        services.AddDbContext<AtoCopilotContext>(options => options.UseInMemoryDatabase(databaseName));
+        using var provider = services.BuildServiceProvider();
+        var chat = new Mock<IChatClient>();
+        var response = responseKind == "invalid-json" ? "invalid" :
+            "{\"fragments\":[{\"statement_id\":\"ac-1_smt.a\",\"description\":\"Model text\",\"suggested_params\":[],\"confidence_score\":" +
+            (responseKind == "no-confidence" ? "null" : "0.9") + "}]}";
+        if (responseKind == "empty-fragments") response = "{\"fragments\":[]}";
+        if (responseKind == "empty-description")
+            response = "{\"fragments\":[{\"statement_id\":\"ac-1_smt.a\",\"description\":\" \"}]}";
+        var setup = chat.Setup(client => client.GetResponseAsync(
+            It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()));
+        if (responseKind == "exception")
+            setup.ThrowsAsync(new InvalidOperationException("Synthetic model failure"));
+        else
+            setup.ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, response)));
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.ControlImplementations.Add(new ControlImplementation
+            {
+                RegisteredSystemId = "system", ControlId = "ac-1", TenantId = tenantId,
+            });
+            await db.SaveChangesAsync();
+        }
+        var service = new OscalDecompositionService(chat.Object,
+            provider.GetRequiredService<IServiceScopeFactory>(), Mock.Of<ILogger<OscalDecompositionService>>());
+
+        // Act
+        await service.DecomposeAsync(tenantId.ToString(), "system", "ac-1", "Original text", "test-user");
+        var reloaded = await service.GetDraftAsync(tenantId.ToString(), "system", "ac-1");
+        await service.ApproveAsync(tenantId.ToString(), "system", "ac-1", "test-reviewer");
+
+        // Assert
+        reloaded!.Fragments.Should().ContainSingle().Which.DerivationBasis.Should().Be(expectedOrigin);
+        using var verificationScope = provider.CreateScope();
+        var implementation = await verificationScope.ServiceProvider.GetRequiredService<AtoCopilotContext>()
+            .ControlImplementations.SingleAsync();
+        implementation.AiSuggested.Should().Be(expectedAi);
+        implementation.IsAutoPopulated.Should().BeTrue();
+        implementation.TechnicalNarrative.Should().Contain(expectedAi ? "Model text" : "Original text");
+    }
+
+    [Theory]
+    [InlineData("Legacy text")]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task Approve_LegacyDraft_RequiresContentWithoutInferringModelOrigin(string? description)
+    {
+        // Arrange
+        var tenantId = Guid.NewGuid();
+        var databaseName = Guid.NewGuid().ToString();
+        var services = new ServiceCollection();
+        services.AddDbContext<AtoCopilotContext>(options => options.UseInMemoryDatabase(databaseName));
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.ControlImplementations.Add(new ControlImplementation
+        {
+            RegisteredSystemId = "system", ControlId = "ac-1", TechnicalNarrative = "Original text",
+        });
+        db.OscalDecompositionDrafts.Add(new OscalDecompositionDraft
+        {
+            TenantId = tenantId, RegisteredSystemId = "system", ControlId = "ac-1", GeneratedBy = "test",
+            Fragments = description is null ? [] : [new OscalDecompositionFragment
+            {
+                StatementId = "ac-1_smt.a", Description = description, ConfidenceScore = 0.9,
+            }],
+        });
+        await db.SaveChangesAsync();
+        var service = new OscalDecompositionService(Mock.Of<IChatClient>(),
+            provider.GetRequiredService<IServiceScopeFactory>(), Mock.Of<ILogger<OscalDecompositionService>>());
+
+        // Act
+        var approval = () => service.ApproveAsync(tenantId.ToString(), "system", "ac-1", "reviewer");
+
+        // Assert
+        if (string.IsNullOrEmpty(description))
+        {
+            await approval.Should().ThrowAsync<InvalidOperationException>().WithMessage("*without usable narrative fragments*");
+            db.ChangeTracker.Clear();
+            (await db.ControlImplementations.SingleAsync()).TechnicalNarrative.Should().Be("Original text");
+            (await db.OscalDecompositionDrafts.SingleAsync()).Status.Should().Be(DecompositionDraftStatus.Pending);
+            return;
+        }
+        await approval();
+        db.ChangeTracker.Clear();
+        (await db.ControlImplementations.SingleAsync()).AiSuggested.Should().BeFalse();
+    }
+
     // ── Interface shape ──────────────────────────────────────────────────────
 
     [Fact]

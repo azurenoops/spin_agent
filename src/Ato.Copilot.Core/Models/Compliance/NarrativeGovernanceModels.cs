@@ -50,6 +50,8 @@ public class NarrativeVersion
     [MaxLength(8000)]
     public string Content { get; set; } = string.Empty;
 
+    public string? SnapshotJson { get; set; }
+
     /// <summary>Lifecycle status of this version snapshot.</summary>
     public SspSectionStatus Status { get; set; } = SspSectionStatus.Draft;
 
@@ -79,6 +81,30 @@ public class NarrativeVersion
 
     /// <summary>Reviews attached to this version.</summary>
     public ICollection<NarrativeReview> Reviews { get; set; } = new List<NarrativeReview>();
+}
+
+public sealed record NarrativeContentSnapshot(
+    string? PolicyNarrative, string? TechnicalNarrative, string? Narrative,
+    bool AiSuggested, bool IsAutoPopulated, bool MigratedFromLegacy, bool IsManuallyCustomized)
+{
+    public static string Capture(ControlImplementation implementation) =>
+        System.Text.Json.JsonSerializer.Serialize(new NarrativeContentSnapshot(
+            implementation.PolicyNarrative, implementation.TechnicalNarrative, implementation.Narrative,
+            implementation.AiSuggested, implementation.IsAutoPopulated,
+            implementation.MigratedFromLegacy, implementation.IsManuallyCustomized));
+
+    public static void Restore(ControlImplementation implementation, string snapshotJson)
+    {
+        var snapshot = System.Text.Json.JsonSerializer.Deserialize<NarrativeContentSnapshot>(snapshotJson)
+            ?? throw new InvalidOperationException("Narrative snapshot is missing.");
+        implementation.PolicyNarrative = snapshot.PolicyNarrative;
+        implementation.TechnicalNarrative = snapshot.TechnicalNarrative;
+        implementation.Narrative = snapshot.Narrative;
+        implementation.AiSuggested = snapshot.AiSuggested;
+        implementation.IsAutoPopulated = snapshot.IsAutoPopulated;
+        implementation.MigratedFromLegacy = snapshot.MigratedFromLegacy;
+        implementation.IsManuallyCustomized = snapshot.IsManuallyCustomized;
+    }
 }
 
 /// <summary>

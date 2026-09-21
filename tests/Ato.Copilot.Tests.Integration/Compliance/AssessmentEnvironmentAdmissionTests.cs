@@ -141,6 +141,46 @@ public sealed class AssessmentEnvironmentAdmissionTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Issue961_RunAssessment_TemplateReviewDoesNotReplaceAzureAdmission(bool reviewed)
+    {
+        // Arrange
+        var system = await SeedSystemAsync(null);
+        var reviewer = reviewed ? "synthetic-reviewer" : null;
+        using (var tenant = _tenants.Push(new TenantContext(_tenantId)))
+        await using (var db = await _factory.CreateDbContextAsync())
+        {
+            var implementation = await db.ControlImplementations.SingleAsync(item =>
+                item.RegisteredSystemId == system.Id && item.ControlId == "AC-1");
+            implementation.Narrative = "Deterministic scaffold";
+            implementation.TechnicalNarrative = "Deterministic scaffold";
+            implementation.IsAutoPopulated = true;
+            implementation.ReviewedBy = reviewer;
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.PostAsync(RunUrl(system.Id), null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var error = await response.Content.ReadFromJsonAsync<JsonElement>();
+        error.GetProperty("errorCode").GetString().Should().Be(AssessmentEnvironmentErrors.EnvironmentRequired);
+        await AssertNoAssessmentEffectsAsync(system.Id);
+        using var verificationTenant = _tenants.Push(new TenantContext(_tenantId));
+        await using var verificationDb = await _factory.CreateDbContextAsync();
+        var saved = await verificationDb.ControlImplementations.SingleAsync(item =>
+            item.RegisteredSystemId == system.Id && item.ControlId == "AC-1");
+        saved.Narrative.Should().Be("Deterministic scaffold");
+        saved.TechnicalNarrative.Should().Be("Deterministic scaffold");
+        saved.IsAutoPopulated.Should().BeTrue();
+        saved.AiSuggested.Should().BeFalse();
+        saved.ReviewedBy.Should().Be(reviewer);
+        saved.ImplementationStatus.Should().Be(ImplementationStatus.Planned);
+    }
+
+    [Theory]
     [InlineData(AzureCloudEnvironment.Government, "not-a-guid")]
     [InlineData(AzureCloudEnvironment.Commercial, SubscriptionId)]
     [InlineData(AzureCloudEnvironment.GovernmentAirGappedIl5, SubscriptionId)]

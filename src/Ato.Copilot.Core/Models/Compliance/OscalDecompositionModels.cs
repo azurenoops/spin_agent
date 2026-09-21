@@ -159,6 +159,9 @@ public class OscalDecompositionFragment
     /// </summary>
     public double? ConfidenceScore { get; set; }
 
+    [MaxLength(32)]
+    public string DerivationBasis { get; set; } = "Unknown";
+
     // ─── Navigation ─────────────────────────────────────────────────────────
 
     /// <summary>Parent decomposition draft.</summary>
