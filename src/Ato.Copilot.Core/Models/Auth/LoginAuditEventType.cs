@@ -26,4 +26,8 @@ public enum LoginAuditEventType
     SimulatedLogin = 7,
     /// <summary>Simulated-login attempt blocked because environment != Development (FR-024).</summary>
     SimulationBlocked = 8,
+    /// <summary>An administrator explicitly associated a directory identity with an organization Person.</summary>
+    MembershipGranted = 9,
+    /// <summary>An administrator revoked organization access without deleting role/audit history.</summary>
+    MembershipRevoked = 10,
 }

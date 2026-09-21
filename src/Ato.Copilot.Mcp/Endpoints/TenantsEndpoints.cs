@@ -30,7 +30,8 @@ public static class TenantsEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapTenantsEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/tenants").WithTags("Tenants");
+        var group = app.MapGroup("/api/tenants").WithTags("Tenants")
+            .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint());
 
         group.MapGet("", ListTenantsAsync).WithName("ListTenants");
         group.MapPost("", CreateTenantAsync).WithName("CreateTenant");
@@ -99,10 +100,10 @@ public static class TenantsEndpoints
         }
         if (body is null
             || body.EntraTenantId == Guid.Empty
-            || string.IsNullOrWhiteSpace(body.DisplayName))
+            || string.IsNullOrWhiteSpace(body.DisplayName) || body.DisplayName.Length > 200)
         {
             return Error(sw, StatusCodes.Status400BadRequest, "INVALID_REQUEST",
-                "entraTenantId and displayName are required.");
+                "displayName is required (1–200 characters); optional entraTenantId must be a nonempty GUID.");
         }
 
         var actor = GetActor(http);
@@ -302,6 +303,28 @@ public static class TenantsEndpoints
         var target = await service.GetByIdAsync(tenantId, ct);
         if (target is null) return NotFound(sw);
 
+        if (tenant.IsWorkspaceRequest)
+        {
+            if (target.Status != TenantStatus.Active)
+                return Error(sw, 409, "TENANT_NOT_ACTIVE", "Support entry requires an active organization.");
+            var identity = WorkspaceService.Identity(http.User);
+            var session = impersonation.IssueWorkspaceToken(identity.ObjectId.ToString(), identity.DirectoryId, target.Id);
+            using var scope = http.RequestServices.GetRequiredService<ITenantContextAccessor>()
+                .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(target.Id));
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var request = auditCtxAccessor.FromHttpContext(http);
+            await audit.AppendAsync(db, new(LoginAuditEventType.ImpersonationStart, identity.ObjectId.ToString(),
+                identity.DirectoryId.ToString(), target.Id, request.CorrelationId, request.SourceIp,
+                request.UserAgent, LoginSurface.Dashboard,
+                MetadataJson: System.Text.Json.JsonSerializer.Serialize(new { impersonatedTenantId = target.Id, expectedEndAt = session.expiresAt })), ct);
+            await db.SaveChangesAsync(ct);
+            http.Response.Cookies.Append(impersonation.CookieName, session.value, new CookieOptions
+            {
+                HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Expires = session.expiresAt, Path = "/"
+            });
+            return Success(sw, new { impersonatedTenantId = target.Id, expiresAt = session.expiresAt });
+        }
+
         var actor = GetActor(http);
         var (cookieValue, expiresAt) = impersonation.IssueToken(actor, tenant.TenantId, target.Id);
 
@@ -383,6 +406,33 @@ public static class TenantsEndpoints
         LoginAuditContextAccessor auditCtxAccessor,
         CancellationToken ct)
     {
+        if (http.RequestServices.GetRequiredService<ITenantContext>().IsWorkspaceRequest)
+        {
+            var identity = WorkspaceService.Identity(http.User);
+            if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var signedCookie))
+            {
+                var session = impersonation.ValidateIgnoringLifetime(signedCookie);
+                if (session is null || session.DirectoryTenantId != identity.DirectoryId
+                    || session.ImpersonatorOid != identity.ObjectId.ToString())
+                    return Error(Stopwatch.StartNew(), 403, "SUPPORT_SESSION_INVALID", "The support session does not belong to this directory identity.");
+                var selected = http.RequestServices.GetRequiredService<IWorkspaceService>().Current;
+                if (selected is { Kind: "organization" } && selected.TenantId != session.ImpersonatedTenantId)
+                    return Error(Stopwatch.StartNew(), 409, "WORKSPACE_TARGET_MISMATCH", "The support session targets another organization.");
+                using var scope = http.RequestServices.GetRequiredService<ITenantContextAccessor>()
+                    .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(session.ImpersonatedTenantId));
+                await using var db = await dbFactory.CreateDbContextAsync(ct);
+                var request = auditCtxAccessor.FromHttpContext(http);
+                await audit.AppendAsync(db, new(LoginAuditEventType.ImpersonationEnd, identity.ObjectId.ToString(),
+                    identity.DirectoryId.ToString(), session.ImpersonatedTenantId, request.CorrelationId, request.SourceIp,
+                    request.UserAgent, LoginSurface.Dashboard,
+                    MetadataJson: System.Text.Json.JsonSerializer.Serialize(new { impersonatedTenantId = session.ImpersonatedTenantId, reason = "manual" })), ct);
+                await db.SaveChangesAsync(ct);
+            }
+            http.Response.Cookies.Delete(impersonation.CookieName,
+                new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Path = "/" });
+            return Results.NoContent();
+        }
+
         // Audit BEFORE we delete the cookie so the payload is still
         // available. Manual-exit is the only reason this endpoint is
         // hit (auto-expiry is detected in /me; idle is detected in
@@ -504,7 +554,7 @@ public static class TenantsEndpoints
     };
 
     /// <summary>POST /api/tenants body shape.</summary>
-    public sealed record CreateTenantRequest(Guid EntraTenantId, string DisplayName);
+    public sealed record CreateTenantRequest(Guid? EntraTenantId, string DisplayName);
 
     /// <summary>PATCH /api/tenants/{id}/status body shape.</summary>
     public sealed record PatchStatusRequest(string Status, string Reason);

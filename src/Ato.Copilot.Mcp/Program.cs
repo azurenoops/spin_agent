@@ -23,6 +23,7 @@ using Ato.Copilot.Mcp.Endpoints.Csp;
 using Ato.Copilot.Mcp.Endpoints.Tenancy;
 using Ato.Copilot.Mcp.Endpoints.Auth;
 using Ato.Copilot.Mcp.Middleware;
+using Ato.Copilot.Mcp.Services.Tenancy;
 using Ato.Copilot.Mcp.Logging;
 using Ato.Copilot.Mcp.Server;
 using Microsoft.EntityFrameworkCore;
@@ -479,6 +480,9 @@ async Task RunHttpModeAsync(string[] args)
         Ato.Copilot.Core.Services.Tenancy.TenantContextAccessor>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext,
         Ato.Copilot.Core.Services.Tenancy.TenantContext>();
+    builder.Services.AddScoped<WorkspaceService>();
+    builder.Services.AddScoped<IWorkspaceService>(services => services.GetRequiredService<WorkspaceService>());
+    builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
     // T041: SaveChanges interceptor that stamps TenantId + validates FK consistency.
     builder.Services.AddSingleton<Ato.Copilot.Core.Data.Interceptors.TenantStampingSaveChangesInterceptor>();
     // T107 [US5]: SQL Server SESSION_CONTEXT publisher — emits TenantId /
@@ -624,6 +628,7 @@ async Task RunHttpModeAsync(string[] args)
     app.MapImportedDocumentsEndpoints();
     // Feature 048 (T070): tenants administration + impersonation surface.
     app.MapTenantsEndpoints();
+    app.MapOrganizationMembershipEndpoints();
     // Feature 048 (T084): deployment-mode probe for dashboard mode-aware UI.
     app.MapDeploymentEndpoints();
     // Feature 048 (T093 [US4]): tenant-and-organization onboarding wizard.
@@ -1338,6 +1343,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // read (Tenant, OccurredAt DESC), daily archive scan (OccurredAt), and
     // forensic per-Oid lookup (Oid, OccurredAt DESC, filtered Oid IS NOT NULL).
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.LoginAuditEventsSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationMembershipSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ControlValidationLinksSchemaAdditions
         .ApplyAsync(db, logger, ct);

@@ -113,6 +113,9 @@ Publication procedure:
   administrators of the selected organization. Existing unmapped users need
   an explicit grant; emails, directory membership and empty-org bootstrap do
   not implicitly grant membership.
+- Require an applicable organization/system role assignment for ordinary system
+  visibility. Membership alone is not an all-systems read grant; administrative
+  and CSP oversight remain separately authorized.
 
 ### Proposed in this feature
 

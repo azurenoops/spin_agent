@@ -51,4 +51,10 @@ public sealed class TenantContext : ITenantContext
 
     /// <inheritdoc />
     public TenantStatus Status { get; set; } = TenantStatus.Active;
+
+    /// <inheritdoc />
+    public Guid? PersonId { get; set; }
+
+    /// <inheritdoc />
+    public bool IsWorkspaceRequest { get; set; }
 }

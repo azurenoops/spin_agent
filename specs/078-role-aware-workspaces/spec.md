@@ -96,6 +96,11 @@ If a user holds several roles, show the effective set and action permissions;
 do not reduce it to a single highest persona. Read access is also authorized:
 read-only must not mean all systems are visible.
 
+The user confirmed that ordinary organization membership alone does not grant
+visibility of every system. System visibility requires an applicable
+organization/system role assignment; administrative and CSP oversight remain
+separate explicitly authorized permissions.
+
 ## Navigation and scope matrix
 
 | Surface | CSP workspace | Organization workspace |

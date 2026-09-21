@@ -110,6 +110,7 @@ public static partial class DashboardEndpoints
                 }
             })
             .WithName("SaveBusinessContext")
+            .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint())
             .Produces<BusinessContextResponse>()
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
@@ -136,6 +137,7 @@ public static partial class DashboardEndpoints
                 }
             })
             .WithName("SetBusinessContextFlag")
+            .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint())
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
@@ -307,7 +309,8 @@ public static partial class DashboardEndpoints
                     return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: statusCode);
                 }
             })
-            .WithName("SaveProfileSection");
+            .WithName("SaveProfileSection")
+            .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint());
 
         group.MapPost("/systems/{systemId}/profile/submit", async (
                 string systemId,
@@ -360,7 +363,8 @@ public static partial class DashboardEndpoints
                     return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: statusCode);
                 }
             })
-            .WithName("SubmitProfileSections");
+            .WithName("SubmitProfileSections")
+            .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint());
 
         group.MapPost("/systems/{systemId}/profile/{sectionType}/review", async (
                 string systemId,
@@ -403,7 +407,8 @@ public static partial class DashboardEndpoints
                     return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: statusCode);
                 }
             })
-            .WithName("ReviewProfileSection");
+            .WithName("ReviewProfileSection")
+            .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint());
 
         group.MapPost("/systems/{systemId}/profile/batch-approve", async (
                 string systemId,
@@ -430,7 +435,8 @@ public static partial class DashboardEndpoints
                     return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: StatusCodes.Status403Forbidden);
                 }
             })
-            .WithName("BatchApproveProfile");
+            .WithName("BatchApproveProfile")
+            .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint());
 
         group.MapGet("/systems/{systemId}/profile/completeness", async (
                 string systemId,

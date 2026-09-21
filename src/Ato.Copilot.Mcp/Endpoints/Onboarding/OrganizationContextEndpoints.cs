@@ -35,7 +35,7 @@ public static class OrganizationContextEndpoints
                 IOrganizationContextService service,
                 CancellationToken ct) =>
             {
-                if (!TryGetTenantId(http.User, out var tenantId))
+                if (!TryGetTenantId(http, out var tenantId))
                 {
                     return Forbidden();
                 }
@@ -52,7 +52,7 @@ public static class OrganizationContextEndpoints
                 Microsoft.Extensions.Logging.ILoggerFactory loggerFactory,
                 CancellationToken ct) =>
             {
-                if (!TryGetTenantId(http.User, out var tenantId))
+                if (!TryGetTenantId(http, out var tenantId))
                 {
                     return Forbidden();
                 }
@@ -159,8 +159,15 @@ public static class OrganizationContextEndpoints
         primaryPocEmail = c.PrimaryPocEmail,
     };
 
-    private static bool TryGetTenantId(ClaimsPrincipal user, out Guid tenantId)
+    private static bool TryGetTenantId(HttpContext http, out Guid tenantId)
     {
+        var context = http.RequestServices.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>();
+        if (context.IsWorkspaceRequest)
+        {
+            tenantId = context.EffectiveTenantId;
+            return tenantId != Guid.Empty && context.PersonId.HasValue;
+        }
+        var user = http.User;
         var raw = user.FindFirstValue("tid")
             ?? user.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid");
         return Guid.TryParse(raw, out tenantId);

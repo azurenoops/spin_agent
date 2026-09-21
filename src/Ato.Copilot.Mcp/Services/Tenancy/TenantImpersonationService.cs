@@ -31,6 +31,10 @@ public interface ITenantImpersonationService
         Guid impersonatorHomeTenantId,
         Guid impersonatedTenantId);
 
+    /// <summary>Workspace support tokens bind the actor directory as well as its object ID.</summary>
+    (string value, DateTimeOffset expiresAt) IssueWorkspaceToken(
+        string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId);
+
     /// <summary>
     /// Validates an inbound cookie value. Returns null on any failure
     /// (signature, expiry, malformed payload, etc.). Output is the parsed
@@ -59,7 +63,8 @@ public sealed record ImpersonationCookiePayload(
     Guid ImpersonatorHomeTenantId,
     Guid ImpersonatedTenantId,
     DateTimeOffset IssuedAt,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    Guid? DirectoryTenantId = null);
 
 /// <summary>
 /// HMAC-SHA256 implementation of <see cref="ITenantImpersonationService"/>.
@@ -142,6 +147,15 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
         string impersonatorOid,
         Guid impersonatorHomeTenantId,
         Guid impersonatedTenantId)
+        => IssueTokenCore(impersonatorOid, impersonatorHomeTenantId, impersonatedTenantId, null);
+
+    /// <inheritdoc />
+    public (string value, DateTimeOffset expiresAt) IssueWorkspaceToken(
+        string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId)
+        => IssueTokenCore(impersonatorOid, Guid.Empty, impersonatedTenantId, directoryTenantId);
+
+    private (string value, DateTimeOffset expiresAt) IssueTokenCore(
+        string impersonatorOid, Guid impersonatorHomeTenantId, Guid impersonatedTenantId, Guid? directoryTenantId)
     {
         if (string.IsNullOrWhiteSpace(impersonatorOid))
         {
@@ -158,6 +172,8 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
             new(ClaimImpersonatedTid, impersonatedTenantId.ToString("D")),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
         };
+        if (directoryTenantId.HasValue)
+            claims.Add(new Claim("actor_directory", directoryTenantId.Value.ToString("D")));
 
         var token = new JwtSecurityToken(
             issuer: IssuerValue,
@@ -208,7 +224,8 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
                 ImpersonatorHomeTenantId: actor,
                 ImpersonatedTenantId: eff,
                 IssuedAt: jwt.ValidFrom,
-                ExpiresAt: jwt.ValidTo);
+                ExpiresAt: jwt.ValidTo,
+                DirectoryTenantId: Guid.TryParse(principal.FindFirstValue("actor_directory"), out var directory) ? directory : null);
         }
         catch (SecurityTokenException)
         {

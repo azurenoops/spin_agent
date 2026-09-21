@@ -17,8 +17,8 @@ public class Tenant
     public Guid Id { get; set; } = Guid.NewGuid();
 
     /// <summary>
-    /// Mapped to Entra <c>tid</c> claim for SSO. Null permitted for lab /
-    /// air-gapped tenants. Unique when not null (filtered unique index).
+    /// Optional legacy home-directory mapping. Unique when present; null supports independent
+    /// isolation organizations sharing a directory. This mapping never grants membership.
     /// </summary>
     public Guid? EntraTenantId { get; set; }
 

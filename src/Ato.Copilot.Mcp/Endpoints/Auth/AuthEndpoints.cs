@@ -160,6 +160,9 @@ public static class AuthEndpoints
         var sw = Stopwatch.StartNew();
         var logger = loggerFactory.CreateLogger("AuthEndpoints.Me");
 
+        if (http.RequestServices.GetRequiredService<ITenantContext>().IsWorkspaceRequest)
+            return await GetWorkspaceMeAsync(http, dbFactory, audit, auditCtxAccessor, cache, ct);
+
         if (!(http.User.Identity?.IsAuthenticated ?? false))
         {
             return Unauthorized(sw);
@@ -446,6 +449,65 @@ public static class AuthEndpoints
         return Success(sw, data);
     }
 
+    private static async Task<IResult> GetWorkspaceMeAsync(
+        HttpContext http, IDbContextFactory<AtoCopilotContext> dbFactory,
+        ILoginAuditService audit, LoginAuditContextAccessor auditAccessor, IDistributedCache cache, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        var workspaces = http.RequestServices.GetRequiredService<IWorkspaceService>();
+        var identity = WorkspaceService.Identity(http.User);
+        var available = await workspaces.ListAsync(http.User, 1, 200, ct);
+        if (available.Total == 0 && workspaces.Current is null)
+            return ErrorEnvelope(sw, 403, "NO_TENANT_ASSIGNMENT",
+                "Your identity has no explicit organization membership or provider workspace access.",
+                "Ask an organization Administrator or CSP administrator to grant access.");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var home = await db.Tenants.AsNoTracking().SingleOrDefaultAsync(t => t.EntraTenantId == identity.DirectoryId, ct);
+        var current = workspaces.Current;
+        var effective = current?.TenantId is { } id
+            ? await db.Tenants.AsNoTracking().SingleAsync(t => t.Id == id, ct)
+            : null;
+        var support = workspaces.SupportSession;
+        var key = $"workspace-login:{identity.DirectoryId:N}:{identity.ObjectId:N}:{effective?.Id}:{current?.Mode}";
+        if (await cache.GetStringAsync(key, ct) is null)
+        {
+            var request = auditAccessor.FromHttpContext(http);
+            await audit.AppendAsync(db, new(LoginAuditEventType.LoginSuccess, identity.ObjectId.ToString(),
+                identity.DirectoryId.ToString(), effective?.Id ?? Guid.Empty, request.CorrelationId,
+                request.SourceIp, request.UserAgent, LoginSurface.Dashboard), ct);
+            await db.SaveChangesAsync(ct);
+            await cache.SetStringAsync(key, "1",
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) }, ct);
+        }
+        var effectiveDto = effective is null ? null : new WorkspaceTenantResponse(effective.Id, effective.DisplayName, effective.Status.ToString());
+        // Legacy PIM rows lack a directory key. Only project them in their mapped directory's
+        // own tenant; a same-oid guest membership must not inherit another directory's PIM.
+        var pimRoles = new List<WorkspacePimRoleResponse>();
+        if (effective is not null && home?.Id == effective.Id)
+        {
+            var oid = identity.ObjectId.ToString();
+            var jit = await db.JitRequests.Where(j => j.TenantId == effective.Id && j.UserId == oid
+                    && j.Status == JitRequestStatus.Active)
+                .Select(j => new { j.RoleName, j.ExpiresAt }).ToListAsync(ct);
+            pimRoles.AddRange(jit.Where(j => j.ExpiresAt > DateTimeOffset.UtcNow)
+                .Select(j => new WorkspacePimRoleResponse(j.RoleName, j.ExpiresAt!.Value)));
+        }
+        http.Response.Headers.CacheControl = "no-store";
+        return Success(sw, new WorkspaceMeResponse(
+            identity.ObjectId,
+            http.User.FindFirstValue(ClaimTypes.Name) ?? http.User.FindFirstValue("name") ?? "Authenticated user",
+            current?.Roles.FirstOrDefault() ?? "User",
+            home is null ? null : new(home.Id, home.DisplayName, home.Status.ToString()),
+            effectiveDto, support is not null,
+            support is null || effectiveDto is null ? null : new(effectiveDto, support.IssuedAt, support.ExpiresAt),
+            pimRoles, workspaces.IsCspAdministrator(http.User),
+            http.User.IsInRole("Auth.SocAnalyst") || http.User.IsInRole("SOC.Analyst"),
+            available.Items.Where(w => w.Kind == "organization")
+                .Select(w => new WorkspaceTenantResponse(w.TenantId!.Value, w.DisplayName, w.Status)).ToArray(),
+            current, available.Items, available.Total,
+            current?.Permissions ?? new(false, false, false)));
+    }
+
     // ─── POST /signout ──────────────────────────────────────────────────
 
     /// <summary>
@@ -543,7 +605,13 @@ public static class AuthEndpoints
 
         Guid effectiveTenantId = Guid.Empty;
         ImpersonationCookiePayload? impersonationPayload = null;
-        if (Guid.TryParse(tid, out var tidGuid))
+        if (http.RequestServices.GetRequiredService<ITenantContext>().IsWorkspaceRequest)
+        {
+            var workspace = http.RequestServices.GetRequiredService<IWorkspaceService>();
+            effectiveTenantId = workspace.Current?.TenantId ?? Guid.Empty;
+            impersonationPayload = workspace.SupportSession;
+        }
+        else if (Guid.TryParse(tid, out var tidGuid))
         {
             var homeTenant = await db.Tenants
                 .IgnoreQueryFilters()
@@ -640,6 +708,10 @@ public static class AuthEndpoints
     /// <c>contracts/http-api.md § 4</c>.
     /// </summary>
     /// <remarks>
+    /// <para>Workspace requests require an explicit active OrganizationMembership, including
+    /// for CSP administrators. Selection audits an ordinary navigation preference; subsequent
+    /// per-tab requests must still carry their workspace headers. The legacy behavior below
+    /// applies only to SingleTenant requests without explicit workspace context.</para>
     /// <para>Membership rule: per the current data model the only
     /// authoritative "user→tenant membership" signal is the Entra
     /// <c>tid</c> claim mapped to <see cref="Tenant.EntraTenantId"/> —
@@ -740,9 +812,19 @@ public static class AuthEndpoints
                 "Contact CSP support to re-enable the tenant.");
         }
 
+        var canonicalWorkspace = http.RequestServices.GetRequiredService<ITenantContext>().IsWorkspaceRequest;
+        if (canonicalWorkspace)
+        {
+            var identity = WorkspaceService.Identity(http.User);
+            if (target.Status == TenantStatus.Disabled || !await db.OrganizationMemberships.AnyAsync(m =>
+                m.TenantId == targetTenantId && m.DirectoryTenantId == identity.DirectoryId
+                && m.ObjectId == identity.ObjectId && m.RevokedAt == null, ct))
+                return ErrorEnvelope(sw, 403, "FORBIDDEN_NOT_TENANT_MEMBER",
+                    "An explicit active organization membership is required.");
+        }
         // Membership check (FR-009). Non-CSP-Admin: tid claim must map to
         // the target tenant's EntraTenantId. CSP-Admin bypasses this gate.
-        if (!isCspAdmin)
+        if (!canonicalWorkspace && !isCspAdmin)
         {
             var tidGuid = Guid.TryParse(tid, out var t) ? (Guid?)t : null;
             var isMember = tidGuid is not null &&
@@ -772,6 +854,10 @@ public static class AuthEndpoints
             }
         }
 
+        using var selectionAuditScope = canonicalWorkspace
+            ? http.RequestServices.GetRequiredService<ITenantContextAccessor>()
+                .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(targetTenantId))
+            : null;
         var auditCtx = auditCtxAccessor.FromHttpContext(http);
         var metadata = System.Text.Json.JsonSerializer.Serialize(new
         {

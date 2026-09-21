@@ -471,6 +471,15 @@ public class AtoCopilotContext : DbContext
     /// <summary>Per-tenant identity records for RMF role assignees.</summary>
     public DbSet<Person> Persons => Set<Person>();
 
+    /// <summary>Pre-scope authorization index; queries must be identity- or administration-bound.</summary>
+    public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
+
+    /// <summary>Canonical Person for explicit workspace authorization, never inferred from email.</summary>
+    public Guid? WorkspacePersonId => _tenantAccessor?.Current?.PersonId;
+
+    /// <summary>Distinguishes explicit workspace authorization from legacy service callers.</summary>
+    public bool IsWorkspaceRequest => _tenantAccessor?.Current?.IsWorkspaceRequest == true;
+
     /// <summary>Assignments of <see cref="Persons"/> to organization-level RMF roles.</summary>
     public DbSet<OrganizationRoleAssignment> OrganizationRoleAssignments => Set<OrganizationRoleAssignment>();
 
@@ -3410,6 +3419,21 @@ public class AtoCopilotContext : DbContext
             var lambda = BuildTenantFilterExpression(clrType);
             modelBuilder.Entity(clrType).HasQueryFilter(lambda);
         }
+
+        // Membership alone does not grant visibility of every system in the organization.
+        modelBuilder.Entity<RegisteredSystem>().HasQueryFilter(system =>
+            TenantFilterDisabled || TenantFilterCspAdminAll
+            || (system.TenantId == TenantFilterEffectiveId
+                && (!IsWorkspaceRequest || WorkspacePersonId == null
+                    || OrganizationRoleAssignments.Any(role => role.TenantId == system.TenantId
+                        && role.PersonId == WorkspacePersonId && role.RemovedAt == null)
+                    || SystemRoleAssignments.Any(role => role.TenantId == system.TenantId
+                        && role.RegisteredSystemId == system.Id && role.PersonId == WorkspacePersonId && role.RemovedAt == null)
+                    || RmfRoleAssignments.Any(role => role.TenantId == system.TenantId
+                        && role.RegisteredSystemId == system.Id && role.IsActive
+                        && Persons.Any(person => person.Id == WorkspacePersonId && person.TenantId == system.TenantId
+                            && role.UserId == person.Email
+                            && Persons.Count(other => other.TenantId == system.TenantId && other.Email == person.Email) == 1)))));
     }
 
     /// <summary>
@@ -3928,6 +3952,18 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.AuthoritativeRepositoryUrl).HasMaxLength(2048);
             entity.Property(e => e.PrimaryPocEmail).HasMaxLength(320);
             entity.HasIndex(e => e.TenantId).IsUnique().HasDatabaseName("UX_OrganizationContext_TenantId");
+        });
+
+        modelBuilder.Entity<OrganizationMembership>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.GrantedBy).HasMaxLength(80).IsRequired();
+            entity.Property(e => e.RevokedBy).HasMaxLength(80);
+            entity.HasIndex(e => new { e.TenantId, e.DirectoryTenantId, e.ObjectId }).IsUnique();
+            entity.HasIndex(e => new { e.DirectoryTenantId, e.ObjectId });
+            entity.HasIndex(e => e.PersonId).IsUnique().HasFilter("[RevokedAt] IS NULL");
+            entity.HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Person>().WithMany().HasForeignKey(e => e.PersonId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // Person

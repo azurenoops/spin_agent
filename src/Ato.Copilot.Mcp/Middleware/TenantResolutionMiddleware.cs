@@ -19,7 +19,9 @@ namespace Ato.Copilot.Mcp.Middleware;
 /// <c>CacAuthenticationMiddleware</c> and BEFORE
 /// <c>ComplianceAuthorizationMiddleware</c>.
 /// <para>
-/// Resolution priority (FR-011 / FR-012 / research.md §7):
+/// MultiTenant and explicit workspace requests use <see cref="IWorkspaceService"/>:
+/// ordinary membership is directory/object-bound and ignores support cookies; support requires
+/// an explicit mode, target and matching signed actor session. Legacy SingleTenant priority:
 /// <list type="number">
 ///   <item>Validated <c>ato-impersonate</c> cookie (CSP-Admin only) → sets
 ///   <c>TenantId</c> = impersonator home, <c>ImpersonatedTenantId</c> = target.</item>
@@ -122,7 +124,8 @@ public sealed class TenantResolutionMiddleware
         IConfiguration configuration,
         ICspProfileService cspProfileService)
     {
-        if (ShouldBypass(context.Request.Path))
+        if (ShouldBypass(context.Request.Path)
+            || context.Request.Path.Equals("/api/auth/login-config", StringComparison.OrdinalIgnoreCase))
         {
             await _next(context);
             return;
@@ -173,50 +176,80 @@ public sealed class TenantResolutionMiddleware
         var roleMap = roleClaimMappings.Value;
         var ctx = (TenantContext)tenantContext;
 
-        // Stage A — derive CSP-Admin from group claims (per RoleClaimMappingsOptions).
-        ctx.IsCspAdmin = IsCspAdmin(context.User, roleMap);
-
-        // Stage B — resolve home tenant id.
-        Guid? homeTenantId;
-        try
+        if (deployment.Mode == DeploymentMode.MultiTenant
+            || context.Request.Headers.Keys.Any(k => k.StartsWith("X-Workspace-", StringComparison.OrdinalIgnoreCase)))
         {
-            homeTenantId = await ResolveHomeTenantIdAsync(context, deployment, db, cache, context.RequestAborted);
-        }
-        catch (TenantNotProvisionedException ex)
-        {
-            // FR-055: a valid Entra-issued token from an unknown tenant is a
-            // 401 (auth-level failure), not a 404. Self-onboarding takes a
-            // separate branch in ResolveByEntraTenantIdAsync.
-            await WriteErrorAsync(context, StatusCodes.Status401Unauthorized,
-                "TENANT_NOT_PROVISIONED",
-                $"Tenant '{ex.EntraTenantId}' is not provisioned in this deployment.");
-            return;
-        }
-
-        if (homeTenantId is null)
-        {
-            await WriteErrorAsync(context, StatusCodes.Status401Unauthorized,
-                "MISSING_TENANT_CLAIM",
-                "The current request has no resolvable tenant identity.");
-            return;
-        }
-
-        ctx.TenantId = homeTenantId.Value;
-
-        // Stage C — apply impersonation cookie if present + valid + CSP-Admin.
-        if (ctx.IsCspAdmin
-            && context.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue))
-        {
-            var payload = impersonation.Validate(cookieValue);
-            if (payload is not null)
+            context.Response.Headers.CacheControl = "no-store";
+            if (context.User.Identity?.IsAuthenticated != true)
             {
-                ctx.ImpersonatedTenantId = payload.ImpersonatedTenantId;
+                await WriteErrorAsync(context, 401, "UNAUTHORIZED", "Authentication is required.");
+                return;
+            }
+            var workspaces = context.RequestServices.GetRequiredService<IWorkspaceService>();
+            try
+            {
+                await workspaces.ResolveAsync(context, ctx, context.RequestAborted);
+            }
+            catch (WorkspaceException ex)
+            {
+                await WriteErrorAsync(context, ex.StatusCode, ex.Code, ex.Message);
+                return;
+            }
+            if (workspaces.Current is not { Kind: "organization" })
+            {
+                using var requestScope = tenantAccessor.Push(ctx);
+                await _next(context);
+                return;
+            }
+        }
+        else
+        {
+            // Stage A — derive CSP-Admin from group claims (per RoleClaimMappingsOptions).
+            ctx.IsCspAdmin = IsCspAdmin(context.User, roleMap);
+
+            // Stage B — resolve home tenant id.
+            Guid? homeTenantId;
+            try
+            {
+                homeTenantId = await ResolveHomeTenantIdAsync(context, deployment, db, cache, context.RequestAborted);
+            }
+            catch (TenantNotProvisionedException ex)
+            {
+                // FR-055: a valid Entra-issued token from an unknown tenant is a
+                // 401 (auth-level failure), not a 404. Self-onboarding takes a
+                // separate branch in ResolveByEntraTenantIdAsync.
+                await WriteErrorAsync(context, StatusCodes.Status401Unauthorized,
+                    "TENANT_NOT_PROVISIONED",
+                    $"Tenant '{ex.EntraTenantId}' is not provisioned in this deployment.");
+                return;
+            }
+
+            if (homeTenantId is null)
+            {
+                await WriteErrorAsync(context, StatusCodes.Status401Unauthorized,
+                    "MISSING_TENANT_CLAIM",
+                    "The current request has no resolvable tenant identity.");
+                return;
+            }
+
+            ctx.TenantId = homeTenantId.Value;
+
+            // Stage C — apply impersonation cookie if present + valid + CSP-Admin.
+            if (ctx.IsCspAdmin
+                && context.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue))
+            {
+                var payload = impersonation.Validate(cookieValue);
+                if (payload is not null)
+                {
+                    ctx.ImpersonatedTenantId = payload.ImpersonatedTenantId;
+                }
             }
         }
 
         // Stage D — evaluate tenant lifecycle status (cache 30 s per FR-058).
         var effectiveId = ctx.EffectiveTenantId;
-        var status = await GetTenantStatusAsync(effectiveId, db, cache, context.RequestAborted);
+        var status = ctx.IsWorkspaceRequest ? ctx.Status
+            : await GetTenantStatusAsync(effectiveId, db, cache, context.RequestAborted);
         ctx.Status = status;
 
         if (status == TenantStatus.Suspended && IsMutatingMethod(context.Request.Method))
@@ -259,6 +292,15 @@ public sealed class TenantResolutionMiddleware
         // happen on the same async path that ultimately calls `_next` so
         // the AsyncLocal flows down through all awaited continuations.
         using var _tenantScope = tenantAccessor.Push(ctx);
+        if (ctx.IsWorkspaceRequest && context.Request.RouteValues.TryGetValue("systemId", out var systemValue))
+        {
+            var systemId = systemValue?.ToString();
+            if (!await db.RegisteredSystems.AnyAsync(system => system.Id == systemId && system.IsActive, context.RequestAborted))
+            {
+                await WriteErrorAsync(context, 404, "SYSTEM_NOT_FOUND", "The system is not accessible in this workspace.");
+                return;
+            }
+        }
         using (LogContext.PushProperty("TenantId", ctx.TenantId))
         using (LogContext.PushProperty("EffectiveTenantId", ctx.EffectiveTenantId))
         using (LogContext.PushProperty("ImpersonatedTenantId", ctx.ImpersonatedTenantId))

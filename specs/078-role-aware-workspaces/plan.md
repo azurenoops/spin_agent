@@ -549,6 +549,28 @@ pass. TypeScript and production build pass with the documented build warnings.
 The validated membership shell is still required before activating the provider
 on canonical workspace entry routes. This adapter does not grant authorization.
 
+### Backend membership checkpoint
+
+The first backend increment adds explicit identity-bound memberships, audited
+grant/revoke and Person-contact endpoints, request-scoped tenant/Person
+resolution, paginated workspace discovery and additive `/me` descriptors.
+`homeTenant`, `effectiveTenant` and `workspace` may be null; multiple authorized
+contexts without selectors do not fabricate a selected organization. Membership
+alone creates no role assignments.
+
+The backend handoff reports 44 HTTP and 195 unit tests passing, with 82.9%
+combined changed-executable-line coverage. The parent independently reran the
+22 new membership HTTP cases and 3 schema tests successfully. Actual logs report
+a solution build with 5 warnings and no errors. These are checkpoint results,
+not full-feature acceptance or achievement of the stricter coverage target.
+Live SQL Server and real-Entra manual validation remain unverified.
+
+Canonical activation still has server-side gates: ordinary system visibility
+must satisfy the user's newly confirmed applicable-role requirement; unmigrated
+write operations remain fail-closed; and SignalR requires validated workspace
+handshakes, tenant-scoped delivery and revocation handling. Chat conversation
+isolation is not established by the membership REST tests.
+
 ### Planning artifact checks and tooling limitation
 
 Local relative Markdown links and unfilled-template checks passed for the new

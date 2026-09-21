@@ -266,8 +266,34 @@ public class ComplianceAuthorizationMiddleware
                       context.User.IsInRole(ComplianceRoles.Administrator) ||
                       context.User.IsInRole(ComplianceRoles.PlatformEngineer);
 
+        var workspace = context.RequestServices.GetService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>();
+        if (string.IsNullOrEmpty(toolName) && workspace?.IsWorkspaceRequest == true)
+        {
+            // Read queries remain scoped by membership, system assignments and EF filters.
+            // Writes only cross this coarse gate when an endpoint has its own operation policy.
+            hasRole = HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method)
+                || (workspace.IsCspAdmin && workspace.ImpersonatedTenantId is null
+                    && context.Request.Path.StartsWithSegments("/api/csp"))
+                || context.GetEndpoint()?.Metadata.GetMetadata<Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint>() is not null
+                || context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>() is not null;
+        }
+
         if (!hasRole)
         {
+            if (workspace?.IsWorkspaceRequest == true)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    status = "error",
+                    error = new
+                    {
+                        errorCode = "WORKSPACE_OPERATION_NOT_AUTHORIZED",
+                        message = "This workspace does not authorize the requested operation."
+                    }
+                }, context.RequestAborted);
+                return;
+            }
             _logger.LogWarning("Access denied for user {User} — missing compliance role",
                 context.User.Identity?.Name);
             context.Response.StatusCode = 403;

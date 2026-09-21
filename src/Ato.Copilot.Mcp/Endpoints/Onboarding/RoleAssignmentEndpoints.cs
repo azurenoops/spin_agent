@@ -29,7 +29,7 @@ public static class RoleAssignmentEndpoints
                 IOrganizationRoleAssignmentService service,
                 CancellationToken ct) =>
             {
-                if (!TryGetTenantId(http.User, out var tenantId)) return Forbidden();
+                if (!TryGetTenantId(http, out var tenantId)) return Forbidden();
                 var assignments = await service.ListAsync(tenantId, ct);
                 return Results.Ok(new { ok = true, data = assignments.Select(Project) });
             })
@@ -45,7 +45,7 @@ public static class RoleAssignmentEndpoints
                 Microsoft.Extensions.Logging.ILoggerFactory loggerFactory,
                 CancellationToken ct) =>
             {
-                if (!TryGetTenantId(http.User, out var tenantId)) return Forbidden();
+                if (!TryGetTenantId(http, out var tenantId)) return Forbidden();
                 if (!TryGetSubject(http.User, out var actorId)) return Forbidden();
                 if (request is null)
                 {
@@ -143,7 +143,7 @@ public static class RoleAssignmentEndpoints
                 IOrganizationRoleAssignmentService service,
                 CancellationToken ct) =>
             {
-                if (!TryGetTenantId(http.User, out var tenantId)) return Forbidden();
+                if (!TryGetTenantId(http, out var tenantId)) return Forbidden();
                 if (!TryGetSubject(http.User, out var actorId)) return Forbidden();
                 try
                 {
@@ -180,8 +180,15 @@ public static class RoleAssignmentEndpoints
         createdAt = a.CreatedAt,
     };
 
-    private static bool TryGetTenantId(ClaimsPrincipal user, out Guid tenantId)
+    private static bool TryGetTenantId(HttpContext http, out Guid tenantId)
     {
+        var context = http.RequestServices.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>();
+        if (context.IsWorkspaceRequest)
+        {
+            tenantId = context.EffectiveTenantId;
+            return tenantId != Guid.Empty && context.PersonId.HasValue;
+        }
+        var user = http.User;
         var raw = user.FindFirstValue("tid")
             ?? user.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid");
         return Guid.TryParse(raw, out tenantId);

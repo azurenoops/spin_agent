@@ -1,0 +1,99 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_AUTHENTICATED_BEARER_TOKEN
+@tenantId = REPLACE_WITH_INTERNAL_ORGANIZATION_ID
+@personId = REPLACE_WITH_PERSON_ID_FROM_CONTACT_RESPONSE
+@directoryTenantId = REPLACE_WITH_MEMBER_TOKEN_TID
+@objectId = REPLACE_WITH_MEMBER_TOKEN_OID
+@membershipId = REPLACE_WITH_MEMBERSHIP_ID_FROM_GRANT_RESPONSE
+
+### Create an isolation organization without inventing a directory mapping.
+### This remains Pending onboarding; it creates neither memberships nor administrator roles.
+POST {{baseUrl}}/api/tenants
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"displayName":"Local test organization"}
+
+### Public login bootstrap: no tenant or membership required
+GET {{baseUrl}}/api/auth/login-config
+
+### Discover contexts without choosing a browser-global active organization
+GET {{baseUrl}}/api/auth/workspaces?page=1&pageSize=50
+Authorization: Bearer {{token}}
+
+### Explicit organization request; homeTenant can be null
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### CSP operator: find an existing organization-local Person (contact email grants no access)
+GET {{baseUrl}}/api/tenants/{{tenantId}}/membership-persons?query=
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### CSP operator: create contact if none exists; creates neither membership nor role
+POST {{baseUrl}}/api/tenants/{{tenantId}}/membership-persons
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"displayName":"Local test member","email":"local-member@example.invalid"}
+
+### CSP or existing organization Administrator: explicit trusted identity association
+POST {{baseUrl}}/api/tenants/{{tenantId}}/memberships
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"directoryTenantId":"{{directoryTenantId}}","objectId":"{{objectId}}","personId":"{{personId}}"}
+
+### List active and revoked grants (CSP context); org admins instead send their organization headers
+GET {{baseUrl}}/api/tenants/{{tenantId}}/memberships?page=1&pageSize=50
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Read the resource referenced by a successful grant's Location header
+GET {{baseUrl}}/api/tenants/{{tenantId}}/memberships/{{membershipId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Revoke; last accessible organization Administrator returns 409 LAST_ADMIN_PROTECTED
+DELETE {{baseUrl}}/api/tenants/{{tenantId}}/memberships/{{membershipId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Support entry is separately audited and never creates ordinary membership
+POST {{baseUrl}}/api/tenants/{{tenantId}}/impersonate
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Use the response's HttpOnly cookie through your local HTTP client's cookie jar
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: support
+
+### Exit support using CSP scope, including when the support token has expired
+DELETE {{baseUrl}}/api/tenants/impersonation
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Negative test: unknown or revoked membership returns 403, never a home-tenant fallback
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Workspace-Mode: ordinary

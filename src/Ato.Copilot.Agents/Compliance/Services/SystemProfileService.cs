@@ -887,6 +887,31 @@ public class SystemProfileService : ISystemProfileService
         RmfRole? simulatedRole,
         CancellationToken cancellationToken)
     {
+        if (db.IsWorkspaceRequest)
+        {
+            if (db.WorkspacePersonId is not { } personId) return false;
+            var organizationRoles = allowedRoles
+                .Select(Ato.Copilot.Core.Services.Roles.OrganizationRoleToRmfRoleMap.TryMap)
+                .Where(role => role.HasValue).Select(role => role!.Value).ToArray();
+            // Explicit system assignments take precedence over organization-level fallbacks.
+            if (await db.SystemRoleAssignments.AnyAsync(r => r.RegisteredSystemId == systemId
+                && r.PersonId == personId && r.RemovedAt == null && organizationRoles.Contains(r.Role), cancellationToken))
+                return true;
+            foreach (var role in organizationRoles)
+            {
+                if (!await db.SystemRoleAssignments.AnyAsync(r => r.RegisteredSystemId == systemId
+                        && r.RemovedAt == null && r.Role == role, cancellationToken)
+                    && await db.OrganizationRoleAssignments.AnyAsync(r => r.PersonId == personId
+                        && r.RemovedAt == null && r.Role == role, cancellationToken))
+                    return true;
+            }
+            // Legacy responsibility is consulted only after the trusted identity resolves to a Person.
+            var email = await db.Persons.Where(p => p.Id == personId).Select(p => p.Email).SingleAsync(cancellationToken);
+            if (await db.Persons.CountAsync(p => p.Email == email, cancellationToken) != 1) return false;
+            return await db.RmfRoleAssignments.AnyAsync(r => r.RegisteredSystemId == systemId
+                && r.IsActive && allowedRoles.Contains(r.RmfRole) && r.UserId == email, cancellationToken);
+        }
+
         if (simulatedRole.HasValue && allowedRoles.Contains(simulatedRole.Value))
             return true;
 

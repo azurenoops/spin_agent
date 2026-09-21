@@ -12,9 +12,13 @@ namespace Ato.Copilot.Core.Interfaces.Tenancy;
 /// </summary>
 public interface ITenantContext
 {
-    /// <summary>The user's home tenant.</summary>
+    /// <summary>
+    /// Selected organization for an ordinary workspace; actor's legacy home tenant for
+    /// legacy/support requests. Guid.Empty is the system scope, not a fabricated home tenant.
+    /// </summary>
     /// <remarks>
-    /// Resolved in this order:
+    /// Explicit workspace requests resolve an authorized membership first. Legacy SingleTenant
+    /// requests retain the following compatibility order:
     /// <list type="number">
     ///   <item>Entra <c>tid</c> claim → <c>Tenants.EntraTenantId</c> lookup.</item>
     ///   <item><c>X-Tenant-Id</c> header (only honored in dev/simulation mode).</item>
@@ -27,7 +31,10 @@ public interface ITenantContext
     /// <summary>Optional sub-organization scope. Null = tenant-level.</summary>
     Guid? OrganizationId { get; }
 
-    /// <summary>True when the principal carries the <c>CSP.Admin</c> role.</summary>
+    /// <summary>
+    /// True in an authorized provider/support context. False for ordinary organization
+    /// membership even when the actor also carries CSP.Admin, to preserve tenant filters.
+    /// </summary>
     bool IsCspAdmin { get; }
 
     /// <summary>The tenant the principal is currently impersonating, if any.</summary>
@@ -45,4 +52,10 @@ public interface ITenantContext
     /// code does not re-query the DB on every read.
     /// </summary>
     TenantStatus Status { get; }
+
+    /// <summary>The Person explicitly associated with the authenticated workspace member.</summary>
+    Guid? PersonId => null;
+
+    /// <summary>Whether this request was resolved through explicit workspace authorization.</summary>
+    bool IsWorkspaceRequest => false;
 }
