@@ -9,11 +9,34 @@ vi.mock('../../api/complianceApi', () => ({
 
 import * as validationApi from '../../api/complianceApi';
 import ValidationEvidencePanel from '../ValidationEvidencePanel';
+import { WorkspaceNavigationProvider } from '../../../workspaces/workspaceNavigation';
 
 const getLinks = validationApi.getControlValidationLinks as ReturnType<typeof vi.fn>;
 
 describe('ValidationEvidencePanel', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('keeps evidence targets inside the selected workspace', async () => {
+    // Arrange
+    getLinks.mockResolvedValue({
+      systemId: 'system-1', controlId: 'AC-2', total: 1,
+      links: [{
+        id: 'evidence-1', linkType: 'EvidenceArtifact', linkTarget: 'evidence-1',
+        addedBy: 'synthetic-reviewer', addedAt: '2026-09-21T12:00:00Z', isAutomated: false,
+      }],
+    });
+
+    // Act
+    render(
+      <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-alpha' }}>
+        <ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} />
+      </WorkspaceNavigationProvider>,
+    );
+
+    // Assert
+    expect(await screen.findByRole('link', { name: /open validation target/i }))
+      .toHaveAttribute('href', '/workspaces/organizations/org-alpha/systems/system-1/evidence');
+  });
 
   it('renders linked Azure resource with type and automation badges', async () => {
     // Arrange

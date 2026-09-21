@@ -59,6 +59,7 @@ vi.mock('../../hooks/usePolling', () => ({
 
 import * as compApi from '../../api/components';
 import ComponentInventory from '../../pages/ComponentInventory';
+import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 
 const mockGetComponents = compApi.getComponents as ReturnType<typeof vi.fn>;
 const mockListComponents = compApi.listComponents as ReturnType<typeof vi.fn>;
@@ -96,11 +97,15 @@ const makeOrgComp = (id: string, name: string) => ({
 
 const emptySystemResponse = { items: [], summary: { total: 0 } };
 
-function renderPage() {
+function renderPage(scoped = false) {
+  const prefix = scoped ? '/workspaces/organizations/org-alpha' : '';
+  const page = scoped
+    ? <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-alpha' }}><ComponentInventory /></WorkspaceNavigationProvider>
+    : <ComponentInventory />;
   return render(
-    <MemoryRouter initialEntries={[`/systems/${SYSTEM_ID}/components`]}>
+    <MemoryRouter initialEntries={[`${prefix}/systems/${SYSTEM_ID}/components`]}>
       <Routes>
-        <Route path="/systems/:id/components" element={<ComponentInventory />} />
+        <Route path={`${prefix}/systems/:id/components`} element={page} />
       </Routes>
     </MemoryRouter>,
   );
@@ -126,6 +131,19 @@ async function openAddExistingTab() {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('ComponentInventory — Add Existing empty-state messages', () => {
+  it('keeps the component-library link inside the organization workspace', async () => {
+    // Arrange
+    mockListComponents.mockResolvedValue({ items: [], totalCount: 0 });
+    renderPage(true);
+
+    // Act
+    await openAddExistingTab();
+
+    // Assert
+    expect(await screen.findByRole('link', { name: /components library/i }))
+      .toHaveAttribute('href', '/workspaces/organizations/org-alpha/components');
+  });
+
   /**
    * SCENARIO A: org has zero components (none created yet)
    * Expected: actionable guidance + link to /components
