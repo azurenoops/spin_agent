@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowUpFromLine, BookOpen, Check, FileText, GitCompareArrows, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { diffWordsWithSpace } from 'diff';
 import Narratives from './Narratives';
-import { getNarratives, type NarrativeListItem } from '../api/narratives';
 import { generateProposal, getNarrativeAccess, getProposals, getReferences, importReference, publishReference, reviewProposal,
   type NarrativeAccess, type NarrativeProposal, type NarrativeReference, type ReferencePassage } from '../api/narrativeLibrary';
 import { useSettings } from '../hooks/useSettings';
@@ -29,11 +28,11 @@ function Workspace({ systemId }: { systemId: string }) {
   const [references, setReferences] = useState<NarrativeReference[]>([]);
   const [proposals, setProposals] = useState<NarrativeProposal[]>([]);
   const [access, setAccess] = useState<NarrativeAccess | null>(null);
-  const [controls, setControls] = useState<NarrativeListItem[]>([]);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [scopeFilter, setScopeFilter] = useState('All');
   const [title, setTitle] = useState('');
   const [scope, setScope] = useState('System');
@@ -44,26 +43,27 @@ function Workspace({ systemId }: { systemId: string }) {
   const [passages, setPassages] = useState<ReferencePassage[]>([]);
   const [reviewed, setReviewed] = useState(false);
   const [note, setNote] = useState('');
-  const [controlId, setControlId] = useState('');
-  const [narrativeType, setNarrativeType] = useState('Technical');
   const [clearLegacy, setClearLegacy] = useState(false);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.all([getReferences(systemId), getProposals(systemId), getNarrativeAccess(systemId), getNarratives(systemId)])
-      .then(([nextReferences, nextProposals, nextAccess, nextControls]) => {
+    setLoadError('');
+    Promise.all([getReferences(systemId), getProposals(systemId), getNarrativeAccess(systemId)])
+      .then(([nextReferences, nextProposals, nextAccess]) => {
         if (!active) return;
-        setReferences(nextReferences); setProposals(nextProposals); setAccess(nextAccess); setControls(nextControls);
-        setControlId(current => current || nextControls[0]?.controlId || '');
-      }).catch(reason => { if (active) { setAccess(null); setError(errorMessage(reason)); } })
+        setReferences(nextReferences); setProposals(nextProposals); setAccess(nextAccess);
+      }).catch(reason => {
+        if (!active) return;
+        setReferences([]); setProposals([]); setAccess(null); setLoadError(errorMessage(reason));
+      })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [systemId, revision]);
   useEffect(() => { setNote(''); }, [query.get('proposal')]);
 
   const go = (next: string) => navigate(next === 'narratives' ? base : `${base}/${next}`);
-  const locked = busy || loading;
+  const locked = busy || loading || Boolean(loadError);
   const canAuthor = !locked && access?.canAuthor === true;
   const proposal = proposals.find(item => item.id === query.get('proposal')) ?? proposals.find(item => item.status === 'Draft') ?? proposals[0];
   const latestReferences = references.filter(item => !references.some(other => other.referenceKey === item.referenceKey &&
@@ -86,7 +86,7 @@ function Workspace({ systemId }: { systemId: string }) {
     setPassages(current => current.map((passage, position) => position === index ? { ...passage, ...update } : passage));
     setReviewed(false);
   }
-  async function generate(control: string, version: number, type = 'Technical') {
+  async function generate(control: string, version: number, type: 'Policy' | 'Technical') {
     await perform(async () => {
       const created = await generateProposal(systemId, control, type, version);
       setProposals(current => [created, ...current.filter(item => item.id !== created.id)]);
@@ -125,35 +125,26 @@ function Workspace({ systemId }: { systemId: string }) {
   const pending = proposals.filter(item => item.status === 'Draft');
 
   return <div className="narrative-workspace">
-    {error && <div role="alert" className="nw-alert"><ShieldAlert size={18} /><span>{error}</span>
+    {(loadError || error) && <div role="alert" className="nw-alert"><ShieldAlert size={18} /><span>{loadError || error}</span>
       <button type="button" onClick={() => { setError(''); setRevision(current => current + 1); }} title="Retry loading"><RefreshCw size={16} /></button></div>}
     {loading && <p role="status" className="nw-muted">Loading narrative context...</p>}
 
     {view === 'narratives' && <>
-      <div className="nw-toolbar">
-        <div className="nw-context"><span className="nw-dot" />{access ? access.systemName : 'System context unavailable'}
-          <span className="nw-muted">{references.filter(item => item.isPublished).length} published reference versions</span></div>
-        <label>Control<select aria-label="Generate control" value={controlId} onChange={event => setControlId(event.target.value)}>
-          {controls.map(control => <option key={control.controlId}>{control.controlId}</option>)}</select></label>
-        <label>Type<select aria-label="Generate narrative type" value={narrativeType} onChange={event => setNarrativeType(event.target.value)}>
-          <option>Policy</option><option>Technical</option></select></label>
-        <button className="nw-primary" disabled={!canAuthor || !controlId} onClick={() => {
-          const control = controls.find(item => item.controlId === controlId); if (control) void generate(controlId, control.version, narrativeType);
-        }}><RefreshCw size={16} />Generate draft</button>
-      </div>
       {pending.length > 0 && <div className="nw-notice"><GitCompareArrows size={18} /><span>{pending.length} proposed update{pending.length === 1 ? '' : 's'} awaiting review</span>
         <button onClick={() => go('review')}>Review changes</button></div>}
       <Narratives key={revision} onGenerateDraft={generate} proposals={proposals} canGenerate={canAuthor}
+        onOpenLibrary={() => go('library')}
         onReviewProposal={item => navigate(`${base}/review?proposal=${encodeURIComponent(item.id)}`)} />
     </>}
 
     {view === 'library' && <>
       <header className="nw-header"><div><h2>Narrative Library</h2><p>Reference claims, separate from implementation evidence.</p></div>
+        <div className="nw-mobile-navigation"><button type="button" onClick={() => go('narratives')}><ArrowLeft size={16} />Narratives</button></div>
         <button className="nw-primary" onClick={() => { setDraft(null); go('import'); }} disabled={!canAuthor}><ArrowUpFromLine size={16} />Upload narratives</button></header>
       <div className="nw-toolbar"><label>Reference scope<select value={scopeFilter} onChange={event => setScopeFilter(event.target.value)}>
         <option value="All">All available</option><option>Organization</option><option>System</option><option>Capability</option></select></label>
         <span className="nw-muted">{access?.systemName}</span></div>
-      {!loading && latestReferences.length === 0 && <p className="nw-empty">No reference narratives published.</p>}
+      {!loading && !loadError && latestReferences.length === 0 && <p className="nw-empty">No reference narratives published.</p>}
       <div className="nw-reference-list">{latestReferences.filter(item => scopeFilter === 'All' || item.scope === scopeFilter).map(reference =>
         <article key={reference.id} className="nw-reference"><div className="nw-reference-heading"><BookOpen size={20} />
           <h3>{reference.title}</h3><span className="nw-badge">{reference.isPublished ? `Published v${reference.version}` : 'Import draft'}</span></div>
@@ -211,7 +202,7 @@ function Workspace({ systemId }: { systemId: string }) {
     {view === 'review' && <>
       <header className="nw-header"><div><h2>Review change</h2><p>Active content remains unchanged until approval.</p></div>
         <button onClick={() => go('narratives')}><ArrowLeft size={16} />Narratives</button></header>
-      {!proposal ? <p className="nw-empty">No proposed narrative changes.</p> : <>
+      {!proposal ? !loading && !loadError && <p className="nw-empty">No proposed narrative changes.</p> : <>
         <label className="nw-review-select">Proposed change<select value={proposal.id} onChange={event => navigate(`${base}/review?proposal=${encodeURIComponent(event.target.value)}`)}>
           {proposals.map(item => <option key={item.id} value={item.id}>{item.controlId} / {item.narrativeType} / v{item.baseVersion + 1} / {item.status}</option>)}</select></label>
         <div className="nw-section-heading"><h3>{proposal.controlId} / {proposal.narrativeType} / Proposed v{proposal.baseVersion + 1}</h3>
@@ -239,11 +230,5 @@ function Workspace({ systemId }: { systemId: string }) {
       </>}
     </>}
 
-    <nav aria-label="Narrative workflow" className="nw-bottom-nav">
-      <Link to={base} aria-current={view === 'narratives' ? 'page' : undefined}><FileText size={16} />{'02 \u00b7 Narratives'}</Link>
-      <Link to={`${base}/library`} aria-current={view === 'library' ? 'page' : undefined}><BookOpen size={16} />{'02 \u00b7 Library'}</Link>
-      <Link to={`${base}/import`} aria-current={view === 'import' ? 'page' : undefined}><ArrowUpFromLine size={16} />{'03 \u00b7 Import & map'}</Link>
-      <Link to={`${base}/review`} aria-current={view === 'review' ? 'page' : undefined}><GitCompareArrows size={16} />{'04 \u00b7 Review change'}</Link>
-    </nav>
   </div>;
 }

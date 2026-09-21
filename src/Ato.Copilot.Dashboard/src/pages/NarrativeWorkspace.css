@@ -31,8 +31,6 @@
 .nw-header p { font-size: 14px; }
 .nw-toolbar { padding-bottom: 20px; align-items: flex-end; }
 .nw-toolbar label { max-width: 240px; }
-.nw-context { display: flex; flex-direction: column; flex: 1; min-width: 160px; }
-.nw-dot { height: 6px; width: 6px; border-radius: 50%; background: #16a34a; margin-bottom: 5px; }
 .nw-notice, .nw-alert { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--nw-border); margin-bottom: 20px; }
 .nw-notice span, .nw-alert span { flex: 1; min-width: 150px; }
 .nw-alert, .nw-warning { color: #92400e; }
@@ -65,19 +63,18 @@
 .narrative-workspace pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; padding: 12px 0; }
 .narrative-workspace summary { cursor: pointer; color: var(--nw-muted); margin: 14px 0; }
 .nw-empty { padding: 36px 0; color: var(--nw-muted); }
-.nw-bottom-nav { display: flex; flex-wrap: wrap; gap: 4px 24px; border-top: 1px solid var(--nw-border); margin-top: 30px; padding-top: 12px; }
-.nw-bottom-nav a { display: flex; align-items: center; gap: 7px; color: var(--nw-muted); padding: 12px 0; font-size: 12px; border-bottom: 2px solid transparent; }
-.nw-bottom-nav a[aria-current=page] { color: var(--nw-accent); border-color: var(--nw-accent); font-weight: 500; }
-.nw-bottom-nav a:hover { color: #4338ca; }
 .narrative-workspace .overflow-hidden:has(> table) { overflow-x: auto; }
 .narrative-workspace table { min-width: 650px; }
+.nw-mobile-navigation { display: none; }
+@media (max-width: 767px) {
+  .nw-mobile-navigation { display: block; }
+}
 @media (max-width: 700px) {
   .narrative-workspace { padding: 0; }
   .nw-two-columns, .nw-diff-grid { grid-template-columns: minmax(0,1fr); }
   .nw-diff + .nw-diff { border-left: 0; border-top: 1px solid var(--nw-border); }
   .nw-header { align-items: flex-start; }
   .nw-reference, .nw-mapping { padding: 14px; }
-  .nw-bottom-nav { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px 10px; }
   .narrative-workspace .grid-cols-5 { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .narrative-workspace .grid-cols-5 > div { padding: 12px 4px; }
   .narrative-workspace .grid-cols-5 > div p:first-child { font-size: 10px; }

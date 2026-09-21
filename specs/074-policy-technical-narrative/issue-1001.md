@@ -12,9 +12,24 @@ Branding clarification (2026-09-21): match the deployed SPIN dashboard's light
 theme rather than introducing a dark central workspace. Retain the existing logo,
 tenant branding, shell typography, white surfaces, gray borders and indigo actions
 across all four views. Keep responsive layout and workflow behavior unchanged.
-Bottom navigation uses the requested labels: `02 · Narratives`, `02 · Library`,
-`03 · Import & map`, `04 · Review change`. Review links identify an actual
-proposal; never fabricate a sample v8 or snapshot identifier.
+Layout follow-up (2026-09-21): remove the duplicate bottom workflow navigation
+and the top system-context strip. Keep the system sidebar's Narratives and
+Narrative Library links, Library upload/import return actions, and proposal review
+entry points. The user explicitly selected Policy/Technical draft generation
+inside each expanded control instead of the removed global control/type selector.
+Both actions retain permission, in-progress, review-lock and version checks.
+Because the existing system sidebar is hidden below the desktop breakpoint,
+retain a compact reciprocal page-header action on mobile (Library/Narratives),
+not another workflow bar. Desktop navigation continues to use the sidebar.
+Review links identify an actual proposal; never fabricate a sample v8 or snapshot
+identifier.
+
+The same follow-up reproduced empty 404s from the library, access and proposals
+endpoints on both live pages. Revision 132 cannot start because of the existing
+#987 Feature 040 schema failure, leaving revision 120 serving without these
+routes. Repair that backend cause separately; do not hide failed retrieval as
+"No reference narratives published." Loading errors remain visible and retryable,
+and dependent mutations fail closed until retrieval succeeds.
 
 Uploaded language is an unverified reference claim, never implementation evidence.
 Publishing references cannot change implementation or authorization decisions.
@@ -62,7 +77,7 @@ errors must preserve the active approved version.
 - [ ] Persist scoped, tenant-isolated references and draft imports; enforce RBAC.
 - [ ] Implement bounded parsers and editable mapping preview for supported formats.
 - [ ] Publish reviewed mappings atomically and retain immutable revisions.
-- [ ] Connect library routes, sidebar, import flow and bottom navigation.
+- [ ] Connect library routes, sidebar, import/return flow and proposal review actions.
 - [ ] Ground generation in system state plus published applicable references.
 - [ ] Track independent freshness and create deduplicated review proposals.
 - [ ] Wire diff, provenance, conflict/gap display and authorized versioned decisions.
@@ -110,3 +125,36 @@ Remaining work and acceptance gates:
 	login configuration returned HTTP 500; screenshots alone are not acceptance.
 
 Keep the PR in draft and link, rather than close, #1001 and its stories.
+
+## Layout follow-up validation (2026-09-21)
+
+The bottom workflow navigation and system-context strip are removed. Each
+expanded control offers separate Policy and Technical draft actions. Sidebar,
+import return, pending-proposal and mobile page-header navigation are retained.
+Library/review retrieval errors remain visible and retryable without falsely
+reporting an empty library or enabling dependent writes.
+
+Verification in the isolated `fix/narrative-workspace-layout` worktree:
+
+- Confirmed 11 failing layout/generation/error-state regressions before the UI fix.
+- Browser testing exposed loss of mobile navigation because the system sidebar
+  is hidden at that breakpoint; two additional failing regressions preceded
+  compact mobile page-header actions.
+- 38 focused UI tests and all 4 isolated desktop/mobile Policy/Technical
+  import-generation-review workflows pass.
+- Dashboard `tsc --noEmit` and production build pass. Existing-file/bundle
+  warnings remain visible; no warnings are suppressed.
+- Focused coverage executes all 51 added executable statements across the two
+  changed pages. This is not a claim of full-file or full-branch coverage.
+
+Browser API fixtures are synthetic and do not prove live backend readiness.
+The separate #987 schema-startup correction now passes six real SQL Server
+regressions, including legacy upgrade, fresh/rerun, data/constraint preservation,
+rollback and generated migration with a non-default collation. Six actual-host
+HTTP checks verify the library/access/proposals routes return 200 for assigned
+actors and structured 403 for unassigned actors. These local route checks use
+SQLite; they are distinct from the SQL Server schema checks.
+
+Deployment verification remains necessary to remove the live missing-route
+failures. No deployment is authorized by these local checks; manual local
+acceptance must still be offered.
