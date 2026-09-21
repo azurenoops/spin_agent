@@ -28,6 +28,9 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// </remarks>
 public interface IControlNarrativeService
 {
+    Task<GroundedNarrativeDraft> GenerateGroundedDraftAsync(
+        string narrativeType, string contextJson, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// AI-assisted narrative generation. Returns null if AI is disabled or fails;
     /// callers fall back to <see cref="GenerateNarrative"/> /

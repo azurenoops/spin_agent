@@ -594,6 +594,7 @@ async Task RunHttpModeAsync(string[] args)
     app.MapEmassWorkflowEndpoints();
     app.MapControlValidationEndpoints();
     app.MapNarrativeDualEndpoints();
+    app.MapNarrativeLibraryEndpoints();
 
     // Feature 051 [US1]: dashboard login surface — login-config + me.
     // The endpoint group lives under /api/auth and is anonymous-by-default
@@ -1344,6 +1345,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // Issue 892: additive dual narrative and evidence classification columns.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.PolicyTechnicalNarrativeSchemaAdditions
         .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.NarrativeLibrarySchemaAdditions
+        .ApplyAsync(db, ct);
     await Ato.Copilot.Core.Services.Tenancy.TenantBootstrapService.EnsureSystemTenantAsync(db, logger, ct);
     // T060: Backfill OrganizationContext rows whose TenantId still holds the
     // Entra `tid` rather than the new Tenants.Id. Idempotent; no-op once done.

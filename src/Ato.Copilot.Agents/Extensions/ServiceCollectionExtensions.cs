@@ -345,6 +345,8 @@ public static class ServiceCollectionExtensions
         // Narrative Governance service (Feature 024)
         services.AddSingleton<INarrativeGovernanceService, NarrativeGovernanceService>();
         services.AddSingleton<IDualNarrativeService, DualNarrativeService>();
+        services.AddScoped<NarrativeLibraryService>();
+        services.AddScoped<NarrativeProposalService>();
         services.AddSingleton<IEvidenceNarrativeClassifier, EvidenceNarrativeClassifier>();
         services.AddSingleton<EvidenceNarrativeBulkClassifierJob>();
 
