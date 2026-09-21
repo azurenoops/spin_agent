@@ -227,6 +227,25 @@ mission-purpose, users-access, environment, data-types, ports-protocols,
 leveraged-auth and legal-regulatory. Preserve search/hash and valid deep-link
 state; avoid redirect loops and extra history entries.
 
+### Routing foundation contract (implementation increment)
+
+The first routing increment introduces pure typed helpers under
+`src/features/workspaces/`:
+
+- Parse a canonical workspace path into a CSP or organization selector and a
+  workspace-relative route; return a distinct legacy result for unscoped paths.
+- Reject malformed/unknown workspace prefixes, traversal segments, external or
+  protocol-relative URLs and invalid organization identifiers explicitly.
+- Build canonical workspace URLs while preserving query strings and fragments.
+- Resolve existing system route aliases from one mapping, without treating
+  `/systems/new` as a system or inferring a system's owning organization.
+- Keep parsing/building separate from membership and system authorization.
+  A syntactically valid route never grants access.
+
+Tests must exercise every existing alias, both workspace kinds, malformed
+inputs, round trips, and independent A/B locations. This increment does not
+activate ordinary multi-organization access before the server contract is ready.
+
 Find and migrate hard-coded links, page redirects, chat quick actions,
 notification destinations, downloadable links and wizard completion URLs through
 the route builder. Do not stop after changing the top-level route definitions.
