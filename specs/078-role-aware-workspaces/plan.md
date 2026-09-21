@@ -673,6 +673,13 @@ first-account selections; 24 focused account/transport tests pass. Current
 whole-project type checking remains blocked by in-progress domain-affordance
 test fixtures owned by the parallel UI task, not marked as a clean full gate.
 
+Focused integration review found a retry identity race: workspace URL matching
+alone does not prevent a pending mutation from retrying with a newly selected
+MSAL account. Requests must pin the initiating account's qualified identity as
+well as workspace, reject identity changes after token acquisition, and reject
+obsolete success/error responses before any renewal/retry. Regression tests must
+prove no second POST is sent after an account change.
+
 ### Planning artifact checks and tooling limitation
 
 Local relative Markdown links and unfilled-template checks passed for the new
