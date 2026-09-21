@@ -145,6 +145,7 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
             ControlImplementationId = impl.Id,
             VersionNumber = newVersionNumber,
             Content = target.Content,
+            SnapshotJson = target.SnapshotJson,
             Status = SspSectionStatus.Draft,
             AuthoredBy = authoredBy,
             AuthoredAt = DateTime.UtcNow,
@@ -155,7 +156,16 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
 
         // Update ControlImplementation
         impl.CurrentVersion = newVersionNumber;
-        impl.SetCombinedNarrative(target.Content);
+        if (target.SnapshotJson is not null)
+            NarrativeContentSnapshot.Restore(impl, target.SnapshotJson);
+        else
+        {
+            impl.SetCombinedNarrative(target.Content);
+            impl.AiSuggested = false;
+            impl.IsAutoPopulated = false;
+            impl.IsManuallyCustomized = false;
+        }
+        rollbackVersion.SnapshotJson = NarrativeContentSnapshot.Capture(impl);
         impl.ApprovalStatus = SspSectionStatus.Draft;
         impl.ModifiedAt = DateTime.UtcNow;
         impl.AuthoredBy = authoredBy;

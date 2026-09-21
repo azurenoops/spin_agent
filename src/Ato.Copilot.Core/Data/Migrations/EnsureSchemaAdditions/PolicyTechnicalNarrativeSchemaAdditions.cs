@@ -56,6 +56,22 @@ public static class PolicyTechnicalNarrativeSchemaAdditions
         AtoCopilotContext db,
         CancellationToken cancellationToken)
     {
+        var fragmentColumns = await GetSqliteColumnsAsync(db, "OscalDecompositionFragments", cancellationToken);
+        if (fragmentColumns.Count > 0 && !fragmentColumns.Contains("DerivationBasis"))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"OscalDecompositionFragments\" ADD COLUMN \"DerivationBasis\" TEXT NOT NULL DEFAULT 'Unknown'",
+                cancellationToken);
+        }
+
+        var versionColumns = await GetSqliteColumnsAsync(db, "NarrativeVersions", cancellationToken);
+        if (versionColumns.Count > 0 && !versionColumns.Contains("SnapshotJson"))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"NarrativeVersions\" ADD COLUMN \"SnapshotJson\" TEXT NULL",
+                cancellationToken);
+        }
+
         var controlColumns = await GetSqliteColumnsAsync(db, "ControlImplementations", cancellationToken);
         if (!controlColumns.Contains("PolicyNarrative"))
         {
@@ -129,6 +145,15 @@ public static class PolicyTechnicalNarrativeSchemaAdditions
     }
 
     private const string SqlServerScript = """
+        IF OBJECT_ID('NarrativeVersions', 'U') IS NOT NULL
+            AND COL_LENGTH('NarrativeVersions', 'SnapshotJson') IS NULL
+            ALTER TABLE NarrativeVersions ADD SnapshotJson NVARCHAR(MAX) NULL;
+
+        IF OBJECT_ID('OscalDecompositionFragments', 'U') IS NOT NULL
+            AND COL_LENGTH('OscalDecompositionFragments', 'DerivationBasis') IS NULL
+            ALTER TABLE OscalDecompositionFragments ADD DerivationBasis NVARCHAR(32) NOT NULL
+                CONSTRAINT DF_OscalDecompositionFragments_DerivationBasis DEFAULT 'Unknown';
+
         IF COL_LENGTH('ControlImplementations', 'PolicyNarrative') IS NULL
             ALTER TABLE ControlImplementations ADD PolicyNarrative NVARCHAR(MAX) NULL;
 

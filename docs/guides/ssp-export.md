@@ -82,6 +82,28 @@ Exported files are automatically cleaned up after **30 days** (configurable). Th
 
 To download an export before it expires, use the Download link in the Export History table.
 
+## Narrative Provenance and Import History
+
+OSCAL decomposition records model or fallback origin separately from confidence.
+Drafts created before origin tracking remain `Unknown`; a confidence score alone
+does not make their approved content AI-generated. Empty drafts cannot be approved.
+
+Document-source generation preserves AI provenance when model synthesis succeeds.
+Deterministic fallback is automatic, not AI-generated. Manual Technical edits clear
+generation provenance. Capability AI coverage counts only nonempty, canonical,
+non-migrated Technical narratives marked as model-generated.
+
+OSCAL import replaces only the supplied Policy or Technical half. Technical
+replacements clear the previous text's generation flags; Policy-only replacements
+preserve Technical provenance. Full imports record narrative snapshots with the
+import run ID in the version change reason. Preview and unchanged controls do not
+add versions. Narratives under review cannot be overwritten by an import.
+
+Rollback restores both narrative halves and provenance from snapshots, recording
+a new draft version. Legacy versions without snapshots restore their stored text
+with non-AI, non-automatic provenance and leave Policy unchanged. These snapshots
+are narrative audit records, not a general import-run ledger or database backup.
+
 ## API Reference
 
 For programmatic access to exports and templates, see the [API documentation](../api/mcp-server.md).

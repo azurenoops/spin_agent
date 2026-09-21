@@ -52,6 +52,86 @@ public class TenantScopedEndpointHttpPipelineTests
 
     // ─── Tests ──────────────────────────────────────────────────────────────
 
+    [Fact]
+    public async Task Issue962_BusinessContext_SqliteRoundTripPreservesConcurrency()
+    {
+        // Arrange
+        var systemId = (await SeedSystemAsync(_tenantA, "Business-context-roundtrip")).ToString();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.ControlImplementations.Add(new ControlImplementation
+        {
+            TenantId = _tenantA, RegisteredSystemId = systemId, ControlId = "AC-2",
+            PolicyNarrative = "Policy text", TechnicalNarrative = "Technical text"
+        });
+        db.RmfRoleAssignments.Add(new RmfRoleAssignment
+        {
+            TenantId = _tenantA, RegisteredSystemId = systemId,
+            UserId = "multi-tenant-test-user", UserDisplayName = "Synthetic owner",
+            RmfRole = RmfRole.MissionOwner, IsActive = true, AssignedBy = "test"
+        });
+        await db.SaveChangesAsync();
+        var endpoint = $"/api/dashboard/systems/{systemId}/business-context/AC-2";
+
+        // Act
+        var created = await _client.PutAsJsonAsync(endpoint, new { content = new string('x', 8000) });
+
+        // Assert
+        created.StatusCode.Should().Be(HttpStatusCode.OK);
+        var response = await created.Content.ReadFromJsonAsync<JsonElement>();
+        var draftId = response.GetProperty("id").GetString();
+        var staleDraft = await db.BusinessContextDrafts.SingleAsync(item => item.Id == draftId);
+        var originalToken = staleDraft.RowVersion.ToArray();
+        var updated = await _client.PutAsJsonAsync(endpoint, new { content = "Updated context" });
+        updated.StatusCode.Should().Be(HttpStatusCode.OK);
+        var stored = await db.BusinessContextDrafts.AsNoTracking().SingleAsync(item => item.Id == draftId);
+        stored.Content.Should().Be("Updated context");
+        stored.RowVersion.Should().NotEqual(originalToken);
+        staleDraft.Content = "Stale replacement";
+        Func<Task> staleSave = () => db.SaveChangesAsync();
+        await staleSave.Should().ThrowAsync<DbUpdateConcurrencyException>();
+    }
+
+    [Theory]
+    [InlineData("GET", "AC-2")]
+    [InlineData("GET", "flagged-controls")]
+    [InlineData("PUT", "AC-2")]
+    [InlineData("POST", "flags")]
+    public async Task Issue962_BusinessContext_DoesNotExposeOrModifyOtherTenant(string method, string suffix)
+    {
+        // Arrange
+        var systemId = (await SeedSystemAsync(_tenantB, "Business-context-isolation")).ToString();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var implementation = new ControlImplementation
+        {
+            TenantId = _tenantB, RegisteredSystemId = systemId, ControlId = "AC-2"
+        };
+        db.ControlImplementations.Add(implementation);
+        var draft = new BusinessContextDraft
+        {
+            TenantId = _tenantB, ControlImplementationId = implementation.Id,
+            Content = "Tenant B synthetic context", AuthoredBy = "tenant-b-owner"
+        };
+        db.BusinessContextDrafts.Add(draft);
+        await db.SaveChangesAsync();
+        SetTenant(_tenantA, isCspAdmin: false);
+        using var request = new HttpRequestMessage(new HttpMethod(method), $"/api/dashboard/systems/{systemId}/business-context/{suffix}");
+        if (method != "GET")
+            request.Content = JsonContent.Create(new { content = "Unauthorized replacement", controlId = "AC-2", isFlagged = true });
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var error = await response.Content.ReadFromJsonAsync<JsonElement>();
+        error.GetProperty("errorCode").GetString().Should().Be("SYSTEM_NOT_FOUND");
+        (await db.BusinessContextDrafts.IgnoreQueryFilters().AsNoTracking().SingleAsync(item => item.Id == draft.Id))
+            .Content.Should().Be("Tenant B synthetic context");
+        (await db.BusinessContextControlFlags.IgnoreQueryFilters().CountAsync(item => item.RegisteredSystemId == systemId)).Should().Be(0);
+    }
+
     /// <summary>
     /// Tenant-A user: GET /api/dashboard/systems returns ONLY Tenant-A systems.
     /// Proves the EF tenant-filter is applied in the HTTP pipeline.

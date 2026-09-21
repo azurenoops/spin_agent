@@ -112,6 +112,19 @@ After the base schema is initialized, the startup sequence runs a series of
 additive DDL passes via the `EnsureSchemaAdditions` classes
 (`src/Ato.Copilot.Core/Data/Migrations/EnsureSchemaAdditions/`).
 
+### Narrative Provenance Additions
+
+The Policy/Technical narrative schema pass also adds
+`OscalDecompositionFragments.DerivationBasis` (default `Unknown`) and nullable
+`NarrativeVersions.SnapshotJson` on SQLite and SQL Server. Existing confidence
+scores are not used to infer origin, and old version rows remain without snapshots.
+The pass checks for existing columns and is safe to repeat without replacing data.
+
+Back up an existing database before upgrading. Verify both columns after startup
+and retain the backup for application-version rollback. SQLite upgrade and repeat
+execution are covered by automated tests; the SQL Server DDL has structural tests
+but still requires execution against a representative SQL Server database.
+
 ### Fail-fast contract (Issue #868)
 
 Every `ApplyAsync` method propagates DDL failures **unconditionally on all

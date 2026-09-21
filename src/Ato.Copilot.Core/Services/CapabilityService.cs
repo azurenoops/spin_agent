@@ -300,6 +300,7 @@ public class CapabilityService
                     }
 
                     var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
+                    var previousSnapshot = NarrativeContentSnapshot.Capture(impl);
 
                     // Find all mappings for this control + system to build composite narrative
                     var mappings = await _db.CapabilityControlMappings
@@ -354,6 +355,7 @@ public class CapabilityService
                             ControlImplementationId = impl.Id,
                             VersionNumber = impl.CurrentVersion,
                             Content = previousNarrative,
+                            SnapshotJson = previousSnapshot,
                             AuthoredBy = modifiedBy,
                             ChangeReason = changeReason,
                         });
@@ -663,7 +665,8 @@ public class CapabilityService
                     else
                         empty++;
 
-                    if (impl.AiSuggested) aiGenerated++;
+                    if (impl.AiSuggested && !impl.MigratedFromLegacy
+                        && !string.IsNullOrWhiteSpace(impl.TechnicalNarrative)) aiGenerated++;
                 }
                 else
                 {
@@ -753,7 +756,8 @@ public class CapabilityService
                 else
                     empty++;
 
-                if (implementation.AiSuggested)
+                if (implementation.AiSuggested && !implementation.MigratedFromLegacy
+                    && !string.IsNullOrWhiteSpace(implementation.TechnicalNarrative))
                     aiGenerated++;
             }
 
@@ -972,6 +976,7 @@ public class CapabilityService
 
         // Save old narrative as NarrativeVersion
         var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
+        var previousSnapshot = NarrativeContentSnapshot.Capture(impl);
         if (previousNarrative is not null)
         {
             _db.NarrativeVersions.Add(new NarrativeVersion
@@ -979,6 +984,7 @@ public class CapabilityService
                 ControlImplementationId = impl.Id,
                 VersionNumber = impl.CurrentVersion,
                 Content = previousNarrative,
+                SnapshotJson = previousSnapshot,
                 AuthoredBy = modifiedBy,
                 ChangeReason = aiGenerated
                     ? "AI regeneration requested by user"
@@ -1071,6 +1077,7 @@ public class CapabilityService
 
             // Save version history
             var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
+            var previousSnapshot = NarrativeContentSnapshot.Capture(impl);
             if (previousNarrative is not null)
             {
                 _db.NarrativeVersions.Add(new NarrativeVersion
@@ -1078,6 +1085,7 @@ public class CapabilityService
                     ControlImplementationId = impl.Id,
                     VersionNumber = impl.CurrentVersion,
                     Content = previousNarrative,
+                    SnapshotJson = previousSnapshot,
                     AuthoredBy = modifiedBy,
                     ChangeReason = "Bulk regeneration for capability",
                 });

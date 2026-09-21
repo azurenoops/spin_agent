@@ -3,6 +3,10 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Ato.Copilot.Agents.Document.Tools;
+using Ato.Copilot.Agents.Compliance.Services;
+using Ato.Copilot.Core.Data.Context;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
@@ -18,6 +22,69 @@ namespace Ato.Copilot.Tests.Unit.Tools;
 
 public class DocumentNarrativeGenerateAdapterToolTests
 {
+    [Theory]
+    [InlineData("model", true)]
+    [InlineData("empty", false)]
+    [InlineData("failure", false)]
+    [InlineData("no-model", false)]
+    public async Task SaveDraft_PersistsModelOrAutomaticOrigin_ManualWriteClearsIt(string responseKind, bool expectedAi)
+    {
+        // Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var services = new ServiceCollection();
+        services.AddDbContext<AtoCopilotContext>(options => options.UseInMemoryDatabase(databaseName));
+        using var provider = services.BuildServiceProvider();
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.RegisteredSystems.Add(new RegisteredSystem { Id = "sys-1", Name = "Synthetic system" });
+            db.ControlBaselines.Add(new ControlBaseline { RegisteredSystemId = "sys-1", ControlIds = ["AC-2"] });
+            await db.SaveChangesAsync();
+        }
+        var ssp = new SspService(provider.GetRequiredService<IServiceScopeFactory>(), Mock.Of<ILogger<SspService>>());
+        await ssp.WriteNarrativeAsync("sys-1", "AC-2", "Existing manual text");
+        var chat = new Mock<IChatClient>();
+        var setup = chat.Setup(client => client.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(),
+            It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()));
+        if (responseKind == "failure")
+            setup.ThrowsAsync(new InvalidOperationException("Synthetic failure"));
+        else
+            setup.ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant,
+                responseKind == "empty" ? " " : "Source-grounded model text")));
+        using var http = new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("Synthetic source evidence", Encoding.UTF8, "text/plain")
+        }));
+        var httpFactory = new Mock<IHttpClientFactory>();
+        httpFactory.Setup(factory => factory.CreateClient("default")).Returns(http);
+        var tool = new DocumentNarrativeGenerateAdapterTool(ssp, Mock.Of<IDocumentTemplateService>(),
+            httpFactory.Object, responseKind == "no-model" ? null : chat.Object, null,
+            Mock.Of<ILogger<DocumentNarrativeGenerateAdapterTool>>());
+
+        // Act
+        var result = await tool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = "sys-1", ["control_id"] = "AC-2", ["save_draft"] = "true",
+            ["source_url"] = "https://example.test/source.txt"
+        });
+
+        // Assert
+        using var json = JsonDocument.Parse(result);
+        json.RootElement.GetProperty("status").GetString().Should().Be("success", result);
+        json.RootElement.GetProperty("data").GetProperty("ai_used").GetBoolean().Should().Be(expectedAi);
+        json.RootElement.GetProperty("data").GetProperty("derivation_basis").GetString()
+            .Should().Be(expectedAi ? "ModelAssessedWithEvidence" : "TemplateScaffold");
+        using var verification = provider.CreateScope();
+        var dbContext = verification.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var saved = await dbContext.ControlImplementations.AsNoTracking().SingleAsync();
+        saved.AiSuggested.Should().Be(expectedAi);
+        saved.IsAutoPopulated.Should().BeTrue();
+        saved.TechnicalNarrative.Should().Contain("Synthetic source evidence");
+        var manual = await ssp.WriteNarrativeAsync("sys-1", "AC-2", "Manual replacement");
+        manual.AiSuggested.Should().BeFalse();
+        manual.IsAutoPopulated.Should().BeFalse();
+    }
+
     [Fact]
     public void AddComplianceAgent_RegistersGraphServiceClientSingleton_WithoutDuplicates()
     {

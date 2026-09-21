@@ -96,13 +96,9 @@ public class CapabilityImportEndpointTests : IAsyncLifetime
         builder.Services.AddSingleton<CspProfileService>(sp =>
         {
             var envMock = new Mock<IWebHostEnvironment>();
-            envMock.Setup(e => e.ContentRootPath).Returns(Path.Combine(_tempDir, "non-existent"));
-            var origDir = Directory.GetCurrentDirectory();
-            Directory.SetCurrentDirectory(_tempDir);
-            var svc = new CspProfileService(
+            envMock.Setup(e => e.ContentRootPath).Returns(Path.Combine(_tempDir, "src", "seed-data"));
+            return new CspProfileService(
                 sp.GetRequiredService<ILogger<CspProfileService>>(), envMock.Object);
-            Directory.SetCurrentDirectory(origDir);
-            return svc;
         });
 
         builder.Services.AddSingleton<NarrativeTemplateService>();

@@ -1595,6 +1595,7 @@ public class ComponentService
                 }
 
                 var previousNarrative = impl.TechnicalNarrative ?? impl.Narrative;
+                var previousSnapshot = NarrativeContentSnapshot.Capture(impl);
                 var capId = impl.SecurityCapabilityId!;
 
                 var cap = await _db.SecurityCapabilities
@@ -1664,6 +1665,7 @@ public class ComponentService
                         ControlImplementationId = impl.Id,
                         VersionNumber = impl.CurrentVersion,
                         Content = previousNarrative,
+                        SnapshotJson = previousSnapshot,
                         AuthoredBy = modifiedBy,
                         ChangeReason = changeReason,
                     });

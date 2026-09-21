@@ -326,6 +326,10 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
             var aiNarrative = await GenerateAiNarrativeFromSourcesAsync(systemId, controlId, suggestion.Narrative, sourceEvidence, cancellationToken);
             if (!string.IsNullOrWhiteSpace(aiNarrative))
                 narrativeText = aiNarrative;
+            var generatedByModel = !string.IsNullOrWhiteSpace(aiNarrative);
+            var derivationBasis = generatedByModel
+                ? (sourceEvidence.Count > 0 ? "ModelAssessedWithEvidence" : "ModelGenerated")
+                : suggestion.DerivationBasis.ToString();
 
             // Include user-selected source provenance and template marker in generated output.
             if (sources.Count > 0)
@@ -354,13 +358,12 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
             if (saveDraft)
             {
                 var effectiveReason = BuildChangeReason(changeReason, templateId, sources);
-                var saved = await _sspService.WriteNarrativeAsync(
+                var saved = await _sspService.WriteGeneratedNarrativeAsync(
                     systemId,
                     controlId,
                     narrativeText,
-                    null,
+                    generatedByModel,
                     "mcp-user",
-                    null,
                     effectiveReason,
                     cancellationToken);
 
@@ -378,13 +381,13 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
                     control_id = controlId,
                     suggested_narrative = narrativeText,
                     // confidence is null when no real grounding signal exists (template path)
-                    confidence = (object?)suggestion.Confidence,
-                    derivation_basis = suggestion.DerivationBasis.ToString(),
-                    requires_human_validation = suggestion.RequiresHumanValidation,
+                    confidence = generatedByModel ? null : (object?)suggestion.Confidence,
+                    derivation_basis = derivationBasis,
+                    requires_human_validation = true,
                     references = suggestion.References,
                     source_context = sources,
                     source_evidence = sourceEvidence,
-                    ai_used = !string.IsNullOrWhiteSpace(aiNarrative),
+                    ai_used = generatedByModel,
                     template_id = templateId,
                     template_name = templateName,
                     save_draft = saveDraft,

@@ -78,6 +78,7 @@ describe('ComponentDetailDrawer — Feature 050 US4 Advanced disclosure', () => 
     await waitFor(() =>
       expect(api.getCspInheritedComponent).toHaveBeenCalledWith('cmp-1'),
     );
+    await screen.findByTestId('csp-component-advanced-toggle');
   }
 
   it('renders Edit, Archive and + Add capability in the primary toolbar but NOT Remap', async () => {
