@@ -40,6 +40,21 @@ describe('workspace routes', () => {
     expect(url).toBe('/workspaces/organizations/org-alpha');
   });
 
+  it('keeps audited support intent separate from ordinary workspace URLs', () => {
+    // Arrange
+    const url = '/workspaces/support/organizations/org-alpha/systems/a?view=review#control';
+
+    // Act
+    const parsed = parseWorkspaceUrl(url);
+
+    // Assert
+    expect(parsed).toEqual({
+      workspace: { kind: 'organization', tenantId: 'org-alpha', mode: 'support' },
+      route: '/systems/a?view=review#control',
+    });
+    expect(parsed && buildWorkspaceUrl(parsed.workspace, parsed.route)).toBe(url);
+  });
+
   it('preserves a home-page search and fragment', () => {
     // Arrange
     const route = '/?view=review#pending';

@@ -126,6 +126,12 @@ The request transport agreed for backend implementation is:
 | `X-Workspace-Tenant-Id` | Internal isolation tenant ID for organization requests, not an Entra directory |
 | `X-Workspace-Mode` | `ordinary` or `support` |
 
+Support navigation uses `/workspaces/support/organizations/{tenantId}/...`,
+distinct from ordinary `/workspaces/organizations/{tenantId}/...`. The URL
+expresses intent only; the server still requires a valid actor/target support
+session. No support credential is placed in a URL. Ordinary routes never
+inherit support mode from a cookie or browser mirror.
+
 Ordinary organization requests require active membership and must ignore support
 cookies. Support requests require existing CSP authority and a valid matching
 actor/target support session. Invalid or inconsistent selectors are rejected.

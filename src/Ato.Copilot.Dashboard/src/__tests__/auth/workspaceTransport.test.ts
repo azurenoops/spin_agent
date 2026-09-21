@@ -73,6 +73,21 @@ describe('workspace transport through the shared auth client', () => {
     expect(result.config.headers.get('X-Workspace-Mode')).toBe('ordinary');
   });
 
+  it('sends explicit support mode only from a support namespace', async () => {
+    // Arrange
+    location('/workspaces/support/organizations/org-alpha/systems/a');
+    const client = authenticatedClient();
+    client.defaults.adapter = async config => response(config);
+
+    // Act
+    const result = await client.get('/api/auth/me');
+
+    // Assert
+    expect(result.config.headers.get('X-Workspace-Kind')).toBe('organization');
+    expect(result.config.headers.get('X-Workspace-Tenant-Id')).toBe('org-alpha');
+    expect(result.config.headers.get('X-Workspace-Mode')).toBe('support');
+  });
+
   it('scopes a separately configured API origin', async () => {
     // Arrange
     location('/workspaces/organizations/org-alpha');
