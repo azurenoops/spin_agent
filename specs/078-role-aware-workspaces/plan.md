@@ -587,6 +587,19 @@ requests must carry the same validated scope selectors as Axios requests.
 
 ### Client integration checkpoint
 
+The authenticated shell increment mounts public login/callback/error routes
+outside onboarding and organization providers. Canonical workspace routes share
+one `/me` request and mount private providers only after `WorkspaceBoundary`
+validates the requested context and any system access. Legacy responses without
+workspace fields retain their existing route behavior; new-but-incomplete
+responses fail closed. Multiple choices use a paginated workspace picker and
+preserve the intended relative deep link without guessing a system's organization.
+Voluntary workspace changes require explicit discard confirmation: the existing
+idle form serializers are private to individual hook instances, not a global
+dirty-form registry, so the shell conservatively warns on every switch.
+Synthetic browser tests validate routing/state only, not backend isolation;
+real-API and local manual acceptance remain release gates.
+
 The membership API client/types, shared `MeProvider`, fail-closed
 `WorkspaceBoundary`, explicit-context route resolvers and support URL namespace
 are implemented. The boundary requires matching server context and a positive
@@ -609,6 +622,13 @@ persona/two-tab browser acceptance and real-server chat/notification validation
 remain pending. Dependency restore for merged #1014 reported 13 npm audit
 findings (3 low, 4 moderate, 6 high); no automatic audit-fix or suppression was
 applied. Previously documented build warnings remain.
+
+Download entry points must use the authenticated HTTP client rather than native
+API anchors, because browser navigation cannot carry per-tab workspace headers.
+The shared download path must validate the configured API origin, preserve the
+request scope through completion, support cancellation, release object URLs and
+show failures explicitly. It must not send credentials or workspace metadata to
+an arbitrary externally supplied URL.
 
 ### Planning artifact checks and tooling limitation
 
