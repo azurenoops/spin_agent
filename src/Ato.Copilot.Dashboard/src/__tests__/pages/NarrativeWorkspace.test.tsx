@@ -34,6 +34,49 @@ beforeEach(() => {
 });
 
 describe('Narratives workspace', () => {
+  it('provides a compact return action for screens without the system sidebar', async () => {
+    // Arrange
+    open('library');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload narratives' })).toBeEnabled());
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Narratives', hidden: true }));
+    // Assert
+    expect(screen.getByRole('heading', { name: 'Control Narratives' })).toBeInTheDocument();
+  });
+
+  it.each(['', 'library', 'import', 'review'])('omits duplicate workflow navigation on the %s view', async (view) => {
+    // Arrange
+    open(view);
+    // Act
+    await waitFor(() => expect(screen.queryByText('Loading narrative context...')).not.toBeInTheDocument());
+    // Assert
+    expect(screen.queryByRole('navigation', { name: 'Narrative workflow' })).not.toBeInTheDocument();
+    expect(screen.queryByText('System context unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByText(/published reference versions/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Generate control')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Generate narrative type')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['library', 'No reference narratives published.'],
+    ['review', 'No proposed narrative changes.'],
+  ])('distinguishes a failed %s request from a valid empty result and supports retry', async (view, emptyText) => {
+    // Arrange
+    vi.mocked(library.getReferences).mockRejectedValueOnce(new Error('Request failed with status code 404')).mockResolvedValue([]);
+    open(view);
+    // Act
+    expect(await screen.findByRole('alert')).toHaveTextContent('Request failed with status code 404');
+    // Assert
+    expect(screen.queryByText(emptyText)).not.toBeInTheDocument();
+    if (view === 'library') expect(screen.getByRole('button', { name: 'Upload narratives' })).toBeDisabled();
+    // Act
+    fireEvent.click(screen.getByTitle('Retry loading'));
+    // Assert
+    expect(await screen.findByText(emptyText)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    if (view === 'library') expect(screen.getByRole('button', { name: 'Upload narratives' })).toBeEnabled();
+  });
+
   it('navigates from the library to the real import form', async () => {
     // Arrange
     open();
@@ -41,9 +84,10 @@ describe('Narratives workspace', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Upload narratives' }));
     // Assert
     expect(screen.getByRole('heading', { name: 'Import & map' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '02 \u00b7 Narratives' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '02 \u00b7 Library' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
     expect(screen.getByLabelText('Reference title')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Library' }));
+    expect(screen.getByRole('heading', { name: 'Narrative Library' })).toBeInTheDocument();
   });
 
   it('requires complete mappings and acknowledgement before publishing', async () => {

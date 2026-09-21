@@ -1231,49 +1231,6 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
             ALTER TABLE Findings ADD ComponentId NVARCHAR(450) NULL;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ComplianceFinding_ComponentId')
             CREATE INDEX IX_ComplianceFinding_ComponentId ON Findings (ComponentId);
-
-        -- BoundaryComponentAssignment table
-        IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'BoundaryComponentAssignments')
-        CREATE TABLE BoundaryComponentAssignments (
-            Id NVARCHAR(450) NOT NULL PRIMARY KEY,
-            SystemComponentId NVARCHAR(450) NULL,
-            CspInheritedComponentId UNIQUEIDENTIFIER NULL,
-            AuthorizationBoundaryDefinitionId NVARCHAR(450) NOT NULL,
-            IsInScope BIT NOT NULL DEFAULT 1,
-            ExclusionRationale NVARCHAR(1000) NULL,
-            InheritanceProvider NVARCHAR(500) NULL,
-            CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-            CreatedBy NVARCHAR(200) NULL,
-            CONSTRAINT CK_BCA_ExactlyOneComponent CHECK (
-                (SystemComponentId IS NOT NULL AND CspInheritedComponentId IS NULL) OR
-                (SystemComponentId IS NULL AND CspInheritedComponentId IS NOT NULL))
-        );
-
-        IF COL_LENGTH('BoundaryComponentAssignments', 'CspInheritedComponentId') IS NULL
-            ALTER TABLE BoundaryComponentAssignments ADD CspInheritedComponentId UNIQUEIDENTIFIER NULL;
-        ALTER TABLE BoundaryComponentAssignments ALTER COLUMN SystemComponentId NVARCHAR(450) NULL;
-
-        IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_ComponentBoundary' AND object_id = OBJECT_ID('BoundaryComponentAssignments'))
-            DROP INDEX IX_BCA_ComponentBoundary ON BoundaryComponentAssignments;
-        CREATE UNIQUE INDEX IX_BCA_ComponentBoundary
-            ON BoundaryComponentAssignments (SystemComponentId, AuthorizationBoundaryDefinitionId)
-            WHERE SystemComponentId IS NOT NULL;
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_CspComponentBoundary' AND object_id = OBJECT_ID('BoundaryComponentAssignments'))
-            CREATE UNIQUE INDEX IX_BCA_CspComponentBoundary
-                ON BoundaryComponentAssignments (CspInheritedComponentId, AuthorizationBoundaryDefinitionId)
-                WHERE CspInheritedComponentId IS NOT NULL;
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_BoundaryId')
-            CREATE INDEX IX_BCA_BoundaryId ON BoundaryComponentAssignments (AuthorizationBoundaryDefinitionId);
-
-        IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_BCA_ExactlyOneComponent')
-            ALTER TABLE BoundaryComponentAssignments ADD CONSTRAINT CK_BCA_ExactlyOneComponent CHECK (
-                (SystemComponentId IS NOT NULL AND CspInheritedComponentId IS NULL) OR
-                (SystemComponentId IS NULL AND CspInheritedComponentId IS NOT NULL));
-
-        IF OBJECT_ID('CspInheritedComponents', 'U') IS NOT NULL
-            AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_BoundaryComponentAssignments_CspInheritedComponents_CspInheritedComponentId')
-            ALTER TABLE BoundaryComponentAssignments ADD CONSTRAINT FK_BoundaryComponentAssignments_CspInheritedComponents_CspInheritedComponentId
-                FOREIGN KEY (CspInheritedComponentId) REFERENCES CspInheritedComponents(Id);
         """;
 
     if (isSqlServer)
@@ -1281,6 +1238,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         try
         {
             await db.Database.ExecuteSqlRawAsync(feature040Sql, ct);
+            await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.BoundaryComponentSchemaAdditions
+                .ApplySqlServerAsync(db, ct);
             logger.LogInformation("Verified Feature 040 schema (Component-Centric Boundary)");
         }
         catch (Exception ex)

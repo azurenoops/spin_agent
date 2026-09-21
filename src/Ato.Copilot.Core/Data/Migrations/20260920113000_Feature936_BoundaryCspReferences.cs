@@ -1,4 +1,5 @@
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
@@ -14,33 +15,8 @@ public sealed class Feature936_BoundaryCspReferences : Migration
     {
         if (ActiveProvider.Contains("SqlServer", StringComparison.Ordinal))
         {
-            migrationBuilder.Sql("""
-                IF COL_LENGTH('BoundaryComponentAssignments', 'CspInheritedComponentId') IS NULL
-                    ALTER TABLE BoundaryComponentAssignments ADD CspInheritedComponentId UNIQUEIDENTIFIER NULL;
-
-                ALTER TABLE BoundaryComponentAssignments ALTER COLUMN SystemComponentId NVARCHAR(450) NULL;
-
-                IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_ComponentBoundary' AND object_id = OBJECT_ID('BoundaryComponentAssignments'))
-                    DROP INDEX IX_BCA_ComponentBoundary ON BoundaryComponentAssignments;
-                CREATE UNIQUE INDEX IX_BCA_ComponentBoundary
-                    ON BoundaryComponentAssignments (SystemComponentId, AuthorizationBoundaryDefinitionId)
-                    WHERE SystemComponentId IS NOT NULL;
-
-                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_BCA_CspComponentBoundary' AND object_id = OBJECT_ID('BoundaryComponentAssignments'))
-                    CREATE UNIQUE INDEX IX_BCA_CspComponentBoundary
-                        ON BoundaryComponentAssignments (CspInheritedComponentId, AuthorizationBoundaryDefinitionId)
-                        WHERE CspInheritedComponentId IS NOT NULL;
-
-                IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_BCA_ExactlyOneComponent')
-                    ALTER TABLE BoundaryComponentAssignments ADD CONSTRAINT CK_BCA_ExactlyOneComponent CHECK (
-                        (SystemComponentId IS NOT NULL AND CspInheritedComponentId IS NULL) OR
-                        (SystemComponentId IS NULL AND CspInheritedComponentId IS NOT NULL));
-
-                IF OBJECT_ID('CspInheritedComponents', 'U') IS NOT NULL
-                    AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_BoundaryComponentAssignments_CspInheritedComponents_CspInheritedComponentId')
-                    ALTER TABLE BoundaryComponentAssignments ADD CONSTRAINT FK_BoundaryComponentAssignments_CspInheritedComponents_CspInheritedComponentId
-                        FOREIGN KEY (CspInheritedComponentId) REFERENCES CspInheritedComponents(Id);
-                """);
+            foreach (var batch in BoundaryComponentSchemaAdditions.SqlServerBatches)
+                migrationBuilder.Sql(batch);
             return;
         }
 
