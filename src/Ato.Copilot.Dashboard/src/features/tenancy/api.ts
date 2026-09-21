@@ -274,18 +274,14 @@ export async function startImpersonation(
  * /me promptly after the scope flips back to the home tenant.
  */
 export async function endImpersonation(): Promise<void> {
-  try {
-    await tenancyClient.delete('/tenants/impersonation');
-  } finally {
-    // Always clear local state, even if the network call fails — otherwise
-    // the dashboard would keep showing the banner indefinitely.
-    writeImpersonation(null);
-    if (typeof window !== 'undefined') {
-      try {
-        window.dispatchEvent(new CustomEvent('ato:tenant-changed'));
-      } catch {
-        // ignore (no window in tests)
-      }
+  const response = await tenancyClient.delete('/tenants/impersonation');
+  if (response.status !== 204) throw new Error('Unexpected support exit response.');
+  writeImpersonation(null);
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('ato:tenant-changed'));
+    } catch {
+      // ignore (no window in tests)
     }
   }
 }

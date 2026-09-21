@@ -630,6 +630,12 @@ request scope through completion, support cancellation, release object URLs and
 show failures explicitly. It must not send credentials or workspace metadata to
 an arbitrary externally supplied URL.
 
+Support-exit state is cleared only after a confirmed HTTP 204. Failed or
+unexpected responses must preserve the local support mirror and must not emit a
+tenant-change event that unmounts the retry error. A direct API regression was
+reproduced against the original Git source without reverting concurrent edits;
+banner-only mocks do not establish this shared-helper behavior.
+
 ### Planning artifact checks and tooling limitation
 
 Local relative Markdown links and unfilled-template checks passed for the new
