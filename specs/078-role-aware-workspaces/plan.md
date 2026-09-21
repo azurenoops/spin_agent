@@ -492,6 +492,33 @@ Manual ordinary-login/two-tab acceptance will be supplied with the membership
 implementation. The user approved adding #942's prerequisite to this branch;
 its verified identity/grant contract is the next implementation gate.
 
+### Implementation increment 2: common HTTP scope transport
+
+The shared Axios authentication interceptor now captures canonical workspace
+selection before token acquisition and pins it through request retries. Requests
+to the configured API receive the agreed kind/tenant/ordinary-mode selectors;
+legacy and external/non-API requests do not receive stale workspace headers.
+Successful or failed responses from an obsolete workspace are cancelled rather
+than returned as current data. Existing MSAL renewal behavior remains tested.
+
+The membership model and administrator grant/revoke authority were explicitly
+approved and handed to the backend implementation work. The client selector is
+not authorization, and no canonical workspace entry route is activated yet.
+
+Verified after this increment:
+
+- 625 dashboard unit tests passed across 73 files on Node 20, with no skips.
+- 100 focused routing/authentication/transport tests passed.
+- All three new workspace modules have 100% statement, branch, function and
+  line coverage in the focused run.
+- All 8 synthetic-API desktop/mobile browser scenarios still pass.
+- TypeScript and the production build pass; the previously documented warnings
+  remain visible and are not suppressed.
+
+Raw fetch/streaming and SignalR consumers still require scope/lifetime wiring
+with the workspace shell. Backend membership enforcement, permission projection
+and real-API workspace acceptance are not established by these client tests.
+
 ### Planning artifact checks and tooling limitation
 
 Local relative Markdown links and unfilled-template checks passed for the new

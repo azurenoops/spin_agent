@@ -1,5 +1,6 @@
 import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import type { IPublicClientApplication } from '@azure/msal-browser';
+import { assertWorkspaceRequestCurrent, captureWorkspaceRequest } from '../workspaces/workspaceTransport';
 
 /**
  * Internal flag we hang off the axios config to mark requests that are
@@ -47,6 +48,7 @@ export function attachAuthInterceptor(
   };
 
   axiosInstance.interceptors.request.use(async (config: FlaggedConfig) => {
+    captureWorkspaceRequest(axiosInstance, config);
     const msal = resolveMsal();
     if (!msal) return config;
     const accounts = msal.getAllAccounts();
@@ -67,11 +69,13 @@ export function attachAuthInterceptor(
       // doing a `loginRedirect`. Throwing here would also produce a 401
       // path, but with worse telemetry.
     }
+    assertWorkspaceRequestCurrent(config);
     return config;
   });
 
   axiosInstance.interceptors.response.use(
     (response: AxiosResponse) => {
+      assertWorkspaceRequestCurrent(response.config);
       const cfg = response.config as FlaggedConfig;
       if (cfg[SILENT_RENEWAL] !== true) {
         window.dispatchEvent(
@@ -81,6 +85,7 @@ export function attachAuthInterceptor(
       return response;
     },
     async (error: AxiosError) => {
+      assertWorkspaceRequestCurrent(error.config);
       const cfg = error.config as FlaggedConfig | undefined;
       const status = error.response?.status;
       const msal = resolveMsal();
