@@ -301,6 +301,14 @@ Find and migrate hard-coded links, page redirects, chat quick actions,
 notification destinations, downloadable links and wizard completion URLs through
 the route builder. Do not stop after changing the top-level route definitions.
 
+The dashboard navigation adapter will reuse React Router rather than replacing
+browser history or relying on reloads. Under a validated workspace provider it
+prefixes application-absolute Link/NavLink/Navigate/useNavigate destinations and
+exposes workspace-relative `useLocation` paths to existing pages. Numeric history
+navigation, relative destinations, explicit workspace links and login routes
+retain React Router semantics. Outside the provider, existing legacy navigation
+is unchanged. The provider carries navigation context only, never permission.
+
 ## Implementation boundaries
 
 | Layer | Work after approval |
