@@ -3,6 +3,7 @@ import {
   buildWorkspaceUrl,
   canonicalizeSystemRoute,
   parseWorkspaceUrl,
+  systemIdFromRoute,
   type WorkspaceTarget,
 } from '../../features/workspaces/workspaceRoutes';
 
@@ -198,6 +199,22 @@ describe('workspace routes', () => {
 });
 
 describe('system aliases', () => {
+  it.each([
+    ['/systems/new', null],
+    ['/systems/%6eew', null],
+    ['/systems/system-a/narratives?kind=policy', 'system-a'],
+    ['/settings/org', null],
+  ])('extracts the active system from %s without interpreting intake as an ID', (route, expected) => {
+    // Arrange
+    const url = route;
+
+    // Act
+    const systemId = systemIdFromRoute(url);
+
+    // Assert
+    expect(systemId).toBe(expected);
+  });
+
   it.each([
     ['/systems/system-a/categorization/?view=all#section', '/systems/system-a/baseline?view=all#section'],
     ['/systems/system-a/%63ategorization', '/systems/system-a/baseline'],
