@@ -58,6 +58,109 @@ public class DualNarrativeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ConcurrentWrite_ReviewStartedAfterRead_RejectsStaleSave()
+    {
+        // Arrange
+        var implementation = await SeedImplementationAsync();
+        using var scope = _provider.CreateScope();
+        var otherDb = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var reviewed = await otherDb.ControlImplementations.SingleAsync();
+        reviewed.ApprovalStatus = SspSectionStatus.UnderReview;
+        await otherDb.SaveChangesAsync();
+        implementation.TechnicalNarrative = "Stale write";
+        implementation.CurrentVersion++;
+
+        // Act
+        var act = () => _db.SaveChangesAsync();
+
+        // Assert
+        await act.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        await otherDb.Entry(reviewed).ReloadAsync();
+        reviewed.TechnicalNarrative.Should().Be("Existing technical");
+        reviewed.ApprovalStatus.Should().Be(SspSectionStatus.UnderReview);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_UnderReview_RejectsWithoutChangingContentOrHistory()
+    {
+        // Arrange
+        var implementation = await SeedImplementationAsync();
+        implementation.ApprovalStatus = SspSectionStatus.UnderReview;
+        await _db.SaveChangesAsync();
+
+        // Act
+        var act = () => _service.UpdateAsync("system-1", "AC-1", "Changed policy", true,
+            "Changed technical", true, "Compliance.Analyst", "author");
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("UNDER_REVIEW:*");
+        _db.ChangeTracker.Clear();
+        var saved = await _db.ControlImplementations.SingleAsync();
+        saved.PolicyNarrative.Should().Be("Existing policy");
+        saved.TechnicalNarrative.Should().Be("Existing technical");
+        saved.ApprovalStatus.Should().Be(SspSectionStatus.UnderReview);
+        saved.AuthoredBy.Should().Be("seed-user");
+        saved.CurrentVersion.Should().Be(1);
+        (await _db.NarrativeVersions.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ApprovedPolicyEdit_CreatesAttributedSnapshotAndPreservesApprovedHistory()
+    {
+        // Arrange
+        var implementation = await SeedImplementationAsync();
+        implementation.ApprovalStatus = SspSectionStatus.Approved;
+        var approved = new NarrativeVersion
+        {
+            Id = "approved-version", TenantId = TenantId, ControlImplementationId = implementation.Id,
+            VersionNumber = 1, Content = "Existing technical", Status = SspSectionStatus.Approved,
+            AuthoredBy = "original-author", SnapshotJson = NarrativeContentSnapshot.Capture(implementation),
+        };
+        implementation.ApprovedVersionId = approved.Id;
+        _db.NarrativeVersions.Add(approved);
+        await _db.SaveChangesAsync();
+
+        // Act
+        await _service.UpdateAsync("system-1", "AC-1", "New policy", true,
+            null, false, "Compliance.Analyst", "policy-author");
+
+        // Assert
+        _db.ChangeTracker.Clear();
+        var saved = await _db.ControlImplementations.SingleAsync();
+        saved.CurrentVersion.Should().Be(2);
+        saved.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
+        saved.ApprovedVersionId.Should().Be(approved.Id);
+        var versions = await _db.NarrativeVersions.OrderBy(version => version.VersionNumber).ToListAsync();
+        versions.Should().HaveCount(2);
+        versions[0].Status.Should().Be(SspSectionStatus.Approved);
+        versions[0].AuthoredBy.Should().Be("original-author");
+        versions[1].AuthoredBy.Should().Be("policy-author");
+        versions[1].TenantId.Should().Be(TenantId);
+        versions[1].Status.Should().Be(SspSectionStatus.Draft);
+        versions[1].ChangeReason.Should().Contain("Policy");
+        NarrativeContentSnapshot.Restore(saved, versions[1].SnapshotJson!);
+        saved.PolicyNarrative.Should().Be("New policy");
+        saved.TechnicalNarrative.Should().Be("Existing technical");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StaleExpectedVersion_RejectsWithoutHistory()
+    {
+        // Arrange
+        await SeedImplementationAsync();
+
+        // Act
+        var act = () => _service.UpdateAsync("system-1", "AC-1", "Stale", true,
+            null, false, "Compliance.Analyst", "author", expectedVersion: 0);
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("CONCURRENCY_CONFLICT:*");
+        _db.ChangeTracker.Clear();
+        (await _db.ControlImplementations.SingleAsync()).PolicyNarrative.Should().Be("Existing policy");
+        (await _db.NarrativeVersions.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task UpdateAsync_PolicyOnly_LeavesTechnicalNarrativeUnchanged()
     {
         // Arrange
@@ -72,6 +175,9 @@ public class DualNarrativeServiceTests : IDisposable
         // Assert
         result.PolicyNarrative.Should().Be("Updated policy");
         result.TechnicalNarrative.Should().Be("Existing technical");
+        result.CurrentVersion.Should().Be(2);
+        result.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
+        result.AuthoredBy.Should().Be("analyst-1");
         _db.ChangeTracker.Clear();
         var saved = await _db.ControlImplementations.SingleAsync();
         saved.AuthoredBy.Should().Be("analyst-1");
@@ -101,6 +207,7 @@ public class DualNarrativeServiceTests : IDisposable
         var saved = await _db.ControlImplementations.SingleAsync();
         saved.AiSuggested.Should().Be(!updateTechnical);
         saved.IsAutoPopulated.Should().Be(!updateTechnical);
+        saved.IsManuallyCustomized.Should().Be(updateTechnical);
         saved.ImplementationStatus.Should().Be(ImplementationStatus.Planned);
         saved.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
         saved.PolicyNarrative.Should().Be("Human policy");

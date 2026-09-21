@@ -267,6 +267,7 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
     private readonly IHttpClientFactory? _httpClientFactory;
     private readonly IChatClient? _chatClient;
     private readonly GraphServiceClient? _graphClient;
+    private readonly Microsoft.Extensions.DependencyInjection.IServiceScopeFactory? _scopeFactory;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public DocumentNarrativeGenerateAdapterTool(
@@ -275,13 +276,15 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
         IHttpClientFactory? httpClientFactory,
         IChatClient? chatClient,
         GraphServiceClient? graphClient,
-        ILogger<DocumentNarrativeGenerateAdapterTool> logger) : base(logger)
+        ILogger<DocumentNarrativeGenerateAdapterTool> logger,
+        Microsoft.Extensions.DependencyInjection.IServiceScopeFactory? scopeFactory = null) : base(logger)
     {
         _sspService = sspService;
         _templateService = templateService;
         _httpClientFactory = httpClientFactory;
         _chatClient = chatClient;
         _graphClient = graphClient;
+        _scopeFactory = scopeFactory;
     }
 
     public override string Name => "document_generate_narrative";
@@ -297,7 +300,8 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
         ["source_url"] = new() { Name = "source_url", Description = "Single source document URL", Type = "string", Required = false },
         ["source_urls"] = new() { Name = "source_urls", Description = "Source URLs as JSON array or comma/newline-delimited list", Type = "string", Required = false },
         ["save_draft"] = new() { Name = "save_draft", Description = "Save generated narrative to SSP (true/false, default false)", Type = "boolean", Required = false },
-        ["change_reason"] = new() { Name = "change_reason", Description = "Optional change reason when save_draft=true", Type = "string", Required = false }
+        ["change_reason"] = new() { Name = "change_reason", Description = "Optional change reason when save_draft=true", Type = "string", Required = false },
+        ["expected_version"] = new() { Name = "expected_version", Description = "Version read before generation; rejects stale saves", Type = "integer", Required = false },
     };
 
     public override async Task<string> ExecuteCoreAsync(Dictionary<string, object?> arguments, CancellationToken cancellationToken = default)
@@ -357,15 +361,19 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
             int? version = null;
             if (saveDraft)
             {
+                using var authorScope = _scopeFactory?.CreateScope();
+                var author = (Ato.Copilot.Core.Interfaces.Auth.IUserContext?)authorScope?.ServiceProvider
+                    .GetService(typeof(Ato.Copilot.Core.Interfaces.Auth.IUserContext));
                 var effectiveReason = BuildChangeReason(changeReason, templateId, sources);
                 var saved = await _sspService.WriteGeneratedNarrativeAsync(
                     systemId,
                     controlId,
                     narrativeText,
                     generatedByModel,
-                    "mcp-user",
+                    author?.UserId ?? "mcp-user",
                     effectiveReason,
-                    cancellationToken);
+                    cancellationToken,
+                    arguments.ContainsKey("expected_version") ? GetArg<int>(arguments, "expected_version") : null);
 
                 persistedId = saved.Id;
                 version = saved.CurrentVersion;
@@ -398,6 +406,14 @@ public class DocumentNarrativeGenerateAdapterTool : BaseTool
                 },
                 metadata = Meta(sw)
             }, JsonOpts);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("UNDER_REVIEW:") || ex.Message.StartsWith("CONCURRENCY_CONFLICT:"))
+        {
+            return Error(ex.Message.Split(':', 2)[0], ex.Message);
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        {
+            return Error("CONCURRENCY_CONFLICT", "Narrative or review state changed while saving.");
         }
         catch (Exception ex)
         {

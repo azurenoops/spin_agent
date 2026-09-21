@@ -46,9 +46,10 @@ public class SspService : ISspService
         bool generatedByModel,
         string authoredBy = "mcp-user",
         string? changeReason = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? expectedVersion = null)
         => WriteNarrativeCoreAsync(systemId, controlId, narrative, null, authoredBy,
-            null, changeReason, generatedByModel, cancellationToken);
+            expectedVersion, changeReason, generatedByModel, cancellationToken);
 
     private async Task<ControlImplementation> WriteNarrativeCoreAsync(
         string systemId, string controlId, string narrative, string? status,
@@ -106,6 +107,8 @@ public class SspService : ISspService
             existing.ModifiedAt = DateTime.UtcNow;
             existing.AiSuggested = generatedByModel == true;
             existing.IsAutoPopulated = generatedByModel.HasValue;
+            if (generatedByModel.HasValue)
+                existing.IsManuallyCustomized = false;
             existing.CurrentVersion += 1;
             existing.ApprovalStatus = SspSectionStatus.Draft;
             existing.AuthoredBy = authoredBy;

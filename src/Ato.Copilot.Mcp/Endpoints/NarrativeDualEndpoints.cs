@@ -61,6 +61,13 @@ public static class NarrativeDualEndpoints
             var root = document.RootElement;
             var updatePolicy = TryReadNullableString(root, "policyNarrative", out var policyNarrative);
             var updateTechnical = TryReadNullableString(root, "technicalNarrative", out var technicalNarrative);
+            int? expectedVersion = null;
+            if (root.TryGetProperty("expectedVersion", out var version) && version.ValueKind != JsonValueKind.Null)
+            {
+                if (version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number))
+                    throw new ArgumentException("expectedVersion must be an integer or null.");
+                expectedVersion = number;
+            }
             var response = await service.UpdateAsync(
                 systemId,
                 controlId,
@@ -70,7 +77,8 @@ public static class NarrativeDualEndpoints
                 updateTechnical,
                 userContext.Role,
                 userContext.UserId,
-                cancellationToken);
+                cancellationToken,
+                expectedVersion);
             return Success(response, stopwatch);
         }
         catch (JsonException exception)
@@ -84,6 +92,11 @@ public static class NarrativeDualEndpoints
         catch (UnauthorizedAccessException exception)
         {
             return Failure(StatusCodes.Status403Forbidden, "FORBIDDEN", exception.Message, stopwatch);
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.StartsWith("UNDER_REVIEW:") || exception.Message.StartsWith("CONCURRENCY_CONFLICT:"))
+        {
+            return Failure(StatusCodes.Status409Conflict, exception.Message.Split(':', 2)[0], exception.Message, stopwatch);
         }
         catch (InvalidOperationException exception) when (exception.Message.StartsWith("NARRATIVE_NOT_FOUND:"))
         {

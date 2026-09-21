@@ -43,7 +43,8 @@ public sealed class DualNarrativeService : IDualNarrativeService
         bool updateTechnical,
         string role,
         string authoredBy,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? expectedVersion = null)
     {
         if (!updatePolicy && !updateTechnical)
         {
@@ -66,6 +67,11 @@ public sealed class DualNarrativeService : IDualNarrativeService
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         var implementation = await FindImplementationAsync(db, systemId, controlId, cancellationToken);
 
+        if (implementation.ApprovalStatus == SspSectionStatus.UnderReview)
+            throw new InvalidOperationException("UNDER_REVIEW: Cannot edit a narrative while it is under review.");
+        if (expectedVersion.HasValue && expectedVersion.Value != implementation.CurrentVersion)
+            throw new InvalidOperationException("CONCURRENCY_CONFLICT: The narrative has changed. Reload before saving.");
+
         if (updatePolicy)
         {
             implementation.PolicyNarrative = policyNarrative;
@@ -76,12 +82,33 @@ public sealed class DualNarrativeService : IDualNarrativeService
             implementation.MigratedFromLegacy = false;
             implementation.AiSuggested = false;
             implementation.IsAutoPopulated = false;
+            implementation.IsManuallyCustomized = true;
         }
 
         implementation.AuthoredBy = authoredBy;
         implementation.ModifiedAt = DateTime.UtcNow;
         implementation.ApprovalStatus = SspSectionStatus.Draft;
-        await db.SaveChangesAsync(cancellationToken);
+        implementation.CurrentVersion++;
+        db.NarrativeVersions.Add(new NarrativeVersion
+        {
+            TenantId = implementation.TenantId,
+            ControlImplementationId = implementation.Id,
+            VersionNumber = implementation.CurrentVersion,
+            Content = implementation.TechnicalNarrative ?? implementation.Narrative ?? string.Empty,
+            SnapshotJson = NarrativeContentSnapshot.Capture(implementation),
+            Status = SspSectionStatus.Draft,
+            AuthoredBy = authoredBy,
+            ChangeReason = updatePolicy && updateTechnical ? "Policy and Technical edited" :
+                updatePolicy ? "Policy edited" : "Technical edited",
+        });
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new InvalidOperationException("CONCURRENCY_CONFLICT: The narrative or review state has changed. Reload before saving.", exception);
+        }
 
         _logger.LogInformation(
             "Updated dual narrative for {ControlId} in {SystemId}; policy={PolicyUpdated}, technical={TechnicalUpdated}",
@@ -152,7 +179,10 @@ public sealed class DualNarrativeService : IDualNarrativeService
             false,
             false,
             null,
-            null);
+            null,
+            implementation.CurrentVersion,
+            implementation.ApprovalStatus,
+            implementation.AuthoredBy);
     }
 
     private static EvidenceArtifactSummary ToSummary(EvidenceArtifact artifact) => new(

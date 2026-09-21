@@ -17,7 +17,8 @@ public interface ISspService
         bool generatedByModel,
         string authoredBy = "mcp-user",
         string? changeReason = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int? expectedVersion = null);
 
     /// <summary>
     /// Write or update the implementation narrative for a control in a system's SSP.

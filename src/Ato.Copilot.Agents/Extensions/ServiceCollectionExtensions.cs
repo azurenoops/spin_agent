@@ -1018,7 +1018,8 @@ public static class ServiceCollectionExtensions
             httpClientFactory: sp.GetService<System.Net.Http.IHttpClientFactory>(),
             chatClient: sp.GetService<IChatClient>(),
             graphClient: sp.GetService<GraphServiceClient>(),
-            logger: sp.GetRequiredService<ILogger<DocumentNarrativeGenerateAdapterTool>>()));
+            logger: sp.GetRequiredService<ILogger<DocumentNarrativeGenerateAdapterTool>>(),
+            scopeFactory: sp.GetRequiredService<IServiceScopeFactory>()));
 
         services.AddSingleton<DocumentAgent>(sp => new DocumentAgent(
             statusTool: sp.GetRequiredService<DocumentStatusTool>(),

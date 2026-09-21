@@ -1571,7 +1571,8 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ReviewedBy).HasMaxLength(200);
 
             // Governance fields (Feature 024)
-            entity.Property(e => e.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.ApprovalStatus).HasConversion<string>().HasMaxLength(20).IsConcurrencyToken();
+            entity.Property(e => e.CurrentVersion).IsConcurrencyToken();
             entity.Property(e => e.ApprovedVersionId).HasMaxLength(36);
 
             // Dashboard capability link (Feature 030)

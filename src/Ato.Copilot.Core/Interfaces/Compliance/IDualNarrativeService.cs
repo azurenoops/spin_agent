@@ -21,7 +21,8 @@ public interface IDualNarrativeService
         bool updateTechnical,
         string role,
         string authoredBy,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int? expectedVersion = null);
 
     /// <summary>Manually classifies an evidence artifact.</summary>
     Task<EvidenceArtifactSummary> ClassifyEvidenceAsync(
