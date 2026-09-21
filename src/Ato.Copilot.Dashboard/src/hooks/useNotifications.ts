@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import * as signalR from '@microsoft/signalr';
 import apiClient from '../api/client';
 import { getMsalInstance, DEFAULT_API_SCOPES } from '../features/auth/msalInstance';
+import { workspaceHubUrl } from '../features/workspaces/workspaceHubUrl';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -107,7 +108,7 @@ export function useNotifications(userId?: string) {
     // falling back to the no-op error path and never receiving real-time
     // push events (Feature 051 § 3.3, FR-005).
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, {
+      .withUrl(workspaceHubUrl(hubUrl), {
         accessTokenFactory: async () => {
           try {
             const msal = getMsalInstance();

@@ -8,6 +8,7 @@ import apiClient from '../api/client';
 import { enqueuePackage, getPackageStatus, getPackageDownloadUrl } from '../api/packages';
 import { ValidationBadge } from '../features/oscal';
 import AuthenticatedDownload from './AuthenticatedDownload';
+import { workspaceHubUrl } from '../features/workspaces/workspaceHubUrl';
 
 // ── Contract types for OSCAL SSP export ─────────────────────────────────────
 // GET /api/v1/systems/{systemId}/exports/oscal-ssp
@@ -191,7 +192,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
   const setupSignalR = useCallback((eid: string) => {
     const hubUrl = (import.meta.env.VITE_API_BASE_URL || '').replace('/api/dashboard', '') + '/hubs/notifications';
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, {
+      .withUrl(workspaceHubUrl(hubUrl), {
         accessTokenFactory: () => acquireBearer(),
       })
       .withAutomaticReconnect()

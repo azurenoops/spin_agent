@@ -10,6 +10,7 @@ import type { PackageDetail, ValidationFinding } from '../api/package';
 import * as signalR from '@microsoft/signalr';
 import { acquireBearer } from '../features/auth/msalInstance';
 import AuthenticatedDownload from './AuthenticatedDownload';
+import { workspaceHubUrl } from '../features/workspaces/workspaceHubUrl';
 
 interface PackageGenerationDialogProps {
   systemId: string;
@@ -171,7 +172,7 @@ export default function PackageGenerationDialog({
         '/hubs/package';
 
       const connection = new signalR.HubConnectionBuilder()
-        .withUrl(hubUrl, {
+        .withUrl(workspaceHubUrl(hubUrl), {
           accessTokenFactory: () => acquireBearer(),
         })
         .withAutomaticReconnect()

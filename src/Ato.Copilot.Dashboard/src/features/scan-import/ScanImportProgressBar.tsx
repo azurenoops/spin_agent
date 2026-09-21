@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as signalR from '@microsoft/signalr';
 import { getScanImportStatus, cancelScanImport, type ScanImportStatusDto } from '../../api/scanImport';
+import { acquireBearer } from '../auth/msalInstance';
+import { workspaceHubUrl } from '../workspaces/workspaceHubUrl';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -98,7 +100,7 @@ export default function ScanImportProgressBar({ systemId, importJobId, onComplet
     const hubUrl = `${baseUrl}/hubs/import-progress`;
 
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl)
+      .withUrl(workspaceHubUrl(hubUrl), { accessTokenFactory: () => acquireBearer() })
       .withAutomaticReconnect()
       .build();
 

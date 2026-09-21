@@ -646,6 +646,15 @@ and the current dashboard snapshot passes 783 tests across 93 files. Other
 operation-specific affordances and server handoffs still need final integration
 review; this checkpoint does not close #1017 or #1002.
 
+Client SignalR connection URLs now carry the explicit workspace query selectors
+for notification, SSP, package and import-progress transports; import progress
+also uses the existing bearer factory. Connections remain below the keyed
+workspace boundary. These client selectors do not replace server authorization:
+the notification worker is extending matching checks to the remaining progress
+hubs and REST notification operations, and durable support-session revocation
+is still required. Focused selector/transport tests (18 cases) and TypeScript
+checking passed.
+
 ### Planning artifact checks and tooling limitation
 
 Local relative Markdown links and unfilled-template checks passed for the new

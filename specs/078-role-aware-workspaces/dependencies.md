@@ -116,6 +116,10 @@ Publication procedure:
 - Require an applicable organization/system role assignment for ordinary system
   visibility. Membership alone is not an all-systems read grant; administrative
   and CSP oversight remain separately authorized.
+- Continue through all remaining dependencies to complete #1002, rather than
+  publishing a bounded foundation PR. This includes the remaining #957/#1001
+  integrations, per-tool authorization, transport isolation and support-session
+  revocation. None of those gates may be silently waived.
 
 ### Proposed in this feature
 
