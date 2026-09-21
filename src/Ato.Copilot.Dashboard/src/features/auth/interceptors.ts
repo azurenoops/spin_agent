@@ -1,6 +1,6 @@
-import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import { CanceledError, type AxiosInstance, type InternalAxiosRequestConfig, type AxiosResponse, type AxiosError } from 'axios';
 import type { IPublicClientApplication } from '@azure/msal-browser';
-import { selectMsalAccount } from './accountSelection';
+import { msalAccountKey, selectMsalAccount } from './accountSelection';
 import { assertWorkspaceRequestCurrent, captureWorkspaceRequest } from '../workspaces/workspaceTransport';
 
 /**
@@ -13,7 +13,15 @@ const SILENT_RENEWAL = '_silentRenewal' as const;
 
 type FlaggedConfig = InternalAxiosRequestConfig & {
   [SILENT_RENEWAL]?: boolean;
+  _authAccountKey?: string;
 };
+
+function assertRequestAccount(config: FlaggedConfig | undefined, msal: IPublicClientApplication | null): void {
+  if (config?._authAccountKey === undefined || config._authAccountKey === msalAccountKey(msal)) return;
+  const error = new CanceledError('Authenticated account changed while the request was in progress.');
+  error.config = config;
+  throw error;
+}
 
 /**
  * Feature 051 § 3.3 — wire the MSAL.js access-token acquisition into
@@ -52,6 +60,8 @@ export function attachAuthInterceptor(
   axiosInstance.interceptors.request.use(async (config: FlaggedConfig) => {
     captureWorkspaceRequest(axiosInstance, config);
     const msal = resolveMsal();
+    if (config._authAccountKey === undefined) config._authAccountKey = msalAccountKey(msal);
+    else assertRequestAccount(config, msal);
     if (!msal) return config;
     const account = selectMsalAccount(msal);
     if (!account) {
@@ -71,6 +81,7 @@ export function attachAuthInterceptor(
       // path, but with worse telemetry.
     }
     assertWorkspaceRequestCurrent(config);
+    assertRequestAccount(config, resolveMsal());
     return config;
   });
 
@@ -78,6 +89,7 @@ export function attachAuthInterceptor(
     (response: AxiosResponse) => {
       assertWorkspaceRequestCurrent(response.config);
       const cfg = response.config as FlaggedConfig;
+      assertRequestAccount(cfg, resolveMsal());
       if (cfg[SILENT_RENEWAL] !== true) {
         window.dispatchEvent(
           new CustomEvent('ato:user-input', { detail: { source: 'api-success' } }),
@@ -90,6 +102,7 @@ export function attachAuthInterceptor(
       const cfg = error.config as FlaggedConfig | undefined;
       const status = error.response?.status;
       const msal = resolveMsal();
+      assertRequestAccount(cfg, msal);
 
       if (status === 401 && cfg && cfg[SILENT_RENEWAL] !== true && msal) {
         // First 401 — try a single silent-renewal retry.
@@ -98,13 +111,15 @@ export function attachAuthInterceptor(
         if (account) {
           try {
             const result = await msal.acquireTokenSilent({ scopes, account });
+            assertRequestAccount(cfg, resolveMsal());
             const token = result.accessToken;
             if (token) {
               cfg.headers = cfg.headers ?? ({} as InternalAxiosRequestConfig['headers']);
               (cfg.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
               return axiosInstance.request(cfg);
             }
-          } catch {
+          } catch (renewalError) {
+            if (renewalError instanceof CanceledError) throw renewalError;
             // Fall through to loginRedirect.
           }
         }
