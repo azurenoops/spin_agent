@@ -25,6 +25,42 @@ export interface RunAssessmentResponse {
   systemId: string;
 }
 
+export type AssessmentCloud = 'Commercial' | 'Government';
+
+export interface AssessmentSubscription {
+  subscriptionId: string;
+  displayName: string;
+}
+
+export interface AssessmentReadiness {
+  systemId: string;
+  isReady: boolean;
+  errorCode: string | null;
+  message: string;
+  suggestion: string | null;
+  configurationUrl: string;
+  deploymentCloud: AssessmentCloud | null;
+  cloudEnvironment: string | null;
+  subscriptions: AssessmentSubscription[];
+  checkedAt: string;
+}
+
+export interface AssessmentEnvironment {
+  systemId: string;
+  deploymentCloud: AssessmentCloud;
+  cloudEnvironment: string | null;
+  subscriptionIds: string[];
+  availableSubscriptions: (AssessmentSubscription & {
+    cloudEnvironment: string;
+    isAvailable: boolean;
+  })[];
+}
+
+export interface UpdateAssessmentEnvironment {
+  cloudEnvironment: AssessmentCloud;
+  subscriptionIds: string[];
+}
+
 export interface AssessmentFamilyResult {
   familyCode: string;
   familyName: string;
@@ -79,6 +115,25 @@ export interface AssessmentDetail {
 export async function getAssessments(): Promise<AssessmentListItem[]> {
   const { data } = await apiClient.get<AssessmentListItem[]>('/assessments');
   return data;
+}
+
+export async function getAssessmentReadiness(systemId: string): Promise<AssessmentReadiness> {
+  const { data } = await apiClient.get<AssessmentReadiness>(`/systems/${encodeURIComponent(systemId)}/assessment-readiness`);
+  return data;
+}
+
+export async function getAssessmentEnvironment(systemId: string): Promise<AssessmentEnvironment> {
+  const { data } = await apiClient.get<AssessmentEnvironment>(`/systems/${encodeURIComponent(systemId)}/assessment-environment`);
+  return data;
+}
+
+export async function saveAssessmentEnvironment(systemId: string, request: UpdateAssessmentEnvironment): Promise<AssessmentEnvironment> {
+  const { data } = await apiClient.put<AssessmentEnvironment>(`/systems/${encodeURIComponent(systemId)}/assessment-environment`, request);
+  return data;
+}
+
+export async function detachAssessmentEnvironment(systemId: string): Promise<void> {
+  await apiClient.delete(`/systems/${encodeURIComponent(systemId)}/assessment-environment`);
 }
 
 export async function runAssessment(systemId: string): Promise<RunAssessmentResponse> {
