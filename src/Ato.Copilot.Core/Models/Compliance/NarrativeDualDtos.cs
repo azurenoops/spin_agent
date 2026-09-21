@@ -3,7 +3,8 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// <summary>Partial update payload for policy and technical narratives.</summary>
 public sealed record PatchDualNarrativeRequest(
     string? PolicyNarrative,
-    string? TechnicalNarrative);
+    string? TechnicalNarrative,
+    int? ExpectedVersion = null);
 
 /// <summary>Evidence metadata returned with a dual narrative.</summary>
 public sealed record EvidenceArtifactSummary(
@@ -30,4 +31,7 @@ public sealed record DualNarrativeResponse(
     bool IsPolicyStale,
     bool IsTechnicalStale,
     string? PolicyStaleReason,
-    string? TechnicalStaleReason);
+    string? TechnicalStaleReason,
+    int CurrentVersion = 1,
+    SspSectionStatus ApprovalStatus = SspSectionStatus.Draft,
+    string? AuthoredBy = null);

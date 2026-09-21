@@ -58,20 +58,22 @@ export async function bulkUpdateNarratives(
 export async function saveNarrative(
   systemId: string,
   controlId: string,
-  narrative: { policyNarrative?: string; technicalNarrative?: string },
-): Promise<void> {
-  await apiClient.patch(
+  narrative: { policyNarrative?: string; technicalNarrative?: string; expectedVersion?: number },
+): Promise<{ currentVersion: number }> {
+  const { data } = await apiClient.patch<{ currentVersion: number }>(
     `/systems/${encodeURIComponent(systemId)}/controls/${encodeURIComponent(controlId)}/narrative`,
     narrative,
   );
+  return data;
 }
 
 export async function regenerateNarrative(
   systemId: string,
   controlId: string,
-  options?: { sourceUrls?: string[] },
+  options?: { sourceUrls?: string[]; expectedVersion?: number },
 ): Promise<string | null> {
   const params: Record<string, string> = {};
+  if (options?.expectedVersion !== undefined) params.expectedVersion = String(options.expectedVersion);
   if (options?.sourceUrls && options.sourceUrls.length > 0) {
     params.sourceUrls = JSON.stringify(options.sourceUrls);
   }

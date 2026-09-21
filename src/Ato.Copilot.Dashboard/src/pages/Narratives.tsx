@@ -311,6 +311,8 @@ export default function Narratives() {
   const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const savedTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const draftVersions = useRef<Record<string, number>>({});
+  const activeWrites = useRef(new Set<string>());
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [regenError, setRegenError] = useState('');
   const [contextRevision, setContextRevision] = useState(0);
@@ -432,11 +434,23 @@ export default function Narratives() {
   ) => {
     if (text === (original ?? '')) return; // No change
     if (!systemId) return;
+    const current = narratives?.find(item => item.controlId === controlId);
+    if (!current || current.approvalStatus === 'UnderReview') return;
+    const draftKey = `${systemId}:${controlId}`;
+    if (activeWrites.current.has(draftKey)) {
+      setRegenError(`Save failed for ${controlId}: Another write is pending. Your draft is retained; retry after it completes.`);
+      return;
+    }
+    const expectedVersion = draftVersions.current[draftKey] ?? current.version;
+    activeWrites.current.add(draftKey);
+    setRegenError('');
+    setSavedIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
     setSavingIds(prev => new Set([...prev, controlId]));
     try {
-      await saveNarrative(systemId, controlId, part === 'policy'
-        ? { policyNarrative: text }
-        : { technicalNarrative: text });
+      const saved = await saveNarrative(systemId, controlId, part === 'policy'
+        ? { policyNarrative: text, expectedVersion }
+        : { technicalNarrative: text, expectedVersion });
+      draftVersions.current[draftKey] = saved.currentVersion;
       setSavedIds(prev => new Set([...prev, controlId]));
       // Clear "Saved" indicator after 2s
       if (savedTimers.current[controlId]) clearTimeout(savedTimers.current[controlId]);
@@ -444,13 +458,23 @@ export default function Narratives() {
         setSavedIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
       }, 2000);
       refresh();
+    } catch (err: unknown) {
+      const response = (err as { response?: { data?: { error?: string } } })?.response;
+      const detail = response?.data ?? err as { error?: string };
+      setRegenError(`Save failed for ${controlId}: ${detail?.error || 'Unable to save. Your draft has been retained.'}`);
     } finally {
+      activeWrites.current.delete(draftKey);
       setSavingIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
     }
   };
 
   const handleRegenerate = async (controlId: string) => {
     if (!systemId) return;
+    const current = narratives?.find(item => item.controlId === controlId);
+    const draftKey = `${systemId}:${controlId}`;
+    if (!current || current.approvalStatus === 'UnderReview' || activeWrites.current.has(draftKey)) return;
+    const expectedVersion = draftVersions.current[draftKey] ?? current.version;
+    activeWrites.current.add(draftKey);
     setRegeneratingIds(prev => new Set([...prev, controlId]));
     setRegenError('');
     try {
@@ -458,23 +482,26 @@ export default function Narratives() {
       const newNarrative = await regenerateNarrative(
         systemId,
         controlId,
-        sourceUrls.length > 0 ? { sourceUrls } : undefined,
+        { sourceUrls: sourceUrls.length > 0 ? sourceUrls : undefined, expectedVersion },
       );
+      draftVersions.current[draftKey] = expectedVersion + 1;
       if (newNarrative) {
         setEditedNarratives(prev => ({ ...prev, [`${controlId}:technical`]: newNarrative }));
       }
       refresh();
     } catch (err: unknown) {
       const resp = (err as { response?: { status?: number; data?: { error?: string; errorCode?: string } } })?.response;
+      const detail = resp?.data ?? err as { error?: string; errorCode?: string };
       if (resp?.status === 503) {
         setRegenError(`Regeneration failed for ${controlId}: AI service is not configured.`);
-      } else if (resp?.data?.errorCode === 'NO_CAPABILITY') {
+      } else if (detail?.errorCode === 'NO_CAPABILITY') {
         setRegenError(`Regeneration failed for ${controlId}: No security capability is linked to this control. Assign a capability first.`);
       } else {
-        const msg = resp?.data?.error || (err instanceof Error ? err.message : 'Unknown error');
+        const msg = detail?.error || (err instanceof Error ? err.message : 'Unknown error');
         setRegenError(`Regeneration failed for ${controlId}: ${msg}`);
       }
     } finally {
+      activeWrites.current.delete(draftKey);
       setRegeneratingIds(prev => { const next = new Set(prev); next.delete(controlId); return next; });
     }
   };
@@ -761,7 +788,7 @@ export default function Narratives() {
                               </div>
                               <button
                                 className="inline-flex items-center gap-1 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-                                disabled={regeneratingIds.has(n.controlId)}
+                                disabled={regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview'}
                                 onClick={() => handleRegenerate(n.controlId)}
                               >
                                 {regeneratingIds.has(n.controlId) ? 'Regenerating…' : 'Regenerate'}
@@ -775,7 +802,11 @@ export default function Narratives() {
                                   aria-label={`Policy narrative for ${n.controlId}`}
                                   className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                                   value={policyValue}
-                                  onChange={event => setEditedNarratives(previous => ({ ...previous, [policyKey]: event.target.value }))}
+                                  readOnly={n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
+                                  onChange={event => {
+                                    draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
+                                    setEditedNarratives(previous => ({ ...previous, [policyKey]: event.target.value }));
+                                  }}
                                   onBlur={event => handleNarrativeBlur(n.controlId, 'policy', event.target.value, n.policyNarrative)}
                                 />
                               </label>
@@ -789,7 +820,11 @@ export default function Narratives() {
                                   aria-label={`Technical narrative for ${n.controlId}`}
                                   className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                                   value={technicalValue}
-                                  onChange={event => setEditedNarratives(previous => ({ ...previous, [technicalKey]: event.target.value }))}
+                                  readOnly={n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
+                                  onChange={event => {
+                                    draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
+                                    setEditedNarratives(previous => ({ ...previous, [technicalKey]: event.target.value }));
+                                  }}
                                   onBlur={event => handleNarrativeBlur(n.controlId, 'technical', event.target.value, n.technicalNarrative)}
                                 />
                               </label>
@@ -829,12 +864,15 @@ export default function Narratives() {
                               systemId={systemId}
                               controlId={n.controlId}
                               flags={contextFlags.key === contextKey ? contextFlags.result : { status: 'loading' }}
-                              canCopy={settings.role === 'ISSO'}
+                              canCopy={settings.role === 'ISSO' && n.approvalStatus !== 'UnderReview' && !regeneratingIds.has(n.controlId)}
                               onRefresh={() => setContextRevision(revision => revision + 1)}
-                              onCopy={content => setEditedNarratives(prev => ({
-                                ...prev,
-                                [policyKey]: (prev[policyKey] ?? n.policyNarrative ?? '') + '\n\n' + content,
-                              }))}
+                              onCopy={content => {
+                                draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
+                                setEditedNarratives(prev => ({
+                                  ...prev,
+                                  [policyKey]: (prev[policyKey] ?? n.policyNarrative ?? '') + '\n\n' + content,
+                                }));
+                              }}
                             />
                           </div>
                             );

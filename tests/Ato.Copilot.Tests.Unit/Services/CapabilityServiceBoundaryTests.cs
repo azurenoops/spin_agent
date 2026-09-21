@@ -110,6 +110,44 @@ public class CapabilityServiceBoundaryTests : IDisposable
     }
 
     [Theory]
+    [InlineData(SspSectionStatus.UnderReview)]
+    public async Task Regenerate_UnderReview_RejectsBeforeModelCall(SspSectionStatus reviewStatus)
+    {
+        // Arrange
+        var client = new Mock<IChatClient>(MockBehavior.Strict);
+        var generator = new NarrativeTemplateService(client.Object,
+            new AzureAiOptions { Enabled = true, Endpoint = "https://test.openai.azure.us/" },
+            Mock.Of<ILogger<NarrativeTemplateService>>());
+        var service = new CapabilityService(_db, Mock.Of<ILogger<CapabilityService>>(),
+            generator, Mock.Of<IDeviationService>(), Mock.Of<IOrgInheritanceService>());
+        var implementation = new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "AC-2", SecurityCapabilityId = CapId,
+            PolicyNarrative = "Human policy", TechnicalNarrative = "Custom technical",
+            Narrative = "Custom technical", ApprovalStatus = reviewStatus,
+            AuthoredBy = "original-author", IsManuallyCustomized = true,
+        };
+        _db.ControlImplementations.Add(implementation);
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await service.RegenerateNarrativeWithAiAsync(SystemId, "AC-2", "requesting-author");
+
+        // Assert
+        result.ErrorCode.Should().Be("UNDER_REVIEW");
+        result.Narrative.Should().BeNull();
+        client.VerifyNoOtherCalls();
+        await _db.Entry(implementation).ReloadAsync();
+        implementation.TechnicalNarrative.Should().Be("Custom technical");
+        implementation.PolicyNarrative.Should().Be("Human policy");
+        implementation.ApprovalStatus.Should().Be(reviewStatus);
+        implementation.AuthoredBy.Should().Be("original-author");
+        implementation.CurrentVersion.Should().Be(1);
+        implementation.IsManuallyCustomized.Should().BeTrue();
+        (await _db.NarrativeVersions.CountAsync()).Should().Be(0);
+    }
+
+    [Theory]
     [InlineData(false, null, false)]
     [InlineData(true, null, false)]
     [InlineData(false, "", false)]
@@ -156,13 +194,51 @@ public class CapabilityServiceBoundaryTests : IDisposable
         implementation.PolicyNarrative.Should().Be("Human policy");
         implementation.ImplementationStatus.Should().Be(ImplementationStatus.Planned);
         implementation.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
-        var version = await _db.NarrativeVersions.SingleAsync();
+        var version = await _db.NarrativeVersions.SingleAsync(item => item.VersionNumber == 1);
         version.SnapshotJson.Should().NotBeNull();
         var restored = new ControlImplementation();
         NarrativeContentSnapshot.Restore(restored, version.SnapshotJson!);
         restored.TechnicalNarrative.Should().Be("Previous model text");
         restored.PolicyNarrative.Should().Be("Human policy");
         restored.AiSuggested.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Regenerate_ApprovedCustomContent_CreatesDraftWithoutReplacingApprovedSnapshot()
+    {
+        // Arrange
+        var implementation = new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "AC-2", SecurityCapabilityId = CapId,
+            PolicyNarrative = "Policy", TechnicalNarrative = "Custom technical", Narrative = "Custom technical",
+            IsManuallyCustomized = true, ApprovalStatus = SspSectionStatus.Approved, AuthoredBy = "original-author",
+        };
+        var approved = new NarrativeVersion
+        {
+            ControlImplementationId = implementation.Id, VersionNumber = 1,
+            Content = "Custom technical", SnapshotJson = NarrativeContentSnapshot.Capture(implementation),
+            Status = SspSectionStatus.Approved, AuthoredBy = "original-author",
+        };
+        implementation.ApprovedVersionId = approved.Id;
+        _db.AddRange(implementation, approved);
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.RegenerateNarrativeWithAiAsync(SystemId, "AC-2", "regeneration-author");
+
+        // Assert
+        result.ErrorCode.Should().BeNull();
+        var versions = await _db.NarrativeVersions.OrderBy(item => item.VersionNumber).ToListAsync();
+        versions.Select(item => item.VersionNumber).Should().Equal(1, 2);
+        versions[0].Content.Should().Be("Custom technical");
+        versions[0].Status.Should().Be(SspSectionStatus.Approved);
+        versions[1].Content.Should().Be(result.Narrative);
+        versions[1].AuthoredBy.Should().Be("regeneration-author");
+        implementation.AuthoredBy.Should().Be("regeneration-author");
+        implementation.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
+        implementation.ApprovedVersionId.Should().Be(approved.Id);
+        implementation.PolicyNarrative.Should().Be("Policy");
+        implementation.IsManuallyCustomized.Should().BeFalse();
     }
 
     [Fact]

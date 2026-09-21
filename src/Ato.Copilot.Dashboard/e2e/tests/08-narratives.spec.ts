@@ -71,6 +71,7 @@ test.describe('Narratives', () => {
     let isFlagged = false;
     let contextContent: string | null = null;
     let failContext = false;
+    let rejectSave = false;
     await page.route(/^https?:\/\/[^/]+\/api\//, route => route.fulfill({ status: 503, json: { error: 'Not configured in this fixture' } }));
     await page.route('**/api/csp/onboarding/state', route => route.fulfill({ status: 404 }));
     await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/evidence', route => route.fulfill({ json: { direct: [], inherited: [], automated: [] } }));
@@ -130,17 +131,26 @@ test.describe('Narratives', () => {
         { ...modelNarrative, id: 'empty', controlId: 'AC-5', technicalNarrative: null, isAutoPopulated: false },
       ],
     }));
-    await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/regenerate-ai**', route => route.fulfill({
-      json: { narrative: 'Regenerated technical narrative.' },
-    }));
+    await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/regenerate-ai**', route => {
+      expect(new URL(route.request().url()).searchParams.get('expectedVersion')).toBe(String(modelNarrative.version));
+      modelNarrative.version++;
+      modelNarrative.technicalNarrative = 'Regenerated technical narrative.';
+      return route.fulfill({ json: { narrative: modelNarrative.technicalNarrative } });
+    });
     await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/narrative', async route => {
       const patch = route.request().postDataJSON();
+      if (rejectSave) {
+        await route.fulfill({ status: 409, json: { errorCode: 'CONCURRENCY_CONFLICT', error: 'Reload before saving.' } });
+        return;
+      }
+      expect(patch.expectedVersion).toBe(modelNarrative.version);
       Object.assign(modelNarrative, patch);
+      modelNarrative.version++;
       if ('technicalNarrative' in patch) {
         modelNarrative.aiSuggested = false;
         modelNarrative.isAutoPopulated = false;
       }
-      await route.fulfill({ json: modelNarrative });
+      await route.fulfill({ json: { ...modelNarrative, currentVersion: modelNarrative.version } });
     });
     await page.route('**/api/dashboard/systems/e2e-system', route => route.fulfill({
       json: {
@@ -172,7 +182,7 @@ test.describe('Narratives', () => {
     const request = await saveRequest;
 
     // Assert
-    expect(request.postDataJSON()).toEqual({ policyNarrative: 'Accounts are reviewed monthly.' });
+    expect(request.postDataJSON()).toEqual({ policyNarrative: 'Accounts are reviewed monthly.', expectedVersion: 1 });
     await expect(technicalEditor).toHaveValue('Entra ID enforces conditional access.');
     await expect(page.getByTitle('AI-assisted Technical narrative')).toHaveCount(1);
     await expect(page.getByText('AI Suggested', { exact: true }).locator('..')).toContainText('1');
@@ -212,6 +222,22 @@ test.describe('Narratives', () => {
     await expect(policyEditor).toHaveValue(`Accounts are reviewed monthly.\n\n${contextContent}`);
     await expect(technicalEditor).toHaveValue('Regenerated technical narrative.');
     await contextPanel.screenshot({ path: testInfo.outputPath('business-context-draft.png') });
+
+    rejectSave = true;
+    await policyEditor.fill('Unsaved concurrent policy draft');
+    await policyEditor.blur();
+    await expect(page.getByText('Save failed for AC-2: Reload before saving.')).toBeVisible();
+    await expect(policyEditor).toHaveValue('Unsaved concurrent policy draft');
+    await expect(page.getByText('Saved ✓', { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath('narrative-conflict.png'), fullPage: true });
+
+    modelNarrative.approvalStatus = 'UnderReview';
+    await page.reload();
+    await expandButton.click();
+    await expect(policyEditor).toHaveAttribute('readonly');
+    await expect(technicalEditor).toHaveAttribute('readonly');
+    await expect(page.getByRole('button', { name: 'Regenerate' })).toBeDisabled();
+    await page.screenshot({ path: testInfo.outputPath('narrative-review-lock.png'), fullPage: true });
     expect(pageErrors).toEqual([]);
   });
   }

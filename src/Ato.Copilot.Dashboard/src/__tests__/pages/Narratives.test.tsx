@@ -35,6 +35,7 @@ const refresh = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
   route.systemId = 'system-1';
+  vi.mocked(narrativeApi.saveNarrative).mockReset().mockResolvedValue({ currentVersion: 2 });
   vi.mocked(businessContextApi.getBusinessContext).mockReset().mockResolvedValue(null);
   vi.mocked(businessContextApi.getFlaggedControls).mockReset().mockResolvedValue([]);
   mockUsePolling.mockReturnValue({
@@ -61,6 +62,66 @@ beforeEach(() => {
 });
 
 describe('Narratives regeneration', () => {
+  it('preserves the draft and reports a stale save without showing Saved', async () => {
+    // Arrange
+    vi.mocked(narrativeApi.saveNarrative).mockRejectedValue({
+      errorCode: 'CONCURRENCY_CONFLICT', error: 'Reload before saving.',
+    });
+    render(<Narratives />);
+    fireEvent.click(screen.getByTitle('Expand'));
+    const editor = screen.getByLabelText('Policy narrative for AC-1');
+
+    // Act
+    fireEvent.change(editor, { target: { value: 'Unsaved policy' } });
+    fireEvent.blur(editor);
+
+    // Assert
+    expect(await screen.findByText(/Save failed for AC-1: Reload before saving/)).toBeInTheDocument();
+    expect(editor).toHaveValue('Unsaved policy');
+    expect(narrativeApi.saveNarrative).toHaveBeenCalledWith('system-1', 'AC-1', {
+      policyNarrative: 'Unsaved policy', expectedVersion: 1,
+    });
+    expect(screen.queryByText(/Saved/)).not.toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('makes under-review narratives read-only and disables regeneration', async () => {
+    // Arrange
+    const polling = mockUsePolling.getMockImplementation()!();
+    polling.data[0].approvalStatus = 'UnderReview';
+    mockUsePolling.mockReturnValue(polling);
+
+    // Act
+    render(<Narratives />);
+    fireEvent.click(screen.getByTitle('Expand'));
+
+    // Assert
+    expect(screen.getByLabelText('Policy narrative for AC-1')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Technical narrative for AC-1')).toHaveAttribute('readonly');
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeDisabled();
+    await screen.findByText('No business context provided');
+  });
+
+  it('keeps the draft version when polling observes a concurrent edit', async () => {
+    // Arrange
+    const view = render(<Narratives />);
+    fireEvent.click(screen.getByTitle('Expand'));
+    const editor = screen.getByLabelText('Policy narrative for AC-1');
+    fireEvent.change(editor, { target: { value: 'Local draft' } });
+    const polling = mockUsePolling.getMockImplementation()!();
+    mockUsePolling.mockReturnValue({ ...polling, data: [{ ...polling.data[0], version: 4 }] });
+    view.rerender(<Narratives />);
+
+    // Act
+    fireEvent.blur(editor);
+
+    // Assert
+    await waitFor(() => expect(narrativeApi.saveNarrative).toHaveBeenCalledWith('system-1', 'AC-1', {
+      policyNarrative: 'Local draft', expectedVersion: 1,
+    }));
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  });
+
   it('places regenerated content in the Technical editor and preserves Policy', async () => {
     // Arrange
     mockRegenerate.mockResolvedValue('Regenerated technical narrative');

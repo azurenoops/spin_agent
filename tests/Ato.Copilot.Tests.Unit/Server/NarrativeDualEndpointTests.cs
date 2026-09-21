@@ -12,6 +12,28 @@ namespace Ato.Copilot.Tests.Unit.Server;
 
 public class NarrativeDualEndpointTests
 {
+    [Theory]
+    [InlineData("UNDER_REVIEW")]
+    [InlineData("CONCURRENCY_CONFLICT")]
+    public async Task PatchDualNarrative_GovernanceConflict_Returns409(string errorCode)
+    {
+        // Arrange
+        var service = new Mock<IDualNarrativeService>();
+        service.Setup(item => item.UpdateAsync("system-1", "AC-1", "Policy", true, null, false,
+                "Compliance.Analyst", "user-1", It.IsAny<CancellationToken>(), 7))
+            .ThrowsAsync(new InvalidOperationException($"{errorCode}: Cannot save."));
+        var user = Mock.Of<IUserContext>(context => context.Role == "Compliance.Analyst" && context.UserId == "user-1");
+        var request = CreateJsonRequest("""{"policyNarrative":"Policy","expectedVersion":7}""");
+
+        // Act
+        var result = await NarrativeDualEndpoints.PatchDualNarrativeAsync(
+            "system-1", "AC-1", request, service.Object, user, CancellationToken.None);
+
+        // Assert
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(409);
+        service.VerifyAll();
+    }
+
     [Fact]
     public async Task PatchDualNarrative_PolicyOnly_PreservesTechnicalFieldOmission()
     {
@@ -19,7 +41,7 @@ public class NarrativeDualEndpointTests
         var service = new Mock<IDualNarrativeService>();
         service.Setup(item => item.UpdateAsync(
                 "system-1", "AC-1", "Policy update", true, null, false,
-                "Compliance.Analyst", "user-1", It.IsAny<CancellationToken>()))
+                "Compliance.Analyst", "user-1", It.IsAny<CancellationToken>(), null))
             .ReturnsAsync(EmptyResponse());
         var userContext = Mock.Of<IUserContext>(user =>
             user.Role == "Compliance.Analyst" && user.UserId == "user-1");
@@ -43,7 +65,7 @@ public class NarrativeDualEndpointTests
         service.Setup(item => item.UpdateAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), true,
                 It.IsAny<string?>(), false, It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<CancellationToken>(), null))
             .ThrowsAsync(new UnauthorizedAccessException("Policy write denied."));
         var userContext = Mock.Of<IUserContext>(user =>
             user.Role == "Compliance.PlatformEngineer" && user.UserId == "user-1");

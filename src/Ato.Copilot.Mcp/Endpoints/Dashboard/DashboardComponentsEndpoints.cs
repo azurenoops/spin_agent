@@ -213,10 +213,21 @@ public static partial class DashboardEndpoints
                 string controlId,
                 [FromQuery] string? sourceUrl,
                 [FromQuery] string? sourceUrls,
+                [FromQuery] int? expectedVersion,
+                AtoCopilotContext context,
                 CapabilityService capService,
                 DocumentNarrativeGenerateAdapterTool documentNarrativeTool,
                 CancellationToken ct) =>
             {
+                var current = await context.ControlImplementations.AsNoTracking().FirstOrDefaultAsync(
+                    item => item.RegisteredSystemId == systemId && item.ControlId == controlId, ct);
+                if (current is null)
+                    return Results.NotFound(new ErrorResponse { Error = "Control implementation not found", ErrorCode = "CONTROL_NOT_FOUND" });
+                if (current.ApprovalStatus == SspSectionStatus.UnderReview)
+                    return Results.Conflict(new ErrorResponse { Error = "Narrative is under review", ErrorCode = "UNDER_REVIEW" });
+                if (expectedVersion.HasValue && expectedVersion.Value != current.CurrentVersion)
+                    return Results.Conflict(new ErrorResponse { Error = "Narrative has changed. Reload before regenerating.", ErrorCode = "CONCURRENCY_CONFLICT" });
+
                 if (!string.IsNullOrWhiteSpace(sourceUrl) || !string.IsNullOrWhiteSpace(sourceUrls))
                 {
                     var toolArgs = new Dictionary<string, object?>
@@ -225,6 +236,7 @@ public static partial class DashboardEndpoints
                         ["control_id"] = controlId,
                         ["save_draft"] = "true",
                         ["change_reason"] = "Dashboard regenerate using configured document sources",
+                        ["expected_version"] = current.CurrentVersion,
                     };
 
                     if (!string.IsNullOrWhiteSpace(sourceUrl))
@@ -238,6 +250,9 @@ public static partial class DashboardEndpoints
                         using var json = System.Text.Json.JsonDocument.Parse(toolResult);
                         var root = json.RootElement;
                         var status = root.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
+                        if (root.TryGetProperty("errorCode", out var code) &&
+                            code.GetString() is "UNDER_REVIEW" or "CONCURRENCY_CONFLICT")
+                            return Results.Conflict(new ErrorResponse { Error = "Narrative or review state changed. Reload before regenerating.", ErrorCode = code.GetString()! });
                         if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase) &&
                             root.TryGetProperty("data", out var dataEl) &&
                             dataEl.TryGetProperty("suggested_narrative", out var narrativeEl))
@@ -260,7 +275,7 @@ public static partial class DashboardEndpoints
                             ErrorCode = "DOCUMENT_SOURCE_GENERATION_FAILED",
                         });
                     }
-                    catch
+                    catch (System.Text.Json.JsonException)
                     {
                         return Results.BadRequest(new ErrorResponse
                         {
@@ -271,9 +286,13 @@ public static partial class DashboardEndpoints
                 }
 
                 var (narrative, errorCode) = await capService.RegenerateNarrativeWithAiAsync(
-                    systemId, controlId, currentUser.CurrentUserId, ct);
+                    systemId, controlId, currentUser.CurrentUserId, ct, current.CurrentVersion);
                 return errorCode switch
                 {
+                    "UNDER_REVIEW" or "CONCURRENCY_CONFLICT" => Results.Conflict(new ErrorResponse
+                    {
+                        Error = "Narrative or review state changed. Reload before regenerating.", ErrorCode = errorCode,
+                    }),
                     "NOT_FOUND" => Results.NotFound(new ErrorResponse
                     {
                         Error = "Control implementation not found",
