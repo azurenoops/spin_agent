@@ -98,6 +98,10 @@ Publication procedure:
 - Independent tab/deep-link contexts, validated by the server.
 - Start implementation after design review; publish the five previewed child
   stories and link them to #1002.
+- Implement #942's identity/membership prerequisite on this branch before
+  continuing the dependent workspace UI (confirmed during implementation).
+  The exact grant/identity/schema contract still requires verification; this is
+  scope approval, not permission to infer membership from a selected ID or email.
 
 ### Proposed in this feature
 

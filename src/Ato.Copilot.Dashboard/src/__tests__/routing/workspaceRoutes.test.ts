@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildWorkspaceUrl,
   canonicalizeSystemRoute,
@@ -162,9 +162,43 @@ describe('workspace routes', () => {
     // Assert
     expect(build).toThrow('Invalid workspace URL');
   });
+
+  it('does not mask an unexpected decoder failure as invalid user input', () => {
+    // Arrange
+    const error = new Error('Decoder failure');
+    const decoder = vi.spyOn(globalThis, 'decodeURIComponent').mockImplementationOnce(() => {
+      throw error;
+    });
+
+    // Act
+    const parse = () => parseWorkspaceUrl('/workspaces/csp');
+
+    // Assert
+    try {
+      expect(parse).toThrow(error);
+    } finally {
+      decoder.mockRestore();
+    }
+  });
 });
 
 describe('system aliases', () => {
+  it.each([
+    ['/systems/system-a/categorization/?view=all#section', '/systems/system-a/baseline?view=all#section'],
+    ['/systems/system-a/%63ategorization', '/systems/system-a/baseline'],
+    ['/SYSTEMS/system-a/CATEGORIZATION', '/systems/system-a/baseline'],
+    ['/systems/%6Eew/categorization', '/systems/%6Eew/categorization'],
+  ])('matches router-normalized alias URL %s', (route, expected) => {
+    // Arrange
+    const url = route;
+
+    // Act
+    const canonical = canonicalizeSystemRoute(url);
+
+    // Assert
+    expect(canonical).toBe(expected);
+  });
+
   it.each([
     ['control-inheritance', 'inheritance'],
     ['categorization', 'baseline'],
@@ -187,7 +221,7 @@ describe('system aliases', () => {
     expect(actual).toBe(`/systems/system-a/${canonical}?view=all#section`);
   });
 
-  it.each(['/systems/new', '/systems/a/narratives', '/systems/a/profile/MissionAndPurpose',
+  it.each(['/systems/new', '/systems/a/narratives', '/systems/a/constructor', '/systems/a/profile/MissionAndPurpose',
     '/systems/a/categorization/nested', '/systems/a', '/controls'])(
     'leaves non-alias route %s intact',
     (route) => {

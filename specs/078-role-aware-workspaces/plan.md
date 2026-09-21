@@ -381,7 +381,65 @@ procedure. Let the user perform:
 - Provider-change review with unchanged approved narrative before acceptance.
 - Provider/org/system Narrative Library scope and provenance.
 
-No automated/manual acceptance has run for this proposed implementation.
+Full authenticated-workspace and manual acceptance remain pending. The first
+frontend increment has the focused verification evidence below.
+
+### Implementation increment 1: route and permission-view foundation
+
+- Created and verified child issue links #1015-#1019 after exact preview approval.
+- Committed the approved design and merged `origin/main` including #1005.
+- Added typed canonical CSP/organization URL parsing/building and validation.
+  Canonical workspace root routes are **not yet activated**; membership/request
+  authorization must be implemented first.
+- Replaced copied system-alias redirect logic with the production shared helper.
+  Legacy links retain query/fragment, replace history, and handle trailing slash,
+  mixed case and encoded aliases without treating `new` as a system.
+- Repaired the duplicated Mission Profile form discovered when integrating
+  #1005, preserving loading/error guards and server-authoritative read-only UI.
+- Recorded failing tests before production changes.
+
+Verified results:
+
+| Check | Result / limitation |
+|---|---|
+| Focused route/profile unit tests | 118 passed |
+| Complete dashboard unit suite using repository Node 20 runtime | 612 passed across 72 files; no skipped tests |
+| New workspace helper/component coverage | 100% statements, branches, functions and lines |
+| Existing SystemProfile whole-file coverage in focused run | 72.56% statements/lines, 89.09% branches; not claimed as whole-file 100% |
+| Browser route migration + existing profile permission scenarios | 8 passed at desktop/mobile widths, using synthetic API responses |
+| Dashboard TypeScript check | Passed |
+| Production dashboard build | Passed with warnings; same warning categories appear in the retained pre-feature `test-results/981-build.log` |
+| Real backend membership/isolation, provider review and library E2E | Not implemented or verified by this increment |
+
+The default machine runtime was Node 26. Its first full-suite run failed 42
+storage-dependent tests because `localStorage` was undefined. Node 20 is specified
+by the repository Dev Container; running the same suite with that runtime passed
+without changing tests or suppressing checks:
+
+```bash
+cd src/Ato.Copilot.Dashboard
+npm exec --yes --package=node@20 -- node node_modules/vitest/vitest.mjs run
+```
+
+Diagnostics remain visible: existing suites emit React `act` and jsdom canvas
+messages; build output reports stale Browserslist data, SignalR annotations, CSS
+syntax, mixed imports and bundle size. Passing counts are not a zero-warning
+release claim.
+
+For a local visual replay of this increment, start the dashboard with the
+existing `npm run dev` command, then run:
+
+```bash
+cd src/Ato.Copilot.Dashboard
+PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run test:e2e:headed -- \
+  e2e/tests/workspace-route-migration.spec.ts \
+  e2e/tests/mission-profile-permissions.spec.ts
+```
+
+These browser fixtures are synthetic and do not prove backend authorization.
+Manual ordinary-login/two-tab acceptance will be supplied with the membership
+implementation. The user approved adding #942's prerequisite to this branch;
+its verified identity/grant contract is the next implementation gate.
 
 ### Planning artifact checks and tooling limitation
 

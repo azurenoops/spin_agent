@@ -110,3 +110,16 @@ bypass and no automatic approval of customer artifacts.
 Design and implementation approval are recorded. Dependency contracts, testing,
 manual acceptance and publishing approval remain gates. Implementation progress
 must not be confused with a shipped feature.
+
+### First implementation increment
+
+The branch now has typed workspace URL helpers and shared legacy system-alias
+redirects that preserve query strings/fragments. It also repairs a duplicate
+Mission Profile form encountered while integrating the server-permission fix.
+Canonical workspace root routes and ordinary multi-organization selection are
+not yet enabled: their backend membership/request-scope contract comes next.
+
+Focused unit and synthetic-API browser tests verify this foundation, not the
+complete authenticated workspace feature. The user authorized implementing the
+#942 membership prerequisite on the same branch; provider responsibilities and
+Narrative Library integration retain their separate dependency gates.

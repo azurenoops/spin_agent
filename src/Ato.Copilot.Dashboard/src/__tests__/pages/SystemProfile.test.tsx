@@ -12,6 +12,10 @@ vi.mock('react-router-dom',() => ({ useParams: () => ({ sectionType: state.secti
 vi.mock('../../components/layout/SystemLayout',() => ({ useSystemContext: () => ({ detail: { systemId: state.systemId } }) }));
 vi.mock('../../hooks/useSettings',() => ({ useSettings: () => ({ settings: { role: state.role } }) }));
 vi.mock('../../api/systemProfile',() => api);
+// Keep these tests focused on profile permissions, not Azure attachment requests.
+vi.mock('../../components/AssessmentEnvironmentPanel', () => ({
+  default: () => <div data-testid="assessment-environment" />,
+}));
 
 function section(canEditProfile?: boolean,governanceStatus='NotStarted') {
   return {

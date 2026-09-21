@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useIsAuthenticated, useMsal } from '@azure/msal-react';
 import PortfolioRoute from './pages/PortfolioRoute';
 import SystemsRoute from './pages/SystemsRoute';
@@ -59,16 +59,7 @@ import RestoreUnsavedChangesPrompt from './features/auth/RestoreUnsavedChangesPr
 import ImpersonationBanner from './features/auth/ImpersonationBanner';
 import { useIdleTimer } from './features/auth/useIdleTimer';
 import { useLoginConfig } from './features/auth/LoginConfigContext';
-
-/**
- * Builds an absolute redirect path for /systems/:id/* route aliases so that
- * React Router v7 relative `../` navigation doesn't break on direct URL load.
- * Issue: #464, #467, #462, #460
- */
-function SystemRedirect({ to }: { to: string }) {
-  const { id } = useParams<{ id: string }>();
-  return <Navigate to={`/systems/${id ?? ''}/${to}`} replace />;
-}
+import SystemAliasRedirect from './features/workspaces/SystemAliasRedirect';
 
 function AppContent() {
   const { panelState, togglePanel, closePanel, setWidth } = useChatPanel();
@@ -124,31 +115,31 @@ function AppContent() {
             <Route path="capability-coverage" element={<CapabilityCoverage />} />
             <Route path="inheritance" element={<ControlInheritance />} />
             {/* Alias: Oracle E2E tests and direct links use /control-inheritance → redirect to /inheritance */}
-            <Route path="control-inheritance" element={<SystemRedirect to="inheritance" />} />
+            <Route path="control-inheritance" element={<SystemAliasRedirect />} />
             <Route path="baseline" element={<BaselineManagement />} />
             {/* Alias: Oracle E2E tests and direct links use /categorization → redirect to /baseline */}
-            <Route path="categorization" element={<SystemRedirect to="baseline" />} />
+            <Route path="categorization" element={<SystemAliasRedirect />} />
             {/* Wave 9 #438 — URL slug aliases for blank-page fixes.
                 Oracle QA sweep and sidebar nav use these slugs; the canonical
                 routes use shorter/different names. Redirect to the real route.
-                Uses SystemRedirect (not Navigate with ../…) so absolute paths
+                Uses SystemAliasRedirect (not Navigate with ../…) so absolute paths
                 work correctly in React Router v7 on direct URL load (#464,#467,#462,#460). */}
             {/* Sidebar nav: capability-coverage, but direct links use /capabilities */}
-            <Route path="capabilities" element={<SystemRedirect to="capability-coverage" />} />
+            <Route path="capabilities" element={<SystemAliasRedirect />} />
             {/* Sidebar nav: profile/MissionAndPurpose, but direct links use /mission-purpose */}
-            <Route path="mission-purpose" element={<SystemRedirect to="profile/MissionAndPurpose" />} />
+            <Route path="mission-purpose" element={<SystemAliasRedirect />} />
             {/* Sidebar nav: profile/UsersAndAccess, but direct links use /users-access */}
-            <Route path="users-access" element={<SystemRedirect to="profile/UsersAndAccess" />} />
+            <Route path="users-access" element={<SystemAliasRedirect />} />
             {/* Sidebar nav: profile/EnvironmentAndDeployment, but direct links use /environment */}
-            <Route path="environment" element={<SystemRedirect to="profile/EnvironmentAndDeployment" />} />
+            <Route path="environment" element={<SystemAliasRedirect />} />
             {/* Sidebar nav: profile/DataTypes, but direct links use /data-types */}
-            <Route path="data-types" element={<SystemRedirect to="profile/DataTypes" />} />
+            <Route path="data-types" element={<SystemAliasRedirect />} />
             {/* Sidebar nav: profile/PortsProtocolsAndServices, but direct links use /ports-protocols */}
-            <Route path="ports-protocols" element={<SystemRedirect to="profile/PortsProtocolsAndServices" />} />
+            <Route path="ports-protocols" element={<SystemAliasRedirect />} />
             {/* Sidebar nav: profile/LeveragedAuthorizations, but direct links use /leveraged-auth */}
-            <Route path="leveraged-auth" element={<SystemRedirect to="profile/LeveragedAuthorizations" />} />
+            <Route path="leveraged-auth" element={<SystemAliasRedirect />} />
             {/* Sidebar nav: legal, but direct links use /legal-regulatory */}
-            <Route path="legal-regulatory" element={<SystemRedirect to="legal" />} />
+            <Route path="legal-regulatory" element={<SystemAliasRedirect />} />
             <Route path="profile/:sectionType" element={<SystemProfile />} />
             {/* Epic #121 / Task #146 — Authorization phase page */}
             <Route path="authorize" element={<AuthorizationPage />} />

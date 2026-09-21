@@ -224,7 +224,7 @@ function SystemProfileSection() {
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${approvalVariant(status)}`}>
               {status}
             </span>
-            {isReadOnly && settings.role && settings.role !== 'MissionOwner' && (
+            {isReadOnly && (
               <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
                 Read-only
               </span>
@@ -266,51 +266,6 @@ function SystemProfileSection() {
         </div>
       )}
 
-      {/* Section Header */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-bold text-gray-900">{label}</h1>
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${approvalVariant(status)}`}>
-          {status}
-        </span>
-        {isReadOnly && (
-          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
-            Read-only
-          </span>
-        )}
-      </div>
-
-      {/* Success message */}
-      {successMsg && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{successMsg}</div>
-      )}
-
-      {/* Section Form */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <ProfileSectionForm
-          sectionType={sectionType}
-          governanceStatus={status}
-          initialContent={section?.draftContent ?? null}
-          initialChildItems={getChildItems()}
-          reviewerComments={section?.reviewerComments ?? null}
-          isReadOnly={isReadOnly}
-          userRole={settings.role}
-          isSubmitting={saving}
-          error={error}
-          systemContext={{
-            hostingEnvironment: detail.hostingEnvironment,
-            systemType: detail.systemType,
-            missionCriticality: detail.missionCriticality,
-            impactLevel: detail.impactLevel,
-            baselineLevel: detail.baselineLevel,
-            categorization: detail.categorization,
-          }}
-          onSave={handleSave}
-          onSubmit={handleSubmit}
-          onWithdraw={handleWithdraw}
-          onApprove={handleApprove}
-          onRequestRevision={handleRequestRevision}
-        />
-      </div>
     </div>
   );
 }

@@ -11,16 +11,8 @@
  * use absolute /systems/:id/… Navigate targets so that Oracle QA deep-links and
  * sidebar nav shortcuts always resolve correctly.
  *
- * Test strategy
- * -------------
- * We do NOT import App.tsx — it pulls in hundreds of pages, MSAL, Azure
- * providers, etc., and would require extensive mocking.  Instead we:
- *   1. Inline a byte-for-byte replica of SystemRedirect (the function under test
- *      is tiny — 3 lines — so a replica is both accurate and stable).
- *   2. Mount a minimal MemoryRouter + Routes tree that matches App.tsx's nested
- *      structure: <Route path="/systems/:id"> wrapping the alias + a sentinel
- *      target route.
- *   3. Assert the final location.pathname equals the canonical target.
+ * Mount the production SystemAliasRedirect in a minimal route tree rather
+ * than copying its implementation or importing the complete application.
  *
  * Each test proves that navigating to an alias path (e.g.
  * /systems/test-id/capabilities) ends up at the canonical path (e.g.
@@ -28,14 +20,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
-
-// ── Replica of the SystemRedirect function from App.tsx (lines 69-72) ──────
-// Keep this in sync whenever App.tsx changes SystemRedirect.
-function SystemRedirect({ to }: { to: string }) {
-  const { id } = useParams<{ id: string }>();
-  return <Navigate to={`/systems/${id ?? ''}/${to}`} replace />;
-}
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import SystemAliasRedirect from '../../features/workspaces/SystemAliasRedirect';
 
 // ── Helper: captures the current React Router location ───────────────────────
 function CaptureLocation({ out }: { out: { pathname: string } }) {
@@ -59,7 +45,7 @@ function renderAliasRoute(aliasSlug: string, canonicalSlug: string, systemId = '
       <Routes>
         <Route path="/systems/:id">
           {/* alias slug — under test */}
-          <Route path={aliasSlug} element={<SystemRedirect to={canonicalSlug} />} />
+          <Route path={aliasSlug} element={<SystemAliasRedirect />} />
           {/* canonical target — captures final location */}
           <Route path={canonicalSlug} element={<CaptureLocation out={location} />} />
           {/* profile sub-routes (canonical slugs that contain a /) */}
