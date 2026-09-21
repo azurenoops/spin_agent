@@ -4,6 +4,8 @@ import SystemProfile,{ computeIsReadOnly } from '../../pages/SystemProfile';
 import type { ProfileSectionDetail,ProfileSectionType } from '../../types/dashboard';
 
 const state=vi.hoisted(() => ({ systemId: 'system-a',sectionType: 'MissionAndPurpose',role: '' }));
+const workspace = vi.hoisted(() => ({ value: null as { roles: string[] } | null }));
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => workspace.value }));
 const api=vi.hoisted(() => ({
   getProfileSection: vi.fn(),getProfileCompleteness: vi.fn(),saveProfileSection: vi.fn(),
   submitSections: vi.fn(),withdrawSections: vi.fn(),reviewSection: vi.fn(),
@@ -27,11 +29,26 @@ function section(canEditProfile?: boolean,governanceStatus='NotStarted') {
 beforeEach(() => {
   vi.resetAllMocks();
   Object.assign(state,{ systemId: 'system-a',sectionType: 'MissionAndPurpose',role: '' });
+  workspace.value = null;
   api.getProfileSection.mockResolvedValue(section(false));
   api.getProfileCompleteness.mockResolvedValue({ statusCounts: {},totalSections: 5,approvedPercentage: 0 });
 });
 
 describe('server-authoritative profile editing (#968)',() => {
+  it('does not infer profile approval from a browser ISSM preference in a workspace', async () => {
+    // Arrange
+    state.role = 'ISSM';
+    workspace.value = { roles: ['MissionOwner'] };
+    api.getProfileSection.mockResolvedValue(section(false, 'UnderReview'));
+
+    // Act
+    render(<SystemProfile />);
+
+    // Assert
+    expect(await screen.findByText('This section is under ISSM review — content is read-only.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
   it('renders exactly one profile form after workspace navigation (#1017)', async () => {
     // Arrange
     api.getProfileSection.mockResolvedValue(section(true));
