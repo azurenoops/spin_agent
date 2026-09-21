@@ -64,7 +64,7 @@
 .narrative-workspace summary { cursor: pointer; color: var(--nw-muted); margin: 14px 0; }
 .nw-empty { padding: 36px 0; color: var(--nw-muted); }
 .narrative-workspace .overflow-hidden:has(> table) { overflow-x: auto; }
-.narrative-workspace table { min-width: 650px; }
+.narrative-workspace table { width: 100%; min-width: 650px; }
 .nw-mobile-navigation { display: none; }
 @media (max-width: 767px) {
   .nw-mobile-navigation { display: block; }

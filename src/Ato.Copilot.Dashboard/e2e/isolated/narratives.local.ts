@@ -131,9 +131,41 @@ test(`import mappings, preserve active text and review a ${narrativeType} propos
   await expect(page.getByRole('navigation', { name: 'Narrative workflow' })).toHaveCount(0);
   await expect(page.locator('.nw-context')).toHaveCount(0);
   await expect(page.getByLabel('Generate control', { exact: true })).toHaveCount(0);
+  const grid = page.locator('.narrative-workspace table');
+  const expectFullWidthGrid = async () => {
+    const geometry = await grid.evaluate(table => {
+      const box = table.getBoundingClientRect();
+      const firstRow = table.querySelector('tbody tr')!;
+      return {
+        width: box.width,
+        containerWidth: table.parentElement!.clientWidth,
+        rowWidth: firstRow.getBoundingClientRect().width,
+        headers: [...table.querySelectorAll('thead th')].map(cell => {
+          const rect = cell.getBoundingClientRect();
+          return { left: rect.left, right: rect.right };
+        }),
+        cells: [...firstRow.children].map(cell => {
+          const rect = cell.getBoundingClientRect();
+          return { left: rect.left, right: rect.right };
+        }),
+      };
+    });
+    expect(Math.abs(geometry.width - geometry.containerWidth)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.rowWidth - geometry.width)).toBeLessThanOrEqual(1);
+    if (testInfo.project.name === 'desktop') {
+      expect(geometry.headers).toHaveLength(geometry.cells.length);
+      geometry.headers.forEach((header, index) => {
+        expect(Math.abs(header.left - geometry.cells[index].left)).toBeLessThanOrEqual(1);
+        expect(Math.abs(header.right - geometry.cells[index].right)).toBeLessThanOrEqual(1);
+      });
+    }
+  };
+  await expectFullWidthGrid();
+  await grid.screenshot({ path: testInfo.outputPath('narrative-grid-collapsed.png') });
   await page.getByTitle('Expand', { exact: true }).click();
   await expect(page.getByLabel('Technical narrative for AC-2')).toHaveValue('Existing technical');
   await expect(page.getByLabel('Technical narrative for AC-2')).toHaveAttribute('readonly', '');
+  await expectFullWidthGrid();
   if (testInfo.project.name === 'mobile') {
     const bounds = await page.getByLabel('Technical narrative for AC-2').boundingBox();
     expect(bounds).not.toBeNull();
