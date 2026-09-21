@@ -9,6 +9,11 @@ import type { BusinessContextDraftResponse, FlaggedControlItem } from '../types/
 import EvidenceSection from '../components/EvidenceSection';
 import ValidationEvidencePanel from '../features/compliance/components/ValidationEvidencePanel';
 
+function hasAiTechnicalNarrative(narrative: NarrativeListItem): boolean {
+  return narrative.aiSuggested && !narrative.migratedFromLegacy &&
+    Boolean(narrative.technicalNarrative?.trim());
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function StatusBadge({ status, variant }: { status: string; variant?: 'green' | 'amber' | 'red' | 'blue' | 'gray' }) {
@@ -371,7 +376,7 @@ export default function Narratives() {
     const partial = items.filter(n => n.implementationStatus === 'PartiallyImplemented').length;
     const planned = items.filter(n => n.implementationStatus === 'Planned').length;
     const approved = items.filter(n => n.approvalStatus === 'Approved').length;
-    const ai = items.filter(n => n.aiSuggested).length;
+    const ai = items.filter(hasAiTechnicalNarrative).length;
     return { total, implemented, partial, planned, approved, ai };
   }, [items]);
 
@@ -556,7 +561,7 @@ export default function Narratives() {
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Partial ({stats.partial})</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-400" /> Planned ({stats.planned})</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-gray-300" /> Approved ({stats.approved})</span>
-              {stats.ai > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-purple-400" /> AI-generated ({stats.ai})</span>}
+              {stats.ai > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-purple-400" /> AI-assisted Technical ({stats.ai})</span>}
             </div>
           </div>
         )}
@@ -674,7 +679,7 @@ export default function Narratives() {
                   <th className="px-3 py-3 text-left font-medium text-gray-500">Approval</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-500">Author</th>
                   <th className="px-3 py-3 text-center font-medium text-gray-500">Ver</th>
-                  <th className="px-3 py-3 text-center font-medium text-gray-500">AI</th>
+                  <th className="px-3 py-3 text-center font-medium text-gray-500">Source</th>
                   <th className="px-3 py-3 w-8" />
                 </tr>
               </thead>
@@ -719,8 +724,10 @@ export default function Narratives() {
                       <td className="px-3 py-3 text-gray-500">{n.authoredBy ?? '—'}</td>
                       <td className="px-3 py-3 text-center text-gray-500">{n.version}</td>
                       <td className="px-3 py-3 text-center">
-                        {n.aiSuggested ? (
-                          <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700" title="AI-generated narrative">AI</span>
+                        {n.migratedFromLegacy ? (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500" title="Migrated legacy text; generation provenance unverified">Migrated</span>
+                        ) : hasAiTechnicalNarrative(n) ? (
+                          <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700" title="AI-assisted Technical narrative">AI</span>
                         ) : n.isAutoPopulated ? (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500" title="Auto-populated">Auto</span>
                         ) : null}
@@ -748,7 +755,7 @@ export default function Narratives() {
                               <div className="flex items-center gap-4">
                                 <span>Authored: {formatDate(n.authoredAt)}</span>
                                 <span>Version: {n.version}</span>
-                                {n.aiSuggested && <span className="text-purple-600 font-medium">AI-generated narrative</span>}
+                                {hasAiTechnicalNarrative(n) && <span className="text-purple-600 font-medium">AI-assisted Technical narrative</span>}
                                 {savingIds.has(n.controlId) && <span className="text-indigo-600 font-medium">Saving…</span>}
                                 {savedIds.has(n.controlId) && !savingIds.has(n.controlId) && <span className="text-green-600 font-medium">Saved ✓</span>}
                               </div>

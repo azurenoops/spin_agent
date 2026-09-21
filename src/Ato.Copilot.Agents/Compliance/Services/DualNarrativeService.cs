@@ -74,6 +74,8 @@ public sealed class DualNarrativeService : IDualNarrativeService
         {
             implementation.TechnicalNarrative = technicalNarrative;
             implementation.MigratedFromLegacy = false;
+            implementation.AiSuggested = false;
+            implementation.IsAutoPopulated = false;
         }
 
         implementation.AuthoredBy = authoredBy;

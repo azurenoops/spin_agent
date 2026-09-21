@@ -58,6 +58,65 @@ public class BaselineIntegrationTests : IDisposable
 
     public void Dispose() => _serviceProvider.Dispose();
 
+    [Fact]
+    public async Task SelectBaseline_DeterministicTemplates_AreNotModelGenerated()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Template Provenance", "MajorApplication");
+        await CategorizeSystem(systemId, "Low", "Low", "Low");
+
+        // Act
+        await _selectBaselineTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = systemId,
+            ["apply_overlay"] = false
+        });
+
+        // Assert
+        using var scope = _serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var implementations = await context.ControlImplementations
+            .Where(implementation => implementation.RegisteredSystemId == systemId).ToListAsync();
+        implementations.Should().NotBeEmpty();
+        implementations.Should().OnlyContain(implementation =>
+            implementation.IsAutoPopulated && !implementation.AiSuggested &&
+            implementation.ImplementationStatus == ImplementationStatus.Planned &&
+            implementation.ApprovalStatus == SspSectionStatus.NotStarted);
+    }
+
+    [Fact]
+    public async Task SelectBaseline_TemplateCanBeBatchReplacedOnceWithoutAiFlag()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Template Replacement", "MajorApplication");
+        await CategorizeSystem(systemId, "Low", "Low", "Low");
+        await _selectBaselineTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = systemId,
+            ["apply_overlay"] = false
+        });
+        using var scope = _serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var baseline = await context.ControlBaselines.SingleAsync(item => item.RegisteredSystemId == systemId);
+        context.ControlInheritances.Add(new ControlInheritance
+        {
+            ControlBaselineId = baseline.Id, ControlId = "AC-1",
+            InheritanceType = InheritanceType.Inherited, Provider = "Test provider"
+        });
+        await context.SaveChangesAsync();
+        var service = new SspService(_serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            Mock.Of<ILogger<SspService>>());
+
+        // Act
+        var first = await service.BatchPopulateNarrativesAsync(systemId, "Inherited", "author");
+        var second = await service.BatchPopulateNarrativesAsync(systemId, "Inherited", "author");
+
+        // Assert
+        first.PopulatedCount.Should().Be(1);
+        second.PopulatedCount.Should().Be(0);
+        second.SkippedCount.Should().Be(1);
+    }
+
     /// <summary>
     /// End-to-end: Register → Categorize (Moderate) → Select baseline → Apply overlay →
     /// Tailor (add 2, remove 1) → Set inheritance (50 inherited, 10 shared) → Generate CRM → Verify counts.

@@ -448,8 +448,13 @@ public class ComponentServiceTests : IDisposable
     [Fact]
     public async Task UpdateOrgComponent_NameChange_CascadesNarrativeRegeneration()
     {
+        // Arrange
         var compId = await SeedCascadeData();
+        var prior = await _db.ControlImplementations.FindAsync("impl-cascade");
+        prior!.AiSuggested = true;
+        await _db.SaveChangesAsync();
 
+        // Act
         await _sut.UpdateOrgComponentAsync(compId, new CreateComponentRequest
         {
             Name = "New Component Name",
@@ -460,7 +465,10 @@ public class ComponentServiceTests : IDisposable
             LinkedCapabilityIds = [CapId1],
         });
 
+        // Assert
         var impl = await _db.ControlImplementations.FindAsync("impl-cascade");
+        impl!.AiSuggested.Should().BeFalse();
+        impl.IsAutoPopulated.Should().BeTrue();
         impl!.Narrative.Should().NotBe("Original narrative text");
         impl.Narrative.Should().Contain("New Component Name");
     }

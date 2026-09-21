@@ -305,12 +305,10 @@ public class SspService : ISspService
 
             if (existingByControl.TryGetValue(inh.ControlId, out var existing))
             {
-                // SelectBaseline writes AiSuggested Planned templates; SetInheritance
-                // may already flip those to Implemented without replacing the
-                // customer-template text. Both are still replaceable drafts.
-                // Human-authored (!IsAutoPopulated) and prior batch-populate
-                // rows (IsAutoPopulated && !AiSuggested) are skipped.
-                var isReplaceableTemplate = existing.IsAutoPopulated && existing.AiSuggested;
+                var family = inh.ControlId.Split('-')[0];
+                var template = GenerateCustomerNarrativeTemplate(family, inh.ControlId, system);
+                var isReplaceableTemplate = existing.IsAutoPopulated &&
+                    (existing.TechnicalNarrative ?? existing.Narrative) == template;
                 if (!isReplaceableTemplate)
                 {
                     result.SkippedCount++;
@@ -693,7 +691,7 @@ public class SspService : ISspService
         {
             if (!ci.HasCanonicalNarrative()) continue; // missing → warning already added above
 
-            bool isUngroundedScaffold = ci.AiSuggested && string.IsNullOrWhiteSpace(ci.ApprovedVersionId);
+            bool isUngroundedScaffold = (ci.AiSuggested || ci.IsAutoPopulated) && string.IsNullOrWhiteSpace(ci.ApprovedVersionId);
             var canonicalNarrative = $"{ci.PolicyNarrative}\n{ci.TechnicalNarrative}";
             bool hasSourceMissingMarker = canonicalNarrative.Contains("[SOURCE MISSING", StringComparison.OrdinalIgnoreCase);
             bool hasUnverifiedScaffold = canonicalNarrative.Contains("[scaffold reference — unverified]", StringComparison.OrdinalIgnoreCase);

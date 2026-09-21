@@ -78,6 +78,35 @@ public class DualNarrativeServiceTests : IDisposable
         saved.ModifiedAt.Should().NotBeNull();
     }
 
+    [Theory]
+    [InlineData(false, "Human technical")]
+    [InlineData(true, "Human technical")]
+    [InlineData(true, null)]
+    [InlineData(true, "")]
+    public async Task UpdateAsync_ProvenanceTracksTechnicalEdits(bool updateTechnical, string? technical)
+    {
+        // Arrange
+        var implementation = await SeedImplementationAsync();
+        implementation.AiSuggested = true;
+        implementation.IsAutoPopulated = true;
+        implementation.ImplementationStatus = ImplementationStatus.Planned;
+        await _db.SaveChangesAsync();
+
+        // Act
+        await _service.UpdateAsync("system-1", "AC-1", "Human policy", true,
+            technical, updateTechnical, "Compliance.Analyst", "author");
+
+        // Assert
+        _db.ChangeTracker.Clear();
+        var saved = await _db.ControlImplementations.SingleAsync();
+        saved.AiSuggested.Should().Be(!updateTechnical);
+        saved.IsAutoPopulated.Should().Be(!updateTechnical);
+        saved.ImplementationStatus.Should().Be(ImplementationStatus.Planned);
+        saved.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
+        saved.PolicyNarrative.Should().Be("Human policy");
+        saved.TechnicalNarrative.Should().Be(updateTechnical ? technical : "Existing technical");
+    }
+
     [Fact]
     public async Task UpdateAsync_PlatformEngineerPolicyWrite_ThrowsForbidden()
     {

@@ -692,6 +692,45 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         body.GetProperty("error").GetString().Should().NotBeNullOrWhiteSpace();
     }
 
+    [Theory]
+    [InlineData(false, ImplementationStatus.PartiallyImplemented)]
+    [InlineData(true, ImplementationStatus.Implemented)]
+    public async Task Issue961_RunAssessment_TemplateProvenanceDoesNotImplyReview(
+        bool reviewed, ImplementationStatus expectedStatus)
+    {
+        // Arrange
+        using (var scope = _app.Services.CreateScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+            await using var db = await factory.CreateDbContextAsync();
+            db.SecurityCategorizations.Add(new SecurityCategorization
+            {
+                RegisteredSystemId = TestSystemId, CategorizedBy = "test-user"
+            });
+            db.ControlImplementations.Add(new ControlImplementation
+            {
+                RegisteredSystemId = TestSystemId, ControlId = "AC-1", AuthoredBy = "template",
+                Narrative = "Deterministic scaffold", TechnicalNarrative = "Deterministic scaffold",
+                IsAutoPopulated = true, AiSuggested = false,
+                ReviewedBy = reviewed ? "reviewer" : null,
+                ImplementationStatus = ImplementationStatus.Planned
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.PostAsync($"/api/dashboard/systems/{TestSystemId}/run-assessment", null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var verificationScope = _app.Services.CreateScope();
+        var verificationFactory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+        await using var verificationDb = await verificationFactory.CreateDbContextAsync();
+        var implementation = await verificationDb.ControlImplementations.SingleAsync(item =>
+            item.RegisteredSystemId == TestSystemId && item.ControlId == "AC-1");
+        implementation.ImplementationStatus.Should().Be(expectedStatus);
+    }
+
     [Fact]
     public async Task Issue823_RunAssessment_PersistsAuthenticatedActor()
     {

@@ -1670,6 +1670,8 @@ public class ComponentService
                     impl.CurrentVersion++;
                 }
 
+                impl.AiSuggested = false;
+                impl.IsAutoPopulated = true;
                 impl.ModifiedAt = DateTime.UtcNow;
                 totalUpdated++;
                 systemUpdated++;
