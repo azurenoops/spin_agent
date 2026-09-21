@@ -360,6 +360,8 @@ public class CapabilityService
                         impl.CurrentVersion++;
                     }
 
+                    impl.AiSuggested = false;
+                    impl.IsAutoPopulated = true;
                     impl.ModifiedAt = DateTime.UtcNow;
                     narrativesUpdated++;
                     systemUpdated++;
@@ -936,17 +938,13 @@ public class CapabilityService
                 cancellationToken);
 
             // Fall back to deterministic enriched narrative when AI is not enabled
+            aiGenerated = !string.IsNullOrWhiteSpace(narrative);
             narrative ??= _narrativeService.GenerateEnrichedNarrative(
                 cap.Name, cap.Provider, cap.Description,
                 controlId, controlTitle,
                 componentContexts.Count > 0 ? componentContexts : null,
                 boundaryName);
 
-            aiGenerated = narrative != _narrativeService.GenerateEnrichedNarrative(
-                cap.Name, cap.Provider, cap.Description,
-                controlId, controlTitle,
-                componentContexts.Count > 0 ? componentContexts : null,
-                boundaryName);
         }
         else
         {
@@ -991,6 +989,7 @@ public class CapabilityService
 
         impl.SetCombinedNarrative(narrative);
         impl.AiSuggested = aiGenerated;
+        impl.IsAutoPopulated = true;
         impl.ModifiedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -1063,6 +1062,7 @@ public class CapabilityService
                 boundaryName,
                 cancellationToken);
 
+            var aiGenerated = !string.IsNullOrWhiteSpace(narrative);
             narrative ??= _narrativeService.GenerateEnrichedNarrative(
                 capabilityName, provider, description,
                 controlId, controlTitle,
@@ -1085,7 +1085,7 @@ public class CapabilityService
             }
 
             impl.SetCombinedNarrative(narrative);
-            impl.AiSuggested = true;
+            impl.AiSuggested = aiGenerated;
             impl.IsAutoPopulated = true;
             impl.ModifiedAt = DateTime.UtcNow;
             regenerated++;
@@ -1504,6 +1504,7 @@ public class CapabilityService
                 }
                 else
                 {
+                    impl.AiSuggested = false;
                     impl.SetCombinedNarrative(_narrativeService.GenerateEnrichedNarrative(
                         cap.Name, cap.Provider, cap.Description,
                         normalizedControlId, nist.Title,

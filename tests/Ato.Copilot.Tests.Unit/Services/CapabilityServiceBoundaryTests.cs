@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Ato.Copilot.Core.Configuration;
+using Microsoft.Extensions.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -105,6 +107,53 @@ public class CapabilityServiceBoundaryTests : IDisposable
         });
 
         _db.SaveChanges();
+    }
+
+    [Theory]
+    [InlineData(false, null, false)]
+    [InlineData(true, null, false)]
+    [InlineData(false, "", false)]
+    [InlineData(true, "   ", false)]
+    [InlineData(false, "Template text", true)]
+    [InlineData(true, "Model text", true)]
+    public async Task Regenerate_ProvenanceUsesModelOutcome(bool bulk, string? modelText, bool expectedAi)
+    {
+        // Arrange
+        var fallback = new NarrativeTemplateService().GenerateEnrichedNarrative(
+            "MFA", "Entra ID", "MFA", "AC-2", "AC-2", null, "Primary");
+        var responseText = modelText == "Template text" ? fallback : modelText;
+        var client = new Mock<IChatClient>();
+        client.Setup(service => service.GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(),
+            It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
+        var generator = new NarrativeTemplateService(client.Object,
+            new AzureAiOptions { Enabled = true, Endpoint = "https://test.openai.azure.us/" },
+            Mock.Of<ILogger<NarrativeTemplateService>>());
+        var service = new CapabilityService(_db, Mock.Of<ILogger<CapabilityService>>(),
+            generator, Mock.Of<IDeviationService>(), Mock.Of<IOrgInheritanceService>());
+        var implementation = new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "AC-2", SecurityCapabilityId = CapId,
+            PolicyNarrative = "Human policy", AuthoredBy = "author",
+            ImplementationStatus = ImplementationStatus.Planned, ApprovalStatus = SspSectionStatus.Draft
+        };
+        _db.ControlImplementations.Add(implementation);
+        await _db.SaveChangesAsync();
+
+        // Act
+        if (bulk)
+            await service.BulkRegenerateNarrativesForCapabilityAsync(SystemId, CapId, "author");
+        else
+            await service.RegenerateNarrativeWithAiAsync(SystemId, "AC-2", "author");
+
+        // Assert
+        await _db.Entry(implementation).ReloadAsync();
+        implementation.AiSuggested.Should().Be(expectedAi);
+        implementation.IsAutoPopulated.Should().BeTrue();
+        implementation.Narrative.Should().Be(expectedAi ? responseText : fallback);
+        implementation.PolicyNarrative.Should().Be("Human policy");
+        implementation.ImplementationStatus.Should().Be(ImplementationStatus.Planned);
+        implementation.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
     }
 
     [Fact]
@@ -460,7 +509,7 @@ public class CapabilityServiceBoundaryTests : IDisposable
     [Fact]
     public async Task UpdateCapability_BoundaryScoped_ReturnsNarrativesByBoundary()
     {
-        // Setup: add a ControlImplementation linked to the capability
+        // Arrange
         _db.NistControls.Add(new NistControl
         {
             Id = "AC-2", Family = "AC", Title = "Account Management",
@@ -470,6 +519,7 @@ public class CapabilityServiceBoundaryTests : IDisposable
             RegisteredSystemId = SystemId,
             ControlId = "AC-2",
             SecurityCapabilityId = CapId,
+            AiSuggested = true,
             AuthoredBy = "test",
         });
         await _db.SaveChangesAsync();
@@ -481,14 +531,44 @@ public class CapabilityServiceBoundaryTests : IDisposable
             ImplementationStatus = "Implemented", Owner = "Test",
         };
 
+        // Act
         var (result, conflict) = await _sut.UpdateCapabilityAsync(CapId, request, "test");
 
+        // Assert
+        var implementation = await _db.ControlImplementations.SingleAsync();
+        implementation.AiSuggested.Should().BeFalse();
+        implementation.IsAutoPopulated.Should().BeTrue();
         conflict.Should().BeFalse();
         result.Should().NotBeNull();
         result!.NarrativesUpdated.Should().Be(1);
         result.NarrativesByBoundary.Should().NotBeNull();
         // AC-2 mapping has null boundary FK → tracked as "Organization-Wide"
         result.NarrativesByBoundary.Should().ContainKey("Organization-Wide");
+    }
+
+    [Fact]
+    public async Task CreateMappings_DeterministicFallback_ClearsPriorAiProvenance()
+    {
+        // Arrange
+        _db.NistControls.Add(new NistControl { Id = "ac-3", Family = "AC", Title = "Access Enforcement" });
+        var implementation = new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "ac-3", AiSuggested = true,
+            Narrative = "Previous model output", AuthoredBy = "author"
+        };
+        _db.ControlImplementations.Add(implementation);
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.CreateMappingsAsync(CapId, new CreateMappingsRequest
+        {
+            Mappings = [new CreateMappingItem { ControlId = "ac-3", Role = "Primary", RegisteredSystemId = SystemId }]
+        }, "author");
+
+        // Assert
+        result!.NarrativesGenerated.Should().Be(1);
+        implementation.AiSuggested.Should().BeFalse();
+        implementation.IsAutoPopulated.Should().BeTrue();
     }
 
     [Fact]
