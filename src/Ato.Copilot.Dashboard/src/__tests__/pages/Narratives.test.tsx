@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const route = vi.hoisted(() => ({ systemId: 'system-1' }));
+const legacySources = vi.hoisted(() => ({ sharePointSiteUrl: '', sourceDocuments: '' }));
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return { ...actual, useParams: () => ({ id: route.systemId }) };
@@ -18,7 +19,7 @@ vi.mock('../../api/narratives', () => ({
 vi.mock('../../api/businessContext', () => ({ getBusinessContext: vi.fn(), getFlaggedControls: vi.fn() }));
 vi.mock('../../hooks/usePolling', () => ({ usePolling: vi.fn() }));
 vi.mock('../../hooks/useSettings', () => ({
-  useSettings: () => ({ settings: { role: 'ISSO', sharePointSiteUrl: '', sourceDocuments: '' } }),
+  useSettings: () => ({ settings: { role: 'ISSO', ...legacySources } }),
 }));
 vi.mock('../../components/EvidenceSection', () => ({ default: () => null }));
 vi.mock('../../features/compliance/components/ValidationEvidencePanel', () => ({ default: () => null }));
@@ -32,8 +33,25 @@ const mockRegenerate = narrativeApi.regenerateNarrative as ReturnType<typeof vi.
 const mockUsePolling = usePolling as ReturnType<typeof vi.fn>;
 const refresh = vi.fn();
 
+it('does not select generation sources from legacy browser settings (#1001)', async () => {
+  // Arrange
+  legacySources.sharePointSiteUrl = 'https://example.invalid/policies';
+  legacySources.sourceDocuments = 'old-policy.docx';
+  mockRegenerate.mockResolvedValue('Generated draft');
+  render(<Narratives />);
+  // Act
+  fireEvent.click(screen.getByTitle('Expand'));
+  fireEvent.click(screen.getByRole('button', { name: /Regenerate/i }));
+  // Assert
+  await waitFor(() => expect(mockRegenerate).toHaveBeenCalled());
+  expect(mockRegenerate).toHaveBeenCalledWith('system-1', 'AC-1', { expectedVersion: 1 });
+  expect(screen.queryByText(/configured source|No document sources configured/i)).not.toBeInTheDocument();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  legacySources.sharePointSiteUrl = '';
+  legacySources.sourceDocuments = '';
   route.systemId = 'system-1';
   vi.mocked(narrativeApi.saveNarrative).mockReset().mockResolvedValue({ currentVersion: 2 });
   vi.mocked(businessContextApi.getBusinessContext).mockReset().mockResolvedValue(null);
@@ -62,6 +80,22 @@ beforeEach(() => {
 });
 
 describe('Narratives regeneration', () => {
+  it('preserves active text and generates a separate proposal in the new workspace', async () => {
+    // Arrange
+    const generate = vi.fn().mockResolvedValue(undefined);
+    render(<Narratives onGenerateDraft={generate} canGenerate />);
+    fireEvent.click(screen.getByTitle('Expand'));
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate as draft' }));
+    // Assert
+    await waitFor(() => expect(generate).toHaveBeenCalledWith('AC-1', 1));
+    expect(screen.getByLabelText('Policy narrative for AC-1')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Technical narrative for AC-1')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Technical narrative for AC-1')).toHaveValue('Original technical narrative');
+    expect(mockRegenerate).not.toHaveBeenCalled();
+    expect(narrativeApi.saveNarrative).not.toHaveBeenCalled();
+  });
+
   it('preserves the draft and reports a stale save without showing Saved', async () => {
     // Arrange
     vi.mocked(narrativeApi.saveNarrative).mockRejectedValue({
