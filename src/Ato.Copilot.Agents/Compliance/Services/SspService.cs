@@ -27,7 +27,7 @@ public class SspService : ISspService
     }
 
     /// <inheritdoc />
-    public async Task<ControlImplementation> WriteNarrativeAsync(
+    public Task<ControlImplementation> WriteNarrativeAsync(
         string systemId,
         string controlId,
         string narrative,
@@ -36,6 +36,24 @@ public class SspService : ISspService
         int? expectedVersion = null,
         string? changeReason = null,
         CancellationToken cancellationToken = default)
+        => WriteNarrativeCoreAsync(systemId, controlId, narrative, status, authoredBy,
+            expectedVersion, changeReason, null, cancellationToken);
+
+    public Task<ControlImplementation> WriteGeneratedNarrativeAsync(
+        string systemId,
+        string controlId,
+        string narrative,
+        bool generatedByModel,
+        string authoredBy = "mcp-user",
+        string? changeReason = null,
+        CancellationToken cancellationToken = default)
+        => WriteNarrativeCoreAsync(systemId, controlId, narrative, null, authoredBy,
+            null, changeReason, generatedByModel, cancellationToken);
+
+    private async Task<ControlImplementation> WriteNarrativeCoreAsync(
+        string systemId, string controlId, string narrative, string? status,
+        string authoredBy, int? expectedVersion, string? changeReason,
+        bool? generatedByModel, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(systemId, nameof(systemId));
         ArgumentException.ThrowIfNullOrWhiteSpace(controlId, nameof(controlId));
@@ -86,8 +104,8 @@ public class SspService : ISspService
             existing.SetCombinedNarrative(technicalNarrative);
             existing.ImplementationStatus = implStatus;
             existing.ModifiedAt = DateTime.UtcNow;
-            existing.AiSuggested = false;
-            existing.IsAutoPopulated = false;
+            existing.AiSuggested = generatedByModel == true;
+            existing.IsAutoPopulated = generatedByModel.HasValue;
             existing.CurrentVersion += 1;
             existing.ApprovalStatus = SspSectionStatus.Draft;
             existing.AuthoredBy = authoredBy;
@@ -98,6 +116,7 @@ public class SspService : ISspService
                 ControlImplementationId = existing.Id,
                 VersionNumber = existing.CurrentVersion,
                 Content = narrative.Trim(),
+                SnapshotJson = NarrativeContentSnapshot.Capture(existing),
                 Status = SspSectionStatus.Draft,
                 AuthoredBy = authoredBy,
                 AuthoredAt = DateTime.UtcNow,
@@ -123,6 +142,8 @@ public class SspService : ISspService
             AuthoredBy = authoredBy,
             AuthoredAt = DateTime.UtcNow,
             CurrentVersion = 1,
+            AiSuggested = generatedByModel == true,
+            IsAutoPopulated = generatedByModel.HasValue,
             ApprovalStatus = SspSectionStatus.Draft
         };
         implementation.SetCombinedNarrative(narrative.Trim());
@@ -135,6 +156,7 @@ public class SspService : ISspService
             ControlImplementationId = implementation.Id,
             VersionNumber = 1,
             Content = narrative.Trim(),
+            SnapshotJson = NarrativeContentSnapshot.Capture(implementation),
             Status = SspSectionStatus.Draft,
             AuthoredBy = authoredBy,
             AuthoredAt = DateTime.UtcNow,

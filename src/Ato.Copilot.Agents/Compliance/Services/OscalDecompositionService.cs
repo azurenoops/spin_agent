@@ -143,7 +143,12 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
 
             // 3. Parse the JSON response
             var output = JsonSerializer.Deserialize<DecompositionOutput>(rawJson, JsonOpts);
-            parsedFragments = output?.Fragments ?? [];
+            parsedFragments = output?.Fragments?
+                .Select(fragment => fragment with { DerivationBasis = "ModelSelfReported" })
+                .ToList() ?? [];
+            if (parsedFragments.Count == 0 || parsedFragments.Any(fragment =>
+                string.IsNullOrWhiteSpace(fragment.StatementId) || string.IsNullOrWhiteSpace(fragment.Description)))
+                throw new JsonException("Decomposition response has no usable statement fragments.");
         }
         catch (JsonException ex)
         {
@@ -208,6 +213,7 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
             Description = f.Description,
             SuggestedParamsJson = JsonSerializer.Serialize(f.SuggestedParams, JsonOpts),
             ConfidenceScore = f.ConfidenceScore,
+            DerivationBasis = f.DerivationBasis,
         }).ToList();
 
         draft.Fragments = fragmentEntities;
@@ -271,6 +277,9 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
             ?? throw new InvalidOperationException(
                 $"No pending decomposition draft found for system={systemId}, control={controlId}.");
 
+        if (draft.Fragments.Count == 0 || draft.Fragments.Any(fragment => string.IsNullOrWhiteSpace(fragment.Description)))
+            throw new InvalidOperationException("Cannot approve a decomposition without usable narrative fragments.");
+
         // Mark draft Approved
         draft.Status = DecompositionDraftStatus.Approved;
         draft.ApprovedBy = approvedBy;
@@ -299,7 +308,9 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
                 .Select(f => $"[{f.StatementId}] {f.Description}"));
 
             controlImpl.SetCombinedNarrative(compositeNarrative);
-            controlImpl.AiSuggested = true;
+            controlImpl.AiSuggested = draft.Fragments.Count > 0
+                && draft.Fragments.All(fragment => fragment.DerivationBasis == "ModelSelfReported");
+            controlImpl.IsAutoPopulated = true;
             controlImpl.ModifiedAt = DateTime.UtcNow;
         }
 
@@ -376,7 +387,7 @@ public sealed class OscalDecompositionService : IOscalDecompositionService
                     Description: f.Description,
                     SuggestedParams: suggestedParams,
                     ConfidenceScore: f.ConfidenceScore,
-                    DerivationBasis: f.ConfidenceScore.HasValue ? "ModelSelfReported" : "Fallback",
+                    DerivationBasis: f.DerivationBasis,
                     RequiresHumanValidation: true);
             })
             .ToList();

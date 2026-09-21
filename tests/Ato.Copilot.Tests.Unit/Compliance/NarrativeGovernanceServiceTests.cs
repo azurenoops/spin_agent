@@ -44,6 +44,45 @@ public class NarrativeGovernanceServiceTests : IDisposable
 
     public void Dispose() => _serviceProvider.Dispose();
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Rollback_RestoresGeneratedOrigin_WithVersionContent(bool generatedByModel)
+    {
+        // Arrange
+        var (system, _) = await SeedSystemWithNarrativeAsync();
+        await _sspService.WriteGeneratedNarrativeAsync(system.Id, "AC-1", "Generated text", generatedByModel);
+        await _sspService.WriteNarrativeAsync(system.Id, "AC-1", "Manual replacement");
+
+        // Act
+        var rollback = await _service.RollbackNarrativeAsync(system.Id, "AC-1", 2);
+
+        // Assert
+        var restored = await _db.ControlImplementations.AsNoTracking().SingleAsync();
+        restored.TechnicalNarrative.Should().Be("Generated text");
+        restored.AiSuggested.Should().Be(generatedByModel);
+        restored.IsAutoPopulated.Should().BeTrue();
+        rollback.VersionNumber.Should().Be(4);
+        rollback.Content.Should().Be("Generated text");
+    }
+
+    [Fact]
+    public async Task Rollback_LegacyVersion_DoesNotBorrowCurrentModelOrigin()
+    {
+        // Arrange
+        var (system, _) = await SeedSystemWithNarrativeAsync();
+        await _sspService.WriteGeneratedNarrativeAsync(system.Id, "AC-1", "Model text", true);
+
+        // Act
+        await _service.RollbackNarrativeAsync(system.Id, "AC-1", 1);
+
+        // Assert
+        var restored = await _db.ControlImplementations.AsNoTracking().SingleAsync();
+        restored.TechnicalNarrative.Should().Be("Test narrative content");
+        restored.AiSuggested.Should().BeFalse();
+        restored.IsAutoPopulated.Should().BeFalse();
+    }
+
     // ─── Seed Helpers ────────────────────────────────────────────────────────
 
     private async Task<(RegisteredSystem System, ControlImplementation Impl)> SeedSystemWithNarrativeAsync(

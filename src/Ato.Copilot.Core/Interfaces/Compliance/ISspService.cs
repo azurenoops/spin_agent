@@ -10,6 +10,15 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// <remarks>Feature 015 Phase 7 (US5).</remarks>
 public interface ISspService
 {
+    Task<ControlImplementation> WriteGeneratedNarrativeAsync(
+        string systemId,
+        string controlId,
+        string narrative,
+        bool generatedByModel,
+        string authoredBy = "mcp-user",
+        string? changeReason = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Write or update the implementation narrative for a control in a system's SSP.
     /// If a narrative already exists for this (systemId, controlId), it is updated.

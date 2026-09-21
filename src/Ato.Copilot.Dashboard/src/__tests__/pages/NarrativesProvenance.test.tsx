@@ -9,7 +9,10 @@ vi.mock('../../api/narratives', () => ({
   getNarratives: vi.fn(), bulkUpdateNarratives: vi.fn(), saveNarrative: vi.fn(),
   regenerateNarrative: vi.fn(), getAvailableControls: vi.fn(), createNarrative: vi.fn(),
 }));
-vi.mock('../../api/businessContext', () => ({ getBusinessContext: vi.fn().mockResolvedValue(null) }));
+vi.mock('../../api/businessContext', () => ({
+  getBusinessContext: vi.fn().mockResolvedValue(null),
+  getFlaggedControls: vi.fn().mockResolvedValue([]),
+}));
 vi.mock('../../hooks/usePolling', () => ({ usePolling: vi.fn() }));
 vi.mock('../../hooks/useSettings', () => ({
   useSettings: () => ({ settings: { role: 'ISSO', sharePointSiteUrl: '', sourceDocuments: '' } }),

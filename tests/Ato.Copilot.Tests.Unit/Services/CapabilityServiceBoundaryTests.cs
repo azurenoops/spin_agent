@@ -135,6 +135,8 @@ public class CapabilityServiceBoundaryTests : IDisposable
         {
             RegisteredSystemId = SystemId, ControlId = "AC-2", SecurityCapabilityId = CapId,
             PolicyNarrative = "Human policy", AuthoredBy = "author",
+            TechnicalNarrative = "Previous model text", Narrative = "Previous model text",
+            AiSuggested = true, IsAutoPopulated = true,
             ImplementationStatus = ImplementationStatus.Planned, ApprovalStatus = SspSectionStatus.Draft
         };
         _db.ControlImplementations.Add(implementation);
@@ -154,6 +156,13 @@ public class CapabilityServiceBoundaryTests : IDisposable
         implementation.PolicyNarrative.Should().Be("Human policy");
         implementation.ImplementationStatus.Should().Be(ImplementationStatus.Planned);
         implementation.ApprovalStatus.Should().Be(SspSectionStatus.Draft);
+        var version = await _db.NarrativeVersions.SingleAsync();
+        version.SnapshotJson.Should().NotBeNull();
+        var restored = new ControlImplementation();
+        NarrativeContentSnapshot.Restore(restored, version.SnapshotJson!);
+        restored.TechnicalNarrative.Should().Be("Previous model text");
+        restored.PolicyNarrative.Should().Be("Human policy");
+        restored.AiSuggested.Should().BeTrue();
     }
 
     [Fact]
@@ -342,6 +351,40 @@ public class CapabilityServiceBoundaryTests : IDisposable
         cspCoverage.NarrativeStatus.Empty.Should().Be(1);
         result.Summary.TotalCapabilities.Should().Be(2);
         result.Summary.TotalMappedControls.Should().Be(5);
+    }
+
+    [Theory]
+    [InlineData("Model content", false, true, 1)]
+    [InlineData("Migrated content", true, true, 0)]
+    [InlineData(null, false, true, 0)]
+    [InlineData("   ", false, true, 0)]
+    [InlineData("Template content", false, false, 0)]
+    public async Task GetCapabilityCoverage_CountsOnlyCanonicalModelContent(
+        string? technical, bool migrated, bool aiSuggested, int expectedCount)
+    {
+        // Arrange
+        var component = CreateCspComponent("Synthetic provider", CspInheritedComponentStatus.Published);
+        var capability = CreateCspCapability(component, "Synthetic capability", CspInheritedCapabilityStatus.Mapped, "AC-2");
+        _db.AddRange(component, capability);
+        _db.CapabilitySubscriptions.Add(new CapabilitySubscription
+        {
+            RegisteredSystemId = SystemId, CspInheritedCapabilityId = capability.Id.ToString(),
+            IsActive = true, SubscribedBy = "test",
+        });
+        _db.ControlImplementations.Add(new ControlImplementation
+        {
+            RegisteredSystemId = SystemId, ControlId = "AC-2", TechnicalNarrative = technical,
+            PolicyNarrative = "Human policy", Narrative = "Legacy projection",
+            MigratedFromLegacy = migrated, AiSuggested = aiSuggested,
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.GetCapabilityCoverageAsync(SystemId);
+
+        // Assert
+        result!.Capabilities.Should().HaveCount(2);
+        result.Capabilities.Should().OnlyContain(item => item.NarrativeStatus.AiGenerated == expectedCount);
     }
 
     [Fact]
