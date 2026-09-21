@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../features/workspaces/workspaceNavigation';
 
 /**
  * SystemsNewRoute — fix(#522)

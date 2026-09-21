@@ -6,6 +6,7 @@ import {
   type AvailableCapabilityDto,
 } from '../api/capabilities';
 import type { CapabilityMappingRole } from '../types/dashboard';
+import { useWorkspaceHref } from '../features/workspaces/workspaceNavigation';
 
 interface Props {
   systemId: string;
@@ -21,6 +22,7 @@ const ROLES: { value: CapabilityMappingRole; label: string; description: string 
 ];
 
 export default function AddCapabilityDialog({ systemId, existingCapabilityIds, onClose, onAdded }: Props) {
+  const workspaceHref = useWorkspaceHref();
   const [capabilities, setCapabilities] = useState<AvailableCapabilityDto[]>([]);
   const [totalCapabilities, setTotalCapabilities] = useState(0);
   const [excludedCount, setExcludedCount] = useState(0);
@@ -167,7 +169,7 @@ export default function AddCapabilityDialog({ systemId, existingCapabilityIds, o
                   <p className="text-sm text-gray-500 mt-1">
                     Create an organization capability in the{' '}
                     <a
-                      href="/capabilities"
+                      href={workspaceHref('/capabilities')}
                       className="text-indigo-600 underline hover:text-indigo-800"
                     >
                       Capabilities Hub

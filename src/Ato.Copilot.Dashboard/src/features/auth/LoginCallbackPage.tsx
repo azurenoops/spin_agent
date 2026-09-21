@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMsal } from '@azure/msal-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../workspaces/workspaceNavigation';
 import axios from 'axios';
 import { useLoginRaceListener } from './useLoginRaceListener';
 import type { MeResponse } from './types';

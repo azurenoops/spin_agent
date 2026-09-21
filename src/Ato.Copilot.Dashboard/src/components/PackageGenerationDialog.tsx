@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../features/workspaces/workspaceNavigation';
 import {
   generatePackage,
   getPackageDetail,

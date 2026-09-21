@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import axios from 'axios';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from '../workspaces/workspaceNavigation';
 import { useMe } from './useMe';
 import type { TenantSummary } from './types';
 

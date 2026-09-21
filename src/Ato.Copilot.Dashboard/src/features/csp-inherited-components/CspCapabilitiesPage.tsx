@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../workspaces/workspaceNavigation';
 import PageLayout from '../../components/layout/PageLayout';
 import PageHero from '../../components/layout/PageHero';
 import { useCspDashboardAvailable } from '../../components/layout/useCspDashboardAvailable';

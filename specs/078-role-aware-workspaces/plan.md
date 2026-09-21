@@ -527,6 +527,28 @@ Raw fetch/streaming and SignalR consumers still require scope/lifetime wiring
 with the workspace shell. Backend membership enforcement, permission projection
 and real-API workspace acceptance are not established by these client tests.
 
+### Implementation increment 3: scope-preserving navigation
+
+Added the React Router navigation adapter and migrated production router
+navigation imports without reformatting their files. Under a workspace provider,
+application links, active navigation, redirects and imperative navigation retain
+the workspace prefix; existing pages receive relative location paths. Outside
+the provider, legacy behavior is preserved. Global authentication redirects stay
+on the native router.
+
+Capability/component/evidence document links now preserve organization scope,
+including native anchors. Tests exercise history replacement/back navigation,
+external and login links, query-only destinations, both workspace kinds, and
+fail-closed mismatched navigation context. The component-inventory fixture now
+schedules mocked polling in an effect and awaits asynchronous dialog clicks
+rather than invoking network callbacks during render.
+
+Verification: 635 dashboard unit tests pass on Node 20; the navigation adapter
+has 100% focused coverage; all 8 synthetic desktop/mobile browser scenarios
+pass. TypeScript and production build pass with the documented build warnings.
+The validated membership shell is still required before activating the provider
+on canonical workspace entry routes. This adapter does not grant authorization.
+
 ### Planning artifact checks and tooling limitation
 
 Local relative Markdown links and unfilled-template checks passed for the new

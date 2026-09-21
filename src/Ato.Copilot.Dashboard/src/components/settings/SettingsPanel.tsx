@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../features/workspaces/workspaceNavigation';
 import { useSettings, type DashboardSettings } from '../../hooks/useSettings';
 import { useCspDashboardAvailable } from '../layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../../hooks/useImpersonationActive';

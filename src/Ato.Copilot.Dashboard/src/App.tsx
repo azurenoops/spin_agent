@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from './features/workspaces/workspaceNavigation';
 import { useIsAuthenticated, useMsal } from '@azure/msal-react';
 import PortfolioRoute from './pages/PortfolioRoute';
 import SystemsRoute from './pages/SystemsRoute';

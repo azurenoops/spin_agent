@@ -7,6 +7,7 @@ import {
   Navigate,
   useLocation,
   useNavigate,
+  useWorkspaceHref,
   WorkspaceNavigationProvider,
 } from '../../features/workspaces/workspaceNavigation';
 
@@ -16,6 +17,7 @@ function Probe() {
   const relative = useLocation();
   const actual = useActualLocation();
   const navigate = useNavigate();
+  const href = useWorkspaceHref();
   return (
     <>
       <output data-testid="relative">{relative.pathname}{relative.search}{relative.hash}</output>
@@ -26,8 +28,11 @@ function Probe() {
       <Link to="/login">Sign in</Link>
       <Link to="/workspaces/organizations/org-beta/systems">Other workspace</Link>
       <Link to="https://example.invalid/reference">External reference</Link>
+      <Link to="//example.invalid/help">External help</Link>
       <Link to="?view=review">Filter</Link>
+      <Link to={{ search: '?view=pending' }}>Pending filter</Link>
       <Link to={{ pathname: '/controls', search: '?family=AC', hash: '#AC-2' }}>Control catalog</Link>
+      <a href={href('/capabilities')}>Native capability link</a>
       <button onClick={() => void navigate('/components', { state: { from: 'systems' } })}>Components</button>
       <button onClick={() => void navigate(-1)}>Back</button>
     </>
@@ -54,8 +59,11 @@ describe('workspace navigation adapter', () => {
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
     expect(screen.getByRole('link', { name: 'Other workspace' })).toHaveAttribute('href', '/workspaces/organizations/org-beta/systems');
     expect(screen.getByRole('link', { name: 'External reference' })).toHaveAttribute('href', 'https://example.invalid/reference');
+    expect(screen.getByRole('link', { name: 'External help' })).toHaveAttribute('href', '//example.invalid/help');
     expect(screen.getByRole('link', { name: 'Filter' })).toHaveAttribute('href', '/workspaces/organizations/org-alpha/systems?view=review');
+    expect(screen.getByRole('link', { name: 'Pending filter' })).toHaveAttribute('href', '/workspaces/organizations/org-alpha/systems?view=pending');
     expect(screen.getByRole('link', { name: 'Control catalog' })).toHaveAttribute('href', '/workspaces/organizations/org-alpha/controls?family=AC#AC-2');
+    expect(screen.getByRole('link', { name: 'Native capability link' })).toHaveAttribute('href', '/workspaces/organizations/org-alpha/capabilities');
     expect(screen.getByTestId('relative')).toHaveTextContent('/systems?view=all#list');
   });
 
@@ -128,5 +136,20 @@ describe('workspace navigation adapter', () => {
     expect(await screen.findByTestId('actual')).toHaveTextContent('/workspaces/organizations/org-alpha/components');
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByTestId('actual')).toHaveTextContent('/workspaces/organizations/org-alpha/systems');
+  });
+
+  it.each(['/workspaces/csp', '/systems'])('fails closed for a mismatched navigation context at %s', url => {
+    // Arrange
+    const view = (
+      <MemoryRouter initialEntries={[url]}>
+        <WorkspaceNavigationProvider workspace={organization}><Probe /></WorkspaceNavigationProvider>
+      </MemoryRouter>
+    );
+
+    // Act
+    const mount = () => render(view);
+
+    // Assert
+    expect(mount).toThrow('Workspace navigation context does not match the current URL.');
   });
 });

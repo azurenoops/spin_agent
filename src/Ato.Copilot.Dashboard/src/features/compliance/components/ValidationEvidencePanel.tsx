@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { deleteValidationLink, getControlValidationLinks, type ControlValidationLink } from '../api/complianceApi';
 import { buildAzurePortalUrl } from '../utils/azurePortalUrl';
 import AddValidationLinkModal from './AddValidationLinkModal';
+import { useWorkspaceHref } from '../../workspaces/workspaceNavigation';
 
 interface Props {
   systemId: string;
@@ -31,6 +32,7 @@ function targetUrl(systemId: string, link: ControlValidationLink): string {
 }
 
 export default function ValidationEvidencePanel({ systemId, controlId, canManage }: Props) {
+  const workspaceHref = useWorkspaceHref();
   const [links, setLinks] = useState<ControlValidationLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -92,7 +94,7 @@ export default function ValidationEvidencePanel({ systemId, controlId, canManage
                   </span>
                 </div>
                 {link.description && <p className="mt-1 text-sm font-medium text-gray-900">{link.description}</p>}
-                <a href={targetUrl(systemId, link)} target={link.linkType === 'ExternalUrl' || link.linkType === 'AzureResource' ? '_blank' : undefined} rel="noreferrer" className="mt-1 block truncate text-xs text-indigo-600 hover:underline" aria-label="Open validation target">
+                <a href={workspaceHref(targetUrl(systemId, link))} target={link.linkType === 'ExternalUrl' || link.linkType === 'AzureResource' ? '_blank' : undefined} rel="noreferrer" className="mt-1 block truncate text-xs text-indigo-600 hover:underline" aria-label="Open validation target">
                   {link.linkTarget}
                 </a>
                 <p className="mt-1 text-xs text-gray-500">Added by {link.addedBy} on {new Date(link.addedAt).toLocaleDateString()}</p>

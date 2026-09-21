@@ -25,7 +25,8 @@ actual acceptance tests before declaring a dependency resolved.
 | [#968](https://github.com/azurenoops/spin_agent/issues/968) mission profile role gates | Closed at final status check | Server-authoritative complete assignment-based profile edit permission, fail-closed UI and structured errors | Consume the merged fix for Mission Profile permissions in US3 rather than duplicate it |
 | [PR #1005](https://github.com/azurenoops/spin_agent/pull/1005) profile permission fix | Merged on 2026-09-21 at 16:55:42 UTC as `05924787` | Implementation for #968; PR body reports tests and remaining manual/SQL Server gates | Synchronize the feature branch with updated main before implementation and verify the merged contract; reported results are not this branch's test results |
 | [#957](https://github.com/azurenoops/spin_agent/issues/957) subscription responsibility handoff | Open | Authoritative per-control Inherited/Shared/Customer allocation, applicable-baseline reconciliation, provenance/overrides/overlap/unsubscribe rules | US4 designation/CRM/SSP acceptance; do not derive inheritance from mapped IDs |
-| [#1001](https://github.com/azurenoops/spin_agent/issues/1001) state-aware narratives and Narrative Library | Open | Server-persisted scoped references, upload/extraction/mapping/review/publication, separate policy/technical freshness, preserved approved versions | US4 narrative-change handoff and US5 integration; no placeholder link may satisfy final acceptance |
+| [#1001](https://github.com/azurenoops/spin_agent/issues/1001) state-aware narratives and Narrative Library | Open; partial foundation merged in #1014 | Server-persisted scoped references, upload/extraction/mapping/review/publication, separate policy/technical freshness, preserved approved versions | Integrate the merged foundation, then verify remaining US4/US5 contracts; an open requirement is not satisfied by a placeholder link |
+| [PR #1014](https://github.com/azurenoops/spin_agent/pull/1014) Narrative Library foundation | Merged as `1cbbc9e6` on 2026-09-21 at 17:28:39 UTC | Imports, reviewed publication, manual proposals, freshness and system narrative workspace routes | Synchronize after backend membership edits are checkpointed; PR explicitly lists automatic proposals, scope/reviewer policy, concurrency, SQL Server, regression and manual-acceptance gaps |
 | [#937](https://github.com/azurenoops/spin_agent/issues/937) Mission Owner assignment | Closed | Existing supported Person/role resolution foundation | Regression coverage, not a new membership model or an assumed fix for #942 |
 
 Historical issues #68, #89, #94, #221 and #209 are references from #1002, not
@@ -37,6 +38,12 @@ The final check found `origin/main` at `05924787`, one commit ahead of this
 feature branch's inspected base. No merge/rebase or runtime changes were made
 under the documentation-only authorization. Source observations in the plan are
 anchored to `c3d74d9b`; revalidate changed profile contracts after synchronization.
+
+During implementation, #1005 was integrated. A later dependency check found
+#1014 merged and `origin/main` at `1cbbc9e6`, while #1001 remains open. Its changes
+overlap the in-progress membership context file, so the shared branch is not
+merged underneath the active backend work. Incorporate it after that work is
+checkpointed, preserving both sets of schema/context additions.
 
 ## Recommended order
 

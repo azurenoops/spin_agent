@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from '../../features/workspaces/workspaceNavigation';
 import { useMsal } from '@azure/msal-react';
 import HelpPanel from '../help/HelpPanel';
 import ChatToggle from '../chat/ChatToggle';

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from '../features/workspaces/workspaceNavigation';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { usePolling } from '../hooks/usePolling';

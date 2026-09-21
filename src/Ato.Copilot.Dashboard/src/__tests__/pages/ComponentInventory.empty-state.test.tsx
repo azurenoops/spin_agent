@@ -11,7 +11,7 @@
  * mock the API layer (getComponents / listComponents), click the "Add Existing"
  * tab, then assert the correct empty-state copy.
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
@@ -53,9 +53,10 @@ vi.mock('../../components/forms/ComponentForm', () => ({
 vi.mock('../../components/cards/MetricCard', () => ({
   default: () => <div />,
 }));
-vi.mock('../../hooks/usePolling', () => ({
-  usePolling: (fn: () => void) => { fn(); },
-}));
+vi.mock('../../hooks/usePolling', async () => {
+  const { useEffect } = await import('react');
+  return { usePolling: (fn: () => void) => useEffect(() => { fn(); }, [fn]) };
+});
 
 import * as compApi from '../../api/components';
 import ComponentInventory from '../../pages/ComponentInventory';
@@ -122,10 +123,10 @@ beforeEach(() => {
 async function openAddExistingTab() {
   // First click "Add Component" to show the panel (or find it if always visible)
   const addBtn = await screen.findByRole('button', { name: /add component/i });
-  fireEvent.click(addBtn);
+  await act(async () => { fireEvent.click(addBtn); });
   // Then click the "Add Existing" tab
   const existingTab = await screen.findByRole('button', { name: /add existing/i });
-  fireEvent.click(existingTab);
+  await act(async () => { fireEvent.click(existingTab); });
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -134,7 +135,7 @@ describe('ComponentInventory — Add Existing empty-state messages', () => {
   it('keeps the component-library link inside the organization workspace', async () => {
     // Arrange
     mockListComponents.mockResolvedValue({ items: [], totalCount: 0 });
-    renderPage(true);
+    await act(async () => { renderPage(true); });
 
     // Act
     await openAddExistingTab();

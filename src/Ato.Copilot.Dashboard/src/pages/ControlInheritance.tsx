@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link } from '../features/workspaces/workspaceNavigation';
 import InheritanceSummaryBar from '../components/inheritance/InheritanceSummaryBar';
 import InheritanceTable from '../components/inheritance/InheritanceTable';
 import BulkUpdateToolbar from '../components/inheritance/BulkUpdateToolbar';

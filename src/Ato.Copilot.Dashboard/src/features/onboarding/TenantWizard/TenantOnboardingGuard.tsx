@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from '../../workspaces/workspaceNavigation';
 import { tenantWizard, type TenantOnboardingProgress } from './api';
 
 /**

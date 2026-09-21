@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../features/workspaces/workspaceNavigation';
 import { usePolling } from '../../hooks/usePolling';
 import { useSettings } from '../../hooks/useSettings';
 import type { TodoList, TodoItem, ProfileTodoResponse } from '../../types/dashboard';

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../workspaces/workspaceNavigation';
 import {
   createCspDashboardTenant,
   getCspDashboardTenants,

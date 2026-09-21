@@ -2,7 +2,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Link } from 'react-router-dom';
+import { Link } from '../../features/workspaces/workspaceNavigation';
 import type { Components } from 'react-markdown';
 
 export interface MarkdownRendererProps {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../workspaces/workspaceNavigation';
 import {
   tenantWizard,
   type TenantOnboardingProgress,

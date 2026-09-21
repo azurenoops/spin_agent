@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../features/workspaces/workspaceNavigation';
 import {
   detachAssessmentEnvironment, getAssessmentEnvironment, saveAssessmentEnvironment,
   type AssessmentEnvironment,

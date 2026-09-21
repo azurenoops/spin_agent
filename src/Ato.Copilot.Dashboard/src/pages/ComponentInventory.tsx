@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from '../features/workspaces/workspaceNavigation';
 import { ComponentSection } from '../components/cards/ComponentSection';
 import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
@@ -405,9 +405,9 @@ export default function ComponentInventory() {
                     <p className="text-sm text-gray-400">No org-level components available to assign.</p>
                     <p className="text-xs text-gray-400">
                       Create components in the{' '}
-                      <a href="/components" className="text-indigo-600 hover:text-indigo-500 underline">
+                      <Link to="/components" className="text-indigo-600 hover:text-indigo-500 underline">
                         Components library
-                      </a>{' '}
+                      </Link>{' '}
                       first, then assign them here.
                     </p>
                   </div>

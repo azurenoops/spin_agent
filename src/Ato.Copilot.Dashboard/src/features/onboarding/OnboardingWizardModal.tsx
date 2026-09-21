@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../workspaces/workspaceNavigation';
 import { onboarding, type OnboardingStateDto, type WizardStepName } from './api/onboardingApi';
 import { WIZARD_STEPS } from './components/WizardStepNavigator';
 import Step1OrganizationContext from './steps/Step1OrganizationContext';

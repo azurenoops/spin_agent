@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../../features/workspaces/workspaceNavigation';
 import { advanceRmfStep, getPhaseReadiness } from '../../../api/systemDetail';
 import type { PhaseReadinessResponse } from '../../../api/systemDetail';
 
