@@ -58,6 +58,30 @@ public class DualNarrativeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateAsync_UnderReview_RejectsWithoutChangingContentOrHistory()
+    {
+        // Arrange
+        var implementation = await SeedImplementationAsync();
+        implementation.ApprovalStatus = SspSectionStatus.UnderReview;
+        await _db.SaveChangesAsync();
+
+        // Act
+        var act = () => _service.UpdateAsync("system-1", "AC-1", "Changed policy", true,
+            "Changed technical", true, "Compliance.Analyst", "author");
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("UNDER_REVIEW:*");
+        _db.ChangeTracker.Clear();
+        var saved = await _db.ControlImplementations.SingleAsync();
+        saved.PolicyNarrative.Should().Be("Existing policy");
+        saved.TechnicalNarrative.Should().Be("Existing technical");
+        saved.ApprovalStatus.Should().Be(SspSectionStatus.UnderReview);
+        saved.AuthoredBy.Should().Be("seed-user");
+        saved.CurrentVersion.Should().Be(1);
+        (await _db.NarrativeVersions.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task UpdateAsync_PolicyOnly_LeavesTechnicalNarrativeUnchanged()
     {
         // Arrange
