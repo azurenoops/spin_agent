@@ -3184,6 +3184,9 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ReviewerComments).HasMaxLength(2000);
             entity.Property(e => e.RowVersion).IsConcurrencyToken();
 
+            if (Database.IsSqlite())
+                entity.Property(e => e.RowVersion).ValueGeneratedNever();
+
             // Unique composite: one section per type per system
             entity.HasIndex(e => new { e.RegisteredSystemId, e.SectionType })
                 .IsUnique()
@@ -4169,6 +4172,12 @@ public class AtoCopilotContext : DbContext
     {
         if (Database.IsSqlite())
         {
+            foreach (var entry in ChangeTracker.Entries<SystemProfileSection>())
+            {
+                if (entry.State is EntityState.Added or EntityState.Modified)
+                    entry.Entity.RowVersion = Guid.NewGuid().ToByteArray();
+            }
+
             foreach (var entry in ChangeTracker.Entries<BusinessContextDraft>())
             {
                 if (entry.State is EntityState.Added or EntityState.Modified)

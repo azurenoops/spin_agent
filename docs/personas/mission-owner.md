@@ -18,6 +18,13 @@
 
 ## Permissions
 
+Profile authoring is authorized per system and tenant. Active MissionOwner,
+SystemOwner, or ISSM assignments permit draft saves; ISSO alone and unassigned
+users are read-only. The dashboard uses the server's `canEditProfile` capability,
+not the locally selected persona. Sections under review remain locked even for
+authors. A revoked assignment is checked again when saving. Missing or failed
+permission loading never enables editing.
+
 | Capability | Allowed | Tool / UI |
 |-----------|---------|-----------|
 | View system profile | ✅ | `compliance_get_system_profile`, Dashboard Profile pages |

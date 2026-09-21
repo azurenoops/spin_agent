@@ -743,6 +743,7 @@ export interface ProfileSectionSummary {
 
 export interface ProfileSectionDetail {
   id: string;
+  canEditProfile?: boolean;
   sectionType: ProfileSectionType;
   governanceStatus: GovernanceStatus;
   draftContent: string | null;
