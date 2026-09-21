@@ -100,8 +100,12 @@ Publication procedure:
   stories and link them to #1002.
 - Implement #942's identity/membership prerequisite on this branch before
   continuing the dependent workspace UI (confirmed during implementation).
-  The exact grant/identity/schema contract still requires verification; this is
-  scope approval, not permission to infer membership from a selected ID or email.
+- Use explicit membership records bound to the trusted directory/object-ID pair
+  and linked to existing organization-local Person records.
+- Permit grants/revocations by CSP administrators and already-authorized
+  administrators of the selected organization. Existing unmapped users need
+  an explicit grant; emails, directory membership and empty-org bootstrap do
+  not implicitly grant membership.
 
 ### Proposed in this feature
 

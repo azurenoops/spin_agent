@@ -97,6 +97,57 @@ documents themselves are not evidence of existing library implementation.
 
 ## Architecture decisions
 
+### Approved membership prerequisite (#942)
+
+The user approved explicit membership records linked to existing
+organization-local `Person` records, rather than deriving membership from role
+assignments or introducing a global person registry.
+
+- Bind membership to the authenticated directory tenant ID and object ID.
+  Contact email, POC fields, client-selected organization and a bare object ID
+  without its directory are not membership proof.
+- Membership grant/revocation is distinct from RMF role assignment. Granting
+  membership does not create administration, authoring, assessment or approval
+  roles; revocation must deny ordinary access even if historical roles remain.
+- Grant/revoke authority is an authenticated CSP administrator or an
+  already-authorized administrator of the selected organization. Do not reuse
+  the empty-organization bootstrap shortcut for this operation.
+- Existing unmapped users require explicit, audited association; no automatic
+  migration grants based on email or directory membership.
+- Use additive SQLite/SQL Server schema support, tenant-local Person foreign-key
+  validation and an unambiguous active identity/organization association.
+  Keep grant/revoke attribution and last-administrator safeguards.
+
+The request transport agreed for backend implementation is:
+
+| Header | Meaning |
+|---|---|
+| `X-Workspace-Kind` | `csp` or `organization` |
+| `X-Workspace-Tenant-Id` | Internal isolation tenant ID for organization requests, not an Entra directory |
+| `X-Workspace-Mode` | `ordinary` or `support` |
+
+Ordinary organization requests require active membership and must ignore support
+cookies. Support requests require existing CSP authority and a valid matching
+actor/target support session. Invalid or inconsistent selectors are rejected.
+Tenant filters and domain role resolution must use the validated selected
+organization/Person, not raw `tid` or cross-tenant CSP bypass.
+
+Before frontend integration, the backend work must provide the exact additive
+`/me` workspace descriptor and membership-administration DTOs. An authenticated
+member whose sign-in directory has no legacy home-tenant row must still reach
+membership discovery and the ordinary workspace without fabricated home scope.
+Legacy unscoped requests remain a documented compatibility path, not the source
+of authority for explicit workspace requests.
+
+Frontend HTTP integration captures the URL-selected workspace before asynchronous
+token acquisition, pins that selector through retries, and discards responses
+after a workspace change. All existing Axios clients use the shared auth
+interceptor, so this is the common integration point rather than copied
+per-client header logic. Workspace selectors are sent only to the API origin
+configured for the client, not arbitrary external destinations. Unscoped legacy
+pages send no workspace selectors. Browser canonical organization URLs always
+mean ordinary mode unless an explicit support route is introduced and tested.
+
 ### 1. Keep identity, context and operation authorization separate
 
 Authentication establishes the actor. The #942 membership contract establishes
