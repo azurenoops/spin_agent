@@ -16,7 +16,7 @@ export function readiness(isReady = false, id = systemId) {
   return {
     systemId: id,
     isReady,
-    errorCode: isReady ? null : 'ASSESSMENT_ENVIRONMENT_NOT_CONFIGURED',
+    errorCode: isReady ? null : 'ASSESSMENT_AZURE_ENVIRONMENT_REQUIRED',
     message: isReady ? 'Azure assessment prerequisites verified.' : 'No Azure environment is attached.',
     suggestion: isReady ? null : 'Attach an eligible subscription in Configure Environment.',
     configurationUrl: configurationUrl(id),

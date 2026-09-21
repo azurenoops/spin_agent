@@ -83,6 +83,16 @@ const test = base.extend<{ api: SyntheticApi }>({
     api.respond('/api/onboarding/state', {
       ok: true, data: { steps: [{ step: 'OrganizationContext', status: 'Completed' }, { step: 'Roles', status: 'Completed' }] },
     });
+    api.respond('/api/onboarding/tenant/state', {
+      status: 'success',
+      data: {
+        tenantId: 'synthetic-tenant',
+        currentStep: 'Submitted',
+        completedSteps: ['Tenant.LegalEntity', 'Tenant.HqAddress', 'Tenant.Classification', 'Tenant.Ao', 'Tenant.PrimaryPoc', 'Org.Profile', 'Submitted'],
+        onboardingState: 'Active',
+        firstOrganizationId: 'synthetic-organization',
+      },
+    });
     api.respond('/api/deployment/mode', { mode: 'SingleTenant' });
     api.respond('/api/tenants', [], 403);
     api.respond('/api/dashboard/notifications', { items: [] });
@@ -307,7 +317,7 @@ test('readiness 403 preserves actionable writer guidance and leaves historical a
   // Arrange
   api.respond(`/api/dashboard${readinessPath()}`, {
     error: 'You do not have permission to run assessments.',
-    errorCode: 'FORBIDDEN',
+    errorCode: 'ASSESSMENT_PERMISSION_REQUIRED',
     suggestion: 'Ask a ComplianceWriter to configure and run this assessment.',
   }, 403);
 

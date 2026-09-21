@@ -7,6 +7,7 @@ import { getProfileSection, saveProfileSection, submitSections, withdrawSections
 import { getProfileCompleteness } from '../api/systemProfile';
 import { formatProfileSectionLabel } from '../utils/profileSections';
 import AsyncErrorState from '../components/AsyncErrorState';
+import AssessmentEnvironmentPanel from '../components/AssessmentEnvironmentPanel';
 import type {
   ProfileSectionDetail,
   ProfileSectionType,
@@ -185,95 +186,94 @@ export default function SystemProfile() {
     }
   };
 
-  if (loading) {
-    return <p className="text-gray-500 py-8 text-center">Loading section...</p>;
-  }
-
-  if (error && !section) {
-    return (
-      <AsyncErrorState
-        title={error}
-        onRetry={() => {
-          setLoading(true);
-          void fetchSection();
-        }}
-      />
-    );
-  }
-
   const label = formatProfileSectionLabel(sectionType);
   const status: GovernanceStatus = section?.governanceStatus ?? 'NotStarted';
 
   return (
     <div className="space-y-6">
-      {/* Completeness Header */}
-      {completeness && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">Profile Completeness</h2>
-            {completeness.isProfileComplete && (
-              <span className="rounded-full bg-green-100 text-green-700 px-3 py-0.5 text-xs font-medium">
-                Profile Complete
+      {sectionType === 'EnvironmentAndDeployment' && <AssessmentEnvironmentPanel systemId={systemId} />}
+      {loading ? (
+        <p className="text-gray-500 py-8 text-center">Loading section...</p>
+      ) : error && !section ? (
+        <AsyncErrorState
+          title={error}
+          onRetry={() => {
+            setLoading(true);
+            void fetchSection();
+          }}
+        />
+      ) : (
+        <div className="space-y-6">
+          {/* Completeness Header */}
+          {completeness && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-gray-900">Profile Completeness</h2>
+                {completeness.isProfileComplete && (
+                  <span className="rounded-full bg-green-100 text-green-700 px-3 py-0.5 text-xs font-medium">
+                    Profile Complete
+                  </span>
+                )}
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  className="bg-indigo-600 h-2.5 rounded-full transition-all"
+                  style={{ width: `${completeness.approvedPercentage}%` }}
+                />
+              </div>
+              <p className="text-sm text-gray-500 mt-1">
+                {completeness.statusCounts['Approved'] ?? 0} / {completeness.totalSections} mandatory sections approved
+              </p>
+            </div>
+          )}
+
+          {/* Section Header */}
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-gray-900">{label}</h1>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${approvalVariant(status)}`}>
+              {status}
+            </span>
+            {isReadOnly && settings.role && settings.role !== 'MissionOwner' && (
+              <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+                Read-only
               </span>
             )}
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
-            <div
-              className="bg-indigo-600 h-2.5 rounded-full transition-all"
-              style={{ width: `${completeness.approvedPercentage}%` }}
+
+          {/* Success message */}
+          {successMsg && (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{successMsg}</div>
+          )}
+
+          {/* Section Form */}
+          <div className="rounded-xl border border-gray-200 bg-white p-6">
+            <ProfileSectionForm
+              sectionType={sectionType}
+              governanceStatus={status}
+              initialContent={section?.draftContent ?? null}
+              initialChildItems={getChildItems()}
+              reviewerComments={section?.reviewerComments ?? null}
+              isReadOnly={isReadOnly}
+              userRole={settings.role}
+              isSubmitting={saving}
+              error={error}
+              systemContext={{
+                hostingEnvironment: detail.hostingEnvironment,
+                systemType: detail.systemType,
+                missionCriticality: detail.missionCriticality,
+                impactLevel: detail.impactLevel,
+                baselineLevel: detail.baselineLevel,
+                categorization: detail.categorization,
+              }}
+              onSave={handleSave}
+              onSubmit={handleSubmit}
+              onWithdraw={handleWithdraw}
+              onApprove={handleApprove}
+              onRequestRevision={handleRequestRevision}
             />
           </div>
-          <p className="text-sm text-gray-500 mt-1">
-            {completeness.statusCounts['Approved'] ?? 0} / {completeness.totalSections} mandatory sections approved
-          </p>
         </div>
       )}
-
-      {/* Section Header */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-bold text-gray-900">{label}</h1>
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${approvalVariant(status)}`}>
-          {status}
-        </span>
-        {isReadOnly && settings.role && settings.role !== 'MissionOwner' && (
-          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
-            Read-only
-          </span>
-        )}
-      </div>
-
-      {/* Success message */}
-      {successMsg && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{successMsg}</div>
-      )}
-
-      {/* Section Form */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <ProfileSectionForm
-          sectionType={sectionType}
-          governanceStatus={status}
-          initialContent={section?.draftContent ?? null}
-          initialChildItems={getChildItems()}
-          reviewerComments={section?.reviewerComments ?? null}
-          isReadOnly={isReadOnly}
-          userRole={settings.role}
-          isSubmitting={saving}
-          error={error}
-          systemContext={{
-            hostingEnvironment: detail.hostingEnvironment,
-            systemType: detail.systemType,
-            missionCriticality: detail.missionCriticality,
-            impactLevel: detail.impactLevel,
-            baselineLevel: detail.baselineLevel,
-            categorization: detail.categorization,
-          }}
-          onSave={handleSave}
-          onSubmit={handleSubmit}
-          onWithdraw={handleWithdraw}
-          onApprove={handleApprove}
-          onRequestRevision={handleRequestRevision}
-        />
-      </div>
     </div>
   );
 }

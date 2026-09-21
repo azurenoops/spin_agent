@@ -173,7 +173,7 @@ describe('Environment page Azure attachment (#981)', () => {
 
     // Assert
     expect(await within(attachment).findByText(binding, { exact: false })).toBeInTheDocument();
-    expect(within(attachment).getByText(/unavailable|mismatch|unsupported|invalid|not registered/i)).toBeInTheDocument();
+    expect(within(attachment).getByRole('alert')).toHaveTextContent(/mismatch|unsupported|invalid|not registered/i);
     expect(within(attachment).getByRole('button', { name: /save environment/i })).toBeDisabled();
     expect(within(attachment).getByRole('button', { name: /detach environment/i })).toBeEnabled();
     expect(apiClient.put).not.toHaveBeenCalled();
@@ -213,6 +213,31 @@ describe('Environment page Azure attachment (#981)', () => {
     expect(await within(attachment).findByText(/no .*subscriptions/i)).toBeInTheDocument();
     expect(within(attachment).getByRole('link', { name: /register|manage|subscription/i })).toHaveAttribute('href', '/settings/azure-subscriptions');
     expect(within(attachment).getByRole('button', { name: /save environment/i })).toBeDisabled();
+  });
+
+  it('keeps the attachment visible and explains a failed detach', async () => {
+    // Arrange
+    responses.set(environmentPath(), () => ({
+      ...environment(), cloudEnvironment: 'Commercial', subscriptionIds: [subscriptionId],
+    }));
+    vi.mocked(apiClient.delete).mockRejectedValue({
+      error: 'The environment could not be detached.',
+      errorCode: 'ASSESSMENT_ENVIRONMENT_UPDATE_FAILED',
+      suggestion: 'Refresh the configuration and try again.',
+    });
+    render(pageElement());
+    const attachment = await panel();
+    const detach = await within(attachment).findByRole('button', { name: /detach environment/i });
+
+    // Act
+    fireEvent.click(detach);
+
+    // Assert
+    expect(await within(attachment).findByText('The environment could not be detached.')).toBeInTheDocument();
+    expect(within(attachment).getByText('Refresh the configuration and try again.')).toBeInTheDocument();
+    expect(within(attachment).getByRole('checkbox', { name: /Synthetic Commercial Alpha/i })).toBeChecked();
+    expect(within(attachment).queryByText(/Environment detached/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(detach).toBeEnabled());
   });
 
   it('renders normalized writer-forbidden guidance without exposing editable configuration', async () => {

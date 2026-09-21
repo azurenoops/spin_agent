@@ -144,7 +144,7 @@ describe('Assessments Azure admission (#981)', () => {
     // Arrange
     const error = {
       error: 'You do not have permission to run assessments.',
-      errorCode: 'FORBIDDEN',
+      errorCode: 'ASSESSMENT_PERMISSION_REQUIRED',
       suggestion: 'Ask a ComplianceWriter to configure and run this assessment.',
     };
     responses.set(readinessPath(), () => { throw error; });

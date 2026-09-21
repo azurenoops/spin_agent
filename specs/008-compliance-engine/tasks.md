@@ -296,20 +296,28 @@
 ### Issue #981 regression fix
 
 - [x] Add and run failing direct-API readiness regressions (11 RED failures).
-- [ ] Add and run failing dashboard readiness regressions.
+- [x] Add and run failing dashboard readiness regressions (28 RED failures; checkpoint `5ff023c`).
 - [x] Commit the backend failing-test checkpoint before production behavior changes (`012ec69`).
 - [x] Implement tenant-scoped Azure attachment and readiness services/DTOs.
 - [x] Implement bounded Azure access probes and safe error classification.
 - [x] Wire authorized dashboard APIs and remove the non-Azure fallback.
-- [ ] Add Assessments readiness guidance and functional Environment configuration.
-- [ ] Run backend unit/integration, frontend unit, type-check/build and local E2E tests.
-- [ ] Measure modified-path coverage and review the complete diff.
+- [x] Add Assessments readiness guidance and functional Environment configuration.
+- [x] Run backend unit/integration, frontend unit, type-check/build and local E2E tests.
+- [x] Measure focused new-code coverage and review the complete diff.
 - [ ] Provide local manual-test instructions and obtain push/PR approval.
 
-Backend checkpoint: 5,742 unit tests and 42 focused API/authorization regressions
-passed. New backend service/error code executable-line coverage is 100%;
-reported branch coverage is 99.31% including compiler-generated async disposal.
-The solution build passed. Frontend/E2E and final combined validation remain open.
+Backend checkpoint: 5,742 unit tests passed; the full integration run passed 857
+tests with 40 existing Docker/Cosmos-dependent skips. New backend service/error
+code executable-line coverage is 100%; reported branch coverage is 99.31%
+including compiler-generated async disposal. The solution build passed.
+
+Frontend checkpoint: 71 relevant unit tests and eight isolated localhost browser
+workflows passed; type-check and production build passed with existing build
+warnings. Focused new API/panel/hook/error-helper line coverage is 100%.
+The full dashboard run has 491 passing and 13 failing tests. The identical 13
+failures reproduce on the unchanged base commit in auth/chat/intake tests; they
+are not silently skipped or fixed under this issue. Publication readiness must
+explicitly account for this baseline limitation.
 
 The existing Feature 008 work below remains complete independently of this fix.
 
