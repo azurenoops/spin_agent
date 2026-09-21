@@ -159,6 +159,28 @@ describe('attachAuthInterceptor', () => {
     expect(adapter).not.toHaveBeenCalled();
   });
 
+  it('does not turn an identity change during silent renewal into a login redirect', async () => {
+    // Arrange
+    const ax = buildAxios([{ status: 401 }, { status: 200 }]);
+    const msal = buildMsalMock();
+    msal.getActiveAccount.mockReturnValue({ homeAccountId: 'account-a' });
+    let finishRenewal!: (value: { accessToken: string }) => void;
+    msal.acquireTokenSilent.mockResolvedValueOnce({ accessToken: 'synthetic-first-token' })
+      .mockReturnValueOnce(new Promise(resolve => { finishRenewal = resolve; }));
+    attachAuthInterceptor(ax, Object.assign({}, stubbedPublicClientApplication, msal), []);
+    const pending = ax.post('/api/tenants/org-alpha/memberships', { personId: 'person-a' });
+    await vi.waitFor(() => expect(msal.acquireTokenSilent).toHaveBeenCalledTimes(2));
+
+    // Act
+    msal.getActiveAccount.mockReturnValue({ homeAccountId: 'account-b' });
+    finishRenewal({ accessToken: 'synthetic-renewed-old-token' });
+
+    // Assert
+    await expect(pending).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+    expect(msal.acquireTokenSilent).toHaveBeenCalledTimes(2);
+    expect(msal.loginRedirect).not.toHaveBeenCalled();
+  });
+
   it('dispatches ato:user-input on a non-renewal 2xx response', async () => {
     // Arrange
     const ax = buildAxios([{ status: 200 }]);
