@@ -130,6 +130,52 @@ public class SystemProfileServiceTests : IDisposable
         result.LastEditedBy.Should().Be(MoUserId);
     }
 
+    [Theory]
+    [InlineData(RmfRole.MissionOwner, true)]
+    [InlineData(RmfRole.SystemOwner, true)]
+    [InlineData(RmfRole.Issm, true)]
+    [InlineData(RmfRole.Isso, false)]
+    [InlineData(RmfRole.Sca, false)]
+    public async Task CanEditProfile_MatchesSaveAuthorization(RmfRole role, bool expected)
+    {
+        // Arrange
+        var system = await SeedSystemAsync();
+        await AssignRoleAsync(system.Id, MoUserId, role);
+
+        // Act
+        var allowed = await _service.CanEditProfileAsync(system.Id, MoUserId);
+
+        // Assert
+        allowed.Should().Be(expected);
+        if (expected)
+        {
+            var saved = await _service.SaveDraftAsync(system.Id, ProfileSectionType.MissionAndPurpose, "{}", MoUserId);
+            saved.LastEditedBy.Should().Be(MoUserId);
+        }
+        else
+        {
+            var save = () => _service.SaveDraftAsync(system.Id, ProfileSectionType.MissionAndPurpose, "{}", MoUserId);
+            await save.Should().ThrowAsync<InvalidOperationException>().WithMessage("UNAUTHORIZED:*");
+        }
+    }
+
+    [Fact]
+    public async Task CanEditProfile_UnassignedOrWrongSystem_Denies()
+    {
+        // Arrange
+        var system = await SeedSystemAsync();
+        var otherSystem = await SeedSystemAsync();
+        await AssignRoleAsync(otherSystem.Id, MoUserId, RmfRole.MissionOwner);
+
+        // Act
+        var allowed = await _service.CanEditProfileAsync(system.Id, MoUserId);
+
+        // Assert
+        allowed.Should().BeFalse();
+        (await _db.SystemProfileSections.CountAsync()).Should().Be(0);
+        (await _db.ProfileAuditEntries.CountAsync()).Should().Be(0);
+    }
+
     [Fact]
     public async Task SaveDraft_ExistingDraft_UpdatesContent()
     {
