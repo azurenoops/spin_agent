@@ -1,11 +1,13 @@
 import axios, { type AxiosInstance } from 'axios';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { stubbedPublicClientApplication } from '@azure/msal-browser';
 import { attachAuthInterceptor } from '../../features/auth/interceptors';
 
 // ─── MSAL mock — minimal IPublicClientApplication surface ───────────────
 
 interface MsalMock {
   getAllAccounts: ReturnType<typeof vi.fn>;
+  getActiveAccount: ReturnType<typeof vi.fn>;
   acquireTokenSilent: ReturnType<typeof vi.fn>;
   loginRedirect: ReturnType<typeof vi.fn>;
 }
@@ -14,6 +16,7 @@ function buildMsalMock(opts?: { hasAccount?: boolean }): MsalMock {
   const hasAccount = opts?.hasAccount ?? true;
   return {
     getAllAccounts: vi.fn(() => (hasAccount ? [{ homeAccountId: 'oid-1' }] : [])),
+    getActiveAccount: vi.fn(() => null),
     acquireTokenSilent: vi.fn(async () => ({ accessToken: 'token-123' })),
     loginRedirect: vi.fn(async () => undefined),
   };
@@ -80,6 +83,21 @@ describe('attachAuthInterceptor', () => {
   beforeEach(() => {
     // Reset URL fixture for deep-link assertions.
     window.history.replaceState({}, '', '/dashboard/systems?id=123');
+  });
+
+  it('acquires for the active account rather than the first cached account', async () => {
+    // Arrange
+    const ax = buildAxios([{ status: 200 }]);
+    const msal = buildMsalMock();
+    const selected = { homeAccountId: 'active-user' };
+    msal.getActiveAccount.mockReturnValue(selected);
+    attachAuthInterceptor(ax, Object.assign({}, stubbedPublicClientApplication, msal), ['api://ato-copilot/.default']);
+
+    // Act
+    await ax.get('/api/anything');
+
+    // Assert
+    expect(msal.acquireTokenSilent).toHaveBeenCalledWith(expect.objectContaining({ account: selected }));
   });
 
   it('dispatches ato:user-input on a non-renewal 2xx response', async () => {
