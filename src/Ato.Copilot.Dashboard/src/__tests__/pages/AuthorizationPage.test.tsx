@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import apiClient from '../../api/client';
 import AuthorizationPage from '../../pages/AuthorizationPage';
 
+const workspace = vi.hoisted(() => ({
+  value: null as { systemAccess: { permissions: { canDecideAuthorization: boolean } } } | null,
+}));
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => workspace.value }));
+
 vi.mock('../../api/client', () => ({
   default: {
     get: vi.fn(),
@@ -22,7 +27,24 @@ vi.mock('../../hooks/useSettings', () => ({
 describe('AuthorizationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    workspace.value = null;
     vi.mocked(apiClient.post).mockResolvedValue({ data: {} });
+  });
+
+  it('does not infer AO authority from browser settings in a workspace', () => {
+    // Arrange
+    workspace.value = { systemAccess: { permissions: { canDecideAuthorization: false } } };
+
+    // Act
+    render(
+      <MemoryRouter initialEntries={['/systems/system-1/authorization']}>
+        <Routes><Route path="/systems/:id/authorization" element={<AuthorizationPage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    // Assert
+    expect(screen.queryByRole('button', { name: 'Issue Authorization' })).not.toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 
   it('attributes a decision to the authenticated AO instead of request fields', async () => {
