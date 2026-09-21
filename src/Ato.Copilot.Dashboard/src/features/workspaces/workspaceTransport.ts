@@ -49,5 +49,10 @@ export function captureWorkspaceRequest(client: AxiosInstance, config: Workspace
   const destination = new URL(client.getUri(config), window.location.origin);
   const apiOrigin = new URL(config.baseURL ?? '/', window.location.origin).origin;
   if (destination.origin !== apiOrigin || !destination.pathname.startsWith('/api/')) return;
+  // Cleanup must remain reachable after the support session itself expires.
+  if (config.method?.toLowerCase() === 'delete' && destination.pathname === '/api/tenants/impersonation') {
+    config.headers.set({ 'X-Workspace-Kind': 'csp', 'X-Workspace-Mode': 'ordinary' });
+    return;
+  }
   config.headers.set(snapshot.headers);
 }
