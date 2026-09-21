@@ -4,6 +4,8 @@ using System.Reflection;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using Ato.Copilot.Agents.Compliance.Services;
+using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Data.Interceptors;
@@ -27,6 +29,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
@@ -39,6 +42,7 @@ public sealed class AssessmentEnvironmentAdmissionTests : IAsyncLifetime
     private const string SubscriptionId = "00000000-0000-0000-0000-000000000981";
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly Mock<IAtoComplianceEngine> _engine = new(MockBehavior.Strict);
+    private readonly Mock<IAzureAssessmentConnectionProbe> _probe = new(MockBehavior.Strict);
     private WebApplication _app = null!;
     private HttpClient _client = null!;
     private IDbContextFactory<AtoCopilotContext> _factory = null!;
@@ -55,6 +59,13 @@ public sealed class AssessmentEnvironmentAdmissionTests : IAsyncLifetime
             options.UseInMemoryDatabase($"assessment-admission-{_tenantId}")
                 .AddInterceptors(sp.GetRequiredService<TenantStampingSaveChangesInterceptor>()));
         builder.Services.AddSingleton(_engine.Object);
+        _probe.Setup(p => p.CheckAsync(It.IsAny<IReadOnlyList<AzureAssessmentSubscription>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        builder.Services.AddSingleton(_probe.Object);
+        builder.Services.Configure<GatewayOptions>(_ => { });
+        builder.Services.Configure<OnboardingOptions>(_ => { });
+        builder.Services.AddSingleton(new ArmClientFactory("AzureGovernment", NullLogger<ArmClientFactory>.Instance));
+        builder.Services.AddScoped<IAssessmentEnvironmentService, AssessmentEnvironmentService>();
         builder.Services.AddSingleton(Mock.Of<IAuthorizationService>());
         builder.Services.AddSingleton(Mock.Of<IKanbanService>());
         builder.Services.AddSingleton(Mock.Of<IRemediationEngine>());
@@ -177,17 +188,7 @@ public sealed class AssessmentEnvironmentAdmissionTests : IAsyncLifetime
     {
         // Arrange
         var system = await SeedSystemAsync(null);
-        using (var tenant = _tenants.Push(new TenantContext(_tenantId)))
-        await using (var db = await _factory.CreateDbContextAsync())
-        {
-            db.AzureSubscriptionRegistrations.Add(new AzureSubscriptionRegistration
-            {
-                TenantId = _tenantId, SubscriptionId = Guid.Parse(SubscriptionId),
-                ParentTenantId = Guid.NewGuid(), DisplayName = "Synthetic government subscription",
-                Environment = AzureEnvironment.AzureUSGovernment, Status = SubscriptionStatus.Selected
-            });
-            await db.SaveChangesAsync();
-        }
+        await RegisterSubscriptionAsync();
         var configurationUrl = $"/api/dashboard/systems/{system.Id}/assessment-environment";
 
         // Act
@@ -205,10 +206,222 @@ public sealed class AssessmentEnvironmentAdmissionTests : IAsyncLifetime
             persisted.AzureProfile.Should().NotBeNull();
             persisted.AzureProfile!.SubscriptionIds.Should().Equal(SubscriptionId);
         }
+        var ready = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{system.Id}/assessment-readiness");
+        ready.GetProperty("isReady").GetBoolean().Should().BeTrue();
         var detached = await _client.DeleteAsync(configurationUrl);
         detached.StatusCode.Should().Be(HttpStatusCode.NoContent);
         var rejected = await _client.PostAsync(RunUrl(system.Id), null);
         rejected.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await AssertNoAssessmentEffectsAsync(system.Id);
+    }
+
+    [Fact]
+    public async Task Issue823_ReadyAzureAssessment_PreservesAuthenticatedActorAndResponseContract()
+    {
+        // Arrange
+        var system = await SeedSystemAsync(new AzureEnvironmentProfile
+        {
+            CloudEnvironment = AzureCloudEnvironment.Government, SubscriptionIds = [SubscriptionId]
+        });
+        await RegisterSubscriptionAsync();
+        _engine.Setup(e => e.RunComprehensiveAssessmentAsync(
+                SubscriptionId, null, null, It.IsAny<CancellationToken>()))
+            .Returns(async (string subscription, string? _, IProgress<AssessmentProgress>? _, CancellationToken ct) =>
+            {
+                await using var db = await _factory.CreateDbContextAsync(ct);
+                var assessment = new ComplianceAssessment
+                {
+                    TenantId = _tenantId, SubscriptionId = subscription, ScanType = "comprehensive",
+                    Status = AssessmentStatus.Completed, TotalControls = 1, PassedControls = 1,
+                    ComplianceScore = 100, InitiatedBy = "synthetic-engine"
+                };
+                db.Assessments.Add(assessment);
+                await db.SaveChangesAsync(ct);
+                return assessment;
+            });
+
+        // Act
+        var response = await _client.PostAsync(RunUrl(system.Id), null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+        result.GetProperty("scanType").GetString().Should().Be("comprehensive");
+        result.GetProperty("systemId").GetString().Should().Be(system.Id);
+        _probe.Verify(p => p.CheckAsync(It.IsAny<IReadOnlyList<AzureAssessmentSubscription>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        using var tenant = _tenants.Push(new TenantContext(_tenantId));
+        await using var db = await _factory.CreateDbContextAsync();
+        var persisted = await db.Assessments.SingleAsync();
+        persisted.RegisteredSystemId.Should().Be(system.Id);
+        persisted.InitiatedBy.Should().Be(ActorId);
+        (await db.ControlEffectivenessRecords.Select(e => e.AssessorId).Distinct().ToListAsync())
+            .Should().Equal(ActorId);
+        (await db.ControlImplementations.SingleAsync()).ImplementationStatus.Should().Be(ImplementationStatus.Planned);
+    }
+
+    [Theory]
+    [InlineData(AssessmentEnvironmentErrors.AuthenticationRequired, 400)]
+    [InlineData(AssessmentEnvironmentErrors.AccessDenied, 400)]
+    [InlineData(AssessmentEnvironmentErrors.ConnectionUnavailable, 503)]
+    public async Task RunAssessment_AzureAccessFailure_RejectsWithoutFallback(string code, int expectedStatus)
+    {
+        // Arrange
+        var system = await SeedSystemAsync(new AzureEnvironmentProfile
+        {
+            CloudEnvironment = AzureCloudEnvironment.Government, SubscriptionIds = [SubscriptionId]
+        });
+        await RegisterSubscriptionAsync();
+        _probe.Setup(p => p.CheckAsync(It.IsAny<IReadOnlyList<AzureAssessmentSubscription>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new AssessmentEnvironmentException(code, "Synthetic access failure.", "Retry configuration."));
+
+        // Act
+        var response = await _client.PostAsync(RunUrl(system.Id), null);
+
+        // Assert
+        ((int)response.StatusCode).Should().Be(expectedStatus);
+        var error = await response.Content.ReadFromJsonAsync<JsonElement>();
+        error.GetProperty("errorCode").GetString().Should().Be(code);
+        await AssertNoAssessmentEffectsAsync(system.Id);
+    }
+
+    [Fact]
+    public async Task RunAssessment_RegistrationRevokedAfterReadiness_RevalidatesInsteadOfTrustingUi()
+    {
+        // Arrange
+        var system = await SeedSystemAsync(new AzureEnvironmentProfile
+        {
+            CloudEnvironment = AzureCloudEnvironment.Government, SubscriptionIds = [SubscriptionId]
+        });
+        await RegisterSubscriptionAsync();
+        var readiness = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{system.Id}/assessment-readiness");
+        readiness.GetProperty("isReady").GetBoolean().Should().BeTrue();
+        using (var tenant = _tenants.Push(new TenantContext(_tenantId)))
+        await using (var db = await _factory.CreateDbContextAsync())
+        {
+            (await db.AzureSubscriptionRegistrations.SingleAsync()).Status = SubscriptionStatus.Unavailable;
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.PostAsync(RunUrl(system.Id), null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await AssertNoAssessmentEffectsAsync(system.Id);
+        _probe.Invocations.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task GetReadiness_ReaderRole_ExplainsMissingOperationPermission()
+    {
+        // Arrange
+        var system = await SeedSystemAsync(null);
+        _client.DefaultRequestHeaders.Remove("X-Assessment-Test-Role");
+        _client.DefaultRequestHeaders.Add("X-Assessment-Test-Role", ComplianceRoles.Viewer);
+
+        // Act
+        var response = await _client.GetAsync($"/api/dashboard/systems/{system.Id}/assessment-readiness");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var error = await response.Content.ReadFromJsonAsync<JsonElement>();
+        error.GetProperty("errorCode").GetString().Should().Be(AssessmentEnvironmentErrors.PermissionRequired);
+        await AssertNoAssessmentEffectsAsync(system.Id);
+    }
+
+    [Theory]
+    [InlineData("assessment-readiness")]
+    [InlineData("assessment-environment")]
+    public async Task GetEnvironment_UnknownSystem_ReturnsStructuredNotFound(string action)
+    {
+        // Arrange
+        var systemId = Guid.NewGuid().ToString();
+
+        // Act
+        var response = await _client.GetAsync($"/api/dashboard/systems/{systemId}/{action}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var error = await response.Content.ReadFromJsonAsync<JsonElement>();
+        error.GetProperty("errorCode").GetString().Should().Be(AssessmentEnvironmentErrors.SystemNotFound);
+    }
+
+    [Fact]
+    public async Task GetConfiguration_NoAttachment_ReturnsEligibleOrganizationChoices()
+    {
+        // Arrange
+        var system = await SeedSystemAsync(null);
+        await RegisterSubscriptionAsync();
+
+        // Act
+        var response = await _client.GetAsync($"/api/dashboard/systems/{system.Id}/assessment-environment");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var configuration = await response.Content.ReadFromJsonAsync<JsonElement>();
+        configuration.GetProperty("cloudEnvironment").ValueKind.Should().Be(JsonValueKind.Null);
+        configuration.GetProperty("availableSubscriptions").GetArrayLength().Should().Be(1);
+        configuration.GetProperty("availableSubscriptions")[0].GetProperty("isAvailable").GetBoolean().Should().BeTrue();
+        _probe.Invocations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Configure_InvalidSelection_ReturnsStructuredErrorWithoutSaving()
+    {
+        // Arrange
+        var system = await SeedSystemAsync(null);
+
+        // Act
+        var response = await _client.PutAsJsonAsync(
+            $"/api/dashboard/systems/{system.Id}/assessment-environment",
+            new { cloudEnvironment = "Government", subscriptionIds = new[] { "not-a-subscription" } });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var error = await response.Content.ReadFromJsonAsync<JsonElement>();
+        error.GetProperty("errorCode").GetString().Should().Be(AssessmentEnvironmentErrors.InvalidSubscription);
+        await AssertNoAssessmentEffectsAsync(system.Id);
+    }
+
+    [Fact]
+    public async Task Detach_UnknownSystem_ReturnsStructuredNotFound()
+    {
+        // Arrange
+        var systemId = Guid.NewGuid().ToString();
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/dashboard/systems/{systemId}/assessment-environment");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var error = await response.Content.ReadFromJsonAsync<JsonElement>();
+        error.GetProperty("errorCode").GetString().Should().Be(AssessmentEnvironmentErrors.SystemNotFound);
+    }
+
+    [Fact]
+    public async Task Configuration_ReaderRole_CannotReadOrChangeAttachment()
+    {
+        // Arrange
+        var system = await SeedSystemAsync(null);
+        _client.DefaultRequestHeaders.Remove("X-Assessment-Test-Role");
+        _client.DefaultRequestHeaders.Add("X-Assessment-Test-Role", ComplianceRoles.Viewer);
+        var url = $"/api/dashboard/systems/{system.Id}/assessment-environment";
+
+        // Act
+        var read = await _client.GetAsync(url);
+        var save = await _client.PutAsJsonAsync(url, new
+        {
+            cloudEnvironment = "Government", subscriptionIds = new[] { SubscriptionId }
+        });
+        var remove = await _client.DeleteAsync(url);
+
+        // Assert
+        read.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        save.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        remove.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         await AssertNoAssessmentEffectsAsync(system.Id);
     }
 
@@ -272,6 +485,19 @@ public sealed class AssessmentEnvironmentAdmissionTests : IAsyncLifetime
         (await db.ControlImplementations.SingleAsync(i => i.RegisteredSystemId == systemId))
             .ImplementationStatus.Should().Be(ImplementationStatus.Planned);
         _engine.Invocations.Should().BeEmpty();
+    }
+
+    private async Task RegisterSubscriptionAsync()
+    {
+        using var tenant = _tenants.Push(new TenantContext(_tenantId));
+        await using var db = await _factory.CreateDbContextAsync();
+        db.AzureSubscriptionRegistrations.Add(new AzureSubscriptionRegistration
+        {
+            TenantId = _tenantId, SubscriptionId = Guid.Parse(SubscriptionId), ParentTenantId = Guid.NewGuid(),
+            DisplayName = "Synthetic subscription", Environment = AzureEnvironment.AzureUSGovernment,
+            Status = SubscriptionStatus.Selected
+        });
+        await db.SaveChangesAsync();
     }
 
     private static string RunUrl(string systemId) => $"/api/dashboard/systems/{systemId}/run-assessment";

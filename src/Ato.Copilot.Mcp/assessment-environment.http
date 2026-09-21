@@ -1,0 +1,48 @@
+# Local manual checks only. Replace IDs with synthetic local records.
+# Use an authorized local test identity; never copy production credentials here.
+@baseUrl = http://localhost:3001
+@systemId = 00000000-0000-0000-0000-000000000981
+@subscriptionId = 00000000-0000-0000-0000-000000000982
+@accessToken = REPLACE_WITH_LOCAL_TEST_TOKEN
+
+### Readiness: a missing attachment returns isReady=false and configuration guidance.
+GET {{baseUrl}}/api/dashboard/systems/{{systemId}}/assessment-readiness
+Authorization: Bearer {{accessToken}}
+
+### Read actual Azure attachment and organization registration choices.
+GET {{baseUrl}}/api/dashboard/systems/{{systemId}}/assessment-environment
+Authorization: Bearer {{accessToken}}
+
+### Save attachment metadata; the subscription must already be eligible in this organization.
+# Saving is not a claim of connectivity and must not create an assessment.
+PUT {{baseUrl}}/api/dashboard/systems/{{systemId}}/assessment-environment
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "cloudEnvironment": "Government",
+  "subscriptionIds": ["{{subscriptionId}}"]
+}
+
+### Reject malformed scope without saving configuration.
+PUT {{baseUrl}}/api/dashboard/systems/{{systemId}}/assessment-environment
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "cloudEnvironment": "Government",
+  "subscriptionIds": ["not-a-subscription"]
+}
+
+### Detach local configuration without changing historical assessments.
+DELETE {{baseUrl}}/api/dashboard/systems/{{systemId}}/assessment-environment
+Authorization: Bearer {{accessToken}}
+
+### Direct API bypass regression: after detach this must reject, never evaluate narratives.
+# Do not send this against a connected production system.
+POST {{baseUrl}}/api/dashboard/systems/{{systemId}}/run-assessment
+Authorization: Bearer {{accessToken}}
+
+### Unknown system returns the structured SYSTEM_NOT_FOUND error.
+GET {{baseUrl}}/api/dashboard/systems/00000000-0000-0000-0000-000000000000/assessment-readiness
+Authorization: Bearer {{accessToken}}

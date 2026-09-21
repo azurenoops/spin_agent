@@ -187,6 +187,8 @@ The Components page focuses on asset inventory management. Per-component risk su
 completeness is not a substitute for a connected Azure environment.
 
 The Assessments page checks system readiness and explains blocked prerequisites.
+If you are a CSP administrator viewing **All organizations**, select the system's
+organization first so assessment data is written under the correct organization.
 Use **Configure Environment** to open the Azure assessment panel on the system's
 Environment page. This panel manages the system's actual Azure attachment;
 the descriptive Environment and Deployment form does not configure connectivity.

@@ -16,6 +16,7 @@ using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Services;
 using System.Text.RegularExpressions;
 
@@ -28,6 +29,8 @@ public static partial class DashboardEndpoints
 {
     private static void MapAssessmentRoutes(IEndpointRouteBuilder group, ICurrentUserService currentUser)
     {
+        MapAssessmentEnvironmentRoutes(group, currentUser);
+
         group.MapGet("/assessments", async (
             AtoCopilotContext context,
             CancellationToken ct) =>
@@ -284,299 +287,87 @@ public static partial class DashboardEndpoints
 
         group.MapPost("/systems/{systemId}/run-assessment", async (
             string systemId,
+            IAssessmentEnvironmentService environmentService,
             IAtoComplianceEngine complianceEngine,
             ComplianceTrendSnapshotService trendSnapshotService,
             IAuthorizationService authorizationService,
             IKanbanService kanbanService,
             IRemediationEngine remediationEngine,
             AtoCopilotContext context,
+            ILogger<AssessmentEnvironmentService> logger,
             CancellationToken ct) =>
         {
             var actorId = currentUser.CurrentUserId;
+            AssessmentReadinessResponse readiness;
+            try { readiness = await environmentService.GetReadinessAsync(systemId, ct); }
+            catch (AssessmentEnvironmentException failure)
+            {
+                return LoggedAssessmentEnvironmentError(failure, logger, systemId);
+            }
+            if (!readiness.IsReady)
+                return AssessmentEnvironmentError(
+                    readiness.ErrorCode ?? throw new InvalidOperationException("Blocked assessment readiness requires an error code."),
+                    readiness.Message, readiness.Suggestion);
+
             var system = await context.RegisteredSystems
                 .FirstOrDefaultAsync(s => s.Id == systemId && s.IsActive, ct);
             if (system is null)
                 return Results.NotFound(new { error = "System not found" });
 
-            var hasCategorization = await context.SecurityCategorizations
-                .AnyAsync(sc => sc.RegisteredSystemId == systemId, ct);
-            if (!hasCategorization)
-                return Results.BadRequest(new { error = "System must be categorized before running an assessment." });
+            var subscriptionId = readiness.Subscriptions.FirstOrDefault()?.SubscriptionId
+                ?? throw new InvalidOperationException("Ready assessment requires a validated subscription.");
 
-            var subscriptionId = system.AzureProfile?.SubscriptionIds.FirstOrDefault();
+            var assessment = await complianceEngine.RunComprehensiveAssessmentAsync(
+                subscriptionId, resourceGroup: null, progress: null, cancellationToken: ct);
+            assessment.RegisteredSystemId = systemId;
+            assessment.InitiatedBy = actorId;
 
-            ComplianceAssessment assessment;
-
-            if (!string.IsNullOrWhiteSpace(subscriptionId))
+            // Keep the established Azure completion pipeline; scope and result integrity are separate fixes (#982/#983).
+            var existingAssessment = await context.Assessments
+                .FirstOrDefaultAsync(a => a.Id == assessment.Id, ct);
+            if (existingAssessment is not null)
             {
-                // Use the real compliance engine (same as chat) when Azure subscription exists
-                assessment = await complianceEngine.RunComprehensiveAssessmentAsync(
-                    subscriptionId, resourceGroup: null, progress: null, cancellationToken: ct);
-                assessment.RegisteredSystemId = systemId;
-                assessment.InitiatedBy = actorId;
-
-                // The engine persists assessment via its own DbContext, so update
-                // RegisteredSystemId and InitiatedBy in our context
-                var existingAssessment = await context.Assessments
-                    .FirstOrDefaultAsync(a => a.Id == assessment.Id, ct);
-                if (existingAssessment is not null)
-                {
-                    existingAssessment.RegisteredSystemId = systemId;
-                    existingAssessment.InitiatedBy = actorId;
-                    await context.SaveChangesAsync(ct);
-                }
-
-                // Create ControlEffectiveness records so the heatmap updates
-                var failedControlIds = new HashSet<string>(
-                    assessment.Findings.Select(f => f.ControlId).Where(id => id != null)!,
-                    StringComparer.OrdinalIgnoreCase);
-
-                var baseline = await context.ControlBaselines
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, ct);
-
-                if (baseline is not null)
-                {
-                    var azEffRecords = new List<ControlEffectiveness>();
-                    foreach (var controlId in baseline.ControlIds)
-                    {
-                        var failed = failedControlIds.Contains(controlId);
-                        var finding = failed
-                            ? assessment.Findings.FirstOrDefault(f =>
-                                string.Equals(f.ControlId, controlId, StringComparison.OrdinalIgnoreCase))
-                            : null;
-
-                        azEffRecords.Add(new ControlEffectiveness
-                        {
-                            AssessmentId = assessment.Id,
-                            RegisteredSystemId = systemId,
-                            ControlId = controlId,
-                            Determination = failed
-                                ? EffectivenessDetermination.OtherThanSatisfied
-                                : EffectivenessDetermination.Satisfied,
-                            AssessmentMethod = "Examine",
-                            AssessorId = actorId,
-                            AssessedAt = DateTime.UtcNow,
-                            CatSeverity = failed && finding?.CatSeverity != null
-                                ? finding.CatSeverity
-                                : (failed ? Ato.Copilot.Core.Models.Compliance.CatSeverity.CatII : null),
-                        });
-                    }
-                    context.ControlEffectivenessRecords.AddRange(azEffRecords);
-                    await context.SaveChangesAsync(ct);
-                }
+                existingAssessment.RegisteredSystemId = systemId;
+                existingAssessment.InitiatedBy = actorId;
+                await context.SaveChangesAsync(ct);
             }
-            else
+
+            var failedControlIds = new HashSet<string>(
+                assessment.Findings.Select(f => f.ControlId).Where(id => id != null)!,
+                StringComparer.OrdinalIgnoreCase);
+
+            var baseline = await context.ControlBaselines
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, ct);
+
+            if (baseline is not null)
             {
-                // Fallback: evaluate control implementations against baseline
-                var baseline = await context.ControlBaselines
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, ct);
-                if (baseline is null || baseline.ControlIds.Count == 0)
-                {
-                    return Results.BadRequest(new
-                    {
-                        errorCode = "ASSESSMENT_INPUT_REQUIRED",
-                        error = "System must have a control baseline with at least one control before running an assessment.",
-                    });
-                }
-
-                var implementations = await context.ControlImplementations
-                    .Where(ci => ci.RegisteredSystemId == systemId)
-                    .ToListAsync(ct);
-
-                var implByControl = implementations.ToDictionary(ci => ci.ControlId, StringComparer.OrdinalIgnoreCase);
-
-                // Load valid NIST control IDs to avoid FK violations on Findings
-                var validControlIds = await context.NistControls
-                    .Select(nc => nc.Id)
-                    .AsNoTracking()
-                    .ToListAsync(ct);
-                var validSet = new HashSet<string>(validControlIds, StringComparer.OrdinalIgnoreCase);
-
-                int totalControls = baseline.ControlIds.Count;
-                int passedControls = 0;
-                int failedControls = 0;
-                var findings = new List<ComplianceFinding>();
-
-                // Evaluate each control and update implementation status based on narrative content
+                var azEffRecords = new List<ControlEffectiveness>();
                 foreach (var controlId in baseline.ControlIds)
                 {
-                    if (implByControl.TryGetValue(controlId, out var impl))
-                    {
-                        // Skip controls already marked NotApplicable
-                        if (impl.ImplementationStatus == ImplementationStatus.NotApplicable)
-                        {
-                            passedControls++;
-                            continue;
-                        }
+                    var failed = failedControlIds.Contains(controlId);
+                    var finding = failed
+                        ? assessment.Findings.FirstOrDefault(f =>
+                            string.Equals(f.ControlId, controlId, StringComparison.OrdinalIgnoreCase))
+                        : null;
 
-                        bool hasNarrative = impl.HasCanonicalNarrative();
-                        bool isReviewed = impl.ReviewedBy is not null;
-
-                        if (hasNarrative && (isReviewed || !impl.AiSuggested))
-                        {
-                            // Reviewed narrative or manually-authored → Implemented
-                            impl.ImplementationStatus = ImplementationStatus.Implemented;
-                            passedControls++;
-                        }
-                        else if (hasNarrative)
-                        {
-                            // AI-generated narrative not yet reviewed → PartiallyImplemented
-                            impl.ImplementationStatus = ImplementationStatus.PartiallyImplemented;
-                            failedControls++;
-                            findings.Add(new ComplianceFinding
-                            {
-                                AssessmentId = "",
-                                ControlId = controlId,
-                                Title = $"Control {controlId} pending review",
-                                Description = $"Control {controlId} has an auto-generated narrative that has not been reviewed. Mark as reviewed to achieve full compliance.",
-                                Severity = FindingSeverity.Medium,
-                                CatSeverity = Ato.Copilot.Core.Models.Compliance.CatSeverity.CatII,
-                                Status = FindingStatus.Open,
-                                ResourceType = "ControlImplementation",
-                                ResourceId = controlId,
-                                DiscoveredAt = DateTime.UtcNow,
-                            });
-                        }
-                        else
-                        {
-                            // No narrative → stays Planned
-                            impl.ImplementationStatus = ImplementationStatus.Planned;
-                            failedControls++;
-                            findings.Add(new ComplianceFinding
-                            {
-                                AssessmentId = "",
-                                ControlId = controlId,
-                                Title = $"Control {controlId} not implemented",
-                                Description = $"Control {controlId} has no implementation narrative. Add a narrative to demonstrate compliance.",
-                                Severity = FindingSeverity.High,
-                                CatSeverity = Ato.Copilot.Core.Models.Compliance.CatSeverity.CatI,
-                                Status = FindingStatus.Open,
-                                ResourceType = "ControlImplementation",
-                                ResourceId = controlId,
-                                DiscoveredAt = DateTime.UtcNow,
-                            });
-                        }
-                    }
-                    else
-                    {
-                        // No implementation record at all
-                        failedControls++;
-                        findings.Add(new ComplianceFinding
-                        {
-                            AssessmentId = "",
-                            ControlId = controlId,
-                            Title = $"Control {controlId} not implemented",
-                            Description = $"No control implementation record exists for {controlId}.",
-                            Severity = FindingSeverity.High,
-                            CatSeverity = Ato.Copilot.Core.Models.Compliance.CatSeverity.CatI,
-                            Status = FindingStatus.Open,
-                            ResourceType = "ControlImplementation",
-                            ResourceId = controlId,
-                            DiscoveredAt = DateTime.UtcNow,
-                        });
-                    }
-                }
-
-                // Persist updated implementation statuses
-                await context.SaveChangesAsync(ct);
-
-                // Build per-family breakdown
-                var familyStats = new Dictionary<string, (int Total, int Passed, int Failed)>(StringComparer.OrdinalIgnoreCase);
-                foreach (var controlId in baseline.ControlIds)
-                {
-                    var family = controlId.Contains('-') ? controlId[..controlId.IndexOf('-')] : controlId;
-                    if (!familyStats.ContainsKey(family))
-                        familyStats[family] = (0, 0, 0);
-                    var s = familyStats[family];
-                    bool passed = implByControl.TryGetValue(controlId, out var ci) &&
-                        ci.ImplementationStatus is ImplementationStatus.Implemented or ImplementationStatus.NotApplicable;
-                    familyStats[family] = (s.Total + 1, s.Passed + (passed ? 1 : 0), s.Failed + (passed ? 0 : 1));
-                }
-
-                var familyResults = familyStats
-                    .OrderBy(kvp => kvp.Key)
-                    .Select(kvp => new ControlFamilyAssessment
-                    {
-                        FamilyCode = kvp.Key,
-                        FamilyName = ControlFamilies.FamilyNames.GetValueOrDefault(kvp.Key, kvp.Key),
-                        TotalControls = kvp.Value.Total,
-                        PassedControls = kvp.Value.Passed,
-                        FailedControls = kvp.Value.Failed,
-                        ComplianceScore = kvp.Value.Total > 0
-                            ? Math.Round((double)kvp.Value.Passed / kvp.Value.Total * 100, 1)
-                            : 0,
-                        Status = FamilyAssessmentStatus.Completed,
-                    }).ToList();
-
-                assessment = new ComplianceAssessment
-                {
-                    SubscriptionId = "",
-                    Framework = "NIST 800-53",
-                    ScanType = "combined",
-                    Status = AssessmentStatus.Completed,
-                    InitiatedBy = actorId,
-                    AssessedAt = DateTime.UtcNow,
-                    CompletedAt = DateTime.UtcNow,
-                    RegisteredSystemId = systemId,
-                    ComplianceScore = totalControls > 0
-                        ? Math.Round((double)passedControls / totalControls * 100, 1)
-                        : 0,
-                    TotalControls = totalControls,
-                    PassedControls = passedControls,
-                    FailedControls = failedControls,
-                    ControlFamilyResults = familyResults,
-                };
-
-                // Persist assessment header first so findings can reference its Id via FK.
-                context.Assessments.Add(assessment);
-                await context.SaveChangesAsync(ct);
-
-                foreach (var finding in findings)
-                    finding.AssessmentId = assessment.Id;
-
-                // Only persist findings whose ControlId exists in NistControls (FK constraint).
-                // AUD-001 fix: persistableFindings is the authoritative set — the response MUST
-                // be built from this list, not from the pre-filter `findings` collection.
-                var persistableFindings = findings.Where(f => validSet.Contains(f.ControlId)).ToList();
-                if (persistableFindings.Count > 0)
-                {
-                    context.Findings.AddRange(persistableFindings);
-                    await context.SaveChangesAsync(ct);
-                    // After SaveChangesAsync EF has populated the auto-generated Id on each entity,
-                    // so persistableFindings entries now carry their real DB primary keys.
-                }
-
-                // AUD-001: assign the persisted-only set back to the assessment so every
-                // downstream code path (response, activity log, POA&M, Kanban) reflects what
-                // was actually written to the database.  Never expose the pre-filter list.
-                assessment.Findings = persistableFindings;
-
-                // Create ControlEffectiveness records so the heatmap updates.
-                var effectivenessRecords = new List<ControlEffectiveness>();
-                foreach (var controlId in baseline.ControlIds)
-                {
-                    var passed = implByControl.TryGetValue(controlId, out var ci) &&
-                        ci.ImplementationStatus is ImplementationStatus.Implemented or ImplementationStatus.NotApplicable;
-                    effectivenessRecords.Add(new ControlEffectiveness
+                    azEffRecords.Add(new ControlEffectiveness
                     {
                         AssessmentId = assessment.Id,
                         RegisteredSystemId = systemId,
                         ControlId = controlId,
-                        Determination = passed
-                            ? EffectivenessDetermination.Satisfied
-                            : EffectivenessDetermination.OtherThanSatisfied,
+                        Determination = failed
+                            ? EffectivenessDetermination.OtherThanSatisfied
+                            : EffectivenessDetermination.Satisfied,
                         AssessmentMethod = "Examine",
                         AssessorId = actorId,
                         AssessedAt = DateTime.UtcNow,
-                        CatSeverity = passed ? null
-                            : (implByControl.TryGetValue(controlId, out var imp) && imp.ImplementationStatus == ImplementationStatus.PartiallyImplemented
-                                ? Ato.Copilot.Core.Models.Compliance.CatSeverity.CatII
-                                : Ato.Copilot.Core.Models.Compliance.CatSeverity.CatI),
+                        CatSeverity = failed && finding?.CatSeverity != null
+                            ? finding.CatSeverity
+                            : (failed ? Ato.Copilot.Core.Models.Compliance.CatSeverity.CatII : null),
                     });
                 }
-                context.ControlEffectivenessRecords.AddRange(effectivenessRecords);
+                context.ControlEffectivenessRecords.AddRange(azEffRecords);
                 await context.SaveChangesAsync(ct);
             }
 
@@ -643,7 +434,7 @@ public static partial class DashboardEndpoints
                 var board = await kanbanService.CreateBoardFromAssessmentAsync(
                     assessment.Id,
                     $"{system.Name} — Assessment {DateTime.UtcNow:yyyy-MM-dd}",
-                    system.AzureProfile?.SubscriptionIds.FirstOrDefault() ?? systemId,
+                    subscriptionId,
                     assessment.InitiatedBy ?? actorId,
                     ct);
                 boardId = board.Id;
@@ -698,7 +489,14 @@ public static partial class DashboardEndpoints
                 remediationPlanId,
             });
         })
-        .WithName("RunAssessment");
+        .RequireAuthorization(Policies.ComplianceWriter)
+        .WithName("RunAssessment")
+        .WithSummary("Run an Azure-backed assessment after independently validating system readiness.")
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+        .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+        .Produces<ErrorResponse>(StatusCodes.Status503ServiceUnavailable);
 
         // ───────────── Narratives ─────────────────────────────────────────────
 

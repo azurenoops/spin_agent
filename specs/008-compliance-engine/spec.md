@@ -192,7 +192,10 @@ substitute when Azure configuration is missing.
 - **FR-027**: Configuration changes and Run Assessment require the existing
   ComplianceWriter policy. Readiness requires ComplianceReader and confirms
   operation authorization before probing Azure. Tenant/system filtering MUST
-  apply to every path, including CSP-admin cross-organization views.
+  apply to every path, including CSP-admin cross-organization views. A CSP
+  administrator MUST explicitly select the system's organization before
+  assessment/configuration operations; viewing under All organizations does not
+  authorize execution under the CSP home-tenant persistence context.
 - **FR-028**: Preserve historical assessment records and provenance without
   silently relabeling documentation/manual/imported evidence as Azure evidence.
 - **FR-029**: Regression coverage MUST include missing/detached profile, missing

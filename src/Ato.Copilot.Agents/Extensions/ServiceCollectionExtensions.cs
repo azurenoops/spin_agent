@@ -116,6 +116,8 @@ public static class ServiceCollectionExtensions
 
         // ─── Compliance Engine Infrastructure (Feature 008) ──────────────────
         services.AddSingleton<IAzureResourceService, AzureResourceService>();
+        services.AddSingleton<IAzureAssessmentConnectionProbe, AzureAssessmentConnectionProbe>();
+        services.AddScoped<IAssessmentEnvironmentService, AssessmentEnvironmentService>();
         services.AddSingleton<IAssessmentPersistenceService, AssessmentPersistenceService>();
         services.AddSingleton<IScannerRegistry, ScannerRegistry>();
         services.AddSingleton<IEvidenceCollectorRegistry, EvidenceCollectorRegistry>();

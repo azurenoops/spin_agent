@@ -474,7 +474,7 @@ public class ApiMismatchRouteTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Issue823_RunAssessment_PersistsAuthenticatedActor()
+    public async Task Issue981_RunAssessment_IdentityWithoutWriterRole_IsForbidden()
     {
         // Arrange
         using (var scope = _app.Services.CreateScope())
@@ -495,19 +495,14 @@ public class ApiMismatchRouteTests : IAsyncLifetime
             content: null);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         using var verificationScope = _app.Services.CreateScope();
         var verificationFactory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
         await using var verificationDb = await verificationFactory.CreateDbContextAsync();
-        var assessment = await verificationDb.Assessments
-            .SingleAsync(a => a.RegisteredSystemId == TestSystemId);
-        assessment.InitiatedBy.Should().Be(TestActorId);
-        (await verificationDb.ControlEffectivenessRecords
-                .Where(e => e.AssessmentId == assessment.Id)
-                .Select(e => e.AssessorId)
-                .Distinct()
-                .ToListAsync())
-            .Should().Equal(TestActorId);
+        (await verificationDb.Assessments.AnyAsync(a => a.RegisteredSystemId == TestSystemId))
+            .Should().BeFalse();
+        (await verificationDb.ControlEffectivenessRecords.AnyAsync(e => e.RegisteredSystemId == TestSystemId))
+            .Should().BeFalse();
     }
 
     // ─── T011: GAP-004 — single POAM status with systemId ───────────────────

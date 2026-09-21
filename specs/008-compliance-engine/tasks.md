@@ -295,15 +295,21 @@
 
 ### Issue #981 regression fix
 
-- [ ] Add and run failing direct-API and dashboard readiness regressions.
-- [ ] Commit the failing-test checkpoint before production behavior changes.
-- [ ] Implement tenant-scoped Azure attachment and readiness services/DTOs.
-- [ ] Implement bounded Azure access probes and safe error classification.
-- [ ] Wire authorized dashboard APIs and remove the non-Azure fallback.
+- [x] Add and run failing direct-API readiness regressions (11 RED failures).
+- [ ] Add and run failing dashboard readiness regressions.
+- [x] Commit the backend failing-test checkpoint before production behavior changes (`012ec69`).
+- [x] Implement tenant-scoped Azure attachment and readiness services/DTOs.
+- [x] Implement bounded Azure access probes and safe error classification.
+- [x] Wire authorized dashboard APIs and remove the non-Azure fallback.
 - [ ] Add Assessments readiness guidance and functional Environment configuration.
 - [ ] Run backend unit/integration, frontend unit, type-check/build and local E2E tests.
 - [ ] Measure modified-path coverage and review the complete diff.
 - [ ] Provide local manual-test instructions and obtain push/PR approval.
+
+Backend checkpoint: 5,742 unit tests and 42 focused API/authorization regressions
+passed. New backend service/error code executable-line coverage is 100%;
+reported branch coverage is 99.31% including compiler-generated async disposal.
+The solution build passed. Frontend/E2E and final combined validation remain open.
 
 The existing Feature 008 work below remains complete independently of this fix.
 

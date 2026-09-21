@@ -15,6 +15,9 @@ Implement Azure-backed dashboard admission on
 `fix/981-azure-assessment-prerequisites`, linked to GitHub issue #981.
 The user selected the existing deployment-configured cloud model: reject
 mismatched/unsupported profiles rather than introduce per-system client routing.
+The user also selected explicit organization activation for CSP administrators:
+All organizations remains a viewing context, not an implicit cross-organization
+assessment execution context.
 
 - Use an injected assessment-environment service for tenant-filtered attachment
   configuration and shared readiness rules.
