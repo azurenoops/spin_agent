@@ -3,6 +3,7 @@ import * as signalR from '@microsoft/signalr';
 import apiClient from '../api/client';
 import { getMsalInstance, DEFAULT_API_SCOPES } from '../features/auth/msalInstance';
 import { workspaceHubUrl } from '../features/workspaces/workspaceHubUrl';
+import { selectMsalAccount } from '../features/auth/accountSelection';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ export function useNotifications(userId?: string) {
   // exists, bail out entirely — do not fall back to a phantom 'dashboard-user'
   // identity. localAccountId is MSAL's projection of the Entra `oid` claim,
   // consistent with the identity used elsewhere in the app.
-  const msalAccount = getMsalInstance().getAllAccounts()[0];
+  const msalAccount = selectMsalAccount(getMsalInstance());
   const resolvedUserId = userId ?? msalAccount?.localAccountId ?? null;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -112,11 +113,11 @@ export function useNotifications(userId?: string) {
         accessTokenFactory: async () => {
           try {
             const msal = getMsalInstance();
-            const accounts = msal.getAllAccounts();
-            if (!accounts.length) return '';
+            const account = selectMsalAccount(msal);
+            if (!account) return '';
             const result = await msal.acquireTokenSilent({
               scopes: DEFAULT_API_SCOPES,
-              account: accounts[0]!,
+              account,
             });
             return result.accessToken;
           } catch {

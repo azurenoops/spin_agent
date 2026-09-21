@@ -1,5 +1,6 @@
 import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import type { IPublicClientApplication } from '@azure/msal-browser';
+import { selectMsalAccount } from './accountSelection';
 import { assertWorkspaceRequestCurrent, captureWorkspaceRequest } from '../workspaces/workspaceTransport';
 
 /**
@@ -18,7 +19,8 @@ type FlaggedConfig = InternalAxiosRequestConfig & {
  * Feature 051 § 3.3 — wire the MSAL.js access-token acquisition into
  * every axios call:
  *
- * 1. Request: `acquireTokenSilent({ scopes, account: getAllAccounts()[0] })`.
+ * 1. Request: acquire a token for the active account, or the first cached
+ *    account only when no active account is selected.
  *    On success set `Authorization: Bearer <token>`. With no account
  *    available, leave the header unset (the request will 401 — which the
  *    response interceptor turns into a `loginRedirect`).
@@ -51,8 +53,7 @@ export function attachAuthInterceptor(
     captureWorkspaceRequest(axiosInstance, config);
     const msal = resolveMsal();
     if (!msal) return config;
-    const accounts = msal.getAllAccounts();
-    const account = accounts[0];
+    const account = selectMsalAccount(msal);
     if (!account) {
       return config;
     }
@@ -93,8 +94,7 @@ export function attachAuthInterceptor(
       if (status === 401 && cfg && cfg[SILENT_RENEWAL] !== true && msal) {
         // First 401 — try a single silent-renewal retry.
         cfg[SILENT_RENEWAL] = true;
-        const accounts = msal.getAllAccounts();
-        const account = accounts[0];
+        const account = selectMsalAccount(msal);
         if (account) {
           try {
             const result = await msal.acquireTokenSilent({ scopes, account });

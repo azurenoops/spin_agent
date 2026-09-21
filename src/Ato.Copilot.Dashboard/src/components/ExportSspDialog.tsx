@@ -9,6 +9,7 @@ import { enqueuePackage, getPackageStatus, getPackageDownloadUrl } from '../api/
 import { ValidationBadge } from '../features/oscal';
 import AuthenticatedDownload from './AuthenticatedDownload';
 import { workspaceHubUrl } from '../features/workspaces/workspaceHubUrl';
+import { selectMsalAccount } from '../features/auth/accountSelection';
 
 // ── Contract types for OSCAL SSP export ─────────────────────────────────────
 // GET /api/v1/systems/{systemId}/exports/oscal-ssp
@@ -237,7 +238,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
         // DEF-001 R2: only register when there is an authenticated MSAL account.
         // Never fall back to a phantom identity string.
         if (cancelledRef.current) return;
-        const account = getMsalInstance().getAllAccounts()[0];
+        const account = selectMsalAccount(getMsalInstance());
         if (account) {
           return connection.invoke('RegisterUser', account.localAccountId);
         }

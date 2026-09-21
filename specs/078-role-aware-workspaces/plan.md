@@ -256,6 +256,16 @@ field update as approval or assuming preserved history alone is sufficient.
 The exact source event, deduplication and version/concurrency contracts are
 dependency integration gates, not assumptions hidden in UI code.
 
+The user approved an explicit persisted #957 confirmation per system,
+subscription/capability and control, including reviewed provider version and
+provenance. Only effective assigned ISSM/ISSO roles may confirm. Unknown or
+conflicting allocations remain review work, and reconciliation must not reuse a
+baseline helper that changes narrative implementation status as a side effect.
+Source changes and pending narrative impacts must be persisted atomically or
+through a durable outbox; a fallible post-commit callback is not sufficient.
+Impact marking performs no synchronous model call, preserves approved content
+and supports idempotent retry of later proposal generation.
+
 ## Navigation and existing-route migration
 
 The following paths are proposed; they are not registered by this planning
@@ -654,6 +664,14 @@ the notification worker is extending matching checks to the remaining progress
 hubs and REST notification operations, and durable support-session revocation
 is still required. Focused selector/transport tests (18 cases) and TypeScript
 checking passed.
+
+Bearer acquisition now prefers MSAL's active account consistently for Axios,
+renewal retries, raw streaming and notification/export consumers, falling back
+to the first cached account only when none is active. This aligns transport with
+the shell's account-qualified invalidation. Red tests reproduced both old
+first-account selections; 24 focused account/transport tests pass. Current
+whole-project type checking remains blocked by in-progress domain-affordance
+test fixtures owned by the parallel UI task, not marked as a clean full gate.
 
 ### Planning artifact checks and tooling limitation
 

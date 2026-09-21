@@ -1,4 +1,5 @@
 import type { IPublicClientApplication } from '@azure/msal-browser';
+import { selectMsalAccount } from './accountSelection';
 
 /**
  * Feature 051 — module-singleton accessor for the
@@ -54,9 +55,9 @@ export async function acquireBearer(
 ): Promise<string> {
   try {
     const msal = getMsalInstance();
-    const accounts = msal.getAllAccounts();
-    if (accounts.length === 0) return '';
-    const result = await msal.acquireTokenSilent({ scopes, account: accounts[0] });
+    const account = selectMsalAccount(msal);
+    if (!account) return '';
+    const result = await msal.acquireTokenSilent({ scopes, account });
     return result.accessToken ?? '';
   } catch {
     return '';
