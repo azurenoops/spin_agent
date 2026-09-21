@@ -46,16 +46,17 @@ Record manual acceptance and publication preview before any external writes.
 
 ## Verification and Remaining Gates
 
-The first complete backend run passed 5,712 unit tests and 881 integration tests;
-40 SQL Server RLS tests were skipped. The subsequent expanded SQLite governance
-suite passed all 19 tests, including real MCP writers and four model-duration races.
-The dashboard suite passed 486 tests. TypeScript and production build passed.
+The final rebased backend run passed 5,712 unit tests and 889 integration tests;
+20 RLS tests and 20 Nessus tests marked as requiring a Cosmos DB emulator were
+skipped. The SQLite governance suite passed all 19 tests, including real MCP writers
+and four model-duration races. The dashboard suite passed 486 tests. TypeScript,
+the solution build, and the dashboard production build passed.
 Playwright passed synthetic API-backed interactions at 1440px and 390px, covering
 versioned writes, retained drafts after conflicts, and review locks. These are not
 live-model or full-stack browser tests. No deployed data was changed.
 
-Focused coverage before the final customization-marker fix covered 123/145 changed
-executable C# lines (84.8%). This is not complete branch/path coverage and does not
+Final focused coverage covered 125/147 changed executable C# lines (85.0%), using
+93 unit and 19 integration tests. This is not complete branch/path coverage and does not
 satisfy the Constitution's full modified-path coverage gate. SQL Server concurrency
 and RLS behavior, full modified-path coverage, and manual acceptance remain open.
 Screenshot inspection confirmed existing mobile table/summary clipping; desktop
