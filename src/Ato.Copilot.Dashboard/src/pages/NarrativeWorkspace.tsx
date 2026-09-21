@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from '../features/workspaces/workspaceNavigation';
 import { ArrowLeft, ArrowUpFromLine, BookOpen, Check, FileText, GitCompareArrows, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { diffWordsWithSpace } from 'diff';
 import Narratives from './Narratives';

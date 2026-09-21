@@ -118,9 +118,11 @@ describe('useLocalStorage', () => {
   });
 
   it('handles JSON parse errors gracefully', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementationOnce(() => {});
     localStorage.setItem('bad-key', 'not-json');
     const { result } = renderHook(() => useLocalStorage('bad-key', 'fallback'));
     expect(result.current[0]).toBe('fallback');
+    expect(warn).toHaveBeenCalledWith('Browser storage could not be read; using the initial value.');
   });
 
   it('stores complex objects', () => {

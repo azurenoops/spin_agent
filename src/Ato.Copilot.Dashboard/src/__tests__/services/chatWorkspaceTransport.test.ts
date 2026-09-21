@@ -12,10 +12,12 @@ const request: ChatRequest = {
 const terminal = 'event: result\ndata: {"type":"result","data":{"success":true,"response":"synthetic answer"}}\n\n';
 
 beforeEach(() => {
+  vi.clearAllMocks();
   auth.acquireBearer.mockResolvedValue('');
   window.history.replaceState({}, '', '/workspaces/organizations/org-alpha');
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   window.history.replaceState({}, '', '/');
 });
@@ -58,5 +60,47 @@ describe('workspace chat streaming transport', () => {
     // Assert
     expect(result).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: 'Workspace changed; chat request cancelled.' }));
+  });
+
+  it('enforces the 120-second handshake timeout even with an external cancellation signal', async () => {
+    // Arrange
+    vi.useFakeTimers();
+    const external = new AbortController();
+    let requestSignal: AbortSignal | null | undefined;
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      requestSignal = init?.signal;
+      requestSignal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    })));
+    const error = vi.fn();
+    const sending = sendMessage(request, vi.fn(), vi.fn(), vi.fn(), error, external.signal);
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(119_999);
+    expect(requestSignal?.aborted).toBe(false);
+
+    // Act
+    await vi.advanceTimersByTimeAsync(1);
+    await sending;
+
+    // Assert
+    expect(requestSignal?.aborted).toBe(true);
+    expect(external.signal.aborted).toBe(false);
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: 'Chat request timed out.' }));
+  });
+
+  it('does not send an already-cancelled request', async () => {
+    // Arrange
+    const controller = new AbortController();
+    controller.abort();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const error = vi.fn();
+
+    // Act
+    await sendMessage(request, vi.fn(), vi.fn(), vi.fn(), error, controller.signal);
+
+    // Assert
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(auth.acquireBearer).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
   });
 });

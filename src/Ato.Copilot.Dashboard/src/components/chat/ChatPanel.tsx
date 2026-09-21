@@ -24,6 +24,7 @@ export interface ChatPanelProps {
 export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: ChatPanelProps) {
   const { settings } = useSettings();
   const {
+    historyPersistenceEnabled,
     conversations,
     activeConversation,
     isProcessing,
@@ -141,6 +142,11 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
       role="complementary"
       aria-label="Chat panel"
     >
+      {historyPersistenceEnabled === false && (
+        <p role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+          Conversation history is not saved because qualified identity information is unavailable.
+        </p>
+      )}
       {/* Drag handle — left edge */}
       {!isMobile && (
         <div

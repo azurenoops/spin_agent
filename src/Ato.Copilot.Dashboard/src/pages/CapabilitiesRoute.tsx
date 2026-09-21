@@ -4,9 +4,11 @@ import CspCapabilitiesPage from '../features/csp-inherited-components/CspCapabil
 import RouteResolverFallback from '../components/layout/RouteResolverFallback';
 import { useCspDashboardAvailable } from '../components/layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../hooks/useImpersonationActive';
+import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
 
 /**
  * Scope-aware resolver mounted at `/capabilities`. Mirrors `ComponentsRoute`.
+ * Explicit workspace context takes precedence over the legacy rules below.
  *
  * CSP-Admin in `MultiTenant` mode and not impersonating ⇒ flat
  * `CspCapabilitiesPage` showing canonical CSP-inherited capabilities sourced
@@ -21,8 +23,12 @@ import { useImpersonationActive } from '../hooks/useImpersonationActive';
  * swapping. After the first probe, sessionStorage answers synchronously.
  */
 export default function CapabilitiesRoute(): ReactElement {
+  const workspace = useWorkspaceTarget();
   const impersonating = useImpersonationActive();
-  const cspAdminAvailable = useCspDashboardAvailable();
+  const cspAdminAvailable = useCspDashboardAvailable(!workspace);
+
+  if (workspace?.kind === 'csp') return <CspCapabilitiesPage />;
+  if (workspace?.kind === 'organization') return <CapabilityLibrary />;
 
   if (impersonating) {
     return <CapabilityLibrary />;

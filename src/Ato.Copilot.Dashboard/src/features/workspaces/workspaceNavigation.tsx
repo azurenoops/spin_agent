@@ -18,6 +18,10 @@ export * from 'react-router-dom';
 
 const WorkspaceNavigationContext = createContext<WorkspaceTarget | null>(null);
 
+export function useWorkspaceTarget(): WorkspaceTarget | null {
+  return useContext(WorkspaceNavigationContext);
+}
+
 export function WorkspaceNavigationProvider({ workspace, children }: {
   workspace: WorkspaceTarget;
   children: ReactNode;

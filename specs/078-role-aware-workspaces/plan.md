@@ -585,6 +585,31 @@ writes to their original key before leaving; never write old state into the new
 key. Abort streams on unmount/cancel and ignore obsolete callbacks. Raw streaming
 requests must carry the same validated scope selectors as Axios requests.
 
+### Client integration checkpoint
+
+The membership API client/types, shared `MeProvider`, fail-closed
+`WorkspaceBoundary`, explicit-context route resolvers and support URL namespace
+are implemented. The boundary requires matching server context and a positive
+system-access response before mounting system content. The application-shell
+integration is a separate in-progress task; these components alone do not
+activate all canonical entry routes.
+
+Chat browser storage is now partitioned by directory/object identity,
+workspace/mode and system. Missing qualified identity uses memory only with
+visible persistence feedback; legacy histories are not copied. Storage-key
+changes reject obsolete setters and preserve pending writes in the original
+scope. Stream unmount/replacement discards obsolete callbacks. Streaming requests
+carry workspace headers and reject results after scope changes. The existing
+120-second handshake timeout also works with an external cancellation signal.
+
+Verified at this checkpoint: 705 dashboard tests across 82 files passed on
+Node 20, TypeScript and production build passed, and the 8 legacy-route/profile
+desktop/mobile browser regressions passed using synthetic APIs. Full canonical
+persona/two-tab browser acceptance and real-server chat/notification validation
+remain pending. Dependency restore for merged #1014 reported 13 npm audit
+findings (3 low, 4 moderate, 6 high); no automatic audit-fix or suppression was
+applied. Previously documented build warnings remain.
+
 ### Planning artifact checks and tooling limitation
 
 Local relative Markdown links and unfilled-template checks passed for the new

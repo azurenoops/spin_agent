@@ -6,6 +6,7 @@
  * `specs/051-login/contracts/frontend-types.md`. ALL new login UI imports
  * from this module — no inline type definitions.
  */
+import type { WorkspaceDescriptor, WorkspaceOption, WorkspacePermissions } from '../workspaces/types';
 
 // ─── § 1 wire types (mirror of http-api.md) ─────────────────────────────
 
@@ -75,23 +76,27 @@ export interface ImpersonationState {
 
 export interface MeResponse {
   oid: string;
+  /** Authenticated issuer directory, not the internal organization ID. */
+  directoryTenantId?: string | null;
   displayName: string;
   persona: string;
-  homeTenant: TenantSummary;
-  effectiveTenant: TenantSummary;
+  homeTenant: TenantSummary | null;
+  effectiveTenant: TenantSummary | null;
   isImpersonating: boolean;
   impersonation: ImpersonationState | null;
   pimRoles: PimRoleAssignment[];
   isCspAdmin: boolean;
   isSocAnalyst: boolean;
   /**
-   * Tenants the user can pick in the picker (Feature 051 / US3).
-   * For non-CSP-Admin users this is exactly `[homeTenant]`. For
-   * CSP-Admins this is every provisioned tenant; the SPA hides
-   * `Disabled` rows for non-CSP-Admin and grays them out for
-   * CSP-Admin per FR-010.
+   * Legacy tenant projection. Ordinary context selection uses the authorized
+   * workspace options, not this list or a remembered home tenant.
    */
   tenantMemberships: TenantSummary[];
+  /** Optional only for compatibility with older, unscoped login responses. */
+  workspace?: WorkspaceDescriptor | null;
+  availableWorkspaces?: WorkspaceOption[];
+  availableWorkspacesTotal?: number;
+  permissions?: WorkspacePermissions;
 }
 
 export interface SelectTenantRequest {

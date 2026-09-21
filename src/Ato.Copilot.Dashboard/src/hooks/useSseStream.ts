@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { sendMessage } from '../services/chatService';
 import type {
   ChatRequest,
@@ -28,6 +28,11 @@ export function useSseStream(): UseSseStreamReturn {
   const [activeToolChips, setActiveToolChips] = useState<Map<string, number>>(new Map());
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  useEffect(() => () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  }, []);
+
   const cancel = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
@@ -47,6 +52,7 @@ export function useSseStream(): UseSseStreamReturn {
 
       const controller = new AbortController();
       abortControllerRef.current = controller;
+      const isCurrent = () => abortControllerRef.current === controller && !controller.signal.aborted;
 
       setIsStreaming(true);
       setProgressSteps([]);
@@ -55,10 +61,12 @@ export function useSseStream(): UseSseStreamReturn {
       sendMessage(
         request,
         (progress) => {
+          if (!isCurrent()) return;
           setProgressSteps((prev) => [...prev, progress]);
         },
         // T270: MCP tool start event — add chip
         (toolEvent: SseMcpToolEvent) => {
+          if (!isCurrent()) return;
           if (toolEvent.phase === 'start') {
             setActiveToolChips((prev) => {
               const next = new Map(prev);
@@ -74,17 +82,21 @@ export function useSseStream(): UseSseStreamReturn {
           }
         },
         (result) => {
+          if (!isCurrent()) return;
           setIsStreaming(false);
           setProgressSteps([]);
           setActiveToolChips(new Map());
           abortControllerRef.current = null;
+          controller.abort();
           onResult(result);
         },
         (error) => {
+          if (!isCurrent()) return;
           setIsStreaming(false);
           setProgressSteps([]);
           setActiveToolChips(new Map());
           abortControllerRef.current = null;
+          controller.abort();
           onError(error);
         },
         controller.signal,

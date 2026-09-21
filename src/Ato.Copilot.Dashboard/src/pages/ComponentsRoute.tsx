@@ -4,10 +4,12 @@ import CspInheritedComponentsPage from '../features/csp-inherited-components/Csp
 import RouteResolverFallback from '../components/layout/RouteResolverFallback';
 import { useCspDashboardAvailable } from '../components/layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../hooks/useImpersonationActive';
+import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
 
 /**
  * Scope-aware resolver mounted at `/components`. Mirrors `SystemsRoute` /
  * `PortfolioRoute`.
+ * Explicit workspace context takes precedence over the legacy matrix below.
  *
  *   | Deployment   | CSP-Admin | Impersonating | Page rendered                |
  *   |--------------|-----------|---------------|------------------------------|
@@ -27,8 +29,12 @@ import { useImpersonationActive } from '../hooks/useImpersonationActive';
  * default-rendering `ComponentLibrary` and then swapping.
  */
 export default function ComponentsRoute(): ReactElement {
+  const workspace = useWorkspaceTarget();
   const impersonating = useImpersonationActive();
-  const cspAdminAvailable = useCspDashboardAvailable();
+  const cspAdminAvailable = useCspDashboardAvailable(!workspace);
+
+  if (workspace?.kind === 'csp') return <CspInheritedComponentsPage />;
+  if (workspace?.kind === 'organization') return <ComponentLibrary />;
 
   if (impersonating) {
     return <ComponentLibrary />;

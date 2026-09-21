@@ -1,17 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import axios from 'axios';
 import type { MeResponse } from './types';
 
-/**
- * Feature 051 T072 [US3] / T135 [US8] / T138 [US9] — minimal `useMe`
- * hook with an explicit `refetch()` (Phase 11.3) and an automatic
- * `'ato:tenant-changed'` refetch (Phase 12 / FR-030).
- *
- * A heavier React-Query-backed hook will replace this when later phases
- * need session-wide identity state, but the current single-fetch + naive
- * state model is enough for the tenant picker, impersonation banner,
- * and account menu.
- */
 export interface UseMeResult {
   data: MeResponse | null;
   isLoading: boolean;
@@ -19,55 +9,68 @@ export interface UseMeResult {
   refetch: () => void;
 }
 
-export function useMe(): UseMeResult {
-  const [data, setData] = useState<MeResponse | null>(null);
-  const [isLoading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<Error | null>(null);
-  // Bump to re-run the fetch effect; consumers call refetch() from
-  // event handlers (e.g. the impersonation banner's Exit handler).
-  const [tick, setTick] = useState(0);
+export const MeContext = createContext<UseMeResult | undefined>(undefined);
 
+export function useOptionalMe(): UseMeResult | undefined {
+  return useContext(MeContext);
+}
+
+export function useMe(): UseMeResult {
+  const shared = useOptionalMe();
+  const standalone = useMeRequest(shared === undefined);
+  return shared ?? standalone;
+}
+
+export function useMeRequest(enabled = true, contextKey = 'legacy'): UseMeResult {
+  const [tick, setTick] = useState(0);
+  const requestKey = `${contextKey}:${tick}:${enabled ? 'active' : 'inactive'}`;
+  const [state, setState] = useState<Omit<UseMeResult, 'refetch'> & { key: string }>({
+    key: requestKey, data: null, isLoading: enabled, error: null,
+  });
   const refetch = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
+    if (!enabled) {
+      setState({ key: requestKey, data: null, isLoading: false, error: null });
+      return;
+    }
     let cancelled = false;
-    setLoading(true);
+    setState({ key: requestKey, data: null, isLoading: true, error: null });
     void (async () => {
       try {
-        const resp = await axios.get('/api/auth/me');
+        const resp = await axios.get<{ status?: string; data?: MeResponse }>('/api/auth/me');
         if (cancelled) return;
-        // Envelope: { status, data, metadata }
-        const body = resp.data as { status?: string; data?: MeResponse };
+        const body = resp.data;
         if (body?.status === 'success' && body.data) {
-          setData(body.data);
-          setError(null);
+          setState({ key: requestKey, data: body.data, isLoading: false, error: null });
         } else {
-          setError(new Error('Unexpected /api/auth/me envelope'));
+          setState({
+            key: requestKey, data: null, isLoading: false,
+            error: new Error('Unexpected /api/auth/me envelope'),
+          });
         }
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err : new Error(String(err)));
-      } finally {
-        if (!cancelled) setLoading(false);
+        setState({
+          key: requestKey, data: null, isLoading: false,
+          error: err instanceof Error ? err : new Error(String(err)),
+        });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [tick]);
+  }, [enabled, requestKey]);
 
-  // FR-030 — when the tenant picker dispatches `'ato:tenant-changed'`,
-  // every live `useMe()` consumer (impersonation banner, account menu,
-  // tenant picker page) must re-pull `/me` so the SPA's view of the
-  // effective tenant stays coherent. The `ImpersonationBanner` ALSO
-  // listens to this event for legacy reasons (Phase 11.3) — the double
-  // refetch is harmless (React batches the two `setTick` calls in the
-  // same tick) and we are not regressing that wiring here.
   useEffect(() => {
+    if (!enabled) return;
     const handler = () => refetch();
     window.addEventListener('ato:tenant-changed', handler);
     return () => window.removeEventListener('ato:tenant-changed', handler);
-  }, [refetch]);
+  }, [enabled, refetch]);
 
-  return { data, isLoading, error, refetch };
+  if (!enabled || state.key !== requestKey) {
+    return { data: null, isLoading: enabled, error: null, refetch };
+  }
+  return { data: state.data, isLoading: state.isLoading, error: state.error, refetch };
 }

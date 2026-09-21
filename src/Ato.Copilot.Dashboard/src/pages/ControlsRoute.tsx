@@ -3,10 +3,12 @@ import ControlCatalog from './ControlCatalog';
 import RouteResolverFallback from '../components/layout/RouteResolverFallback';
 import { useCspDashboardAvailable } from '../components/layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../hooks/useImpersonationActive';
+import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
 
 /**
  * Scope-aware resolver mounted at `/controls`. Mirrors `SystemsRoute` /
  * `ComponentsRoute` / `CapabilitiesRoute`.
+ * Explicit workspace context takes precedence over the legacy probe rules.
  *
  * The NIST 800-53 control catalog is identical at both CSP and Org scopes
  * (the framework is global), so both branches render the same
@@ -28,8 +30,11 @@ import { useImpersonationActive } from '../hooks/useImpersonationActive';
  * `CspInheritedCapability.MappedNistControlIds`. Tracked separately.
  */
 export default function ControlsRoute(): ReactElement {
+  const workspace = useWorkspaceTarget();
   const impersonating = useImpersonationActive();
-  const cspAdminAvailable = useCspDashboardAvailable();
+  const cspAdminAvailable = useCspDashboardAvailable(!workspace);
+
+  if (workspace) return <ControlCatalog scope={workspace.kind === 'csp' ? 'csp' : 'org'} />;
 
   if (impersonating) {
     return <ControlCatalog />;

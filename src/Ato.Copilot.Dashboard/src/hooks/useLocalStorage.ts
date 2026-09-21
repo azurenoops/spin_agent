@@ -1,54 +1,62 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-/**
- * Typed localStorage hook with JSON serialization and debounced writes.
- */
-export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((prev: T) => T)) => void] {
-  const [storedValue, setStoredValue] = useState<T>(() => {
+function readValue<T>(key: string | null, initialValue: T): T {
+  if (key === null) return initialValue;
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) as T : initialValue;
+  } catch {
+    console.warn('Browser storage could not be read; using the initial value.');
+    return initialValue;
+  }
+}
+
+/** Null keys deliberately keep state in memory without reading or writing storage. */
+export function useLocalStorage<T>(key: string | null, initialValue: T): [T, (value: T | ((prev: T) => T)) => void] {
+  const [stored, setStored] = useState(() => ({ key, value: readValue(key, initialValue) }));
+  const currentKey = useRef(key);
+  const initial = useRef(initialValue);
+  currentKey.current = key;
+  initial.current = initialValue;
+  const pending = useRef<{ key: string; value: T } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flush = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    const entry = pending.current;
+    pending.current = null;
+    if (!entry) return;
     try {
-      const item = localStorage.getItem(key);
-      return item ? (JSON.parse(item) as T) : initialValue;
+      localStorage.setItem(entry.key, JSON.stringify(entry.value));
     } catch {
-      return initialValue;
+      console.warn('Browser storage write failed; changes are available only in this view.');
     }
-  });
-
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const setValue = useCallback(
-    (value: T | ((prev: T) => T)) => {
-      setStoredValue((prev) => {
-        const nextValue = value instanceof Function ? value(prev) : value;
-
-        // Debounced write to localStorage
-        if (debounceRef.current) {
-          clearTimeout(debounceRef.current);
-        }
-        debounceRef.current = setTimeout(() => {
-          try {
-            localStorage.setItem(key, JSON.stringify(nextValue));
-          } catch (error) {
-            // QuotaExceededError — fall back silently
-            if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-              console.warn('localStorage quota exceeded for key:', key);
-            }
-          }
-        }, 100);
-
-        return nextValue;
-      });
-    },
-    [key],
-  );
-
-  // Clean up debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
   }, []);
 
-  return [storedValue, setValue];
+  useEffect(() => {
+    if (stored.key !== key) {
+      setStored(previous => previous.key === key ? previous : { key, value: readValue(key, initial.current) });
+    }
+  }, [key, stored.key]);
+
+  useEffect(() => () => flush(), [key, flush]);
+
+  const setValue = useCallback((value: T | ((previous: T) => T)) => {
+    if (currentKey.current !== key) return;
+    if (pending.current && pending.current.key !== key) flush();
+    setStored(previous => {
+      if (currentKey.current !== key) return previous;
+      const prior = previous.key === key ? previous.value : readValue(key, initial.current);
+      const next = value instanceof Function ? value(prior) : value;
+      if (key !== null) {
+        if (timer.current !== null) clearTimeout(timer.current);
+        pending.current = { key, value: next };
+        timer.current = setTimeout(flush, 100);
+      }
+      return { key, value: next };
+    });
+  }, [key, flush]);
+
+  return [stored.key === key ? stored.value : initialValue, setValue];
 }

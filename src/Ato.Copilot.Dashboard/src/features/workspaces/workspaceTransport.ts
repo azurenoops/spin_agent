@@ -11,6 +11,21 @@ function activeWorkspace() {
   return parseWorkspaceUrl(window.location.pathname)?.workspace ?? null;
 }
 
+export function captureWorkspaceSnapshot(): { key: string; headers: Record<string, string> } {
+  const workspace = activeWorkspace();
+  if (!workspace) return { key: '', headers: {} };
+  const headers: Record<string, string> = {
+    'X-Workspace-Kind': workspace.kind,
+    'X-Workspace-Mode': workspace.kind === 'organization' && workspace.mode === 'support' ? 'support' : 'ordinary',
+  };
+  if (workspace.kind === 'organization') headers['X-Workspace-Tenant-Id'] = workspace.tenantId;
+  return { key: buildWorkspaceUrl(workspace), headers };
+}
+
+export function isWorkspaceSnapshotCurrent(snapshot: { key: string }): boolean {
+  return snapshot.key === captureWorkspaceSnapshot().key;
+}
+
 export function assertWorkspaceRequestCurrent(config?: WorkspaceRequestConfig): void {
   if (config?._workspaceRequestKey === undefined) return;
   const workspace = activeWorkspace();
@@ -23,9 +38,9 @@ export function assertWorkspaceRequestCurrent(config?: WorkspaceRequestConfig): 
 }
 
 export function captureWorkspaceRequest(client: AxiosInstance, config: WorkspaceRequestConfig): void {
-  const workspace = activeWorkspace();
+  const snapshot = captureWorkspaceSnapshot();
   if (config._workspaceRequestKey === undefined) {
-    config._workspaceRequestKey = workspace ? buildWorkspaceUrl(workspace) : '';
+    config._workspaceRequestKey = snapshot.key;
   } else {
     assertWorkspaceRequestCurrent(config);
   }
@@ -33,11 +48,6 @@ export function captureWorkspaceRequest(client: AxiosInstance, config: Workspace
   config.headers.delete(WORKSPACE_HEADERS);
   const destination = new URL(client.getUri(config), window.location.origin);
   const apiOrigin = new URL(config.baseURL ?? '/', window.location.origin).origin;
-  if (!workspace || destination.origin !== apiOrigin || !destination.pathname.startsWith('/api/')) return;
-
-  config.headers.set('X-Workspace-Kind', workspace.kind);
-  config.headers.set('X-Workspace-Mode', 'ordinary');
-  if (workspace.kind === 'organization') {
-    config.headers.set('X-Workspace-Tenant-Id', workspace.tenantId);
-  }
+  if (destination.origin !== apiOrigin || !destination.pathname.startsWith('/api/')) return;
+  config.headers.set(snapshot.headers);
 }
