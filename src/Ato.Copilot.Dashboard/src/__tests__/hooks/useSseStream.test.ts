@@ -126,4 +126,49 @@ describe('useSseStream', () => {
     expect(result.current.isStreaming).toBe(false);
     expect(result.current.progressSteps).toEqual([]);
   });
+
+  it('aborts the active request when its workspace view unmounts', () => {
+    // Arrange
+    mockSendMessage.mockImplementation(() => new Promise(() => {}));
+    const hook = renderHook(() => useSseStream());
+    act(() => hook.result.current.stream(
+      { message: 'hi', conversationId: null, context: null, conversationHistory: [], action: null, actionContext: null },
+      vi.fn(), vi.fn(),
+    ));
+    const signal = mockSendMessage.mock.calls[0]?.[5];
+
+    // Act
+    hook.unmount();
+
+    // Assert
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it('ignores callbacks from a stream replaced by a newer request', () => {
+    // Arrange
+    mockSendMessage.mockImplementation(() => new Promise(() => {}));
+    const firstResult = vi.fn();
+    const firstError = vi.fn();
+    const { result } = renderHook(() => useSseStream());
+    const request = { message: 'hi', conversationId: null, context: null, conversationHistory: [], action: null, actionContext: null };
+    act(() => result.current.stream(request, firstResult, firstError));
+    const first = mockSendMessage.mock.calls[0]!;
+    act(() => result.current.stream(request, vi.fn(), vi.fn()));
+
+    // Act
+    act(() => {
+      first[1]({ step: 'Obsolete progress', detail: '', timestamp: '2026-09-21T00:00:00Z' });
+      first[2]({ phase: 'start', toolName: 'obsolete-tool' });
+      first[3]({ success: true, response: 'Obsolete result', conversationId: 'old', agentUsed: 'test',
+        intentType: 'query', processingTimeMs: 1, toolsExecuted: [], errors: [], suggestedActions: [], requiresFollowUp: false });
+      first[4](new Error('Obsolete failure'));
+    });
+
+    // Assert
+    expect(result.current.isStreaming).toBe(true);
+    expect(result.current.progressSteps).toEqual([]);
+    expect(result.current.activeToolChips.size).toBe(0);
+    expect(firstResult).not.toHaveBeenCalled();
+    expect(firstError).not.toHaveBeenCalled();
+  });
 });
