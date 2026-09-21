@@ -402,6 +402,20 @@ file was preserved. No helper code was changed in this planning-only task.
 Context regeneration needs a separately verified portability fix before it can
 be reported clean; a success exit code alone is not proof of correct output.
 
+### Integrated profile-permission regression
+
+After integrating #1005, the first desktop/mobile route-migration browser tests
+failed because Mission Profile rendered two identical forms. Inspection found a
+second header/form outside the loading/error guard in the merged
+`SystemProfile.tsx`; no workspace increment had modified that file. The guarded
+copy also retained a browser-persona condition on the read-only badge.
+
+This blocks consuming the scoped Mission Profile permission surface in US3.
+Add explicit one-form/loading/error/read-only regression tests, remove the
+unguarded duplicate and base the remaining badge on the server-authoritative
+read-only state. Do not weaken test selectors to choose an arbitrary duplicate.
+This is frontend integration repair, not a change to backend profile authority.
+
 ## Constitution check
 
 References: [constitution](../../.specify/memory/constitution.md),

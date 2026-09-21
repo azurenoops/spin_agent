@@ -28,6 +28,34 @@ beforeEach(() => {
 });
 
 describe('server-authoritative profile editing (#968)',() => {
+  it('renders exactly one profile form after workspace navigation (#1017)', async () => {
+    // Arrange
+    api.getProfileSection.mockResolvedValue(section(true));
+
+    // Act
+    render(<SystemProfile />);
+    await screen.findByText('Profile Completeness');
+
+    // Assert
+    expect(screen.getAllByPlaceholderText("Describe the system's mission...")).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /Save Draft/i })).toHaveLength(1);
+  });
+
+  it('does not render a profile form before scoped permissions load or when they fail (#1017)', async () => {
+    // Arrange
+    let rejectLoad!: (error: Error) => void;
+    api.getProfileSection.mockReturnValue(new Promise((_, reject) => { rejectLoad = reject; }));
+    render(<SystemProfile />);
+    expect(screen.queryByPlaceholderText("Describe the system's mission...")).not.toBeInTheDocument();
+
+    // Act
+    await act(async () => rejectLoad(new Error('Permission response unavailable')));
+
+    // Assert
+    expect(await screen.findByText('Unable to load profile section.')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Describe the system's mission...")).not.toBeInTheDocument();
+  });
+
   it.each(['NotStarted','Draft','NeedsRevision','Approved','UnderReview',undefined])(
     'fails closed without capability for %s',governanceStatus => {
       // Arrange
