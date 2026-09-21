@@ -177,6 +177,55 @@ public class SystemProfileServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CanEditProfile_AnyQualifyingAssignment_Allows()
+    {
+        // Arrange
+        var system = await SeedSystemAsync();
+        await AssignRoleAsync(system.Id, MoUserId, RmfRole.Isso);
+        await AssignRoleAsync(system.Id, "other-owner", RmfRole.MissionOwner);
+        await AssignRoleAsync(system.Id, MoUserId, RmfRole.SystemOwner);
+
+        // Act
+        var allowed = await _service.CanEditProfileAsync(system.Id, MoUserId);
+
+        // Assert
+        allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CanEditProfile_MissingOrInactiveSystem_DeniesEvenLegacyBypass()
+    {
+        // Arrange
+        var system = await SeedSystemAsync();
+        system.IsActive = false;
+        await _db.SaveChangesAsync();
+
+        // Act
+        var inactive = await _service.CanEditProfileAsync(system.Id, "dashboard-user");
+        var missing = await _service.CanEditProfileAsync("missing", MoUserId, RmfRole.MissionOwner);
+
+        // Assert
+        inactive.Should().BeFalse();
+        missing.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("dashboard-user", null, true)]
+    [InlineData("synthetic-user", RmfRole.MissionOwner, true)]
+    [InlineData("synthetic-user", RmfRole.Isso, false)]
+    public async Task CanEditProfile_PreservesExistingSimulationPolicy(string userId, RmfRole? simulatedRole, bool expected)
+    {
+        // Arrange
+        var system = await SeedSystemAsync();
+
+        // Act
+        var allowed = await _service.CanEditProfileAsync(system.Id, userId, simulatedRole);
+
+        // Assert
+        allowed.Should().Be(expected);
+    }
+
+    [Fact]
     public async Task SaveDraft_ExistingDraft_UpdatesContent()
     {
         var system = await SeedSystemWithRolesAsync();

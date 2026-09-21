@@ -1,103 +1,148 @@
-/**
- * SystemProfile — isReadOnly logic (#517)
- *
- * Issue: Mission & Purpose form fields are disabled for ISSM and ISSO roles.
- * Bug: the original isReadOnly expression only allowed 'MissionOwner' to edit;
- *      ISSM and ISSO — the primary personas who fill out mission profiles — were
- *      locked out along with every other non-MissionOwner role.
- *
- * Fix: export EDITOR_ROLES + computeIsReadOnly from SystemProfile.tsx so the
- *      logic can be unit-tested in isolation, then expand EDITOR_ROLES to
- *      include 'ISSM' and 'ISSO'.
- *
- * TDD red→green:
- *   RED  — before the fix, ISSM/ISSO assertions fail because the exported
- *           function still contains the buggy `role !== 'MissionOwner'` check.
- *   GREEN — after the fix, all assertions pass.
- */
-import { describe, it, expect } from 'vitest';
-import { computeIsReadOnly } from '../../pages/SystemProfile';
+import { act,fireEvent,render,screen,waitFor } from '@testing-library/react';
+import { beforeEach,describe,expect,it,vi } from 'vitest';
+import SystemProfile,{ computeIsReadOnly } from '../../pages/SystemProfile';
+import type { ProfileSectionDetail,ProfileSectionType } from '../../types/dashboard';
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+const state=vi.hoisted(() => ({ systemId: 'system-a',sectionType: 'MissionAndPurpose',role: '' }));
+const api=vi.hoisted(() => ({
+  getProfileSection: vi.fn(),getProfileCompleteness: vi.fn(),saveProfileSection: vi.fn(),
+  submitSections: vi.fn(),withdrawSections: vi.fn(),reviewSection: vi.fn(),
+}));
+vi.mock('react-router-dom',() => ({ useParams: () => ({ sectionType: state.sectionType }) }));
+vi.mock('../../components/layout/SystemLayout',() => ({ useSystemContext: () => ({ detail: { systemId: state.systemId } }) }));
+vi.mock('../../hooks/useSettings',() => ({ useSettings: () => ({ settings: { role: state.role } }) }));
+vi.mock('../../api/systemProfile',() => api);
 
-describe('SystemProfile isReadOnly logic (#517)', () => {
-  // ── Primary fix: ISSM and ISSO must be able to edit ──────────────────────
+function section(canEditProfile?: boolean,governanceStatus='NotStarted') {
+  return {
+    id: 'section-a',sectionType: state.sectionType,governanceStatus,canEditProfile,
+    draftContent: null,userCategories: [],dataTypeEntries: [],ppsEntries: [],leveragedAuthorizations: [],
+  } as unknown as ProfileSectionDetail;
+}
 
-  it('ISSM can edit a NotStarted section (was blocked — primary bug)', () => {
-    expect(computeIsReadOnly('NotStarted', 'ISSM')).toBe(false);
+beforeEach(() => {
+  vi.resetAllMocks();
+  Object.assign(state,{ systemId: 'system-a',sectionType: 'MissionAndPurpose',role: '' });
+  api.getProfileSection.mockResolvedValue(section(false));
+  api.getProfileCompleteness.mockResolvedValue({ statusCounts: {},totalSections: 5,approvedPercentage: 0 });
+});
+
+describe('server-authoritative profile editing (#968)',() => {
+  it.each(['NotStarted','Draft','NeedsRevision','Approved','UnderReview',undefined])(
+    'fails closed without capability for %s',governanceStatus => {
+      // Arrange
+      const missingCapability=undefined;
+      // Act
+      const readOnly=computeIsReadOnly(governanceStatus,missingCapability);
+      // Assert
+      expect(readOnly).toBe(true);
+    });
+  it.each(['NotStarted','Draft','NeedsRevision','Approved','UnderReview'])(
+    'applies review lock independently for %s',governanceStatus => {
+      // Arrange
+      const canEditProfile=true;
+      // Act
+      const readOnly=computeIsReadOnly(governanceStatus,canEditProfile);
+      // Assert
+      expect(readOnly).toBe(governanceStatus==='UnderReview');
+    });
+  it.each(['','ISSO','ISSM','MissionOwner','SystemOwner','Engineer','AO'])(
+    'local persona %s cannot grant authoring',async role => {
+      // Arrange
+      state.role=role;
+      // Act
+      render(<SystemProfile />);
+      // Assert
+      expect(await screen.findByText('Read-only')).toBeInTheDocument();
+      expect(screen.queryByRole('button',{ name: /Save Draft/i })).not.toBeInTheDocument();
+      expect(api.saveProfileSection).not.toHaveBeenCalled();
+    });
+
+  it.each<ProfileSectionType>(['MissionAndPurpose','UsersAndAccess','EnvironmentAndDeployment','DataTypes','PortsProtocolsAndServices','LeveragedAuthorizations'])(
+    'allows the server-authorized author on %s regardless of persona',async sectionType => {
+      // Arrange
+      state.sectionType=sectionType;
+      state.role='Engineer';
+      api.getProfileSection.mockResolvedValue(section(true));
+      // Act
+      render(<SystemProfile />);
+      // Assert
+      expect(await screen.findByRole('button',{ name: /Save Draft/i })).toBeInTheDocument();
+      expect(screen.queryByText('Read-only')).not.toBeInTheDocument();
+    });
+
+  it('retains authoring capability after save and surfaces safe server errors',async () => {
+    // Arrange
+    api.getProfileSection.mockResolvedValue(section(true));
+    api.saveProfileSection.mockResolvedValueOnce(section(true,'Draft'))
+      .mockRejectedValueOnce({ error: 'Your profile author assignment was removed.',errorCode: 'UNAUTHORIZED' });
+    render(<SystemProfile />);
+    // Act
+    fireEvent.click(await screen.findByRole('button',{ name: /Save Draft/i }));
+    await screen.findByText('Section saved as Draft.');
+    fireEvent.click(screen.getByRole('button',{ name: /Save Draft/i }));
+    // Assert
+    expect(await screen.findByText('Your profile author assignment was removed.')).toBeInTheDocument();
+    expect(screen.queryByText('Section saved as Draft.')).not.toBeInTheDocument();
   });
 
-  it('ISSO can edit a NotStarted section (was blocked — primary bug)', () => {
-    expect(computeIsReadOnly('NotStarted', 'ISSO')).toBe(false);
+  it('stays closed while loading and after a failed permission response',async () => {
+    // Arrange
+    let rejectLoad!: (error: Error) => void;
+    api.getProfileSection.mockReturnValue(new Promise((_,reject) => { rejectLoad=reject; }));
+    // Act
+    render(<SystemProfile />);
+    // Assert
+    expect(screen.queryByRole('button',{ name: /Save Draft/i })).not.toBeInTheDocument();
+    await act(async () => rejectLoad(new Error('Unavailable')));
+    expect(await screen.findByText('Unable to load profile section.')).toBeInTheDocument();
+    expect(screen.queryByRole('button',{ name: /Save Draft/i })).not.toBeInTheDocument();
   });
 
-  it('ISSM can edit a Draft section', () => {
-    expect(computeIsReadOnly('Draft', 'ISSM')).toBe(false);
+  it('ignores an old system permission response after navigation',async () => {
+    // Arrange
+    let finishOldRequest!: (value: ProfileSectionDetail) => void;
+    api.getProfileSection.mockReturnValueOnce(new Promise(resolve => { finishOldRequest=resolve; }))
+      .mockResolvedValueOnce(section(false));
+    const page=render(<SystemProfile />);
+    // Act
+    state.systemId='system-b';
+    page.rerender(<SystemProfile />);
+    await screen.findByText('Read-only');
+    await act(async () => finishOldRequest(section(true)));
+    // Assert
+    await waitFor(() => expect(screen.queryByRole('button',{ name: /Save Draft/i })).not.toBeInTheDocument());
   });
 
-  it('ISSO can edit a NeedsRevision section', () => {
-    expect(computeIsReadOnly('NeedsRevision', 'ISSO')).toBe(false);
+  it.each([
+    [new Error('Connection unavailable'),'Connection unavailable'],
+    [{ error: '' },'Save failed'],
+    [{ error: 42 },'Save failed'],
+    [null,'Save failed'],
+  ])('uses the safe fallback for rejected saves (%s)',async (failure,message) => {
+    // Arrange
+    api.getProfileSection.mockResolvedValue(section(true));
+    api.saveProfileSection.mockRejectedValue(failure);
+    render(<SystemProfile />);
+    // Act
+    fireEvent.click(await screen.findByRole('button',{ name: /Save Draft/i }));
+    // Assert
+    expect(await screen.findByText(message as string)).toBeInTheDocument();
   });
 
-  // ── MissionOwner must remain editable (regression guard) ─────────────────
-
-  it('MissionOwner can edit a NotStarted section (unchanged)', () => {
-    expect(computeIsReadOnly('NotStarted', 'MissionOwner')).toBe(false);
-  });
-
-  it('MissionOwner can edit a Draft section (unchanged)', () => {
-    expect(computeIsReadOnly('Draft', 'MissionOwner')).toBe(false);
-  });
-
-  // ── Reviewer/approver roles must remain read-only ────────────────────────
-
-  it('SCA is read-only on a NotStarted section', () => {
-    expect(computeIsReadOnly('NotStarted', 'SCA')).toBe(true);
-  });
-
-  it('AO is read-only on a NotStarted section', () => {
-    expect(computeIsReadOnly('NotStarted', 'AO')).toBe(true);
-  });
-
-  it('Engineer is read-only on a NotStarted section', () => {
-    expect(computeIsReadOnly('NotStarted', 'Engineer')).toBe(true);
-  });
-
-  // ── UnderReview lock must always apply regardless of role ─────────────────
-
-  it('UnderReview section is always read-only for ISSM', () => {
-    expect(computeIsReadOnly('UnderReview', 'ISSM')).toBe(true);
-  });
-
-  it('UnderReview section is always read-only for ISSO', () => {
-    expect(computeIsReadOnly('UnderReview', 'ISSO')).toBe(true);
-  });
-
-  it('UnderReview section is always read-only for MissionOwner', () => {
-    expect(computeIsReadOnly('UnderReview', 'MissionOwner')).toBe(true);
-  });
-
-  it('Approved section is editable for ISSM (not UnderReview, not read-only role)', () => {
-    expect(computeIsReadOnly('Approved', 'ISSM')).toBe(false);
-  });
-
-  // ── No role set → editable (open default for new/unassigned users) ────────
-
-  it('No role set (empty string) is editable — open default for new users', () => {
-    expect(computeIsReadOnly('NotStarted', '')).toBe(false);
-  });
-
-  it('No role set on Draft section is also editable', () => {
-    expect(computeIsReadOnly('Draft', '')).toBe(false);
-  });
-
-  // ── Edge cases ────────────────────────────────────────────────────────────
-
-  it('undefined governanceStatus with ISSM is editable', () => {
-    expect(computeIsReadOnly(undefined, 'ISSM')).toBe(false);
-  });
-
-  it('undefined governanceStatus with SCA is read-only', () => {
-    expect(computeIsReadOnly(undefined, 'SCA')).toBe(true);
+  it('ignores rejection from an obsolete system request',async () => {
+    // Arrange
+    let rejectOldRequest!: (error: Error) => void;
+    api.getProfileSection.mockReturnValueOnce(new Promise((_,reject) => { rejectOldRequest=reject; }))
+      .mockResolvedValueOnce(section(false));
+    const page=render(<SystemProfile />);
+    // Act
+    state.systemId='system-b';
+    page.rerender(<SystemProfile />);
+    await screen.findByText('Read-only');
+    await act(async () => rejectOldRequest(new Error('Obsolete request')));
+    // Assert
+    expect(screen.getByText('Read-only')).toBeInTheDocument();
+    expect(screen.queryByText('Unable to load profile section.')).not.toBeInTheDocument();
   });
 });

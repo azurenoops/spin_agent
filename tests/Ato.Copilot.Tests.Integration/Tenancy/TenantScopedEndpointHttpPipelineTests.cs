@@ -52,6 +52,121 @@ public class TenantScopedEndpointHttpPipelineTests
 
     // ─── Tests ──────────────────────────────────────────────────────────────
 
+    [Theory]
+    [InlineData(RmfRole.MissionOwner, "MissionAndPurpose")]
+    [InlineData(RmfRole.SystemOwner, "UsersAndAccess")]
+    [InlineData(RmfRole.Issm, "EnvironmentAndDeployment")]
+    [InlineData(RmfRole.MissionOwner, "DataTypes")]
+    [InlineData(RmfRole.SystemOwner, "PortsProtocolsAndServices")]
+    [InlineData(RmfRole.Issm, "LeveragedAuthorizations")]
+    public async Task Issue968_ProfileCapability_SaveReloadAuditAndRevocation(RmfRole role, string sectionType)
+    {
+        // Arrange
+        var systemId = (await SeedSystemAsync(_tenantA, "Profile-capability")).ToString();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var assignment = new RmfRoleAssignment
+        {
+            TenantId = _tenantA, RegisteredSystemId = systemId, UserId = "multi-tenant-test-user",
+            RmfRole = role, IsActive = true, AssignedBy = "test"
+        };
+        db.RmfRoleAssignments.Add(assignment);
+        await db.SaveChangesAsync();
+        var endpoint = $"/api/dashboard/systems/{systemId}/profile/{sectionType}";
+        var content = "{\"missionStatement\":\"Synthetic mission\",\"businessPurpose\":\"Synthetic purpose\"}";
+        var beforeSave = DateTime.UtcNow;
+
+        // Act
+        var initial = await _client.GetFromJsonAsync<JsonElement>(endpoint);
+        var save = await _client.PutAsJsonAsync(endpoint, new { content });
+        var saved = await save.Content.ReadFromJsonAsync<JsonElement>();
+        var reloaded = await _client.GetFromJsonAsync<JsonElement>(endpoint);
+
+        // Assert
+        initial.GetProperty("canEditProfile").GetBoolean().Should().BeTrue();
+        initial.GetProperty("governanceStatus").GetString().Should().Be("NotStarted");
+        save.StatusCode.Should().Be(HttpStatusCode.OK);
+        saved.GetProperty("canEditProfile").GetBoolean().Should().BeTrue();
+        reloaded.GetProperty("canEditProfile").GetBoolean().Should().BeTrue();
+        reloaded.GetProperty("governanceStatus").GetString().Should().Be("Draft");
+        reloaded.GetProperty("draftContent").GetString().Should().Be(content);
+        reloaded.GetProperty("lastEditedBy").GetString().Should().Be("multi-tenant-test-user");
+        var sectionId = saved.GetProperty("id").GetString();
+        var audit = await db.ProfileAuditEntries.AsNoTracking().SingleAsync(entry => entry.SystemProfileSectionId == sectionId);
+        audit.Action.Should().Be("Drafted");
+        audit.PerformedBy.Should().Be("multi-tenant-test-user");
+        audit.PerformedAt.Should().BeOnOrAfter(beforeSave);
+        audit.PreviousStatus.Should().BeNull();
+        audit.NewStatus.Should().Be(SspSectionStatus.Draft);
+        var staleSection = await db.SystemProfileSections.SingleAsync(item => item.Id == sectionId);
+        var originalToken = staleSection.RowVersion.ToArray();
+        await db.SaveChangesAsync();
+        staleSection.RowVersion.Should().Equal(originalToken);
+        var updated = await _client.PutAsJsonAsync(endpoint, new { content });
+        updated.StatusCode.Should().Be(HttpStatusCode.OK);
+        var stored = await db.SystemProfileSections.AsNoTracking().SingleAsync(item => item.Id == sectionId);
+        stored.RowVersion.Should().NotEqual(originalToken);
+        staleSection.DraftContent = "stale content";
+        Func<Task> staleSave = () => db.SaveChangesAsync();
+        await staleSave.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        db.Entry(staleSection).State = EntityState.Detached;
+        assignment.IsActive = false;
+        await db.SaveChangesAsync();
+        var revoked = await _client.PutAsJsonAsync(endpoint, new { content = "unauthorized replacement" });
+        revoked.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var afterRevocation = await _client.GetFromJsonAsync<JsonElement>(endpoint);
+        afterRevocation.GetProperty("canEditProfile").GetBoolean().Should().BeFalse();
+        afterRevocation.GetProperty("draftContent").GetString().Should().Be(content);
+        (await db.ProfileAuditEntries.CountAsync(entry => entry.SystemProfileSectionId == sectionId)).Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData("unassigned")]
+    [InlineData("inactive")]
+    [InlineData("isso")]
+    [InlineData("other-user")]
+    [InlineData("other-system")]
+    [InlineData("other-tenant")]
+    public async Task Issue968_ProfileCapability_DeniesNonAuthorDespitePersona(string assignmentCase)
+    {
+        // Arrange
+        var systemId = (await SeedSystemAsync(_tenantA, "Profile-denied")).ToString();
+        var otherSystem = (await SeedSystemAsync(_tenantA, "Profile-other")).ToString();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        if (assignmentCase != "unassigned")
+        {
+            db.RmfRoleAssignments.Add(new RmfRoleAssignment
+            {
+                TenantId = assignmentCase == "other-tenant" ? _tenantB : _tenantA,
+                RegisteredSystemId = assignmentCase == "other-system" ? otherSystem : systemId,
+                UserId = assignmentCase == "other-user" ? "other-user" : "multi-tenant-test-user",
+                RmfRole = assignmentCase == "isso" ? RmfRole.Isso : RmfRole.MissionOwner,
+                IsActive = assignmentCase != "inactive", AssignedBy = "test"
+            });
+            await db.SaveChangesAsync();
+        }
+        var endpoint = $"/api/dashboard/systems/{systemId}/profile/MissionAndPurpose";
+        using var readRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
+        readRequest.Headers.Add("X-Simulated-Role", "MissionOwner");
+        using var writeRequest = new HttpRequestMessage(HttpMethod.Put, endpoint)
+        {
+            Content = JsonContent.Create(new { content = "{}" })
+        };
+        writeRequest.Headers.Add("X-Simulated-Role", "MissionOwner");
+
+        // Act
+        var read = await _client.SendAsync(readRequest);
+        var section = await read.Content.ReadFromJsonAsync<JsonElement>();
+        var write = await _client.SendAsync(writeRequest);
+
+        // Assert
+        read.StatusCode.Should().Be(HttpStatusCode.OK);
+        section.GetProperty("canEditProfile").GetBoolean().Should().BeFalse();
+        write.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await db.SystemProfileSections.CountAsync(item => item.RegisteredSystemId == systemId)).Should().Be(0);
+    }
+
     [Fact]
     public async Task Issue962_BusinessContext_SqliteRoundTripPreservesConcurrency()
     {
