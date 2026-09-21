@@ -646,6 +646,12 @@ tenant-change event that unmounts the retry error. A direct API regression was
 reproduced against the original Git source without reverting concurrent edits;
 banner-only mocks do not establish this shared-helper behavior.
 
+The support-exit DELETE is a provider lifecycle operation: send ordinary CSP
+selectors and omit the organization header, even from a support URL. Otherwise
+expired support can be rejected before cleanup. Keep the initiating workspace
+and account pinned for cancellation; this narrowly scoped transport exception
+does not authorize other provider operations or clear state before HTTP 204.
+
 The scoped Settings panel now displays server identity/roles instead of an
 editable browser persona and gates Administration using the selected workspace's
 permissions. AO decision/override controls use the system permission projection.

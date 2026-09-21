@@ -88,6 +88,21 @@ describe('workspace transport through the shared auth client', () => {
     expect(result.config.headers.get('X-Workspace-Mode')).toBe('support');
   });
 
+  it('exits expired support through ordinary CSP scope without an organization header', async () => {
+    // Arrange
+    location('/workspaces/support/organizations/org-alpha');
+    const client = authenticatedClient('/api');
+    client.defaults.adapter = async config => response(config);
+
+    // Act
+    const result = await client.delete('/tenants/impersonation');
+
+    // Assert
+    expect(result.config.headers.get('X-Workspace-Kind')).toBe('csp');
+    expect(result.config.headers.get('X-Workspace-Mode')).toBe('ordinary');
+    expect(result.config.headers.has('X-Workspace-Tenant-Id')).toBe(false);
+  });
+
   it('scopes a separately configured API origin', async () => {
     // Arrange
     location('/workspaces/organizations/org-alpha');
