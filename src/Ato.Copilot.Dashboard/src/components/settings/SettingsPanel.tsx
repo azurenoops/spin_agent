@@ -4,6 +4,7 @@ import { useSettings, type DashboardSettings } from '../../hooks/useSettings';
 import { useCspDashboardAvailable } from '../layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../../hooks/useImpersonationActive';
 import apiClient from '../../api/client';
+import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -106,6 +107,20 @@ function SectionDivider({ title }: { title: string }) {
 // ─── Section Renderers ──────────────────────────────────────────────────────
 
 function ProfileSection({ settings, update }: { settings: DashboardSettings; update: (p: Partial<DashboardSettings>) => void }) {
+  const session = useWorkspaceSession();
+  if (session) {
+    return (
+      <div className="space-y-3">
+        <SectionDivider title="Authenticated identity" />
+        <dl className="space-y-2 text-sm text-gray-700">
+          <div><dt className="font-medium">Display Name</dt><dd>{session.identity.displayName}</dd></div>
+          <div><dt className="font-medium">Workspace</dt><dd>{session.workspace.displayName}</dd></div>
+          <div><dt className="font-medium">Effective roles</dt><dd>{session.roles.join(', ') || 'No RMF role assigned'}</dd></div>
+        </dl>
+        <p className="text-xs text-gray-500">Identity and permissions come from the server. Browser preferences do not grant roles.</p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-1">
       <SectionDivider title="Identity" />
@@ -271,6 +286,7 @@ function IntegrationsSection({ settings, update }: { settings: DashboardSettings
 
 function AdminSection({ settings, update, onClose }: { settings: DashboardSettings; update: (p: Partial<DashboardSettings>) => void; onClose: () => void }) {
   const navigate = useNavigate();
+  const session = useWorkspaceSession();
   // Scope-aware wizard target — mirrors the `/components` and `/` route
   // resolvers (see `ComponentsRoute`, `PortfolioRoute`):
   //   CSP-Admin + not impersonating  → CSP wizard (`/onboarding/csp`)
@@ -280,9 +296,9 @@ function AdminSection({ settings, update, onClose }: { settings: DashboardSettin
   // RMF roles, Azure scope). Routing the button to the wrong one — as
   // happened before — drops a CSP-Admin into the Feature 047 modal even
   // though they have nothing to fill in at org scope on the CSP portfolio.
-  const cspAvailable = useCspDashboardAvailable();
+  const cspAvailable = useCspDashboardAvailable(!session);
   const impersonating = useImpersonationActive();
-  const cspScope = cspAvailable === true && !impersonating;
+  const cspScope = session ? session.workspace.kind === 'csp' : cspAvailable === true && !impersonating;
   const wizardPath = cspScope ? '/onboarding/csp?reentry=admin' : '/onboarding?stepNav=admin';
   const wizardLabel = cspScope
     ? 'Re-open the CSP onboarding wizard to update legal-entity profile, hosting CSP branding, ATO document templates, or service-catalog scope.'
@@ -324,6 +340,11 @@ function AdminSection({ settings, update, onClose }: { settings: DashboardSettin
 
 export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { settings, updateSettings, resetSettings } = useSettings();
+  const session = useWorkspaceSession();
+  const canAdminister = !session || (session.workspace.kind === 'csp'
+    ? session.identity.isCspAdmin && session.workspace.permissions.canAccessCsp
+    : session.workspace.permissions.canManageOrganization);
+  const visibleSections = sections.filter(section => section.id !== 'admin' || canAdminister);
   const [activeSection, setActiveSection] = useState<SectionId>('profile');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -336,7 +357,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       case 'export': return <ExportSection settings={settings} update={updateSettings} />;
       case 'compliance': return <ComplianceSection settings={settings} update={updateSettings} />;
       case 'integrations': return <IntegrationsSection settings={settings} update={updateSettings} />;
-      case 'admin': return <AdminSection settings={settings} update={updateSettings} onClose={onClose} />;
+      case 'admin': return canAdminister
+        ? <AdminSection settings={settings} update={updateSettings} onClose={onClose} />
+        : <p role="alert" className="text-sm text-red-700">Administration is unavailable in this workspace.</p>;
     }
   };
 
@@ -380,7 +403,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           <div className="flex flex-1 overflow-hidden">
             {/* Sidebar nav */}
             <nav className="w-44 flex-shrink-0 overflow-y-auto border-r border-gray-100 bg-gray-50 py-2">
-              {sections.map((s) => (
+              {visibleSections.map((s) => (
                 <button
                   key={s.id}
                   type="button"

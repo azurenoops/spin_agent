@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { useSettings } from '../hooks/useSettings';
+import { useWorkspaceSession } from '../features/workspaces/WorkspaceBoundary';
+import { displayWorkspaceRoles } from '../features/workspaces/workspaceRoles';
 import ProfileSectionForm from '../components/forms/ProfileSectionForm';
 import { getProfileSection, saveProfileSection, submitSections, withdrawSections, reviewSection } from '../api/systemProfile';
 import { getProfileCompleteness } from '../api/systemProfile';
@@ -44,6 +46,7 @@ function SystemProfileSection() {
   const { sectionType: sectionParam } = useParams<{ sectionType: string }>();
   const { detail } = useSystemContext();
   const { settings } = useSettings();
+  const workspace = useWorkspaceSession();
 
   const [section, setSection] = useState<ProfileSectionDetail | null>(null);
   const [completeness, setCompleteness] = useState<ProfileCompletenessResponse | null>(null);
@@ -246,6 +249,7 @@ function SystemProfileSection() {
               reviewerComments={section?.reviewerComments ?? null}
               isReadOnly={isReadOnly}
               userRole={settings.role}
+              effectiveRoles={workspace ? displayWorkspaceRoles(workspace.roles) : undefined}
               isSubmitting={saving}
               error={error}
               systemContext={{

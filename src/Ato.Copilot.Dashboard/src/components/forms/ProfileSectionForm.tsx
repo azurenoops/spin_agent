@@ -231,6 +231,7 @@ interface ProfileSectionFormProps {
   reviewerComments: string | null;
   isReadOnly: boolean;
   userRole: string;
+  effectiveRoles?: readonly string[];
   isSubmitting: boolean;
   error: string | null;
   systemContext?: SystemContextForPrefill;
@@ -286,6 +287,7 @@ export default function ProfileSectionForm({
   reviewerComments,
   isReadOnly,
   userRole,
+  effectiveRoles,
   isSubmitting,
   error,
   systemContext,
@@ -348,8 +350,9 @@ export default function ProfileSectionForm({
 
   const isOptionalSection = sectionType === 'LeveragedAuthorizations';
   const canSubmit = governanceStatus === 'Draft' || governanceStatus === 'NeedsRevision';
-  const canWithdraw = governanceStatus === 'UnderReview' && userRole === 'MissionOwner';
-  const canReview = governanceStatus === 'UnderReview' && userRole === 'ISSM';
+  const roles = effectiveRoles ?? [userRole];
+  const canWithdraw = governanceStatus === 'UnderReview' && roles.includes('MissionOwner');
+  const canReview = governanceStatus === 'UnderReview' && roles.includes('ISSM');
 
   return (
     <div className="space-y-5">

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { useSettings } from '../hooks/useSettings';
+import { useWorkspaceSession } from '../features/workspaces/WorkspaceBoundary';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -111,7 +112,9 @@ const RISK_LEVELS = ['Low', 'Medium', 'High', 'Critical'] as const;
 export default function AuthorizationPage() {
   const { id: systemId = '' } = useParams<{ id: string }>();
   const { settings } = useSettings();
-  const canApplyOverride = settings.role === 'AO';
+  const workspace = useWorkspaceSession();
+  const canIssue = workspace ? workspace.systemAccess?.permissions.canDecideAuthorization === true : true;
+  const canApplyOverride = workspace ? canIssue : settings.role === 'AO';
 
   const [formOpen, setFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -137,6 +140,10 @@ export default function AuthorizationPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canIssue) {
+      setError('The active workspace does not permit authorization decisions.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setSuccess(null);
@@ -164,6 +171,10 @@ export default function AuthorizationPage() {
 
   const handleOverrideSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canApplyOverride) {
+      setError('The active workspace does not permit authorization overrides.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setSuccess(null);
@@ -206,7 +217,7 @@ export default function AuthorizationPage() {
             RMF Step 5 — Issue or review the Authorization to Operate (ATO) decision.
           </p>
         </div>
-        {!formOpen && (
+        {canIssue && !formOpen && (
           <button
             type="button"
             onClick={() => { setFormOpen(true); setError(null); setSuccess(null); }}
@@ -286,7 +297,7 @@ export default function AuthorizationPage() {
         </section>
       )}
 
-      {decision && overrideFormOpen && (
+      {canApplyOverride && decision && overrideFormOpen && (
         <section aria-label="Apply authorization override form">
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-medium text-gray-900">Apply Temporary Override</h2>
@@ -315,7 +326,7 @@ export default function AuthorizationPage() {
       )}
 
       {/* Issue authorization form */}
-      {formOpen && (
+      {canIssue && formOpen && (
         <section aria-label="Issue authorization form">
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-medium text-gray-900">Issue Authorization Decision</h2>

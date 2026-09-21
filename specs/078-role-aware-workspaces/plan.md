@@ -636,6 +636,16 @@ tenant-change event that unmounts the retry error. A direct API regression was
 reproduced against the original Git source without reverting concurrent edits;
 banner-only mocks do not establish this shared-helper behavior.
 
+The scoped Settings panel now displays server identity/roles instead of an
+editable browser persona and gates Administration using the selected workspace's
+permissions. AO decision/override controls use the system permission projection.
+Profile review controls use the complete effective role set rather than a local
+ISSM preference. System navigation/focus banners preserve all effective roles,
+without inferring authority from a highest global role. Focused regressions pass,
+and the current dashboard snapshot passes 783 tests across 93 files. Other
+operation-specific affordances and server handoffs still need final integration
+review; this checkpoint does not close #1017 or #1002.
+
 ### Planning artifact checks and tooling limitation
 
 Local relative Markdown links and unfilled-template checks passed for the new
