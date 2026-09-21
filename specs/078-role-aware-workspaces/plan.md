@@ -577,6 +577,14 @@ write operations remain fail-closed; and SignalR requires validated workspace
 handshakes, tenant-scoped delivery and revocation handling. Chat conversation
 isolation is not established by the membership REST tests.
 
+Client chat storage must be partitioned by the authenticated directory/object
+pair, workspace kind/organization/mode and selected system. Do not copy legacy
+browser conversations into a newly authorized scope. Missing qualified identity
+disables persistence explicitly rather than guessing a directory. Flush pending
+writes to their original key before leaving; never write old state into the new
+key. Abort streams on unmount/cancel and ignore obsolete callbacks. Raw streaming
+requests must carry the same validated scope selectors as Axios requests.
+
 ### Planning artifact checks and tooling limitation
 
 Local relative Markdown links and unfilled-template checks passed for the new
