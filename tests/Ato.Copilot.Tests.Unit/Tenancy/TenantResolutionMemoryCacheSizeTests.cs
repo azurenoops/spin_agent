@@ -29,6 +29,8 @@ namespace Ato.Copilot.Tests.Unit.Tenancy;
 /// <c>InvalidOperationException: "Cache entry must specify a value for Size
 /// when SizeLimit is set."</c> at runtime, which surfaces as a 500 on every
 /// tenant-resolution hit.
+/// These legacy cache paths now apply only to SingleTenant compatibility requests;
+/// MultiTenant membership authorization deliberately revalidates every request.
 /// </summary>
 /// <remarks>
 /// Bug surfaced after Feature 048 (T064 / T068) shipped because the
@@ -98,7 +100,7 @@ public class TenantResolutionMemoryCacheSizeTests : IAsyncLifetime
             http.RequestServices.GetRequiredService<ITenantContext>(),
             http.RequestServices.GetRequiredService<ITenantContextAccessor>(),
             BuildImpersonationStub(),
-            Options.Create(new DeploymentOptions { Mode = DeploymentMode.MultiTenant }),
+            Options.Create(new DeploymentOptions { Mode = DeploymentMode.SingleTenant }),
             Options.Create(new RoleClaimMappingsOptions()),
             http.RequestServices.GetRequiredService<IMemoryCache>(),
             http.RequestServices.GetRequiredService<AtoCopilotContext>(),
@@ -127,7 +129,7 @@ public class TenantResolutionMemoryCacheSizeTests : IAsyncLifetime
             BuildImpersonationStub(),
             Options.Create(new DeploymentOptions
             {
-                Mode = DeploymentMode.MultiTenant,
+                Mode = DeploymentMode.SingleTenant,
                 Tenants = new TenantPolicyOptions { AllowSelfOnboarding = true },
             }),
             Options.Create(new RoleClaimMappingsOptions()),
