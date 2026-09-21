@@ -13,6 +13,7 @@ vi.mock('@azure/msal-react', () => ({
   useMsal: () => ({
     instance: {
       loginRedirect,
+      getAllAccounts: () => [],
     },
     accounts: [],
     inProgress: 'none',
@@ -114,7 +115,7 @@ describe('LoginPage', () => {
     expect(screen.queryByTestId('simulation-panel')).toBeNull();
   });
 
-  it('renders a simulation panel placeholder when simulation is non-null', () => {
+  it('renders the lazy simulation panel when simulation is non-null', async () => {
     currentConfig = makeConfig({
       simulation: {
         identities: [
@@ -131,7 +132,7 @@ describe('LoginPage', () => {
 
     renderPage();
 
-    expect(screen.getByTestId('simulation-panel')).toBeInTheDocument();
+    expect(await screen.findByTestId('simulation-panel')).toBeInTheDocument();
   });
 
   it('marks the defaultMethod button as the primary action', () => {

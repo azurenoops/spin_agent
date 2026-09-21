@@ -61,8 +61,32 @@ test.describe('Narratives', () => {
     }
   });
 
-  test('should show independent policy and technical narrative editors', async ({ page }) => {
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+  test(`should show independent narrative editors and truthful business context at ${viewport.width}px`, async ({ page }, testInfo) => {
     // Arrange
+    await page.setViewportSize(viewport);
+    const pageErrors: string[] = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await page.addInitScript(() => localStorage.setItem('ato-dashboard-settings', JSON.stringify({ role: 'ISSO' })));
+    let isFlagged = false;
+    let contextContent: string | null = null;
+    let failContext = false;
+    await page.route(/^https?:\/\/[^/]+\/api\//, route => route.fulfill({ status: 503, json: { error: 'Not configured in this fixture' } }));
+    await page.route('**/api/csp/onboarding/state', route => route.fulfill({ status: 404 }));
+    await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/evidence', route => route.fulfill({ json: { direct: [], inherited: [], automated: [] } }));
+    await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/validation', route => route.fulfill({ json: { links: [] } }));
+    await page.route('**/api/dashboard/systems/e2e-system/controls/AC-2/narrative', route => route.fulfill({ status: 204 }));
+    await page.route('**/api/dashboard/systems/e2e-system/business-context/flagged-controls', route => route.fulfill({
+      json: isFlagged ? [{ controlId: 'AC-2', controlTitle: 'Account Management', hasDraft: contextContent !== null }] : [],
+    }));
+    await page.route('**/api/dashboard/systems/e2e-system/business-context/AC-2', route => route.fulfill({
+      status: failContext ? 500 : 200,
+      contentType: 'application/json',
+      body: JSON.stringify(failContext ? { error: 'Synthetic outage' } : contextContent === null ? null : {
+        id: 'owner-draft', controlId: 'AC-2', content: contextContent, governanceStatus: 'Draft',
+        authoredBy: 'Synthetic Mission Owner', authoredAt: '2026-01-01T00:00:00Z', reviewerComments: null,
+      }),
+    }));
     await page.route('**/api/auth/login-config', route => route.fulfill({
       json: {
         status: 'success',
@@ -142,5 +166,32 @@ test.describe('Narratives', () => {
     // Assert
     await expect(technicalEditor).toHaveValue('Regenerated technical narrative.');
     await expect(policyEditor).toHaveValue('Accounts are reviewed monthly.');
+
+    const contextPanel = page.getByRole('region', { name: 'Business context for AC-2' });
+    await expect(contextPanel.getByText('No business context provided')).toBeVisible();
+    await expect(contextPanel.getByText(/Awaiting business context/)).toHaveCount(0);
+    isFlagged = true;
+    await contextPanel.getByRole('button', { name: 'Refresh business context' }).click();
+    await expect(contextPanel.getByText('Awaiting business context from Mission Owner')).toBeVisible();
+    failContext = true;
+    await contextPanel.getByRole('button', { name: 'Refresh business context' }).click();
+    await expect(contextPanel.getByText('Unable to load business context', { exact: true })).toBeVisible();
+    await expect(contextPanel.getByText(/Awaiting business context/)).toHaveCount(0);
+    await contextPanel.screenshot({ path: testInfo.outputPath('business-context-error.png') });
+    failContext = false;
+    contextContent = 'Owner mission context for account management.';
+    await contextPanel.getByRole('button', { name: 'Retry business context', exact: true }).click();
+    await expect(contextPanel.getByText(contextContent)).toBeVisible();
+    await expect(policyEditor).toHaveValue('Accounts are reviewed monthly.');
+    await expect(technicalEditor).toHaveValue('Regenerated technical narrative.');
+    contextContent = 'Updated owner mission context.';
+    await contextPanel.getByRole('button', { name: 'Refresh business context' }).click();
+    await expect(contextPanel.getByText(contextContent)).toBeVisible();
+    await contextPanel.getByRole('button', { name: 'Copy to Narrative' }).click();
+    await expect(policyEditor).toHaveValue(`Accounts are reviewed monthly.\n\n${contextContent}`);
+    await expect(technicalEditor).toHaveValue('Regenerated technical narrative.');
+    await contextPanel.screenshot({ path: testInfo.outputPath('business-context-draft.png') });
+    expect(pageErrors).toEqual([]);
   });
+  }
 });

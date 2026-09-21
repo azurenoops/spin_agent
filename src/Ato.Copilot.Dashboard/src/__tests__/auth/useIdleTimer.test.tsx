@@ -23,6 +23,7 @@ const logoutRedirectMock = vi.fn<(opts?: { postLogoutRedirectUri?: string }) => 
 );
 vi.mock('../../features/auth/msalInstance', () => ({
   getMsalInstance: () => ({
+    getAllAccounts: () => [{ homeAccountId: 'synthetic-account' }],
     logoutRedirect: logoutRedirectMock,
   }),
 }));

@@ -8,10 +8,15 @@ import LoginCallbackPage from '../../features/auth/LoginCallbackPage';
 const handleRedirectPromise = vi.fn();
 const navigate = vi.fn();
 
+vi.mock('axios', () => ({
+  default: { get: vi.fn().mockResolvedValue({ data: { status: 'success', data: { tenantMemberships: [], isCspAdmin: false } } }) },
+}));
+
 vi.mock('@azure/msal-react', () => ({
   useMsal: () => ({
     instance: {
       handleRedirectPromise,
+      getAllAccounts: () => [],
     },
   }),
 }));

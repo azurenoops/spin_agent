@@ -38,7 +38,7 @@ describe('SystemRegistration', () => {
   it('renders all required form fields', () => {
     render(<SystemRegistration {...defaultProps} />);
 
-    expect(screen.getByText(/system name/i)).toBeDefined();
+    expect(screen.getByText(/^system name \*$/i)).toBeDefined();
     expect(screen.getByText(/system type/i)).toBeDefined();
     expect(screen.getByText(/mission criticality/i)).toBeDefined();
     expect(screen.getByText(/hosting environment/i)).toBeDefined();

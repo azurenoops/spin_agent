@@ -3287,6 +3287,9 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.RowVersion).IsConcurrencyToken();
 
             // One draft per control implementation
+            if (Database.IsSqlite())
+                entity.Property(e => e.RowVersion).ValueGeneratedNever();
+
             entity.HasIndex(e => e.ControlImplementationId)
                 .IsUnique()
                 .HasDatabaseName("IX_BusinessContextDraft_CtrlImpl");
@@ -4163,6 +4166,15 @@ public class AtoCopilotContext : DbContext
     /// </remarks>
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (Database.IsSqlite())
+        {
+            foreach (var entry in ChangeTracker.Entries<BusinessContextDraft>())
+            {
+                if (entry.State is EntityState.Added or EntityState.Modified)
+                    entry.Entity.RowVersion = Guid.NewGuid().ToByteArray();
+            }
+        }
+
         foreach (var entry in ChangeTracker.Entries<ConcurrentEntity>())
         {
             if (entry.State == EntityState.Modified || entry.State == EntityState.Added)

@@ -72,13 +72,9 @@ public class CapabilityImportServiceTests : IDisposable
 
         // Create CspProfileService with temp directory
         var envMock = new Mock<IWebHostEnvironment>();
-        envMock.Setup(e => e.ContentRootPath).Returns(Path.Combine(_tempDir, "non-existent"));
-        // Use the working directory approach; override current dir
-        var origDir = Directory.GetCurrentDirectory();
-        Directory.SetCurrentDirectory(_tempDir);
+        envMock.Setup(e => e.ContentRootPath).Returns(Path.Combine(_tempDir, "src", "seed-data"));
         var cspService = new CspProfileService(
             Mock.Of<ILogger<CspProfileService>>(), envMock.Object);
-        Directory.SetCurrentDirectory(origDir);
 
         _orgServiceMock = new Mock<IOrgInheritanceService>();
         _orgServiceMock.Setup(o => o.DeriveOrgDefaultsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))

@@ -26,8 +26,121 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Profile domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
+    /// <summary>Mission Owner content kept separate from canonical control narratives.</summary>
+    private sealed record BusinessContextResponse(
+        string Id, string ControlId, string Content, string GovernanceStatus,
+        string AuthoredBy, DateTimeOffset AuthoredAt, string? ReviewerComments);
+
+    /// <summary>Owner-authored business context, limited to the persisted content size.</summary>
+    private sealed record SaveBusinessContextBody(string? Content);
+
+    /// <summary>ISSM request to flag or unflag a control for owner input.</summary>
+    private sealed record SetBusinessContextFlagBody(string? ControlId, bool? IsFlagged);
+
+    private static async Task<IResult?> ValidateBusinessContextTargetAsync(
+        AtoCopilotContext db, string systemId, string? controlId, CancellationToken ct)
+    {
+        if (!await db.RegisteredSystems.AnyAsync(system => system.Id == systemId && system.IsActive, ct))
+            return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "SYSTEM_NOT_FOUND" });
+        if (controlId is not null && !await db.ControlImplementations.AnyAsync(control =>
+                control.RegisteredSystemId == systemId && control.ControlId == controlId, ct))
+            return Results.NotFound(new ErrorResponse { Error = "Control not found", ErrorCode = "CONTROL_NOT_FOUND" });
+        return null;
+    }
+
+    private static BusinessContextResponse ToBusinessContextResponse(BusinessContextDraft draft, string controlId) =>
+        new(draft.Id, controlId, draft.Content, draft.GovernanceStatus.ToString(),
+            draft.AuthoredBy, draft.AuthoredAt, draft.ReviewerComments);
+
+    private static int? BusinessContextErrorStatus(InvalidOperationException exception) =>
+        exception.Message.Split(':', 2)[0] switch
+        {
+            "UNAUTHORIZED" => StatusCodes.Status403Forbidden,
+            "SYSTEM_NOT_FOUND" or "CONTROL_NOT_FOUND" => StatusCodes.Status404NotFound,
+            "CONCURRENCY_CONFLICT" => StatusCodes.Status409Conflict,
+            _ => null
+        };
+
     private static void MapProfileRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
+        group.MapGet("/systems/{systemId}/business-context/flagged-controls", async (
+                string systemId, AtoCopilotContext db, ISystemProfileService profileService, CancellationToken ct) =>
+            {
+                var error = await ValidateBusinessContextTargetAsync(db, systemId, null, ct);
+                if (error is not null) return error;
+                return Results.Ok(await profileService.GetFlaggedControlsAsync(systemId, ct));
+            })
+            .WithName("GetBusinessContextFlaggedControls")
+            .Produces<List<FlaggedControlItem>>()
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        group.MapGet("/systems/{systemId}/business-context/{controlId}", async (
+                string systemId, string controlId, AtoCopilotContext db,
+                ISystemProfileService profileService, CancellationToken ct) =>
+            {
+                var error = await ValidateBusinessContextTargetAsync(db, systemId, controlId, ct);
+                if (error is not null) return error;
+
+                var draft = await profileService.GetBusinessContextAsync(systemId, controlId, ct);
+                if (draft is null)
+                    return Results.Json(System.Text.Json.JsonSerializer.SerializeToElement<object?>(null));
+                return Results.Json(ToBusinessContextResponse(draft, controlId));
+            })
+            .WithName("GetBusinessContext")
+            .Produces<BusinessContextResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        group.MapPut("/systems/{systemId}/business-context/{controlId}", async (
+                string systemId, string controlId, SaveBusinessContextBody body,
+                AtoCopilotContext db, ISystemProfileService profileService, CancellationToken ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(body.Content) || body.Content.Length > 8000)
+                    return Results.BadRequest(new ErrorResponse { Error = "Content must contain 1 to 8000 characters", ErrorCode = "INVALID_INPUT" });
+                var error = await ValidateBusinessContextTargetAsync(db, systemId, controlId, ct);
+                if (error is not null) return error;
+                try
+                {
+                    var draft = await profileService.SaveBusinessContextAsync(systemId, controlId, body.Content, currentUser.CurrentUserId, ct);
+                    return Results.Ok(ToBusinessContextResponse(draft, controlId));
+                }
+                catch (InvalidOperationException ex) when (BusinessContextErrorStatus(ex).HasValue)
+                {
+                    return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = ex.Message.Split(':', 2)[0] },
+                        statusCode: BusinessContextErrorStatus(ex));
+                }
+            })
+            .WithName("SaveBusinessContext")
+            .Produces<BusinessContextResponse>()
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+
+        group.MapPost("/systems/{systemId}/business-context/flags", async (
+                string systemId, SetBusinessContextFlagBody body,
+                AtoCopilotContext db, ISystemProfileService profileService, CancellationToken ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(body.ControlId) || !body.IsFlagged.HasValue)
+                    return Results.BadRequest(new ErrorResponse { Error = "Control ID and isFlagged are required", ErrorCode = "INVALID_INPUT" });
+                var error = await ValidateBusinessContextTargetAsync(db, systemId, body.ControlId, ct);
+                if (error is not null) return error;
+                try
+                {
+                    await profileService.SetControlFlagAsync(systemId, body.ControlId, body.IsFlagged.Value, currentUser.CurrentUserId, ct);
+                    return Results.NoContent();
+                }
+                catch (InvalidOperationException ex) when (BusinessContextErrorStatus(ex).HasValue)
+                {
+                    return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = ex.Message.Split(':', 2)[0] },
+                        statusCode: BusinessContextErrorStatus(ex));
+                }
+            })
+            .WithName("SetBusinessContextFlag")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
         group.MapGet("/systems/{systemId}/profile", async (
                 string systemId,
                 ISystemProfileService profileService,

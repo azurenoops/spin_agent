@@ -13,10 +13,14 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Compliance;
 
+[CollectionDefinition("ProfilePerformance", DisableParallelization = true)]
+public sealed class ProfilePerformanceCollection;
+
 /// <summary>
 /// Integration/performance assertions for Feature 046 profile workflows.
 /// T054: verify p95 for profile operations stays under 500ms (SC-011).
 /// </summary>
+[Collection("ProfilePerformance")]
 public class SystemProfileIntegrationTests : IDisposable
 {
     private readonly ServiceProvider _serviceProvider;
