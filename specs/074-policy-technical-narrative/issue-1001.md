@@ -24,6 +24,19 @@ not another workflow bar. Desktop navigation continues to use the sidebar.
 Review links identify an actual proposal; never fabricate a sample v8 or snapshot
 identifier.
 
+Grid styling follow-up (2026-09-21): the control table must fill its available
+card width before and after expanding a row. The workspace's 650px minimum
+overrides the shared `min-w-full` utility, so an auto-width table can shrink to
+its content and leave an empty area on the right. Set an explicit full table
+width while retaining the minimum-width overflow behavior and mobile card
+layout. Verify actual table/card geometry and header/body column alignment in
+the isolated desktop/mobile browser workflows; no data or workflow changes.
+The two desktop regressions failed with a 173.5px width gap before the fix.
+All four desktop/mobile workflows now pass with table/card width within 1px,
+before and after expansion. Desktop header/body column edges also align within
+1px; mobile retains its card layout. The 38 focused UI tests and TypeScript
+checking also pass.
+
 The same follow-up reproduced empty 404s from the library, access and proposals
 endpoints on both live pages. Revision 132 cannot start because of the existing
 #987 Feature 040 schema failure, leaving revision 120 serving without these
