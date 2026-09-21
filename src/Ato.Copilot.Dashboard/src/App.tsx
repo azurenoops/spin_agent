@@ -16,7 +16,7 @@ import Documents from './pages/Documents';
 import ConMon from './pages/ConMon';
 import Assessments from './pages/Assessments';
 import Remediation from './pages/Remediation';
-import Narratives from './pages/Narratives';
+import NarrativeWorkspace from './pages/NarrativeWorkspace';
 import DeviationsPage from './pages/DeviationsPage';
 import CapabilityCoverage from './pages/CapabilityCoverage';
 import EvidenceRepository from './pages/EvidenceRepository';
@@ -105,7 +105,7 @@ function AppContent() {
             <Route path="documents" element={<Documents />} />
             <Route path="conmon" element={<ConMon />} />
             <Route path="emass/status" element={<EmassStatusPage />} />
-            <Route path="narratives" element={<Narratives />} />
+            <Route path="narratives/*" element={<NarrativeWorkspace />} />
             <Route path="deviations" element={<DeviationsPage />} />
             <Route path="assessments" element={<Assessments />} />
             <Route path="remediation" element={<Remediation />} />

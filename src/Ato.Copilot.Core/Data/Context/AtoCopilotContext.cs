@@ -501,6 +501,8 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>Tenant-scoped reference documents seeded for narrative generation (Step 7).</summary>
     public DbSet<NarrativeSeedDocument> NarrativeSeedDocuments => Set<NarrativeSeedDocument>();
+    public DbSet<NarrativeReference> NarrativeReferences => Set<NarrativeReference>();
+    public DbSet<NarrativeProposal> NarrativeProposals => Set<NarrativeProposal>();
 
     /// <summary>Source→dependent links powering FR-094 cascade flagging.</summary>
     public DbSet<WizardArtifactDependency> WizardArtifactDependencies => Set<WizardArtifactDependency>();

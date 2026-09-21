@@ -54,6 +54,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Prompts\NarrativeGeneration.prompt.txt" />
+    <EmbeddedResource Include="Prompts\GroundedNarrative.prompt.txt" />
   </ItemGroup>
 
 </Project>

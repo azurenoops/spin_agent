@@ -8,6 +8,7 @@ import type { NarrativeListItem, AvailableControl } from '../api/narratives';
 import type { BusinessContextDraftResponse, FlaggedControlItem } from '../types/dashboard';
 import EvidenceSection from '../components/EvidenceSection';
 import ValidationEvidencePanel from '../features/compliance/components/ValidationEvidencePanel';
+import type { NarrativeProposal } from '../api/narrativeLibrary';
 
 function hasAiTechnicalNarrative(narrative: NarrativeListItem): boolean {
   return narrative.aiSuggested && !narrative.migratedFromLegacy &&
@@ -295,11 +296,17 @@ function BusinessContextPanel({ systemId, controlId, flags, canCopy, onCopy, onR
   );
 }
 
-export default function Narratives() {
+export default function Narratives({ onGenerateDraft, proposals = [], canGenerate = false, onReviewProposal }: {
+  onGenerateDraft?: (controlId: string, version: number, type?: string) => Promise<void>;
+  proposals?: NarrativeProposal[];
+  canGenerate?: boolean;
+  onReviewProposal?: (proposal: NarrativeProposal) => void;
+} = {}) {
   const { id: systemId } = useParams<{ id: string }>();
   const { settings } = useSettings();
   const [familyFilter, setFamilyFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [freshnessFilter, setFreshnessFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -328,27 +335,6 @@ export default function Narratives() {
     return () => { active = false; };
   }, [systemId, contextKey]);
 
-  const buildConfiguredSourceUrls = () => {
-    if (!settings?.sharePointSiteUrl || !settings?.sourceDocuments) {
-      return [];
-    }
-    const base = settings.sharePointSiteUrl.trim().replace(/\/+$/, '');
-    const lines = settings.sourceDocuments
-      .split(/\r?\n|,/) 
-      .map(x => x.trim())
-      .filter(Boolean);
-
-    if (lines.length === 0) return [] as string[];
-
-    return lines
-      .map((line) => {
-        if (/^https?:\/\//i.test(line)) return line;
-        if (!base) return null;
-        return `${base}/${line.replace(/^\/+/, '')}`;
-      })
-      .filter((x): x is string => Boolean(x));
-  };
-
   const fetchNarratives = useCallback(() => {
     if (!systemId) return Promise.resolve([]);
     const params: Record<string, string> = {};
@@ -360,7 +346,16 @@ export default function Narratives() {
 
   const { data: narratives, loading, error, refresh } = usePolling<NarrativeListItem[]>(fetchNarratives, 30_000);
 
-  const items = narratives ?? [];
+  const freshness = (controlId: string, type: string, content: string | null) => {
+    if (!content?.trim()) return 'Missing';
+    const latest = proposals.find(proposal => proposal.controlId === controlId && proposal.narrativeType === type && proposal.status !== 'NeedsRevision');
+    if (!latest) return 'Unknown';
+    if (latest.isStale) return 'Changed';
+    return latest.status === 'Draft' ? 'Proposed' : 'Current';
+  };
+  const items = (narratives ?? []).filter(item => freshnessFilter === 'All' ||
+    freshness(item.controlId, 'Policy', item.policyNarrative) === freshnessFilter ||
+    freshness(item.controlId, 'Technical', item.technicalNarrative) === freshnessFilter);
 
   // Group by family
   const familyCounts = useMemo(() => {
@@ -478,11 +473,14 @@ export default function Narratives() {
     setRegeneratingIds(prev => new Set([...prev, controlId]));
     setRegenError('');
     try {
-      const sourceUrls = buildConfiguredSourceUrls();
+      if (onGenerateDraft) {
+        await onGenerateDraft(controlId, expectedVersion);
+        return;
+      }
       const newNarrative = await regenerateNarrative(
         systemId,
         controlId,
-        { sourceUrls: sourceUrls.length > 0 ? sourceUrls : undefined, expectedVersion },
+        { expectedVersion },
       );
       draftVersions.current[draftKey] = expectedVersion + 1;
       if (newNarrative) {
@@ -532,43 +530,6 @@ export default function Narratives() {
           />
         )}
 
-        {/* Document source indicator */}
-        {(() => {
-          const configuredSources = buildConfiguredSourceUrls();
-          if (configuredSources.length > 0) {
-            return (
-              <div className="flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm text-teal-800">
-                <svg className="h-4 w-4 flex-shrink-0 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>
-                  <span className="font-medium">Document sources active</span> — Regenerate uses{' '}
-                  <span className="font-medium">{configuredSources.length} configured source{configuredSources.length !== 1 ? 's' : ''}</span> from SharePoint to ground narratives in your policy documents.
-                </span>
-                <span
-                  title={configuredSources.join('\n')}
-                  className="ml-auto cursor-default rounded bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700"
-                >
-                  {configuredSources.length} source{configuredSources.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-            );
-          }
-          return (
-            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
-              <svg className="h-4 w-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span>
-                No document sources configured — Regenerate uses security capability data.{' '}
-                Configure SharePoint sources in{' '}
-                <span className="font-medium text-gray-700">Settings → Documents To Consume</span>{' '}
-                to generate narratives from your policy documents instead.
-              </span>
-            </div>
-          );
-        })()}
-
         {/* Progress bar */}
         {stats.total > 0 && (
           <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -580,7 +541,6 @@ export default function Narratives() {
               <div className="flex h-full">
                 <div className="bg-green-500 transition-all" style={{ width: `${(stats.implemented / stats.total) * 100}%` }} />
                 <div className="bg-amber-400 transition-all" style={{ width: `${(stats.partial / stats.total) * 100}%` }} />
-                <div className="bg-indigo-400 transition-all" style={{ width: `${(stats.planned / stats.total) * 100}%` }} />
               </div>
             </div>
             <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
@@ -638,10 +598,12 @@ export default function Narratives() {
             onChange={e => setSearch(e.target.value)}
             className="rounded-md border border-gray-300 px-3 py-1 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
+          {onGenerateDraft && <label>Freshness<select value={freshnessFilter} onChange={event => setFreshnessFilter(event.target.value)}>
+            {['All', 'Current', 'Changed', 'Proposed', 'Missing', 'Unknown'].map(value => <option key={value}>{value}</option>)}</select></label>}
         </div>
 
         {/* Bulk actions toolbar */}
-        {selected.size > 0 && (
+        {!onGenerateDraft && selected.size > 0 && (
           <div className="flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
             <span className="text-sm font-medium text-indigo-700">{selected.size} selected</span>
             <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
@@ -695,16 +657,17 @@ export default function Narratives() {
                   <th className="px-3 py-3 w-8">
                     <input
                       type="checkbox"
+                      disabled={Boolean(onGenerateDraft)}
                       checked={selected.size === items.length && items.length > 0}
                       onChange={toggleSelectAll}
                       className="rounded border-gray-300"
                     />
                   </th>
                   <th className="px-3 py-3 text-left font-medium text-gray-500">Control</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-500">Family</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-500">{onGenerateDraft ? 'Policy' : 'Family'}</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-500">Status</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-500">Approval</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-500">Author</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-500">{onGenerateDraft ? 'Technical' : 'Author'}</th>
                   <th className="px-3 py-3 text-center font-medium text-gray-500">Ver</th>
                   <th className="px-3 py-3 text-center font-medium text-gray-500">Source</th>
                   <th className="px-3 py-3 w-8" />
@@ -739,16 +702,17 @@ export default function Narratives() {
                       <td className="px-3 py-3">
                         <input
                           type="checkbox"
+                          disabled={Boolean(onGenerateDraft)}
                           checked={selected.has(n.controlId)}
                           onChange={() => toggleSelect(n.controlId)}
                           className="rounded border-gray-300"
                         />
                       </td>
                       <td className="px-3 py-3 font-medium text-gray-900">{n.controlId}</td>
-                      <td className="px-3 py-3 text-gray-600">{n.family}</td>
+                      <td className="px-3 py-3 text-gray-600">{onGenerateDraft ? freshness(n.controlId, 'Policy', n.policyNarrative) : n.family}</td>
                       <td className="px-3 py-3"><StatusBadge status={n.implementationStatus} variant={implVariant(n.implementationStatus)} /></td>
                       <td className="px-3 py-3"><StatusBadge status={n.approvalStatus} variant={approvalVariant(n.approvalStatus)} /></td>
-                      <td className="px-3 py-3 text-gray-500">{n.authoredBy ?? '—'}</td>
+                      <td className="px-3 py-3 text-gray-500">{onGenerateDraft ? freshness(n.controlId, 'Technical', n.technicalNarrative) : n.authoredBy ?? '—'}</td>
                       <td className="px-3 py-3 text-center text-gray-500">{n.version}</td>
                       <td className="px-3 py-3 text-center">
                         {n.migratedFromLegacy ? (
@@ -788,12 +752,14 @@ export default function Narratives() {
                               </div>
                               <button
                                 className="inline-flex items-center gap-1 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-                                disabled={regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview'}
+                                disabled={regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview' || Boolean(onGenerateDraft && !canGenerate)}
                                 onClick={() => handleRegenerate(n.controlId)}
                               >
-                                {regeneratingIds.has(n.controlId) ? 'Regenerating…' : 'Regenerate'}
+                                {regeneratingIds.has(n.controlId) ? 'Regenerating…' : onGenerateDraft ? 'Regenerate as draft' : 'Regenerate'}
                               </button>
                             </div>
+                            {onReviewProposal && proposals.filter(proposal => proposal.controlId === n.controlId && proposal.status === 'Draft').map(proposal =>
+                              <button key={proposal.id} onClick={() => onReviewProposal(proposal)}>Compare proposed v{proposal.baseVersion + 1} / {proposal.narrativeType}</button>)}
                             <div className="grid gap-4 lg:grid-cols-2">
                               <label className="block text-sm font-semibold text-gray-800">
                                 Policy Narrative
@@ -802,12 +768,12 @@ export default function Narratives() {
                                   aria-label={`Policy narrative for ${n.controlId}`}
                                   className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                                   value={policyValue}
-                                  readOnly={n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
+                                  readOnly={Boolean(onGenerateDraft) || n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
                                   onChange={event => {
                                     draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
                                     setEditedNarratives(previous => ({ ...previous, [policyKey]: event.target.value }));
                                   }}
-                                  onBlur={event => handleNarrativeBlur(n.controlId, 'policy', event.target.value, n.policyNarrative)}
+                                  onBlur={event => { if (!onGenerateDraft) void handleNarrativeBlur(n.controlId, 'policy', event.target.value, n.policyNarrative); }}
                                 />
                               </label>
                               <label className="block text-sm font-semibold text-gray-800">
@@ -820,12 +786,12 @@ export default function Narratives() {
                                   aria-label={`Technical narrative for ${n.controlId}`}
                                   className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                                   value={technicalValue}
-                                  readOnly={n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
+                                  readOnly={Boolean(onGenerateDraft) || n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
                                   onChange={event => {
                                     draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
                                     setEditedNarratives(previous => ({ ...previous, [technicalKey]: event.target.value }));
                                   }}
-                                  onBlur={event => handleNarrativeBlur(n.controlId, 'technical', event.target.value, n.technicalNarrative)}
+                                  onBlur={event => { if (!onGenerateDraft) void handleNarrativeBlur(n.controlId, 'technical', event.target.value, n.technicalNarrative); }}
                                 />
                               </label>
                             </div>
@@ -864,7 +830,7 @@ export default function Narratives() {
                               systemId={systemId}
                               controlId={n.controlId}
                               flags={contextFlags.key === contextKey ? contextFlags.result : { status: 'loading' }}
-                              canCopy={settings.role === 'ISSO' && n.approvalStatus !== 'UnderReview' && !regeneratingIds.has(n.controlId)}
+                              canCopy={!onGenerateDraft && settings.role === 'ISSO' && n.approvalStatus !== 'UnderReview' && !regeneratingIds.has(n.controlId)}
                               onRefresh={() => setContextRevision(revision => revision + 1)}
                               onCopy={content => {
                                 draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;

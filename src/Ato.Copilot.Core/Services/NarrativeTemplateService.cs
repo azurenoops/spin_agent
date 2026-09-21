@@ -45,6 +45,36 @@ public class NarrativeTemplateService : IControlNarrativeService
     private bool IsAiEnabled => _chatClient is not null
                              && _aiOptions is { Enabled: true, IsConfigured: true };
 
+    public async Task<GroundedNarrativeDraft> GenerateGroundedDraftAsync(
+        string narrativeType, string contextJson, CancellationToken cancellationToken = default)
+    {
+        if (!IsAiEnabled) throw new InvalidOperationException("AI_NOT_AVAILABLE: Narrative generation is not configured.");
+        if (narrativeType is not ("Policy" or "Technical") || contextJson.Length > 100_000)
+            throw new ArgumentException("Narrative type or generation context is invalid or too large.");
+        using var resource = typeof(NarrativeTemplateService).Assembly.GetManifestResourceStream(
+            "Ato.Copilot.Core.Prompts.GroundedNarrative.prompt.txt")
+            ?? throw new InvalidOperationException("Narrative generation prompt is unavailable.");
+        using var reader = new StreamReader(resource);
+        var prompt = await reader.ReadToEndAsync(cancellationToken);
+        var response = await _chatClient!.GetResponseAsync(
+            [new ChatMessage(ChatRole.System, prompt), new ChatMessage(ChatRole.User,
+                System.Text.Json.JsonSerializer.Serialize(new { narrativeType, context = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(contextJson) }))],
+            new ChatOptions { Temperature = 0, ResponseFormat = ChatResponseFormat.Json }, cancellationToken);
+        GroundedNarrativeDraft? result;
+        try
+        {
+            result = System.Text.Json.JsonSerializer.Deserialize<GroundedNarrativeDraft>(response.Text,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (System.Text.Json.JsonException exception)
+        { throw new InvalidOperationException("GENERATION_FAILED: Model returned an invalid narrative response.", exception); }
+        if (result is null || string.IsNullOrWhiteSpace(result.Narrative) || result.Narrative.Length > 8000 ||
+            result.Conflicts is null || result.MissingEvidence is null || result.Conflicts.Count > 20 || result.MissingEvidence.Count > 20 ||
+            result.Conflicts.Concat(result.MissingEvidence).Any(value => value is null || value.Length > 2000))
+            throw new InvalidOperationException("GENERATION_FAILED: Model returned an invalid narrative response.");
+        return result;
+    }
+
     private static string? LoadPromptResource()
     {
         var assembly = Assembly.GetExecutingAssembly();
