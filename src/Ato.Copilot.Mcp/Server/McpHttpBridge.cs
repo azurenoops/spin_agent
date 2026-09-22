@@ -8,6 +8,8 @@ using Ato.Copilot.Core.Observability;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Models;
 using Ato.Copilot.Mcp.Resilience;
+using Ato.Copilot.Mcp.Services.Tenancy;
+using Ato.Copilot.Mcp.Authorization;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
@@ -66,6 +68,7 @@ public class McpHttpBridge
         // MCP JSON-RPC endpoint
         app.MapPost("/mcp", (Delegate)HandleMcpRequestAsync)
             .WithName("McpJsonRpc")
+            .WithMetadata(new WorkspaceAuthorizedEndpoint())
             .WithTags("MCP")
             .WithDescription("MCP JSON-RPC endpoint for tool invocations")
             .RequireRateLimiting("jsonrpc");
@@ -73,6 +76,7 @@ public class McpHttpBridge
         // Compliance chat endpoint
         app.MapPost("/mcp/chat", (Delegate)HandleChatRequestAsync)
             .WithName("McpChat")
+            .WithMetadata(new WorkspaceAuthorizedEndpoint())
             .WithTags("MCP")
             .WithDescription("Process compliance requests via AI agent")
             .RequireRateLimiting("chat");
@@ -80,6 +84,7 @@ public class McpHttpBridge
         // Streaming chat endpoint with SSE progress events
         app.MapPost("/mcp/chat/stream", (Delegate)HandleChatStreamRequestAsync)
             .WithName("McpChatStream")
+            .WithMetadata(new WorkspaceAuthorizedEndpoint())
             .WithTags("MCP")
             .WithDescription("Process compliance requests with real-time progress via SSE")
             .RequireRateLimiting("stream");
@@ -107,7 +112,7 @@ public class McpHttpBridge
         try
         {
             var request = await JsonSerializer.DeserializeAsync<McpRequest>(
-                context.Request.Body, _jsonOptions);
+                context.Request.Body, _jsonOptions, context.RequestAborted);
 
             if (request == null)
                 return Results.BadRequest(new { error = "Invalid request" });
@@ -125,20 +130,34 @@ public class McpHttpBridge
                 {
                     var message = toolCall.Arguments?.GetValueOrDefault("message")?.ToString() ?? "";
                     var convId = toolCall.Arguments?.GetValueOrDefault("conversation_id")?.ToString();
-                    var result = await _mcpServer.ProcessChatRequestAsync(message, convId);
-                    return Results.Json(result, _jsonOptions);
+                    var result = await _mcpServer.ProcessChatRequestAsync(message, convId, toolCall.Arguments,
+                        cancellationToken: context.RequestAborted);
+                    return result.Success ? Results.Json(result, _jsonOptions) : MapFailureResult(result, _jsonOptions);
                 }
+                if (toolCall is null || string.IsNullOrWhiteSpace(toolCall.Name))
+                    return Results.BadRequest(new { success = false, code = "INVALID_TOOL_REQUEST" });
+                var toolResult = await _mcpServer.ProcessWorkspaceToolRequestAsync(
+                    toolCall.Name, toolCall.Arguments, context.RequestAborted);
+                return Results.Json(new McpResponse { Id = request.Id, Result = toolResult }, _jsonOptions);
             }
 
             // For other methods, wrap in chat
             var chatResult = await _mcpServer.ProcessChatRequestAsync(
-                JsonSerializer.Serialize(request.Params, _jsonOptions));
-            return Results.Json(chatResult, _jsonOptions);
+                JsonSerializer.Serialize(request.Params, _jsonOptions), cancellationToken: context.RequestAborted);
+            return chatResult.Success ? Results.Json(chatResult, _jsonOptions) : MapFailureResult(chatResult, _jsonOptions);
+        }
+        catch (WorkspaceException ex)
+        {
+            return WorkspaceFailure(ex, context);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing HTTP MCP request");
-            return Results.Problem(ex.Message);
+            return Results.Problem("An internal error occurred.", statusCode: 500);
         }
     }
 
@@ -148,7 +167,7 @@ public class McpHttpBridge
         try
         {
             var chatRequest = await JsonSerializer.DeserializeAsync<ChatRequest>(
-                context.Request.Body, _jsonOptions);
+                context.Request.Body, _jsonOptions, context.RequestAborted);
 
             if (chatRequest == null || string.IsNullOrEmpty(chatRequest.Message))
                 return Results.BadRequest(new { error = "Message is required" });
@@ -158,8 +177,9 @@ public class McpHttpBridge
             var result = await _mcpServer.ProcessChatRequestAsync(
                 chatRequest.Message,
                 chatRequest.ConversationId,
-                chatRequest.Context,
+                RequestContext(chatRequest),
                 chatRequest.ConversationHistory?.Select(m => (m.Role, m.Content)).ToList(),
+                cancellationToken: context.RequestAborted,
                 action: chatRequest.Action,
                 actionContext: chatRequest.ActionContext);
 
@@ -175,6 +195,14 @@ public class McpHttpBridge
                 return MapFailureResult(result, _jsonOptions);
 
             return Results.Json(result, _jsonOptions);
+        }
+        catch (WorkspaceException ex)
+        {
+            return WorkspaceFailure(ex, context);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -238,12 +266,13 @@ public class McpHttpBridge
                     // fix(#722): deserialise context forwarded by the frontend so that
                     // system_id / systemId reaches the agent even in multipart requests.
                     Context = TryParseContextField(form["context"].FirstOrDefault()),
+                    SystemId = form["systemId"].FirstOrDefault(),
                 };
             }
             else
             {
                 chatRequest = await JsonSerializer.DeserializeAsync<ChatRequest>(
-                    context.Request.Body, _jsonOptions);
+                    context.Request.Body, _jsonOptions, context.RequestAborted);
             }
 
             if (chatRequest == null || string.IsNullOrEmpty(chatRequest.Message))
@@ -254,154 +283,161 @@ public class McpHttpBridge
             }
 
             var conversationId = chatRequest.ConversationId ?? Guid.NewGuid().ToString();
+            var requestContext = RequestContext(chatRequest);
+            var identity = await WorkspaceChatScope.ResolveAsync(context, requestContext,
+                chatRequest.ActionContext, context.RequestAborted);
+            var sessionKey = identity.StorageKey(conversationId);
             _logger.LogInformation("Streaming chat request | ConvId: {ConvId}", conversationId);
 
             // Set up SSE headers
             context.Response.ContentType = "text/event-stream";
             context.Response.Headers["Cache-Control"] = "no-cache";
             context.Response.Headers["Connection"] = "keep-alive";
-            await context.Response.Body.FlushAsync();
+            await context.Response.Body.FlushAsync(context.RequestAborted);
 
             // T059: Replay buffered events on reconnection (FR-040)
             var lastEventIdHeader = context.Request.Headers["Last-Event-ID"].FirstOrDefault();
             if (long.TryParse(lastEventIdHeader, out var lastEventId) && lastEventId > 0)
             {
-                var replayEvents = _sseEventBuffer.GetEventsForReplay(conversationId, lastEventId);
+                var replayEvents = _sseEventBuffer.GetEventsForReplay(sessionKey, lastEventId);
                 foreach (var evt in replayEvents)
                 {
-                    await context.Response.WriteAsync($"id: {evt.Id}\ndata: {evt.Data}\n\n");
-                    await context.Response.Body.FlushAsync();
+                    await context.Response.WriteAsync($"id: {evt.Id}\ndata: {evt.Data}\n\n", context.RequestAborted);
+                    await context.Response.Body.FlushAsync(context.RequestAborted);
                 }
                 _logger.LogInformation("Replayed {Count} events from buffer | ConvId: {ConvId} | LastEventId: {LastId}",
                     replayEvents.Count, conversationId, lastEventId);
             }
 
             // T059: Start keepalive timer (FR-042)
+            await using var progress = new ChatSseWriter(context, _sseEventBuffer, sessionKey, _sseJsonOptions);
             using var keepaliveCts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
-            var keepaliveTask = RunKeepaliveAsync(context, keepaliveCts.Token);
+            var keepaliveTask = RunKeepaliveAsync(progress, keepaliveCts.Token);
 
-            // Create progress reporter that writes SSE events with IDs (T018: typed events, FR-040: event IDs)
-            var progress = new Progress<string>(async step =>
+            try
             {
-                try
+                // #201: Extract text content from uploaded files and inject into the message before the LLM call.
+                // StreamReader works correctly for plain-text formats (csv, json, xml, txt, ckl, xccdf).
+                // For binary formats (pdf, docx, xlsx) the output will be garbled UTF-8 from raw bytes;
+                // this is still better than silently dropping the attachment. A proper implementation
+                // would use a dedicated parser (e.g. PdfPig for PDF, DocumentFormat.OpenXml for DOCX/XLSX)
+                // but that is out of scope for this fix. See GitHub Issue #201 for follow-up work.
+                string messageWithAttachments = chatRequest.Message;
+                if (chatRequest.Attachments != null && chatRequest.Attachments.Count > 0)
                 {
-                    string eventData;
-                    if (step.StartsWith("{") && step.Contains("\"type\""))
+                    var attachmentTexts = new List<string>();
+                    foreach (var file in chatRequest.Attachments)
                     {
-                        eventData = step;
+                        try
+                        {
+                            using var stream = file.OpenReadStream();
+                            using var reader = new StreamReader(stream, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                            var content = await reader.ReadToEndAsync(context.RequestAborted);
+                            // Truncate to 50 KB per file to stay within token limits
+                            if (content.Length > 51200)
+                                content = content[..51200] + "\n[... content truncated ...]";
+                            attachmentTexts.Add($"<attachment name=\"{file.FileName}\" type=\"{file.ContentType}\">\n{content}\n</attachment>");
+                        }
+                        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to read attachment {FileName}", file.FileName);
+                        }
                     }
-                    else
+                    if (attachmentTexts.Count > 0)
                     {
-                        eventData = JsonSerializer.Serialize(new { type = "progress", step }, _sseJsonOptions);
-                    }
-
-                    var sseEvent = _sseEventBuffer.AddEvent(conversationId, eventData);
-                    await context.Response.WriteAsync($"id: {sseEvent.Id}\ndata: {eventData}\n\n");
-                    await context.Response.Body.FlushAsync();
-                }
-                catch { /* client disconnected */ }
-            });
-
-            // #201: Extract text content from uploaded files and inject into the message before the LLM call.
-            // StreamReader works correctly for plain-text formats (csv, json, xml, txt, ckl, xccdf).
-            // For binary formats (pdf, docx, xlsx) the output will be garbled UTF-8 from raw bytes;
-            // this is still better than silently dropping the attachment. A proper implementation
-            // would use a dedicated parser (e.g. PdfPig for PDF, DocumentFormat.OpenXml for DOCX/XLSX)
-            // but that is out of scope for this fix. See GitHub Issue #201 for follow-up work.
-            string messageWithAttachments = chatRequest.Message;
-            if (chatRequest.Attachments != null && chatRequest.Attachments.Count > 0)
-            {
-                var attachmentTexts = new List<string>();
-                foreach (var file in chatRequest.Attachments)
-                {
-                    try
-                    {
-                        using var stream = file.OpenReadStream();
-                        using var reader = new StreamReader(stream, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-                        var content = await reader.ReadToEndAsync();
-                        // Truncate to 50 KB per file to stay within token limits
-                        if (content.Length > 51200)
-                            content = content[..51200] + "\n[... content truncated ...]";
-                        attachmentTexts.Add($"<attachment name=\"{file.FileName}\" type=\"{file.ContentType}\">\n{content}\n</attachment>");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to read attachment {FileName}", file.FileName);
+                        messageWithAttachments = $"{chatRequest.Message}\n\n--- Attached Files ---\n{string.Join("\n\n", attachmentTexts)}";
                     }
                 }
-                if (attachmentTexts.Count > 0)
+
+                var result = await _mcpServer.ProcessChatRequestAsync(
+                    messageWithAttachments,
+                    conversationId,
+                    requestContext,
+                    chatRequest.ConversationHistory?.Select(m => (m.Role, m.Content)).ToList(),
+                    context.RequestAborted,
+                    progress,
+                    chatRequest.Action,
+                    chatRequest.ActionContext);
+
+                // #679 / #791: emit typed 'error' SSE event on streaming failure path.
+                // A blank or failed response must never stream as a success.
+                if (!result.Success)
                 {
-                    messageWithAttachments = $"{chatRequest.Message}\n\n--- Attached Files ---\n{string.Join("\n\n", attachmentTexts)}";
+                    var errorPayload = MapFailureSsePayload(result);
+                    var errorData = JsonSerializer.Serialize(errorPayload, _sseJsonOptions);
+                    progress.Enqueue(errorData, "error");
+                    _logger.LogWarning("Streaming chat failed | ConvId: {ConvId} | Code: {Code}",
+                        conversationId, result.Errors.FirstOrDefault()?.ErrorCode ?? "UNKNOWN");
                 }
+                else
+                {
+                    // Write final result as SSE event with ID
+                    var resultData = JsonSerializer.Serialize(new { type = "result", data = result }, _sseJsonOptions);
+                    progress.Enqueue(resultData);
+                }
+
             }
-
-            var result = await _mcpServer.ProcessChatRequestAsync(
-                messageWithAttachments,
-                conversationId,
-                chatRequest.Context,
-                chatRequest.ConversationHistory?.Select(m => (m.Role, m.Content)).ToList(),
-                context.RequestAborted,
-                progress,
-                chatRequest.Action,
-                chatRequest.ActionContext);
-
-            // #679 / #791: emit typed 'error' SSE event on streaming failure path.
-            // A blank or failed response must never stream as a success.
-            if (!result.Success)
+            finally
             {
-                var errorPayload = MapFailureSsePayload(result);
-                var errorData = JsonSerializer.Serialize(errorPayload, _sseJsonOptions);
-                var errorEvent = _sseEventBuffer.AddEvent(conversationId, errorData);
-                await context.Response.WriteAsync($"id: {errorEvent.Id}\nevent: error\ndata: {errorData}\n\n");
-                await context.Response.Body.FlushAsync();
-                _logger.LogWarning("Streaming chat failed | ConvId: {ConvId} | Code: {Code}",
-                    conversationId, result.Errors.FirstOrDefault()?.ErrorCode ?? "UNKNOWN");
+                await keepaliveCts.CancelAsync();
+                await keepaliveTask;
             }
-            else
-            {
-                // Write final result as SSE event with ID
-                var resultData = JsonSerializer.Serialize(new { type = "result", data = result }, _sseJsonOptions);
-                var finalEvent = _sseEventBuffer.AddEvent(conversationId, resultData);
-                await context.Response.WriteAsync($"id: {finalEvent.Id}\ndata: {resultData}\n\n");
-                await context.Response.Body.FlushAsync();
-            }
-
-            // Mark session complete for cleanup (FR-043)
-            _sseEventBuffer.CompleteSession(conversationId);
-            await keepaliveCts.CancelAsync();
+        }
+        catch (WorkspaceException ex) when (!context.Response.HasStarted)
+        {
+            await WorkspaceFailure(ex, context).ExecuteAsync(context);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogDebug("Streaming chat cancelled by client");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing streaming chat request");
             try
             {
-                var errorData = JsonSerializer.Serialize(new { type = "error", error = ex.Message }, _sseJsonOptions);
-                await context.Response.WriteAsync($"data: {errorData}\n\n");
-                await context.Response.Body.FlushAsync();
+                if (!context.Response.HasStarted)
+                    context.Response.StatusCode = 500;
+                var errorData = JsonSerializer.Serialize(new
+                {
+                    type = "error",
+                    code = "PROCESSING_ERROR",
+                    error = "An internal error occurred."
+                }, _sseJsonOptions);
+                await context.Response.WriteAsync($"data: {errorData}\n\n", context.RequestAborted);
+                await context.Response.Body.FlushAsync(context.RequestAborted);
             }
-            catch { /* client disconnected */ }
+            catch (Exception writeError) when (writeError is IOException or OperationCanceledException)
+            {
+                _logger.LogDebug(writeError, "Unable to write chat error to disconnected client");
+            }
         }
     }
 
     /// <summary>Sends keepalive comments at configured intervals to prevent proxy timeouts (FR-042).</summary>
-    private async Task RunKeepaliveAsync(HttpContext context, CancellationToken cancellationToken)
+    private async Task RunKeepaliveAsync(ChatSseWriter writer, CancellationToken cancellationToken)
     {
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(_sseEventBuffer.KeepaliveInterval, cancellationToken);
-                await context.Response.WriteAsync(": keepalive\n\n");
-                await context.Response.Body.FlushAsync();
+                writer.Enqueue(null);
             }
         }
-        catch (OperationCanceledException) { /* expected */ }
-        catch { /* client disconnected */ }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug("Chat keepalive stopped");
+        }
     }
 
     /// <summary>
     /// Parses the optional JSON <c>context</c> field forwarded in multipart chat requests.
-    /// Returns null silently on any parse failure — a missing context is non-fatal.
+    /// Malformed context is rejected rather than silently dropping its system scope.
     /// fix(#722): multipart path previously discarded context, causing SYSTEM_REQUIRED errors.
     /// </summary>
     private static Dictionary<string, object>? TryParseContextField(string? json)
@@ -411,12 +447,33 @@ public class McpHttpBridge
         {
             return JsonSerializer.Deserialize<Dictionary<string, object>>(json);
         }
-        catch
+        catch (JsonException)
         {
-            return null;
+            throw new WorkspaceException(400, "INVALID_SYSTEM_CONTEXT", "Context must be a JSON object.");
         }
     }
 
+    private static Dictionary<string, object>? RequestContext(ChatRequest request)
+    {
+        if (request.SystemId is null) return request.Context;
+        var context = request.Context is null ? new Dictionary<string, object>() : new(request.Context);
+        if (context.Any(p => (p.Key.Equals("systemId", StringComparison.OrdinalIgnoreCase)
+                || p.Key.Equals("system_id", StringComparison.OrdinalIgnoreCase))
+            && !string.IsNullOrWhiteSpace(p.Value?.ToString())
+            && p.Value.ToString()?.Trim() != request.SystemId.Trim()))
+            throw new WorkspaceException(400, "INVALID_SYSTEM_CONTEXT", "Conflicting system references are not allowed.");
+        context["systemId"] = request.SystemId;
+        return context;
+    }
+
+    private static IResult WorkspaceFailure(WorkspaceException exception, HttpContext http) =>
+        Results.Json(new
+        {
+            success = false,
+            code = exception.Code,
+            reason = exception.Message,
+            correlationId = http.TraceIdentifier
+        }, statusCode: exception.StatusCode);
 
     /// <summary>
     /// Maps a failed <see cref="McpChatResponse"/> to the appropriate HTTP error result.
@@ -433,21 +490,35 @@ public class McpHttpBridge
 
         var statusCode = errorCode switch
         {
-            "TENANT_UNRESOLVED"     => 400,
-            "EMPTY_AGENT_RESPONSE"  => 422,
-            "PROCESSING_ERROR"      => 422,
-            "NO_TOOL_MATCHED"       => 422,
-            "OFFLINE_UNAVAILABLE"   => 503,
-            _                       => 500
+            "TENANT_UNRESOLVED" => 400,
+            "INVALID_SYSTEM_CONTEXT" => 400,
+            "INVALID_WORKSPACE_IDENTITY" => 401,
+            "SYSTEM_ACCESS_DENIED" => 403,
+            "WORKSPACE_ACCESS_DENIED" => 403,
+            "WORKSPACE_REQUIRED" => 409,
+            "SYSTEM_CONTEXT_REQUIRED" => 400,
+            "SYSTEM_TARGET_REQUIRED" => 400,
+            "INVALID_TOOL_TARGET" => 400,
+            "WORKSPACE_RESOURCE_NOT_FOUND" => 404,
+            "WORKSPACE_AUTHORIZATION_UNAVAILABLE" => 503,
+            "WORKSPACE_TOOL_NOT_SUPPORTED" => 403,
+            "WORKSPACE_TOOL_TARGET_MISMATCH" => 403,
+            "WORKSPACE_OPERATION_NOT_AUTHORIZED" => 403,
+            "WORKSPACE_CONTEXT_INVALID" => 403,
+            "EMPTY_AGENT_RESPONSE" => 422,
+            "PROCESSING_ERROR" => 422,
+            "NO_TOOL_MATCHED" => 422,
+            "OFFLINE_UNAVAILABLE" => 503,
+            _ => 500
         };
 
         var body = new
         {
-            success   = false,
-            code      = errorCode,
-            reason    = reason,
+            success = false,
+            code = errorCode,
+            reason = reason,
             correlationId,
-            errors    = result.Errors
+            errors = result.Errors
         };
 
         return Results.Json(body, jsonOptions, statusCode: statusCode);
@@ -461,11 +532,11 @@ public class McpHttpBridge
         var primaryError = result.Errors.FirstOrDefault();
         return new
         {
-            type          = "error",
-            code          = primaryError?.ErrorCode ?? "PROCESSING_ERROR",
-            reason        = primaryError?.Message ?? "An error occurred.",
+            type = "error",
+            code = primaryError?.ErrorCode ?? "PROCESSING_ERROR",
+            reason = primaryError?.Message ?? "An error occurred.",
             correlationId = primaryError?.CorrelationId ?? result.ConversationId,
-            errors        = result.Errors
+            errors = result.Errors
         };
     }
 
@@ -600,6 +671,8 @@ public class ChatRequest
 {
     public string Message { get; set; } = string.Empty;
     public string? ConversationId { get; set; }
+    /// <summary>Optional system context; must agree with context/actionContext and pass server authorization.</summary>
+    public string? SystemId { get; set; }
     /// <summary>Files attached via multipart/form-data. Null when request body is application/json. T006 (#141)</summary>
     public IFormFileCollection? Attachments { get; set; }
     public Dictionary<string, object>? Context { get; set; }
