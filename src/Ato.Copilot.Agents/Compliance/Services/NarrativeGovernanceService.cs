@@ -126,6 +126,8 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, systemId, permission => permission.CanAuthorNarratives, cancellationToken);
 
         var impl = await GetControlImplementationAsync(db, systemId, controlId, cancellationToken);
 
@@ -190,6 +192,8 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, systemId, permission => permission.CanAuthorNarratives, cancellationToken);
 
         var impl = await GetControlImplementationAsync(db, systemId, controlId, cancellationToken);
 
@@ -235,6 +239,8 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, systemId, permission => permission.CanReviewNarratives, cancellationToken);
 
         var impl = await GetControlImplementationAsync(db, systemId, controlId, cancellationToken);
 
@@ -302,6 +308,8 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, systemId, permission => permission.CanReviewNarratives, cancellationToken);
 
         // Validate system
         var system = await db.RegisteredSystems
@@ -476,6 +484,8 @@ public class NarrativeGovernanceService : INarrativeGovernanceService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, systemId, permission => permission.CanAuthorNarratives, cancellationToken);
 
         // Validate system exists
         var systemExists = await db.RegisteredSystems

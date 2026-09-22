@@ -54,17 +54,25 @@ public sealed class DualNarrativeService : IDualNarrativeService
         {
             throw new ArgumentException("Narrative fields cannot exceed 8000 characters.");
         }
-        if (updatePolicy && !CanWritePolicy(role))
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        if (db.IsWorkspaceRequest)
+        {
+            var roles = db.WorkspacePersonId is { } personId
+                ? await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.ResolveRolesAsync(
+                    db, db.TenantFilterEffectiveId, personId, systemId, cancellationToken) : [];
+            if (!roles.Contains(RmfRole.Issm) && !roles.Contains(RmfRole.Isso))
+                throw new UnauthorizedAccessException("An applicable ISSO or ISSM assignment is required to edit canonical narratives.");
+        }
+        else if (updatePolicy && !CanWritePolicy(role))
         {
             throw new UnauthorizedAccessException($"Role '{role}' is not permitted to write the policy narrative.");
         }
-        if (updateTechnical && !CanWriteTechnical(role))
+        if (!db.IsWorkspaceRequest && updateTechnical && !CanWriteTechnical(role))
         {
             throw new UnauthorizedAccessException($"Role '{role}' is not permitted to write the technical narrative.");
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         var implementation = await FindImplementationAsync(db, systemId, controlId, cancellationToken);
 
         if (implementation.ApprovalStatus == SspSectionStatus.UnderReview)
@@ -133,6 +141,8 @@ public sealed class DualNarrativeService : IDualNarrativeService
         var artifact = await db.EvidenceArtifacts
             .FirstOrDefaultAsync(item => item.Id == artifactId && !item.IsDeleted, cancellationToken)
             ?? throw new InvalidOperationException($"EVIDENCE_NOT_FOUND: Evidence artifact '{artifactId}' not found.");
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, artifact.RegisteredSystemId, permission => permission.CanManageEvidence, cancellationToken);
 
         artifact.NarrativeType = narrativeType;
         artifact.AutoTagRationale = rationale;

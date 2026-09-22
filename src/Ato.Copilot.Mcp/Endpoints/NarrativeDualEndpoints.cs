@@ -6,6 +6,7 @@ using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Ato.Copilot.Mcp.Authorization;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -21,9 +22,9 @@ public static class NarrativeDualEndpoints
         group.MapGet("/systems/{systemId}/controls/{controlId}/narrative", GetDualNarrativeAsync)
             .WithName("GetDualNarrative");
         group.MapPatch("/systems/{systemId}/controls/{controlId}/narrative", PatchDualNarrativeAsync)
-            .WithName("PatchDualNarrative");
+            .WithName("PatchDualNarrative").RequireWorkspaceOperation(SystemWorkspaceOperation.AuthorNarratives);
         group.MapPatch("/evidence/{artifactId}/classify", ClassifyEvidenceAsync)
-            .WithName("ClassifyNarrativeEvidence");
+            .WithName("ClassifyNarrativeEvidence").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageEvidence);
 
         return app;
     }
