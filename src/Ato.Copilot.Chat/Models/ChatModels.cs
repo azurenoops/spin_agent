@@ -68,8 +68,15 @@ public class Conversation
     /// <summary>Conversation title — auto-generated from first message or user-provided.</summary>
     public string Title { get; set; } = "New Conversation";
 
-    /// <summary>Owner identifier — defaults to "default-user".</summary>
-    public string UserId { get; set; } = "default-user";
+    /// <summary>Display identity only; never an authorization selector.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Server-derived qualified workspace/actor hash. Null legacy rows are inaccessible.</summary>
+    [JsonIgnore]
+    public string? OwnerKey { get; set; }
+
+    /// <summary>Immutable system scope once a conversation has history or a selected system.</summary>
+    public string? SystemId { get; set; }
 
     /// <summary>UTC creation timestamp.</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -130,6 +137,7 @@ public class ChatMessage
     // ─── Navigation Properties ───────────────────────────────────────
 
     /// <summary>Parent conversation.</summary>
+    [JsonIgnore]
     public Conversation? Conversation { get; set; }
 
     /// <summary>File attachments for this message.</summary>
@@ -171,6 +179,7 @@ public class ConversationContext
     // ─── Navigation Properties ───────────────────────────────────────
 
     /// <summary>Parent conversation.</summary>
+    [JsonIgnore]
     public Conversation? Conversation { get; set; }
 }
 
@@ -209,6 +218,7 @@ public class MessageAttachment
     // ─── Navigation Properties ───────────────────────────────────────
 
     /// <summary>Parent message.</summary>
+    [JsonIgnore]
     public ChatMessage? Message { get; set; }
 }
 
@@ -304,7 +314,7 @@ public class CreateConversationRequest
     /// <summary>Optional conversation title — defaults to "New Conversation".</summary>
     public string? Title { get; set; }
 
-    /// <summary>Owner identifier — defaults to "default-user".</summary>
+    /// <summary>Ignored legacy compatibility field; never selects conversation ownership.</summary>
     public string? UserId { get; set; }
 }
 

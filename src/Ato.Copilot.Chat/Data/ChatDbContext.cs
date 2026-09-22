@@ -76,6 +76,8 @@ public class ChatDbContext : DbContext
             entity.Property(e => e.Id).HasMaxLength(450);
             entity.Property(e => e.Title).HasMaxLength(200);
             entity.Property(e => e.UserId).HasMaxLength(100);
+            entity.Property(e => e.OwnerKey).HasMaxLength(100);
+            entity.Property(e => e.SystemId).HasMaxLength(450);
             entity.Property(e => e.Metadata).HasConversion(dictConverter);
 
             entity.HasIndex(e => e.UserId);
