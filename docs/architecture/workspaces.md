@@ -380,6 +380,31 @@ dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.cs
 Rollback is limited to reverting the test-fixture correction; there are no
 runtime configuration or database changes to undo.
 
+CI follow-up started from run `35762556193`, integration job `106865970043`
+at commit `942f72b2`: 1,223 passed, 64 failed and 20 skipped. The job's request
+log also shows the separate `RoleAssignmentEndpointsTests` fixture throwing for
+missing `ITenantContext` before processing its onboarding role requests. All
+eight tests fail in a local reproduction. Its correction is likewise limited
+to registering the scoped context, preserving the existing role-service and
+last-administrator assertions. Separate CI HTTP 401 failures require independent
+authentication-path investigation; no CI bypass, skip or assertion relaxation
+is authorized as a way to make the lane pass.
+
+The onboarding fixture correction passes all 37 role tests together (eight
+onboarding cases plus the 29-cell denial matrix). The CI fallback-metadata HTTP
+test also reproduces its 401 locally: its minimal host submits an anonymous
+request to a chat boundary that now requires authenticated identity and validated
+tenant context. That fixture must supply an explicit synthetic single-tenant
+identity/context, following the existing MCP contract tests, while retaining
+the backend metadata/warning assertions. Production authentication stays intact.
+
+All 44 focused tests now pass (the two role fixtures and all fallback tests).
+The full Release integration lane has not yet been rerun; this result does not
+make CI green. The observed CI command uses Release, Development configuration,
+SQLite `Data Source=:memory:` and `ATO_REQUIRE_DOCKER_TESTS=1`. A matching full-lane
+run, followed by an approved push and actual CI verification, remains required.
+Both corrections are test-host changes only, with no runtime or data rollback.
+
 ## Purpose
 
 The dashboard already resolves provider and organization variants of portfolio,

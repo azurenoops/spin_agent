@@ -4,6 +4,7 @@ using Moq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Security.Claims;
 using Azure.Identity;
 using Azure.ResourceManager;
 using Microsoft.AspNetCore.Builder;
@@ -19,6 +20,8 @@ using Microsoft.Extensions.Options;
 using Ato.Copilot.Agents.Common;
 using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Extensions;
 
 namespace Ato.Copilot.Tests.Integration.Agents;
@@ -215,7 +218,8 @@ public class FoundryFallbackTests
             ["AzureAi:Enabled"] = "true",
             ["AzureAi:Provider"] = "Foundry",
             ["AzureAi:DeploymentName"] = "approved-openai-deployment",
-            ["AzureAi:AllowBackendFallback"] = "true"
+            ["AzureAi:AllowBackendFallback"] = "true",
+            ["Deployment:Mode"] = "SingleTenant"
         });
         builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(GatewayOptions.SectionName));
         builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
@@ -248,6 +252,18 @@ public class FoundryFallbackTests
         builder.WebHost.UseTestServer();
 
         await using var app = builder.Build();
+        app.Use(async (http, next) =>
+        {
+            http.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new("tid", "11111111-1111-1111-1111-111111111111"),
+                new("oid", "22222222-2222-2222-2222-222222222222"),
+            ], "Synthetic fallback contract identity"));
+            var tenant = (TenantContext)http.RequestServices.GetRequiredService<ITenantContext>();
+            tenant.TenantId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+            using var scope = http.RequestServices.GetRequiredService<ITenantContextAccessor>().Push(tenant);
+            await next(http);
+        });
         app.Services.GetRequiredService<Ato.Copilot.Mcp.Server.McpHttpBridge>().MapEndpoints(app);
         await app.StartAsync();
         var client = app.GetTestClient();
