@@ -487,8 +487,6 @@ async Task RunHttpModeAsync(string[] args)
     builder.Services.AddScoped<WorkspaceService>();
     builder.Services.AddScoped<IWorkspaceService>(services => services.GetRequiredService<WorkspaceService>());
     builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
-    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService,
-        Ato.Copilot.Core.Services.Tenancy.SystemWorkspaceAccessService>();
     // T041: SaveChanges interceptor that stamps TenantId + validates FK consistency.
     builder.Services.AddSingleton<Ato.Copilot.Core.Data.Interceptors.TenantStampingSaveChangesInterceptor>();
     // T107 [US5]: SQL Server SESSION_CONTEXT publisher — emits TenantId /

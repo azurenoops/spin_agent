@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -347,6 +348,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDualNarrativeService, DualNarrativeService>();
         services.AddScoped<NarrativeLibraryService>();
         services.AddScoped<NarrativeProposalService>();
+        services.TryAddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService,
+            Ato.Copilot.Core.Services.Tenancy.SystemWorkspaceAccessService>();
         services.AddSingleton<IEvidenceNarrativeClassifier, EvidenceNarrativeClassifier>();
         services.AddSingleton<EvidenceNarrativeBulkClassifierJob>();
 
