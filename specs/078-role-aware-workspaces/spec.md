@@ -101,6 +101,13 @@ visibility of every system. System visibility requires an applicable
 organization/system role assignment; administrative and CSP oversight remain
 separate explicitly authorized permissions.
 
+The user confirmed that evidence integrity verification is allowed to effective
+assigned SCAs and authorized evidence managers for the selected system. This
+operation records an integrity-verification timestamp; it does not confer
+evidence-authoring, assessment approval or AO authority. Evidence and its
+assessment must belong to the authorized system, and verifier attribution must
+come from the authenticated server identity.
+
 ## Navigation and scope matrix
 
 | Surface | CSP workspace | Organization workspace |

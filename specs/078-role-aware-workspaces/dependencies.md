@@ -120,6 +120,14 @@ Publication procedure:
   publishing a bounded foundation PR. This includes the remaining #957/#1001
   integrations, per-tool authorization, transport isolation and support-session
   revocation. None of those gates may be silently waived.
+- For #957, persist explicit system-scoped responsibility confirmations for each
+  subscribed capability/control, using Inherited, Shared or Customer values,
+  subscription provenance and the reviewed provider snapshot/version. Missing
+  or conflicting allocations remain pending review; mapped IDs do not imply
+  responsibility.
+- Only assigned ISSM or ISSO roles may confirm customer-system allocations.
+  Membership, Mission Owner access or CSP administration alone does not grant
+  confirmation authority.
 
 ### Proposed in this feature
 

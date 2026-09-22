@@ -227,6 +227,9 @@ The advertised polling transport is a fallback: a healthy registered real-time
 connection suspends the timer, and reconnect/disconnection resumes it. Progress
 polling has its own authorization and is not gated by personal-notification
 `rest.available`.
+All notification and progress clients consume the same validated capabilities
+DTO. Reject malformed authentication or hub-path metadata before connecting;
+the personal notification hook may connect only when its exact hub is advertised.
 
 The notification panel must fit the mobile viewport without forced clicks or
 horizontal scrolling. Browser regressions reproduced a zero visible area for
@@ -264,6 +267,16 @@ membership. Reject ambiguous/mismatched mode rather than silently converting
 ordinary access into support access. Preserve legacy support semantics only on
 the explicitly documented compatibility path.
 
+Workspace support authorization is persisted in `TenantSupportSession`: session
+ID, directory/object identity, target organization, issued/expiry time and
+revocation state. Register its model configuration before tenant filters, its
+factory-backed store as a singleton, and its idempotent schema rollout during
+startup. The signer must receive that real store and logger. HTTP exit revokes
+the presented session before deleting the browser cookie; every subsequent
+support resolution consults durable state without a positive authorization
+cache. Previously issued stateless workspace tokens require a new support entry
+after rollout. Ordinary tabs and independent support sessions remain unaffected.
+
 ### 5. Integrate provider review, do not duplicate it
 
 Use #957's persisted responsibility reconciliation for system subscriptions.
@@ -294,6 +307,29 @@ through a durable outbox; a fallible post-commit callback is not sufficient.
 Impact marking performs no synchronous model call, preserves approved content
 and supports idempotent retry of later proposal generation.
 
+Integration gate: the real provider fanout path reaches the Narrative Library
+grounding service. Parent integration reproduced two failures because
+`ProviderNarrativeReference` was absent from the shared EF model. Production
+registration now discovers the annotated provider root and restricted publication
+relationship, while organization publications remain tenant filtered. The
+provider service is scoped in DI; the existing Narrative Library rollout creates
+its tables. Two new production-context regressions reproduced the defect before
+the fix. The subsequent run passed 63 focused library/model/startup tests and 80
+system-access/responsibility integration cases. This does not establish final
+worker scheduling, live SQL Server rollout or manual end-to-end acceptance.
+
+The HTTP host must register exactly one `CspResponsibilityFanoutWorker` as a
+hosted singleton and `CspResponsibilityFanoutService` as scoped. The worker
+consumes bounded source-event routes and durable leases/cursors; each target is
+processed in its own tenant scope. It marks review work without model generation.
+Production-composition tests must detect a missing service/hosted registration,
+verify scoped lifetimes and execute a pass with the actual host dependencies.
+The parent composition regression first failed on the absent scoped service.
+After registration, the combined current run passed 129 unit/composition tests
+and 69 responsibility, support-replay and progress integration tests. This
+includes the real HTTP host's registration/lifetime checks and an actual worker
+pass, not a test-only registration substituted for production wiring.
+
 The actual tool dispatcher must enforce the request-scoped tool policy in the
 shared `BaseTool.ExecuteAsync` path after canonical system-ID resolution and
 before execution. Parent red tests reproduced five agent-driven failures:
@@ -301,7 +337,28 @@ denied/unmapped mutations executed, inferred targets escaped scope, and a body
 actor value survived. This shared hook is required in addition to endpoint or
 conversation read checks; no coarse authorization bypass substitutes for it.
 
+User-confirmed policy for the previously undefined evidence-integrity operation:
+authorize an effective assigned SCA or a caller granted the existing
+`CanManageEvidence` permission for that system. Resolve evidence through its
+persisted assessment/system ownership, preserve tenant checks, and use the
+qualified authenticated verifier. Apply the same policy to domain and alternate
+entry points; verification is not evidence authoring or assessment approval.
+
 ## Navigation and existing-route migration
+
+Stabilization of the existing library workflow: refreshing metadata within the
+same authorized scope must disable writes without discarding extracted mappings.
+Denied/failed refreshes clear the prior panel; workspace changes retain the
+existing keyed remount boundary. Standalone library routes must reach the already
+implemented provider/organization component rather than redirect to a portfolio.
+System-access services used by shared agent registrations must be registered in
+shared composition, not exclusively in the HTTP entry point, so stdio and test
+hosts construct the same complete dependency graph.
+Authenticated legacy SingleTenant chat without workspace selectors retains its
+existing operation policy only when middleware has already bound the active
+ordinary tenant. Its conversation namespace still includes the trusted directory,
+actor and tenant. Explicit selectors, MultiTenant requests, support contexts and
+unbound tenants cannot use this compatibility path.
 
 The following paths are proposed; they are not registered by this planning
 branch. `{tenantId}` means internal organization isolation tenant ID.
