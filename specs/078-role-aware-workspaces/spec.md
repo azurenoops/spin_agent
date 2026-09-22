@@ -322,6 +322,9 @@ workflow, then navigate/generate from each authorized workspace.
   The production Dashboard image must start without requiring an explicit
   organization-only UI override, while preserving the existing explicit override.
   Mocked UI tests and live-API persistence tests are reported separately.
+  The Docker Dashboard must proxy the organization-library root and child paths
+  to the MCP handlers, preserving authentication, workspace context and the
+  existing upload limit. API requests must not fall through to SPA HTML.
 - **SC-007**: No separate login implementation, implicit membership grant or
   database repair prerequisite is introduced.
 

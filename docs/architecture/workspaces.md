@@ -48,6 +48,50 @@ part of this initial testing checkpoint. (Approved Design)
 Implementation was subsequently authorized. Release verification and publishing
 approval remain pending. This page does not describe a shipped feature.
 
+## Docker organization-library routing regression
+
+Live acceptance on 2026-09-22 found that the Dashboard nginx configuration did
+not proxy `/api/narrative-library`: GET returned the SPA HTML and the multipart
+import POST returned nginx HTML with status 405, without reaching the MCP
+handler. Provider and system library prefixes already have proxy routes.
+
+The organization-library root and child paths must reach the existing MCP
+handlers without rewriting the path, dropping cookies/workspace headers, or
+changing authorization. The upload route must admit a 5 MiB file plus multipart
+overhead; the backend retains its own 5 MiB file validation. Keep SPA deep-link
+fallback and unrelated API routes unchanged. Verify both successful scoped
+imports and unauthorized requests through the running Dashboard, not only
+directly against the MCP port.
+
+Verification: three focused Vitest configuration tests pass, as do Dashboard
+`tsc --noEmit`, the Docker production build and `nginx -t`. The build still emits
+warnings. Focused ESLint validation could not run because the local Dashboard
+checkout has no ESLint executable; no dependency changes were made.
+
+Through the rebuilt Dashboard, library GET returned JSON 200, imports returned
+201, and publication returned 200. Cross-organization reference reads returned
+404. A deliberately invalid 5 MiB CSV reached backend validation (400
+`INVALID_IMPORT`); a 6 MiB file plus multipart framing returned nginx 413. Both
+probes left the reference count unchanged.
+
+The user-approved local acceptance dataset contains Alpha/Beta tenants, ten
+memberships, three systems, two organization Administrators, two organization
+ISSM assignments and seven explicit system-role assignments. These were created
+through supported APIs, not seeded by startup. Organization ISSM is required
+to register systems; Administrator alone must not gain that system operation.
+Both tenants completed normal onboarding. Two synthetic organization references
+are published; one provider reference remains a private draft.
+
+Live checks verified seven personas' assigned-system access, scoped denials,
+provider-draft denial, organization-reference isolation, Mission Owner's
+Alpha-only role versus Beta's Mission Owner/System Owner union, and membership
+revocation/restoration without affecting Alpha access. Mission Owner portfolio
+tabs showed their respective organizations before and after refresh, once data
+finished loading. These are local simulation/API/browser checks, not production
+Entra acceptance or user manual sign-off. Background 403s still occur on other
+surfaces; this proxy correction does not establish that all workspace routes
+or the outstanding GitHub integration job pass.
+
 ## Local simulation switch and personas
 
 Simulation uses the existing `CacAuth:SimulationMode` startup setting. The base
