@@ -1,0 +1,14 @@
+services:
+  ato-copilot:
+    build:
+      args:
+        NUGET_SOURCE: /nuget-feed
+      additional_contexts:
+        nuget-packages: ${NUGET_OFFLINE_PACKAGES:?Set NUGET_OFFLINE_PACKAGES to a verified package archive directory}
+
+  ato-chat:
+    build:
+      args:
+        NUGET_SOURCE: /nuget-feed
+      additional_contexts:
+        nuget-packages: ${NUGET_OFFLINE_PACKAGES:?Set NUGET_OFFLINE_PACKAGES to a verified package archive directory}

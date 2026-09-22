@@ -6,7 +6,8 @@ WORKDIR /app
 # Copy package files for layer caching
 COPY src/Ato.Copilot.Dashboard/package.json src/Ato.Copilot.Dashboard/package-lock.json ./
 
-RUN npm ci
+ARG NPM_REGISTRY=https://registry.npmjs.org
+RUN npm ci --registry="$NPM_REGISTRY"
 
 # Copy shared workspace package so vite.config.ts alias resolves (#2683).
 # vite.config.ts resolves @ato-copilot/shared to ../../packages/ato-shared/src/index.ts

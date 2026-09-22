@@ -34,6 +34,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NUGET_SOURCE: ${NUGET_SOURCE:-https://api.nuget.org/v3/index.json}
     container_name: ato-copilot-mcp
     restart: unless-stopped
     depends_on:
@@ -159,6 +161,9 @@ services:
     build:
       context: .
       dockerfile: src/Ato.Copilot.Chat/Dockerfile
+      args:
+        NUGET_SOURCE: ${NUGET_SOURCE:-https://api.nuget.org/v3/index.json}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     container_name: ato-copilot-chat
     restart: unless-stopped
     depends_on:
@@ -195,6 +200,8 @@ services:
     build:
       context: .
       dockerfile: src/Ato.Copilot.Dashboard/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     container_name: ato-copilot-dashboard
     restart: unless-stopped
     depends_on:

@@ -313,6 +313,9 @@ workflow, then navigate/generate from each authorized workspace.
   applicable published-provider reference access only.
 - **SC-006**: Unit, integration, browser E2E, static checks and builds for the
   implementation pass; manual local acceptance is offered before completion.
+  Local Docker verification may select an organization-approved package feed,
+  without changing dependency versions or the Azure build's default source.
+  Feed reachability alone does not satisfy the build or browser acceptance gate.
   Mocked UI tests and live-API persistence tests are reported separately.
 - **SC-007**: No separate login implementation, implicit membership grant or
   database repair prerequisite is introduced.

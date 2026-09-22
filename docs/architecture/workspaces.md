@@ -134,8 +134,170 @@ NuGet restore (`NU1301`, TLS unexpected EOF from `api.nuget.org`). Independent
 HTTPS probes to that endpoint failed from both macOS and the same Linux SDK
 image. No successful Docker startup or Docker browser acceptance is claimed.
 TLS verification was not disabled, and no host-built binaries were substituted.
-The network failure's cause remains unverified. Host-run development servers
+The supplied Defender event confirms a non-overridable `CustomBlockList` rule
+for `api.nuget.org`, affecting `com.docker.backend`. Host-run development servers
 were stopped; the role-assignment 500 follow-up has not started.
+
+#### Approved package source for local builds
+
+The user confirmed that Microsoft public Azure Artifacts feeds are approved for
+this machine. The `dotnet-public` service index returned HTTP 200 from the
+`linux/amd64` .NET SDK container. This verifies connectivity, not availability of
+every required package/version or a successful application build.
+The source URI is also listed in the
+[.NET runtime repository's NuGet configuration](https://github.com/dotnet/runtime/blob/main/NuGet.config).
+
+The bounded build change adds a `NUGET_SOURCE` build argument to the MCP and Chat
+Dockerfiles and forwards it through Compose. The default remains
+`https://api.nuget.org/v3/index.json`, preserving the Azure workflow's source.
+An explicitly selected source replaces that default for restore; publishing must
+reuse the restored assets rather than implicitly restoring from the default.
+No package versions, runtime settings, security controls or TLS checks change.
+Use only an organization-approved source; build arguments must not contain
+credentials. Private authenticated feeds require a separate secrets mechanism.
+
+Reproduction command for this approved local feed (full restore remains blocked
+by the missing packages listed below):
+
+```bash
+NUGET_SOURCE=https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-public/nuget/v3/index.json \
+DOCKER_DEFAULT_PLATFORM=linux/amd64 \
+ATO_AZUREAI__ENABLED=false \
+ATO_CACAUTH__SIMULATIONMODE=true \
+docker compose -f docker-compose.mcp.yml up --build --wait --wait-timeout 180
+```
+
+If a required package/version is absent, stop and report it; do not silently add
+another feed or change dependency versions. Unset `NUGET_SOURCE` and rebuild to
+restore the default source on a machine where that source is approved. This does
+not require removing database volumes.
+
+The real Docker restore reached the feed and restored the State project, but
+Chat restore failed with `NU1101` for these package IDs:
+
+- `Azure.AI.Agents.Persistent`
+- `Azure.ResourceManager.Monitor`
+- `Azure.ResourceManager.PolicyInsights`
+- `Azure.ResourceManager.ResourceGraph`
+- `Azure.ResourceManager.SecurityCenter`
+- `QuestPDF`
+- `ClosedXML.Parser`
+- `RBush`
+
+Compose then canceled the parallel MCP restore and Chat frontend install. The
+public feed is not a complete replacement for this application's dependencies;
+no successful image build or running Docker application is claimed.
+
+The same log showed that Chat's Channels project was absent during the initial
+restore. Its project file must be copied before restore so that publishing with
+`--no-restore` has assets for every referenced project. That build-input repair
+does not resolve missing packages in the external feed.
+
+Validation: 60 focused unit tests passed, including the five new Docker source
+and restore-input cases and the existing simulation/schema/deployment checks.
+Compose's rendered configuration forwards the selected source to both backend
+builds. These checks do not replace a successful image build or browser E2E run.
+
+#### Bounded offline-package feasibility check
+
+The user approved checking existing NuGet packages for offline Docker restore.
+The first staged set contained the 204 package versions in the MCP and Chat
+application asset graphs. Each archive's SHA-512 matched its archive sidecar;
+the distinct NuGet metadata content hash matched the project asset record.
+Their recorded source was `api.nuget.org`; no new network download was used.
+
+Both project restores completed in a fresh `linux/amd64` SDK container with
+network access disabled and an initially empty package-install directory.
+Only package archives and project files were supplied, not host-built binaries.
+However, `NU1603` warnings showed approximate version substitutions in referenced
+projects. This is not accepted as an exact-version build result.
+
+The approved follow-up included all six referenced project asset graphs and
+verified the additional 16 archives (220 total). Both restores then completed
+without warnings in a fresh, network-disabled `linux/amd64` SDK container, with
+`NU1603` treated as an error. Comparing the resulting package versions and content
+hashes against all six existing project graphs found zero differences.
+
+Exact-version offline NuGet restore is therefore verified. The user approved
+connecting that package-only input to the production Dockerfiles and attempting
+local startup. Building the images, starting the application stack and browser
+acceptance remain separate verification gates.
+
+The opt-in `docker-compose.offline.yml` override supplies a BuildKit named context
+from `NUGET_OFFLINE_PACKAGES`, a directory containing only verified `.nupkg`
+archives. Each backend mounts it read-only during restore at `/nuget-feed`.
+The ordinary Dockerfiles have an empty default stage for that context; without
+the override they continue using the normal online source. No package directory
+is copied into the runtime image, and no application binaries come from the host.
+The override requires an explicit package directory rather than silently falling
+back to a network source.
+
+```bash
+export NUGET_OFFLINE_PACKAGES=/absolute/path/to/verified-nupkg-directory
+DOCKER_DEFAULT_PLATFORM=linux/amd64 \
+ATO_AZUREAI__ENABLED=false \
+ATO_CACAUTH__SIMULATIONMODE=true \
+docker compose -f docker-compose.mcp.yml -f docker-compose.offline.yml \
+  up --build --wait --wait-timeout 180
+```
+
+This is offline **NuGet restore**, not a fully disconnected image build: base
+images, OS packages and npm dependencies still need their normal approved
+sources or existing Docker cache. Roll back the opt-in mode by omitting the
+offline Compose override on a machine with access to its approved online feed.
+Do not remove database volumes to change package sources.
+
+The first real image build with this override successfully completed both MCP
+and Chat NuGet restores. The focused suite now passes 62 tests. Full image
+completion and startup are still blocked: both frontend `npm ci` steps reported
+`Exit handler never called!`, and Chat subsequently failed to load
+`ajv/package.json`.
+
+The cached Chat npm debug log records repeated `ECONNRESET` failures downloading
+tarballs from `registry.npmjs.org`, followed by the internal npm error and exit
+code 0. Thus the install was incomplete despite Docker marking its step done.
+The cause of those npm connection resets has not been verified as a Defender
+rule. No frontend dependency versions, npm checks or security settings were
+changed to hide this failure. Further npm-source investigation requires its own
+bounded continuation; the role-assignment 500 follow-up remains unstarted.
+
+The approved npm follow-up verified an existing Microsoft-hosted registry from
+both lockfiles:
+`https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/`.
+Fresh installs in the same amd64 Node images installed 490 Dashboard packages
+and 1,479 Chat packages, with their build-tool entry points present. No lockfile
+or package version was changed. npm's audit reported 13 Dashboard advisories
+(6 high) and 50 Chat advisories (26 high); those findings are not remediated or
+waived by a successful install.
+
+The bounded npm build change adds `NPM_REGISTRY` to both frontend Dockerfiles and
+forwards it through the base Compose file. The default remains
+`https://registry.npmjs.org`. For the approved local build above, also export:
+
+```bash
+export NPM_REGISTRY=https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/
+```
+
+The public feed was verified for the current lockfiles, not assumed to contain
+future versions. Unset `NPM_REGISTRY` to return to the normal registry on a
+machine whose policy permits it. No TLS, package integrity or audit checks are
+disabled.
+
+Latest Docker verification: all three application images built successfully and
+were inspected as `linux/amd64`. The related unit suite passes 66 tests.
+Dashboard `tsc --noEmit` passed locally; Chat `tsc --noEmit` passed using the
+exact container-installed dependencies (host Chat dependencies were absent).
+Default MCP and Chat Dockerfile checks passed without an offline context.
+Dependency manifests and lockfiles remain unchanged.
+
+Startup then reached healthy SQL Server and Redis, but MCP terminated during
+`NarrativeLibrarySchemaAdditions.ApplyAsync`. SQL Server rejected the generated
+`BeforeContent nvarchar(8000)` declaration with error 2717: the maximum bounded
+`nvarchar` length is 4000. The same statement also declares
+`ProposedContent nvarchar(8000)`. This is a schema-startup blocker, not a package
+restore failure. The MCP restart loop was stopped without deleting any volumes;
+Dashboard and Chat did not reach running acceptance. The narrative schema fix
+and browser verification remain pending, separate from the package-source work.
 
 ## Purpose
 
