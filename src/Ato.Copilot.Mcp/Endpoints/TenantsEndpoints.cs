@@ -308,7 +308,15 @@ public static class TenantsEndpoints
             if (target.Status != TenantStatus.Active)
                 return Error(sw, 409, "TENANT_NOT_ACTIVE", "Support entry requires an active organization.");
             var identity = WorkspaceService.Identity(http.User);
-            var session = impersonation.IssueWorkspaceToken(identity.ObjectId.ToString(), identity.DirectoryId, target.Id);
+            (string value, DateTimeOffset expiresAt) session;
+            try
+            {
+                session = await impersonation.IssueWorkspaceTokenAsync(identity.ObjectId.ToString(), identity.DirectoryId, target.Id, ct);
+            }
+            catch (WorkspaceException ex)
+            {
+                return Error(sw, ex.StatusCode, ex.Code, ex.Message);
+            }
             using var scope = http.RequestServices.GetRequiredService<ITenantContextAccessor>()
                 .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(target.Id));
             await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -418,12 +426,22 @@ public static class TenantsEndpoints
                 var selected = http.RequestServices.GetRequiredService<IWorkspaceService>().Current;
                 if (selected is { Kind: "organization" } && selected.TenantId != session.ImpersonatedTenantId)
                     return Error(Stopwatch.StartNew(), 409, "WORKSPACE_TARGET_MISMATCH", "The support session targets another organization.");
-                using var scope = http.RequestServices.GetRequiredService<ITenantContextAccessor>()
-                    .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(session.ImpersonatedTenantId));
+                try
+                {
+                    await impersonation.RevokeWorkspaceTokenAsync(signedCookie, identity.DirectoryId, identity.ObjectId, "manual", ct);
+                }
+                catch (WorkspaceException ex)
+                {
+                    return Error(Stopwatch.StartNew(), ex.StatusCode, ex.Code, ex.Message);
+                }
                 await using var db = await dbFactory.CreateDbContextAsync(ct);
+                var auditTenantId = await db.Tenants.AnyAsync(t => t.Id == session.ImpersonatedTenantId, ct)
+                    ? session.ImpersonatedTenantId : Guid.Empty;
+                using var scope = http.RequestServices.GetRequiredService<ITenantContextAccessor>()
+                    .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(auditTenantId));
                 var request = auditCtxAccessor.FromHttpContext(http);
                 await audit.AppendAsync(db, new(LoginAuditEventType.ImpersonationEnd, identity.ObjectId.ToString(),
-                    identity.DirectoryId.ToString(), session.ImpersonatedTenantId, request.CorrelationId, request.SourceIp,
+                    identity.DirectoryId.ToString(), auditTenantId, request.CorrelationId, request.SourceIp,
                     request.UserAgent, LoginSurface.Dashboard,
                     MetadataJson: System.Text.Json.JsonSerializer.Serialize(new { impersonatedTenantId = session.ImpersonatedTenantId, reason = "manual" })), ct);
                 await db.SaveChangesAsync(ct);
@@ -439,8 +457,16 @@ public static class TenantsEndpoints
         // /signout). Tampered / missing cookies write no row —
         // tampered cookies are silently ignored everywhere.
         if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue) &&
-            impersonation.Validate(cookieValue) is { } payload)
+            await impersonation.ValidateAsync(cookieValue, ct) is { } payload)
         {
+            if (payload.DirectoryTenantId.HasValue)
+            {
+                if (!Guid.TryParse(http.User.FindFirstValue("tid"), out var directory)
+                    || !Guid.TryParse(GetActor(http), out var objectId))
+                    return Error(Stopwatch.StartNew(), 403, "SUPPORT_SESSION_INVALID", "An authenticated directory identity is required.");
+                try { await impersonation.RevokeWorkspaceTokenAsync(cookieValue, directory, objectId, "manual", ct); }
+                catch (WorkspaceException ex) { return Error(Stopwatch.StartNew(), ex.StatusCode, ex.Code, ex.Message); }
+            }
             try
             {
                 var auditCtx = auditCtxAccessor.FromHttpContext(http);

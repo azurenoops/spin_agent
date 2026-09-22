@@ -230,7 +230,7 @@ public static class AuthEndpoints
         ImpersonationCookiePayload? impPayload = null;
         if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue))
         {
-            if (impersonation.Validate(cookieValue) is { } payload)
+            if (await impersonation.ValidateAsync(cookieValue, ct) is { } payload)
             {
                 var target = await db.Tenants
                     .IgnoreQueryFilters()
@@ -256,7 +256,7 @@ public static class AuthEndpoints
                     var expiryMetadata = System.Text.Json.JsonSerializer.Serialize(new
                     {
                         impersonatedTenantId = expiredPayload.ImpersonatedTenantId.ToString(),
-                        reason = "expired",
+                        reason = expiredPayload.ExpiresAt <= DateTimeOffset.UtcNow ? "expired" : "invalidated",
                     });
                     await audit.AppendAsync(db, new LoginAuditEventDraft(
                         EventType: LoginAuditEventType.ImpersonationEnd,
@@ -427,6 +427,7 @@ public static class AuthEndpoints
         var data = new
         {
             oid,
+            directoryTenantId = Guid.TryParse(tid, out var authenticatedDirectoryId) ? (Guid?)authenticatedDirectoryId : null,
             displayName,
             persona,
             homeTenant = ProjectTenant(homeTenant),
@@ -495,6 +496,7 @@ public static class AuthEndpoints
         http.Response.Headers.CacheControl = "no-store";
         return Success(sw, new WorkspaceMeResponse(
             identity.ObjectId,
+            identity.DirectoryId,
             http.User.FindFirstValue(ClaimTypes.Name) ?? http.User.FindFirstValue("name") ?? "Authenticated user",
             current?.Roles.FirstOrDefault() ?? "User",
             home is null ? null : new(home.Id, home.DisplayName, home.Status.ToString()),
@@ -623,7 +625,7 @@ public static class AuthEndpoints
                 // Promote to the impersonated tenant when the cookie is
                 // present + valid, matching /me's resolution path.
                 if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue) &&
-                    impersonation.Validate(cookieValue) is { } payload)
+                    await impersonation.ValidateAsync(cookieValue, ct) is { } payload)
                 {
                     var target = await db.Tenants
                         .IgnoreQueryFilters()
@@ -637,6 +639,25 @@ public static class AuthEndpoints
             }
         }
 
+        // A browser-wide signout also revokes its support session when this tab is ordinary.
+        if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var supportCookie)
+            && impersonation.ValidateIgnoringLifetime(supportCookie) is { DirectoryTenantId: not null } signedSupport
+            && Guid.TryParse(tid, out var actorDirectory) && signedSupport.DirectoryTenantId == actorDirectory
+            && Guid.TryParse(oid, out var actorObject) && Guid.TryParse(signedSupport.ImpersonatorOid, out var cookieActor)
+            && cookieActor == actorObject)
+        {
+            try
+            {
+                await impersonation.RevokeWorkspaceTokenAsync(supportCookie, actorDirectory, actorObject,
+                    eventType == LoginAuditEventType.IdleSignOut ? "idle_timeout" : "signout", ct);
+                impersonationPayload = signedSupport;
+            }
+            catch (WorkspaceException ex)
+            {
+                return ErrorEnvelope(sw, ex.StatusCode, ex.Code, ex.Message);
+            }
+        }
+
         // Feature 051 T132 [US8] — when sign-out is driven by idle
         // timeout AND an impersonation cookie is in flight, write the
         // ImpersonationEnd(idle_timeout) row FIRST so the audit trail
@@ -645,18 +666,23 @@ public static class AuthEndpoints
         //   2. IdleSignOut                     // the session itself ends
         // The cookie is then deleted by the existing block below; the
         // SignOut path is otherwise unchanged.
-        if (eventType == LoginAuditEventType.IdleSignOut && impersonationPayload is not null)
+        if (impersonationPayload is not null && (eventType == LoginAuditEventType.IdleSignOut
+            || impersonationPayload.DirectoryTenantId.HasValue))
         {
+            var endTenantId = await db.Tenants.AnyAsync(t => t.Id == impersonationPayload.ImpersonatedTenantId, ct)
+                ? impersonationPayload.ImpersonatedTenantId : Guid.Empty;
+            using var endScope = http.RequestServices.GetRequiredService<ITenantContextAccessor>()
+                .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(endTenantId));
             var impMetadata = System.Text.Json.JsonSerializer.Serialize(new
             {
                 impersonatedTenantId = impersonationPayload.ImpersonatedTenantId.ToString(),
-                reason = "idle_timeout",
+                reason = eventType == LoginAuditEventType.IdleSignOut ? "idle_timeout" : "signout",
             });
             await audit.AppendAsync(db, new LoginAuditEventDraft(
                 EventType: LoginAuditEventType.ImpersonationEnd,
                 Oid: oid,
                 Tid: tid,
-                EffectiveTenantId: impersonationPayload.ImpersonatedTenantId,
+                EffectiveTenantId: endTenantId,
                 CorrelationId: auditCtx.CorrelationId,
                 SourceIp: auditCtx.SourceIp,
                 UserAgent: auditCtx.UserAgent,
