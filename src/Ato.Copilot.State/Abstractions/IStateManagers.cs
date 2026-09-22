@@ -25,6 +25,7 @@ public interface IConversationStateManager
 /// </summary>
 public class ConversationState
 {
+    internal string? StorageKey { get; set; }
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string UserId { get; set; } = string.Empty;
     public List<ConversationMessage> Messages { get; set; } = new();
