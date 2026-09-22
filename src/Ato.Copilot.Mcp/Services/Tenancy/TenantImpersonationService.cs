@@ -1,6 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Data.Common;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Models.Tenancy;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Ato.Copilot.Mcp.Services.Tenancy;
@@ -31,14 +36,31 @@ public interface ITenantImpersonationService
         Guid impersonatorHomeTenantId,
         Guid impersonatedTenantId);
 
-    /// <summary>Workspace support tokens bind the actor directory as well as its object ID.</summary>
+    /// <summary>
+    /// Cryptographic helper only; does not persist an authorization grant. HTTP support entry
+    /// must use <see cref="IssueWorkspaceTokenAsync"/>.
+    /// </summary>
     (string value, DateTimeOffset expiresAt) IssueWorkspaceToken(
         string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId);
 
+    /// <summary>Persist server authorization before returning a workspace support token.</summary>
+    Task<(string value, DateTimeOffset expiresAt)> IssueWorkspaceTokenAsync(
+        string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId, CancellationToken cancellationToken);
+
+    /// <summary>Validate cryptography and current durable workspace authorization, with no positive cache.</summary>
+    Task<ImpersonationCookiePayload?> ValidateWorkspaceTokenAsync(string cookieValue, CancellationToken cancellationToken);
+
+    /// <summary>Compatibility validation; workspace tokens always require durable authorization.</summary>
+    Task<ImpersonationCookiePayload?> ValidateAsync(string cookieValue, CancellationToken cancellationToken);
+
+    /// <summary>Idempotently revoke the presented actor-bound workspace session, including expired tokens.</summary>
+    Task<bool> RevokeWorkspaceTokenAsync(string cookieValue, Guid directoryTenantId, Guid objectId,
+        string reason, CancellationToken cancellationToken);
+
     /// <summary>
-    /// Validates an inbound cookie value. Returns null on any failure
-    /// (signature, expiry, malformed payload, etc.). Output is the parsed
-    /// claims when valid.
+    /// Cryptographically validates an inbound cookie. Does not establish workspace authority;
+    /// authorization callers must use <see cref="ValidateWorkspaceTokenAsync"/> or
+    /// <see cref="ValidateAsync"/> so revocation is checked.
     /// </summary>
     ImpersonationCookiePayload? Validate(string cookieValue);
 
@@ -64,7 +86,8 @@ public sealed record ImpersonationCookiePayload(
     Guid ImpersonatedTenantId,
     DateTimeOffset IssuedAt,
     DateTimeOffset ExpiresAt,
-    Guid? DirectoryTenantId = null);
+    Guid? DirectoryTenantId = null,
+    Guid? SessionId = null);
 
 /// <summary>
 /// HMAC-SHA256 implementation of <see cref="ITenantImpersonationService"/>.
@@ -83,12 +106,17 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
     private readonly TokenValidationParameters _validation;
     private readonly TokenValidationParameters _validationIgnoringLifetime;
     private readonly JwtSecurityTokenHandler _handler = new() { MapInboundClaims = false };
+    private readonly ITenantSupportSessionStore? _sessions;
+    private readonly ILogger<TenantImpersonationService> _logger;
 
     public string CookieName => "ato-impersonate";
     public TimeSpan Lifetime => TimeSpan.FromHours(1);
 
-    public TenantImpersonationService(string signingKey)
+    public TenantImpersonationService(string signingKey, ITenantSupportSessionStore? sessions = null,
+        ILogger<TenantImpersonationService>? logger = null)
     {
+        _sessions = sessions;
+        _logger = logger ?? NullLogger<TenantImpersonationService>.Instance;
         if (string.IsNullOrWhiteSpace(signingKey))
         {
             throw new ArgumentException(
@@ -154,6 +182,82 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
         string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId)
         => IssueTokenCore(impersonatorOid, Guid.Empty, impersonatedTenantId, directoryTenantId);
 
+    public async Task<(string value, DateTimeOffset expiresAt)> IssueWorkspaceTokenAsync(
+        string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(impersonatorOid, out var actor) || actor == Guid.Empty
+            || directoryTenantId == Guid.Empty || impersonatedTenantId == Guid.Empty)
+            throw new ArgumentException("A support session requires nonempty actor, directory and target GUIDs.");
+        var store = RequireStore();
+        var issued = IssueWorkspaceToken(actor.ToString(), directoryTenantId, impersonatedTenantId);
+        var payload = ValidateCore(issued.value, _validation)
+            ?? throw new InvalidOperationException("The newly signed support token could not be validated.");
+        await StoreOperationAsync(async () =>
+        {
+            await store.CreateAsync(new TenantSupportSession
+            {
+                Id = payload.SessionId!.Value, DirectoryTenantId = directoryTenantId, ObjectId = actor,
+                TargetTenantId = impersonatedTenantId, IssuedAt = payload.IssuedAt, ExpiresAt = payload.ExpiresAt,
+            }, cancellationToken);
+            return true;
+        });
+        return issued;
+    }
+
+    public async Task<ImpersonationCookiePayload?> ValidateWorkspaceTokenAsync(string cookieValue, CancellationToken cancellationToken)
+    {
+        var payload = ValidateCore(cookieValue, _validation);
+        if (payload?.SessionId is not { } id || payload.DirectoryTenantId is not { } directory
+            || directory == Guid.Empty || !Guid.TryParse(payload.ImpersonatorOid, out var actor)
+            || actor == Guid.Empty || payload.ImpersonatedTenantId == Guid.Empty)
+            return null;
+        var store = RequireStore();
+        var session = await StoreOperationAsync(() => store.GetAsync(id, cancellationToken));
+        return session is not null && session.RevokedAt is null
+            && session.DirectoryTenantId == directory && session.ObjectId == actor
+            && session.TargetTenantId == payload.ImpersonatedTenantId
+            && session.IssuedAt == payload.IssuedAt && session.ExpiresAt == payload.ExpiresAt
+            && session.ExpiresAt > DateTimeOffset.UtcNow
+            ? payload : null;
+    }
+
+    public async Task<ImpersonationCookiePayload?> ValidateAsync(string cookieValue, CancellationToken cancellationToken)
+    {
+        var payload = ValidateCore(cookieValue, _validation);
+        return payload?.DirectoryTenantId is null ? payload
+            : await ValidateWorkspaceTokenAsync(cookieValue, cancellationToken);
+    }
+
+    public async Task<bool> RevokeWorkspaceTokenAsync(string cookieValue, Guid directoryTenantId, Guid objectId,
+        string reason, CancellationToken cancellationToken)
+    {
+        var payload = ValidateIgnoringLifetime(cookieValue);
+        if (payload is null || payload.DirectoryTenantId != directoryTenantId
+            || !Guid.TryParse(payload.ImpersonatorOid, out var actor) || actor != objectId)
+            throw new WorkspaceException(403, "SUPPORT_SESSION_INVALID", "The support session does not belong to this directory identity.");
+        if (payload.SessionId is not { } id) return false;
+        var store = RequireStore();
+        return await StoreOperationAsync(() => store.RevokeAsync(id, directoryTenantId, objectId,
+            payload.ImpersonatedTenantId, reason, cancellationToken));
+    }
+
+    private ITenantSupportSessionStore RequireStore()
+    {
+        if (_sessions is not null) return _sessions;
+        _logger.LogError("Durable support-session authorization store is not configured");
+        throw new WorkspaceException(503, "SUPPORT_SESSION_UNAVAILABLE", "Support-session authorization is unavailable.");
+    }
+
+    private async Task<T> StoreOperationAsync<T>(Func<Task<T>> operation)
+    {
+        try { return await operation(); }
+        catch (Exception ex) when (ex is DbException or DbUpdateException)
+        {
+            _logger.LogError(ex, "Durable support-session state operation failed");
+            throw new WorkspaceException(503, "SUPPORT_SESSION_UNAVAILABLE", "Support-session authorization is unavailable. Retry after service recovery.");
+        }
+    }
+
     private (string value, DateTimeOffset expiresAt) IssueTokenCore(
         string impersonatorOid, Guid impersonatorHomeTenantId, Guid impersonatedTenantId, Guid? directoryTenantId)
     {
@@ -186,7 +290,7 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
         return (_handler.WriteToken(token), expires);
     }
 
-    /// <inheritdoc />
+    /// <summary>Cryptographic parsing only; workspace authorization must use the async validator.</summary>
     public ImpersonationCookiePayload? Validate(string cookieValue)
         => ValidateCore(cookieValue, _validation);
 
@@ -225,7 +329,8 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
                 ImpersonatedTenantId: eff,
                 IssuedAt: jwt.ValidFrom,
                 ExpiresAt: jwt.ValidTo,
-                DirectoryTenantId: Guid.TryParse(principal.FindFirstValue("actor_directory"), out var directory) ? directory : null);
+                DirectoryTenantId: Guid.TryParse(principal.FindFirstValue("actor_directory"), out var directory) ? directory : null,
+                SessionId: Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Jti), out var sessionId) ? sessionId : null);
         }
         catch (SecurityTokenException)
         {

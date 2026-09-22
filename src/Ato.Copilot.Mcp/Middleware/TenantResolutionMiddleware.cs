@@ -238,7 +238,7 @@ public sealed class TenantResolutionMiddleware
             if (ctx.IsCspAdmin
                 && context.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue))
             {
-                var payload = impersonation.Validate(cookieValue);
+                var payload = await impersonation.ValidateAsync(cookieValue, context.RequestAborted);
                 if (payload is not null)
                 {
                     ctx.ImpersonatedTenantId = payload.ImpersonatedTenantId;

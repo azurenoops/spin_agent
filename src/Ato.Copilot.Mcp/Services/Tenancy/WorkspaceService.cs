@@ -137,7 +137,7 @@ public sealed class WorkspaceService(
         {
             if (!isCsp
                 || !http.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookie)
-                || impersonation.Validate(cookie) is not { } payload
+                || await impersonation.ValidateWorkspaceTokenAsync(cookie, ct) is not { } payload
                 || payload.ImpersonatorOid != identity.ObjectId.ToString()
                 || payload.ImpersonatedTenantId != target)
                 throw new WorkspaceException(403, "SUPPORT_SESSION_INVALID", "The support session is missing, expired, or does not match this actor and organization.");
@@ -173,7 +173,7 @@ public sealed class WorkspaceService(
             : [];
         var admin = roles.Contains(nameof(OrganizationRole.Administrator));
         Current = new("organization", tenant.Id, tenant.DisplayName, mode, personId, roles,
-            new(isCsp || admin, admin, false));
+            new(isCsp || admin, admin, false, roles.Contains(nameof(OrganizationRole.Issm))));
     }
 
     private static string? Header(HttpContext http, string name)
