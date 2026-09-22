@@ -7,6 +7,7 @@ using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Observability;
 using Ato.Copilot.Core.Services.Roles;
+using Ato.Copilot.Mcp.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -112,7 +113,7 @@ public static class SystemRolesEndpoints
             var actor = ResolveActorPersonId(http);
             return await AssignSystemRoleAsync(
                 systemId, body, tid, actor, dbFactory, resolver, authz, sod, metrics, ct);
-        }).WithName("AssignSystemRole");
+        }).WithName("AssignSystemRole").RequireWorkspaceOperation(SystemWorkspaceOperation.AssignSystemRole);
 
         group.MapDelete("/system/{systemId}/{role}/{personId:guid}", async (
             string systemId,
@@ -130,7 +131,7 @@ public static class SystemRolesEndpoints
             var actor = ResolveActorPersonId(http);
             return await RemoveSystemRoleAsync(
                 systemId, role, personId, tid, actor, dbFactory, resolver, authz, metrics, ct);
-        }).WithName("RemoveSystemRole");
+        }).WithName("RemoveSystemRole").RequireWorkspaceOperation(SystemWorkspaceOperation.AssignSystemRole);
 
         group.MapPost("/organization", async (
             [FromBody] AssignOrgRoleBody body,
@@ -738,7 +739,7 @@ public static class SystemRolesEndpoints
     /// is the source of truth (set by <c>TenantResolutionMiddleware</c> per
     /// Feature 048).
     /// </summary>
-    private static Guid RequireTenant(ITenantContext tenant) => tenant.TenantId;
+    private static Guid RequireTenant(ITenantContext tenant) => tenant.EffectiveTenantId;
 
     /// <summary>
     /// Best-effort lookup of the calling principal's Person ID. Falls back to
@@ -748,6 +749,9 @@ public static class SystemRolesEndpoints
     /// </summary>
     private static Guid ResolveActorPersonId(HttpContext http)
     {
+        var tenant = http.RequestServices.GetService<ITenantContext>();
+        if (tenant?.IsWorkspaceRequest == true)
+            return tenant.PersonId ?? Guid.Empty;
         var claim = http.User?.FindFirst("oid")?.Value
                     ?? http.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
