@@ -7,6 +7,7 @@ using Ato.Copilot.Chat.Channels;
 using Ato.Copilot.Chat.Models;
 using Ato.Copilot.Chat.Services;
 using System.Security.Claims;
+using Ato.Copilot.Chat.Services.Auth;
 
 namespace Ato.Copilot.Chat.Hubs;
 
@@ -45,6 +46,8 @@ public class ChatHub : Hub
         if (string.IsNullOrWhiteSpace(conversationId))
             throw new HubException("ConversationId is required");
 
+        using var scope = _scopeFactory.CreateScope();
+        await RequireConversationAsync(scope, conversationId);
         await _channelManager.JoinConversationAsync(Context.ConnectionId, conversationId);
         _logger.LogInformation("Connection {ConnectionId} joined conversation {ConversationId}",
             Context.ConnectionId, conversationId);
@@ -82,6 +85,8 @@ public class ChatHub : Hub
             throw new HubException("Message content exceeds 10,000 character limit");
 
         var messageId = Guid.NewGuid().ToString();
+        using var scope = _scopeFactory.CreateScope();
+        await RequireConversationAsync(scope, request.ConversationId);
 
         try
         {
@@ -95,7 +100,7 @@ public class ChatHub : Hub
                 IsComplete = false,
                 Metadata = new Dictionary<string, object> { ["status"] = "Processing" }
             };
-            await _channel.SendToConversationAsync(request.ConversationId, processingMessage);
+            await _channel.SendAsync(Context.ConnectionId, processingMessage, Context.ConnectionAborted);
 
             // Create progress reporter that pushes SignalR events via the channel
             var conversationId = request.ConversationId;
@@ -112,23 +117,22 @@ public class ChatHub : Hub
                         IsComplete = false,
                         Metadata = new Dictionary<string, object> { ["timestamp"] = DateTime.UtcNow }
                     };
-                    await _channel.SendToConversationAsync(conversationId, progressMessage);
+                    await _channel.SendAsync(Context.ConnectionId, progressMessage, Context.ConnectionAborted);
                 }
-                catch { /* best-effort progress */ }
+                catch (Exception ex) { _logger.LogDebug(ex, "Unable to deliver chat progress"); }
             });
 
             // Process message via scoped ChatService (uses IChatService directly for IProgress support;
             // external channels use IMessageHandler which wraps the same pipeline without progress)
-            using var scope = _scopeFactory.CreateScope();
             var chatService = scope.ServiceProvider.GetRequiredService<IChatService>();
-            var response = await chatService.SendMessageAsync(request, progress);
+            var response = await chatService.SendMessageAsync(request, progress, Context.ConnectionAborted);
 
             // Map response and send via channel
             var responseMessage = ChatMessageMapper.ToChannelMessage(response, request.ConversationId);
 
             if (response.Success)
             {
-                await _channel.SendToConversationAsync(request.ConversationId, responseMessage);
+                await _channel.SendAsync(Context.ConnectionId, responseMessage, Context.ConnectionAborted);
             }
             else
             {
@@ -147,9 +151,11 @@ public class ChatHub : Hub
                             : "ProcessingError"
                     }
                 };
-                await _channel.SendToConversationAsync(request.ConversationId, errorMessage);
+                await _channel.SendAsync(Context.ConnectionId, errorMessage, Context.ConnectionAborted);
             }
         }
+        catch (OperationCanceledException) when (Context.ConnectionAborted.IsCancellationRequested) { throw; }
+        catch (ChatWorkspaceException) { throw; }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing SignalR message for conversation {ConversationId}", request.ConversationId);
@@ -163,7 +169,7 @@ public class ChatHub : Hub
                 IsComplete = true,
                 Metadata = new Dictionary<string, object> { ["errorCategory"] = "ProcessingError" }
             };
-            await _channel.SendToConversationAsync(request.ConversationId, errorMessage);
+            await _channel.SendAsync(Context.ConnectionId, errorMessage, Context.ConnectionAborted);
         }
     }
 
@@ -177,11 +183,10 @@ public class ChatHub : Hub
         if (string.IsNullOrWhiteSpace(conversationId))
             return;
 
+        using var scope = _scopeFactory.CreateScope();
+        var conversation = await RequireConversationAsync(scope, conversationId);
         // DEF-001: userId derived from authenticated claims, not client-supplied parameter.
-        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
-                     ?? Context.User?.FindFirstValue("oid")
-                     ?? Context.User?.Identity?.Name
-                     ?? Context.ConnectionId;
+        var userId = conversation.UserId;
 
         await Clients.OthersInGroup(conversationId).SendAsync("UserTyping", new
         {
@@ -203,6 +208,13 @@ public class ChatHub : Hub
         _logger.LogInformation("ChatHub connection established: {ConnectionId} for user {UserId}",
             Context.ConnectionId, userId);
         await base.OnConnectedAsync();
+    }
+
+    private async Task<Conversation> RequireConversationAsync(IServiceScope scope, string conversationId)
+    {
+        Context.ConnectionAborted.ThrowIfCancellationRequested();
+        return await scope.ServiceProvider.GetRequiredService<IChatService>().GetConversationAsync(conversationId)
+            ?? throw new HubException("Conversation not found.");
     }
 
     /// <summary>

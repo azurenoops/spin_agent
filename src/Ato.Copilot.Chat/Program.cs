@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -115,6 +116,8 @@ try
     // explicitly here. Singleton matches the canonical registration in
     // CoreServiceExtensions.AddAtoCopilotCore.
     builder.Services.AddSingleton<IPathSanitizationService, PathSanitizationService>();
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<ChatWorkspaceResolver>();
     builder.Services.AddScoped<IChatService, ChatService>();
 
     // ─── Channels Adapter Services ───────────────────────────────────
@@ -132,12 +135,17 @@ try
     builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
     builder.Services.AddSingleton<ITenantScopeBinder, AccessorTenantScopeBinder>();
 
+    builder.Services.AddHttpClient("McpWorkspace", client =>
+    {
+        client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("McpServer:BaseUrl") ?? "http://localhost:3001");
+        client.Timeout = TimeSpan.FromSeconds(30);
+    }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false });
     builder.Services.AddHttpClient("McpServer", client =>
     {
         var mcpBaseUrl = builder.Configuration.GetValue<string>("McpServer:BaseUrl") ?? "http://localhost:3001";
         client.BaseAddress = new Uri(mcpBaseUrl);
         client.Timeout = TimeSpan.FromSeconds(180);
-    })
+    }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false })
     .ConfigureResiliencePipeline(new ResiliencePipelineConfig
     {
         Name = "McpServer",
@@ -153,6 +161,7 @@ try
             options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
         });
     builder.Services.AddSignalR()
+        .AddHubOptions<ChatHub>(options => options.AddFilter<ChatWorkspaceHubFilter>())
         .AddJsonProtocol(options =>
         {
             options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
@@ -176,6 +185,8 @@ try
         {
             options.Authority = azureAdOptions.Authority;
             options.Audience = azureAdOptions.ClientId;
+            options.MapInboundClaims = false;
+            options.SaveToken = true;
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
@@ -248,6 +259,7 @@ try
                 TimeSpan.FromSeconds(chatDbOptions.MigrationTimeoutSeconds));
             logger.LogInformation("Ensuring chat database is created...");
             await db.Database.EnsureCreatedAsync(cts.Token);
+            await ChatWorkspaceSchema.EnsureAsync(db, cts.Token);
             logger.LogInformation("Chat database ready");
         }
         catch (Exception ex)
@@ -277,6 +289,19 @@ try
     app.UseCors("AllowDashboard");
     app.UseAuthentication();
     app.UseAuthorization();
+    app.Use(async (http, next) =>
+    {
+        try { await next(http); }
+        catch (ChatWorkspaceException ex) when (!http.Response.HasStarted)
+        {
+            http.Response.StatusCode = ex.StatusCode;
+            await http.Response.WriteAsJsonAsync(new Ato.Copilot.Chat.Models.ErrorResponse
+            {
+                Error = ex.Code, Message = ex.Message,
+                Suggestion = "Use your current user token and an explicitly authorized workspace; create a new conversation for a different scope."
+            }, http.RequestAborted);
+        }
+    });
 
     // ─── Endpoints ───────────────────────────────────────────────────
 
