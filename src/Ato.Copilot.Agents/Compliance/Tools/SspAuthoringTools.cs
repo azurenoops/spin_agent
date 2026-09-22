@@ -6,6 +6,7 @@ using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.State.Abstractions;
 
 namespace Ato.Copilot.Agents.Compliance.Tools;
 
@@ -20,13 +21,16 @@ namespace Ato.Copilot.Agents.Compliance.Tools;
 public class WriteNarrativeTool : BaseTool
 {
     private readonly ISspService _sspService;
+    private readonly IConversationIdentityAccessor? _identityAccessor;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public WriteNarrativeTool(
         ISspService sspService,
-        ILogger<WriteNarrativeTool> logger) : base(logger)
+        ILogger<WriteNarrativeTool> logger,
+        IConversationIdentityAccessor? identityAccessor = null) : base(logger)
     {
         _sspService = sspService;
+        _identityAccessor = identityAccessor;
     }
 
     public override string Name => "compliance_write_narrative";
@@ -69,10 +73,12 @@ public class WriteNarrativeTool : BaseTool
         if (string.IsNullOrWhiteSpace(narrative))
             return Error("INVALID_INPUT", "The 'narrative' parameter is required.");
 
+        var actor = _identityAccessor?.Current?.ActorId ?? "mcp-user";
+
         try
         {
             var result = await _sspService.WriteNarrativeAsync(
-                systemId, controlId, narrative, status, "mcp-user",
+                systemId, controlId, narrative, status, actor,
                 expectedVersion, changeReason, cancellationToken);
 
             sw.Stop();
