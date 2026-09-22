@@ -216,6 +216,23 @@ The same transition mechanism handles switching, Back/Forward, deep links,
 refresh, login/logout and support entry/exit. A full reload is not the
 correctness mechanism.
 
+Notification integration must use the authenticated server session, not the
+presence of an MSAL account, for REST access. The capabilities endpoint declares
+whether personal notifications are available in the selected organization and
+whether a matching bearer can use real-time delivery. Session-only callers use
+the declared 30-second REST polling fallback and see an explicit real-time
+unavailable state. Context changes cancel requests and discard old callbacks;
+transport and mutation errors must be visible rather than silently ignored.
+
+The relational notification preference key is `(TenantId, UserId)`, not global
+`UserId`. The existing SQLite regression fails with the global index. Startup
+must replace that index for existing SQLite and SQL Server databases as well as
+create the correct fresh model. Create the composite constraint before removing
+the old constraint in one transaction, preserve stored preference values, and
+fail startup if the rollout cannot complete. Preference controls must match the
+actual server DTO (POA&M overdue, ATO expiration, compliance drift, warning days),
+not unsupported delivery-channel fields.
+
 ### 4. Keep support mode explicit
 
 Provider oversight does not confer ordinary customer membership. A provider
@@ -265,6 +282,13 @@ Source changes and pending narrative impacts must be persisted atomically or
 through a durable outbox; a fallible post-commit callback is not sufficient.
 Impact marking performs no synchronous model call, preserves approved content
 and supports idempotent retry of later proposal generation.
+
+The actual tool dispatcher must enforce the request-scoped tool policy in the
+shared `BaseTool.ExecuteAsync` path after canonical system-ID resolution and
+before execution. Parent red tests reproduced five agent-driven failures:
+denied/unmapped mutations executed, inferred targets escaped scope, and a body
+actor value survived. This shared hook is required in addition to endpoint or
+conversation read checks; no coarse authorization bypass substitutes for it.
 
 ## Navigation and existing-route migration
 

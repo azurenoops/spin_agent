@@ -1317,6 +1317,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // [TenantScoped] entity table. Idempotent / additive.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantIdColumnAdditions
         .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.NotificationPreferencesSchemaAdditions
+        .ApplyAsync(db, logger, ct);
     // Issue 834: separate, auditable authorization override annotations.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.AuthorizationOverridesSchemaAdditions
         .ApplyAsync(db, logger, ct);

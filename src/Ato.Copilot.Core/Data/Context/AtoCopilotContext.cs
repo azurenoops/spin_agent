@@ -1095,7 +1095,8 @@ public class AtoCopilotContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.UserId).HasMaxLength(200).IsRequired();
 
-            entity.HasIndex(e => e.UserId).IsUnique().HasDatabaseName("IX_NotificationPreferences_UserId");
+            entity.HasIndex(e => new { e.TenantId, e.UserId }).IsUnique()
+                .HasDatabaseName("IX_NotificationPreferences_TenantId_UserId");
         });
 
         // ─── MonitoringConfiguration ─────────────────────────────────────────
