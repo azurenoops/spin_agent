@@ -405,6 +405,24 @@ SQLite `Data Source=:memory:` and `ATO_REQUIRE_DOCKER_TESTS=1`. A matching full-
 run, followed by an approved push and actual CI verification, remains required.
 Both corrections are test-host changes only, with no runtime or data rollback.
 
+The full local Release run at `6ce64d0a` completed with 1,262 passed, 26 failed and
+20 skipped (1,308 total), with Docker tests required. The next approved group
+is eight failures in the person and organization-context onboarding fixtures.
+Sequential request logs verify both throw for missing scoped `ITenantContext`
+before endpoint logic. Person promotion's JSON parse errors follow its failed
+person-creation request. The bounded correction registers the existing context
+in those two fixtures and checks creation/promotion status before parsing or
+continuing. Existing persistence, audit, missing-tenant denial, validation and
+duplicate-link conflict expectations are retained. No production endpoint or
+authorization change is included.
+
+The two corrected onboarding fixtures now pass all nine of their tests (the
+eight previously failing cases plus directory search). Combined with both role
+fixtures, the Release run with CI settings passes 46 tests. The last full-run
+inventory still contains 17 authentication-related 401 failures and one import
+route 404 outside this group; their causes are not established by this result.
+The full lane must be rerun after those groups are addressed.
+
 ## Purpose
 
 The dashboard already resolves provider and organization variants of portfolio,
