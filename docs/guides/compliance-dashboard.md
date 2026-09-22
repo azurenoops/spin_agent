@@ -178,6 +178,30 @@ Deleting a capability unlinks all control narratives and creates review tasks fo
 
 ---
 
+## Narratives and Narrative Library
+
+Use the system sidebar to open **Narratives** or **Narrative Library**. There is
+no duplicate bottom workflow bar or system-context strip above Control Narratives.
+On small screens, use the page-header **Narrative Library** or **Narratives**
+button when the system sidebar is hidden.
+
+Expand a control to choose **Generate Policy draft** or **Generate Technical
+draft**. Each action uses that control's current version and opens a separate
+proposal for review; it does not immediately replace active content. Generation
+remains unavailable without author permission, while a write is in progress, or
+while the control is UnderReview.
+
+Use **Upload narratives** in the library to enter Import & map, and **Library**
+to return. Pending-proposal actions open Review change; its **Narratives** button
+returns to the controls. The sidebar remains available throughout.
+
+A failed library request is not a valid empty library. Retry the displayed error;
+generation, publication and review actions remain disabled until the required
+data reloads successfully. A missing API route may require the backend deployment
+to be repaired rather than changes to the control or its narratives.
+
+---
+
 ## Component Inventory
 
 Navigate to `/systems/{systemId}/components` to manage system components.

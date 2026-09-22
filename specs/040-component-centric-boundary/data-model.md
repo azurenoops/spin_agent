@@ -333,3 +333,101 @@ A simple flag entity or application setting tracks whether the migration has run
 ```
 
 This avoids re-running the migration on subsequent startups.
+
+## SQL Server CSP-reference upgrade sequencing (issue #987)
+
+Revision `0000132` (`1cbbc9e`) aborts startup in the Feature 040 schema
+initializer with SQL Server error 207, `Invalid column name
+'CspInheritedComponentId'`. The startup batch adds the column and refers to
+it in a filtered index, check constraint, and foreign key in the same batch.
+SQL Server binds those references before the guarded `ALTER TABLE` executes
+on an existing pre-#936 table. The SQL Server branch of the #936 EF migration
+contains the same sequencing defect.
+
+The repair must execute the additive column DDL in a separate command before
+compiling dependent DDL, in both startup and the EF migration. The existing
+tenant, component, and boundary foreign keys and audit values must survive.
+Replace the legacy unfiltered component/boundary unique index only when
+needed; drop that dependent index before relaxing component nullability,
+retaining the deployed column width and collation.
+Do not rebuild a correct filtered index or alter an already-nullable column
+on every boot. Preserve the two source-specific unique indexes, boundary
+lookup index, exactly-one-component check, and optional CSP foreign key.
+Run the sequence transactionally so failed constraint validation cannot
+leave a half-upgraded table. Propagate all failures through the existing
+startup error logging; do not suppress or downgrade schema failures.
+
+Validation must distinguish a pre-#936 upgrade, an already-current schema,
+and a missing boundary-assignment table; run the same initializer twice.
+Check retained tenant/audit data and existing foreign keys, reject duplicate
+assignments, reject zero/two component references, and reject an unknown CSP
+reference. SQL Server integration tests must use an isolated local database
+or Testcontainers, never the deployed database. A missing local SQL Server
+is an explicit validation limitation, not a successful upgrade test.
+
+### Local verification, 2026-09-21
+
+- Before the repair: `BoundaryComponentSchemaAdditionsTests` had two failing
+  SQL Server migration-contract tests (single compiled batch; index dropped
+  after column alteration) and one passing SQLite migration-contract test.
+- After the repair: 28 targeted schema/assignment unit tests passed, including
+  executor command ordering, actual transaction commit/rollback using an
+  intercepted SQLite connection, and preservation of the SQLite migration
+  contract. These executor tests do **not** validate SQL Server DDL semantics.
+- The existing full-host SQLite first/second-startup test passed.
+- Final combined run: 29 passed, 0 failed, 0 skipped. The shared executor has
+  15/15 covered lines and 7/8 covered branches (87.5%, including generated
+  async state-machine branches). The integration project and backend references
+  compile with zero errors; five warnings remain in unrelated existing tests.
+  Logs/TRX/coverage are retained locally under the ignored
+  `tests/Ato.Copilot.Tests.Integration/TestResults/issue987/` directory.
+- The initial required SQL Server run failed fixture initialization because
+  Docker was unavailable; none of its SQL assertions executed. After the
+  user approved starting Docker Desktop, the real SQL Server run completed
+  with **4 passed, 1 failed, 0 skipped**. The legacy upgrade failed with
+  `Incorrect syntax near 'SQL_Latin1_General_CP1_CI_AS'` because the dynamic
+  `ALTER COLUMN` used `QUOTENAME(collation_name)` after `COLLATE`.
+  The correction emits the catalog-provided collation token without
+  identifier brackets. Before that correction, adding the EF-generated
+  migration test reproduced the same error: **4 passed, 2 failed, 0 skipped**
+  (`sqlserver-collation-red.trx`).
+- After the collation correction: the strict real SQL Server suite passed
+  **6/6, 0 failed, 0 skipped** (`sqlserver-final-green.trx`), using the
+  disposable `mcr.microsoft.com/mssql/server:2022-CU16-ubuntu-22.04` container:
+  - Combining the batches against the legacy schema reproduces error 207.
+  - Legacy upgrade plus initializer rerun preserve rows, tenant/audit
+    values, component width/collation, existing foreign keys, and stable
+    index allocations; both source-specific unique indexes are present.
+    Duplicates, zero/two source references, unknown CSP references, and
+    invalid tenant references are rejected; a valid CSP reference succeeds.
+  - Missing-table creation and later CSP-parent availability are idempotent;
+    the CSP foreign key and exactly-one-component check remain trusted.
+  - Fresh EF-model schema plus initializer reruns preserve column widths
+    and existing indexes.
+  - Invalid legacy data raises error 547 and rolls back column/index
+    changes, preserving the original row and unfiltered index.
+  - EF generates two transactional #936 commands; executing those commands
+    on the legacy schema preserves data, foreign keys, indexes, and the
+    deliberately non-default `Latin1_General_100_BIN2` collation. A following
+    startup-initializer rerun succeeds and accepts a valid CSP assignment.
+- The 29 focused unit/SQLite-host tests were rerun after the SQL correction:
+  **29 passed, 0 failed, 0 skipped** (`collation-focused-green.trx`).
+  The final incremental integration/backend build succeeded with zero
+  warnings and zero errors (`collation-final-build.log`); editor diagnostics
+  and `git diff --check` were clean.
+  The earlier Docker blocker is resolved. This validates local SQL Server
+  schema initialization, not a deployment or the entire production startup
+  against production data. No production database or deployment was changed.
+
+From the worktree root, with the pinned .NET SDK on `PATH`, manually rerun:
+
+```bash
+dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj \
+  --filter 'FullyQualifiedName~BoundaryComponentSchemaAdditionsTests|FullyQualifiedName~BoundaryComponentAssignmentTests|FullyQualifiedName~EnsureSchemaAdditionsAsyncTests.EnsureSchemaAdditions_OnSecondSqliteStartup_DoesNotThrow'
+
+# Requires a running local Docker daemon; provisions only an isolated testcontainer.
+# Fail rather than skip if the real SQL Server fixture is unavailable.
+ATO_REQUIRE_DOCKER_TESTS=1 dotnet test \
+  tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+  --filter FullyQualifiedName~BoundaryComponentSqlServerSchemaTests
+```

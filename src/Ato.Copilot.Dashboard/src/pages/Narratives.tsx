@@ -299,11 +299,12 @@ function BusinessContextPanel({ systemId, controlId, flags, canCopy, onCopy, onR
   );
 }
 
-export default function Narratives({ onGenerateDraft, proposals = [], canGenerate = false, onReviewProposal }: {
-  onGenerateDraft?: (controlId: string, version: number, type?: string) => Promise<void>;
+export default function Narratives({ onGenerateDraft, proposals = [], canGenerate = false, onReviewProposal, onOpenLibrary }: {
+  onGenerateDraft?: (controlId: string, version: number, type: 'Policy' | 'Technical') => Promise<void>;
   proposals?: NarrativeProposal[];
   canGenerate?: boolean;
   onReviewProposal?: (proposal: NarrativeProposal) => void;
+  onOpenLibrary?: () => void;
 } = {}) {
   const { id: systemId } = useParams<{ id: string }>();
   const { settings } = useSettings();
@@ -477,19 +478,19 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
     }
   };
 
-  const handleRegenerate = async (controlId: string) => {
+  const handleRegenerate = async (controlId: string, type: 'Policy' | 'Technical' = 'Technical') => {
     if (!canAuthor || (onGenerateDraft && !canGenerate)) { setRegenError('Narrative generation permission is required.'); return; }
     if (!systemId) return;
     const current = narratives?.find(item => item.controlId === controlId);
     const draftKey = `${systemId}:${controlId}`;
-    if (!current || current.approvalStatus === 'UnderReview' || activeWrites.current.has(draftKey)) return;
+    if (!current || current.approvalStatus === 'UnderReview' || activeWrites.current.has(draftKey) || (onGenerateDraft && !canGenerate)) return;
     const expectedVersion = draftVersions.current[draftKey] ?? current.version;
     activeWrites.current.add(draftKey);
     setRegeneratingIds(prev => new Set([...prev, controlId]));
     setRegenError('');
     try {
       if (onGenerateDraft) {
-        await onGenerateDraft(controlId, expectedVersion);
+        await onGenerateDraft(controlId, expectedVersion, type);
         return;
       }
       const newNarrative = await regenerateNarrative(
@@ -524,21 +525,29 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
   return (
     <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Control Narratives</h2>
             <p className="mt-1 text-sm text-gray-500">View and manage control implementation narratives for this system.</p>
           </div>
-          <button
-            disabled={!canAuthor}
-            onClick={() => {
-              if (!canAuthor) { setRegenError('Narrative authoring permission is required.'); return; }
-              setShowAddDialog(true);
-            }}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            + Add Narrative
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {onOpenLibrary && <div className="nw-mobile-navigation">
+              <button type="button" onClick={onOpenLibrary}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Narrative Library
+              </button>
+            </div>}
+            <button
+              disabled={!canAuthor}
+              onClick={() => {
+                if (!canAuthor) { setRegenError('Narrative authoring permission is required.'); return; }
+                setShowAddDialog(true);
+              }}
+              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              + Add Narrative
+            </button>
+          </div>
         </div>
 
         {showAddDialog && (
@@ -761,21 +770,33 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                             const activities = parseControlActivities(technicalValue);
                             return (
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <div className="flex items-center gap-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
+                              <div className="flex flex-wrap items-center gap-4">
                                 <span>Authored: {formatDate(n.authoredAt)}</span>
                                 <span>Version: {n.version}</span>
                                 {hasAiTechnicalNarrative(n) && <span className="text-purple-600 font-medium">AI-assisted Technical narrative</span>}
                                 {savingIds.has(n.controlId) && <span className="text-indigo-600 font-medium">Saving…</span>}
                                 {savedIds.has(n.controlId) && !savingIds.has(n.controlId) && <span className="text-green-600 font-medium">Saved ✓</span>}
                               </div>
-                              <button
+                              {onGenerateDraft ? <div className="flex flex-wrap gap-2">
+                                {(['Policy', 'Technical'] as const).map(type => <button
+                                  key={type}
+                                  type="button"
+                                  aria-label={`Generate ${type} draft for ${n.controlId}`}
+                                  className="inline-flex items-center gap-1 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                                  disabled={!canAuthor || regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview' || !canGenerate}
+                                  onClick={() => void handleRegenerate(n.controlId, type)}
+                                >
+                                  {regeneratingIds.has(n.controlId) ? 'Generating…' : `Generate ${type} draft`}
+                                </button>)}
+                              </div> : <button
+                                type="button"
                                 className="inline-flex items-center gap-1 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
                                 disabled={!canAuthor || regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview' || Boolean(onGenerateDraft && !canGenerate)}
                                 onClick={() => handleRegenerate(n.controlId)}
                               >
-                                {regeneratingIds.has(n.controlId) ? 'Regenerating…' : onGenerateDraft ? 'Regenerate as draft' : 'Regenerate'}
-                              </button>
+                                {regeneratingIds.has(n.controlId) ? 'Regenerating…' : 'Regenerate'}
+                              </button>}
                             </div>
                             {onReviewProposal && proposals.filter(proposal => proposal.controlId === n.controlId && proposal.status === 'Draft').map(proposal =>
                               <button key={proposal.id} onClick={() => onReviewProposal(proposal)}>Compare proposed v{proposal.baseVersion + 1} / {proposal.narrativeType}</button>)}

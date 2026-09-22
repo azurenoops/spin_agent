@@ -149,9 +149,11 @@ describe('Narrative workspace permissions', () => {
     await act(async () => { render(<Narratives onGenerateDraft={generate} canGenerate />); });
     // Act
     await act(async () => { fireEvent.click(screen.getByTitle('Expand')); });
-    fireEvent.click(screen.getByRole('button', { name: 'Regenerate as draft' }));
+    const buttons = screen.getAllByRole('button', { name: /^Generate (Policy|Technical) draft for AC-1$/ });
+    buttons.forEach(button => fireEvent.click(button));
     // Assert
-    expect(screen.getByRole('button', { name: 'Regenerate as draft' })).toBeDisabled();
+    expect(buttons).toHaveLength(2);
+    buttons.forEach(button => expect(button).toBeDisabled());
     expect(generate).not.toHaveBeenCalled();
   });
 
@@ -220,20 +222,68 @@ describe('Narrative workspace permissions', () => {
 });
 
 describe('Narratives regeneration', () => {
-  it('preserves active text and generates a separate proposal in the new workspace', async () => {
+  it('keeps a compact Library entry point for screens without the system sidebar', async () => {
+    // Arrange
+    const openLibrary = vi.fn();
+    render(<Narratives onOpenLibrary={openLibrary} />);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Narrative Library', hidden: true }));
+    // Assert
+    expect(openLibrary).toHaveBeenCalledOnce();
+    await waitFor(() => expect(businessContextApi.getFlaggedControls).toHaveBeenCalled());
+  });
+
+  it.each(['Policy', 'Technical'] as const)('generates a %s proposal from its expanded control without changing active text', async type => {
     // Arrange
     const generate = vi.fn().mockResolvedValue(undefined);
     render(<Narratives onGenerateDraft={generate} canGenerate />);
     fireEvent.click(screen.getByTitle('Expand'));
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Regenerate as draft' }));
+    fireEvent.click(screen.getByRole('button', { name: `Generate ${type} draft for AC-1` }));
     // Assert
-    await waitFor(() => expect(generate).toHaveBeenCalledWith('AC-1', 1));
+    await waitFor(() => expect(generate).toHaveBeenCalledWith('AC-1', 1, type));
     expect(screen.getByLabelText('Policy narrative for AC-1')).toHaveAttribute('readonly');
     expect(screen.getByLabelText('Technical narrative for AC-1')).toHaveAttribute('readonly');
     expect(screen.getByLabelText('Technical narrative for AC-1')).toHaveValue('Original technical narrative');
     expect(mockRegenerate).not.toHaveBeenCalled();
     expect(narrativeApi.saveNarrative).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { canGenerate: false, approvalStatus: 'Draft' },
+    { canGenerate: true, approvalStatus: 'UnderReview' },
+  ])('disables both draft actions when permission or review state forbids generation: %j', async ({ canGenerate, approvalStatus }) => {
+    // Arrange
+    const polling = mockUsePolling.getMockImplementation()!();
+    polling.data[0].approvalStatus = approvalStatus;
+    mockUsePolling.mockReturnValue(polling);
+    const generate = vi.fn();
+    render(<Narratives onGenerateDraft={generate} canGenerate={canGenerate} />);
+    // Act
+    fireEvent.click(screen.getByTitle('Expand'));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Generate Policy draft for AC-1' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Generate Technical draft for AC-1' })).toBeDisabled();
+    expect(generate).not.toHaveBeenCalled();
+    await screen.findByText('No business context provided');
+  });
+
+  it('keeps both draft actions disabled while either type is generating', async () => {
+    // Arrange
+    let complete!: () => void;
+    const generate = vi.fn().mockReturnValue(new Promise<void>(resolve => { complete = resolve; }));
+    render(<Narratives onGenerateDraft={generate} canGenerate />);
+    fireEvent.click(screen.getByTitle('Expand'));
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Policy draft for AC-1' }));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Generate Policy draft for AC-1' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Generate Technical draft for AC-1' })).toBeDisabled();
+    expect(generate).toHaveBeenCalledTimes(1);
+    // Act
+    await act(async () => complete());
+    // Assert
+    expect(screen.getByRole('button', { name: 'Generate Technical draft for AC-1' })).toBeEnabled();
   });
 
   it('preserves the draft and reports a stale save without showing Saved', async () => {
