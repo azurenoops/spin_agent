@@ -59,6 +59,36 @@ public class BaselineIntegrationTests : IDisposable
     public void Dispose() => _serviceProvider.Dispose();
 
     [Fact]
+    public async Task ReselectBaseline_DoesNotCopySubscriptionOwnershipOrChangeItsNarrativeStatus()
+    {
+        // Arrange
+        var systemId = await RegisterSystem("Subscription Baseline", "MajorApplication");
+        await CategorizeSystem(systemId, "Low", "Low", "Low");
+        await _selectBaselineTool.ExecuteAsync(new Dictionary<string, object?> { ["system_id"] = systemId, ["apply_overlay"] = false });
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var baseline = await db.ControlBaselines.SingleAsync(b => b.RegisteredSystemId == systemId);
+            db.ControlInheritances.Add(new() { ControlBaselineId = baseline.Id, ControlId = "AC-2",
+                InheritanceType = InheritanceType.Inherited, Provider = "Synthetic CSP",
+                DesignationSource = "CspSubscription", SetBy = "reviewer" });
+            var narrative = await db.ControlImplementations.SingleAsync(i => i.RegisteredSystemId == systemId && i.ControlId == "AC-2");
+            narrative.ImplementationStatus = ImplementationStatus.Planned;
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        await _selectBaselineTool.ExecuteAsync(new Dictionary<string, object?> { ["system_id"] = systemId, ["apply_overlay"] = false });
+
+        // Assert
+        using var verifyScope = _serviceProvider.CreateScope();
+        var verify = verifyScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await verify.ControlInheritances.AnyAsync()).Should().BeFalse("subscription ownership must be re-evaluated by the scoped reconciler");
+        (await verify.ControlImplementations.SingleAsync(i => i.RegisteredSystemId == systemId && i.ControlId == "AC-2"))
+            .ImplementationStatus.Should().Be(ImplementationStatus.Planned);
+    }
+
+    [Fact]
     public async Task SelectBaseline_DeterministicTemplates_AreNotModelGenerated()
     {
         // Arrange
