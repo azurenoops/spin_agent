@@ -81,7 +81,7 @@ public static class AuthEndpoints
         var b = auth.Branding;
         var branding = new
         {
-            deploymentName = string.IsNullOrWhiteSpace(b.DeploymentName) ? "ATO Copilot" : b.DeploymentName,
+            deploymentName = string.IsNullOrWhiteSpace(b.DeploymentName) ? "Security Posture Intelligence Navigator" : b.DeploymentName,
             logoUrl = string.IsNullOrWhiteSpace(b.LogoUrl) ? (string?)null : b.LogoUrl,
             supportEmail = string.IsNullOrWhiteSpace(b.SupportEmail) ? (string?)null : b.SupportEmail,
         };
@@ -1088,7 +1088,6 @@ public static class AuthEndpoints
             SameSite = SameSiteMode.Strict,
             Path = "/",
         };
-        http.Response.Cookies.Append("ato-simulation", descriptor.IdentityId, sessionCookieOpts);
 
         // FR-025 (clarified 2026-05-28 / analysis C9) — discrete X-Simulated
         // sentinel cookie. NOT a cookie attribute, a separate cookie.
@@ -1099,21 +1098,29 @@ public static class AuthEndpoints
             SameSite = SameSiteMode.Strict,
             Path = "/",
         };
-        http.Response.Cookies.Append("X-Simulated", "true", sentinelOpts);
 
         // Audit row — § 5.3 step 5 + data-model.md § 1.5.
         var metadata = System.Text.Json.JsonSerializer.Serialize(new
         {
             identityId = descriptor.IdentityId,
+            configuredTenantId = descriptor.TenantId,
         });
 
         await using (var db = await dbFactory.CreateDbContextAsync(ct))
         {
+            var auditTenantId = await db.Tenants.AsNoTracking()
+                .AnyAsync(tenant => tenant.Id == descriptor.TenantId, ct)
+                ? descriptor.TenantId : Guid.Empty;
+            if (auditTenantId != descriptor.TenantId)
+                logger.LogWarning("Simulated identity {IdentityId} has no provisioned tenant; recording pre-workspace login in the system audit tenant",
+                    descriptor.IdentityId);
+            using var auditScope = tenantAccessor.Push(
+                new Ato.Copilot.Core.Services.Tenancy.TenantContext(auditTenantId));
             await audit.AppendAsync(db, new LoginAuditEventDraft(
                 EventType: LoginAuditEventType.SimulatedLogin,
                 Oid: descriptor.Oid,
                 Tid: descriptor.Tid,
-                EffectiveTenantId: descriptor.TenantId,
+                EffectiveTenantId: auditTenantId,
                 CorrelationId: auditCtx.CorrelationId,
                 SourceIp: auditCtx.SourceIp,
                 UserAgent: auditCtx.UserAgent,
@@ -1121,6 +1128,9 @@ public static class AuthEndpoints
                 MetadataJson: metadata), ct);
             await db.SaveChangesAsync(ct);
         }
+
+        http.Response.Cookies.Append("ato-simulation", descriptor.IdentityId, sessionCookieOpts);
+        http.Response.Cookies.Append("X-Simulated", "true", sentinelOpts);
 
         logger.LogInformation(
             "Simulated login issued for identityId={IdentityId} (oid={Oid}, tenantId={TenantId})",

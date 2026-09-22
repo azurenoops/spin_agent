@@ -5,6 +5,9 @@
 Local SQLite startup requires SQLite-compatible boundary-migration sentinel DDL.
 The real hosted migration, including repeat startup, is covered by a SQLite
 regression test rather than only simulating its data transformation in memory.
+Development simulation may start before its configured organization exists.
+Such pre-workspace login events belong to the existing system audit tenant;
+simulation must not create organizations or memberships to satisfy an audit FK.
 
 This branch is being published for local workspace testing, not as a completed
 or merge-ready implementation of #1002. The latest completed backend run built
