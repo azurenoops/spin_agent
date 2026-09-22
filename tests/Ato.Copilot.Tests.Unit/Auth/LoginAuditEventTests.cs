@@ -107,10 +107,24 @@ public class LoginAuditEventTests
     }
 
     [Fact]
-    public void EventTypeEnum_HasNineMembers()
+    public void EventTypeEnum_PreservesLoginValuesAndAppendsMembershipEvents()
     {
-        // FR-032 — exactly nine event-type values (data-model.md § 1.3).
-        Enum.GetValues<LoginAuditEventType>().Should().HaveCount(9);
+        // Arrange / Act
+        var values = Enum.GetValues<LoginAuditEventType>().Select(value => (value, (int)value));
+
+        // Assert
+        values.Should().Equal(
+            (LoginAuditEventType.LoginSuccess, 0),
+            (LoginAuditEventType.LoginFailure, 1),
+            (LoginAuditEventType.SignOut, 2),
+            (LoginAuditEventType.IdleSignOut, 3),
+            (LoginAuditEventType.ImpersonationStart, 4),
+            (LoginAuditEventType.ImpersonationEnd, 5),
+            (LoginAuditEventType.TenantSwitch, 6),
+            (LoginAuditEventType.SimulatedLogin, 7),
+            (LoginAuditEventType.SimulationBlocked, 8),
+            (LoginAuditEventType.MembershipGranted, 9),
+            (LoginAuditEventType.MembershipRevoked, 10));
     }
 
     [Fact]
