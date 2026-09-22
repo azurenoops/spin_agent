@@ -51,12 +51,15 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
         builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
 
         // Configure CAC simulation mode with ISSO persona
+        builder.Configuration["Deployment:Mode"] = "SingleTenant";
         builder.Services.Configure<CacAuthOptions>(o =>
         {
             o.SimulationMode = true;
             o.SimulatedIdentity = new SimulatedIdentityOptions
             {
                 UserPrincipalName = "isso.test@dev.mil",
+                TenantId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                ObjectId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
                 DisplayName = "Test ISSO (Simulated)",
                 CertificateThumbprint = "ISSO_THUMB_001",
                 Roles = ["ISSO", "Global Reader"]
@@ -86,6 +89,12 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
 
         _app.UseCors();
         _app.UseMiddleware<CacAuthenticationMiddleware>();
+        _app.Use(async (http, next) =>
+        {
+            using var tenantScope = IntegrationTestServiceExtensions.BindSingleTenantContext(
+                http, Guid.Parse("33333333-3333-3333-3333-333333333333"));
+            await next(http);
+        });
         _app.UseMiddleware<ComplianceAuthorizationMiddleware>();
         _app.UseMiddleware<AuditLoggingMiddleware>();
 
@@ -180,12 +189,15 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
         builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
 
         // Configure CAC simulation mode with Platform Engineer persona
+        builder.Configuration["Deployment:Mode"] = "SingleTenant";
         builder.Services.Configure<CacAuthOptions>(o =>
         {
             o.SimulationMode = true;
             o.SimulatedIdentity = new SimulatedIdentityOptions
             {
                 UserPrincipalName = "engineer.test@dev.mil",
+                TenantId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                ObjectId = Guid.Parse("44444444-4444-4444-4444-444444444444"),
                 DisplayName = "Test Engineer (Simulated)",
                 Roles = ["Platform Engineer"]
             };
@@ -214,6 +226,12 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
 
         _app.UseCors();
         _app.UseMiddleware<CacAuthenticationMiddleware>();
+        _app.Use(async (http, next) =>
+        {
+            using var tenantScope = IntegrationTestServiceExtensions.BindSingleTenantContext(
+                http, Guid.Parse("33333333-3333-3333-3333-333333333333"));
+            await next(http);
+        });
         _app.UseMiddleware<ComplianceAuthorizationMiddleware>();
         _app.UseMiddleware<AuditLoggingMiddleware>();
 

@@ -7,6 +7,7 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Mcp.Extensions;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy;
@@ -15,7 +16,7 @@ using Ato.Copilot.Core.Services.Tenancy;
 namespace Ato.Copilot.Tests.Integration;
 
 /// <summary>
-/// Shared service-collection helpers for integration test scaffolding.
+/// Shared service and request-context helpers for integration test scaffolding.
 /// Centralizes the DI registration ceremony required to bring up an MCP test
 /// server with strict scope validation against an InMemory database.
 /// </summary>
@@ -82,12 +83,17 @@ internal static class IntegrationTestServiceExtensions
                 new("oid", "22222222-2222-2222-2222-222222222222"),
                 new(ClaimTypes.Role, ComplianceRoles.Administrator),
             ], "Synthetic contract identity"));
-            var tenant = (TenantContext)http.RequestServices.GetRequiredService<ITenantContext>();
-            tenant.TenantId = Guid.Parse("33333333-3333-3333-3333-333333333333");
-            tenant.Status = TenantStatus.Active;
-            using var scope = http.RequestServices.GetRequiredService<ITenantContextAccessor>().Push(tenant);
+            using var scope = BindSingleTenantContext(http, Guid.Parse("33333333-3333-3333-3333-333333333333"));
             await next(http);
         });
+    }
+
+    public static IDisposable BindSingleTenantContext(HttpContext http, Guid tenantId)
+    {
+        var tenant = (TenantContext)http.RequestServices.GetRequiredService<ITenantContext>();
+        tenant.TenantId = tenantId;
+        tenant.Status = TenantStatus.Active;
+        return http.RequestServices.GetRequiredService<ITenantContextAccessor>().Push(tenant);
     }
 
     /// <summary>

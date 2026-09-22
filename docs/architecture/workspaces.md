@@ -443,6 +443,25 @@ two simulation-persona cases, anonymous Tier-1 access, multipart chat streaming
 and the inheritance-import route. No full-lane or GitHub CI green result is
 claimed from these targeted runs.
 
+The next bounded investigation reproduced all five remaining entries. The user
+confirmed that HTTP tool execution requires authenticated identity, including
+calls labeled Tier 1; public discovery and health checks remain public. The
+anonymous execution test will assert the exact identity-denial envelope instead
+of expecting execution. Simulation tests must continue using the real CAC
+simulation middleware, now with configured directory/object IDs and an explicit
+single-tenant request binding. Multipart routing gets complete claims without
+authenticating requests that omit its test authentication header. Import/apply
+is registered: its current rejection originates in responsibility authorization
+because the fixture lacks an assigned organization member, not route discovery.
+The import/apply regression moves to the existing production-pipeline workspace
+fixture with an explicitly seeded ISSO membership and system assignment. Its
+deliberately invalid preview token must reach the handler and return HTTP 400
+`INVALID_PREVIEW_TOKEN`, rather than merely accepting any non-404 response.
+All 122 tests in the affected fixtures pass in Release, including the existing
+ISSO/ISSM allow and Mission Owner/AO/Assessor/Administrator deny matrix. The
+full CI-equivalent integration lane is the next gate; these focused results
+do not establish a green GitHub run.
+
 ## Purpose
 
 The dashboard already resolves provider and organization variants of portfolio,

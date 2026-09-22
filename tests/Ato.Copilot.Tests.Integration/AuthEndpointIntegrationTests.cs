@@ -133,14 +133,13 @@ public class AuthEndpointIntegrationTests : IAsyncLifetime
     }
 
     // ────────────────────────────────────────────────────────────
-    //  Tier 1 tools — accessible without auth
+    //  Tool execution requires identity; discovery remains public
     // ────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Tier1Tool_NoAuth_ReturnsOk()
+    public async Task ToolExecution_NoAuth_ReturnsWorkspaceIdentityDenial()
     {
-        // compliance_assess is Tier 1 — no auth required
-        // MCP JSON-RPC format: method = tools/call, params = { name, arguments }
+        // Arrange
         var request = new
         {
             jsonrpc = "2.0",
@@ -153,10 +152,15 @@ public class AuthEndpointIntegrationTests : IAsyncLifetime
             }
         };
 
+        // Act
         var response = await _client.PostAsJsonAsync("/mcp", request, _jsonOptions);
 
-        // Should proceed without 401/403 — tool may fail internally but response returns
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("success").GetBoolean().Should().BeFalse();
+        body.GetProperty("code").GetString().Should().Be("INVALID_WORKSPACE_IDENTITY");
+        body.GetProperty("correlationId").GetString().Should().NotBeNullOrEmpty();
     }
 
     [Fact]

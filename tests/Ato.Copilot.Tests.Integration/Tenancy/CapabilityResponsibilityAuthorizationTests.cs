@@ -14,6 +14,52 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 public sealed class CapabilityResponsibilityAuthorizationTests(WorkspaceMembershipFactory factory)
     : IClassFixture<WorkspaceMembershipFactory>
 {
+    [Fact]
+    public async Task T009_ImportApply_AssignedIsso_RejectsUnknownPreviewToken()
+    {
+        // Arrange
+        using var client = factory.CreateClient();
+        var tenant = WorkspaceMembershipFactory.TenantAId;
+        var directory = Guid.NewGuid();
+        var actor = Guid.NewGuid();
+        var person = new Person { TenantId = tenant, DisplayName = "Synthetic importer", Email = $"{actor:N}@example.invalid" };
+        var system = new RegisteredSystem { TenantId = tenant, Name = $"Import {actor:N}", CreatedBy = "fixture" };
+        var baseline = new ControlBaseline { TenantId = tenant, RegisteredSystemId = system.Id,
+            BaselineLevel = "Moderate", ControlIds = ["AC-1"], TotalControls = 1, CreatedBy = "fixture" };
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.AddRange(person, system, baseline);
+            db.OrganizationMemberships.Add(new() { TenantId = tenant, PersonId = person.Id,
+                DirectoryTenantId = directory, ObjectId = actor, GrantedBy = "fixture" });
+            db.SystemRoleAssignments.Add(new() { TenantId = tenant, PersonId = person.Id,
+                RegisteredSystemId = system.Id, Role = OrganizationRole.Isso });
+            await db.SaveChangesAsync();
+        }
+        client.DefaultRequestHeaders.Add("X-Test-Tid", directory.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Oid", actor.ToString());
+        client.DefaultRequestHeaders.Add("X-Workspace-Kind", "organization");
+        client.DefaultRequestHeaders.Add("X-Workspace-Mode", "ordinary");
+        client.DefaultRequestHeaders.Add("X-Workspace-Tenant-Id", tenant.ToString());
+
+        // Act
+        var response = await client.PostAsJsonAsync($"/api/dashboard/systems/{system.Id}/inheritance/import/apply", new
+        {
+            previewToken = $"missing-{Guid.NewGuid():N}",
+            columnMapping = new { controlId = "controlId", inheritanceType = "inheritanceType",
+                provider = "provider", customerResponsibility = "customerResponsibility" },
+            conflictResolution = "overwrite"
+        });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest, await response.Content.ReadAsStringAsync());
+        var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        body.GetProperty("errorCode").GetString().Should().Be("INVALID_PREVIEW_TOKEN");
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verify = verifyScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await verify.ControlInheritances.CountAsync(i => i.ControlBaselineId == baseline.Id)).Should().Be(0);
+    }
+
     [Theory]
     [InlineData(OrganizationRole.Isso, HttpStatusCode.OK)]
     [InlineData(OrganizationRole.Issm, HttpStatusCode.OK)]
