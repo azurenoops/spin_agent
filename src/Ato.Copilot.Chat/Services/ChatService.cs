@@ -6,18 +6,20 @@ using System.Text.Json;
 using Ato.Copilot.Chat.Data;
 using Ato.Copilot.Chat.Models;
 using Ato.Copilot.Core.Interfaces;
+using Ato.Copilot.Chat.Services.Auth;
 
 namespace Ato.Copilot.Chat.Services;
 
 /// <summary>
 /// Core chat service implementation for message handling and conversation management.
 /// </summary>
-public class ChatService : IChatService
+public partial class ChatService : IChatService
 {
     private readonly ChatDbContext _dbContext;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ChatService> _logger;
     private readonly IPathSanitizationService _pathSanitizer;
+    private readonly ChatWorkspaceResolver _workspaces;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -30,19 +32,37 @@ public class ChatService : IChatService
         ChatDbContext dbContext,
         IHttpClientFactory httpClientFactory,
         ILogger<ChatService> logger,
-        IPathSanitizationService pathSanitizer)
+        IPathSanitizationService pathSanitizer,
+        ChatWorkspaceResolver workspaces)
     {
         _dbContext = dbContext;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
         _pathSanitizer = pathSanitizer;
+        _workspaces = workspaces;
     }
 
     // ─── Messaging (US1) ─────────────────────────────────────────
 
     /// <inheritdoc/>
-    public async Task<ChatResponse> SendMessageAsync(SendMessageRequest request, IProgress<string>? progress = null)
+    public Task<ChatResponse> SendMessageAsync(SendMessageRequest request, IProgress<string>? progress = null)
+        => SendMessageAsync(request, progress, RequestAborted);
+
+    /// <inheritdoc/>
+    public async Task<ChatResponse> SendMessageAsync(SendMessageRequest request, IProgress<string>? progress, CancellationToken cancellationToken)
     {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, RequestAborted);
+        var ct = cancellation.Token;
+        var workspace = await _workspaces.ResolveAsync(ct);
+        var ownedConversation = await RequireConversationAsync(request.ConversationId, workspace, ct);
+        if (request.AttachmentIds is { Count: > 0 })
+        {
+            var ids = request.AttachmentIds.Distinct().ToArray();
+            if (await _dbContext.Attachments.CountAsync(a => ids.Contains(a.Id)
+                && a.Message!.ConversationId == ownedConversation.Id, ct) != ids.Length)
+                throw new ChatWorkspaceException(404, "ATTACHMENT_NOT_FOUND", "Attachment not found in this conversation.");
+        }
+        await BindSystemAsync(ownedConversation, request.Context, workspace, ct);
         var stopwatch = Stopwatch.StartNew();
         var messageId = Guid.NewGuid().ToString();
 
@@ -61,16 +81,18 @@ public class ChatService : IChatService
                 Status = MessageStatus.Sent
             };
             _dbContext.Messages.Add(userMessage);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(ct);
 
             // Transition to Processing
             userMessage.Status = MessageStatus.Processing;
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(ct);
 
             progress?.Report("Building conversation context...");
 
             // Build context window (last 20 messages)
-            var history = await GetConversationHistoryAsync(request.ConversationId);
+            var history = await _dbContext.Messages
+                .Where(m => m.ConversationId == ownedConversation.Id && m.Conversation!.OwnerKey == workspace.OwnerKey)
+                .OrderByDescending(m => m.Timestamp).Take(20).OrderBy(m => m.Timestamp).ToListAsync(ct);
 
             // Call MCP Server via SSE streaming endpoint for real-time progress
             var client = _httpClientFactory.CreateClient("McpServer");
@@ -79,7 +101,7 @@ public class ChatService : IChatService
                 conversationId = request.ConversationId,
                 message = request.GetContent(),
                 conversationHistory = history.Select(m => new { role = m.Role.ToString(), content = m.Content }),
-                context = request.Context
+                context = BindContext(request.Context, workspace, ownedConversation.SystemId)
             };
 
             var jsonContent = new StringContent(
@@ -95,23 +117,19 @@ public class ChatService : IChatService
             try
             {
                 // Use streaming endpoint for real-time progress
-                var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/mcp/chat/stream")
-                {
-                    Content = jsonContent
-                };
-                var mcpResponse = await client.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead);
+                using var httpRequest = workspace.Request(HttpMethod.Post, "/mcp/chat/stream", jsonContent);
+                using var mcpResponse = await client.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
 
                 if (mcpResponse.IsSuccessStatusCode)
                 {
-                    using var stream = await mcpResponse.Content.ReadAsStreamAsync();
+                    using var stream = await mcpResponse.Content.ReadAsStreamAsync(ct);
                     using var reader = new StreamReader(stream);
 
                     var dataBuffer = new System.Text.StringBuilder();
                     var inDataBlock = false;
 
-                    while (!reader.EndOfStream)
+                    while (await reader.ReadLineAsync(ct) is { } line)
                     {
-                        var line = await reader.ReadLineAsync();
 
                         // SSE spec: empty line terminates an event
                         if (string.IsNullOrEmpty(line))
@@ -195,10 +213,13 @@ public class ChatService : IChatService
                         JsonSerializer.Serialize(mcpRequest, JsonOptions),
                         Encoding.UTF8,
                         "application/json");
-                    var fallbackResponse = await client.PostAsync("/mcp/chat", fallbackContent);
+                    if (mcpResponse.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+                        throw new ChatWorkspaceException((int)mcpResponse.StatusCode, "CHAT_UPSTREAM_DENIED", "Upstream chat authorization denied.");
+                    using var fallbackRequest = workspace.Request(HttpMethod.Post, "/mcp/chat", fallbackContent);
+                    using var fallbackResponse = await client.SendAsync(fallbackRequest, ct);
                     if (fallbackResponse.IsSuccessStatusCode)
                     {
-                        var responseContent = await fallbackResponse.Content.ReadAsStringAsync();
+                        var responseContent = await fallbackResponse.Content.ReadAsStringAsync(ct);
                         mcpResult = JsonSerializer.Deserialize<JsonElement>(responseContent);
                     }
                     else
@@ -207,7 +228,7 @@ public class ChatService : IChatService
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not ChatWorkspaceException && !ct.IsCancellationRequested)
             {
                 _logger.LogWarning(ex, "Streaming MCP endpoint failed, trying fallback");
                 try
@@ -216,10 +237,11 @@ public class ChatService : IChatService
                         JsonSerializer.Serialize(mcpRequest, JsonOptions),
                         Encoding.UTF8,
                         "application/json");
-                    var fallbackResponse = await client.PostAsync("/mcp/chat", fallbackContent);
+                    using var fallbackRequest = workspace.Request(HttpMethod.Post, "/mcp/chat", fallbackContent);
+                    using var fallbackResponse = await client.SendAsync(fallbackRequest, ct);
                     if (fallbackResponse.IsSuccessStatusCode)
                     {
-                        var responseContent = await fallbackResponse.Content.ReadAsStringAsync();
+                        var responseContent = await fallbackResponse.Content.ReadAsStringAsync(ct);
                         mcpResult = JsonSerializer.Deserialize<JsonElement>(responseContent);
                     }
                     else
@@ -248,7 +270,7 @@ public class ChatService : IChatService
                     ["error"] = streamError,
                     ["errorCategory"] = "McpError"
                 };
-                await _dbContext.SaveChangesAsync();
+                await _dbContext.SaveChangesAsync(ct);
 
                 return new ChatResponse
                 {
@@ -309,7 +331,7 @@ public class ChatService : IChatService
                 userMessage.Status = MessageStatus.Completed;
 
                 // Update conversation timestamp
-                var conversation = await _dbContext.Conversations.FindAsync(request.ConversationId);
+                var conversation = ownedConversation;
                 if (conversation != null)
                 {
                     conversation.UpdatedAt = DateTime.UtcNow;
@@ -320,7 +342,7 @@ public class ChatService : IChatService
                     }
                 }
 
-                await _dbContext.SaveChangesAsync();
+                await _dbContext.SaveChangesAsync(ct);
 
                 // Extract suggestions
                 List<SuggestedAction>? suggestions = null;
@@ -356,7 +378,7 @@ public class ChatService : IChatService
                     ["error"] = "No response received from AI service",
                     ["errorCategory"] = "NoResponse"
                 };
-                await _dbContext.SaveChangesAsync();
+                await _dbContext.SaveChangesAsync(ct);
 
                 return new ChatResponse
                 {
@@ -367,11 +389,13 @@ public class ChatService : IChatService
                 };
             }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (ChatWorkspaceException) { throw; }
         catch (TaskCanceledException)
         {
             _logger.LogError("MCP Server request timed out for message {MessageId}", messageId);
 
-            await SetMessageError(messageId, "The request timed out — try a shorter question", "Timeout");
+            await SetMessageError(messageId, "The request timed out — try a shorter question", "Timeout", workspace, ct);
 
             return new ChatResponse
             {
@@ -385,7 +409,7 @@ public class ChatService : IChatService
         {
             _logger.LogError(ex, "MCP Server connection failed for message {MessageId}", messageId);
 
-            await SetMessageError(messageId, "The AI service is temporarily unavailable", "ServiceUnavailable");
+            await SetMessageError(messageId, "The AI service is temporarily unavailable", "ServiceUnavailable", workspace, ct);
 
             return new ChatResponse
             {
@@ -399,7 +423,7 @@ public class ChatService : IChatService
         {
             _logger.LogError(ex, "Unexpected error processing message {MessageId}", messageId);
 
-            await SetMessageError(messageId, "The request could not be processed", "ProcessingError");
+            await SetMessageError(messageId, "The request could not be processed", "ProcessingError", workspace, ct);
 
             return new ChatResponse
             {
@@ -414,24 +438,28 @@ public class ChatService : IChatService
     /// <inheritdoc/>
     public async Task<List<ChatMessage>> GetMessagesAsync(string conversationId, int skip = 0, int take = 100)
     {
+        var workspace = await _workspaces.ResolveAsync(RequestAborted);
+        await RequireConversationAsync(conversationId, workspace, RequestAborted);
         return await _dbContext.Messages
-            .Where(m => m.ConversationId == conversationId)
+            .Where(m => m.ConversationId == conversationId && m.Conversation!.OwnerKey == workspace.OwnerKey)
             .Include(m => m.Attachments)
             .OrderBy(m => m.Timestamp)
-            .Skip(skip)
-            .Take(take)
-            .ToListAsync();
+            .Skip(Math.Max(0, skip))
+            .Take(Math.Clamp(take, 1, 100))
+            .ToListAsync(RequestAborted);
     }
 
     /// <inheritdoc/>
     public async Task<List<ChatMessage>> GetConversationHistoryAsync(string conversationId, int maxMessages = 20)
     {
+        var workspace = await _workspaces.ResolveAsync(RequestAborted);
+        await RequireConversationAsync(conversationId, workspace, RequestAborted);
         return await _dbContext.Messages
-            .Where(m => m.ConversationId == conversationId)
+            .Where(m => m.ConversationId == conversationId && m.Conversation!.OwnerKey == workspace.OwnerKey)
             .OrderByDescending(m => m.Timestamp)
-            .Take(maxMessages)
+            .Take(Math.Clamp(maxMessages, 1, 100))
             .OrderBy(m => m.Timestamp)
-            .ToListAsync();
+            .ToListAsync(RequestAborted);
     }
 
     // ─── Conversations (US2) ─────────────────────────────────────
@@ -439,64 +467,81 @@ public class ChatService : IChatService
     /// <inheritdoc/>
     public async Task<Conversation> CreateConversationAsync(CreateConversationRequest request)
     {
+        var workspace = await _workspaces.ResolveAsync(RequestAborted);
         var conversation = new Conversation
         {
             Id = Guid.NewGuid().ToString(),
             Title = string.IsNullOrWhiteSpace(request.Title) ? "New Conversation" : request.Title,
-            UserId = request.UserId ?? "default-user",
+            UserId = workspace.ActorId,
+            OwnerKey = workspace.OwnerKey,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         _dbContext.Conversations.Add(conversation);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(RequestAborted);
 
-        _logger.LogInformation("Created conversation {ConversationId} for user {UserId}", conversation.Id, conversation.UserId);
+        _logger.LogInformation("Created conversation {ConversationId}", conversation.Id);
         return conversation;
     }
 
     /// <inheritdoc/>
     public async Task<List<Conversation>> GetConversationsAsync(string userId = "default-user", int skip = 0, int take = 50)
     {
-        return await _dbContext.Conversations
-            .Where(c => c.UserId == userId && !c.IsArchived)
+        var workspace = await _workspaces.ResolveAsync(RequestAborted);
+        var conversations = await _dbContext.Conversations
+            .Where(c => c.OwnerKey == workspace.OwnerKey && !c.IsArchived)
             .OrderByDescending(c => c.UpdatedAt)
-            .Skip(skip)
-            .Take(take)
-            .ToListAsync();
+            .Skip(Math.Max(0, skip))
+            .Take(Math.Clamp(take, 1, 100))
+            .ToListAsync(RequestAborted);
+        foreach (var conversation in conversations)
+            await _workspaces.RequireSystemAsync(workspace, conversation.SystemId, RequestAborted);
+        return conversations;
     }
 
     /// <inheritdoc/>
     public async Task<Conversation?> GetConversationAsync(string conversationId)
     {
-        return await _dbContext.Conversations
+        var workspace = await _workspaces.ResolveAsync(RequestAborted);
+        var owned = await _dbContext.Conversations.AsNoTracking()
+            .SingleOrDefaultAsync(c => c.Id == conversationId && c.OwnerKey == workspace.OwnerKey, RequestAborted);
+        if (owned is null) return null;
+        await _workspaces.RequireSystemAsync(workspace, owned.SystemId, RequestAborted);
+        return await _dbContext.Conversations.AsNoTracking()
             .Include(c => c.Messages!.OrderBy(m => m.Timestamp))
                 .ThenInclude(m => m.Attachments)
             .Include(c => c.Context)
-            .FirstOrDefaultAsync(c => c.Id == conversationId);
+            .FirstOrDefaultAsync(c => c.Id == conversationId && c.OwnerKey == workspace.OwnerKey, RequestAborted);
     }
 
     /// <inheritdoc/>
     public async Task<List<Conversation>> SearchConversationsAsync(string query, string userId = "default-user")
     {
+        var workspace = await _workspaces.ResolveAsync(RequestAborted);
         var lowerQuery = query.ToLower();
 
-        return await _dbContext.Conversations
-            .Where(c => c.UserId == userId && !c.IsArchived)
+        var conversations = await _dbContext.Conversations
+            .Where(c => c.OwnerKey == workspace.OwnerKey && !c.IsArchived)
             .Where(c => c.Title.ToLower().Contains(lowerQuery) ||
                         c.Messages!.Any(m => m.Content.ToLower().Contains(lowerQuery)))
             .OrderByDescending(c => c.UpdatedAt)
             .Take(20)
-            .ToListAsync();
+            .ToListAsync(RequestAborted);
+        foreach (var conversation in conversations)
+            await _workspaces.RequireSystemAsync(workspace, conversation.SystemId, RequestAborted);
+        return conversations;
     }
 
     /// <inheritdoc/>
     public async Task DeleteConversationAsync(string conversationId)
     {
+        var workspace = await _workspaces.ResolveAsync(RequestAborted);
+        await RequireConversationAsync(conversationId, workspace, RequestAborted);
         var conversation = await _dbContext.Conversations
             .Include(c => c.Messages!)
                 .ThenInclude(m => m.Attachments)
-            .FirstOrDefaultAsync(c => c.Id == conversationId);
+            .FirstOrDefaultAsync(c => c.Id == conversationId && c.OwnerKey == workspace.OwnerKey, RequestAborted);
 
         if (conversation == null)
             throw new InvalidOperationException($"Conversation {conversationId} not found");
@@ -510,6 +555,7 @@ public class ChatService : IChatService
                 {
                     foreach (var attachment in message.Attachments)
                     {
+                        RequestAborted.ThrowIfCancellationRequested();
                         try
                         {
                             if (File.Exists(attachment.StoragePath))
@@ -528,7 +574,7 @@ public class ChatService : IChatService
         }
 
         _dbContext.Conversations.Remove(conversation);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(RequestAborted);
 
         _logger.LogInformation("Deleted conversation {ConversationId}", conversationId);
     }
@@ -538,8 +584,16 @@ public class ChatService : IChatService
     /// <inheritdoc/>
     public async Task<ConversationContext> CreateOrUpdateContextAsync(ConversationContext context)
     {
+        var workspace = await _workspaces.ResolveAsync(RequestAborted);
+        var owned = await RequireConversationAsync(context.ConversationId, workspace, RequestAborted);
+        await BindSystemAsync(owned, context.Data, workspace, RequestAborted);
+        context = new ConversationContext
+        {
+            ConversationId = owned.Id, Type = context.Type, Title = context.Title, Summary = context.Summary,
+            Data = BindContext(context.Data, workspace, owned.SystemId), Tags = context.Tags.ToList()
+        };
         var existing = await _dbContext.ConversationContexts
-            .FirstOrDefaultAsync(c => c.ConversationId == context.ConversationId);
+            .FirstOrDefaultAsync(c => c.ConversationId == owned.Id && c.Conversation!.OwnerKey == workspace.OwnerKey, RequestAborted);
 
         if (existing != null)
         {
@@ -558,7 +612,7 @@ public class ChatService : IChatService
             _dbContext.ConversationContexts.Add(context);
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(RequestAborted);
         return existing ?? context;
     }
 
@@ -570,6 +624,11 @@ public class ChatService : IChatService
         if (stream == null) throw new ArgumentNullException(nameof(stream));
         if (string.IsNullOrWhiteSpace(fileName)) throw new ArgumentException("File name is required", nameof(fileName));
 
+        var workspace = await _workspaces.ResolveAsync(RequestAborted);
+        var message = await _dbContext.Messages.AsNoTracking().SingleOrDefaultAsync(
+            m => m.Id == messageId && m.Conversation!.OwnerKey == workspace.OwnerKey, RequestAborted)
+            ?? throw new ChatWorkspaceException(404, "MESSAGE_NOT_FOUND", "Message not found.");
+        await RequireConversationAsync(message.ConversationId, workspace, RequestAborted);
         var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
         Directory.CreateDirectory(uploadsDir);
 
@@ -587,7 +646,7 @@ public class ChatService : IChatService
 
         await using (var fileStream = new FileStream(pathValidation.CanonicalPath!, FileMode.Create))
         {
-            await stream.CopyToAsync(fileStream);
+            await stream.CopyToAsync(fileStream, RequestAborted);
         }
 
         var fileInfo = new FileInfo(storagePath);
@@ -606,7 +665,7 @@ public class ChatService : IChatService
         };
 
         _dbContext.Attachments.Add(attachment);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(RequestAborted);
 
         _logger.LogInformation("Saved attachment {AttachmentId} for message {MessageId}: {FileName} ({Size} bytes)", attachment.Id, messageId, fileName, attachment.Size);
         return attachment;
@@ -655,11 +714,12 @@ public class ChatService : IChatService
 
     // ─── Private Helpers ─────────────────────────────────────────
 
-    private async Task SetMessageError(string messageId, string errorMessage, string category)
+    private async Task SetMessageError(string messageId, string errorMessage, string category, ChatWorkspace workspace, CancellationToken ct)
     {
         try
         {
-            var message = await _dbContext.Messages.FindAsync(messageId);
+            var message = await _dbContext.Messages.SingleOrDefaultAsync(
+                m => m.Id == messageId && m.Conversation!.OwnerKey == workspace.OwnerKey, ct);
             if (message != null)
             {
                 message.Status = MessageStatus.Error;
@@ -668,9 +728,10 @@ public class ChatService : IChatService
                     ["error"] = errorMessage,
                     ["errorCategory"] = category
                 };
-                await _dbContext.SaveChangesAsync();
+                await _dbContext.SaveChangesAsync(ct);
             }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to update message {MessageId} error status", messageId);
