@@ -3424,19 +3424,8 @@ public class AtoCopilotContext : DbContext
         }
 
         // Membership alone does not grant visibility of every system in the organization.
-        modelBuilder.Entity<RegisteredSystem>().HasQueryFilter(system =>
-            TenantFilterDisabled || TenantFilterCspAdminAll
-            || (system.TenantId == TenantFilterEffectiveId
-                && (!IsWorkspaceRequest || WorkspacePersonId == null
-                    || OrganizationRoleAssignments.Any(role => role.TenantId == system.TenantId
-                        && role.PersonId == WorkspacePersonId && role.RemovedAt == null)
-                    || SystemRoleAssignments.Any(role => role.TenantId == system.TenantId
-                        && role.RegisteredSystemId == system.Id && role.PersonId == WorkspacePersonId && role.RemovedAt == null)
-                    || RmfRoleAssignments.Any(role => role.TenantId == system.TenantId
-                        && role.RegisteredSystemId == system.Id && role.IsActive
-                        && Persons.Any(person => person.Id == WorkspacePersonId && person.TenantId == system.TenantId
-                            && role.UserId == person.Email
-                            && Persons.Count(other => other.TenantId == system.TenantId && other.Email == person.Email) == 1)))));
+        modelBuilder.Entity<RegisteredSystem>().HasQueryFilter(
+            Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.ReadFilter(this));
     }
 
     /// <summary>
@@ -3483,6 +3472,35 @@ public class AtoCopilotContext : DbContext
         var body = Expression.OrElse(
             filterDisabled,
             Expression.OrElse(cspAdminAll, tenantMatches));
+
+        // Authorization-source rows must not recurse through RegisteredSystem's role filter.
+        // Resource rows with a direct system owner inherit its read predicate, including on
+        // artifact-only URLs which have no systemId route value.
+        if (clrType != typeof(RegisteredSystem) && clrType != typeof(SystemRoleAssignment)
+            && clrType != typeof(RmfRoleAssignment)
+            && clrType.GetProperty("RegisteredSystemId")?.PropertyType == typeof(string))
+        {
+            var system = Expression.Parameter(typeof(RegisteredSystem), "system");
+            var owns = Expression.Equal(Expression.Property(system, nameof(RegisteredSystem.Id)),
+                Expression.Property(parameter, "RegisteredSystemId"));
+            Expression visible = Expression.Call(typeof(Queryable), nameof(Queryable.Any), [typeof(RegisteredSystem)],
+                Expression.Property(thisExpr, nameof(RegisteredSystems)),
+                Expression.Lambda<Func<RegisteredSystem, bool>>(owns, system));
+            if (clrType == typeof(SystemComponent) || clrType == typeof(CapabilityControlMapping))
+            {
+                Expression organizationWide = Expression.Equal(Expression.Property(parameter, "RegisteredSystemId"),
+                    Expression.Constant(null, typeof(string)));
+                if (clrType == typeof(CapabilityControlMapping))
+                    organizationWide = Expression.AndAlso(organizationWide,
+                        Expression.Equal(Expression.Property(parameter, nameof(CapabilityControlMapping.AuthorizationBoundaryDefinitionId)),
+                            Expression.Constant(null, typeof(string))));
+                visible = Expression.OrElse(organizationWide, visible);
+            }
+            var enforce = Expression.AndAlso(
+                Expression.Property(thisExpr, nameof(IsWorkspaceRequest)),
+                Expression.NotEqual(Expression.Property(thisExpr, nameof(WorkspacePersonId)), Expression.Constant(null, typeof(Guid?))));
+            body = Expression.AndAlso(body, Expression.OrElse(Expression.Not(enforce), visible));
+        }
 
         var delegateType = typeof(Func<,>).MakeGenericType(clrType, typeof(bool));
         return Expression.Lambda(delegateType, body, parameter);
