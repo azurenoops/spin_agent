@@ -353,6 +353,33 @@ configuration failure. Manual role/workspace acceptance and existing release
 gates remain open. Reverting the Dashboard image default reintroduces the unset
 placeholder failure; no volume reset or data rollback is required.
 
+The bounded role-assignment follow-up reproduced the recorded
+AuthorizingOfficial-to-SystemOwner denial as HTTP 500. The detailed request log
+shows `RoleAssignmentEndpoints.TryGetTenantId` throwing because the isolated
+`RoleAuthorizationMatrixCoverageTests` host does not register `ITenantContext`.
+The exception occurs before role authorization, not in the denial response.
+The correction is limited to that fixture's missing scoped context dependency,
+preserving its existing legacy claim-based scenario and production endpoint
+behavior. The regression must retain HTTP 403 and `RBAC_ROLE_ASSIGN_DENIED`,
+assert the exact caller/target roles and prove no target assignment was written.
+This does not establish the cause of the Docker browser's 403 responses or the
+remaining full-suite failures.
+
+Verification after the fixture correction: all 29 disallowed role-matrix cases
+pass, including the original AuthorizingOfficial-to-SystemOwner reproduction.
+Each asserts the exact HTTP/error/role envelope and preservation of the sole
+original caller assignment. No production authorization code changed, and no
+Docker restart or rebuild is required. The broader integration suite and browser
+acceptance were not rerun or declared green. To independently repeat this check:
+
+```bash
+dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+  --no-restore --filter 'FullyQualifiedName~RoleAuthorizationMatrixCoverageTests'
+```
+
+Rollback is limited to reverting the test-fixture correction; there are no
+runtime configuration or database changes to undo.
+
 ## Purpose
 
 The dashboard already resolves provider and organization variants of portfolio,
