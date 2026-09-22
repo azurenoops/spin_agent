@@ -7,6 +7,7 @@ import { generateProposal, generateQueuedProposal, getProposalById, getNarrative
   type NarrativeAccess, type NarrativeProposal, type NarrativeReference, type ReferencePassage } from '../api/narrativeLibrary';
 import { useSettings } from '../hooks/useSettings';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
+import NarrativeImpactHistory from '../components/narratives/NarrativeImpactHistory';
 import './NarrativeWorkspace.css';
 
 function errorMessage(error: unknown): string {
@@ -295,6 +296,7 @@ function Workspace({ systemId }: { systemId: string }) {
           {proposal.missingEvidence.map((gap, index) => <p className="nw-warning" key={`gap-${index}`}>{gap}</p>)}
           <details><summary>Source snapshot</summary><pre>{JSON.stringify(proposal.provenance, null, 2)}</pre></details>
         </section>
+        <NarrativeImpactHistory systemId={systemId} proposalId={proposal.id} creationTrigger={proposal.provenance.changeOrigin} />
         {proposal.status === 'Draft' ? <>
           <label>Review note<textarea rows={3} maxLength={2000} value={note} disabled={locked || !canReviewNarratives || !proposal.canReview} onChange={event => setNote(event.target.value)} /></label>
           <div className="nw-review-actions"><button disabled={locked || !canReviewNarratives || !proposal.canReview || !note.trim()} onClick={() => decide('RequestRevision')}>Return for revision</button>

@@ -13,6 +13,7 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSess
 vi.mock('../../api/narrativeLibrary', () => ({
   getReferences: vi.fn(), getProposals: vi.fn(), getNarrativeAccess: vi.fn(),
   importReference: vi.fn(), publishReference: vi.fn(), generateProposal: vi.fn(), reviewProposal: vi.fn(),
+  getImpactReceipts: vi.fn(),
 }));
 vi.mock('../../pages/Narratives', () => ({
   default: ({ canGenerate }: { canGenerate?: boolean }) => <>
@@ -38,6 +39,7 @@ beforeEach(() => {
   workspace.session = null;
   vi.mocked(library.getReferences).mockResolvedValue([]);
   vi.mocked(library.getProposals).mockResolvedValue([]);
+  vi.mocked(library.getImpactReceipts).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 50 });
   vi.mocked(library.getNarrativeAccess).mockResolvedValue({ tenantId: 'tenant-1', systemName: 'Synthetic system',
     canAuthor: true, canPublishShared: false, canGenerate: false, capabilities: [] });
   vi.mocked(library.importReference).mockResolvedValue(draft);

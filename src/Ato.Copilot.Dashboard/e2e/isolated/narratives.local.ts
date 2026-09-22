@@ -76,6 +76,8 @@ test(`import mappings, preserve active text and review a ${narrativeType} propos
     if (request.method() === 'GET') {
       if (endpoint === root) return reply(imported ? [reference] : []);
       if (endpoint === root + '/proposals') return reply(generated ? [proposal] : []);
+      if (endpoint === root + '/proposals/proposal-1/impact-receipts')
+        return reply({ items: [], totalCount: 0, page: 1, pageSize: 50 });
       if (endpoint === dashboard + '/narratives') return reply([narrative]);
       if (endpoint === '/api/csp/onboarding/state') return reply({}, 404);
       if (endpoint === '/api/tenants') return reply([], 403);

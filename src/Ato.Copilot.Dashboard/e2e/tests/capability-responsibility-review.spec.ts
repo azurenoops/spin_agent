@@ -110,6 +110,8 @@ async function installFixture(page: Page, baseURL: string, options: {
     }
     if (path === '/api/systems/system-a/narrative-library') return json([]);
     if (path === '/api/systems/system-a/narrative-library/proposals') return json([proposal]);
+    if (path.startsWith('/api/systems/system-a/narrative-library/proposals/') && path.endsWith('/impact-receipts'))
+      return json({ items: [], totalCount: 0, page: 1, pageSize: 50 });
     if (path === '/api/systems/system-a/narrative-library/access') return json({
       tenantId: 'org-a', systemName: 'Synthetic responsibility system', canAuthor: false, canPublishShared: false, capabilities: [],
     });

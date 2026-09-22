@@ -12,7 +12,7 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
 vi.mock('../../api/narrativeLibrary', () => ({
   getReferences: vi.fn(), getProposals: vi.fn(), getNarrativeAccess: vi.fn(),
   importReference: vi.fn(), publishReference: vi.fn(), generateProposal: vi.fn(), reviewProposal: vi.fn(),
-  getProposalById: vi.fn(), generateQueuedProposal: vi.fn(),
+  getProposalById: vi.fn(), generateQueuedProposal: vi.fn(), getImpactReceipts: vi.fn(),
 }));
 vi.mock('../../api/narratives', () => ({ getNarratives: vi.fn().mockResolvedValue([{ controlId: 'AC-1', version: 7 }]) }));
 vi.mock('../../pages/Narratives', () => ({ default: () => <h2>Control Narratives</h2> }));
@@ -40,6 +40,7 @@ beforeEach(() => {
   vi.mocked(library.getReferences).mockResolvedValue([]);
   vi.mocked(library.getProposals).mockResolvedValue([queued]);
   vi.mocked(library.getProposalById).mockResolvedValue(null);
+  vi.mocked(library.getImpactReceipts).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 50 });
   vi.mocked(library.getNarrativeAccess).mockResolvedValue({
     tenantId: 'org-a', systemName: 'Synthetic system', canAuthor: false, canPublishShared: false, capabilities: [],
   });
@@ -82,6 +83,8 @@ describe('exact queued narrative review', () => {
     expect(screen.getByLabelText('Proposed change')).toHaveValue(queued.id);
     expect(library.generateProposal).not.toHaveBeenCalled();
     expect(library.reviewProposal).not.toHaveBeenCalled();
+    await waitFor(() => expect(library.getImpactReceipts).toHaveBeenCalledWith('system-a', queued.id, 1, expect.any(AbortSignal)));
+    expect(screen.getByRole('region', { name: 'Source delivery history' })).toBeInTheDocument();
   });
 
   it('cannot generate queued work without an explicit generation grant', async () => {
