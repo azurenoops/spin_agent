@@ -201,8 +201,10 @@ server session; an MSAL account is not required for cookie/simulation sessions.
 The response binds the recipient to the authenticated actor. The client never
 substitutes a placeholder recipient or sends a different account's object ID.
 
-When the server declares `rest-polling`, the client polls at the supplied interval
-(currently 30 seconds). It displays the reason real-time delivery is unavailable.
+When real-time delivery is unavailable or disconnected and the server declares
+`rest-polling`, the client polls at the supplied interval (currently 30 seconds).
+It displays the reason real-time delivery is unavailable. A healthy registered
+real-time connection suspends that fallback timer.
 A SignalR connection is attempted only after the server confirms bearer
 readiness. Token acquisition remains pinned to the original account, and each
 reconnect rechecks capabilities. Workspace/account changes abort REST work,

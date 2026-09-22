@@ -223,6 +223,10 @@ whether a matching bearer can use real-time delivery. Session-only callers use
 the declared 30-second REST polling fallback and see an explicit real-time
 unavailable state. Context changes cancel requests and discard old callbacks;
 transport and mutation errors must be visible rather than silently ignored.
+The advertised polling transport is a fallback: a healthy registered real-time
+connection suspends the timer, and reconnect/disconnection resumes it. Progress
+polling has its own authorization and is not gated by personal-notification
+`rest.available`.
 
 The relational notification preference key is `(TenantId, UserId)`, not global
 `UserId`. The existing SQLite regression fails with the global index. Startup

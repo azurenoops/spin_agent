@@ -81,14 +81,22 @@ export function useNotifications(userId?: string) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let inFlight: Promise<void> | null = null;
     let pollMs = 0;
+    let realtimeConnected = false;
     setState({ key, notifications: [], unreadCount: 0, loading: Boolean(actor), error: null, transportMessage: null });
 
     const update = (change: Partial<NotificationState>) => {
       if (current()) setState(previous => ({ ...previous, ...change, key }));
     };
+    const schedulePolling = () => {
+      clearTimeout(timer);
+      if (current() && pollMs && !realtimeConnected) {
+        timer = setTimeout(() => { void refresh(); }, pollMs);
+      }
+    };
     const stopConnection = () => {
       const old = connection;
       connection = null;
+      realtimeConnected = false;
       if (old) void starting.then(() => old.stop()).catch(error => {
         console.error('[useNotifications] Unable to stop notification connection:', error);
       });
@@ -119,7 +127,11 @@ export function useNotifications(userId?: string) {
         hub.on(event, () => { if (current() && connection === hub) void refresh(); });
       }
       hub.onreconnecting(() => {
-        if (connection === hub) update({ transportMessage: 'Real-time notifications reconnecting.' });
+        if (connection === hub) {
+          realtimeConnected = false;
+          schedulePolling();
+          update({ transportMessage: 'Real-time notifications reconnecting.' });
+        }
       });
       hub.onreconnected(async () => {
         if (!current() || connection !== hub) return;
@@ -127,21 +139,37 @@ export function useNotifications(userId?: string) {
           await refresh();
           if (current() && capabilities?.realtime.available && connection === hub) {
             await hub.invoke('RegisterUser', capabilities.recipientId);
+            realtimeConnected = true;
+            schedulePolling();
             update({ transportMessage: null });
           }
         } catch (error) {
-          update({ error: notificationError(error) });
+          update({
+            error: notificationError(error),
+            transportMessage: 'Real-time notifications unavailable.'
+              + (pollMs ? ' REST polling remains available.' : ' Retry to reconnect.'),
+          });
+          stopConnection();
+          schedulePolling();
         }
       });
       hub.onclose(() => {
         if (connection === hub) {
           connection = null;
+          realtimeConnected = false;
+          schedulePolling();
           update({ transportMessage: 'Real-time notifications disconnected.'
             + (pollMs ? ' REST polling remains available.' : ' Retry to reconnect.') });
         }
       });
       starting = hub.start().then(async () => {
-        if (current() && connection === hub) await hub.invoke('RegisterUser', actor);
+        if (current() && connection === hub) {
+          await hub.invoke('RegisterUser', actor);
+          if (current() && connection === hub) {
+            realtimeConnected = true;
+            schedulePolling();
+          }
+        }
       }).catch(error => {
         update({
           error: notificationError(error),
@@ -149,6 +177,7 @@ export function useNotifications(userId?: string) {
             + (pollMs ? ' REST polling remains available.' : ' Retry to reconnect.'),
         });
         stopConnection();
+        schedulePolling();
       });
     };
     const refresh = (): Promise<void> => {
@@ -207,7 +236,7 @@ export function useNotifications(userId?: string) {
         } finally {
           update({ loading: false });
           inFlight = null;
-          if (current() && pollMs) timer = setTimeout(() => { void refresh(); }, pollMs);
+          schedulePolling();
         }
       });
       return inFlight;

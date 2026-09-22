@@ -407,7 +407,7 @@ describe('notification session and workspace transport', () => {
     log.mockRestore();
   });
 
-  it('reports reconnect registration failure and a later disconnection', async () => {
+  it('reports reconnect registration failure and stops the unauthorized connection', async () => {
     // Arrange
     realtimeReady();
     const { result } = renderHook(() => useNotifications());
@@ -418,7 +418,8 @@ describe('notification session and workspace transport', () => {
     expect(result.current.error).toBe('Registration denied');
     act(() => mocks.onclose.mock.calls[0]?.[0]());
     // Assert
-    expect(result.current.transportMessage).toMatch(/disconnected/i);
+    expect(result.current.transportMessage).toMatch(/unavailable/i);
+    expect(mocks.stop).toHaveBeenCalledOnce();
   });
 
   it('does not poll when the server declares no fallback', async () => {
@@ -462,5 +463,39 @@ describe('notification session and workspace transport', () => {
     // Assert
     expect(mocks.get).toHaveBeenCalledTimes(1);
     expect(mocks.start).not.toHaveBeenCalled();
+  });
+
+  it('suspends fallback polling while realtime is healthy and resumes on reconnect', async () => {
+    // Arrange
+    vi.useFakeTimers();
+    realtimeReady();
+    renderHook(() => useNotifications());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(mocks.invoke).toHaveBeenCalledOnce();
+    // Act
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    // Assert
+    expect(mocks.get.mock.calls.filter(([url]) => url === '/notifications')).toHaveLength(1);
+    act(() => mocks.onreconnecting.mock.calls[0]?.[0]());
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(mocks.get.mock.calls.filter(([url]) => url === '/notifications')).toHaveLength(2);
+    await act(async () => { await mocks.onreconnected.mock.calls[0]?.[0](); });
+    const calls = mocks.get.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(mocks.get).toHaveBeenCalledTimes(calls);
+  });
+
+  it('resumes polling after a healthy connection closes', async () => {
+    // Arrange
+    vi.useFakeTimers();
+    realtimeReady();
+    const { result } = renderHook(() => useNotifications());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    // Act
+    act(() => mocks.onclose.mock.calls[0]?.[0]());
+    // Assert
+    expect(result.current.transportMessage).toMatch(/disconnected/i);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(mocks.get.mock.calls.filter(([url]) => url === '/notifications')).toHaveLength(2);
   });
 });
