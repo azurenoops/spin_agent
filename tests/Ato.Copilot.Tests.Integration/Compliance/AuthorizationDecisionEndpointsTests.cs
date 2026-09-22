@@ -43,6 +43,8 @@ public sealed class AuthorizationDecisionEndpointsTests : IAsyncLifetime
         });
 
         var databaseName = $"AuthorizationDecisionEndpoints_{Guid.NewGuid():N}";
+        builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>(
+            _ => new Ato.Copilot.Core.Services.Tenancy.TenantContext(TenantId));
         builder.Services.AddDbContext<AtoCopilotContext>(options =>
             options.UseInMemoryDatabase(databaseName));
         builder.Services.AddSingleton(_authorizationService.Object);

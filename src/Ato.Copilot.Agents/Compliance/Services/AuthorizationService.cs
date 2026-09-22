@@ -89,6 +89,9 @@ public class AuthorizationService : IAuthorizationService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, systemId, permission => permission.CanDecideAuthorization, cancellationToken);
+
         // Verify system exists and load privacy/interconnection data
         var system = await db.RegisteredSystems
             .Include(s => s.PrivacyThresholdAnalysis)
@@ -265,6 +268,8 @@ public class AuthorizationService : IAuthorizationService
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, systemId, permission => permission.CanDecideAuthorization, cancellationToken);
         var decision = await db.AuthorizationDecisions
             .SingleOrDefaultAsync(d => d.RegisteredSystemId == systemId && d.IsActive, cancellationToken)
             ?? throw new InvalidOperationException($"No active authorization decision for system '{systemId}'.");
@@ -324,6 +329,9 @@ public class AuthorizationService : IAuthorizationService
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, systemId, permission => permission.CanDecideAuthorization, cancellationToken);
 
         // Find active authorization for the system
         var activeAuth = await db.AuthorizationDecisions

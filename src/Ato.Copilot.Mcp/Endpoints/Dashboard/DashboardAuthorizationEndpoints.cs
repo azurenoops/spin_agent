@@ -106,7 +106,7 @@ public static partial class DashboardEndpoints
             }
         })
         .WithName("ApplyAuthorizationOverride")
-        .RequireAuthorization(Policies.AuthorizationDecisionIssuer);
+        .RequireWorkspaceOperation(SystemWorkspaceOperation.DecideAuthorization, Policies.AuthorizationDecisionIssuer);
     }
 
     private static void MapIssueAuthorizationRoute(IEndpointRouteBuilder group, ICurrentUserService currentUser)
@@ -160,7 +160,7 @@ public static partial class DashboardEndpoints
             }
         })
         .WithName("IssueAuthorization")
-        .RequireAuthorization(Policies.AuthorizationDecisionIssuer);
+        .RequireWorkspaceOperation(SystemWorkspaceOperation.DecideAuthorization, Policies.AuthorizationDecisionIssuer);
     }
 
     private static void MapAuthorizationRoutes(IEndpointRouteBuilder group, ICurrentUserService currentUser)
