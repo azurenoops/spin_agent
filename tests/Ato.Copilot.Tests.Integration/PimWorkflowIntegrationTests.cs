@@ -24,7 +24,7 @@ namespace Ato.Copilot.Tests.Integration;
 
 /// <summary>
 /// Integration tests for PIM workflow lifecycle — T099.
-/// Uses Development environment to bypass auth (tests exercise the service/tool layer).
+/// Uses explicit synthetic single-tenant identity (tests exercise the service/tool layer).
 /// Tests activate→list→extend→deactivate, approval workflow, JIT lifecycle, and history.
 /// </summary>
 [Collection("IntegrationTests")]
@@ -47,6 +47,7 @@ public class PimWorkflowIntegrationTests : IAsyncLifetime
         {
             EnvironmentName = "Development"
         });
+        builder.Configuration["Deployment:Mode"] = "SingleTenant";
 
         builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(GatewayOptions.SectionName));
         builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
@@ -73,6 +74,7 @@ public class PimWorkflowIntegrationTests : IAsyncLifetime
         _app = builder.Build();
 
         _app.UseCors();
+        _app.UseSyntheticSingleTenantIdentity();
         _app.UseMiddleware<ComplianceAuthorizationMiddleware>();
         _app.UseMiddleware<AuditLoggingMiddleware>();
 

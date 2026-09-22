@@ -423,6 +423,26 @@ inventory still contains 17 authentication-related 401 failures and one import
 route 404 outside this group; their causes are not established by this result.
 The full lane must be rerun after those groups are addressed.
 
+The Kanban/PIM continuation reproduced representative chat requests as HTTP 401.
+Their isolated hosts never set an authenticated user or bind an ambient tenant.
+The chat path calls `WorkspaceService.Identity` through `WorkspaceChatScope`
+before dispatch, while Development-mode compliance middleware does not supply
+identity. The correction reuses the existing MCP routing fixture's synthetic
+single-tenant identity binding through an explicitly invoked test-only helper.
+Only routing/service fixtures use this helper; authentication and workspace
+authorization tests must continue to exercise their own real boundary setup.
+No process-wide auth bypass, membership seeding or response expectation change
+is included.
+
+Kanban/PIM verification passes all 51 Release tests across those two fixtures and
+the MCP routing fixture from which the shared identity binding was extracted.
+This includes the 13 Kanban/PIM failures from the last full-run inventory.
+Together with the eight corrected onboarding cases, 21 of that run's 26 failures
+now pass focused verification. Five inventory entries remain unaddressed:
+two simulation-persona cases, anonymous Tier-1 access, multipart chat streaming
+and the inheritance-import route. No full-lane or GitHub CI green result is
+claimed from these targeted runs.
+
 ## Purpose
 
 The dashboard already resolves provider and organization variants of portfolio,

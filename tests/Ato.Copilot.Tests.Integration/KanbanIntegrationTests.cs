@@ -26,8 +26,8 @@ namespace Ato.Copilot.Tests.Integration;
 
 /// <summary>
 /// Integration tests for Kanban board and task lifecycle via MCP HTTP endpoints.
-/// Tests T086–T089: board creation, task lifecycle, RBAC enforcement, and
-/// concurrent access through the full HTTP pipeline.
+/// Tests T086–T089 routing and concurrent access with an explicit synthetic
+/// authenticated single-tenant context. Permission enforcement is tested separately.
 /// </summary>
 [Collection("IntegrationTests")]
 public class KanbanIntegrationTests : IAsyncLifetime
@@ -51,6 +51,7 @@ public class KanbanIntegrationTests : IAsyncLifetime
         });
 
         _dbName = $"KanbanIntegrationTest_{Guid.NewGuid():N}";
+        builder.Configuration["Deployment:Mode"] = "SingleTenant";
 
         builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(GatewayOptions.SectionName));
         builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
@@ -79,6 +80,7 @@ public class KanbanIntegrationTests : IAsyncLifetime
         _app = builder.Build();
 
         _app.UseCors();
+        _app.UseSyntheticSingleTenantIdentity();
         _app.UseMiddleware<ComplianceAuthorizationMiddleware>();
         _app.UseMiddleware<AuditLoggingMiddleware>();
 
