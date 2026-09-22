@@ -24,6 +24,7 @@ public class ChatServiceConversationTests : IDisposable
     private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
     private readonly Mock<ILogger<ChatService>> _loggerMock;
     private readonly ChatService _service;
+    private readonly LegacyChatTestScope _scope = new();
 
     public ChatServiceConversationTests()
     {
@@ -46,12 +47,13 @@ public class ChatServiceConversationTests : IDisposable
         var client = new HttpClient(handler.Object) { BaseAddress = new Uri("http://localhost:3001") };
         _httpClientFactoryMock.Setup(f => f.CreateClient("McpServer")).Returns(client);
 
-        _service = new ChatService(_dbContext, _httpClientFactoryMock.Object, _loggerMock.Object, Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>());
+        _service = new ChatService(_dbContext, _httpClientFactoryMock.Object, _loggerMock.Object, Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>(), _scope.Resolver);
     }
 
     public void Dispose()
     {
         _dbContext.Dispose();
+        _scope.Dispose();
     }
 
     // ─── Positive Tests ──────────────────────────────────────────
@@ -73,7 +75,7 @@ public class ChatServiceConversationTests : IDisposable
         result.Should().NotBeNull();
         result.Id.Should().NotBeNullOrEmpty();
         result.Title.Should().Be("Test Conversation");
-        result.UserId.Should().Be("user-1");
+        result.UserId.Should().Be(LegacyChatTestScope.ActorId);
         result.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
     }
 
@@ -89,6 +91,7 @@ public class ChatServiceConversationTests : IDisposable
                 Id = Guid.NewGuid().ToString(),
                 Title = $"Conversation {i}",
                 UserId = "user-1",
+                OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
                 CreatedAt = baseTime.AddMinutes(-10 + i),
                 UpdatedAt = baseTime.AddMinutes(-10 + i)
             });
@@ -112,6 +115,7 @@ public class ChatServiceConversationTests : IDisposable
             Id = Guid.NewGuid().ToString(),
             Title = "Test",
             UserId = "user-1",
+            OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -146,6 +150,7 @@ public class ChatServiceConversationTests : IDisposable
             Id = Guid.NewGuid().ToString(),
             Title = "Compliance Review",
             UserId = "user-1",
+            OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -154,6 +159,7 @@ public class ChatServiceConversationTests : IDisposable
             Id = Guid.NewGuid().ToString(),
             Title = "General Chat",
             UserId = "user-1",
+            OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -186,6 +192,7 @@ public class ChatServiceConversationTests : IDisposable
             Id = Guid.NewGuid().ToString(),
             Title = "To Delete",
             UserId = "user-1",
+            OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -228,13 +235,13 @@ public class ChatServiceConversationTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteConversationAsync_WithNonExistentId_ThrowsInvalidOperationException()
+    public async Task DeleteConversationAsync_WithNonExistentId_DeniesAccess()
     {
         // Act
         var act = () => _service.DeleteConversationAsync("non-existent-id");
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*not found*");
     }
 
@@ -258,7 +265,7 @@ public class ChatServiceConversationTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateConversationAsync_WithNullUserId_DefaultsToDefaultUser()
+    public async Task CreateConversationAsync_WithNullUserId_UsesValidatedActor()
     {
         // Arrange
         var request = new CreateConversationRequest
@@ -270,7 +277,7 @@ public class ChatServiceConversationTests : IDisposable
         var result = await _service.CreateConversationAsync(request);
 
         // Assert
-        result.UserId.Should().Be("default-user");
+        result.UserId.Should().Be(LegacyChatTestScope.ActorId);
     }
 
     [Fact]
@@ -284,6 +291,7 @@ public class ChatServiceConversationTests : IDisposable
                 Id = Guid.NewGuid().ToString(),
                 Title = $"Conversation {i}",
                 UserId = "user-1",
+                OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
                 CreatedAt = DateTime.UtcNow.AddMinutes(i),
                 UpdatedAt = DateTime.UtcNow.AddMinutes(i)
             });
@@ -308,6 +316,7 @@ public class ChatServiceConversationTests : IDisposable
                 Id = Guid.NewGuid().ToString(),
                 Title = $"Compliance Item {i}",
                 UserId = "user-1",
+                OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             });
@@ -330,6 +339,7 @@ public class ChatServiceConversationTests : IDisposable
             Id = Guid.NewGuid().ToString(),
             Title = "Active",
             UserId = "user-1",
+            OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
             IsArchived = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -339,6 +349,7 @@ public class ChatServiceConversationTests : IDisposable
             Id = Guid.NewGuid().ToString(),
             Title = "Archived",
             UserId = "user-1",
+            OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
             IsArchived = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

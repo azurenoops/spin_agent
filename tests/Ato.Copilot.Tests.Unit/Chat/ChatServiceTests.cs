@@ -22,6 +22,7 @@ public class ChatServiceTests : IDisposable
     private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
     private readonly Mock<ILogger<ChatService>> _loggerMock;
     private readonly Mock<HttpMessageHandler> _httpHandlerMock;
+    private readonly LegacyChatTestScope _scope = new();
 
     public ChatServiceTests()
     {
@@ -37,6 +38,7 @@ public class ChatServiceTests : IDisposable
     public void Dispose()
     {
         _dbContext.Dispose();
+        _scope.Dispose();
     }
 
     private ChatService CreateService(HttpClient? httpClient = null)
@@ -56,7 +58,7 @@ public class ChatServiceTests : IDisposable
             .Setup(f => f.CreateClient("McpServer"))
             .Returns(client);
 
-        return new ChatService(_dbContext, _httpClientFactoryMock.Object, _loggerMock.Object, Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>());
+        return new ChatService(_dbContext, _httpClientFactoryMock.Object, _loggerMock.Object, Mock.Of<Ato.Copilot.Core.Interfaces.IPathSanitizationService>(), _scope.Resolver);
     }
 
     /// <summary>
@@ -98,6 +100,7 @@ public class ChatServiceTests : IDisposable
             Id = Guid.NewGuid().ToString(),
             Title = "Test Conversation",
             UserId = "test-user",
+            OwnerKey = LegacyChatTestScope.DefaultOwnerKey,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

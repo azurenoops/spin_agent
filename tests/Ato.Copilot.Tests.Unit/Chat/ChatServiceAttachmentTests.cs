@@ -21,7 +21,7 @@ public class ChatServiceAttachmentTests : IDisposable
     private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
     private readonly Mock<ILogger<ChatService>> _loggerMock;
     private readonly ChatService _service;
-    private readonly string _testUploadsDir;
+    private readonly LegacyChatTestScope _scope = new();
 
     public ChatServiceAttachmentTests()
     {
@@ -47,19 +47,23 @@ public class ChatServiceAttachmentTests : IDisposable
         pathSanitizer.Setup(s => s.ValidatePathWithinBase(It.IsAny<string>(), It.IsAny<string>()))
             .Returns((string path, string _) => new Ato.Copilot.Core.Interfaces.PathValidationResult { IsValid = true, CanonicalPath = path });
 
-        _service = new ChatService(_dbContext, _httpClientFactoryMock.Object, _loggerMock.Object, pathSanitizer.Object);
-        _testUploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
+        _service = new ChatService(_dbContext, _httpClientFactoryMock.Object, _loggerMock.Object, pathSanitizer.Object, _scope.Resolver);
     }
 
     public void Dispose()
     {
+        foreach (var attachment in _dbContext.Attachments)
+            if (File.Exists(attachment.StoragePath)) File.Delete(attachment.StoragePath);
         _dbContext.Dispose();
+        _scope.Dispose();
+    }
 
-        // Clean up test uploads directory
-        if (Directory.Exists(_testUploadsDir))
-        {
-            try { Directory.Delete(_testUploadsDir, true); } catch { /* best effort */ }
-        }
+    private async Task SeedOwnedMessageAsync(string id)
+    {
+        var conversation = new Conversation { OwnerKey = LegacyChatTestScope.DefaultOwnerKey };
+        _dbContext.Conversations.Add(conversation);
+        _dbContext.Messages.Add(new ChatMessage { Id = id, ConversationId = conversation.Id });
+        await _dbContext.SaveChangesAsync();
     }
 
     // ─── SaveAttachmentAsync Tests ───────────────────────────────
@@ -69,6 +73,7 @@ public class ChatServiceAttachmentTests : IDisposable
     {
         // Arrange
         var messageId = Guid.NewGuid().ToString();
+        await SeedOwnedMessageAsync(messageId);
         var content = "test file content"u8.ToArray();
         using var stream = new MemoryStream(content);
 
@@ -91,6 +96,7 @@ public class ChatServiceAttachmentTests : IDisposable
     {
         // Arrange
         var messageId = Guid.NewGuid().ToString();
+        await SeedOwnedMessageAsync(messageId);
         using var stream = new MemoryStream("data"u8.ToArray());
 
         // Act
@@ -130,6 +136,7 @@ public class ChatServiceAttachmentTests : IDisposable
     public async Task SaveAttachmentAsync_WithEmptyFile_StoresZeroByteAttachment()
     {
         // Arrange
+        await SeedOwnedMessageAsync("msg-1");
         using var stream = new MemoryStream(Array.Empty<byte>());
 
         // Act
