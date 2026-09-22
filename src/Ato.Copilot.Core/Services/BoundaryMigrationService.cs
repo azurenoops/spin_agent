@@ -31,10 +31,12 @@ public class BoundaryMigrationService : IHostedService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
-        // Ensure __MigrationFlags table exists
-        await db.Database.ExecuteSqlRawAsync(
-            "IF OBJECT_ID('__MigrationFlags', 'U') IS NULL CREATE TABLE __MigrationFlags (Name NVARCHAR(200) PRIMARY KEY, AppliedAt NVARCHAR(50) NOT NULL)",
-            cancellationToken);
+        var sentinelSql = db.Database.IsSqlite()
+            ? "CREATE TABLE IF NOT EXISTS __MigrationFlags (Name TEXT NOT NULL PRIMARY KEY, AppliedAt TEXT NOT NULL)"
+            : db.Database.IsSqlServer()
+                ? "IF OBJECT_ID('__MigrationFlags', 'U') IS NULL CREATE TABLE __MigrationFlags (Name NVARCHAR(200) PRIMARY KEY, AppliedAt NVARCHAR(50) NOT NULL)"
+                : throw new NotSupportedException($"Boundary migration does not support {db.Database.ProviderName}.");
+        await db.Database.ExecuteSqlRawAsync(sentinelSql, cancellationToken);
 
         // Idempotency check
         var alreadyRun = await db.Database.SqlQueryRaw<int>(

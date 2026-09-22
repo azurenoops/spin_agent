@@ -2,6 +2,10 @@
 
 ## Draft workspace-testing checkpoint
 
+Local SQLite startup requires SQLite-compatible boundary-migration sentinel DDL.
+The real hosted migration, including repeat startup, is covered by a SQLite
+regression test rather than only simulating its data transformation in memory.
+
 This branch is being published for local workspace testing, not as a completed
 or merge-ready implementation of #1002. The latest completed backend run built
 with zero errors and 121 warnings; 6,357 unit tests passed, while integration
