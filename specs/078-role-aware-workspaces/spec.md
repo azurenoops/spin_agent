@@ -319,6 +319,8 @@ workflow, then navigate/generate from each authorized workspace.
   SQL Server startup must create the narrative proposal schema with valid Unicode
   storage for the existing 8,000-character fields. Applying the additive schema
   again must preserve existing proposal contents and constraints.
+  The production Dashboard image must start without requiring an explicit
+  organization-only UI override, while preserving the existing explicit override.
   Mocked UI tests and live-API persistence tests are reported separately.
 - **SC-007**: No separate login implementation, implicit membership grant or
   database repair prerequisite is introduced.

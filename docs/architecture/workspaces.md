@@ -326,6 +326,33 @@ changing its health check. No authentication or HTTPS checks were disabled.
 Manual workspace testing, broader integration failures and the PR release gates
 remain pending.
 
+The authorized Dashboard follow-up is limited to defining the existing
+`FORCE_SINGLE_TENANT` runtime setting as empty by default in its image. The nginx
+entrypoint substitutes only defined environment variables; without that default,
+the literal placeholder remains in the rendered configuration and nginx rejects
+it as an unknown variable. Empty preserves the existing CSP behavior, while a
+deployment can still set `true` for the existing organization-only UI behavior.
+Verification must cover the image default and explicit empty/true values with
+real nginx configuration checks, then HTTP/browser startup through Compose.
+No authentication, tenant membership or Chat configuration changes are included.
+
+Dashboard follow-up verification: the new runtime-default unit test failed before
+the image change, then all 12 targeted Docker contract tests passed. The rebuilt
+image passed real `nginx -t` checks and exact rendered-setting checks with the
+default, explicit empty and explicit `true` values. Compose now reports Dashboard
+healthy at `http://localhost:5173`; `/` and proxied `/api/health` return HTTP 200.
+Browser simulation returned 204 and `/api/auth/me` returned 200 with the selected
+`dev-cspadmin` identity and `CSP.Admin` provider workspace. Browser snapshots show
+the provider portfolio and narrative-library page rendering.
+
+This is startup/simulated-sign-in verification, not a complete E2E pass. A
+portfolio-heading wait timed out while the observed route changed, and the
+browser reported 403 responses; their causes were not investigated in this
+bounded startup fix. Chat remains unhealthy with the previously recorded JWT
+configuration failure. Manual role/workspace acceptance and existing release
+gates remain open. Reverting the Dashboard image default reintroduces the unset
+placeholder failure; no volume reset or data rollback is required.
+
 ## Purpose
 
 The dashboard already resolves provider and organization variants of portfolio,
