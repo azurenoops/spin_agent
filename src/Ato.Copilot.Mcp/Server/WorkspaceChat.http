@@ -1,0 +1,58 @@
+# #1002: selectors choose a validated workspace, never an authorization grant.
+# Keep conversation IDs stable within one tab/context. Client-selected first IDs
+# remain supported. Changing actor, workspace, mode, Person or system starts an
+# independent server conversation/thread/replay namespace.
+# History and body user/tenant identifiers are untrusted input, not authority.
+# Host wiring: register IConversationIdentityAccessor -> WorkspaceChatScope as
+# singleton (uses IHttpContextAccessor), plus ISystemWorkspaceAccessService.
+# The three MCP POST handlers now use the self-authorizing workspace marker.
+# The shared BaseTool execution guard enforces every actual tool invocation;
+# unmapped tools/actions fail closed rather than inheriting global role grants.
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_TEST_TOKEN
+@organization = 11111111-1111-1111-1111-111111111111
+@system = REPLACE_WITH_AUTHORIZED_SYSTEM_ID
+@conversation = local-manual-chat
+
+### Authorized first message; repeat with the same ID for continuation
+POST {{baseUrl}}/mcp/chat
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "conversationId": "{{conversation}}",
+  "message": "Describe the selected system.",
+  "context": { "systemId": "{{system}}" }
+}
+
+### Streaming continuation; changing organization must not replay previous data
+POST {{baseUrl}}/mcp/chat/stream
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+Last-Event-ID: 1
+Content-Type: application/json
+
+{
+  "conversationId": "{{conversation}}",
+  "message": "Continue.",
+  "context": { "system_id": "{{system}}" }
+}
+
+### Forbidden system reference must fail before opening the SSE stream
+POST {{baseUrl}}/mcp/chat/stream
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "conversationId": "{{conversation}}",
+  "message": "Continue.",
+  "context": { "systemId": "not-an-authorized-system", "userId": "forged" }
+}
