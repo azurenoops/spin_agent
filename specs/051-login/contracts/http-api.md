@@ -299,6 +299,15 @@ The session cookie AND the `X-Simulated=true` sentinel cookie are set on
 the response. The SPA then calls `GET /api/auth/me` to render the
 dashboard as that identity.
 
+In Development with `CacAuth:SimulationMode=true`, middleware resolves the
+`ato-simulation` cookie against `CacAuth:SimulatedIdentities` on each request.
+The selected descriptor supplies `oid`, directory `tid`, display name and roles;
+its internal organization `TenantId` MUST NOT replace the directory claim.
+An unknown or empty selection returns 401 rather than falling back to another
+identity. Without a selection cookie, the legacy `CacAuth:SimulatedIdentity`
+behavior is preserved. Selection does not provision tenants, memberships or
+system-role assignments, and does not bypass the production simulation guard.
+
 ### 5.5 Error responses
 
 | Status | Code | Trigger |

@@ -12,6 +12,7 @@ using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Models.Auth;
 using Ato.Copilot.Core.Services.Auth;
 using Ato.Copilot.Mcp.Configuration;
+using Ato.Copilot.Mcp.Endpoints.Auth;
 
 namespace Ato.Copilot.Mcp.Middleware;
 
@@ -86,37 +87,68 @@ public class CacAuthenticationMiddleware
         {
             if (environment == "Development")
             {
-                var simId = _cacAuthOptions.SimulatedIdentity
-                    ?? throw new InvalidOperationException(
-                        "CacAuth:SimulatedIdentity configuration is required when SimulationMode is enabled.");
-
-                var claims = new List<Claim>
+                List<Claim> claims;
+                if (context.Request.Cookies.TryGetValue("ato-simulation", out var selection))
                 {
-                    new(ClaimTypes.NameIdentifier, simId.UserPrincipalName),
-                    new(ClaimTypes.Name, simId.DisplayName),
-                    new("preferred_username", simId.UserPrincipalName),
-                    new("amr", "mfa"),
-                    new("amr", "rsa"),
-                };
+                    var selected = SimulationGate.FindIdentity(_cacAuthOptions, selection);
+                    if (selected is null)
+                    {
+                        _logger.LogWarning("Simulation cookie does not match a configured identity");
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        await context.Response.WriteAsJsonAsync(new
+                        {
+                            status = "error",
+                            data = new
+                            {
+                                errorCode = "SIMULATED_IDENTITY_NOT_FOUND",
+                                message = "The selected simulation identity is not configured.",
+                                suggestion = "Clear the simulation cookie and select a configured identity."
+                            }
+                        }, context.RequestAborted);
+                        return;
+                    }
 
-                foreach (var role in simId.Roles)
-                    claims.Add(new(ClaimTypes.Role, role));
+                    selected.EnsureValid();
+                    claims =
+                    [
+                        new(ClaimTypes.NameIdentifier, selected.Oid),
+                        new(ClaimTypes.Name, selected.DisplayName),
+                        new("oid", selected.Oid),
+                        new("tid", selected.Tid),
+                    ];
+                    foreach (var role in selected.Roles)
+                        claims.Add(new(ClaimTypes.Role, role));
+                }
+                else
+                {
+                    var simId = _cacAuthOptions.SimulatedIdentity
+                        ?? throw new InvalidOperationException(
+                            "CacAuth:SimulatedIdentity configuration is required when SimulationMode is enabled.");
+                    claims =
+                    [
+                        new(ClaimTypes.NameIdentifier, simId.UserPrincipalName),
+                        new(ClaimTypes.Name, simId.DisplayName),
+                        new("preferred_username", simId.UserPrincipalName),
+                    ];
+                    foreach (var role in simId.Roles)
+                        claims.Add(new(ClaimTypes.Role, role));
 
-                if (simId.CertificateThumbprint is not null)
-                    claims.Add(new("x5t", simId.CertificateThumbprint));
+                    if (simId.CertificateThumbprint is not null)
+                        claims.Add(new("x5t", simId.CertificateThumbprint));
 
-                if (simId.TenantId is { } simTenant)
-                    claims.Add(new("tid", simTenant.ToString()));
+                    if (simId.TenantId is { } simTenant)
+                        claims.Add(new("tid", simTenant.ToString()));
 
-                if (simId.ObjectId is { } simObject)
-                    claims.Add(new("oid", simObject.ToString()));
+                    if (simId.ObjectId is { } simObject)
+                        claims.Add(new("oid", simObject.ToString()));
+                }
 
+                claims.Add(new("amr", "mfa"));
+                claims.Add(new("amr", "rsa"));
                 context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Simulated"));
                 context.Items["ClientType"] = ClientType.Simulated;
 
-                _logger.LogDebug(
-                    "CAC simulation active — identity: {UserPrincipalName}, roles: {Roles}",
-                    simId.UserPrincipalName, string.Join(", ", simId.Roles));
+                _logger.LogDebug("CAC simulation active");
 
                 await _next(context);
                 return;
