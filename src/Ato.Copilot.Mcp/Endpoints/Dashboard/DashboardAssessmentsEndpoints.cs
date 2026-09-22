@@ -489,7 +489,7 @@ public static partial class DashboardEndpoints
                 remediationPlanId,
             });
         })
-        .RequireAuthorization(Policies.ComplianceWriter)
+        .RequireWorkspaceOperation(SystemWorkspaceOperation.RunAssessments, Policies.ComplianceWriter)
         .WithName("RunAssessment")
         .WithSummary("Run an Azure-backed assessment after independently validating system readiness.")
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -576,7 +576,7 @@ public static partial class DashboardEndpoints
                 approvalStatus = impl.ApprovalStatus.ToString(),
             });
         })
-        .WithName("CreateNarrative");
+        .WithName("CreateNarrative").RequireWorkspaceOperation(SystemWorkspaceOperation.AuthorNarratives);
 
         group.MapGet("/systems/{systemId}/narratives", async (
             string systemId,
@@ -681,7 +681,7 @@ public static partial class DashboardEndpoints
 
             return Results.Ok(new { updatedCount = narratives.Count, controlIds = narratives.Select(n => n.ControlId).ToList() });
         })
-        .WithName("BulkUpdateNarratives");
+        .WithName("BulkUpdateNarratives").RequireWorkspaceOperation(SystemWorkspaceOperation.AuthorNarratives);
 
         // ─── Save single narrative text ────────────────────────────────────
         group.MapPatch("/systems/{systemId}/controls/{controlId}/narrative", async (
@@ -724,7 +724,7 @@ public static partial class DashboardEndpoints
                 return Results.NotFound(new ErrorResponse { Error = exception.Message, ErrorCode = "CONTROL_NOT_FOUND" });
             }
         })
-        .WithName("SaveDualNarrativeText");
+        .WithName("SaveDualNarrativeText").RequireWorkspaceOperation(SystemWorkspaceOperation.AuthorNarratives);
 
         // ───────────── Deferred Prerequisites ─────────────────────────────────
 
