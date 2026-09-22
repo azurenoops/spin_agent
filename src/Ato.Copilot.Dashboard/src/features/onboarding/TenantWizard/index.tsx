@@ -231,7 +231,7 @@ export default function TenantWizard() {
             </div>
             <div>
               <h1 id="tenant-wizard-title" className="text-xl font-semibold tracking-tight">
-                SPIN Agent — Organization Onboarding
+                Security Posture Intelligence Navigator — Organization Onboarding
               </h1>
               <p className="text-sm text-white/80">
                 Capture the headquarters, classification, and authorizing officials so this organization can issue ATOs.
