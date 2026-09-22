@@ -223,6 +223,21 @@ describe('ImpersonationBanner (Feature 051 T133–T135)', () => {
     });
   });
 
+  it('does not leave support or clear the return URL when the audited exit fails', async () => {
+    // Arrange
+    endImpersonation.mockRejectedValue(new Error('Support exit failed'));
+    setPreImpersonationUrl('/workspaces/csp');
+    currentMe = makeMe();
+    renderBanner();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: /exit/i }));
+    fireEvent.click(screen.getByTestId('impersonation-exit-confirm-btn'));
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('Support exit failed');
+    expect(navigate).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(PRE_IMPERSONATION_URL_KEY)).toBe('/workspaces/csp');
+  });
+
   it('confirmation dialog contains the impersonated tenant name', () => {
     currentMe = makeMe();
     renderBanner();

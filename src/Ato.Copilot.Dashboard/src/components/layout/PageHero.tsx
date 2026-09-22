@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useOrganizationContext } from '../../hooks/useOrganizationContext';
+import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 
 interface PageHeroProps {
   /** Section eyebrow above the title (e.g. "Portfolio"). */
@@ -18,7 +19,7 @@ interface PageHeroProps {
 /**
  * `PageHero` — site-wide page header treatment that mirrors the Onboarding
  * Wizard's gradient look (indigo → blue → sky) and surfaces the active
- * organization (sub-org takes precedence over org name).
+ * organization from the server-validated workspace, never a profile subgroup.
  *
  * Use at the top of every top-level page so the portal feels visually unified.
  */
@@ -29,7 +30,11 @@ export default function PageHero({
   actions,
   showOrgName = true,
 }: PageHeroProps) {
-  const { displayName } = useOrganizationContext();
+  const organization = useOrganizationContext();
+  const session = useWorkspaceSession();
+  const displayName = session
+    ? session.target.kind === 'organization' ? session.workspace.displayName : null
+    : organization.displayName;
 
   return (
     <div className="relative -mx-6 -mt-6 mb-6 overflow-hidden bg-gradient-to-r from-indigo-700 via-indigo-700 to-sky-600 text-white shadow-sm">

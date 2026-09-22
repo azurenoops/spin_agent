@@ -13,6 +13,9 @@ import {
 } from './api';
 import { startImpersonation } from '../tenancy/api';
 import { isVestigeTenant } from '../tenancy/vestigeTenants';
+import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
+import { buildWorkspaceUrl } from '../workspaces/workspaceRoutes';
+import SupportWorkspaceButton from '../workspaces/SupportWorkspaceButton';
 
 /**
  * Feature 048 / US8 (Phase 3 re-scope) — Org-portfolio table for the CSP
@@ -66,6 +69,7 @@ export default function OrgsTable({
   initialPageSize = 25,
 }: OrgsTableProps): ReactElement {
   const navigate = useNavigate();
+  const session = useWorkspaceSession();
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(initialPageSize);
@@ -162,6 +166,10 @@ export default function OrgsTable({
     if (org.status === 'Disabled') {
       return;
     }
+    if (session) {
+      navigate(buildWorkspaceUrl({ kind: 'organization', tenantId: org.tenantId }));
+      return;
+    }
     setBusyTenantId(org.tenantId);
     try {
       await startImpersonation(org.tenantId, org.displayName);
@@ -189,8 +197,8 @@ export default function OrgsTable({
         <div>
           <h3 className="text-sm font-semibold text-gray-700">Orgs</h3>
           <p className="text-xs text-gray-500">
-            Click an org to drop into its workspace and inspect the per-org
-            dashboard. Disabled orgs are listed but cannot be entered.
+            Open an organization using ordinary membership. Audited support is a
+            separate confirmed action. Disabled orgs cannot be entered.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -316,7 +324,9 @@ export default function OrgsTable({
                     data-testid={`org-row-${o.tenantId}`}
                   >
                     <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-900">
-                      {o.displayName}
+                      <button type="button" disabled={disabled || busy}
+                        onClick={event => { event.stopPropagation(); void handleRowClick(o); }}
+                        className="text-left hover:underline">{o.displayName}</button>
                       {busy && (
                         <span className="ml-2 text-xs text-indigo-600">
                           entering…
@@ -360,6 +370,14 @@ export default function OrgsTable({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center gap-1">
+                        {session?.target.kind === 'csp' && (
+                          <>
+                            <SupportWorkspaceButton tenantId={o.tenantId} tenantName={o.displayName} disabled={disabled} />
+                            {session.workspace.permissions.canManageMemberships && <button type="button"
+                              onClick={() => navigate(`/organizations/${encodeURIComponent(o.tenantId)}/memberships`)}
+                              className="rounded border px-2 py-1">Memberships</button>}
+                          </>
+                        )}
                         {o.status === 'Active' && (
                           <>
                             <button
