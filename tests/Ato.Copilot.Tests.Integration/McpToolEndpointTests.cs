@@ -13,7 +13,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
@@ -26,7 +30,7 @@ namespace Ato.Copilot.Tests.Integration;
 /// <summary>
 /// Integration tests for MCP tool HTTP endpoints. Tests the full HTTP pipeline
 /// including middleware, routing, serialization, and tool execution.
-/// Uses InMemory database and Development environment (bypasses auth middleware).
+/// Uses synthetic authenticated single-tenant context and an InMemory database.
 /// </summary>
 [Collection("IntegrationTests")]
 public class McpToolEndpointTests : IAsyncLifetime
@@ -84,8 +88,22 @@ public class McpToolEndpointTests : IAsyncLifetime
 
         _app = builder.Build();
 
-        // Configure middleware pipeline (matches Program.cs HTTP mode)
+        // Authentication and tenant binding are synthetic here; workspace authorization has separate full-pipeline tests.
         _app.UseCors();
+        _app.Use(async (http, next) =>
+        {
+            http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [
+                new("tid", "11111111-1111-1111-1111-111111111111"),
+                new("oid", "22222222-2222-2222-2222-222222222222"),
+                new(System.Security.Claims.ClaimTypes.Role, ComplianceRoles.Administrator),
+            ], "Synthetic contract identity"));
+            var tenant = (TenantContext)http.RequestServices.GetRequiredService<ITenantContext>();
+            tenant.TenantId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+            tenant.Status = TenantStatus.Active;
+            using var scope = http.RequestServices.GetRequiredService<ITenantContextAccessor>().Push(tenant);
+            await next(http);
+        });
         _app.UseMiddleware<ComplianceAuthorizationMiddleware>();
         _app.UseMiddleware<AuditLoggingMiddleware>();
 
