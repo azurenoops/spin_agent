@@ -21,6 +21,9 @@ export default function WorkspaceHeader() {
         <p>Effective roles: {session.roles.length ? session.roles.join(', ') : 'No assigned roles'}</p>
       </div>
       <div className="flex flex-wrap items-center gap-4">
+        <Link to="/narrative-library" className="underline">
+          {session.target.kind === 'csp' ? 'Provider' : 'Organization'} Narrative Library
+        </Link>
         {session.target.kind === 'organization' && session.workspace.permissions.canManageMemberships && (
           <Link to="/settings/memberships" className="underline">Manage memberships</Link>
         )}

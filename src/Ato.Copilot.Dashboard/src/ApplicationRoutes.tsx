@@ -15,6 +15,7 @@ import ConMon from './pages/ConMon';
 import Assessments from './pages/Assessments';
 import Remediation from './pages/Remediation';
 import NarrativeWorkspace from './pages/NarrativeWorkspace';
+import StandaloneNarrativeLibrary from './pages/StandaloneNarrativeLibrary';
 import DeviationsPage from './pages/DeviationsPage';
 import CapabilityCoverage from './pages/CapabilityCoverage';
 import EvidenceRepository from './pages/EvidenceRepository';
@@ -51,6 +52,7 @@ export default function ApplicationRoutes() {
               loginRedirect with the deep-link as `state` when unauthenticated. */}
           <Route index element={<RequireAuth><PortfolioRoute /></RequireAuth>} />
           <Route path="systems" element={<RequireAuth><SystemsRoute /></RequireAuth>} />
+          <Route path="narrative-library/*" element={<RequireAuth><StandaloneNarrativeLibrary /></RequireAuth>} />
           {/* fix(#522): /systems/new must be registered BEFORE /systems/:id so React
               Router does not match it as id="new". SystemsNewRoute redirects to
               /systems with state.openWizard=true, which opens the intake wizard. */}
