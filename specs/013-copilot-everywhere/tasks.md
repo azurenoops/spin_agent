@@ -101,7 +101,7 @@
 
 **Goal**: Analyze the current editor file or entire workspace for NIST 800-53 compliance issues from the VS Code command palette, displaying findings in a severity-colored webview panel.
 
-**Independent Test**: Open a `.bicep` file, run "ATO Copilot: Analyze Current File for Compliance" from command palette, verify findings appear in side-by-side webview panel with severity-colored badges.
+**Independent Test**: Open a `.bicep` file, run "Security Posture Intelligence Navigator: Analyze Current File for Compliance" from command palette, verify findings appear in side-by-side webview panel with severity-colored badges.
 
 ### Implementation for User Story 4
 

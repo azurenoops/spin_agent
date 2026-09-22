@@ -9,7 +9,7 @@ be *runnable* in CI before this spec can make them *green*)
 
 ## Background
 
-The ATO Copilot VS Code extension (`extensions/vscode/`) is functionally rich —
+The Security Posture Intelligence Navigator VS Code extension (`extensions/vscode/`) is functionally rich —
 it ships a GitHub Copilot Chat participant (`@ato`), nine palette commands, IaC
 diagnostics, code actions, an analysis panel, PIM flow, and Azure MSAL auth.
 However, three blockers prevent it from reaching the VS Code Marketplace:
@@ -35,7 +35,7 @@ However, three blockers prevent it from reaching the VS Code Marketplace:
 | Field | Value |
 |-------|-------|
 | `name` | `ato-copilot-vscode` |
-| `displayName` | `ATO Copilot` |
+| `displayName` | `Security Posture Intelligence Navigator` |
 | `version` | `0.1.0` |
 | `publisher` | `ato-copilot` (must be claimed on Marketplace) |
 | `engines.vscode` | `^1.90.0` |
@@ -46,15 +46,15 @@ However, three blockers prevent it from reaching the VS Code Marketplace:
 
 | Command ID | Title |
 |-----------|-------|
-| `ato.checkHealth` | ATO Copilot: Check API Health |
-| `ato.configure` | ATO Copilot: Configure Connection |
-| `ato.signIn` | ATO Copilot: Sign In |
-| `ato.signOut` | ATO Copilot: Sign Out |
-| `ato.switchTenant` | ATO Copilot: Switch Tenant |
-| `ato.analyzeCurrentFile` | ATO Copilot: Analyze Current File for Compliance |
-| `ato.analyzeWorkspace` | ATO Copilot: Analyze Workspace for Compliance |
-| `ato.followUpSuggestion` | ATO Copilot: Follow-Up Suggestion |
-| `ato.requestFalsePositive` | ATO Copilot: Request False Positive |
+| `ato.checkHealth` | Security Posture Intelligence Navigator: Check API Health |
+| `ato.configure` | Security Posture Intelligence Navigator: Configure Connection |
+| `ato.signIn` | Security Posture Intelligence Navigator: Sign In |
+| `ato.signOut` | Security Posture Intelligence Navigator: Sign Out |
+| `ato.switchTenant` | Security Posture Intelligence Navigator: Switch Tenant |
+| `ato.analyzeCurrentFile` | Security Posture Intelligence Navigator: Analyze Current File for Compliance |
+| `ato.analyzeWorkspace` | Security Posture Intelligence Navigator: Analyze Workspace for Compliance |
+| `ato.followUpSuggestion` | Security Posture Intelligence Navigator: Follow-Up Suggestion |
+| `ato.requestFalsePositive` | Security Posture Intelligence Navigator: Request False Positive |
 
 **Configuration settings** (from `contributes.configuration`):
 

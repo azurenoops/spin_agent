@@ -519,7 +519,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
                 page.Footer().AlignCenter().Text(text =>
                 {
                     text.Span("Prepared by: ").FontSize(8);
-                    text.Span(mergeData.GetValueOrDefault("PreparedBy", "ATO Copilot"))
+                    text.Span(mergeData.GetValueOrDefault("PreparedBy", "Security Posture Intelligence Navigator"))
                         .FontSize(8);
                     text.Span(" | Page ").FontSize(8);
                     text.CurrentPageNumber().FontSize(8);
@@ -572,7 +572,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         {
             ["SystemName"] = system.Name,
             ["SystemAcronym"] = system.Acronym ?? system.Name[..Math.Min(5, system.Name.Length)],
-            ["PreparedBy"] = "ATO Copilot",
+            ["PreparedBy"] = "Security Posture Intelligence Navigator",
             ["PreparedDate"] = DateTime.UtcNow.ToString("yyyy-MM-dd")
         };
 

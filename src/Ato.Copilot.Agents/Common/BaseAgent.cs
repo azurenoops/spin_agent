@@ -10,7 +10,7 @@ using Ato.Copilot.Core.Configuration;
 namespace Ato.Copilot.Agents.Common;
 
 /// <summary>
-/// Base class for all agents in the ATO Copilot.
+/// Base class for all agents in the Security Posture Intelligence Navigator.
 /// All agents MUST extend this class (Constitution Principle II).
 /// </summary>
 public abstract class BaseAgent
@@ -326,7 +326,7 @@ public abstract class BaseAgent
                             "Foundry run requires action: {ToolCallCount} tool calls, round {Round}, agent {AgentName}",
                             toolCallCount, toolRounds, AgentName);
 
-                        progress?.Report($"ATO Copilot is executing {toolCallCount} tool(s) (round {toolRounds})...");
+                        progress?.Report($"Security Posture Intelligence Navigator is executing {toolCallCount} tool(s) (round {toolRounds})...");
 
                         foreach (var requiredCall in submitAction.ToolCalls)
                         {
@@ -435,7 +435,7 @@ public abstract class BaseAgent
                 else
                 {
                     // Queued, InProgress — poll again after 1 second
-                    progress?.Report("ATO Copilot is thinking...");
+                    progress?.Report("Security Posture Intelligence Navigator is thinking...");
                     await Task.Delay(1000, cancellationToken);
                 }
             }
@@ -642,7 +642,7 @@ public abstract class BaseAgent
 
             for (var round = 0; round < maxRounds; round++)
             {
-                progress?.Report($"ATO Copilot is thinking (round {round + 1})...");
+                progress?.Report($"Security Posture Intelligence Navigator is thinking (round {round + 1})...");
 
                 // Capture user prompt hash at the start of each round (last user message).
                 var userPromptHash = chatMessages

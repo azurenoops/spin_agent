@@ -92,7 +92,7 @@ test.describe('Narratives', () => {
       json: {
         status: 'success',
         data: {
-          branding: { deploymentName: 'ATO Copilot E2E', logoUrl: null, supportEmail: null },
+          branding: { deploymentName: 'Security Posture Intelligence Navigator E2E', logoUrl: null, supportEmail: null },
           defaultMethod: 'Entra', enabledMethods: [{ id: 'Entra', displayName: 'Microsoft Entra ID' }],
           cloud: 'AzurePublic', idleTimeoutMinutes: 30, rememberTenantCookieDays: 7,
           simulation: null,

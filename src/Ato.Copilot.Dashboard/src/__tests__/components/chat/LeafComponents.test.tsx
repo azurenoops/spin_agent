@@ -80,21 +80,21 @@ describe('ChatInput', () => {
 
 describe('ChatHeader', () => {
   it('renders title and conversation count', () => {
-    render(<ChatHeader title="ATO Copilot" onClose={vi.fn()} onNewConversation={vi.fn()} conversationCount={3} />);
-    expect(screen.getByText('ATO Copilot')).toBeDefined();
+    render(<ChatHeader title="Security Posture Intelligence Navigator" onClose={vi.fn()} onNewConversation={vi.fn()} conversationCount={3} />);
+    expect(screen.getByText('Security Posture Intelligence Navigator')).toBeDefined();
     expect(screen.getByText('3')).toBeDefined();
   });
 
   it('calls onClose on close button click', () => {
     const onClose = vi.fn();
-    render(<ChatHeader title="ATO Copilot" onClose={onClose} onNewConversation={vi.fn()} conversationCount={0} />);
+    render(<ChatHeader title="Security Posture Intelligence Navigator" onClose={onClose} onNewConversation={vi.fn()} conversationCount={0} />);
     fireEvent.click(screen.getByTitle('Close'));
     expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('calls onNewConversation on new button click', () => {
     const onNew = vi.fn();
-    render(<ChatHeader title="ATO Copilot" onClose={vi.fn()} onNewConversation={onNew} conversationCount={0} />);
+    render(<ChatHeader title="Security Posture Intelligence Navigator" onClose={vi.fn()} onNewConversation={onNew} conversationCount={0} />);
     fireEvent.click(screen.getByTitle('New conversation'));
     expect(onNew).toHaveBeenCalledOnce();
   });

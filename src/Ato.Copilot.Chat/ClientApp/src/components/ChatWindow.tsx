@@ -219,7 +219,7 @@ export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindow
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg">
             <ShieldIcon className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">ATO Copilot</h2>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Security Posture Intelligence Navigator</h2>
           <p className="text-gray-500 text-sm">
             Select a conversation or create a new one to get started with compliance assessments, remediation, and more.
           </p>
@@ -478,7 +478,7 @@ export function ChatWindowInner({ layoutMode, viewportWidth = 1280 }: ChatWindow
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-1.5 text-center">
-            ATO Copilot may produce inaccurate results. Always verify compliance findings.
+            Security Posture Intelligence Navigator may produce inaccurate results. Always verify compliance findings.
           </p>
         </div>
       </div>
@@ -497,7 +497,7 @@ function WelcomeScreen({ onSuggestionClick }: { onSuggestionClick: (prompt: stri
       </div>
       <h2 className="text-2xl font-bold text-gray-800 mb-2">How can I help you?</h2>
       <p className="text-gray-500 text-sm mb-8 max-w-lg text-center">
-        {"I'm your ATO Copilot. I guide DoD teams through every step of the NIST Risk Management Framework — from system registration through continuous monitoring."}
+        {"I'm your Security Posture Intelligence Navigator. I guide DoD teams through every step of the NIST Risk Management Framework — from system registration through continuous monitoring."}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full">
         {WELCOME_SUGGESTIONS.map((suggestion, idx) => (

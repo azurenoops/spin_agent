@@ -24,7 +24,7 @@ export function buildNistControlCard(data: NistControlData): Record<string, unkn
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — NIST 800-53 Control",
+      text: "Security Posture Intelligence Navigator — NIST 800-53 Control",
       weight: "Bolder",
       size: "Large",
     },

@@ -1,6 +1,6 @@
 # Control Inheritance & CRM Guide
 
-This guide explains how to use the **Control Inheritance** page in the ATO Copilot Dashboard to manage inheritance designations, generate Customer Responsibility Matrices, and leverage org-level defaults derived from the [Security Capabilities Hub](security-capabilities.md).
+This guide explains how to use the **Control Inheritance** page in the Security Posture Intelligence Navigator Dashboard to manage inheritance designations, generate Customer Responsibility Matrices, and leverage org-level defaults derived from the [Security Capabilities Hub](security-capabilities.md).
 
 ## Overview
 

@@ -1,4 +1,4 @@
-# Data Model: Add Azure OpenAI to ATO Copilot Agents
+# Data Model: Add Azure OpenAI to Security Posture Intelligence Navigator Agents
 
 **Feature**: 011-azure-openai-agents | **Date**: 2026-02-25
 

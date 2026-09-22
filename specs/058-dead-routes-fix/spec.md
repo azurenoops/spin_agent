@@ -85,7 +85,7 @@ problems accumulated in the React frontend:
   `/csp/inherited-components`. This is a separate dead link — fix as part of US4.
 
 - **Q: What should the 404 page look like?**
-  **A:** Minimal: ATO Copilot navigation chrome, "Page not found" heading,
+  **A:** Minimal: Security Posture Intelligence Navigator navigation chrome, "Page not found" heading,
   "Go to dashboard" button. No design system blocker — use existing layout
   components.
 

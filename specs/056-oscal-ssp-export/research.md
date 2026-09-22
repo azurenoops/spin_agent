@@ -10,7 +10,7 @@ missing data should block the export or annotate it.
 ### Option A: Hard error — refuse to export if required OSCAL fields are absent
 - **Pros**: No invalid or misleading OSCAL documents are produced.
 - **Cons**: Blocks export for systems mid-workflow (before categorization is
-  complete). ATO Copilot is designed to support incremental workflow — refusing
+  complete). Security Posture Intelligence Navigator is designed to support incremental workflow — refusing
   export at any gap is too strict.
 
 ### Option B: Soft warning — export with placeholders, annotate (chosen)

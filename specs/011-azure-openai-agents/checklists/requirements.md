@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Add Azure OpenAI to ATO Copilot Agents
+# Specification Quality Checklist: Add Azure OpenAI to Security Posture Intelligence Navigator Agents
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-02-25

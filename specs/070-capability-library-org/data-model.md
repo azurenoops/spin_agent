@@ -200,7 +200,7 @@ The idempotency check is implemented in application code (`WHERE Status = Active
 
 **Decision: use EF Core `HasQueryFilter` only (no SQL-level RLS policy for this table).**
 
-Rationale: All other `TenantScoped` entities in ATO Copilot use EF's `HasQueryFilter` pattern
+Rationale: All other `TenantScoped` entities in Security Posture Intelligence Navigator use EF's `HasQueryFilter` pattern
 (confirmed by `AtoCopilotContext` and `RlsFilterPredicateTests`). Introducing a SQL-level
 RLS policy on only this new table would create an inconsistency in the isolation model.
 

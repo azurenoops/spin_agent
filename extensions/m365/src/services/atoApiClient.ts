@@ -1,7 +1,7 @@
 /**
  * ATO API Client Service (FR-049)
  *
- * HTTP client for communicating with the ATO Copilot MCP Server.
+ * HTTP client for communicating with the Security Posture Intelligence Navigator MCP Server.
  * - 300s timeout
  * - User-Agent: ATO-Copilot-M365-Extension/1.0.0
  * - Generates m365-{timestamp}-{random9} conversationIds

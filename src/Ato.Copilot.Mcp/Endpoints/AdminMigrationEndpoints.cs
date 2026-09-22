@@ -103,7 +103,7 @@ public static class AdminMigrationEndpoints
         // only valid confirmation token. Direct API calls without the UI flow
         // are rejected with a descriptive error.
         var rawName = authOptions.Value.Branding?.DeploymentName;
-        var deploymentName = string.IsNullOrWhiteSpace(rawName) ? "ATO Copilot" : rawName;
+        var deploymentName = string.IsNullOrWhiteSpace(rawName) ? "Security Posture Intelligence Navigator" : rawName;
         if (!http.Request.Headers.TryGetValue(ConfirmationHeaderName, out var headerValues) ||
             string.IsNullOrWhiteSpace(headerValues.ToString()))
         {

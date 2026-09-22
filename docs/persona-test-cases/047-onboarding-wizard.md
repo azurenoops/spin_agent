@@ -1,7 +1,7 @@
 # Onboarding Administrator Persona Test Cases
 
 **Feature**: 047 | **Persona**: Onboarding Administrator
-**Role**: `Tenant.OnboardingAdministrator` | **Interface**: ATO Copilot Dashboard (`/onboarding`)
+**Role**: `Tenant.OnboardingAdministrator` | **Interface**: Security Posture Intelligence Navigator Dashboard (`/onboarding`)
 **Test Cases**: ONB-01 through ONB-10 (10 total)
 
 This document drives the manual end-to-end walkthrough of the tenant

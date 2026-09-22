@@ -119,10 +119,10 @@ describe("Adaptive Card Builders", () => {
 
   describe("Generic Card", () => {
     it("should display response text", () => {
-      const card = buildGenericCard({ response: "Hello from ATO Copilot" });
+      const card = buildGenericCard({ response: "Hello from Security Posture Intelligence Navigator" });
       const body = card.body as any[];
       const textBlock = body.find(
-        (b: any) => b.text === "Hello from ATO Copilot"
+        (b: any) => b.text === "Hello from Security Posture Intelligence Navigator"
       );
       expect(textBlock).to.exist;
     });

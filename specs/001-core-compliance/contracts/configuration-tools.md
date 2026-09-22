@@ -3,21 +3,21 @@
 **Branch**: `001-core-compliance` | **Date**: 2026-02-21
 
 The Configuration Agent exposes a single tool with sub-actions for managing
-ATO Copilot settings. Settings are stored in `IAgentStateManager` shared state
+Security Posture Intelligence Navigator settings. Settings are stored in `IAgentStateManager` shared state
 and consumed by the Compliance Agent.
 
 ---
 
 ## Tool: `configuration_manage`
 
-Manage ATO Copilot configuration settings.
+Manage Security Posture Intelligence Navigator configuration settings.
 
 ### Parameters
 
 ```json
 {
   "name": "configuration_manage",
-  "description": "Manage ATO Copilot settings: subscription, framework, baseline, environment, and preferences",
+  "description": "Manage Security Posture Intelligence Navigator settings: subscription, framework, baseline, environment, and preferences",
   "inputSchema": {
     "type": "object",
     "properties": {

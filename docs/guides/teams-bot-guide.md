@@ -19,7 +19,7 @@
 
 ## Overview
 
-The ATO Copilot Teams bot provides a conversational interface for RMF compliance workflows directly within Microsoft Teams. Users interact through natural language, and results are rendered as rich Adaptive Cards v1.5.
+The Security Posture Intelligence Navigator Teams bot provides a conversational interface for RMF compliance workflows directly within Microsoft Teams. Users interact through natural language, and results are rendered as rich Adaptive Cards v1.5.
 
 ### Architecture
 
@@ -39,7 +39,7 @@ Teams Client → Bot Framework → M365 Extension → MCP Server → ComplianceA
 
 - Microsoft Teams (desktop or web)
 - Azure Bot registration
-- ATO Copilot MCP server running (HTTP mode, port 3001)
+- Security Posture Intelligence Navigator MCP server running (HTTP mode, port 3001)
 
 ### Setup Steps
 
@@ -159,7 +159,7 @@ Multi-system portfolio view:
 ### Shared Components
 
 All cards include:
-- **Agent Attribution** — "ATO Copilot" with version and timestamp
+- **Agent Attribution** — "Security Posture Intelligence Navigator" with version and timestamp
 - **Suggestion Buttons** — Context-aware follow-up actions
 
 ---

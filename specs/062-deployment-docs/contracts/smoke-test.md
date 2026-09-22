@@ -1,7 +1,7 @@
 # Smoke Test Contract — 062
 
 ## Purpose
-Post-deploy validation script that verifies a freshly deployed ATO Copilot instance is
+Post-deploy validation script that verifies a freshly deployed Security Posture Intelligence Navigator instance is
 healthy before traffic is routed to it. Designed to run from CI/CD pipeline or manually
 from an operator terminal.
 
@@ -36,7 +36,7 @@ from an operator terminal.
 
 ### Output Format
 ```
-[SMOKE] ATO Copilot smoke test — <SMOKE_BASE_URL>
+[SMOKE] Security Posture Intelligence Navigator smoke test — <SMOKE_BASE_URL>
 [PASS]  Health check (/health) → 200
 [PASS]  Auth identity (/api/auth/me) → 200
 [FAIL]  Systems list → expected 200, got 503

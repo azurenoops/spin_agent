@@ -1,4 +1,4 @@
-# ATO Copilot — VS Code Extension
+# Security Posture Intelligence Navigator — VS Code Extension
 
 GitHub Copilot Chat participant (`@ato`) for NIST 800-53 compliance assessment, remediation planning, and ATO documentation within VS Code.
 
@@ -15,7 +15,7 @@ GitHub Copilot Chat participant (`@ato`) for NIST 800-53 compliance assessment, 
 
 1. Open VS Code
 2. Go to Extensions (`Ctrl+Shift+X` / `Cmd+Shift+X`)
-3. Search for "ATO Copilot"
+3. Search for "Security Posture Intelligence Navigator"
 4. Click **Install**
 
 ### From Source
@@ -32,10 +32,10 @@ Then press `F5` to launch the Extension Development Host.
 
 | Command | Description |
 |---------|-------------|
-| `ATO Copilot: Check Health` | Verify connection to the MCP Server |
-| `ATO Copilot: Configure` | Open extension settings |
-| `ATO Copilot: Analyze Current File` | Analyze the active editor file for compliance |
-| `ATO Copilot: Analyze Workspace` | Scan all supported files in the workspace |
+| `Security Posture Intelligence Navigator: Check Health` | Verify connection to the MCP Server |
+| `Security Posture Intelligence Navigator: Configure` | Open extension settings |
+| `Security Posture Intelligence Navigator: Analyze Current File` | Analyze the active editor file for compliance |
+| `Security Posture Intelligence Navigator: Analyze Workspace` | Scan all supported files in the workspace |
 | `ATO: Sign In` | Run an Entra device-code flow against the configured cloud and cache the token in VS Code SecretStorage (Feature 051 / US5) |
 | `ATO: Sign Out` | Clear the cached token from SecretStorage and update the status bar |
 | `ATO: Switch Tenant` | Restart the device-code flow against a different Entra tenant for multi-tenant accounts |
@@ -68,7 +68,7 @@ Feature 051 (US5) wires CAC/PIV sign-in directly into the extension.
   refresh path itself fails.
 - A `401` from the MCP server (token rejected, conditional-access
   change, account disabled) surfaces a **single** notification
-  "Sign in again to ATO Copilot" with a button. The extension does
+  "Sign in again to Security Posture Intelligence Navigator" with a button. The extension does
   NOT silently retry.
 
 ### Switch tenants
@@ -117,14 +117,14 @@ In Copilot Chat, type:
 
 1. Open a `.bicep`, `.tf`, or `.yaml` file
 2. Open Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
-3. Run **ATO Copilot: Analyze Current File for Compliance**
+3. Run **Security Posture Intelligence Navigator: Analyze Current File for Compliance**
 4. View findings in the side panel with severity-colored badges
 
 ## Requirements
 
 - VS Code 1.90.0 or later
 - GitHub Copilot Chat extension
-- ATO Copilot MCP Server running (default: `http://localhost:3001`)
+- Security Posture Intelligence Navigator MCP Server running (default: `http://localhost:3001`)
 
 ## Development
 

@@ -70,7 +70,7 @@
         {
           "name": "System Name",
           "description": "Official name of the information system",
-          "example": "ATO Copilot Platform",
+          "example": "Security Posture Intelligence Navigator Platform",
           "azureSource": "Azure Resource Manager — resource group names and tags"
         },
         {

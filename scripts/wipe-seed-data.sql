@@ -1,5 +1,5 @@
 -- ============================================================================
---  ATO Copilot — Full seed data wipe (complete FK-ordered deletion)
+--  Security Posture Intelligence Navigator — Full seed data wipe (complete FK-ordered deletion)
 --  Wipes ALL registered systems and every cascade-dependent row.
 --  Preserves: tenant records, onboarding state, CSP profile, user accounts.
 --  Run this before a full re-seed to guarantee a clean slate.

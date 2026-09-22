@@ -135,8 +135,8 @@ Agent: Collecting evidence for AC-2 (Account Management)...
 User: Generate SSP
 Agent: What system name should I use for the SSP?
 
-User: ATO Copilot Platform
-Agent: Generating System Security Plan for ATO Copilot Platform...
+User: Security Posture Intelligence Navigator Platform
+Agent: Generating System Security Plan for Security Posture Intelligence Navigator Platform...
 
   ✅ SSP generated (FedRAMP High template)
   Content includes:

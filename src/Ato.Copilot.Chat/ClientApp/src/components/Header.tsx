@@ -50,7 +50,7 @@ export default function Header({
   const activeConversation = state.conversations.find(
     (c) => c.id === state.activeConversationId
   );
-  const title = activeConversation?.title || 'ATO Copilot';
+  const title = activeConversation?.title || 'Security Posture Intelligence Navigator';
 
   const openSettings = useCallback(() => {
     setSettingsOpen(true);
@@ -300,7 +300,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
             Application
           </h3>
           <div className="space-y-1 text-sm text-gray-700">
-            <p><span className="font-medium">Name:</span> ATO Copilot</p>
+            <p><span className="font-medium">Name:</span> Security Posture Intelligence Navigator</p>
             <p><span className="font-medium">Version:</span> 1.0.0</p>
           </div>
         </div>

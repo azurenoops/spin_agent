@@ -2,7 +2,7 @@
 
 **Created**: 2026-03-04  
 **Status**: Strategic Plan  
-**Purpose**: Enable ATO Copilot to generate Security Assessment Plans (SAPs) for registered systems by combining the control baseline, assessment objectives from NIST SP 800-53A, assessment methods (Test/Examine/Interview), scope boundaries, and scheduling — producing a structured document that meets NIST RMF Step 4 requirements and DoD assessment standards.
+**Purpose**: Enable Security Posture Intelligence Navigator to generate Security Assessment Plans (SAPs) for registered systems by combining the control baseline, assessment objectives from NIST SP 800-53A, assessment methods (Test/Examine/Interview), scope boundaries, and scheduling — producing a structured document that meets NIST RMF Step 4 requirements and DoD assessment standards.
 
 ---
 
@@ -39,7 +39,7 @@ The Security Assessment Plan (SAP) is a mandatory RMF Step 4 deliverable. Per NI
 
 ### The Current Gap
 
-| What Teams Do Today | What ATO Copilot Can Do Today |
+| What Teams Do Today | What Security Posture Intelligence Navigator Can Do Today |
 |---------------------|-------------------------------|
 | Manually create SAP documents in Word from templates | Nothing — SAP generation was explicitly out of scope |
 | Copy control lists from the baseline into SAP tables | `ControlBaseline.ControlIds` exists but is not rendered into SAP format |
@@ -52,7 +52,7 @@ The Security Assessment Plan (SAP) is a mandatory RMF Step 4 deliverable. Per NI
 
 ### The Opportunity
 
-ATO Copilot already has all the data needed to auto-generate a SAP:
+Security Posture Intelligence Navigator already has all the data needed to auto-generate a SAP:
 
 - **Control baseline** — `ControlBaseline.ControlIds` with tailoring rationale and inheritance designations
 - **Assessment objectives** — OSCAL `assessment-objective` parts extracted via `NistControlsService.ExtractObjectives()`
@@ -97,7 +97,7 @@ The missing piece is **assembly** — combining these data sources into a struct
 | **MCP Tools** | SCA, ISSM | `compliance_generate_sap`, `compliance_update_sap`, `compliance_finalize_sap` | `Analyst`, `SecurityLead`, `Administrator` |
 | **MCP Tools** | SCA, ISSM, ISSO | `compliance_get_sap`, `compliance_list_saps` | All roles except `Viewer` |
 | **VS Code (@ato)** | SCA | `@ato Generate a Security Assessment Plan for system X` → produces SAP with assessment methodology | `Analyst`+ |
-| **Teams Bot** | ISSM | `@ATO Copilot show SAP status for system X` → summary card with assessment scope and schedule | `SecurityLead`+ |
+| **Teams Bot** | ISSM | `@Security Posture Intelligence Navigator show SAP status for system X` → summary card with assessment scope and schedule | `SecurityLead`+ |
 
 ---
 

@@ -1,5 +1,5 @@
 -- ============================================================================
---  ATO Copilot — Reassign the 5 demo RegisteredSystems from the system tenant
+--  Security Posture Intelligence Navigator — Reassign the 5 demo RegisteredSystems from the system tenant
 --  (00...000 / Ato.Copilot.System) to the 3 mission-owner tenants of the
 --  Flankspeed CSP portfolio (PEO-790 / PMA 290 / PMS 408).
 --

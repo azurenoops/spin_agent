@@ -30,7 +30,7 @@ export function buildRoadmapPhaseDetailCard(data: RoadmapPhaseDetailData): Recor
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: `ATO Copilot — ${data.phaseName ?? "Phase Detail"}`,
+      text: `Security Posture Intelligence Navigator — ${data.phaseName ?? "Phase Detail"}`,
       weight: "Bolder",
       size: "Large",
     },

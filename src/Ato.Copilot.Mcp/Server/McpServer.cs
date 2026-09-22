@@ -26,7 +26,7 @@ using System.Text.Json;
 namespace Ato.Copilot.Mcp.Server;
 
 /// <summary>
-/// MCP server for the ATO Copilot - compliance-only agent.
+/// MCP server for the Security Posture Intelligence Navigator - compliance-only agent.
 /// Exposes compliance tools via stdio/HTTP for GitHub Copilot, Claude Desktop, etc.
 /// </summary>
 public class McpServer
@@ -818,7 +818,7 @@ public class McpServer
     /// </summary>
     public async Task StartAsync()
     {
-        _logger.LogInformation("Starting ATO Copilot MCP Server (compliance-only)");
+        _logger.LogInformation("Starting Security Posture Intelligence Navigator MCP Server (compliance-only)");
 
         try
         {
@@ -896,7 +896,7 @@ public class McpServer
                 },
                 serverInfo = new
                 {
-                    name = "ATO Copilot",
+                    name = "Security Posture Intelligence Navigator",
                     version = "1.0.0"
                 }
             }

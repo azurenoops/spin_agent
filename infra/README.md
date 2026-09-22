@@ -1,6 +1,6 @@
-# ATO Copilot — Infrastructure as Code (Terraform)
+# Security Posture Intelligence Navigator — Infrastructure as Code (Terraform)
 
-This directory contains the Terraform root module for deploying ATO Copilot to Azure using
+This directory contains the Terraform root module for deploying Security Posture Intelligence Navigator to Azure using
 the [azurenoops overlay modules](https://github.com/azurenoops).
 
 ## Directory Structure

@@ -11,7 +11,7 @@
 
 ## Background
 
-ISSOs maintaining both eMASS (DoD system of record) and SPIN (ATO Copilot workspace) must
+ISSOs maintaining both eMASS (DoD system of record) and SPIN (Security Posture Intelligence Navigator workspace) must
 currently duplicate data entry in both systems. When eMASS data is imported into SPIN via
 the onboarding wizard (Feature 047), fields like `system name`, `DitprId`, security
 categorization levels, baseline, and control counts are pre-populated — but SPIN has no

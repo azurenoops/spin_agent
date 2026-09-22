@@ -1,4 +1,4 @@
-# Quickstart: ATO Copilot Chat Application
+# Quickstart: Security Posture Intelligence Navigator Chat Application
 
 **Feature**: 006-chat-app | **Date**: 2026-02-23
 

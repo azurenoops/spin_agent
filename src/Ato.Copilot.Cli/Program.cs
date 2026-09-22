@@ -1,4 +1,4 @@
-// Ato Copilot administrative CLI (ato-cli)
+// Security Posture Intelligence Navigator administrative CLI (ato-cli)
 //
 // Tenancy/operations tooling. Sub-commands are built in
 // AtoCliCommandFactory so that the integration test project can invoke them

@@ -19,7 +19,7 @@ using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Data.Context;
 
 /// <summary>
-/// Database context for ATO Copilot compliance data.
+/// Database context for Security Posture Intelligence Navigator compliance data.
 /// Supports SQLite (development) and SQL Server (production) providers.
 /// </summary>
 public class AtoCopilotContext : DbContext

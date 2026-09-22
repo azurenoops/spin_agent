@@ -3,7 +3,7 @@
 **Feature Branch**: `005-compliance-watch`  
 **Created**: 2026-02-22  
 **Status**: Draft  
-**Input**: User description: "Continuous Compliance Monitoring — real-time monitoring and alerting system for compliance drift detection within the ATO Copilot"
+**Input**: User description: "Continuous Compliance Monitoring — real-time monitoring and alerting system for compliance drift detection within the Security Posture Intelligence Navigator"
 
 ## User Scenarios & Testing *(mandatory)*
 

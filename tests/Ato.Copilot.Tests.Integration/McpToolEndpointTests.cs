@@ -114,7 +114,7 @@ public class McpToolEndpointTests : IAsyncLifetime
         // Root endpoint
         _app.MapGet("/", () => Microsoft.AspNetCore.Http.Results.Json(new
         {
-            service = "ATO Copilot",
+            service = "Security Posture Intelligence Navigator",
             version = "1.0.0",
             mode = "http"
         }));
@@ -148,7 +148,7 @@ public class McpToolEndpointTests : IAsyncLifetime
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         json.RootElement.GetProperty("status").GetString().Should().Be("healthy");
-        json.RootElement.GetProperty("service").GetString().Should().Contain("ATO Copilot");
+        json.RootElement.GetProperty("service").GetString().Should().Contain("Security Posture Intelligence Navigator");
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class McpToolEndpointTests : IAsyncLifetime
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
-        json.RootElement.GetProperty("service").GetString().Should().Be("ATO Copilot");
+        json.RootElement.GetProperty("service").GetString().Should().Be("Security Posture Intelligence Navigator");
         json.RootElement.GetProperty("version").GetString().Should().Be("1.0.0");
     }
 

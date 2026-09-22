@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ATO Copilot — Onboarding Wizard Azure Subscription API
+  title: Security Posture Intelligence Navigator — Onboarding Wizard Azure Subscription API
   version: 0.1.0
   description: |
     Endpoints backing Step 5 (Azure subscription scope selection). The enumeration endpoint

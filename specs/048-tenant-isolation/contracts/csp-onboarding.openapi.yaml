@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ATO Copilot — CSP Onboarding API (US7)
+  title: Security Posture Intelligence Navigator — CSP Onboarding API (US7)
   version: 0.1.0
   description: |
     Singleton onboarding wizard for the hosting Cloud Service Provider (CSP)

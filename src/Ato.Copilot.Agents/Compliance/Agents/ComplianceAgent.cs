@@ -609,7 +609,7 @@ public class ComplianceAgent : BaseAgent
                 };
             }
 
-            progress?.Report("Routing to ATO Copilot agent...");
+            progress?.Report("Routing to Security Posture Intelligence Navigator agent...");
 
             // ── AI-powered processing path (Feature 011) ────────────────────
             var aiResponse = await TryProcessWithBackendAsync(message, context, cancellationToken, progress);

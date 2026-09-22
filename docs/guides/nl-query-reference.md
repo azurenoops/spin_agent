@@ -6,10 +6,10 @@
 
 ## How to Use This Reference
 
-ATO Copilot accepts natural language queries through all supported interfaces:
+Security Posture Intelligence Navigator accepts natural language queries through all supported interfaces:
 
 - **VS Code**: `@ato "your query"` or `@ato /compliance "your query"`
-- **Microsoft Teams**: Message the ATO Copilot bot directly
+- **Microsoft Teams**: Message the Security Posture Intelligence Navigator bot directly
 - **MCP API**: Send as tool invocations via any MCP client
 
 Replace `{id}`, `{sub-id}`, and similar placeholders with your actual system, subscription, or resource identifiers.

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Harden the ATO Copilot MCP server with nine cross-cutting enterprise capabilities: resilient retry/circuit-breaker pipelines on all HTTP clients, per-endpoint rate limiting, path sanitization and input validation, response-level caching with per-subscription scope, OpenTelemetry metrics export, lazy-loaded knowledge-base parsing, pagination enforcement on tool responses, IL6 offline/air-gapped mode, and SSE streaming reconnection support. The approach extends existing partial implementations (Polly on NIST client, `SlidingWindowRateLimiter` in AlertNotificationService, `IMemoryCache` for NIST data, `PaginationInfo` model, SSE streaming) to system-wide coverage using established .NET 9 / ASP.NET Core primitives.
+Harden the Security Posture Intelligence Navigator MCP server with nine cross-cutting enterprise capabilities: resilient retry/circuit-breaker pipelines on all HTTP clients, per-endpoint rate limiting, path sanitization and input validation, response-level caching with per-subscription scope, OpenTelemetry metrics export, lazy-loaded knowledge-base parsing, pagination enforcement on tool responses, IL6 offline/air-gapped mode, and SSE streaming reconnection support. The approach extends existing partial implementations (Polly on NIST client, `SlidingWindowRateLimiter` in AlertNotificationService, `IMemoryCache` for NIST data, `PaginationInfo` model, SSE streaming) to system-wide coverage using established .NET 9 / ASP.NET Core primitives.
 
 ## Technical Context
 

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Enable ATO Copilot to ingest DISA STIG Viewer checklist (.ckl) and SCAP Compliance Checker XCCDF result (.xccdf) files, parse the XML, resolve STIG findings to NIST 800-53 controls via the CCI mapping chain, create ComplianceFinding and ControlEffectiveness records, track import history, and export CKL files for eMASS upload. Adds 2 new EF Core entities, 1 new service with 2 parsers, and 5 MCP tools.
+Enable Security Posture Intelligence Navigator to ingest DISA STIG Viewer checklist (.ckl) and SCAP Compliance Checker XCCDF result (.xccdf) files, parse the XML, resolve STIG findings to NIST 800-53 controls via the CCI mapping chain, create ComplianceFinding and ControlEffectiveness records, track import history, and export CKL files for eMASS upload. Adds 2 new EF Core entities, 1 new service with 2 parsers, and 5 MCP tools.
 
 ## Technical Context
 

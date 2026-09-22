@@ -12,7 +12,7 @@
 |-------|-------|
 | Publisher | `ato-copilot` |
 | Extension ID | `ato-copilot.ato-copilot-vscode` |
-| Display Name | ATO Copilot |
+| Display Name | Security Posture Intelligence Navigator |
 | VS Code Engine | `^1.90.0` |
 | Activation | `onChatParticipant:ato` |
 
@@ -33,7 +33,7 @@ participant.isSticky = true;
 |---------|---------------|-------------|
 | `/compliance` | `ComplianceAgent` | Run compliance assessments, query controls, remediation |
 | `/knowledge` | `KnowledgeBaseAgent` | Query ATO knowledge base, best practices, documentation |
-| `/config` | `ConfigurationAgent` | Manage ATO Copilot configuration settings |
+| `/config` | `ConfigurationAgent` | Manage Security Posture Intelligence Navigator configuration settings |
 
 ### Request → MCP Server Mapping
 
@@ -94,23 +94,23 @@ Check MCP Server health status.
 
 | Property | Value |
 |----------|-------|
-| Title | ATO Copilot: Check API Health |
-| Category | ATO Copilot |
+| Title | Security Posture Intelligence Navigator: Check API Health |
+| Category | Security Posture Intelligence Navigator |
 
 **Behavior**:
 - `GET {apiUrl}/health` with configured timeout
-- Success → `vscode.window.showInformationMessage("ATO Copilot API is healthy")`
-- Failure → `vscode.window.showWarningMessage("ATO Copilot API is unreachable", "Configure Connection")`
+- Success → `vscode.window.showInformationMessage("Security Posture Intelligence Navigator API is healthy")`
+- Failure → `vscode.window.showWarningMessage("Security Posture Intelligence Navigator API is unreachable", "Configure Connection")`
 - On activation: runs silently as background check (FR-034)
 
 ### `ato.configure` (FR-029, FR-032)
 
-Open ATO Copilot settings.
+Open Security Posture Intelligence Navigator settings.
 
 | Property | Value |
 |----------|-------|
-| Title | ATO Copilot: Configure Connection |
-| Category | ATO Copilot |
+| Title | Security Posture Intelligence Navigator: Configure Connection |
+| Category | Security Posture Intelligence Navigator |
 
 **Behavior**: Opens VS Code settings filtered to `@ext:ato-copilot.ato-copilot-vscode`
 
@@ -120,8 +120,8 @@ Analyze current editor file for compliance.
 
 | Property | Value |
 |----------|-------|
-| Title | ATO Copilot: Analyze Current File for Compliance |
-| Category | ATO Copilot |
+| Title | Security Posture Intelligence Navigator: Analyze Current File for Compliance |
+| Category | Security Posture Intelligence Navigator |
 
 **Request to MCP Server**:
 ```typescript
@@ -146,8 +146,8 @@ Analyze workspace IaC files for compliance.
 
 | Property | Value |
 |----------|-------|
-| Title | ATO Copilot: Analyze Workspace for Compliance |
-| Category | ATO Copilot |
+| Title | Security Posture Intelligence Navigator: Analyze Workspace for Compliance |
+| Category | Security Posture Intelligence Navigator |
 
 **File patterns**: `**/*.bicep`, `**/*.tf`, `**/*.yaml`, `**/*.yml`, `**/*.json`  
 **Excludes**: `**/node_modules/**`, `**/.git/**`, `**/bin/**`, `**/obj/**`
@@ -171,10 +171,10 @@ Analyze workspace IaC files for compliance.
 
 | Error Code | User Message | Action Button |
 |------------|-------------|---------------|
-| `ECONNREFUSED` | "Cannot connect to ATO Copilot API at {url}" | "Configure Connection" |
-| `ETIMEDOUT` | "ATO Copilot API request timed out" | "Configure Connection" |
-| HTTP 401 | "ATO Copilot API authentication failed" | "Configure Connection" |
-| HTTP 500 | "ATO Copilot API encountered an error" | "Retry" |
+| `ECONNREFUSED` | "Cannot connect to Security Posture Intelligence Navigator API at {url}" | "Configure Connection" |
+| `ETIMEDOUT` | "Security Posture Intelligence Navigator API request timed out" | "Configure Connection" |
+| HTTP 401 | "Security Posture Intelligence Navigator API authentication failed" | "Configure Connection" |
+| HTTP 500 | "Security Posture Intelligence Navigator API encountered an error" | "Retry" |
 | Other | "An unexpected error occurred: {message}" | "Configure Connection" |
 
 ---

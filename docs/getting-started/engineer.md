@@ -67,7 +67,7 @@ using Azure Firewall with default-deny rules...'"
 
 ## VS Code Integration
 
-ATO Copilot integrates directly into your VS Code workflow:
+Security Posture Intelligence Navigator integrates directly into your VS Code workflow:
 
 - **IaC Diagnostics** — Compliance findings appear as squiggly underlines (CAT I/II → Error, CAT III → Warning)
 - **Quick Fix** — Lightbulb Code Actions to apply suggested fixes from STIG findings
@@ -156,7 +156,7 @@ Simulation mode **only activates in the Development environment**. In Production
 
 ## AI Backend Configuration
 
-ATO Copilot supports multiple AI providers for natural language processing. Configure the provider in `appsettings.json`:
+Security Posture Intelligence Navigator supports multiple AI providers for natural language processing. Configure the provider in `appsettings.json`:
 
 ### Provider Selection
 

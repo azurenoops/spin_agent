@@ -368,7 +368,7 @@ public class ApiMismatchRouteTests : IAsyncLifetime
 
         _app.MapGet("/healthz-test", () => Microsoft.AspNetCore.Http.Results.Json(new
         {
-            service = "ATO Copilot",
+            service = "Security Posture Intelligence Navigator",
             version = "1.0.0",
             mode = "test"
         }));

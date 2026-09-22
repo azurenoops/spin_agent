@@ -18,7 +18,7 @@ export function buildClarificationCard(data: ClarificationData): Record<string, 
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Additional Information Needed",
+      text: "Security Posture Intelligence Navigator — Additional Information Needed",
       weight: "Bolder",
       size: "Large",
     },

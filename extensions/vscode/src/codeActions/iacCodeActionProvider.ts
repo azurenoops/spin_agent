@@ -67,7 +67,7 @@ export class IacCodeActionProvider implements vscode.CodeActionProvider {
     const fixableDiagnostics: vscode.Diagnostic[] = [];
 
     for (const diagnostic of context.diagnostics) {
-      if (diagnostic.source !== "ATO Copilot") continue;
+      if (diagnostic.source !== "Security Posture Intelligence Navigator") continue;
 
       const finding = getFinding(diagnostic);
       if (!finding?.autoRemediable || !finding.suggestedFix) continue;

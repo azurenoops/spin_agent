@@ -585,7 +585,7 @@ public class McpHttpBridge
         var health = new Dictionary<string, object>
         {
             ["status"] = overallStatus,
-            ["service"] = "ATO Copilot MCP",
+            ["service"] = "Security Posture Intelligence Navigator MCP",
             ["version"] = buildVersion,
             ["timestamp"] = DateTime.UtcNow,
             ["uptimeSeconds"] = (DateTime.UtcNow - ServerStartTime).TotalSeconds,

@@ -1,6 +1,6 @@
 # Database Providers
 
-This page documents the three database providers supported by ATO Copilot,
+This page documents the three database providers supported by Security Posture Intelligence Navigator,
 how to configure them, and what each one is designed for.
 
 ---
@@ -84,7 +84,7 @@ Feature 041 is fully implemented and validated.
 
 ## EF Core Migrations
 
-ATO Copilot uses two initialization strategies depending on the provider:
+Security Posture Intelligence Navigator uses two initialization strategies depending on the provider:
 
 | Provider | Strategy |
 |----------|----------|

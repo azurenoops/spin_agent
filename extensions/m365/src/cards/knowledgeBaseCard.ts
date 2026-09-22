@@ -21,7 +21,7 @@ export function buildKnowledgeBaseCard(data: KnowledgeBaseData): Record<string, 
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Knowledge Base",
+      text: "Security Posture Intelligence Navigator — Knowledge Base",
       weight: "Bolder",
       size: "Large",
     },

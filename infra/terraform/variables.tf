@@ -1,5 +1,5 @@
 # =============================================================================
-# variables.tf — All input variables for the ATO Copilot Terraform root module
+# variables.tf — All input variables for the Security Posture Intelligence Navigator Terraform root module
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ variable "bot_app_id" {
 variable "bot_display_name" {
   description = "Display name shown in Teams for the bot."
   type        = string
-  default     = "ATO Copilot"
+  default     = "Security Posture Intelligence Navigator"
 }
 
 # ---------------------------------------------------------------------------

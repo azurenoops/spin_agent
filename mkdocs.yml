@@ -1,5 +1,5 @@
-site_name: ATO Copilot Documentation
-site_description: Comprehensive user documentation for ATO Copilot — AI-powered NIST RMF compliance assistant
+site_name: Security Posture Intelligence Navigator Documentation
+site_description: Comprehensive user documentation for Security Posture Intelligence Navigator — AI-powered NIST RMF compliance assistant
 site_url: ""
 
 theme:

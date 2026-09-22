@@ -17,7 +17,7 @@ import type { LoginConfig } from './features/auth/types';
  * (no bearer required) so we use a dedicated axios instance with no
  * interceptors — the MSAL interceptor only attaches after this resolves.
  *
- * The server returns the standard ATO Copilot envelope
+ * The server returns the standard Security Posture Intelligence Navigator envelope
  * `{ status, data, metadata }` per http-api.md § 1.4 — unwrap to the
  * `LoginConfig` payload before handing it to the MSAL bootstrap.
  */
@@ -47,7 +47,7 @@ function renderError(message: string): void {
   if (!root) return;
   root.innerHTML = `
     <div style="font-family: ui-sans-serif, system-ui; padding: 2rem; max-width: 720px; margin: 0 auto;">
-      <h1 style="color: #b91c1c;">ATO Copilot — Bootstrap failure</h1>
+      <h1 style="color: #b91c1c;">Security Posture Intelligence Navigator — Bootstrap failure</h1>
       <p>The dashboard could not load its login configuration.</p>
       <pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.5rem; white-space: pre-wrap;">${message}</pre>
       <p>Please refresh the page. If the problem persists, contact your administrator.</p>

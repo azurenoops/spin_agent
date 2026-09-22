@@ -988,11 +988,11 @@ public static class AuthEndpoints
         var logger = loggerFactory.CreateLogger("AuthEndpoints.Simulate");
         var auditCtx = auditCtxAccessor.FromHttpContext(http);
 
-        // ─── Layer 3 — environment gate ────────────────────────────────
+        // ─── Layer 3 — environment and configuration gate ─────────────
         // MUST run FIRST so non-Development requests cannot leak signal
         // about identity-lookup state. The response is a BARE 404 (no
         // envelope, no body) so the route looks like it does not exist.
-        if (!env.IsDevelopment())
+        if (!env.IsDevelopment() || !cacAuthOptions.Value.SimulationMode)
         {
             var blockedMetadata = System.Text.Json.JsonSerializer.Serialize(new
             {

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Compliance Watch adds continuous compliance monitoring and alerting to the ATO Copilot. The system captures compliant baselines after assessments, runs scheduled and event-driven compliance checks, detects drift from baselines, creates typed alerts with a full lifecycle (NEW → ACKNOWLEDGED → IN_PROGRESS → RESOLVED/DISMISSED/ESCALATED), supports alert rules, suppression, multi-channel notifications, escalation paths, correlation/grouping, historical queries, Kanban integration, and opt-in auto-remediation. Implementation extends the existing `IComplianceMonitoringService`, adds new entities to `AtoCopilotContext`, creates 23 new MCP tools following the `BaseTool` pattern, and introduces two new `BackgroundService` implementations for scheduled monitoring and escalation.
+Compliance Watch adds continuous compliance monitoring and alerting to the Security Posture Intelligence Navigator. The system captures compliant baselines after assessments, runs scheduled and event-driven compliance checks, detects drift from baselines, creates typed alerts with a full lifecycle (NEW → ACKNOWLEDGED → IN_PROGRESS → RESOLVED/DISMISSED/ESCALATED), supports alert rules, suppression, multi-channel notifications, escalation paths, correlation/grouping, historical queries, Kanban integration, and opt-in auto-remediation. Implementation extends the existing `IComplianceMonitoringService`, adds new entities to `AtoCopilotContext`, creates 23 new MCP tools following the `BaseTool` pattern, and introduces two new `BackgroundService` implementations for scheduled monitoring and escalation.
 
 ## Technical Context
 

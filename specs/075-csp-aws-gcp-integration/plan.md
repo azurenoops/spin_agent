@@ -2,7 +2,7 @@
 
 ## Overview
 
-Feature 075 extends ATO Copilot with multi-cloud scanning support (AWS Commercial, AWS GovCloud, GCP) using a provider abstraction pattern. The Azure engine is refactored as the first implementation; AWS and GCP follow.
+Feature 075 extends Security Posture Intelligence Navigator with multi-cloud scanning support (AWS Commercial, AWS GovCloud, GCP) using a provider abstraction pattern. The Azure engine is refactored as the first implementation; AWS and GCP follow.
 
 ## Implementation Sequence
 

@@ -10,7 +10,7 @@
 
 ## Background
 
-ATO Copilot hosts a shared CSP (Cloud Service Provider) capability catalog managed by CSP Admins under
+Security Posture Intelligence Navigator hosts a shared CSP (Cloud Service Provider) capability catalog managed by CSP Admins under
 Feature 048/050. Each `CspInheritedCapability` maps cloud service behaviors to NIST 800-53 Rev 5
 control IDs. When an organization subscribes a capability to a system, those controls are inherited
 into the SSP's control baseline, reducing manual implementation burden.

@@ -580,7 +580,7 @@ public sealed class CspDashboardService : ICspDashboardService
             "IATT" => AuthorizationDecisionType.Iatt,
             "Denial" => AuthorizationDecisionType.Dato,
             // The contract also lists "IATO" but no domain-side equivalent
-            // exists (the OpenAPI enum was authored to keep ATO Copilot
+            // exists (the OpenAPI enum was authored to keep Security Posture Intelligence Navigator
             // forward-compatible with FedRAMP joint-authorization data).
             // Returning null filters out nothing rather than over-filtering.
             "IATO" => null,

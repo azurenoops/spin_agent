@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a unified evidence management system to the ATO Copilot Dashboard. Users can upload evidence artifacts (screenshots, scan results, config exports) and attach them to control implementations or security capabilities. A new Evidence Repository page provides a centralized, searchable view of all evidence for a system. The feature also surfaces the existing `EvidenceStorageService` automated collection via a dashboard "Collect Evidence" button. File storage uses an abstracted provider interface (local filesystem default, Azure Blob Storage optional) configurable via server-side settings (`appsettings.json` / environment variables).
+Add a unified evidence management system to the Security Posture Intelligence Navigator Dashboard. Users can upload evidence artifacts (screenshots, scan results, config exports) and attach them to control implementations or security capabilities. A new Evidence Repository page provides a centralized, searchable view of all evidence for a system. The feature also surfaces the existing `EvidenceStorageService` automated collection via a dashboard "Collect Evidence" button. File storage uses an abstracted provider interface (local filesystem default, Azure Blob Storage optional) configurable via server-side settings (`appsettings.json` / environment variables).
 
 ## Technical Context
 

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to ATO Copilot are documented in this file.
+All notable changes to Security Posture Intelligence Navigator are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -138,7 +138,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **AI Provider Selection** — Unified `AzureAi:Provider` config switch (`OpenAi`, `Foundry`) with `AzureAi:Enabled` master flag enables operators to choose AI provider without code changes. Configuration bound via `AzureAiOptions` / `AiProvider` enum.
 - **Foundry Agent Client** — `PersistentAgentsClient` from `Azure.AI.Agents.Persistent` 1.1.0 registered via DI with `DefaultAzureCredential` (Gov/Commercial authority host aware via `AzureAi:CloudEnvironment`).
-- **Agent Provisioning** — Each ATO Copilot agent (Compliance, Configuration, KnowledgeBase) auto-provisions a corresponding Foundry agent at startup with system prompt and tool definitions. Idempotent create-or-update by name.
+- **Agent Provisioning** — Each Security Posture Intelligence Navigator agent (Compliance, Configuration, KnowledgeBase) auto-provisions a corresponding Foundry agent at startup with system prompt and tool definitions. Idempotent create-or-update by name.
 - **Thread & Run Processing** — Full `TryProcessWithFoundryAsync` implementation: thread creation, user message, run creation, polling, `RequiresAction` tool dispatch (local `BaseTool.ExecuteAsync`), response extraction.
 - **Thread-to-Conversation Mapping** — `ConcurrentDictionary<string, string>` maps conversations to persistent Foundry threads for multi-turn context.
 - **Run Timeout Enforcement** — Configurable `AzureAi:RunTimeoutSeconds` with automatic `CancelRunAsync` on timeout. `MaxToolIterations` (configurable, default 10) prevents infinite tool dispatch loops.
@@ -277,7 +277,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Multi-Turn Conversation Support** — Enhanced system prompt instructs the AI to immediately execute tools when users provide requested data on follow-up turns, eliminating "I will route your request" non-actions
 - **System Name Resolution** — AI automatically calls `compliance_list_systems` to resolve human-friendly system names (e.g., "Eagle Eye") to UUIDs before executing dependent tool calls
 - **AI Path Suggestion Buttons** — `TryProcessWithAiAsync` now populates `Suggestions` via `BuildSuggestions()` so quick-action buttons appear on AI-generated responses
-- **VS Code Chat Participant Icon** — Added `iconPath` to `package.json` chatParticipants definition for proper ATO Copilot branding in VS Code chat
+- **VS Code Chat Participant Icon** — Added `iconPath` to `package.json` chatParticipants definition for proper Security Posture Intelligence Navigator branding in VS Code chat
 
 ### Changed
 

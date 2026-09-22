@@ -11,7 +11,7 @@ introduced under `/api/auth/`. All endpoints live in
 `src/Ato.Copilot.Mcp/Endpoints/Auth/AuthEndpoints.cs` and are registered
 in `Program.cs` after the existing `CacAuthenticationMiddleware`.
 
-All endpoints emit the standard ATO Copilot envelope from
+All endpoints emit the standard Security Posture Intelligence Navigator envelope from
 [Constitution § User Experience Standards](../../../.specify/memory/constitution.md):
 
 ```jsonc
@@ -56,7 +56,7 @@ No query parameters. No request body.
   "status": "success",
   "data": {
     "branding": {
-      "deploymentName": "Coastal Watch — ATO Copilot",
+      "deploymentName": "Coastal Watch — Security Posture Intelligence Navigator",
       "logoUrl": "/branding/coastal-watch-logo.svg",     // null → SPA falls back to default
       "supportEmail": "ato-support@coastal-watch.gov"
     },
@@ -276,7 +276,8 @@ No body; the `identityId` query parameter selects an entry from
 
 ### 5.3 Behavior
 
-1. **Environment gate**: if `ASPNETCORE_ENVIRONMENT != "Development"`,
+1. **Environment/configuration gate**: if `ASPNETCORE_ENVIRONMENT != "Development"`
+   OR `CacAuth:SimulationMode=false`,
    return `404 NOT_FOUND` (pretend the route doesn't exist) AND emit a
    `SimulationBlocked` audit row with `severity=Security` per FR-024.
 2. Look up the identity descriptor in `CacAuth:SimulatedIdentities`.
@@ -312,7 +313,7 @@ system-role assignments, and does not bypass the production simulation guard.
 
 | Status | Code | Trigger |
 |---|---|---|
-| 404 | (no body) | NOT `404 NOT_FOUND` envelope — a bare 404 so the route looks non-existent to any caller in non-Development. |
+| 404 | (no body) | A bare 404 when the environment is not Development or `CacAuth:SimulationMode=false`. No simulation session cookies are issued. |
 | 404 | `SIMULATED_IDENTITY_NOT_FOUND` | Development environment; identityId not in config. |
 
 ## 6. Throttling envelope (FR-034 / FR-035)

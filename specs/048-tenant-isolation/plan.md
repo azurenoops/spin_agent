@@ -5,7 +5,7 @@
 
 ## Summary
 
-Introduce a first-class `Tenant` (root authorization boundary) → `Organization` (sub-grouping) → System hierarchy across the full ATO Copilot stack, retrofit `TenantId` (and where applicable `OrganizationId`) onto every tenant-scoped row in `AtoCopilotContext` (~115 DbSets, ~60 of them currently un-scoped), and enforce isolation in three layers of defense:
+Introduce a first-class `Tenant` (root authorization boundary) → `Organization` (sub-grouping) → System hierarchy across the full Security Posture Intelligence Navigator stack, retrofit `TenantId` (and where applicable `OrganizationId`) onto every tenant-scoped row in `AtoCopilotContext` (~115 DbSets, ~60 of them currently un-scoped), and enforce isolation in three layers of defense:
 
 1. **Application** — a request-scoped `ITenantContext` resolved from CAC/Entra claims, an attribute-driven (`[TenantScoped]` / `[GlobalReference]`) `HasQueryFilter` registration in `OnModelCreating`, and a `TenantStampingSaveChangesInterceptor` that stamps `TenantId` on inserts and rejects cross-tenant FK references.
 2. **Database** — SQL Server Row-Level Security policies driven by `SESSION_CONTEXT('TenantId')` set per pooled connection via a `DbConnectionInterceptor`; SQLite (dev) falls back to the EF query filter only with a startup warning.

@@ -24,7 +24,7 @@ public sealed class DeploymentOptions
     /// Deployment mode. <see cref="DeploymentMode.SingleTenant"/> (default) is
     /// the on-prem / single-organization configuration.
     /// <see cref="DeploymentMode.MultiTenant"/> is the CSP-hosted configuration
-    /// where many tenants share one ATO Copilot installation.
+    /// where many tenants share one Security Posture Intelligence Navigator installation.
     /// </summary>
     public DeploymentMode Mode { get; set; } = DeploymentMode.SingleTenant;
 
@@ -51,7 +51,7 @@ public sealed class TenantPolicyOptions
     public bool AllowSelfOnboarding { get; set; }
 }
 
-/// <summary>Deployment mode for the ATO Copilot MCP host.</summary>
+/// <summary>Deployment mode for the Security Posture Intelligence Navigator MCP host.</summary>
 public enum DeploymentMode
 {
     /// <summary>Single tenant — on-prem / single-organization deployment.</summary>

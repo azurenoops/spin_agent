@@ -22,7 +22,7 @@
 
 ## Three-Tier Contribution Model *(mandatory)*
 
-ATO Copilot operates primarily at the **organization level**, with ISSMs and ISSOs managing the compliance lifecycle across multiple systems. However, the people who best understand a system's mission, users, data, and operational context are **Mission Owners** — not security staff. This feature introduces a dedicated contribution tier for Mission Owners, creating a structured path for mission-level input to flow into the RMF process.
+Security Posture Intelligence Navigator operates primarily at the **organization level**, with ISSMs and ISSOs managing the compliance lifecycle across multiple systems. However, the people who best understand a system's mission, users, data, and operational context are **Mission Owners** — not security staff. This feature introduces a dedicated contribution tier for Mission Owners, creating a structured path for mission-level input to flow into the RMF process.
 
 ### Tier Definitions
 

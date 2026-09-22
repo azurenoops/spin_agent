@@ -100,7 +100,7 @@ Key design points:
 
 **Decision**: The exclusion filter operates at evidence content generation time via the `ClientType.Simulated` marker.
 
-**Rationale**: `EvidenceStorageService.CollectEvidenceAsync` does **not** currently reference `CacSession` records. Evidence is collected from Azure services (Policy, Defender) and stored with `CollectedBy = "ATO Copilot (automated)"`. The `ComplianceEvidence` model has no `IsSimulated` flag or `CacSession` foreign key.
+**Rationale**: `EvidenceStorageService.CollectEvidenceAsync` does **not** currently reference `CacSession` records. Evidence is collected from Azure services (Policy, Defender) and stored with `CollectedBy = "Security Posture Intelligence Navigator (automated)"`. The `ComplianceEvidence` model has no `IsSimulated` flag or `CacSession` foreign key.
 
 FR-014 is a **forward-looking guard** for AC-2, AU-2, AU-3 controls where session/audit data would appear in evidence content. Implementation approach:
 

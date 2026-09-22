@@ -15,7 +15,7 @@ Feature 021 fills the two highest-priority gaps in the RMF Prepare phase:
 
 ## Prerequisites
 
-- ATO Copilot running (Feature 015+ deployed)
+- Security Posture Intelligence Navigator running (Feature 015+ deployed)
 - At least one registered system with security categorization and information types defined
 - .NET 9.0 SDK, Docker
 

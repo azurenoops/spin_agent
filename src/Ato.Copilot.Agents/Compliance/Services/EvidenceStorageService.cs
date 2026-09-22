@@ -60,7 +60,7 @@ public class EvidenceStorageService : IEvidenceStorageService
             EvidenceType = DetermineEvidenceType(family),
             Description = $"Automated evidence collection for {controlId}",
             Content = content,
-            CollectedBy = "ATO Copilot (automated)",
+            CollectedBy = "Security Posture Intelligence Navigator (automated)",
             EvidenceCategory = DetermineCategory(family),
             ContentHash = ComputeHash(content)
         };

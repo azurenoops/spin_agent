@@ -131,7 +131,7 @@ XNamespace xccdf11 = "http://checklists.nist.gov/xccdf/1.1";
 
 ---
 
-## R3: Existing ATO Copilot Integration Points
+## R3: Existing Security Posture Intelligence Navigator Integration Points
 
 ### StigControl Record (read-only, from curated JSON)
 

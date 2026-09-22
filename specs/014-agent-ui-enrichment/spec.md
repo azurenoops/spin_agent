@@ -59,7 +59,7 @@ Currently the VS Code analysis panel renders only 5 finding fields (controlId, t
 
 **Why this priority**: VS Code is the primary developer interface. Engineers need full compliance context to prioritize and remediate findings during coding.
 
-**Independent Test**: Can be tested by running "ATO Copilot: Analyze Current File for Compliance" on a `.bicep` file and verifying the webview panel shows findings with 5 severity levels (Critical/High/Medium/Low/Informational), control family groupings, a "NIST 800-53 Rev 5" framework badge, resource identifiers, and auto-remediation indicators.
+**Independent Test**: Can be tested by running "Security Posture Intelligence Navigator: Analyze Current File for Compliance" on a `.bicep` file and verifying the webview panel shows findings with 5 severity levels (Critical/High/Medium/Low/Informational), control family groupings, a "NIST 800-53 Rev 5" framework badge, resource identifiers, and auto-remediation indicators.
 
 **Acceptance Scenarios**:
 
@@ -152,7 +152,7 @@ Currently the VS Code participant renders only raw Markdown text. Agent attribut
 - **FR-011**: M365 extension MUST update the intent-based card routing to handle: `"compliance"` → compliance card (with sub-routing to finding detail, remediation plan, alert lifecycle, compliance trend, evidence collection, kanban board cards based on `data` type), `"knowledgebase"` → knowledge base card (with sub-routing to NIST control card), `"configuration"` → configuration card, `"clarification"` → multi-turn clarification card, default → generic card. Removed intent types (cost, deployment, infrastructure, resource) MUST NOT appear in the routing logic.
 - **FR-012**: M365 extension MUST update the `McpResponse` TypeScript interface to align with the enriched server response, using `agentUsed` (matching server output), `intentType`, `data`, `toolsExecuted`, `suggestions`, `requiresFollowUp`, `followUpPrompt`, and `missingFields`. (See also FR-026 for cross-cutting interface alignment.)
 - **FR-013**: All M365 Adaptive Cards MUST display an agent attribution footer showing `agentUsed` when present.
-- **FR-014**: M365 extension MUST display a typing indicator or "ATO Copilot is processing..." message while waiting for the MCP server response to provide progress feedback for long-running operations per Constitution VII.
+- **FR-014**: M365 extension MUST display a typing indicator or "Security Posture Intelligence Navigator is processing..." message while waiting for the MCP server response to provide progress feedback for long-running operations per Constitution VII.
 
 #### Drill-Down Navigation & Action Buttons
 

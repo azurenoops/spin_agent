@@ -2,7 +2,7 @@
 
 **Created**: 2026-03-07  
 **Status**: Strategic Plan  
-**Purpose**: Enable ATO Copilot to manage Privacy Impact Assessments (PIAs), Privacy Threshold Analyses (PTAs), and system interconnection inventories with ISA/MOU tracking — completing the two mandatory Prepare-phase deliverables currently missing from the RMF lifecycle.
+**Purpose**: Enable Security Posture Intelligence Navigator to manage Privacy Impact Assessments (PIAs), Privacy Threshold Analyses (PTAs), and system interconnection inventories with ISA/MOU tracking — completing the two mandatory Prepare-phase deliverables currently missing from the RMF lifecycle.
 
 ---
 
@@ -13,7 +13,7 @@
 - Q: Should the PIA be a standalone document or embedded in the SSP? → A: Standalone document with its own lifecycle (Draft → UnderReview → Approved → Expired). The SSP references the PIA by ID but does not contain it. This matches OMB M-03-22 guidance requiring a separate, publicly posted PIA.
 - Q: Are all systems required to complete a PIA? → A: No. Systems that do not collect, maintain, or disseminate PII only need a Privacy Threshold Analysis (PTA). The PTA determines whether a full PIA is required. Both are modeled.
 - Q: How do interconnections relate to the authorization boundary? → A: Authorization boundaries (`AuthorizationBoundary`) track Azure resources *within* the system. Interconnections track *external* system-to-system links that cross the boundary. They are complementary — the boundary defines what's inside, interconnections define what crosses.
-- Q: Should ISA/MOU documents be stored as file content or references? → A: References only (document title, location, and metadata). Actual ISA/MOU documents are stored in external document management systems (SharePoint, eMASS). ATO Copilot tracks their existence, status, and expiration.
+- Q: Should ISA/MOU documents be stored as file content or references? → A: References only (document title, location, and metadata). Actual ISA/MOU documents are stored in external document management systems (SharePoint, eMASS). Security Posture Intelligence Navigator tracks their existence, status, and expiration.
 - Q: What happens when an ISA expires? → A: The ConMon service detects ISA expiration during monitoring checks and creates a `SignificantChange` record with `ChangeType = "New Interconnection"`. This triggers reauthorization evaluation per existing ConMon workflow.
 - Q: What happens to the PTA/PIA when security categorization info types change? → A: PTA is automatically invalidated when information types change — forces re-analysis. If a PIA was approved, its status is set to `UnderReview` pending the new PTA determination. This ensures the privacy assessment always reflects the current system state.
 - Q: Can a single interconnection have multiple agreements (ISA + MOU)? → A: Yes. Multiple agreements are allowed per interconnection. The gate requires at least one Signed and current agreement per active interconnection. All agreement expirations are tracked independently — if any agreement expires, it is flagged in validation, but the gate only fails if no Signed+current agreement remains.
@@ -27,7 +27,7 @@
 
 ### Why This Matters
 
-Two mandatory RMF Prepare-phase deliverables have **zero implementation** in ATO Copilot despite being required by federal law and DoD policy:
+Two mandatory RMF Prepare-phase deliverables have **zero implementation** in Security Posture Intelligence Navigator despite being required by federal law and DoD policy:
 
 1. **Privacy Impact Assessment (PIA)** — Required by the E-Government Act of 2002 §208, OMB M-03-22, OMB Circular A-130, and DoDI 5400.11 for any system that collects, maintains, or disseminates Personally Identifiable Information (PII). A system cannot receive an ATO if it processes PII without a current PIA.
 
@@ -37,7 +37,7 @@ The irony: the knowledge base already references both as required deliverables �
 
 ### The Current Gap
 
-| What Teams Must Do | What ATO Copilot Can Do Today |
+| What Teams Must Do | What Security Posture Intelligence Navigator Can Do Today |
 |---------------------|-------------------------------|
 | Conduct Privacy Threshold Analysis (PTA) for every system | Nothing — no PTA model or workflow |
 | Complete PIAs for systems processing PII | Nothing — no PIA model, questionnaire, or document generation |
@@ -49,7 +49,7 @@ The irony: the knowledge base already references both as required deliverables �
 
 ### The Opportunity
 
-ATO Copilot already has:
+Security Posture Intelligence Navigator already has:
 - `SecurityCategorization` with `InformationType` records containing SP 800-60 categories — these can identify PII-processing information types
 - `ConMonService` with `SignificantChange` including `ChangeType = "New Interconnection"` — just needs source data
 - `SspService` ready for additional section generation — §10 slot is empty
@@ -78,7 +78,7 @@ The missing piece is **data models + services** — entities for PTA/PIA/Interco
 
 - Not a Privacy Act System of Records Notice (SORN) generator — SORNs are published in the Federal Register via a separate legal process
 - Not a data loss prevention (DLP) system — we track what PII exists, we don't prevent its exfiltration
-- Not a document storage system — ISA/MOU documents are referenced by URL, not stored in ATO Copilot
+- Not a document storage system — ISA/MOU documents are referenced by URL, not stored in Security Posture Intelligence Navigator
 - Not a network monitoring tool — interconnections are documented, not actively monitored at the network layer
 - Not a consent management platform — individual opt-in/opt-out is outside our scope
 

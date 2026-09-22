@@ -13,7 +13,7 @@
 **Alternatives considered**:
 - Import full SP 800-60 Vol II catalog as seed data → Rejected: adds ~400 entries with ongoing maintenance burden, and the PII classification still requires human judgment for many types.
 - AI-based PII classification from info type names → Rejected: non-deterministic, creates compliance risk (PTA is a legal determination).
-- Delegate entirely to manual mode → Rejected: misses the auto-detection value proposition that makes ATO Copilot faster than manual PTA worksheets.
+- Delegate entirely to manual mode → Rejected: misses the auto-detection value proposition that makes Security Posture Intelligence Navigator faster than manual PTA worksheets.
 
 ---
 

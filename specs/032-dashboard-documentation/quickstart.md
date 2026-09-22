@@ -4,7 +4,7 @@
 
 ## What This Feature Does
 
-Adds three documentation channels to the ATO Copilot Dashboard:
+Adds three documentation channels to the Security Posture Intelligence Navigator Dashboard:
 
 1. **Help slide-out panel** — Click the header help icon (?) to open a scrollable guide covering all 6 dashboard pages
 2. **Contextual help tooltips** — Question mark icons next to 9 System Detail sections show short explanations with empty-state guidance

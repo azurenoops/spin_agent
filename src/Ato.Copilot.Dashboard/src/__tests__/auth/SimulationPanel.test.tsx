@@ -36,7 +36,7 @@ import SimulationPanel from '../../features/auth/SimulationPanel';
 function makeConfig(simulation: SimulationPanelDescriptor | null): LoginConfig {
   return {
     branding: {
-      deploymentName: 'Coastal Watch — ATO Copilot',
+      deploymentName: 'Coastal Watch — Security Posture Intelligence Navigator',
       logoUrl: null,
       supportEmail: 'support@coastal-watch.gov',
     },

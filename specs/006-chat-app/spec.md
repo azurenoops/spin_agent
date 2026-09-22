@@ -1,9 +1,9 @@
-# Feature Specification: ATO Copilot Chat Application
+# Feature Specification: Security Posture Intelligence Navigator Chat Application
 
 **Feature Branch**: `006-chat-app`  
 **Created**: 2026-02-23  
 **Status**: Draft  
-**Input**: User description: "Full-stack conversational chat application — ASP.NET Core 9.0 backend with REST APIs and SignalR hub for real-time messaging, React 18 + TypeScript frontend styled with Tailwind CSS, serving as the primary user interface for the ATO Copilot."
+**Input**: User description: "Full-stack conversational chat application — ASP.NET Core 9.0 backend with REST APIs and SignalR hub for real-time messaging, React 18 + TypeScript frontend styled with Tailwind CSS, serving as the primary user interface for the Security Posture Intelligence Navigator."
 
 ## Clarifications
 
@@ -117,7 +117,7 @@ A user can toggle the conversation sidebar open and closed, view application inf
 
 1. **Given** the sidebar is open, **When** the user clicks the menu toggle button, **Then** the sidebar slides out of view and the chat area expands to fill the space.
 2. **Given** the user clicks the settings gear icon, **When** the settings modal opens, **Then** it displays the application name, version (1.0.0), feature list, and keyboard shortcuts.
-3. **Given** a conversation is selected, **When** the user views the header, **Then** the header displays the conversation's title. When no conversation is selected, the header displays "ATO Copilot."
+3. **Given** a conversation is selected, **When** the user views the header, **Then** the header displays the conversation's title. When no conversation is selected, the header displays "Security Posture Intelligence Navigator."
 
 ---
 

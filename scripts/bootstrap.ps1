@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    ATO Copilot — Developer Machine Bootstrap (Windows / PowerShell)
+    Security Posture Intelligence Navigator — Developer Machine Bootstrap (Windows / PowerShell)
 
 .DESCRIPTION
     Idempotent. Safe to re-run. Verifies prerequisites, installs what is

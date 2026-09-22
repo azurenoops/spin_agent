@@ -48,6 +48,95 @@ part of this initial testing checkpoint. (Approved Design)
 Implementation was subsequently authorized. Release verification and publishing
 approval remain pending. This page does not describe a shipped feature.
 
+## Local simulation switch and personas
+
+Simulation uses the existing `CacAuth:SimulationMode` startup setting. The base
+configuration sets it to `false`; Development configuration sets it to `true`.
+Override it in the backend process environment, then restart that process:
+
+```bash
+# Enable local demos (both settings are required).
+export ASPNETCORE_ENVIRONMENT=Development
+export ATO_CACAUTH__SIMULATIONMODE=true
+
+# Disable simulation, including in Development.
+export ATO_CACAUTH__SIMULATIONMODE=false
+```
+
+For production, set `ASPNETCORE_ENVIRONMENT=Production` and
+`ATO_CACAUTH__SIMULATIONMODE=false`, with real authentication configured.
+Non-Development environments reject simulation even if the flag is mistakenly
+true. There is no in-app toggle or parallel enable flag. These are process
+environment variables; a direct `dotnet run` does not load `.env` automatically.
+
+When disabled, `/api/auth/login-config` omits the simulation descriptor,
+`POST /api/auth/simulate` returns bare 404 without session cookies, and existing
+simulation cookies cannot synthesize an identity. Re-enabling simulation can
+make a retained selection cookie usable again; disabling is not cookie deletion.
+
+Development offers the original CSP Admin, ISSO and SOC Analyst identities plus:
+
+| Persona | Identity key | Object ID |
+|---|---|---|
+| Organization Admin | `dev-orgadmin` | `10000000-0000-0000-0000-000000000004` |
+| Mission Owner | `dev-mission-owner` | `10000000-0000-0000-0000-000000000005` |
+| System Owner | `dev-system-owner` | `10000000-0000-0000-0000-000000000006` |
+| ISSM | `dev-issm` | `10000000-0000-0000-0000-000000000007` |
+| SCA | `dev-sca` | `10000000-0000-0000-0000-000000000008` |
+| Authorizing Official | `dev-ao` | `10000000-0000-0000-0000-000000000009` |
+
+Their directory ID is `00000000-0000-0000-0000-000000000001`. An administrator
+must explicitly bind that directory ID and the selected object ID to a Person
+through **Manage memberships**, then assign the appropriate organization/system
+role. The six new identity descriptors deliberately carry no global role claims.
+Persona labels do not grant access; "No tenant assignment" is expected for an
+unprovisioned organization persona. No demo tenants or assignments are seeded.
+
+Manual checks: enable simulation and confirm nine choices on `/login`; select
+CSP Admin and confirm `/api/auth/me` reports its object ID and CSP workspace.
+Disable simulation and restart; confirm the choices disappear and direct
+simulation POSTs return 404. Re-enable for further local testing.
+
+### Docker Desktop testing snapshot
+
+The local Compose stack uses SQL Server and Redis with the production Dashboard
+Dockerfile (nginx on container port 8080). The Azure build workflow uses the same
+MCP, Dashboard and Chat Dockerfiles and targets `linux/amd64`; use
+`DOCKER_DEFAULT_PLATFORM=linux/amd64` for matching local image architecture.
+This is image/build parity, not a claim of Azure identity, network or hosting
+parity. Existing local volumes are retained.
+
+The production Dashboard bundle deliberately excludes the simulation picker.
+For an isolated local demo, leave the backend in Development and set
+`ATO_CACAUTH__SIMULATIONMODE=true`. Compose forwards this existing startup switch.
+From the browser console on the local Dashboard origin, use:
+
+```javascript
+const response = await fetch('/api/auth/simulate?identityId=dev-cspadmin', {
+  method: 'POST',
+});
+if (response.status !== 204) throw new Error(`Simulation failed: ${response.status}`);
+location.assign('/');
+```
+
+Use another configured identity key to switch personas. Never enable this mode
+on a production deployment. AI is disabled for the local workspace-only checks.
+
+Known switch acceptance gap: the endpoint tests return bare 404 when disabled,
+but a live unauthenticated Development request returned 401. The live descriptor
+was null and a retained simulation cookie was rejected with 401. The on/off
+switch blocks simulation, but the full-pipeline 404 contract is not yet verified.
+That mismatch is not silently waived by the passing focused tests.
+
+Docker snapshot status: 53 focused unit tests and two existing simulation HTTP
+integration tests passed. The first `linux/amd64` Compose build failed during
+NuGet restore (`NU1301`, TLS unexpected EOF from `api.nuget.org`). Independent
+HTTPS probes to that endpoint failed from both macOS and the same Linux SDK
+image. No successful Docker startup or Docker browser acceptance is claimed.
+TLS verification was not disabled, and no host-built binaries were substituted.
+The network failure's cause remains unverified. Host-run development servers
+were stopped; the role-assignment 500 follow-up has not started.
+
 ## Purpose
 
 The dashboard already resolves provider and organization variants of portfolio,

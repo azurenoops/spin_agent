@@ -10,7 +10,7 @@
 
 | Field | Value |
 |-------|-------|
-| Name | ATO Copilot M365 Extension |
+| Name | Security Posture Intelligence Navigator M365 Extension |
 | Version | 1.0.0 |
 | Runtime | Node.js 20 LTS |
 | Framework | Express.js |
@@ -109,7 +109,7 @@ interface McpResponse {
 **Response** (200 OK):
 ```json
 {
-  "name": "ATO Copilot M365 Extension",
+  "name": "Security Posture Intelligence Navigator M365 Extension",
   "version": "1.0.0",
   "timestamp": "2026-02-26T14:30:00.000Z"
 }
@@ -125,7 +125,7 @@ M365 Copilot plugin descriptor:
 ```json
 {
   "schema_version": "v1",
-  "name_for_human": "ATO Copilot",
+  "name_for_human": "Security Posture Intelligence Navigator",
   "name_for_model": "ato_copilot",
   "description_for_human": "Compliance assessment and remediation for Azure Government",
   "description_for_model": "Use this plugin to run NIST 800-53 compliance assessments, generate remediation scripts, and manage ATO processes for Azure Government subscriptions.",
@@ -166,7 +166,7 @@ All cards use Adaptive Card schema version 1.5.
   "body": [
     {
       "type": "TextBlock",
-      "text": "ATO Copilot — Compliance Assessment",
+      "text": "Security Posture Intelligence Navigator — Compliance Assessment",
       "weight": "Bolder",
       "size": "Large"
     },
@@ -296,13 +296,13 @@ Environment variables validated on startup:
   "manifestVersion": "1.17",
   "version": "1.0.0",
   "id": "ato-copilot-m365",
-  "name": { "short": "ATO Copilot", "full": "ATO Copilot for Microsoft 365" },
+  "name": { "short": "Security Posture Intelligence Navigator", "full": "Security Posture Intelligence Navigator for Microsoft 365" },
   "description": {
     "short": "Compliance assessment and remediation",
-    "full": "ATO Copilot brings NIST 800-53 compliance assessment, remediation planning, and ATO documentation directly into Microsoft Teams."
+    "full": "Security Posture Intelligence Navigator brings NIST 800-53 compliance assessment, remediation planning, and ATO documentation directly into Microsoft Teams."
   },
   "developer": {
-    "name": "ATO Copilot Team",
+    "name": "Security Posture Intelligence Navigator Team",
     "websiteUrl": "https://ato-copilot.azurewebsites.us",
     "privacyUrl": "https://ato-copilot.azurewebsites.us/privacy",
     "termsOfUseUrl": "https://ato-copilot.azurewebsites.us/terms"

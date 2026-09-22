@@ -18,7 +18,7 @@
 
 ## Overview
 
-The ATO Copilot VS Code extension provides an `@ato` chat participant for inline compliance workflows, webview panels for RMF visualization, and IaC compliance diagnostics.
+The Security Posture Intelligence Navigator VS Code extension provides an `@ato` chat participant for inline compliance workflows, webview panels for RMF visualization, and IaC compliance diagnostics.
 
 ---
 
@@ -26,7 +26,7 @@ The ATO Copilot VS Code extension provides an `@ato` chat participant for inline
 
 ### `@ato`
 
-Invoke the ATO Copilot agent in VS Code Chat:
+Invoke the Security Posture Intelligence Navigator agent in VS Code Chat:
 
 ```
 @ato scan my Terraform files for compliance issues
@@ -66,9 +66,9 @@ The `@ato` participant routes messages to the MCP server's ComplianceAgent and r
 
 | Command | Description |
 |---------|-------------|
-| `ATO Copilot: Show RMF Overview` | Open RMF overview webview panel |
-| `ATO Copilot: Scan Current File` | Scan active editor file for compliance |
-| `ATO Copilot: Show Compliance Status` | Display compliance posture summary |
+| `Security Posture Intelligence Navigator: Show RMF Overview` | Open RMF overview webview panel |
+| `Security Posture Intelligence Navigator: Scan Current File` | Scan active editor file for compliance |
+| `Security Posture Intelligence Navigator: Show Compliance Status` | Display compliance posture summary |
 
 ---
 
@@ -78,7 +78,7 @@ The `@ato` participant routes messages to the MCP server's ComplianceAgent and r
 
 A rich webview panel showing the system's RMF lifecycle status with interactive visualization.
 
-**Activation:** Command palette → `ATO Copilot: Show RMF Overview`
+**Activation:** Command palette → `Security Posture Intelligence Navigator: Show RMF Overview`
 
 **Features:**
 

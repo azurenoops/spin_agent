@@ -67,8 +67,8 @@ code --install-extension ato-copilot-vscode-0.1.0.vsix
 1. Press `F5` in VS Code (or install the VSIX) to launch Extension Development Host.
 2. Open GitHub Copilot Chat (`Ctrl+Shift+I` / `Cmd+Shift+I`).
 3. Type `@ato /compliance list controls for AC-2`.
-4. Run `Ctrl+Shift+P` → `ATO Copilot: Check API Health` — verify success message.
-5. Run `Ctrl+Shift+P` → `ATO Copilot: Configure Connection` — verify settings UI opens.
+4. Run `Ctrl+Shift+P` → `Security Posture Intelligence Navigator: Check API Health` — verify success message.
+5. Run `Ctrl+Shift+P` → `Security Posture Intelligence Navigator: Configure Connection` — verify settings UI opens.
 
 ## Publish to Marketplace (release engineers only)
 

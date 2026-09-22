@@ -1,12 +1,12 @@
 # RMF Phase Reference
 
-> The Risk Management Framework (RMF) lifecycle as implemented by ATO Copilot.
+> The Risk Management Framework (RMF) lifecycle as implemented by Security Posture Intelligence Navigator.
 
 ---
 
 ## Lifecycle Overview
 
-The RMF defines seven phases that take an information system from initial registration through continuous monitoring. ATO Copilot supports all seven phases with MCP tools, natural language queries, and automated workflows.
+The RMF defines seven phases that take an information system from initial registration through continuous monitoring. Security Posture Intelligence Navigator supports all seven phases with MCP tools, natural language queries, and automated workflows.
 
 ```
 ┌──────────┐   ┌────────────┐   ┌──────────┐   ┌───────────┐

@@ -1,9 +1,9 @@
-# Feature Specification: Add Azure OpenAI to ATO Copilot Agents
+# Feature Specification: Add Azure OpenAI to Security Posture Intelligence Navigator Agents
 
 **Feature Branch**: `011-azure-openai-agents`  
 **Created**: 2026-02-25  
 **Status**: Draft  
-**Input**: User description: "Add Azure OpenAI to ATO Copilot Agents — wire up Azure OpenAI client, make agents AI-powered conversational entities with LLM-backed tool selection and natural language responses, integrate with ChatHub, enhance system prompts, add feature flags and configuration."
+**Input**: User description: "Add Azure OpenAI to Security Posture Intelligence Navigator Agents — wire up Azure OpenAI client, make agents AI-powered conversational entities with LLM-backed tool selection and natural language responses, integrate with ChatHub, enhance system prompts, add feature flags and configuration."
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -14,7 +14,7 @@
 
 ### User Story 1 — Azure OpenAI Client Wiring (Priority: P1)
 
-As a platform operator, I want the ATO Copilot to construct and register a real Azure OpenAI client from configuration so that downstream AI features have a functioning LLM connection available through dependency injection.
+As a platform operator, I want the Security Posture Intelligence Navigator to construct and register a real Azure OpenAI client from configuration so that downstream AI features have a functioning LLM connection available through dependency injection.
 
 **Why this priority**: This is the foundational wiring that all other AI features depend on. Without a registered `IChatClient`, no agent-level AI, no LLM routing, and no conversational responses are possible. It also immediately activates the existing `AiRemediationPlanGenerator` which already accepts `IChatClient?` but currently always receives null.
 
@@ -31,7 +31,7 @@ As a platform operator, I want the ATO Copilot to construct and register a real 
 
 ### User Story 2 — Agent-Level AI Processing (Priority: P2)
 
-As a user interacting with the ATO Copilot, I want agents to use an LLM to understand my intent, select the right tool(s), and generate natural language responses that interpret tool results — instead of returning raw JSON tool output.
+As a user interacting with the Security Posture Intelligence Navigator, I want agents to use an LLM to understand my intent, select the right tool(s), and generate natural language responses that interpret tool results — instead of returning raw JSON tool output.
 
 **Why this priority**: This is the core value proposition. Without LLM-powered processing, agents are deterministic keyword matchers that dump raw data. This story transforms agents from dispatch layers into intelligent conversational assistants.
 

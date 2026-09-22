@@ -78,9 +78,9 @@ match. Test T104 asserts this invariant for both cloud values.
 
 | Command id | Title | Trigger |
 |---|---|---|
-| `ato.signIn` | "ATO Copilot: Sign In" | User invokes `@ato sign in` in chat OR clicks the status-bar item. |
-| `ato.signOut` | "ATO Copilot: Sign Out" | User invokes `@ato sign out` OR clicks the signed-in status-bar item. |
-| `ato.switchTenant` | "ATO Copilot: Switch Tenant" | User invokes `@ato switch tenant`. |
+| `ato.signIn` | "Security Posture Intelligence Navigator: Sign In" | User invokes `@ato sign in` in chat OR clicks the status-bar item. |
+| `ato.signOut` | "Security Posture Intelligence Navigator: Sign Out" | User invokes `@ato sign out` OR clicks the signed-in status-bar item. |
+| `ato.switchTenant` | "Security Posture Intelligence Navigator: Switch Tenant" | User invokes `@ato switch tenant`. |
 
 ### 3.2 `ato.signIn` flow
 
@@ -95,7 +95,7 @@ export async function signInCommand(): Promise<void> {
     deviceCodeCallback: (response) => {
       // FR-018 — display verification URI + code in a notification.
       const message =
-        `To sign in to ATO Copilot, visit ${response.verificationUri} ` +
+        `To sign in to Security Posture Intelligence Navigator, visit ${response.verificationUri} ` +
         `and enter code ${response.userCode}. Code expires in ` +
         `${response.expiresIn / 60} minutes.`;
       vscode.window.showInformationMessage(message, 'Open Sign-In Page', 'Copy Code')
@@ -120,7 +120,7 @@ export async function signInCommand(): Promise<void> {
 
     updateStatusBar({ state: 'signedIn', displayName: result.account?.name, tenant: tenant.displayName });
     vscode.window.showInformationMessage(
-      `Signed in to ATO Copilot as ${result.account?.name} (${tenant.displayName}).`,
+      `Signed in to Security Posture Intelligence Navigator as ${result.account?.name} (${tenant.displayName}).`,
     );
   } catch (err) {
     handleSignInError(err);                            // FR-015 error classes
@@ -157,7 +157,7 @@ function secretKey(tenantId: string): string {
 
 | State | Text | Tooltip | Action |
 |---|---|---|---|
-| `signedOut` | `$(account) ATO: Sign In` | "ATO Copilot — Click to sign in" | Runs `ato.signIn` |
+| `signedOut` | `$(account) ATO: Sign In` | "Security Posture Intelligence Navigator — Click to sign in" | Runs `ato.signIn` |
 | `signingIn` | `$(sync~spin) ATO: Signing In…` | "Waiting for device-code grant" | Disabled |
 | `signedIn` | `$(verified) ATO: {displayName}` | "Signed in as {displayName} ({tenantName})" | Runs `ato.signOut` |
 | `error` | `$(error) ATO: Sign-In Failed` | "Last error: {errorClass}" | Runs `ato.signIn` |

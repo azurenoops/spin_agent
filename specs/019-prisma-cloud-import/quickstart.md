@@ -4,7 +4,7 @@
 
 ## What This Feature Adds
 
-Feature 019 enables ATO Copilot to ingest Prisma Cloud CSPM compliance scan data:
+Feature 019 enables Security Posture Intelligence Navigator to ingest Prisma Cloud CSPM compliance scan data:
 
 - **CSV import** — Parse Prisma Cloud compliance CSV exports, auto-resolve subscriptions, create compliance findings and control effectiveness records
 - **API JSON import** — Parse Prisma Cloud API JSON with enhanced remediation guidance, CLI scripts, and alert history
@@ -15,7 +15,7 @@ Feature 019 enables ATO Copilot to ingest Prisma Cloud CSPM compliance scan data
 
 ## Prerequisites
 
-- ATO Copilot running (Feature 017+ deployed — scan import framework exists)
+- Security Posture Intelligence Navigator running (Feature 017+ deployed — scan import framework exists)
 - At least one registered system with a control baseline selected
 - Azure subscription mapped to the registered system (via `compliance_define_boundary` or `AzureSubscriptionProfile`)
 - Prisma Cloud CSV export file or API JSON response

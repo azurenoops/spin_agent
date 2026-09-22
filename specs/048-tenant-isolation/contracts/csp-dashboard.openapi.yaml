@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ATO Copilot — CSP Cross-Tenant Operational Dashboard API (US8)
+  title: Security Posture Intelligence Navigator — CSP Cross-Tenant Operational Dashboard API (US8)
   version: 0.1.0
   description: |
     All-up dashboard for `CSP.Admin` users. Returns aggregate KPIs across every

@@ -1,5 +1,5 @@
 -- ============================================================================
---  ATO Copilot — Flankspeed CSP-portfolio demo seed.
+--  Security Posture Intelligence Navigator — Flankspeed CSP-portfolio demo seed.
 --  Target:  AtoCopilot (SQL Server in docker compose, container ato-copilot-sql)
 --  Idempotent: DELETE-by-prefix then INSERT, so running this is the
 --              authoritative source of truth for the Flankspeed demo rows.

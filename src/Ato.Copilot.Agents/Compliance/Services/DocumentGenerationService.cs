@@ -107,7 +107,7 @@ public class DocumentGenerationService : IDocumentGenerationService
             Framework = resolvedFramework,
             Content = content,
             AssessmentId = assessment?.Id,
-            GeneratedBy = "ATO Copilot (automated)",
+            GeneratedBy = "Security Posture Intelligence Navigator (automated)",
             Owner = resolvedSystemName,
             Metadata = new DocumentMetadata
             {
@@ -115,7 +115,7 @@ public class DocumentGenerationService : IDocumentGenerationService
                 DateRange = assessment != null
                     ? $"{assessment.AssessedAt:yyyy-MM-dd} to {(assessment.CompletedAt ?? DateTime.UtcNow):yyyy-MM-dd}"
                     : $"{DateTime.UtcNow:yyyy-MM-dd}",
-                PreparedBy = "ATO Copilot",
+                PreparedBy = "Security Posture Intelligence Navigator",
                 // Fix #685: Authorization boundary must be sourced from AuthorizationBoundaryDefinition,
                 // not string-built with a hardcoded "Azure Government boundary" assumption.
                 // If no boundary definition exists, emit [SOURCE MISSING] — never fabricate.
@@ -178,7 +178,7 @@ public class DocumentGenerationService : IDocumentGenerationService
         sb.AppendLine($"**System Name**: {systemName}");
         sb.AppendLine($"**Framework**: {framework}");
         sb.AppendLine($"**Date**: {DateTime.UtcNow:yyyy-MM-dd}");
-        sb.AppendLine($"**Prepared By**: ATO Copilot (automated)");
+        sb.AppendLine($"**Prepared By**: Security Posture Intelligence Navigator (automated)");
         sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();
@@ -337,7 +337,7 @@ public class DocumentGenerationService : IDocumentGenerationService
         }
 
         sb.AppendLine();
-        sb.AppendLine($"*This SSP was auto-generated on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC by ATO Copilot.*");
+        sb.AppendLine($"*This SSP was auto-generated on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC by Security Posture Intelligence Navigator.*");
         sb.AppendLine("*Review and approval by the System Owner and Authorizing Official is required.*");
 
         return sb.ToString();
@@ -360,7 +360,7 @@ public class DocumentGenerationService : IDocumentGenerationService
         sb.AppendLine($"**System Name**: {systemName}");
         sb.AppendLine($"**Framework**: {framework}");
         sb.AppendLine($"**Date**: {DateTime.UtcNow:yyyy-MM-dd}");
-        sb.AppendLine($"**Prepared By**: ATO Copilot (automated)");
+        sb.AppendLine($"**Prepared By**: Security Posture Intelligence Navigator (automated)");
         sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();
@@ -477,7 +477,7 @@ public class DocumentGenerationService : IDocumentGenerationService
         }
         sb.AppendLine();
 
-        sb.AppendLine($"*This SAR was auto-generated on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC by ATO Copilot.*");
+        sb.AppendLine($"*This SAR was auto-generated on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC by Security Posture Intelligence Navigator.*");
 
         return sb.ToString();
     }
@@ -498,7 +498,7 @@ public class DocumentGenerationService : IDocumentGenerationService
         sb.AppendLine($"**System Name**: {systemName}");
         sb.AppendLine($"**Framework**: {framework}");
         sb.AppendLine($"**Date**: {DateTime.UtcNow:yyyy-MM-dd}");
-        sb.AppendLine($"**Prepared By**: ATO Copilot (automated)");
+        sb.AppendLine($"**Prepared By**: Security Posture Intelligence Navigator (automated)");
         sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();
@@ -598,7 +598,7 @@ public class DocumentGenerationService : IDocumentGenerationService
             sb.AppendLine();
         }
 
-        sb.AppendLine($"*This POA&M was auto-generated on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC by ATO Copilot.*");
+        sb.AppendLine($"*This POA&M was auto-generated on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC by Security Posture Intelligence Navigator.*");
 
         return sb.ToString();
     }

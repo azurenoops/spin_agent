@@ -55,7 +55,7 @@ interface MigrationReport {
 
 export default function AdminMigrationPage() {
   const login = useLoginConfig();
-  const deploymentName = login.branding.deploymentName || 'ATO Copilot';
+  const deploymentName = login.branding.deploymentName || 'Security Posture Intelligence Navigator';
 
   const [preview, setPreview] = useState<MigrationPreview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);

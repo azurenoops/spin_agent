@@ -1,7 +1,7 @@
 # Contract: Bot API (Epic 061)
 
 This document specifies the HTTP API surface of the M365 Teams bot Express.js server and the
-SSE streaming contract used internally between the bot and the ATO Copilot API.
+SSE streaming contract used internally between the bot and the Security Posture Intelligence Navigator API.
 
 ---
 
@@ -100,7 +100,7 @@ Content-Type: application/json
     {
       "contentType": "application/vnd.microsoft.card.oauth",
       "content": {
-        "text": "Please sign in to use ATO Copilot.",
+        "text": "Please sign in to use Security Posture Intelligence Navigator.",
         "connectionName": "<AUTH_TEAMS_SSO_CONNECTION_NAME>",
         "buttons": [{ "type": "signin", "title": "Sign In", "value": "<sign-in URL>" }]
       }
@@ -194,7 +194,7 @@ Content-Type: application/json
 
 {
   "schema_version": "v1",
-  "name_for_human": "ATO Copilot",
+  "name_for_human": "Security Posture Intelligence Navigator",
   "name_for_model": "ato_copilot",
   "description_for_human": "...",
   "description_for_model": "...",
@@ -266,7 +266,7 @@ Sent when the upstream assessment SSE stream exceeds `SSE_TIMEOUT_MS`:
 
 ## SSE Streaming Contract
 
-The bot uses `sseClient.ts` to consume SSE streams from the ATO Copilot API for long-running
+The bot uses `sseClient.ts` to consume SSE streams from the Security Posture Intelligence Navigator API for long-running
 assessment operations.
 
 ### Upstream SSE Connection

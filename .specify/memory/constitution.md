@@ -70,7 +70,7 @@
       Issue Discipline.
 -->
 
-# ATO Copilot Constitution
+# Security Posture Intelligence Navigator Constitution
 
 ## Core Principles
 
@@ -94,7 +94,7 @@ where it should live.
 - Any deviation from this principle MUST be recorded in the plan's Complexity Tracking table
   with a rejected simpler alternative (see Governance § Complexity Justification).
 
-**Rationale**: ATO Copilot ships 130+ MCP tools across 48+ features. Unnecessary complexity
+**Rationale**: Security Posture Intelligence Navigator ships 130+ MCP tools across 48+ features. Unnecessary complexity
 compounds maintenance burden, slows onboarding, and obscures compliance-critical logic.
 
 ### III. YAGNI (You Aren't Gonna Need It)
@@ -174,7 +174,7 @@ Build/test discipline: Every change proposal MUST include exact `dotnet build At
 and `dotnet test Ato.Copilot.sln` commands with expected outcomes.
 
 **Rationale**: TDD produces verifiable, regression-resistant code and ensures every feature
-is exercised by automated tests. Test Data Separation is mandatory because ATO Copilot
+is exercised by automated tests. Test Data Separation is mandatory because Security Posture Intelligence Navigator
 processes DoD compliance artifacts; a test suite that pulls real ATO data is a data-spill
 risk, not a quality gate.
 
@@ -324,7 +324,7 @@ assignments.
   - Bicep/Terraform resource configurations MUST align with SFI-enforced settings to prevent
     state drift.
 
-**Rationale**: ATO Copilot processes DoD compliance artifacts that may include FOUO, CUI,
+**Rationale**: Security Posture Intelligence Navigator processes DoD compliance artifacts that may include FOUO, CUI,
 and ATO-relevant evidence. Zero-trust ensures that no component is implicitly trusted,
 limiting blast radius in the event of a compromise.
 
@@ -337,6 +337,29 @@ For any change proposal, output:
 1. **Guidance Compliance Report**: PASS/FAIL with rule-by-rule citations
 2. **Architecture Decision**: If architecture/design is impacted, document rationale
 3. **Code Changes**: Files changed + why + build/test commands + rollback procedure
+
+### Debugging Limit
+
+- Unsuccessful debugging is limited to five minutes.
+- At that limit, the contributor or agent MUST stop and provide:
+  - what was checked;
+  - what is known and unknown;
+  - the leading hypotheses; and
+  - the most discriminating next checks.
+- Further investigation requires human direction. "One more check" extensions are prohibited.
+
+### Attempt Limit and Root Cause Analysis
+
+- After two consecutive failed attempts at the same objective, there MUST NOT be a third attempt. The contributor or agent MUST stop, perform a root cause analysis, report it, and wait for human direction.
+- The analysis MUST test whether the objective itself is wrong, not only why the most recent attempt failed. It MUST state:
+  - whether the requirement was misread, against the literal words of the task;
+  - whether the target is outside our control, such as a third-party interface, an external service's internals, or another system's markup; and
+  - whether the approach crosses the wrong boundary.
+- The following MUST NOT be treated as resetting the count:
+  - changing tool, library, selector, timing, or phrasing while pursuing the same objective, which is the next attempt rather than a fresh start; and
+  - fixing a real defect while the objective still fails. Successive real fixes that each surface the same class of failure are evidence that the objective is wrong, not evidence of progress.
+- Stopping and reporting at this limit is a complete and successful outcome. It MUST NOT be worked around by widening scope until the result feels finished.
+- This limit is the enforcement mechanism for Simplicity and YAGNI. Unbounded retry is how out-of-scope work enters a change.
 
 ### Quality Gates
 
@@ -440,7 +463,7 @@ across human contributors and AI agents.
 
 ## Governance
 
-This constitution supersedes all other development practices for the ATO Copilot project.
+This constitution supersedes all other development practices for the Security Posture Intelligence Navigator project.
 When a conflict arises, the constitution is authoritative.
 
 ### Amendments

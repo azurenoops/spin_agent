@@ -9,7 +9,7 @@
 
 ### User Story 1 — Getting Started with the Dashboard (Priority: P1)
 
-A new user opens the ATO Copilot Dashboard for the first time. They need to understand what the dashboard does, how to navigate between pages, and where to find information about their systems. The documentation provides a "Getting Started" guide that orients the user to the layout — header navigation (Portfolio, Capabilities), the collapsible side panel (To Do), and the main content area. After reading, the user can navigate to any page and identify what each area shows.
+A new user opens the Security Posture Intelligence Navigator Dashboard for the first time. They need to understand what the dashboard does, how to navigate between pages, and where to find information about their systems. The documentation provides a "Getting Started" guide that orients the user to the layout — header navigation (Portfolio, Capabilities), the collapsible side panel (To Do), and the main content area. After reading, the user can navigate to any page and identify what each area shows.
 
 **Why this priority**: First impressions determine adoption. If a new user cannot orient themselves within the first 5 minutes, they will disengage.
 

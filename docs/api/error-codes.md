@@ -3,7 +3,7 @@
 > **Spec**: [`specs/048-tenant-isolation/spec.md`](../../specs/048-tenant-isolation/spec.md) ·
 > **Architecture**: [`docs/architecture/tenant-isolation.md`](../architecture/tenant-isolation.md)
 
-ATO Copilot returns a uniform error envelope across all HTTP endpoints:
+Security Posture Intelligence Navigator returns a uniform error envelope across all HTTP endpoints:
 
 ```json
 {

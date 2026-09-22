@@ -47,7 +47,7 @@ export function buildFindingDetailCard(data: FindingDetailData): Record<string, 
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Finding Detail",
+      text: "Security Posture Intelligence Navigator — Finding Detail",
       weight: "Bolder",
       size: "Large",
     },

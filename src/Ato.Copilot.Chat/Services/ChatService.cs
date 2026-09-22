@@ -109,7 +109,7 @@ public partial class ChatService : IChatService
                 Encoding.UTF8,
                 "application/json");
 
-            progress?.Report("Connecting to ATO Copilot...");
+            progress?.Report("Connecting to Security Posture Intelligence Navigator...");
 
             JsonElement? mcpResult = null;
             string? streamError = null;

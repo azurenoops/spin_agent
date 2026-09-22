@@ -11,11 +11,11 @@ inputs:
     required: false
     default: '2'
   respect-risk-acceptances:
-    description: 'Whether to respect risk acceptances from ATO Copilot database'
+    description: 'Whether to respect risk acceptances from Security Posture Intelligence Navigator database'
     required: false
     default: 'true'
   mcp-server-url:
-    description: 'URL of the ATO Copilot MCP server for risk acceptance lookups'
+    description: 'URL of the Security Posture Intelligence Navigator MCP server for risk acceptance lookups'
     required: false
     default: 'http://localhost:5000'
   fail-on-error:

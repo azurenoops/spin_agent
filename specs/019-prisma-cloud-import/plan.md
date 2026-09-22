@@ -5,7 +5,7 @@
 
 ## Summary
 
-Enable ATO Copilot to ingest Prisma Cloud CSPM compliance scan results (CSV exports and API JSON responses), parse alerts, map Prisma policies to NIST 800-53 controls via embedded `complianceMetadata`, create `ComplianceFinding` + `ControlEffectiveness` + `ComplianceEvidence` records, auto-resolve Azure subscriptions to registered systems, and provide trend analysis across scan cycles. Extends the existing `IScanImportService` with 2 new import methods, adds 2 parsers (CSV, JSON), 4 MCP tools, and Phase 5 documentation updates across 8 persona/reference guides.
+Enable Security Posture Intelligence Navigator to ingest Prisma Cloud CSPM compliance scan results (CSV exports and API JSON responses), parse alerts, map Prisma policies to NIST 800-53 controls via embedded `complianceMetadata`, create `ComplianceFinding` + `ControlEffectiveness` + `ComplianceEvidence` records, auto-resolve Azure subscriptions to registered systems, and provide trend analysis across scan cycles. Extends the existing `IScanImportService` with 2 new import methods, adds 2 parsers (CSV, JSON), 4 MCP tools, and Phase 5 documentation updates across 8 persona/reference guides.
 
 ## Technical Context
 
@@ -28,7 +28,7 @@ Enable ATO Copilot to ingest Prisma Cloud CSPM compliance scan results (CSV expo
 | **I. Documentation as Source of Truth** | PASS | Spec (13 parts, 707 lines), data-model, contracts, quickstart, research all produced. Phase 5 adds 8 doc updates to persona guides and reference pages. |
 | **II. BaseAgent/BaseTool Architecture** | PASS | All 4 tools extend `BaseTool`, registered via `RegisterTool()`. No new agents. Parsers are plain service classes injected via DI. |
 | **III. Testing Standards** | PASS | TDD workflow: red/green for parsers, mapper, service, tools. Target 170+ tests covering positive, negative, boundary, edge cases. Existing 3,520 tests must continue passing. |
-| **IV. Azure Government & Compliance First** | PASS | Prisma imports are file-based — no external API calls from ATO Copilot. Subscription auto-resolution uses existing `ISystemSubscriptionResolver` which supports GovCloud. Findings integrate with system-scoped assessments. |
+| **IV. Azure Government & Compliance First** | PASS | Prisma imports are file-based — no external API calls from Security Posture Intelligence Navigator. Subscription auto-resolution uses existing `ISystemSubscriptionResolver` which supports GovCloud. Findings integrate with system-scoped assessments. |
 | **V. Observability & Structured Logging** | PASS | Import operations logged with Serilog: system_id, import_type, alert_count, nist_controls_affected, subscription_resolved, duration_ms. Follows Feature 017/018 `Stopwatch` pattern. |
 | **VI. Code Quality & Maintainability** | PASS | Parsers are stateless and testable. Import service uses DI. All enums, DTOs, and mappings are explicit — no magic values. Single Responsibility preserved (parser ≠ resolver ≠ finder ≠ upserter). |
 | **VII. User Experience Consistency** | PASS | Standard MCP envelope (`{ status, data, metadata }`). Import results follow same `ImportResult` format as CKL/XCCDF. Actionable error messages with `compliance_register_system` guidance for unresolved subscriptions. |
@@ -210,7 +210,7 @@ docs/                                    # Phase 5 — Documentation updates
 
 ### External Dependencies
 
-None — all parsing uses built-in .NET libraries (`System.Text.Json`, `string.Split`). No third-party CSV libraries required. No Prisma Cloud API calls made from ATO Copilot.
+None — all parsing uses built-in .NET libraries (`System.Text.Json`, `string.Split`). No third-party CSV libraries required. No Prisma Cloud API calls made from Security Posture Intelligence Navigator.
 
 ## Risk Assessment
 

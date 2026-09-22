@@ -2,7 +2,7 @@
   "name": "@ato-copilot/shared",
   "version": "0.1.0",
   "private": true,
-  "description": "Shared types and utilities for ATO Copilot TypeScript projects",
+  "description": "Shared types and utilities for Security Posture Intelligence Navigator TypeScript projects",
   "type": "module",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",

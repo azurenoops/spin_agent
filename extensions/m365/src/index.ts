@@ -1,5 +1,5 @@
 /**
- * ATO Copilot M365 Extension — Express Server (FR-037, FR-045, FR-046, FR-048, FR-050)
+ * Security Posture Intelligence Navigator M365 Extension — Express Server (FR-037, FR-045, FR-046, FR-048, FR-050)
  *
  * Endpoints:
  * - POST /api/messages — Teams webhook handler with intent-based card routing
@@ -270,7 +270,7 @@ app.post("/api/messages", async (req: Request, res: Response) => {
 // GET /health (FR-045)
 app.get("/health", (_req: Request, res: Response) => {
   res.json({
-    name: "ATO Copilot M365 Extension",
+    name: "Security Posture Intelligence Navigator M365 Extension",
     version: "1.0.0",
     timestamp: new Date().toISOString(),
   });
@@ -281,7 +281,7 @@ app.get("/openapi.json", (_req: Request, res: Response) => {
   res.json({
     openapi: "3.0.0",
     info: {
-      title: "ATO Copilot M365 Extension",
+      title: "Security Posture Intelligence Navigator M365 Extension",
       version: "1.0.0",
       description:
         "Compliance assessment and remediation for Azure Government via Microsoft Teams.",
@@ -291,7 +291,7 @@ app.get("/openapi.json", (_req: Request, res: Response) => {
       "/api/messages": {
         post: {
           operationId: "sendMessage",
-          summary: "Send a message to ATO Copilot",
+          summary: "Send a message to Security Posture Intelligence Navigator",
           requestBody: {
             required: true,
             content: {
@@ -365,7 +365,7 @@ app.get("/openapi.json", (_req: Request, res: Response) => {
 app.get("/ai-plugin.json", (_req: Request, res: Response) => {
   res.json({
     schema_version: "v1",
-    name_for_human: "ATO Copilot",
+    name_for_human: "Security Posture Intelligence Navigator",
     name_for_model: "ato_copilot",
     description_for_human:
       "Compliance assessment and remediation for Azure Government",
@@ -382,7 +382,7 @@ app.get("/ai-plugin.json", (_req: Request, res: Response) => {
 // --- Start server ---
 
 const server = app.listen(PORT, () => {
-  console.log(`ATO Copilot M365 Extension listening on port ${PORT}`);
+  console.log(`Security Posture Intelligence Navigator M365 Extension listening on port ${PORT}`);
   console.log(`Health: http://localhost:${PORT}/health`);
 });
 

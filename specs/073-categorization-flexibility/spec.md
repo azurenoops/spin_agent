@@ -10,7 +10,7 @@
 
 ## Background
 
-ATO Copilot supports the FIPS 199 + NIST SP 800-60 categorization model: each registered system
+Security Posture Intelligence Navigator supports the FIPS 199 + NIST SP 800-60 categorization model: each registered system
 carries one `SecurityCategorization` with per-information-type Confidentiality / Integrity /
 Availability (CIA) impact values, and an aggregate `ImpactLevel` that drives NIST baseline
 selection (see spec 018-sap-generation). This covers the minimum RMF/FISMA requirement.

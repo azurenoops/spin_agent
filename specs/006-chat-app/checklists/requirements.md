@@ -1,4 +1,4 @@
-# Specification Quality Checklist: ATO Copilot Chat Application
+# Specification Quality Checklist: Security Posture Intelligence Navigator Chat Application
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning  
 **Created**: 2026-02-23  

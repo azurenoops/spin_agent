@@ -10,7 +10,7 @@
 
 ## Surfaces and flows
 
-ATO Copilot supports **three distinct auth flows** depending on the
+Security Posture Intelligence Navigator supports **three distinct auth flows** depending on the
 client surface. They all converge on the same server-side
 `CacAuthenticationMiddleware` + `LoginAuditEvents` table.
 

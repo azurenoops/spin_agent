@@ -50,7 +50,7 @@ export function buildComplianceTrendCard(data: ComplianceTrendData): Record<stri
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Compliance Trend",
+      text: "Security Posture Intelligence Navigator — Compliance Trend",
       weight: "Bolder",
       size: "Large",
     },

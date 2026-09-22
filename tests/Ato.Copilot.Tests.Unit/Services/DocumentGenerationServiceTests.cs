@@ -53,7 +53,7 @@ public class DocumentGenerationServiceTests : IDisposable
         doc.Content.Should().Contain("Test System");
         doc.Content.Should().Contain("Compliance Score");
         doc.Content.Should().Contain("Control Implementation Status");
-        doc.GeneratedBy.Should().Contain("ATO Copilot");
+        doc.GeneratedBy.Should().Contain("Security Posture Intelligence Navigator");
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public class DocumentGenerationServiceTests : IDisposable
         var doc = await _sut.GenerateDocumentAsync("SSP", sysId2, "sub-1", "NIST80053", "My System");
 
         doc.Metadata.Should().NotBeNull();
-        doc.Metadata.PreparedBy.Should().Be("ATO Copilot");
+        doc.Metadata.PreparedBy.Should().Be("Security Posture Intelligence Navigator");
         doc.Metadata.SystemDescription.Should().Contain("My System");
         doc.Metadata.DateRange.Should().NotBeEmpty();
     }

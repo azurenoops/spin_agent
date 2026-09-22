@@ -1,4 +1,4 @@
-# Data Model: ATO Copilot Chat Application
+# Data Model: Security Posture Intelligence Navigator Chat Application
 
 **Feature**: 006-chat-app | **Date**: 2026-02-23
 

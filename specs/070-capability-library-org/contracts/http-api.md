@@ -1,6 +1,6 @@
 # HTTP API Contract — 070: Capability Library (Org Scope)
 
-All endpoints follow the existing ATO Copilot envelope pattern:
+All endpoints follow the existing Security Posture Intelligence Navigator envelope pattern:
 
 ```json
 {

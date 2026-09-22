@@ -158,7 +158,7 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
         />
       )}
       <ChatHeader
-        title="Chat with ATO Copilot"
+        title="Chat with Security Posture Intelligence Navigator"
         onClose={onClose}
         onNewConversation={newConversation}
         conversationCount={conversations.length}

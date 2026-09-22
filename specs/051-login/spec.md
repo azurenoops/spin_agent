@@ -4,7 +4,7 @@
 **Created**: 2026-05-28
 **Status**: Draft
 **Source**: [GitHub issue #68](https://github.com/azurenoops/ato-copilot/issues/68)
-**Input**: User description: "ATO Copilot has authentication plumbing today
+**Input**: User description: "Security Posture Intelligence Navigator has authentication plumbing today
 (CAC/PIV via MSAL — 003-cac-auth-pim, simulation mode for dev — 027-cac-simulation-mode,
 tenant isolation + CSP-Admin impersonation — 048-tenant-isolation) but no
 first-class **Login** experience for the Dashboard, VS Code extension,
@@ -53,7 +53,7 @@ reference the issue:
 
 A user opens the Dashboard URL. Because there is no active session, they are
 routed to a branded `/login` page that explains the deployment ("Coastal Watch
-— ATO Copilot") and shows the **deployment's primary auth method as configured
+— Security Posture Intelligence Navigator") and shows the **deployment's primary auth method as configured
 by `Auth:DefaultMethod`** (CAC or Entra). Any other configured methods appear as
 secondary buttons. After authenticating, they land on the page they originally
 requested (deep-link preservation), not the dashboard root.
@@ -75,7 +75,7 @@ the primary action, (d) after sign-in the user lands on `/dashboard/systems/abc-
 2. **Given** the `/login` page is open, **When** it renders, **Then** the primary button is the method named in `Auth:DefaultMethod`, and any other enabled methods (CAC, Entra, Simulation when allowed) appear as secondary actions.
 3. **Given** the user clicks the primary auth button, **When** MSAL completes successfully, **Then** the SPA stores the session, calls `/api/auth/me`, and navigates to the original URL stored in `return`.
 4. **Given** sign-in succeeds but the original URL is missing or invalid, **When** routing resolves, **Then** the user lands on the persona-default landing page from 015-persona-workflows.
-5. **Given** the deployment has no branding configured, **When** the page renders, **Then** it falls back to "ATO Copilot" without a missing-asset broken layout.
+5. **Given** the deployment has no branding configured, **When** the page renders, **Then** it falls back to "Security Posture Intelligence Navigator" without a missing-asset broken layout.
 
 ---
 
@@ -167,7 +167,7 @@ prescribed action.
 2. **Given** no smart card is inserted, **When** the user clicks "Sign in with CAC", **Then** the page shows "Insert your CAC/PIV card and try again" with a "Retry" button — not a browser-modal certificate prompt loop.
 3. **Given** an expired certificate, **When** auth fails, **Then** the page shows "Your certificate expired on {date}. Renew through your sponsor and try again," with no retry button.
 4. **Given** the user has no `Tenants` row mapped to their `oid`, **When** auth completes, **Then** the page shows "Your account is authenticated but not provisioned in this deployment. Contact {support email}." — and **does not** silently auto-provision a tenant.
-5. **Given** a conditional-access block, **When** auth fails with the Entra error class, **Then** the page surfaces the Entra-provided remediation URL ("Open Entra to resolve") rather than ATO Copilot's generic message.
+5. **Given** a conditional-access block, **When** auth fails with the Entra error class, **Then** the page surfaces the Entra-provided remediation URL ("Open Entra to resolve") rather than Security Posture Intelligence Navigator's generic message.
 6. **Given** a clock-skew failure (cert `notBefore` in the future, or token `nbf` not yet reached), **When** detected, **Then** the page shows "Your device clock is off by {N} minutes. Sync the clock and try again."
 7. **Given** a network failure reaching the MSAL endpoint, **When** detected, **Then** the page shows "Could not reach the identity provider. Check your connection and try again." — with a Retry button that does NOT spin indefinitely.
 
@@ -198,17 +198,17 @@ completes. Restart VS Code; the same command runs without re-prompting.
 
 1. **Given** a fresh VS Code install, **When** the user invokes any `@ato` command, **Then** the extension calls the Entra device-code endpoint **directly** (no ATO-Copilot-hosted short-code service), shows the user-code in a VS Code modal, and opens the browser to `https://microsoft.com/devicelogin` (Public) or `https://microsoft.us/devicelogin` (Gov) based on `Auth:Cloud`.
 2. **Given** an active token in SecretStorage, **When** any `@ato` command runs, **Then** the extension silently refreshes the token (if needed) and never blocks the user with a prompt.
-3. **Given** a refresh token is rejected (revoked, conditional-access change), **When** the next call fails 401, **Then** the extension shows a single VS Code notification "Sign in again to ATO Copilot" with a button — and never enters a silent retry loop.
+3. **Given** a refresh token is rejected (revoked, conditional-access change), **When** the next call fails 401, **Then** the extension shows a single VS Code notification "Sign in again to Security Posture Intelligence Navigator" with a button — and never enters a silent retry loop.
 4. **Given** the user runs `@ato sign out`, **When** the command completes, **Then** the SecretStorage entry is cleared and the VS Code status bar shows "ATO: signed out".
 
 ---
 
 ### User Story 6 — Login from M365 / Teams Bot (Priority: P2)
 
-A Teams user `@mentions` the ATO Copilot bot for the first time. The bot
+A Teams user `@mentions` the Security Posture Intelligence Navigator bot for the first time. The bot
 returns an Adaptive Card with a "Sign in" button that triggers a Bot Framework
 SSO token exchange (or, for tenants without SSO, an OAuthPrompt). Once signed
-in, the user's Teams identity is linked to their ATO Copilot identity and
+in, the user's Teams identity is linked to their Security Posture Intelligence Navigator identity and
 subsequent messages are silently authenticated.
 
 **Why this priority**: P2 because Teams SSO is a different code path from the
@@ -259,6 +259,16 @@ server. Restart with `ASPNETCORE_ENVIRONMENT=Staging` and the same
 3. **Given** `ASPNETCORE_ENVIRONMENT != Development`, **When** any client `POST`s to `/api/auth/simulate`, **Then** the endpoint returns `404 NotFound` (not 403 — pretend it doesn't exist) and writes a security audit row.
 4. **Given** the developer picks an identity, **When** the SPA calls `POST /api/auth/simulate?identityId=...`, **Then** the server issues a session cookie marked `X-Simulated=true` and writes the audit row required by Feature 027.
 5. **Given** the simulated session is active, **When** any compliance evidence is generated, **Then** the evidence is auto-flagged `IsSimulation=true` per Feature 027 and excluded from real RMF artifact bundles.
+6. **Given** `CacAuth:SimulationMode=false`, including in Development, **Then**
+   the descriptor is omitted, simulation authentication is disabled, and
+   `POST /api/auth/simulate` returns bare 404 with a `SimulationBlocked` audit
+   event and no session cookies. This is a startup/deployment switch, not an
+   in-app toggle; no second enable flag is introduced.
+7. The development identity list additionally offers Organization Admin,
+   Mission Owner, System Owner, ISSM, SCA and Authorizing Official. These are
+   identity choices only: no organization, membership or RMF role assignment is
+   seeded or inferred from the persona label. Existing CSP Admin, ISSO and SOC
+   Analyst choices remain available.
 
 ---
 
@@ -355,7 +365,7 @@ throttled with `429 TOO_MANY_LOGINS` and a `Retry-After` header. Repeat with
 - **Teams bot signed-in user whose underlying Entra account is later disabled** — the next message returns the standard "Account disabled" error; the bot does **not** silently bounce or retry.
 - **Simulation panel rendered briefly before the environment gate completes** — the panel MUST be guarded server-side at render time (env in the SSR / config endpoint), not client-side by a `useEffect`. A flash of the panel in non-Development is a security defect.
 - **Audit-throttle counter cleared by app restart** — the throttle store MUST be backed by a persistent or distributed store (e.g., `IDistributedCache`) so a restart cannot be used to bypass throttling.
-- **Branding asset missing in a configured deployment** — render the configured deployment **name** as text and the default ATO Copilot logo. Do **not** render a broken image.
+- **Branding asset missing in a configured deployment** — render the configured deployment **name** as text and the default Security Posture Intelligence Navigator logo. Do **not** render a broken image.
 
 ## Requirements *(mandatory)*
 
@@ -364,7 +374,7 @@ throttled with `429 TOO_MANY_LOGINS` and a `Retry-After` header. Repeat with
 #### A. Login page & deep-link preservation (US1)
 
 - **FR-001**: System MUST redirect unauthenticated requests to any protected route to `/login?return=<URL-encoded-original-path-and-query-and-hash>`.
-- **FR-002**: The `/login` page MUST render the deployment branding (name, logo) sourced from configuration; missing branding MUST fall back to "ATO Copilot" plus the default logo with no broken-image artifacts.
+- **FR-002**: The `/login` page MUST render the deployment branding (name, logo) sourced from configuration; missing branding MUST fall back to "Security Posture Intelligence Navigator" plus the default logo with no broken-image artifacts.
 - **FR-003**: The primary CTA on `/login` MUST be the method named in `Auth:DefaultMethod` (`Cac` or `Entra`). Any other enabled methods MUST appear as secondary buttons. Disabled methods MUST NOT appear at all.
 - **FR-004**: After a successful sign-in, the SPA MUST navigate to the URL stored in the `return` query parameter. When `return` is missing, malformed, or external, the SPA MUST navigate to the persona-default landing page from 015-persona-workflows.
 

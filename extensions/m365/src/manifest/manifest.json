@@ -5,15 +5,15 @@
   "id": "{{BOT_ID}}",
   "accentColor": "#4F6BED",
   "name": {
-    "short": "ATO Copilot",
-    "full": "ATO Copilot for Microsoft 365"
+    "short": "Security Posture Intelligence Navigator",
+    "full": "Security Posture Intelligence Navigator for Microsoft 365"
   },
   "description": {
     "short": "Compliance assessment and remediation",
-    "full": "ATO Copilot brings NIST 800-53 compliance assessment, remediation planning, and ATO documentation directly into Microsoft Teams."
+    "full": "Security Posture Intelligence Navigator brings NIST 800-53 compliance assessment, remediation planning, and ATO documentation directly into Microsoft Teams."
   },
   "developer": {
-    "name": "ATO Copilot Team",
+    "name": "Security Posture Intelligence Navigator Team",
     "websiteUrl": "https://ato-copilot.azurewebsites.us",
     "privacyUrl": "https://ato-copilot.azurewebsites.us/privacy",
     "termsOfUseUrl": "https://ato-copilot.azurewebsites.us/terms"

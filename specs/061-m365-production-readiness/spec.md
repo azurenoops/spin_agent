@@ -10,7 +10,7 @@ infrastructure introduced in 051.
 ## Background
 
 The M365 Teams Extension (`extensions/m365/`) is an Express.js webhook server that integrates
-ATO Copilot into Microsoft Teams via the Bot Framework. The bot exposes Adaptive Card payloads
+Security Posture Intelligence Navigator into Microsoft Teams via the Bot Framework. The bot exposes Adaptive Card payloads
 for 20+ compliance workflows (authorizationCard, complianceCard, dashboardCard, kanbanBoardCard,
 etc.) and streams assessment results via an SSE client (`sseClient.ts`). A pre-built Teams app
 package (`ato-copilot-m365.zip`) already exists.
@@ -109,7 +109,7 @@ now provide signal without any other stories shipping.
 
 ### User Story 2 — ConversationStateIdentityStore persists SSO tokens across restarts (Priority: P1)
 
-**As a** Teams user authenticated with ATO Copilot SSO
+**As a** Teams user authenticated with Security Posture Intelligence Navigator SSO
 **I want** my session to survive a bot restart without being asked to sign in again
 **So that** routine deployments do not interrupt my workflow.
 
@@ -186,7 +186,7 @@ the image can be used with any container runtime, not just Container Apps.
 
 ### User Story 5 — Azure Bot Service registration documented with Bicep snippet (Priority: P2)
 
-**As an** operator registering the ATO Copilot Teams bot in Azure
+**As an** operator registering the Security Posture Intelligence Navigator Teams bot in Azure
 **I want** a documented, repeatable procedure with an infrastructure-as-code snippet
 **So that** I can register the bot without navigating the Azure Portal manually and miss
 required settings.

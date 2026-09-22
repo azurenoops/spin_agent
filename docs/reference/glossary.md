@@ -1,6 +1,6 @@
 # Glossary
 
-> Acronyms, abbreviations, and key terms used throughout ATO Copilot.
+> Acronyms, abbreviations, and key terms used throughout Security Posture Intelligence Navigator.
 
 ---
 
@@ -101,13 +101,13 @@
 
 | Term | Definition |
 |------|-----------|
-| **Kanban** | ATO Copilot's visual task management system for tracking remediation work through columns (Backlog → To Do → In Progress → Review → Done) |
+| **Kanban** | Security Posture Intelligence Navigator's visual task management system for tracking remediation work through columns (Backlog → To Do → In Progress → Review → Done) |
 
 ## M
 
 | Term | Definition |
 |------|-----------|
-| **MCP** | Model Context Protocol — Protocol used by ATO Copilot to expose tools and prompts to AI assistants |
+| **MCP** | Model Context Protocol — Protocol used by Security Posture Intelligence Navigator to expose tools and prompts to AI assistants |
 | **MOA** | Memorandum of Agreement — Formal agreement between organizations defining roles and responsibilities |
 | **MOU** | Memorandum of Understanding — Agreement between organizations to share information or resources |
 
@@ -183,7 +183,7 @@
 
 | Term | Definition |
 |------|-----------|
-| **Watch** | ATO Copilot's Compliance Watch subsystem — real-time monitoring, alerting, and auto-remediation engine |
+| **Watch** | Security Posture Intelligence Navigator's Compliance Watch subsystem — real-time monitoring, alerting, and auto-remediation engine |
 
 ## X
 
@@ -198,7 +198,7 @@
 
 ---
 
-## ATO Copilot-Specific Terms
+## Security Posture Intelligence Navigator-Specific Terms
 
 | Term | Definition |
 |------|-----------|
@@ -213,10 +213,10 @@
 | **High-Water Mark** | FIPS 199 method of determining system impact level from the highest CIA impact among all information types |
 | **MCP Bridge** | HTTP-to-MCP translation layer (`McpHttpBridge`) connecting REST clients to the MCP server |
 | **Persona** | RBAC role representing a compliance stakeholder (ISSM, SCA, Engineer, AO, etc.) |
-| **Registered System** | An information system registered in ATO Copilot for RMF lifecycle management |
+| **Registered System** | An information system registered in Security Posture Intelligence Navigator for RMF lifecycle management |
 | **Risk Acceptance** | Formal AO decision to accept residual risk for a specific control finding |
 | **RMF Step** | One of seven lifecycle phases: Prepare, Categorize, Select, Implement, Assess, Authorize, Monitor |
-| **Auto-Seed** | ATO Copilot feature that automatically creates hardware inventory items from authorization boundary resources, mapping Azure resource types to hardware functions |
+| **Auto-Seed** | Security Posture Intelligence Navigator feature that automatically creates hardware inventory items from authorization boundary resources, mapping Azure resource types to hardware functions |
 | **eMASS HW/SW Export** | Excel workbook export with Hardware and Software worksheets formatted for import into the Enterprise Mission Assurance Support Service (eMASS) |
 | **Significant Change** | An event that may require system reauthorization per NIST SP 800-37 |
 | **Software Inventory** | Catalog of software applications, operating systems, middleware, and security tools installed on hardware within a system's authorization boundary |

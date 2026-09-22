@@ -1,4 +1,4 @@
-# Research: Add Azure OpenAI to ATO Copilot Agents
+# Research: Add Azure OpenAI to Security Posture Intelligence Navigator Agents
 
 **Feature**: 011-azure-openai-agents | **Date**: 2026-02-25
 

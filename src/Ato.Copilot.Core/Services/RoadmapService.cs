@@ -581,7 +581,7 @@ public class RoadmapService : IRoadmapService
                 // Footer
                 page.Footer().AlignCenter().Text(text =>
                 {
-                    text.Span("ATO Copilot · Implementation Roadmap · Page ").FontSize(8).FontColor(Colors.Grey.Medium);
+                    text.Span("Security Posture Intelligence Navigator · Implementation Roadmap · Page ").FontSize(8).FontColor(Colors.Grey.Medium);
                     text.CurrentPageNumber().FontSize(8).FontColor(Colors.Grey.Medium);
                     text.Span(" of ").FontSize(8).FontColor(Colors.Grey.Medium);
                     text.TotalPages().FontSize(8).FontColor(Colors.Grey.Medium);

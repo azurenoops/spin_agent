@@ -7,7 +7,7 @@
 
 ## Summary
 
-Add a Hardware/Software Inventory capability to ATO Copilot that enables ISSOs, Engineers, and SCAs to register, update, query, import, and export HW/SW components for eMASS-compliant SSP packages. The feature introduces a new `InventoryItem` entity, an `IInventoryService` service, 8+ MCP tools, eMASS-compatible Excel import/export using ClosedXML, auto-seeding from existing `AuthorizationBoundary` resources, a completeness check, and SSP section integration. The existing `EmassExportService` pattern (ClosedXML workbook generation, `IServiceScopeFactory` for scoped DbContext) is reused for inventory export/import.
+Add a Hardware/Software Inventory capability to Security Posture Intelligence Navigator that enables ISSOs, Engineers, and SCAs to register, update, query, import, and export HW/SW components for eMASS-compliant SSP packages. The feature introduces a new `InventoryItem` entity, an `IInventoryService` service, 8+ MCP tools, eMASS-compatible Excel import/export using ClosedXML, auto-seeding from existing `AuthorizationBoundary` resources, a completeness check, and SSP section integration. The existing `EmassExportService` pattern (ClosedXML workbook generation, `IServiceScopeFactory` for scoped DbContext) is reused for inventory export/import.
 
 ## Technical Context
 

@@ -26,7 +26,7 @@ using Ato.Copilot.Chat.Services;
 using Ato.Copilot.Chat.Services.Auth;
 
 // ────────────────────────────────────────────────────────────────
-//  ATO Copilot — Chat Application
+//  Security Posture Intelligence Navigator — Chat Application
 //  Full-stack SPA + REST API + SignalR hub
 // ────────────────────────────────────────────────────────────────
 
@@ -47,7 +47,7 @@ var bootstrapConfig = new ConfigurationBuilder()
 var logConfig = new LoggerConfiguration()
     .ReadFrom.Configuration(bootstrapConfig)
     .Enrich.FromLogContext()
-    .Enrich.WithProperty("Application", "ATO Copilot Chat");
+    .Enrich.WithProperty("Application", "Security Posture Intelligence Navigator Chat");
 
 // Conditionally add Application Insights sink when connection string is available
 var appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
@@ -60,7 +60,7 @@ Log.Logger = logConfig.CreateLogger();
 
 try
 {
-    Log.Information("ATO Copilot Chat starting");
+    Log.Information("Security Posture Intelligence Navigator Chat starting");
 
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
@@ -317,7 +317,7 @@ try
 
     app.MapGet("/api/info", () => Results.Json(new
     {
-        service = "ATO Copilot Chat",
+        service = "Security Posture Intelligence Navigator Chat",
         version = "1.0.0",
         endpoints = new
         {
@@ -341,13 +341,13 @@ try
     var urls = builder.Configuration.GetValue("Server:Urls", $"http://0.0.0.0:{port}");
     app.Urls.Add(urls!);
 
-    Log.Information("ATO Copilot Chat listening on {Urls}", urls);
+    Log.Information("Security Posture Intelligence Navigator Chat listening on {Urls}", urls);
 
     await app.RunAsync();
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "ATO Copilot Chat terminated unexpectedly");
+    Log.Fatal(ex, "Security Posture Intelligence Navigator Chat terminated unexpectedly");
     Environment.ExitCode = 1;
 }
 finally

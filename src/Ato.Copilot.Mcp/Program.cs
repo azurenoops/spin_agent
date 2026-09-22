@@ -35,7 +35,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 // ────────────────────────────────────────────────────────────────
-//  ATO Copilot — Compliance-Only MCP Server
+//  Security Posture Intelligence Navigator — Compliance-Only MCP Server
 //  Supports dual-mode: stdio (GitHub Copilot / Claude) and HTTP
 // ────────────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ var bootstrapConfig = new ConfigurationBuilder()
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(bootstrapConfig)
     .Enrich.FromLogContext()
-    .Enrich.WithProperty("Application", "ATO Copilot")
+    .Enrich.WithProperty("Application", "Security Posture Intelligence Navigator")
     // Feature 048 tenant log-context properties (populated per request via
     // LogContext.PushProperty in TenantResolutionMiddleware / TenantContextLogEnricher).
     // Declared up front so they appear consistently in structured logs.
@@ -75,7 +75,7 @@ if (mode != "stdio")
     Log.Logger = new LoggerConfiguration()
         .ReadFrom.Configuration(bootstrapConfig)
         .Enrich.FromLogContext()
-        .Enrich.WithProperty("Application", "ATO Copilot")
+        .Enrich.WithProperty("Application", "Security Posture Intelligence Navigator")
         // Feature 048 tenant log-context properties (see comment in stdio config above).
         .Enrich.WithProperty("TenantId", (string?)null)
         .Enrich.WithProperty("EffectiveTenantId", (string?)null)
@@ -88,7 +88,7 @@ if (mode != "stdio")
 
 try
 {
-    Log.Information("ATO Copilot starting in {Mode} mode", mode);
+    Log.Information("Security Posture Intelligence Navigator starting in {Mode} mode", mode);
 
     // BUG-21 (#694): validate dev/stdio auth-bypass configuration before
     // starting either transport so a misconfigured container fails fast.
@@ -101,7 +101,7 @@ try
 }
 catch (Exception ex) when (!IsHostBuildAbortedException(ex))
 {
-    Log.Fatal(ex, "ATO Copilot terminated unexpectedly");
+    Log.Fatal(ex, "Security Posture Intelligence Navigator terminated unexpectedly");
     Environment.ExitCode = 1;
 }
 finally
@@ -710,7 +710,7 @@ async Task RunHttpModeAsync(string[] args)
     // Root endpoint
     app.MapGet("/", () => Results.Json(new
     {
-        service = "ATO Copilot MCP Server",
+        service = "Security Posture Intelligence Navigator MCP Server",
         version = "1.0.0",
         mode = "http",
         tools = "Use MCP protocol to list tools",
@@ -727,7 +727,7 @@ async Task RunHttpModeAsync(string[] args)
     var urls = builder.Configuration.GetValue("Server:Urls", $"http://0.0.0.0:{port}");
     app.Urls.Add(urls!);
 
-    Log.Information("ATO Copilot HTTP server listening on {Urls}", urls);
+    Log.Information("Security Posture Intelligence Navigator HTTP server listening on {Urls}", urls);
 
     await app.RunAsync();
 }

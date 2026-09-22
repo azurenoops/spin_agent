@@ -14,7 +14,7 @@
 
 ### User Story 1 — Foundry Agent Client Wiring (Priority: P1)
 
-As a platform operator, I want the ATO Copilot to construct and register an Azure AI Foundry `PersistentAgentsClient` from configuration so that downstream agent features can use server-side Foundry agents for orchestrated AI processing.
+As a platform operator, I want the Security Posture Intelligence Navigator to construct and register an Azure AI Foundry `PersistentAgentsClient` from configuration so that downstream agent features can use server-side Foundry agents for orchestrated AI processing.
 
 **Why this priority**: This is the foundational wiring that all Foundry agent features depend on. Without a registered `PersistentAgentsClient`, no Foundry-based AI processing is possible. The existing `IChatClient` path (Feature 011) continues to work independently — this adds a parallel capability.
 
@@ -31,7 +31,7 @@ As a platform operator, I want the ATO Copilot to construct and register an Azur
 
 ### User Story 2 — Foundry Agent Provisioning (Priority: P1)
 
-As the system starting up, I want each ATO Copilot agent (Compliance, Configuration, KnowledgeBase) to have a corresponding Foundry agent created (or reused) in Azure AI Foundry with the correct system prompt, model deployment, and tool definitions — so that subsequent user messages can be routed to server-side agent instances.
+As the system starting up, I want each Security Posture Intelligence Navigator agent (Compliance, Configuration, KnowledgeBase) to have a corresponding Foundry agent created (or reused) in Azure AI Foundry with the correct system prompt, model deployment, and tool definitions — so that subsequent user messages can be routed to server-side agent instances.
 
 **Why this priority**: Co-ranked P1 because Foundry agents must exist before any user message can be processed. Without provisioned agents, the thread/run API has nothing to target. This is the equivalent of Feature 011's `TryProcessWithAiAsync` tool-definition setup, but done once at startup rather than per-request.
 
@@ -49,7 +49,7 @@ As the system starting up, I want each ATO Copilot agent (Compliance, Configurat
 
 ### User Story 3 — Foundry Thread & Run Processing (Priority: P2)
 
-As a user interacting with the ATO Copilot, I want my messages to be processed through Azure AI Foundry's thread and run API — so that the Foundry agent selects tools, chains multi-step operations, and returns natural language responses, with conversation state managed server-side.
+As a user interacting with the Security Posture Intelligence Navigator, I want my messages to be processed through Azure AI Foundry's thread and run API — so that the Foundry agent selects tools, chains multi-step operations, and returns natural language responses, with conversation state managed server-side.
 
 **Why this priority**: This is the core value of Foundry over direct OpenAI — server-side conversation threads and run orchestration. It replaces the manual tool-calling loop in `TryProcessWithAiAsync` with Foundry's managed run lifecycle.
 

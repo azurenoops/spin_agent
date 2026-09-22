@@ -79,7 +79,7 @@ export function buildAuthorizationCard(data: AuthorizationData): Record<string, 
     // Header
     {
       type: "TextBlock",
-      text: "ATO Copilot — Authorization Decision",
+      text: "Security Posture Intelligence Navigator — Authorization Decision",
       weight: "Bolder",
       size: "Large",
     },

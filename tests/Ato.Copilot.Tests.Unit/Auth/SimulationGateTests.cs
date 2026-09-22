@@ -2,6 +2,7 @@ using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Configuration.Auth;
 using Ato.Copilot.Mcp.Endpoints.Auth;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Xunit;
 
@@ -25,6 +26,36 @@ namespace Ato.Copilot.Tests.Unit.Auth;
 /// </remarks>
 public class SimulationGateTests
 {
+    [Fact]
+    public void DevelopmentIdentities_IncludeWorkspacePersonas_WithoutImplicitRoleGrants()
+    {
+        // Arrange
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Ato.Copilot.sln")))
+            root = root.Parent;
+        root.Should().NotBeNull("the test runs from the repository build output");
+        var config = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(root!.FullName, "src", "Ato.Copilot.Mcp", "appsettings.Development.json"))
+            .Build();
+
+        // Act
+        var options = config.GetSection("CacAuth").Get<CacAuthOptions>()!;
+
+        // Assert
+        options.SimulatedIdentities.Select(i => i.IdentityId).Should().OnlyHaveUniqueItems();
+        options.SimulatedIdentities.Select(i => i.Oid).Should().OnlyHaveUniqueItems();
+        foreach (var persona in new[] { "OrganizationAdmin", "MissionOwner", "SystemOwner", "ISSM", "SCA", "AuthorizingOfficial" })
+        {
+            var identity = options.SimulatedIdentities.Should().ContainSingle(i => i.Persona == persona).Which;
+            identity.Roles.Should().BeEmpty("workspace roles require explicit assignments, not persona labels");
+            Guid.TryParse(identity.Oid, out _).Should().BeTrue();
+            Guid.TryParse(identity.Tid, out _).Should().BeTrue();
+        }
+        options.SimulatedIdentities.Should().Contain(i => i.IdentityId == "dev-cspadmin");
+        options.SimulatedIdentities.Should().Contain(i => i.IdentityId == "dev-isso");
+        options.SimulatedIdentities.Should().Contain(i => i.IdentityId == "dev-soc-analyst");
+    }
+
     private sealed class FakeHostEnvironment : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = string.Empty;

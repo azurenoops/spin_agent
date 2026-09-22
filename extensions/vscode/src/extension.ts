@@ -19,7 +19,7 @@ import {
 let outputChannel: vscode.OutputChannel;
 
 export function activate(context: vscode.ExtensionContext): void {
-  outputChannel = vscode.window.createOutputChannel("ATO Copilot");
+  outputChannel = vscode.window.createOutputChannel("Security Posture Intelligence Navigator");
   const mcpClient = new McpClient(outputChannel);
 
   // Tenant status bar — surfaces home/impersonated tenant per FR-024 (T141).
@@ -231,7 +231,7 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
-  outputChannel.appendLine("ATO Copilot extension activated");
+  outputChannel.appendLine("Security Posture Intelligence Navigator extension activated");
 }
 
 function getRmfOverviewHtml(): string {

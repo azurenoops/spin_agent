@@ -1,11 +1,11 @@
-# Implementation Plan: Add Azure OpenAI to ATO Copilot Agents
+# Implementation Plan: Add Azure OpenAI to Security Posture Intelligence Navigator Agents
 
 **Branch**: `011-azure-openai-agents` | **Date**: 2026-02-25 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from `/specs/011-azure-openai-agents/spec.md`
 
 ## Summary
 
-Wire up Azure OpenAI as the LLM backend for ATO Copilot agents, transforming them from deterministic keyword-routing + tool-dispatch systems into AI-powered conversational assistants that use LLM function-calling to select tools, chain multi-step operations, and return natural language responses interpreting tool results. The implementation adds conditional `IChatClient` singleton registration in `CoreServiceExtensions` backed by the `Azure.AI.OpenAI` SDK, extends `BaseAgent` with an optional AI processing path (`TryProcessWithAiAsync`), updates all 3 concrete agents to accept `IChatClient?`, enhances system prompts with tool-selection and response-formatting guidance, and gates all AI behavior behind a `AgentAIEnabled` feature flag (default: off). When AI is unavailable or disabled, the system falls back to current direct-tool-execution with zero regressions.
+Wire up Azure OpenAI as the LLM backend for Security Posture Intelligence Navigator agents, transforming them from deterministic keyword-routing + tool-dispatch systems into AI-powered conversational assistants that use LLM function-calling to select tools, chain multi-step operations, and return natural language responses interpreting tool results. The implementation adds conditional `IChatClient` singleton registration in `CoreServiceExtensions` backed by the `Azure.AI.OpenAI` SDK, extends `BaseAgent` with an optional AI processing path (`TryProcessWithAiAsync`), updates all 3 concrete agents to accept `IChatClient?`, enhances system prompts with tool-selection and response-formatting guidance, and gates all AI behavior behind a `AgentAIEnabled` feature flag (default: off). When AI is unavailable or disabled, the system falls back to current direct-tool-execution with zero regressions.
 
 ## Technical Context
 

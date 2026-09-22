@@ -26,7 +26,7 @@ export function renderStatusBar(state: StatusBarState): StatusBarVisual {
     case "signedOut":
       return {
         text: "$(account) ATO: Sign In",
-        tooltip: "ATO Copilot — Click to sign in",
+        tooltip: "Security Posture Intelligence Navigator — Click to sign in",
         command: "ato.signIn",
       };
     case "signingIn":

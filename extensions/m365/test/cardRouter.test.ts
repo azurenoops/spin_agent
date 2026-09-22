@@ -197,7 +197,7 @@ describe("Card Router (FR-011)", () => {
     const card = selectCard(makeResponse({}));
     const body = card.body as any[];
     const header = body.find(
-      (b: any) => b.text === "ATO Copilot"
+      (b: any) => b.text === "Security Posture Intelligence Navigator"
     );
     expect(header).to.exist;
   });

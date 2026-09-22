@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-#  ATO Copilot — Full Stack Docker Compose
+#  Security Posture Intelligence Navigator — Full Stack Docker Compose
 #  Services: SQL Server + MCP Server + Chat App
 #  Usage:  docker compose -f docker-compose.mcp.yml up --build -d
 #  Env:    All secrets in .env (gitignored)
@@ -51,6 +51,7 @@ services:
       # an authenticated simulated identity. Production deployments use a
       # different compose / Container Apps manifest.
       - ASPNETCORE_ENVIRONMENT=Development
+      - ATO_CACAUTH__SIMULATIONMODE=${ATO_CACAUTH__SIMULATIONMODE:-true}
       - ASPNETCORE_URLS=http://+:3001
       - Logging__LogLevel__Microsoft.AspNetCore=Information
       - Logging__LogLevel__Microsoft.Hosting=Information
@@ -129,7 +130,7 @@ services:
       - ATO_AUTH__ROLECLAIMMAPPINGS__CSPADMIN=${ATO_AUTH__ROLECLAIMMAPPINGS__CSPADMIN}
       - ATO_AUTH__ROLECLAIMMAPPINGS__SOCANALYST=${ATO_AUTH__ROLECLAIMMAPPINGS__SOCANALYST}
       # Branding shown on the dashboard's /login page. All three are
-      # optional — empty values fall back to "ATO Copilot" / no logo /
+      # optional — empty values fall back to "Security Posture Intelligence Navigator" / no logo /
       # no support link.
       - ATO_AUTH__BRANDING__DEPLOYMENTNAME=${ATO_AUTH__BRANDING__DEPLOYMENTNAME}
       - ATO_AUTH__BRANDING__LOGOURL=${ATO_AUTH__BRANDING__LOGOURL}

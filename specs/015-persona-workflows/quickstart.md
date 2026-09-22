@@ -4,7 +4,7 @@
 
 ## What This Feature Adds
 
-Feature 015 transforms the ATO Copilot from a compliance-scanning tool into a full DoD RMF lifecycle engine. It adds:
+Feature 015 transforms the Security Posture Intelligence Navigator from a compliance-scanning tool into a full DoD RMF lifecycle engine. It adds:
 
 - **Multi-system registration** — one MCP server manages many ATO packages
 - **7-step RMF workflow** — Prepare → Categorize → Select → Implement → Assess → Authorize → Monitor
@@ -16,7 +16,7 @@ Feature 015 transforms the ATO Copilot from a compliance-scanning tool into a fu
 
 ## Prerequisites
 
-- Existing ATO Copilot environment running (see `docs/getting-started.md`)
+- Existing Security Posture Intelligence Navigator environment running (see `docs/getting-started.md`)
 - .NET 9.0 SDK, Node.js 22+, Docker
 - SQL Server container (existing `docker-compose.mcp.yml`)
 - Azure Government subscription (optional, for boundary auto-discovery)

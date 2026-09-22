@@ -13,7 +13,7 @@ See `contracts/smoke-test.md` for the full contract.
 
 | Input | Source | Required | Description |
 |---|---|---|---|
-| `BASE_URL` | Positional arg or env var | ✅ Yes | Base URL of the deployed ATO Copilot instance |
+| `BASE_URL` | Positional arg or env var | ✅ Yes | Base URL of the deployed Security Posture Intelligence Navigator instance |
 | `SERVICE_ACCOUNT_TOKEN` | Env var | No | Bearer token for the authenticated API check |
 
 ### Outputs

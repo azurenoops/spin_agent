@@ -60,7 +60,7 @@ public class EvidenceStorageServiceTests : IDisposable
         evidence.EvidenceCategory.Should().Be(EvidenceCategory.PolicyCompliance);
         evidence.ContentHash.Should().NotBeNullOrEmpty();
         evidence.Content.Should().Contain("AC-2");
-        evidence.CollectedBy.Should().Contain("ATO Copilot");
+        evidence.CollectedBy.Should().Contain("Security Posture Intelligence Navigator");
     }
 
     [Fact]

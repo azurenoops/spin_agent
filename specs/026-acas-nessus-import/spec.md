@@ -3,7 +3,7 @@
 **Feature Branch**: `026-acas-nessus-import`  
 **Created**: 2025-03-12  
 **Status**: Draft  
-**Input**: User description: "Import vulnerability scan results from ACAS .nessus files. Teams export from ACAS and import to ATO Copilot can automatically map to controls."
+**Input**: User description: "Import vulnerability scan results from ACAS .nessus files. Teams export from ACAS and import to Security Posture Intelligence Navigator can automatically map to controls."
 
 ## Clarifications
 
@@ -19,7 +19,7 @@
 
 ### User Story 1 — Import ACAS .nessus File (Priority: P1)
 
-An ISSO, SCA, or System Admin exports a .nessus vulnerability scan file from ACAS (Assured Compliance Assessment Solution) and imports it into ATO Copilot for a registered system. The system parses the XML, extracts all vulnerability findings (plugins), and persists them as compliance findings linked to the target system.
+An ISSO, SCA, or System Admin exports a .nessus vulnerability scan file from ACAS (Assured Compliance Assessment Solution) and imports it into Security Posture Intelligence Navigator for a registered system. The system parses the XML, extracts all vulnerability findings (plugins), and persists them as compliance findings linked to the target system.
 
 **Why this priority**: This is the foundational capability — without file parsing and finding creation, no downstream features (control mapping, reporting) can function. It delivers immediate value by centralizing vulnerability data that currently lives in disconnected ACAS exports.
 
@@ -37,7 +37,7 @@ An ISSO, SCA, or System Admin exports a .nessus vulnerability scan file from ACA
 
 ### User Story 2 — Automatic Control Mapping (Priority: P1)
 
-After importing a .nessus file, ATO Copilot automatically maps each vulnerability finding to the applicable NIST 800-53 controls. This mapping uses the plugin's CVE references to resolve through CCI (Control Correlation Identifier) crosswalks and the existing STIG-to-CCI-to-NIST chain, as well as direct plugin-family-to-control-family heuristics for findings without CVE cross-references.
+After importing a .nessus file, Security Posture Intelligence Navigator automatically maps each vulnerability finding to the applicable NIST 800-53 controls. This mapping uses the plugin's CVE references to resolve through CCI (Control Correlation Identifier) crosswalks and the existing STIG-to-CCI-to-NIST chain, as well as direct plugin-family-to-control-family heuristics for findings without CVE cross-references.
 
 **Why this priority**: Automatic control mapping is the core differentiator — without it, teams must manually correlate thousands of vulnerability findings to controls, which is the primary pain point this feature solves.
 
@@ -154,7 +154,7 @@ Open vulnerability findings from ACAS imports automatically populate as weakness
 
 ## Assumptions
 
-- Teams have access to export .nessus files from ACAS in the standard NessusClientData_v2 XML format. ATO Copilot does not connect to ACAS directly.
+- Teams have access to export .nessus files from ACAS in the standard NessusClientData_v2 XML format. Security Posture Intelligence Navigator does not connect to ACAS directly.
 - The existing CCI crosswalk data (used for CKL/XCCDF imports) includes sufficient CVE-to-CCI mappings to resolve the majority of common vulnerability CVEs. Where gaps exist, the system falls back to heuristic mapping.
 - Plugin-family-to-control-family heuristic mappings follow established DISA patterns (e.g., "Windows: Microsoft Bulletins" → SI-2 Flaw Remediation, "Firewalls" → SC-7 Boundary Protection).
 - File size limits and base64 encoding constraints are consistent with the existing scan import infrastructure.

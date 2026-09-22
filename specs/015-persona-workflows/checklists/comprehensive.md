@@ -47,7 +47,7 @@
   > **PASS**: Correctly modeled as AO judgment (not algorithmic). Per DoD guidance, the AO determines acceptable risk. The copilot provides data (finding counts, CAT breakdown, compliance score, RAR analysis) for an informed decision.
 - [x] CHK015 — Is "AI-suggested narrative" specified with quality/accuracy requirements? The spec says KnowledgeBase agent "suggests draft narratives" but does not define the expected output quality, hallucination guardrails, or how confidence scores are calculated. [Clarity, Spec §2.2]
   > **PASS (FIXED)**: Spec §2.2 now specifies: confidence score (0.0-1.0), < 0.5 flagged as "low confidence," all AI-suggested narratives marked `AiSuggested = true` and require explicit human review before counting toward SSP completeness.
-- [x] CHK016 — Is "top 200 rules by frequency" (capability 2.7, STIG library expansion) defined with a source or methodology? Frequency of what — findings in DoD systems, DISA benchmark downloads, or ATO Copilot scan results? [Ambiguity, Spec §2.7]
+- [x] CHK016 — Is "top 200 rules by frequency" (capability 2.7, STIG library expansion) defined with a source or methodology? Frequency of what — findings in DoD systems, DISA benchmark downloads, or Security Posture Intelligence Navigator scan results? [Ambiguity, Spec §2.7]
   > **PASS**: Spec §2.7→§5.6 defines progression (7→200→880). "Frequency" refers to DISA benchmark technology coverage across common DoD platforms. Selection is a data curation task during implementation.
 
 ## Requirement Consistency

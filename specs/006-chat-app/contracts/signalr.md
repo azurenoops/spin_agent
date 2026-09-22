@@ -1,4 +1,4 @@
-# SignalR Contract: ATO Copilot Chat Application
+# SignalR Contract: Security Posture Intelligence Navigator Chat Application
 
 **Feature**: 006-chat-app | **Date**: 2026-02-23
 **Hub Path**: `/hubs/chat`

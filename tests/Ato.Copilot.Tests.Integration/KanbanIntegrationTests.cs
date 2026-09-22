@@ -87,7 +87,7 @@ public class KanbanIntegrationTests : IAsyncLifetime
 
         _app.MapGet("/", () => Microsoft.AspNetCore.Http.Results.Json(new
         {
-            service = "ATO Copilot",
+            service = "Security Posture Intelligence Navigator",
             version = "1.0.0",
             mode = "http"
         }));

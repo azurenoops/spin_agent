@@ -7,7 +7,7 @@
 
 ## Background
 
-ATO Copilot today has a partial multi-tenant model: ~13 onboarding entities carry a `TenantId Guid` column, but the **other 60+ DbSets** in `AtoCopilotContext` — including `RegisteredSystem`, `ComplianceFinding`, `EvidenceArtifact`, `Deviation`, `PoamItem`, `RemediationTask`, `SspExport`, every assessment table, every Azure-discovered component, etc. — have **no tenant or organization column at all**. There are **zero `HasQueryFilter` calls** in the codebase, so any user with a valid CAC/Entra token can in principle query any data row. The CAC middleware reads the Entra `tid`/`oid` claims but does not surface them to a typed tenant context that services can consume.
+Security Posture Intelligence Navigator today has a partial multi-tenant model: ~13 onboarding entities carry a `TenantId Guid` column, but the **other 60+ DbSets** in `AtoCopilotContext` — including `RegisteredSystem`, `ComplianceFinding`, `EvidenceArtifact`, `Deviation`, `PoamItem`, `RemediationTask`, `SspExport`, every assessment table, every Azure-discovered component, etc. — have **no tenant or organization column at all**. There are **zero `HasQueryFilter` calls** in the codebase, so any user with a valid CAC/Entra token can in principle query any data row. The CAC middleware reads the Entra `tid`/`oid` claims but does not surface them to a typed tenant context that services can consume.
 
 This feature must close that gap so a single deployment can safely host:
 
@@ -137,7 +137,7 @@ Every CSP-Admin impersonation, every cross-tenant export, every administrative a
 
 ### User Story 7 — CSP First-Use Onboarding (Priority: P1)
 
-A CSP operator stands up a new MultiTenant deployment of ATO Copilot. The very first time they sign in (with the `CSP.Admin` role), the dashboard routes them to a **CSP Onboarding Wizard** that captures the hosting CSP's own identity — legal entity, public display name (e.g., "Flankspeed"), logo, primary support contact, and default classification floor for hosted tenants. Until that wizard is complete, no tenant can be pre-provisioned, no per-tenant onboarding wizard runs, and ordinary tenant-scoped requests return `503 CSP_ONBOARDING_INCOMPLETE`. Once complete, the deployment is fully operational and the existing per-tenant onboarding (US4) becomes available.
+A CSP operator stands up a new MultiTenant deployment of Security Posture Intelligence Navigator. The very first time they sign in (with the `CSP.Admin` role), the dashboard routes them to a **CSP Onboarding Wizard** that captures the hosting CSP's own identity — legal entity, public display name (e.g., "Flankspeed"), logo, primary support contact, and default classification floor for hosted tenants. Until that wizard is complete, no tenant can be pre-provisioned, no per-tenant onboarding wizard runs, and ordinary tenant-scoped requests return `503 CSP_ONBOARDING_INCOMPLETE`. Once complete, the deployment is fully operational and the existing per-tenant onboarding (US4) becomes available.
 
 **Why this priority**: A `MultiTenant` deployment cannot legally onboard customer tenants without first capturing the hosting CSP's own legal/contact metadata — audit, support, and customer communications all reference it. This blocks US2, US4, and US8 in `MultiTenant` mode.
 

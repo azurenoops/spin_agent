@@ -10,7 +10,7 @@ import {
 } from '../types/chat';
 
 // ────────────────────────────────────────────────────────────────
-//  ATO Copilot Chat — REST API Client
+//  Security Posture Intelligence Navigator Chat — REST API Client
 // ────────────────────────────────────────────────────────────────
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '/api';

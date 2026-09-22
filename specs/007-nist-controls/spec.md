@@ -7,7 +7,7 @@
 
 ## Current State Analysis
 
-The ATO Copilot already has a working `NistControlsService` (482 lines) with a 3-method `INistControlsService` interface, embedded OSCAL catalog fallback, dual-source loading (online then cache then embedded), and 10 passing unit tests. Three consumers inject the service today: `AtoComplianceEngine`, `DocumentGenerationService`, and `ControlFamilyTool`.
+The Security Posture Intelligence Navigator already has a working `NistControlsService` (482 lines) with a 3-method `INistControlsService` interface, embedded OSCAL catalog fallback, dual-source loading (online then cache then embedded), and 10 passing unit tests. Three consumers inject the service today: `AtoComplianceEngine`, `DocumentGenerationService`, and `ControlFamilyTool`.
 
 However, the current implementation has **significant gaps** relative to the full vision:
 

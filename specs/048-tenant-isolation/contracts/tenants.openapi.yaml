@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: ATO Copilot — Tenants API
+  title: Security Posture Intelligence Navigator — Tenants API
   version: "1.0.0"
   description: |
     Endpoints for listing, provisioning, status-changing, and impersonating

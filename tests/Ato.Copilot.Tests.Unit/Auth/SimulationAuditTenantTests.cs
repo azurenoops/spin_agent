@@ -23,10 +23,14 @@ namespace Ato.Copilot.Tests.Unit.Auth;
 public class SimulationAuditTenantTests
 {
     [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    public async Task ConfiguredIdentity_AuditsOnlyToAnExistingTenant_WithoutProvisioningMembership(bool provisioned, bool systemTenantExists)
+    [InlineData(false, true, true, "Development")]
+    [InlineData(true, true, true, "Development")]
+    [InlineData(false, false, true, "Development")]
+    [InlineData(false, true, false, "Development")]
+    [InlineData(false, true, true, "Production")]
+    [InlineData(false, true, true, "Staging")]
+    public async Task ConfiguredIdentity_AuditsOnlyToAnExistingTenant_WithoutProvisioningMembership(
+        bool provisioned, bool systemTenantExists, bool simulationMode, string environmentName)
     {
         // Arrange
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -43,7 +47,7 @@ public class SimulationAuditTenantTests
         var factory = new Mock<IDbContextFactory<AtoCopilotContext>>();
         factory.Setup(value => value.CreateDbContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new AtoCopilotContext(options));
-        var environment = Mock.Of<IHostEnvironment>(value => value.EnvironmentName == Environments.Development);
+        var environment = Mock.Of<IHostEnvironment>(value => value.EnvironmentName == environmentName);
         var identity = new SimulatedIdentityDescriptor
         {
             IdentityId = "synthetic", DisplayName = "Synthetic user", Persona = "CspAdmin",
@@ -55,7 +59,7 @@ public class SimulationAuditTenantTests
         // Act
         var attempt = () => (Task<IResult>)method.Invoke(null,
         [
-            http, environment, Options.Create(new CacAuthOptions { SimulationMode = true, SimulatedIdentities = [identity] }),
+            http, environment, Options.Create(new CacAuthOptions { SimulationMode = simulationMode, SimulatedIdentities = [identity] }),
             factory.Object, new LoginAuditService(NullLogger<LoginAuditService>.Instance), new TenantContextAccessor(),
             new LoginAuditContextAccessor(), NullLoggerFactory.Instance, CancellationToken.None, identity.IdentityId,
         ])!;
@@ -68,8 +72,16 @@ public class SimulationAuditTenantTests
             return;
         }
         var result = await attempt();
-        ((IStatusCodeHttpResult)result).StatusCode.Should().Be(StatusCodes.Status204NoContent);
         await using var verify = new AtoCopilotContext(options);
+        if (!simulationMode || environmentName != Environments.Development)
+        {
+            ((IStatusCodeHttpResult)result).StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            http.Response.Headers.SetCookie.Should().BeEmpty();
+            (await verify.LoginAuditEvents.SingleAsync()).EventType.Should().Be(LoginAuditEventType.SimulationBlocked);
+            (await verify.OrganizationMemberships.CountAsync()).Should().Be(0);
+            return;
+        }
+        ((IStatusCodeHttpResult)result).StatusCode.Should().Be(StatusCodes.Status204NoContent);
         var audit = await verify.LoginAuditEvents.SingleAsync(value => value.EventType == LoginAuditEventType.SimulatedLogin);
         audit.EffectiveTenantId.Should().Be(provisioned ? tenant : Guid.Empty);
         (await verify.Tenants.CountAsync()).Should().Be(provisioned ? 2 : 1);

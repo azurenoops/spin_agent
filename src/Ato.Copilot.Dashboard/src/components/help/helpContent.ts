@@ -103,7 +103,7 @@ export const helpSections: HelpSection[] = [
     id: 'getting-started',
     title: 'Getting Started',
     content:
-      'ATO Copilot Dashboard provides a real-time view of your organization\'s Authority to Operate (ATO) compliance posture. Use it to track systems, monitor findings, and manage remediation tasks across your portfolio.',
+      'Security Posture Intelligence Navigator Dashboard provides a real-time view of your organization\'s Authority to Operate (ATO) compliance posture. Use it to track systems, monitor findings, and manage remediation tasks across your portfolio.',
     subsections: [
       {
         title: 'Header Navigation',

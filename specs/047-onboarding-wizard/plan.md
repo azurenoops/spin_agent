@@ -5,7 +5,7 @@
 
 ## Summary
 
-Deliver a guided **tenant-level onboarding wizard** that an organization's first administrator runs once (and any in-app **Administrator** can re-run later) to bring an empty ATO Copilot tenant from "fresh install" to "ready to author and assess." The wizard guides the admin through seven steps:
+Deliver a guided **tenant-level onboarding wizard** that an organization's first administrator runs once (and any in-app **Administrator** can re-run later) to bring an empty Security Posture Intelligence Navigator tenant from "fresh install" to "ready to author and assess." The wizard guides the admin through seven steps:
 
 1. **Organization & branch context** (org name, DoD branch / civil agency / industry partner, sub-org, classification posture, POC) — feeds every downstream cover page, narrative, and export header.
 2. **RMF role assignment** (ISSM / ISSO / Administrator / Assessor) — establishes organization-level defaults inherited by every system created afterward (Feature 042 / 044).

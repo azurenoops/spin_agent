@@ -259,7 +259,7 @@ export function createParticipantHandler(
           authKind === "signIn"
             ? "Sign-in flow started — follow the prompts in the notification."
             : authKind === "signOut"
-              ? "Signed out of ATO Copilot."
+              ? "Signed out of Security Posture Intelligence Navigator."
               : "Tenant switcher opened — choose a tenant from the quick pick.";
         stream.markdown(friendly);
         return {};
@@ -291,7 +291,7 @@ export function createParticipantHandler(
     };
 
     try {
-      stream.progress("Connecting to ATO Copilot...");
+      stream.progress("Connecting to Security Posture Intelligence Navigator...");
 
       const response: McpChatResponse =
         await mcpClient.sendMessageWithProgress(chatRequest, (step) => {

@@ -7,7 +7,7 @@ using Ato.Copilot.Core.Observability;
 namespace Ato.Copilot.Agents.Common;
 
 /// <summary>
-/// Base class for all tools in the ATO Copilot.
+/// Base class for all tools in the Security Posture Intelligence Navigator.
 /// All tools MUST extend this class (Constitution Principle II).
 /// </summary>
 public abstract class BaseTool

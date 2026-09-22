@@ -42,7 +42,7 @@ export class TenantStatusBar implements vscode.Disposable {
     if (impersonatedTenantId) {
       this.item.text = `$(eye) ATO: Impersonating ${shortId(impersonatedTenantId)}`;
       this.item.tooltip =
-        `ATO Copilot — impersonating tenant ${impersonatedTenantId}\n` +
+        `Security Posture Intelligence Navigator — impersonating tenant ${impersonatedTenantId}\n` +
         (tenantId ? `Home tenant: ${tenantId}\n` : "") +
         "Click to configure";
       this.item.backgroundColor = new vscode.ThemeColor(
@@ -50,12 +50,12 @@ export class TenantStatusBar implements vscode.Disposable {
       );
     } else if (tenantId) {
       this.item.text = `$(organization) ATO: ${shortId(tenantId)}`;
-      this.item.tooltip = `ATO Copilot — tenant ${tenantId}\nClick to configure`;
+      this.item.tooltip = `Security Posture Intelligence Navigator — tenant ${tenantId}\nClick to configure`;
       this.item.backgroundColor = undefined;
     } else {
       this.item.text = "$(organization) ATO: no tenant";
       this.item.tooltip =
-        "ATO Copilot — no tenant configured. Click to configure ato-copilot.tenantId.";
+        "Security Posture Intelligence Navigator — no tenant configured. Click to configure ato-copilot.tenantId.";
       this.item.backgroundColor = undefined;
     }
   }

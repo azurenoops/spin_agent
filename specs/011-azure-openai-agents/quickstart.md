@@ -1,4 +1,4 @@
-# Quickstart: Add Azure OpenAI to ATO Copilot Agents
+# Quickstart: Add Azure OpenAI to Security Posture Intelligence Navigator Agents
 
 **Feature**: 011-azure-openai-agents | **Date**: 2026-02-25
 
@@ -11,7 +11,7 @@
 
 ## What This Feature Does
 
-Adds optional Azure OpenAI LLM-powered processing to ATO Copilot agents. When configured and enabled, agents use the LLM to understand user intent, select appropriate tools via function-calling, and return natural language responses that interpret tool results. When unconfigured or disabled, agents behave exactly as before — deterministic keyword routing and raw tool output.
+Adds optional Azure OpenAI LLM-powered processing to Security Posture Intelligence Navigator agents. When configured and enabled, agents use the LLM to understand user intent, select appropriate tools via function-calling, and return natural language responses that interpret tool results. When unconfigured or disabled, agents behave exactly as before — deterministic keyword routing and raw tool output.
 
 ## Implementation Order
 

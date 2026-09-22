@@ -13,14 +13,14 @@
 
 eMASS (Enterprise Mission Assurance Support Service) requires every system package to include a complete hardware and software inventory as part of the System Security Plan (SSP). This inventory must list every component within the authorization boundary — servers, workstations, network devices, operating systems, middleware, databases, and applications — along with version numbers, vendors, and IP/MAC addresses where applicable.
 
-ATO Copilot already tracks authorization boundary resources via the `AuthorizationBoundary` entity. However, boundary resources are Azure resource identifiers (e.g., subscription IDs, resource group IDs, VM resource IDs) — they tell the system **what cloud resources are in scope** but do not capture the formal HW/SW inventory detail that DoD assessors and eMASS require:
+Security Posture Intelligence Navigator already tracks authorization boundary resources via the `AuthorizationBoundary` entity. However, boundary resources are Azure resource identifiers (e.g., subscription IDs, resource group IDs, VM resource IDs) — they tell the system **what cloud resources are in scope** but do not capture the formal HW/SW inventory detail that DoD assessors and eMASS require:
 
 - **Hardware**: manufacturer, model, serial number, function (server, workstation, network device), location, IP address, MAC address
 - **Software**: product name, vendor, version, patch level, license type, installation location, function (OS, middleware, database, application)
 
 ### The Current Gap
 
-| What eMASS Requires | What ATO Copilot Has Today |
+| What eMASS Requires | What Security Posture Intelligence Navigator Has Today |
 |----------------------|---------------------------|
 | HW inventory with manufacturer, model, serial number, IP/MAC | `AuthorizationBoundary.ResourceType` + `ResourceName` — no manufacturer, model, serial, IP, or MAC |
 | SW inventory with vendor, product name, version, patch level | Nothing — software is not tracked at all |
@@ -31,7 +31,7 @@ ATO Copilot already tracks authorization boundary resources via the `Authorizati
 
 ### Who Benefits
 
-- **ISSO/ISSM**: No longer manually maintains HW/SW spreadsheets separate from ATO Copilot
+- **ISSO/ISSM**: No longer manually maintains HW/SW spreadsheets separate from Security Posture Intelligence Navigator
 - **Engineer**: Can register components as they are provisioned and keep versions current
 - **SCA**: Can review the inventory for completeness before assessment
 - **AO**: Gets a complete SSP package where the HW/SW sections are auto-populated

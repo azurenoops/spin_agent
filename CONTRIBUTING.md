@@ -1,4 +1,4 @@
-# Contributing to ATO Copilot
+# Contributing to Security Posture Intelligence Navigator
 
 Thanks for collaborating! This file is a brief landing page so GitHub's PR / Issue
 UI can find a contribution guide. The full developer documentation lives elsewhere.

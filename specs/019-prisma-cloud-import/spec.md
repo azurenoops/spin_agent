@@ -2,7 +2,7 @@
 
 **Created**: 2026-03-05  
 **Status**: Strategic Plan  
-**Purpose**: Enable ATO Copilot to ingest Prisma Cloud compliance scan results (CSPM alerts and policy findings), map them to NIST 800-53 controls, create compliance findings, and feed them into the existing assessment pipeline — closing the gap between cloud security posture scanning and RMF artifact generation.
+**Purpose**: Enable Security Posture Intelligence Navigator to ingest Prisma Cloud compliance scan results (CSPM alerts and policy findings), map them to NIST 800-53 controls, create compliance findings, and feed them into the existing assessment pipeline — closing the gap between cloud security posture scanning and RMF artifact generation.
 
 ---
 
@@ -11,7 +11,7 @@
 ### Session 2026-03-05
 
 - Q: What Prisma Cloud output formats should we support? → A: Prisma Cloud CSV export (available from all tiers) as the primary format, and Prisma Cloud API JSON (RQL alert response) as the secondary format. CSV is universally available and requires no API credentials; JSON is richer and supports automation.
-- Q: How does Prisma Cloud data map to existing ATO Copilot entities? → A: Prisma policies have compliance standards metadata that includes NIST 800-53 control IDs directly. Each alert/finding maps to a `ComplianceFinding` with cloud resource context. No CCI intermediate mapping needed — Prisma embeds the NIST control reference directly, unlike CKL/XCCDF which requires CCI→NIST resolution.
+- Q: How does Prisma Cloud data map to existing Security Posture Intelligence Navigator entities? → A: Prisma policies have compliance standards metadata that includes NIST 800-53 control IDs directly. Each alert/finding maps to a `ComplianceFinding` with cloud resource context. No CCI intermediate mapping needed — Prisma embeds the NIST control reference directly, unlike CKL/XCCDF which requires CCI→NIST resolution.
 - Q: Should we support Prisma Cloud's CSPM, CWP, and CWPP modules? → A: Start with CSPM (Cloud Security Posture Management) compliance alerts, which is the module relevant to ATO/RMF. CSPM produces policy-level compliance findings mapped to frameworks. CWP (workload protection) and CNAPP (application security) are separate modules with different data structures — they're future enhancements.
 - Q: Should Prisma findings overwrite or coexist with existing STIG/SCAP findings for the same NIST control? → A: Coexist. Prisma findings have `ScanSource = Cloud` (distinct from CKL's `Combined` or XCCDF's `Automated`). Multiple evidence sources per control is the correct posture — the effectiveness determination aggregates all findings regardless of source. A control is `OtherThanSatisfied` if ANY source reports an open finding.
 - Q: How does Prisma severity map to CAT severity? → A: Prisma uses Critical/High/Medium/Low/Informational. Map: Critical→CatI, High→CatI, Medium→CatII, Low→CatIII, Informational→Informational (no CAT equivalent). This matches DoD CAT severity conventions where Critical/High both represent CAT I.
@@ -50,7 +50,7 @@ Prisma tells the AO there are 47 findings. Then someone has to manually:
 
 ### The Current Gap
 
-| What Teams Do Today | What ATO Copilot Can Do Today |
+| What Teams Do Today | What Security Posture Intelligence Navigator Can Do Today |
 |---------------------|-------------------------------|
 | Run Prisma Cloud compliance scans | Nothing — no Prisma parser exists |
 | Export findings as CSV or pull via API | Nothing — no cloud CSPM import pipeline |
@@ -61,7 +61,7 @@ Prisma tells the AO there are 47 findings. Then someone has to manually:
 
 ### The Opportunity
 
-ATO Copilot already has:
+Security Posture Intelligence Navigator already has:
 - **Compliance Finding pipeline** — `ComplianceFinding` with severity, status, remediation tracking
 - **Control Effectiveness** — `ControlEffectiveness` for per-control assessment determinations
 - **Evidence chain** — `ComplianceEvidence` with SHA-256 hashing and collection method tracking
@@ -72,7 +72,7 @@ ATO Copilot already has:
 
 The missing piece is **Prisma data parsing** — getting Prisma Cloud's CSV/JSON output into the existing entity pipeline. Once Prisma findings flow into `ComplianceFinding` records, every downstream tool (SSP generation, SAR generation, POA&M creation, authorization package bundling) automatically includes them.
 
-**This is the net-add value**: Prisma is the input, ATO Copilot is the output. Prisma tells you what's broken; ATO Copilot turns that into the package the AO signs.
+**This is the net-add value**: Prisma is the input, Security Posture Intelligence Navigator is the output. Prisma tells you what's broken; Security Posture Intelligence Navigator turns that into the package the AO signs.
 
 ---
 
@@ -590,7 +590,7 @@ Once Prisma findings are imported as `ComplianceFinding` records, these existing
 
 ### Why This Order?
 
-1. **Phase 1 (CSV Import) first** because CSV export is universally available from all Prisma Cloud tiers and requires no API credentials. It's the fastest path to getting Prisma data into ATO Copilot for any customer, including the FS Azure MO.
+1. **Phase 1 (CSV Import) first** because CSV export is universally available from all Prisma Cloud tiers and requires no API credentials. It's the fastest path to getting Prisma data into Security Posture Intelligence Navigator for any customer, including the FS Azure MO.
 
 2. **Phase 2 (API JSON) second** because it extends the same pipeline with a richer parser. The NIST control extraction, finding creation, and effectiveness upsert logic from Phase 1 is reused. API JSON adds remediation guidance and alert history.
 
@@ -613,13 +613,13 @@ Once Prisma findings are imported as `ComplianceFinding` records, these existing
 
 ---
 
-## Part 12: Prisma Cloud × ATO Copilot Value Proposition
+## Part 12: Prisma Cloud × Security Posture Intelligence Navigator Value Proposition
 
 ### The Pipeline
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────────────┐
-│  Prisma Cloud   │     │  ATO Copilot    │     │  Authorization Package      │
+│  Prisma Cloud   │     │  Security Posture Intelligence Navigator    │     │  Authorization Package      │
 │  (CSPM Scanner) │────▶│  (Import +      │────▶│  (AO Signs)                 │
 │                 │     │   Artifact Gen) │     │                             │
 │  • Scans Azure  │     │  • Import CSV   │     │  • SSP with control posture │
@@ -636,11 +636,11 @@ Once Prisma findings are imported as `ComplianceFinding` records, these existing
 
 ### Key Differentiator
 
-> **Prisma Cloud tells you what's broken. ATO Copilot turns that into the package the AO signs.**
+> **Prisma Cloud tells you what's broken. Security Posture Intelligence Navigator turns that into the package the AO signs.**
 >
-> The 18-month ATO bottleneck at NAVAIR is not a scanning gap — it's a documentation and artifact generation gap. Teams spend more time chasing artifacts than fixing findings. ATO Copilot eliminates the manual data extraction → documentation cycle by importing Prisma scan results directly into the RMF artifact pipeline.
+> The 18-month ATO bottleneck at NAVAIR is not a scanning gap — it's a documentation and artifact generation gap. Teams spend more time chasing artifacts than fixing findings. Security Posture Intelligence Navigator eliminates the manual data extraction → documentation cycle by importing Prisma scan results directly into the RMF artifact pipeline.
 >
-> For the FS Azure Mission Owner: Prisma scans the Azure environment → ATO Copilot ingests findings → auto-generates the SSP, SAP, SAR, POA&M → produces the authorization package → tracks ATO expiration and continuous monitoring. **End-to-end, from scan to signed ATO.**
+> For the FS Azure Mission Owner: Prisma scans the Azure environment → Security Posture Intelligence Navigator ingests findings → auto-generates the SSP, SAP, SAR, POA&M → produces the authorization package → tracks ATO expiration and continuous monitoring. **End-to-end, from scan to signed ATO.**
 
 ---
 
@@ -650,14 +650,14 @@ Once Prisma findings are imported as `ComplianceFinding` records, these existing
 
 #### Who Runs Prisma Scans
 
-| Role | Responsibility | ATO Copilot Persona |
+| Role | Responsibility | Security Posture Intelligence Navigator Persona |
 |------|---------------|---------------------|
-| **ISSO** (Information System Security Officer) | Primary operator. Exports Prisma CSV/JSON and imports into ATO Copilot. Configures Prisma compliance policies for the system boundary. Monitors alerts in the Prisma console. | `Analyst` role — runs `compliance_import_prisma` |
+| **ISSO** (Information System Security Officer) | Primary operator. Exports Prisma CSV/JSON and imports into Security Posture Intelligence Navigator. Configures Prisma compliance policies for the system boundary. Monitors alerts in the Prisma console. | `Analyst` role — runs `compliance_import_prisma` |
 | **Cloud Security Engineer** | Configures Prisma Cloud CSPM policies, manages cloud accounts, tunes alert rules. May export scan data for the ISSO. | `Analyst` role — runs `compliance_import_prisma` |
 | **ISSM** (Information System Security Manager) | Directs the ISSO to run/import scans. Reviews aggregated findings across systems. Does not typically run the import directly. | `SecurityLead` role — reviews via `compliance_prisma_trend`, `compliance_list_prisma_policies` |
 | **SCA** (Security Control Assessor) | Consumes imported Prisma data for effectiveness determinations. Does not run scans or imports. Reviews trend data to validate remediation claims. | `Assessor` role — read-only access to findings and trend data |
 
-> **Important**: Prisma Cloud itself runs **continuously** — CSPM scans execute automatically on a schedule (typically every 1–4 hours). The human action is **exporting and importing** the results into ATO Copilot, not triggering the scan itself.
+> **Important**: Prisma Cloud itself runs **continuously** — CSPM scans execute automatically on a schedule (typically every 1–4 hours). The human action is **exporting and importing** the results into Security Posture Intelligence Navigator, not triggering the scan itself.
 
 #### When Prisma Scans Are Imported
 
@@ -677,7 +677,7 @@ RMF Step 2: Select      ──  (Prisma not relevant yet — baseline not select
 RMF Step 3: Implement   ──  Engineer configures Prisma policies for the boundary
                               └─ Optional: early import to identify gaps before assessment
 RMF Step 4: Assess      ──  ★ PRIMARY STAGE ★
-                              ├─ ISSO exports Prisma CSV and imports into ATO Copilot
+                              ├─ ISSO exports Prisma CSV and imports into Security Posture Intelligence Navigator
                               ├─ Findings auto-populate ComplianceFinding + ControlEffectiveness
                               ├─ SCA uses imported data for effectiveness determinations
                               └─ SAR generation includes Prisma-sourced findings

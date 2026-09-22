@@ -1,6 +1,6 @@
 # Contributing Guide
 
-> How to add tools, entities, Adaptive Cards, reference data, and tests to ATO Copilot.
+> How to add tools, entities, Adaptive Cards, reference data, and tests to Security Posture Intelligence Navigator.
 
 ---
 

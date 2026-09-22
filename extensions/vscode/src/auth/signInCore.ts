@@ -112,7 +112,7 @@ export async function runDeviceCodeSignIn(
   try {
     config = await deps.fetchLoginConfig("");
   } catch (err) {
-    return failFlow(deps, err, "Could not load ATO Copilot login config.");
+    return failFlow(deps, err, "Could not load Security Posture Intelligence Navigator login config.");
   }
 
   const pca = deps.createPca(config, deps.log);
@@ -151,7 +151,7 @@ export async function runDeviceCodeSignIn(
         }
         const minutes = Math.max(1, Math.round(response.expiresIn / 60));
         const message =
-          `To sign in to ATO Copilot, visit ${response.verificationUri} ` +
+          `To sign in to Security Posture Intelligence Navigator, visit ${response.verificationUri} ` +
           `and enter code ${response.userCode}. Code expires in ${minutes} ` +
           `minute${minutes === 1 ? "" : "s"}.`;
         // Fire-and-forget — the user action is async but we don't await it
@@ -185,7 +185,7 @@ export async function runDeviceCodeSignIn(
   if (!authResult || !authResult.accessToken) {
     // User cancelled — info notification, status bar reverts to signedOut.
     deps.updateStatusBar({ state: "signedOut" });
-    await deps.showInfoMessage("ATO Copilot sign-in cancelled.");
+    await deps.showInfoMessage("Security Posture Intelligence Navigator sign-in cancelled.");
     return { outcome: "cancelled" };
   }
 
@@ -269,7 +269,7 @@ async function finalizeSuccess(
     tenant: tenant.displayName,
   });
   await deps.showInfoMessage(
-    `Signed in to ATO Copilot as ${displayName} (${tenant.displayName}).`,
+    `Signed in to Security Posture Intelligence Navigator as ${displayName} (${tenant.displayName}).`,
   );
 
   return {
@@ -326,7 +326,7 @@ export function mapServerErrorMessage(err: unknown): string | undefined {
 
   if (code === "NO_TENANT_ASSIGNMENT") {
     return (
-      "Your account is authenticated but not assigned to any ATO Copilot " +
+      "Your account is authenticated but not assigned to any Security Posture Intelligence Navigator " +
       "tenant. Contact your administrator."
     );
   }

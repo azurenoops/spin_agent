@@ -56,7 +56,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
   const oid = accounts[0]?.localAccountId;
   const displayName = accounts[0]?.name ?? accounts[0]?.username;
   // Feature 048 / US7 / T170: per-deployment CSP branding (logo +
-  // display name). Falls back to the default SPIN logo + "ATO Copilot"
+  // display name). Falls back to the default SPIN logo + "Security Posture Intelligence Navigator"
   // wordmark in SingleTenant mode or while onboarding is incomplete.
   const cspBranding = useCspBranding();
   const notifRef = useRef<HTMLDivElement>(null);

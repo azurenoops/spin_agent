@@ -134,7 +134,7 @@ import RestoreUnsavedChangesPrompt from '../../features/auth/RestoreUnsavedChang
 function makeConfig(overrides: Partial<LoginConfig> = {}): LoginConfig {
   return {
     branding: {
-      deploymentName: 'Coastal Watch — ATO Copilot',
+      deploymentName: 'Coastal Watch — Security Posture Intelligence Navigator',
       logoUrl: null,
       supportEmail: 'support@coastal-watch.gov',
     },

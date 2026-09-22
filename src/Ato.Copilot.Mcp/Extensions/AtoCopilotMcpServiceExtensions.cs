@@ -27,7 +27,7 @@ namespace Ato.Copilot.Mcp.Extensions;
 public static class AtoCopilotMcpServiceExtensions
 {
     /// <summary>
-    /// Registers the full ATO Copilot MCP service graph: core infrastructure,
+    /// Registers the full Security Posture Intelligence Navigator MCP service graph: core infrastructure,
     /// state management, every agent (Compliance, Configuration, KnowledgeBase,
     /// Document), the MCP server itself, dashboard services, and every feature
     /// service consumed by an MCP tool or HTTP endpoint.

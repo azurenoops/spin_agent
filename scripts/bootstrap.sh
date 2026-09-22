@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# ATO Copilot — Developer Machine Bootstrap (macOS / Linux)
+# Security Posture Intelligence Navigator — Developer Machine Bootstrap (macOS / Linux)
 # ──────────────────────────────────────────────────────────────
 # Idempotent. Safe to re-run. Verifies prerequisites, installs
 # what is missing (where possible), and restores all package

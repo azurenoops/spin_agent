@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ATO Copilot — Tenant Onboarding Wizard API
+  title: Security Posture Intelligence Navigator — Tenant Onboarding Wizard API
   version: 0.1.0
   description: |
     Endpoints backing Steps 1–2 of the onboarding wizard, the wizard-lifecycle
@@ -10,7 +10,7 @@ info:
     Constitution VII.
 servers:
   - url: /
-    description: ATO Copilot Mcp host
+    description: Security Posture Intelligence Navigator Mcp host
 security:
   - bearerAuth: []
 

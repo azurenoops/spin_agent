@@ -126,7 +126,7 @@ export function createDiagnostic(
       `https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=${finding.controlId}`
     ),
   };
-  diagnostic.source = "ATO Copilot";
+  diagnostic.source = "Security Posture Intelligence Navigator";
 
   // Store finding data for code action provider access
   (diagnostic as any)._iacFinding = finding;

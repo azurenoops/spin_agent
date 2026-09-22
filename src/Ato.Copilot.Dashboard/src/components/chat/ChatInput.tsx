@@ -79,7 +79,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask ATO Copilot..."
+          placeholder="Ask Security Posture Intelligence Navigator..."
           disabled={disabled}
           rows={1}
           className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400"

@@ -1,4 +1,4 @@
-# Research: ATO Copilot Chat Application
+# Research: Security Posture Intelligence Navigator Chat Application
 
 **Feature**: 006-chat-app | **Date**: 2026-02-23
 

@@ -1,16 +1,16 @@
 # Administrator Guide
 
-> ATO Copilot infrastructure management — templates, configuration, and separation of duties.
+> Security Posture Intelligence Navigator infrastructure management — templates, configuration, and separation of duties.
 
 ---
 
 ## Role Overview
 
-- **Full Title**: ATO Copilot Administrator
+- **Full Title**: Security Posture Intelligence Navigator Administrator
 - **Abbreviation**: Admin
 - **RBAC Role**: `Compliance.Administrator`
 - **Primary Interface**: MCP API, VS Code
-- **Key Responsibility**: Manage ATO Copilot server configuration, document templates, and infrastructure settings. This role is explicitly separated from the Authorizing Official role to enforce DoD separation of duties.
+- **Key Responsibility**: Manage Security Posture Intelligence Navigator server configuration, document templates, and infrastructure settings. This role is explicitly separated from the Authorizing Official role to enforce DoD separation of duties.
 
 !!! warning "Separation of Duties"
     The `Compliance.Administrator` role **cannot** issue authorization decisions or accept risk. These capabilities are exclusive to `Compliance.AuthorizingOfficial`. This separation is required by DoDI 8510.01 to prevent conflicts of interest.
@@ -35,7 +35,7 @@
 
 ## Template Management
 
-The Administrator manages custom document templates used by ATO Copilot to generate SSPs, SARs, POA&Ms, and RARs.
+The Administrator manages custom document templates used by Security Posture Intelligence Navigator to generate SSPs, SARs, POA&Ms, and RARs.
 
 ### Upload a Template
 
@@ -132,7 +132,7 @@ Templates use `{{field_name}}` placeholders that are automatically populated wit
 
 ### Azure Subscription Connection
 
-Configure the Azure subscription used by ATO Copilot for compliance assessments and evidence collection:
+Configure the Azure subscription used by Security Posture Intelligence Navigator for compliance assessments and evidence collection:
 
 > **"Configure the Azure subscription connection"**
 

@@ -1,6 +1,6 @@
 # MCP Client Contract — 060 VS Code Extension v1.0
 
-This document describes how the VS Code extension calls the ATO Copilot MCP
+This document describes how the VS Code extension calls the Security Posture Intelligence Navigator MCP
 server. The implementation lives in `extensions/vscode/src/services/mcpClient.ts`.
 
 ---
@@ -58,8 +58,8 @@ GET {apiUrl}/health
 { "status": "healthy", "version": "1.0.0" }
 ```
 
-On success: `vscode.window.showInformationMessage('ATO Copilot: API is healthy ✓')`
-On error: `vscode.window.showErrorMessage('ATO Copilot: API unreachable — {message}')`
+On success: `vscode.window.showInformationMessage('Security Posture Intelligence Navigator: API is healthy ✓')`
+On error: `vscode.window.showErrorMessage('Security Posture Intelligence Navigator: API unreachable — {message}')`
 
 ---
 
@@ -152,11 +152,11 @@ continues until the `done` event regardless.
 
 | HTTP status | Extension behaviour |
 |-------------|-------------------|
-| `401` | Prompt user to run `ATO Copilot: Sign In` |
+| `401` | Prompt user to run `Security Posture Intelligence Navigator: Sign In` |
 | `403` | Show `showErrorMessage` with role information from response body |
 | `429` | Show `showWarningMessage` with retry-after hint |
 | `5xx` | Show `showErrorMessage` with status code and message |
-| Network error | Show `showErrorMessage('ATO Copilot: Cannot reach server at {apiUrl}')` |
+| Network error | Show `showErrorMessage('Security Posture Intelligence Navigator: Cannot reach server at {apiUrl}')` |
 
 ---
 

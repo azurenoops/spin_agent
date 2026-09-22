@@ -1,7 +1,7 @@
 /**
  * @ato-copilot/shared — public API (#2683)
  *
- * Shared types and utilities for ATO Copilot TypeScript projects.
+ * Shared types and utilities for Security Posture Intelligence Navigator TypeScript projects.
  * Import from this package instead of duplicating types locally.
  *
  * @example

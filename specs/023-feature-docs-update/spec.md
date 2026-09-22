@@ -11,7 +11,7 @@
 
 ### Why This Matters
 
-ATO Copilot has shipped six features (017–022) since the last comprehensive documentation pass in Feature 016. These features introduced **31 new MCP tools**, **2 enhanced tools**, **19 new data entities**, and **16+ new enums**. Documentation coverage is inconsistent — some features have tool catalog entries but no persona guides, others have release notes but nothing else, and two features have zero documentation outside their spec directories.
+Security Posture Intelligence Navigator has shipped six features (017–022) since the last comprehensive documentation pass in Feature 016. These features introduced **31 new MCP tools**, **2 enhanced tools**, **19 new data entities**, and **16+ new enums**. Documentation coverage is inconsistent — some features have tool catalog entries but no persona guides, others have release notes but nothing else, and two features have zero documentation outside their spec directories.
 
 Without documentation updates, users cannot discover or learn to use:
 
@@ -203,7 +203,7 @@ The architecture data model reference and glossary are updated with all new enti
 
 The MCP server API reference is updated with all new tool registration details from Features 017–022.
 
-**Why this priority**: API docs are primarily used by developers integrating with ATO Copilot. Important for completeness but less urgent than user-facing guides.
+**Why this priority**: API docs are primarily used by developers integrating with Security Posture Intelligence Navigator. Important for completeness but less urgent than user-facing guides.
 
 **Independent Test**: Open the MCP server reference. Verify the tool registration list includes all 31 new tools and all new services.
 

@@ -53,7 +53,7 @@ openai_model_capacity        = 30
 # M365 Bot Channel — enable after Teams app registration
 deploy_bot_channel = true
 bot_app_id         = "<replace>" # Azure AD → App registrations → Application (client) ID
-bot_display_name   = "ATO Copilot"
+bot_display_name   = "Security Posture Intelligence Navigator"
 
 # Azure Monitor Alerts — BUG-21 (alerts.tf)
 # SECRETS: inject via environment variables, never hardcode here.

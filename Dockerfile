@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-#  ATO Copilot — Multi-stage Docker Build
+#  Security Posture Intelligence Navigator — Multi-stage Docker Build
 # ──────────────────────────────────────────────────────────────
 
 # Stage 1: Build

@@ -1,6 +1,6 @@
 # Architecture Overview
 
-> System architecture, component diagram, data flow, and deployment topology for ATO Copilot.
+> System architecture, component diagram, data flow, and deployment topology for Security Posture Intelligence Navigator.
 
 Approved design: [CSP and organization workspaces](workspaces.md) (#1002).
 Implementation is authorized; this feature is not shipped.
@@ -20,7 +20,7 @@ Implementation is authorized; this feature is not shipped.
 
 ## System Overview
 
-ATO Copilot is a compliance-focused MCP (Model Context Protocol) agent server built on .NET 9.0. It provides end-to-end RMF lifecycle management — from system registration through continuous monitoring — accessible via natural language through AI coding assistants, Teams bots, or REST APIs.
+Security Posture Intelligence Navigator is a compliance-focused MCP (Model Context Protocol) agent server built on .NET 9.0. It provides end-to-end RMF lifecycle management — from system registration through continuous monitoring — accessible via natural language through AI coding assistants, Teams bots, or REST APIs.
 
 ### Design Principles
 

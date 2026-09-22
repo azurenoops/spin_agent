@@ -55,7 +55,7 @@ export function buildCategorizationCard(data: CategorizationData): Record<string
     // Header
     {
       type: "TextBlock",
-      text: "ATO Copilot — Security Categorization",
+      text: "Security Posture Intelligence Navigator — Security Categorization",
       weight: "Bolder",
       size: "Large",
     },

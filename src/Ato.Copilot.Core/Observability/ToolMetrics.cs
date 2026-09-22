@@ -10,7 +10,7 @@ namespace Ato.Copilot.Core.Observability;
 /// </summary>
 public static class ToolMetrics
 {
-    /// <summary>The meter name used for all ATO Copilot metrics.</summary>
+    /// <summary>The meter name used for all Security Posture Intelligence Navigator metrics.</summary>
     public const string MeterName = "Ato.Copilot";
 
     private static readonly Meter Meter = new(MeterName, "1.0.0");

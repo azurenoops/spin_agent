@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> Common errors, causes, and resolutions for ATO Copilot organized by category.
+> Common errors, causes, and resolutions for Security Posture Intelligence Navigator organized by category.
 
 ---
 
@@ -72,7 +72,7 @@ Errors when connecting to Azure services for evidence collection or policy evalu
 |-------|-------|------------|
 | `Azure Policy query failed: connection timeout` | Cannot reach Azure Resource Manager APIs | Check network connectivity. In air-gapped environments, use scheduled monitoring with local policy cache. |
 | `Defender for Cloud unavailable` | Azure Defender not enabled or unreachable | Verify Defender for Cloud is enabled on the subscription. In disconnected mode, assessment runs against cached policy data only. |
-| `Subscription not found: {sub-id}` | Subscription ID is incorrect or ATO Copilot lacks access | Verify the subscription ID and ensure the ATO Copilot service principal has Reader access. |
+| `Subscription not found: {sub-id}` | Subscription ID is incorrect or Security Posture Intelligence Navigator lacks access | Verify the subscription ID and ensure the Security Posture Intelligence Navigator service principal has Reader access. |
 
 !!! warning "Air-Gapped Environments"
     In air-gapped (IL5+) environments, Azure connectivity errors are expected during offline periods.

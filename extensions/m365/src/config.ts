@@ -1,5 +1,5 @@
 /**
- * ATO Copilot M365 Extension — Startup Environment Validation (FR-048, T061-03)
+ * Security Posture Intelligence Navigator M365 Extension — Startup Environment Validation (FR-048, T061-03)
  *
  * validateEnv() must be called before app.listen(). It collects ALL missing/invalid
  * required variables into an array, prints each one, then throws ConfigurationError.
@@ -42,7 +42,7 @@ export function validateEnv(): void {
   // -------------------------------------------------------------------------
   const atoApiUrl = process.env.ATO_API_URL?.trim();
   if (!atoApiUrl) {
-    errors.push("ATO_API_URL is required (http/https URL of the ATO Copilot MCP server)");
+    errors.push("ATO_API_URL is required (http/https URL of the Security Posture Intelligence Navigator MCP server)");
   } else {
     try {
       const url = new URL(atoApiUrl);

@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: ATO Copilot — Audit Query API
+  title: Security Posture Intelligence Navigator — Audit Query API
   version: "1.0.0"
   description: |
     CSP-Admin-only audit log query endpoint. Filters by tenant, actor, action,
