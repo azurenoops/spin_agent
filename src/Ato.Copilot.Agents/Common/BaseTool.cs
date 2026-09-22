@@ -76,6 +76,8 @@ public abstract class BaseTool
     {
         // Auto-resolve system_id from name/acronym to GUID if needed
         await TryResolveSystemIdAsync(arguments, cancellationToken);
+        await Ato.Copilot.State.Abstractions.ToolExecutionAuthorization
+            .DemandAsync(Name, arguments, cancellationToken);
 
         ToolMetrics.RecordStart(Name, AgentName);
         var sw = Stopwatch.StartNew();
