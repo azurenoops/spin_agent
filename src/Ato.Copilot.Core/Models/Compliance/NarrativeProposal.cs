@@ -30,4 +30,8 @@ public class NarrativeProposal
     [MaxLength(200)] public string? ReviewedBy { get; set; }
     [MaxLength(2000)] public string? ReviewNote { get; set; }
     public int? AcceptedVersion { get; set; }
+    [MaxLength(32)] public string? ChangeSourceKind { get; set; }
+    [MaxLength(200)] public string? ChangeSourceId { get; set; }
+    [MaxLength(64)] public string? GenerationErrorCode { get; set; }
+    public ICollection<NarrativeImpactReceipt> ImpactReceipts { get; set; } = new List<NarrativeImpactReceipt>();
 }
