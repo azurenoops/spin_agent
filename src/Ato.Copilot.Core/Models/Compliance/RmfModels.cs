@@ -849,7 +849,9 @@ public enum InheritanceChangeSource
     /// <summary>Set during org-default propagation to a system on baseline selection (Feature 044).</summary>
     OrgDerived,
     /// <summary>Set when org defaults change and cascade to systems (Feature 044).</summary>
-    OrgPropagation
+    OrgPropagation,
+    /// <summary>Explicit system subscription responsibility reconciliation.</summary>
+    SubscriptionReconcile
 }
 
 /// <summary>

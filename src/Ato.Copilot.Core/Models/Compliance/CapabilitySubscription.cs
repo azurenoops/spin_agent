@@ -23,6 +23,13 @@ public class CapabilitySubscription
     [Required, MaxLength(36)]
     public string CspInheritedCapabilityId { get; set; } = string.Empty;
 
+    /// <summary>Internal routing index, derived from the authorized owning system; never an authorization grant.</summary>
+    public Guid RoutingTenantId { get; set; }
+
+    /// <summary>Canonical capability ID used by the provider-event routing index.</summary>
+    [MaxLength(36)]
+    public string RoutingCapabilityId { get; set; } = string.Empty;
+
     /// <summary>UPN or OID of the user that created the subscription.</summary>
     [MaxLength(254)]
     public string SubscribedBy { get; set; } = "dashboard-user";
