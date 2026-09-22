@@ -123,6 +123,27 @@ export async function getReferences(systemId: string): Promise<NarrativeReferenc
 export async function getProposals(systemId: string): Promise<NarrativeProposal[]> {
   return (await apiClient.get<NarrativeProposal[]>(`${root(systemId)}/proposals`, config())).data;
 }
+function proposalIdentity(proposal: NarrativeProposal, id: string): NarrativeProposal {
+  if (typeof proposal?.id !== 'string' || proposal.id.toLowerCase() !== id.toLowerCase())
+    throw new Error('The returned proposal does not match the requested queued work.');
+  return proposal;
+}
+export async function getProposalById(systemId: string, id: string): Promise<NarrativeProposal | null> {
+  try {
+    const { data } = await apiClient.get<NarrativeProposal>(`${root(systemId)}/proposals/${encodeURIComponent(id)}`, config());
+    return proposalIdentity(data, id);
+  } catch (error) {
+    if (object(error) && (error.errorCode === 'NOT_FOUND'
+      || object(error.error) && error.error.errorCode === 'NOT_FOUND'
+      || object(error.response) && error.response.status === 404)) return null;
+    throw error;
+  }
+}
+export async function generateQueuedProposal(systemId: string, id: string, expectedRevision: number): Promise<NarrativeProposal> {
+  const { data } = await apiClient.post<NarrativeProposal>(`${root(systemId)}/proposals/${encodeURIComponent(id)}/generate`,
+    { expectedRevision }, config());
+  return proposalIdentity(data, id);
+}
 export async function getNarrativeAccess(systemId: string): Promise<NarrativeAccess> {
   return (await apiClient.get<NarrativeAccess>(`${root(systemId)}/access`, config())).data;
 }

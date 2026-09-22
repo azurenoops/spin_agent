@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import apiClient from '../../api/client';
 import { getOrganizationLibraryAccess, getProviderLibraryAccess, getScopedReferences,
-  importScopedReference, updateScopedReference, publishScopedReference, getImpactReceipts } from '../../api/narrativeLibrary';
+  importScopedReference, updateScopedReference, publishScopedReference, getImpactReceipts,
+  getProposalById, generateQueuedProposal } from '../../api/narrativeLibrary';
 
 vi.mock('../../api/client', () => ({ default: {
   defaults: { baseURL: '/api/dashboard' }, get: vi.fn(), post: vi.fn(), patch: vi.fn(),
@@ -12,6 +13,45 @@ const reference = { id: 'reference-a', referenceKey: 'key-a', title: 'Reference'
 beforeEach(() => { vi.clearAllMocks(); });
 
 describe('distinct narrative library contracts', () => {
+  it('retrieves and generates the same exact proposal ID with its expected revision', async () => {
+    // Arrange
+    const proposal = { id: 'proposal-a', revision: 3 };
+    vi.mocked(apiClient.get).mockResolvedValue({ data: proposal });
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { ...proposal, revision: 4 } });
+    // Act
+    await getProposalById('system-a', proposal.id);
+    const generated = await generateQueuedProposal('system-a', proposal.id, 3);
+    // Assert
+    expect(apiClient.get).toHaveBeenCalledWith('/systems/system-a/narrative-library/proposals/proposal-a', { baseURL: '/api' });
+    expect(apiClient.post).toHaveBeenCalledWith('/systems/system-a/narrative-library/proposals/proposal-a/generate',
+      { expectedRevision: 3 }, { baseURL: '/api' });
+    expect(generated.id).toBe(proposal.id);
+  });
+  it.each([
+    { errorCode: 'NOT_FOUND' },
+    { error: { errorCode: 'NOT_FOUND' } },
+    { response: { status: 404 } },
+  ])('distinguishes missing proposals from permission or service failures', async error => {
+    // Arrange
+    vi.mocked(apiClient.get).mockRejectedValue(error);
+    // Act / Assert
+    await expect(getProposalById('system-a', 'missing')).resolves.toBeNull();
+  });
+  it('does not turn access denial into a missing proposal', async () => {
+    // Arrange
+    const denied = { errorCode: 'FORBIDDEN' };
+    vi.mocked(apiClient.get).mockRejectedValue(denied);
+    // Act / Assert
+    await expect(getProposalById('system-a', 'proposal-a')).rejects.toBe(denied);
+  });
+  it('rejects a substituted proposal ID on both retrieval and generation', async () => {
+    // Arrange
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { id: 'other' } });
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { id: 'other' } });
+    // Act / Assert
+    await expect(getProposalById('system-a', 'proposal-a')).rejects.toThrow(/does not match/i);
+    await expect(generateQueuedProposal('system-a', 'proposal-a', 3)).rejects.toThrow(/does not match/i);
+  });
   it('keeps organization and provider access DTOs distinct without any system path', async () => {
     // Arrange
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { tenantId: 'org-a', canPublishShared: true, capabilities: [] } })
