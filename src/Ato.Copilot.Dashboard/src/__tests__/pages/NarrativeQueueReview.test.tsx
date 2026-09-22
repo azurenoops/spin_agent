@@ -12,6 +12,7 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
 vi.mock('../../api/narrativeLibrary', () => ({
   getReferences: vi.fn(), getProposals: vi.fn(), getNarrativeAccess: vi.fn(),
   importReference: vi.fn(), publishReference: vi.fn(), generateProposal: vi.fn(), reviewProposal: vi.fn(),
+  getProposalById: vi.fn(), generateQueuedProposal: vi.fn(),
 }));
 vi.mock('../../api/narratives', () => ({ getNarratives: vi.fn().mockResolvedValue([{ controlId: 'AC-1', version: 7 }]) }));
 vi.mock('../../pages/Narratives', () => ({ default: () => <h2>Control Narratives</h2> }));
@@ -38,12 +39,60 @@ beforeEach(() => {
   permissions.canReviewNarratives = false;
   vi.mocked(library.getReferences).mockResolvedValue([]);
   vi.mocked(library.getProposals).mockResolvedValue([queued]);
+  vi.mocked(library.getProposalById).mockResolvedValue(null);
   vi.mocked(library.getNarrativeAccess).mockResolvedValue({
     tenantId: 'org-a', systemName: 'Synthetic system', canAuthor: false, canPublishShared: false, capabilities: [],
   });
 });
 
 describe('exact queued narrative review', () => {
+  it('retrieves the requested queue ID beyond the 500-item list window', async () => {
+    // Arrange
+    vi.mocked(library.getProposals).mockResolvedValue(Array.from({ length: 500 }, (_, index) => ({
+      ...queued, id: `00000000-0000-0000-0000-${index.toString().padStart(12, '0')}`,
+    })));
+    vi.mocked(library.getProposalById).mockResolvedValue(queued);
+
+    // Act
+    open();
+
+    // Assert
+    expect(await screen.findByText(/Generation pending/)).toBeInTheDocument();
+    expect(library.getProposalById).toHaveBeenCalledWith('system-a', queued.id);
+    expect(screen.getByLabelText('Proposed change')).toHaveValue(queued.id);
+  });
+
+  it('retries the same failed proposal with its revision instead of creating a replacement', async () => {
+    // Arrange
+    const failed = { ...queued, status: 'GenerationFailed', revision: 2, generationErrorCode: 'GENERATION_TIMEOUT' };
+    const generated = { ...queued, status: 'Draft', revision: 3, proposedContent: 'Generated after retry' };
+    vi.mocked(library.getNarrativeAccess).mockResolvedValue({
+      tenantId: 'org-a', systemName: 'Synthetic system', canAuthor: false, canPublishShared: false, canGenerate: true, capabilities: [],
+    });
+    vi.mocked(library.getProposals).mockResolvedValueOnce([failed]).mockResolvedValue([generated]);
+    vi.mocked(library.generateQueuedProposal).mockResolvedValue(generated);
+    open();
+
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry generation' }));
+
+    // Assert
+    await waitFor(() => expect(library.generateQueuedProposal).toHaveBeenCalledWith('system-a', queued.id, 2));
+    expect(await screen.findByRole('button', { name: 'Approve v8' })).toBeDisabled();
+    expect(screen.getByLabelText('Proposed change')).toHaveValue(queued.id);
+    expect(library.generateProposal).not.toHaveBeenCalled();
+    expect(library.reviewProposal).not.toHaveBeenCalled();
+  });
+
+  it('cannot generate queued work without an explicit generation grant', async () => {
+    // Arrange / Act
+    open();
+
+    // Assert
+    expect(await screen.findByRole('button', { name: 'Generate queued draft' })).toBeDisabled();
+    expect(library.generateQueuedProposal).not.toHaveBeenCalled();
+  });
+
   it('resolves the queue ID without presenting an empty proposal as a generated draft', async () => {
     // Arrange / Act
     open();

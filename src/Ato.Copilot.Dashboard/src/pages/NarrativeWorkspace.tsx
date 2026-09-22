@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from '../features/workspaces/workspaceNavigation';
 import { ArrowLeft, ArrowUpFromLine, BookOpen, Check, FileText, GitCompareArrows, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { diffWordsWithSpace } from 'diff';
 import Narratives from './Narratives';
-import { generateProposal, getNarrativeAccess, getProposals, getReferences, importReference, publishReference, reviewProposal,
+import { generateProposal, generateQueuedProposal, getProposalById, getNarrativeAccess, getProposals, getReferences, importReference, publishReference, reviewProposal,
   type NarrativeAccess, type NarrativeProposal, type NarrativeReference, type ReferencePassage } from '../api/narrativeLibrary';
 import { useSettings } from '../hooks/useSettings';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
@@ -23,6 +23,12 @@ function Workspace({ systemId }: { systemId: string }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [query] = useSearchParams();
+  const requestedProposalId = query.get('proposal');
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const { settings, updateSettings } = useSettings();
   const base = `/systems/${encodeURIComponent(systemId)}/narratives`;
   const view = location.pathname.slice(base.length).split('/')[1] || 'narratives';
@@ -51,7 +57,11 @@ function Workspace({ systemId }: { systemId: string }) {
     setLoading(true);
     setLoadError('');
     Promise.all([getReferences(systemId), getProposals(systemId), getNarrativeAccess(systemId)])
-      .then(([nextReferences, nextProposals, nextAccess]) => {
+      .then(async ([nextReferences, nextProposals, nextAccess]) => {
+        if (requestedProposalId && !nextProposals.some(item => item.id.toLowerCase() === requestedProposalId.toLowerCase())) {
+          const exact = await getProposalById(systemId, requestedProposalId);
+          if (exact) nextProposals = [exact, ...nextProposals];
+        }
         if (!active) return;
         setReferences(nextReferences); setProposals(nextProposals); setAccess(nextAccess);
       }).catch(reason => {
@@ -60,7 +70,7 @@ function Workspace({ systemId }: { systemId: string }) {
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [systemId, revision]);
+  }, [systemId, revision, requestedProposalId]);
   useEffect(() => { setNote(''); }, [query.get('proposal')]);
 
   const go = (next: string) => navigate(next === 'narratives' ? base : `${base}/${next}`);
@@ -70,7 +80,6 @@ function Workspace({ systemId }: { systemId: string }) {
   const canReviewNarratives = useSystemMutationPermission(systemId, 'canReviewNarratives');
   const canAuthor = !locked && canRead && access?.canAuthor === true;
   const canGenerate = !locked && canRead && access?.canGenerate === true && canGenerateNarratives;
-  const requestedProposalId = query.get('proposal');
   const proposal = requestedProposalId !== null
     ? proposals.find(item => item.id.toLowerCase() === requestedProposalId.toLowerCase())
     : proposals.find(item => item.status === 'Draft') ?? proposals[0];
@@ -86,7 +95,9 @@ function Workspace({ systemId }: { systemId: string }) {
   async function perform(action: () => Promise<void>) {
     if (busy) return;
     setBusy(true); setError('');
-    try { await action(); } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
+    try { await action(); }
+    catch (reason) { if (mounted.current) setError(errorMessage(reason)); }
+    finally { if (mounted.current) setBusy(false); }
   }
   function openDraft(reference: NarrativeReference) {
     if (!canRead || access?.canAuthor !== true || (reference.scope !== 'System' && access?.canPublishShared !== true)) {
@@ -104,9 +115,25 @@ function Workspace({ systemId }: { systemId: string }) {
     if (!canGenerate) { setError('Narrative generation permission is required.'); return; }
     await perform(async () => {
       const created = await generateProposal(systemId, control, type, version);
+      if (!mounted.current) return;
       setProposals(current => [created, ...current.filter(item => item.id !== created.id)]);
       navigate(`${base}/review?proposal=${encodeURIComponent(created.id)}`);
       setRevision(current => current + 1);
+    });
+  }
+  function generateQueued() {
+    if (!proposal || !canGenerate || proposal.isStale
+      || !['PendingGeneration', 'GenerationFailed'].includes(proposal.status)) {
+      setError('Current narrative generation permission and source state are required.');
+      return;
+    }
+    void perform(async () => {
+      try {
+        const result = await generateQueuedProposal(systemId, proposal.id, proposal.revision);
+        if (mounted.current) setProposals(current => current.map(item => item.id === result.id ? result : item));
+      } finally {
+        if (mounted.current) setRevision(current => current + 1);
+      }
     });
   }
   function extract() {
@@ -247,6 +274,11 @@ function Workspace({ systemId }: { systemId: string }) {
           Generation failed. {proposal.generationErrorCode ? `Failure code: ${proposal.generationErrorCode}.` : 'No failure code was returned.'}
           {' '}Active narratives remain unchanged. Refresh proposal status after generation is retried.
         </p>}
+        {['PendingGeneration', 'GenerationFailed'].includes(proposal.status) && (
+          <button className="nw-primary" disabled={!canGenerate || proposal.isStale} onClick={generateQueued}>
+            {proposal.status === 'GenerationFailed' ? 'Retry generation' : 'Generate queued draft'}
+          </button>
+        )}
         {generatedProposal ? <div className="nw-diff-grid">{['before', 'after'].map(side => <section key={side} className="nw-diff">
           <h3>{side === 'before' ? `Previous v${proposal.baseVersion}` : `Proposed v${proposal.baseVersion + 1}`}</h3>
           <p className="nw-muted">{side === 'before' ? 'Preserved version' : `Proposal created ${new Date(proposal.createdAt).toLocaleString()}`}</p>
