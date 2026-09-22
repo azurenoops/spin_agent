@@ -606,6 +606,7 @@ async Task RunHttpModeAsync(string[] args)
     app.MapControlValidationEndpoints();
     app.MapNarrativeDualEndpoints();
     app.MapNarrativeLibraryEndpoints();
+    app.MapScopedNarrativeLibraryEndpoints();
 
     // Feature 051 [US1]: dashboard login surface — login-config + me.
     // The endpoint group lives under /api/auth and is anonymous-by-default
