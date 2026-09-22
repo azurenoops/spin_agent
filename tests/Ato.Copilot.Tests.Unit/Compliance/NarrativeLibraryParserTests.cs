@@ -164,6 +164,48 @@ public class NarrativeLibraryParserTests
     }
 
     [Fact]
+    public async Task Extract_Utf8BomPreservesControlHeading()
+    {
+        // Arrange
+        using var input = new MemoryStream(new byte[] { 0xef, 0xbb, 0xbf }.Concat(
+            Encoding.UTF8.GetBytes("AC-2\nPolicy Narrative:\nA reference claim.")).ToArray());
+
+        // Act
+        var passages = await NarrativeLibraryParser.ExtractAsync(input, "reference.txt");
+
+        // Assert
+        passages.Should().ContainSingle();
+        passages[0].ControlId.Should().Be("AC-2");
+    }
+
+    [Fact]
+    public async Task Extract_InvalidUtf8IsRejectedInsteadOfSilentlyReplacingText()
+    {
+        // Arrange
+        using var input = new MemoryStream(new byte[] { 0xc3, 0x28 });
+
+        // Act
+        var extract = () => NarrativeLibraryParser.ExtractAsync(input, "reference.txt");
+
+        // Assert
+        await extract.Should().ThrowAsync<InvalidDataException>();
+    }
+
+    [Fact]
+    public async Task Extract_DuplicateTableHeadersAreRejectedAsAmbiguous()
+    {
+        // Arrange
+        using var input = new MemoryStream(Encoding.UTF8.GetBytes(
+            "Control ID,Policy Narrative,Technical Narrative,Control ID\nAC-2,Policy,Technical,AU-6"));
+
+        // Act
+        var extract = () => NarrativeLibraryParser.ExtractAsync(input, "reference.csv");
+
+        // Assert
+        await extract.Should().ThrowAsync<InvalidDataException>();
+    }
+
+    [Fact]
     public async Task Extract_TooLarge_IsRejected()
     {
         // Arrange
