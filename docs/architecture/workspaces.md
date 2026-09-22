@@ -39,6 +39,7 @@ The proposed route families are:
 - `/workspaces/csp/...`
 - `/workspaces/organizations/{tenantId}/...`
 - `/workspaces/organizations/{tenantId}/systems/{systemId}/...`
+- `/workspaces/support/organizations/{tenantId}/...` (explicit audited support only)
 
 These identifiers select context; they never authorize it. Each request must
 validate the authenticated identity, membership, owning system and operation.
@@ -116,10 +117,114 @@ must not be confused with a shipped feature.
 The branch now has typed workspace URL helpers and shared legacy system-alias
 redirects that preserve query strings/fragments. It also repairs a duplicate
 Mission Profile form encountered while integrating the server-permission fix.
-Canonical workspace root routes and ordinary multi-organization selection are
-not yet enabled: their backend membership/request-scope contract comes next.
+Canonical workspace root routes and ordinary multi-organization selection now
+consume the implemented workspace membership/request-scope contract.
 
 Focused unit and synthetic-API browser tests verify this foundation, not the
 complete authenticated workspace feature. The user authorized implementing the
 #942 membership prerequisite on the same branch; provider responsibilities and
 Narrative Library integration retain their separate dependency gates.
+
+### Authenticated shell increment
+
+Public login, callback and error routes do not mount organization, chat or
+onboarding providers. Authenticated routes share `/me`. Canonical routes require
+matching server workspace data and, for system routes, an authorized
+`workspace-access` response before private providers or domain pages mount.
+Incomplete new responses fail closed; genuinely old unscoped responses retain
+legacy navigation. A legacy system bookmark with multiple authorized contexts
+opens the explicit picker rather than guessing from a saved organization.
+
+The shared identity lifetime includes the URL target and MSAL account identity
+(issuer environment, directory, local object ID and home-account ID). Changing
+the account invalidates the previous identity and private providers even when
+the workspace URL is unchanged. Active-account events also invalidate that
+lifetime; public routes still leave `/me` disabled. The authentication transport
+owns which MSAL account supplies tokens, not the workspace shell.
+
+The header labels provider, organization or audited-support mode, the active
+server organization, selected system and all effective roles. Switching uses
+React Router history and a paginated authorized-workspace picker, not selection
+cookies or impersonation. A confirmation warns about unsaved changes on every
+voluntary switch because form snapshot registries are local to individual forms.
+Cancel keeps the current form mounted.
+
+Organization membership administration is at `settings/memberships`; provider
+administration is at `organizations/{organizationId}/memberships`, both beneath
+their canonical workspace root. Server membership-management permissions gate
+entry; provider routes additionally resolve the organization display name from
+the tenancy API. Directory IDs are entered explicitly, not inferred from internal
+organization identifiers.
+Successful self-revocation in the ordinary organization workspace refreshes the
+shared identity so its previous permissions and private providers are invalidated
+immediately. The wrapper matches the organization, object ID and directory ID;
+when the directory is absent, it also requires the current Person ID instead.
+This fallback triggers a refresh only and never grants authority. Revoking another
+person's membership or working in support mode does not remount the acting user's shell.
+
+Provider organization/system rows open ordinary membership context. Their
+separate **Audited support** actions require confirmation and use the existing
+support endpoints. The server-driven support banner also renders for cookie-only
+authentication. Ordinary selection does not end support in another tab.
+
+Local synthetic checks (from `src/Ato.Copilot.Dashboard`):
+
+```bash
+npm exec tsc -- --noEmit
+npm exec --yes --package=node@20 -- node node_modules/vitest/vitest.mjs run
+# Start a dedicated server on a free port in a separate terminal:
+npm exec --yes --package=node@20 -- node node_modules/vite/bin/vite.js \
+  --host 127.0.0.1 --port 5186 --strictPort
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:5186 \
+  npm exec --yes --package=node@20 -- node node_modules/@playwright/test/cli.js \
+  test e2e/tests/workspace-shell.spec.ts \
+  e2e/tests/workspace-route-migration.spec.ts \
+  e2e/tests/mission-profile-permissions.spec.ts --project=chromium
+```
+
+For manual acceptance against a local API, sign in normally as a Mission Owner,
+open an assigned system's mission profile, confirm the organization and complete
+role set, make an unsaved edit and cancel **Switch workspace**. Then confirm a
+switch, refresh, use browser Back, and repeat in a second tab with another
+authorized organization. As a CSP administrator, compare ordinary organization
+entry with explicitly confirmed support and verify the banner/exit behavior.
+Try a foreign organization/system URL and confirm recovery appears without
+private page data. Synthetic browser journeys validate UI routing and request
+ordering only; they do not establish backend isolation or production readiness.
+
+### Notification transport and preferences
+
+The notification center first requests
+`GET /api/dashboard/notifications/capabilities` with the ordinary authenticated
+API transport and current workspace selectors. REST access is based on the
+server session; an MSAL account is not required for cookie/simulation sessions.
+The response binds the recipient to the authenticated actor. The client never
+substitutes a placeholder recipient or sends a different account's object ID.
+
+When the server declares `rest-polling`, the client polls at the supplied interval
+(currently 30 seconds). It displays the reason real-time delivery is unavailable.
+A SignalR connection is attempted only after the server confirms bearer
+readiness. Token acquisition remains pinned to the original account, and each
+reconnect rechecks capabilities. Workspace/account changes abort REST work,
+discard late results, clear notification state and stop the previous connection.
+Errors are visible with retry rather than presented as an empty successful list.
+
+Preferences use the API's actual fields: POA&M overdue alerts, ATO expiration
+alerts, compliance drift alerts and warning days. Email/Teams/Slack delivery
+configuration is not supported by this preference endpoint and is not offered
+by this panel. A failed preference read cannot silently create editable defaults.
+Saving and loading are canceled when the organization context changes.
+
+The preference database key is now unique on `(TenantId, UserId)`. Startup creates
+that index before dropping the old global `UserId` index in a transaction.
+Existing values are preserved, and migration errors fail startup. SQLite fresh
+creation, upgrade, duplicate rejection and repeat startup have automated
+coverage; execution of this upgrade against SQL Server still requires validation.
+
+For local manual acceptance, use one authorized cookie/simulation identity with
+membership in two organizations. Open the notification panel in each tab,
+confirm each request has that tab's workspace selectors, and confirm a bearer-only
+real-time notice appears without a failed SignalR connection. Wait 30 seconds
+for an authorized list refresh. Mark a notification read, save different
+preferences in each organization, reload, and verify the values remain separate.
+Revoke membership and confirm the next refresh removes data and displays denial.
