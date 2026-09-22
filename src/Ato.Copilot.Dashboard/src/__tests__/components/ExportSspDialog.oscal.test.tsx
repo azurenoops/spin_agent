@@ -14,15 +14,20 @@
  *   - ValidationBadge uses isValid/errorCount/warningCount (not legacy valid= prop)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import ExportSspDialog from '../../components/ExportSspDialog';
+import { workspaceSession } from '../helpers/domainPermissions';
 
 // --- Mocks ------------------------------------------------------------------
 
 vi.mock('../../api/exports', () => ({
   requestExport: vi.fn(),
+  getExport: vi.fn(),
   downloadExportUrl: vi.fn(() => '/download/test'),
-  listTemplates: vi.fn(() => Promise.resolve({ items: [] })),
+  listTemplates: vi.fn(() => Promise.resolve({ items: [], totalCount: 0 })),
+}));
+vi.mock('../../features/auth/useMe', () => ({
+  useMe: () => ({ data: workspaceSession('sys-export-test').identity, isLoading: false, error: null, refetch: vi.fn() }),
 }));
 
 vi.mock('../../api/packages', () => ({
@@ -63,54 +68,57 @@ const defaultProps = {
   systemId: 'sys-export-test',
   onClose: vi.fn(),
 };
+async function openDialog() {
+  await act(async () => { render(<ExportSspDialog {...defaultProps} />); });
+}
 
 describe('ExportSspDialog — OSCAL section upgrades (#419)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders the "OSCAL Documents" section header', () => {
-    render(<ExportSspDialog {...defaultProps} />);
+  it('renders the "OSCAL Documents" section header', async () => {
+    await openDialog();
     expect(screen.getByText('OSCAL Documents')).toBeInTheDocument();
   });
 
-  it('renders "OSCAL SSP" as the first-class export card label', () => {
-    render(<ExportSspDialog {...defaultProps} />);
+  it('renders "OSCAL SSP" as the first-class export card label', async () => {
+    await openDialog();
     expect(screen.getByText('OSCAL SSP')).toBeInTheDocument();
   });
 
-  it('shows at least one "OSCAL 1.1.2" schema version badge', () => {
-    render(<ExportSspDialog {...defaultProps} />);
+  it('shows at least one "OSCAL 1.1.2" schema version badge', async () => {
+    await openDialog();
     const badges = screen.getAllByText('OSCAL 1.1.2');
     expect(badges.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('does NOT render "OSCAL JSON (.json)" in the format picker (removed in #419)', () => {
-    render(<ExportSspDialog {...defaultProps} />);
+  it('does NOT render "OSCAL JSON (.json)" in the format picker (removed in #419)', async () => {
+    await openDialog();
     expect(screen.queryByText('OSCAL JSON (.json)')).not.toBeInTheDocument();
   });
 
-  it('renders supplemental OSCAL artifacts: POA&M, Assessment Results, SAP', () => {
-    render(<ExportSspDialog {...defaultProps} />);
+  it('renders supplemental OSCAL artifacts: POA&M, Assessment Results, SAP', async () => {
+    await openDialog();
     expect(screen.getByText('OSCAL POA&M')).toBeInTheDocument();
     expect(screen.getByText('OSCAL Assessment Results')).toBeInTheDocument();
     expect(screen.getByText('OSCAL SAP')).toBeInTheDocument();
   });
 
-  it('renders a Download button for the OSCAL SSP card', () => {
-    render(<ExportSspDialog {...defaultProps} />);
+  it('renders a Download button for the OSCAL SSP card', async () => {
+    await openDialog();
     const downloadBtns = screen.getAllByText('Download');
     expect(downloadBtns.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('still renders DOCX and PDF in the format picker', () => {
-    render(<ExportSspDialog {...defaultProps} />);
+  it('still renders DOCX and PDF in the format picker', async () => {
+    await openDialog();
     expect(screen.getByText('Word (.docx)')).toBeInTheDocument();
     expect(screen.getByText('PDF (.pdf)')).toBeInTheDocument();
   });
 
-  it('ValidationBadge is not rendered with hardcoded valid=true (no static ✓ Valid badge on load)', () => {
-    render(<ExportSspDialog {...defaultProps} />);
+  it('ValidationBadge is not rendered with hardcoded valid=true (no static ✓ Valid badge on load)', async () => {
+    await openDialog();
     // Before any API call completes, the live badge is absent or shows skeleton
     // The old hardcoded "✓ Valid OSCAL 1.1.2" badge (from valid=true) must not be present
     // (it only appears after the GET /exports/oscal-ssp response arrives)

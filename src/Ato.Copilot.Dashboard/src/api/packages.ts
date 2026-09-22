@@ -1,5 +1,4 @@
-import apiClient from './client';
-import type { PackageDetail } from './package';
+import { downloadPackageUrl, generatePackage, getPackageDetail, type PackageDetail } from './package';
 
 export interface PackageJob {
   packageId: string;
@@ -11,29 +10,25 @@ export interface PackageJob {
 /** Enqueue a package generation job. Returns packageId + status. */
 export async function enqueuePackage(
   systemId: string,
-  evidenceMode: 'inline' | 'linked' | 'full' = 'inline'
+  evidenceMode: 'inline' | 'linked' | 'full' = 'inline',
+  signal?: AbortSignal,
 ): Promise<PackageJob> {
-  const res = await apiClient.post<PackageJob>(
-    `/api/v1/systems/${systemId}/packages`,
-    { evidenceMode }
-  );
-  return res.data;
+  // Legacy shortcut names map to the two evidence modes accepted by the v1 API.
+  return generatePackage(systemId, evidenceMode === 'linked' ? 'ManifestOnly' : 'Embedded', signal);
 }
 
 /** Poll package status. */
 export async function getPackageStatus(
   systemId: string,
-  packageId: string
+  packageId: string,
+  signal?: AbortSignal,
 ): Promise<PackageDetail> {
-  const res = await apiClient.get<PackageDetail>(
-    `/api/v1/systems/${systemId}/packages/${packageId}`
-  );
-  return res.data;
+  return getPackageDetail(systemId, packageId, signal);
 }
 
 /** Trigger a direct PDF download by enqueuing then downloading when complete. */
 export function getPackageDownloadUrl(systemId: string, packageId: string): string {
-  return `/api/v1/systems/${systemId}/packages/${packageId}/download`;
+  return downloadPackageUrl(systemId, packageId);
 }
 
 /** Enqueue and return the download URL for an eMASS-formatted XLSX export. */

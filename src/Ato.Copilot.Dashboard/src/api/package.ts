@@ -116,10 +116,12 @@ export interface SarExportResponse {
 export async function generatePackage(
   systemId: string,
   evidenceMode: 'Embedded' | 'ManifestOnly' = 'Embedded',
+  signal?: AbortSignal,
 ): Promise<GeneratePackageResponse> {
   const { data } = await v1Client.post<GeneratePackageResponse>(
     `/systems/${systemId}/packages`,
     { evidenceMode, includeEvidence: true },
+    { signal },
   );
   return data;
 }
@@ -127,9 +129,11 @@ export async function generatePackage(
 export async function getPackageDetail(
   systemId: string,
   packageId: string,
+  signal?: AbortSignal,
 ): Promise<PackageDetail> {
   const { data } = await v1Client.get<PackageDetail>(
     `/systems/${systemId}/packages/${packageId}`,
+    { signal },
   );
   return data;
 }
@@ -151,9 +155,12 @@ export function downloadPackageUrl(systemId: string, packageId: string): string 
 
 export async function validatePackage(
   systemId: string,
+  signal?: AbortSignal,
 ): Promise<ReadinessResult> {
   const { data } = await v1Client.post<ReadinessResult>(
     `/systems/${systemId}/packages/validate`,
+    undefined,
+    { signal },
   );
   return data;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from '../features/workspaces/workspaceNavigation';
 import {
   generatePackage,
@@ -7,10 +7,9 @@ import {
   downloadPackageUrl,
 } from '../api/package';
 import type { PackageDetail, ValidationFinding } from '../api/package';
-import * as signalR from '@microsoft/signalr';
-import { acquireBearer } from '../features/auth/msalInstance';
 import AuthenticatedDownload from './AuthenticatedDownload';
-import { workspaceHubUrl } from '../features/workspaces/workspaceHubUrl';
+import { isProgressEvent, progressError, useJobProgress, useProgressSession, type ProgressSession } from '../hooks/useJobProgress';
+import ProgressTransportNotice from './ProgressTransportNotice';
 
 interface PackageGenerationDialogProps {
   systemId: string;
@@ -98,11 +97,17 @@ function RemediationText({
   );
 }
 
-export default function PackageGenerationDialog({
+export default function PackageGenerationDialog(props: PackageGenerationDialogProps) {
+  const session = useProgressSession(props.systemId);
+  return <PackageGenerationContent key={session.key} {...props} session={session} />;
+}
+
+function PackageGenerationContent({
   systemId,
   onClose,
   onPackageComplete,
-}: PackageGenerationDialogProps) {
+  session,
+}: PackageGenerationDialogProps & { session: ProgressSession }) {
   const [phase, setPhase] = useState<DialogPhase>('readiness');
   const [evidenceMode, setEvidenceMode] = useState<'Embedded' | 'ManifestOnly'>('Embedded');
   const [readinessFindings, setReadinessFindings] = useState<ValidationFinding[]>([]);
@@ -116,8 +121,43 @@ export default function PackageGenerationDialog({
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [failedArtifact, setFailedArtifact] = useState<string | null>(null);
-  const connectionRef = useRef<signalR.HubConnection | null>(null);
   const navigate = useNavigate();
+  const monitor = useJobProgress<PackageDetail>({
+    session, jobId: packageId, hubPath: '/hubs/package',
+    events: ['PackageStatusChanged', 'PackageArtifactGenerated', 'PackageValidationComplete', 'PackageComplete', 'PackageFailed'],
+    matchesEvent: payload => isProgressEvent(payload, 'packageId', packageId),
+    subscribe: connection => connection.invoke('SubscribeToPackage', packageId),
+    poll: async signal => {
+      if (!packageId) throw new Error('No package is selected.');
+      const result = await getPackageDetail(systemId, packageId, signal);
+      if (result.packageId !== packageId || result.systemId !== systemId || !Array.isArray(result.artifacts)
+        || !['Pending', 'Generating', 'Validating', 'Completed', 'Failed'].includes(result.status)) {
+        throw new Error('Unexpected package status response.');
+      }
+      return result;
+    },
+    isTerminal: result => result.status === 'Completed' || result.status === 'Failed',
+    onStatus: result => {
+      setPackageDetail(result);
+      const generated = new Set(result.artifacts.map(artifact => artifact.type));
+      const next = ARTIFACT_SEQUENCE.find(artifact => !generated.has(artifact.type))?.type;
+      setArtifactProgress(previous => previous.map(artifact => ({
+        ...artifact,
+        status: generated.has(artifact.type) ? 'done'
+          : result.failedArtifactType === artifact.type ? 'failed'
+          : result.status === 'Generating' && next === artifact.type ? 'generating' : 'pending',
+      })));
+      setStatusMessage(result.status === 'Completed' ? 'Package ready for download' : `Status: ${result.status}`);
+      if (result.status === 'Completed') {
+        setPhase('completed');
+        onPackageComplete?.();
+      } else if (result.status === 'Failed') {
+        setPhase('failed');
+        setError(result.failureReason ?? 'Package generation failed.');
+        setFailedArtifact(result.failedArtifactType);
+      }
+    },
+  });
 
   const handleNavigate = useCallback(
     (path: string) => {
@@ -138,130 +178,49 @@ export default function PackageGenerationDialog({
 
   // Run readiness check on mount
   useEffect(() => {
-    let cancelled = false;
+    if (!session.ready) { setReadinessLoading(false); return; }
+    const request = session.request();
     setReadinessLoading(true);
-    validatePackage(systemId)
+    validatePackage(systemId, request.signal)
       .then((result) => {
-        if (cancelled) return;
+        if (!request.isCurrent()) return;
         setReadinessValid(result.isValid);
         setReadinessFindings(result.findings);
         setReadinessLoading(false);
         if (result.isValid) setPhase('configure');
       })
       .catch((err) => {
-        if (cancelled) return;
+        if (!request.isCurrent()) return;
         setReadinessValid(false);
         setReadinessFindings([]);
-        setError(err instanceof Error ? err.message : 'Readiness check failed');
+        setError(progressError(err));
         setReadinessLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [systemId]);
-
-  // Clean up SignalR on unmount
-  useEffect(() => {
-    return () => {
-      connectionRef.current?.stop();
-    };
-  }, []);
-
-  const setupSignalR = useCallback(
-    (pkgId: string) => {
-      const hubUrl =
-        (import.meta.env.VITE_API_BASE_URL || '').replace('/api/dashboard', '') +
-        '/hubs/package';
-
-      const connection = new signalR.HubConnectionBuilder()
-        .withUrl(workspaceHubUrl(hubUrl), {
-          accessTokenFactory: () => acquireBearer(),
-        })
-        .withAutomaticReconnect()
-        .build();
-
-      connection.on('PackageStatusChanged', (payload: { packageId: string; status: string }) => {
-        if (payload.packageId === pkgId) {
-          setStatusMessage(`Status: ${payload.status}`);
-        }
-      });
-
-      connection.on(
-        'PackageArtifactGenerated',
-        (payload: { packageId: string; artifactType: string; fileName: string }) => {
-          if (payload.packageId === pkgId) {
-            setArtifactProgress((prev) =>
-              prev.map((a) =>
-                a.type === payload.artifactType ? { ...a, status: 'done' } : a,
-              ),
-            );
-          }
-        },
-      );
-
-      connection.on('PackageValidationComplete', (payload: { packageId: string; isValid: boolean }) => {
-        if (payload.packageId === pkgId) {
-          setStatusMessage(payload.isValid ? 'Validation passed' : 'Validation completed with issues');
-        }
-      });
-
-      connection.on(
-        'PackageComplete',
-        (payload: { packageId: string; filePath: string; fileSize: number; contentHash: string }) => {
-          if (payload.packageId === pkgId) {
-            setPhase('completed');
-            setStatusMessage('Package ready for download');
-            // Refresh package detail for download link
-            getPackageDetail(systemId, pkgId)
-              .then(setPackageDetail)
-              .catch(() => {});
-            onPackageComplete?.();
-          }
-        },
-      );
-
-      connection.on(
-        'PackageFailed',
-        (payload: { packageId: string; failureReason: string; failedArtifactType: string }) => {
-          if (payload.packageId === pkgId) {
-            setPhase('failed');
-            setError(payload.failureReason);
-            setFailedArtifact(payload.failedArtifactType);
-            setArtifactProgress((prev) =>
-              prev.map((a) =>
-                a.type === payload.failedArtifactType ? { ...a, status: 'failed' } : a,
-              ),
-            );
-          }
-        },
-      );
-
-      connection
-        .start()
-        .then(() => connection.invoke('SubscribeToPackage', pkgId))
-        .catch(() => setError('Real-time progress unavailable. Please refresh to check status.'));
-
-      connectionRef.current = connection;
-    },
-    [systemId, onPackageComplete],
-  );
+      }).finally(request.complete);
+    return () => { request.cancel(); request.complete(); };
+  }, [systemId, session.key, session.ready]);
 
   const handleGenerate = async () => {
+    if (!session.ready || !session.isCurrent()) { setError('Authenticated workspace context is required.'); return; }
+    const request = session.request();
     setPhase('generating');
     setError(null);
     setStatusMessage('Submitting...');
     setArtifactProgress(ARTIFACT_SEQUENCE.map((a) => ({ type: a.type, status: 'pending' })));
 
     try {
-      const result = await generatePackage(systemId, evidenceMode);
+      const result = await generatePackage(systemId, evidenceMode, request.signal);
+      if (!request.isCurrent()) return;
+      if (!result || typeof result.packageId !== 'string' || !result.packageId.trim()) {
+        throw new Error('Unexpected package generation response.');
+      }
       setPackageId(result.packageId);
       setStatusMessage('Queued — waiting for background generation');
-      // Mark first artifact as generating
-      setArtifactProgress((prev) =>
-        prev.map((a, i) => (i === 0 ? { ...a, status: 'generating' } : a)),
-      );
-      setupSignalR(result.packageId);
     } catch (err: unknown) {
+      if (!request.isCurrent()) return;
       setPhase('failed');
-      setError(err instanceof Error ? err.message : 'Failed to start package generation');
+      setError(progressError(err));
+    } finally {
+      request.complete();
     }
   };
 
@@ -302,6 +261,8 @@ export default function PackageGenerationDialog({
 
         {/* Body */}
         <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          <ProgressTransportNotice monitor={monitor} onClose={onClose} />
+          {error && phase !== 'failed' && <p role="alert">{error}</p>}
           {/* ─── Readiness Check ─── */}
           {phase === 'readiness' && (
             <div>
@@ -477,7 +438,7 @@ export default function PackageGenerationDialog({
 
           {/* ─── Error Display ─── */}
           {phase === 'failed' && error && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+            <div role="alert" className="p-3 rounded-lg bg-red-50 border border-red-200">
               <p className="text-sm font-medium text-red-800">Generation Failed</p>
               {failedArtifact && (
                 <p className="text-xs text-red-700 mt-1">
@@ -522,6 +483,7 @@ export default function PackageGenerationDialog({
               </button>
               <button
                 onClick={handleGenerate}
+                disabled={!session.ready}
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
               >
                 Generate Package
@@ -566,6 +528,8 @@ export default function PackageGenerationDialog({
               </button>
               <button
                 onClick={() => {
+                  setPackageId(null);
+                  setPackageDetail(null);
                   setPhase('configure');
                   setError(null);
                   setFailedArtifact(null);

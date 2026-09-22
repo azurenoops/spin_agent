@@ -47,9 +47,11 @@ export async function uploadScan(
 export async function getScanImportStatus(
   systemId: string,
   importJobId: string,
+  signal?: AbortSignal,
 ): Promise<ScanImportStatusDto> {
   const res = await apiClient.get<ScanImportStatusDto>(
     `/systems/${systemId}/scans/import/${importJobId}/status`,
+    { signal },
   );
   return res.data;
 }
@@ -60,6 +62,7 @@ export async function getScanImportStatus(
 export async function cancelScanImport(
   systemId: string,
   importJobId: string,
+  signal?: AbortSignal,
 ): Promise<void> {
-  await apiClient.delete(`/systems/${systemId}/scans/import/${importJobId}`);
+  await apiClient.delete(`/systems/${systemId}/scans/import/${importJobId}`, { signal });
 }

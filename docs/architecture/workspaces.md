@@ -234,3 +234,33 @@ real-time notice appears without a failed SignalR connection. Wait 30 seconds
 for an authorized list refresh. Mark a notification read, save different
 preferences in each organization, reload, and verify the values remain separate.
 Revoke membership and confirm the next refresh removes data and displays denial.
+
+### Package, SSP and scan progress
+
+Progress clients validate bearer readiness and the exact advertised hub before
+connecting. Cookie-only sessions instead use the existing authenticated status
+endpoints:
+
+- Package: `GET /api/v1/systems/{systemId}/packages/{packageId}`
+- SSP export: `GET /api/dashboard/systems/{systemId}/exports/{exportId}`
+- Scan import: `GET /api/dashboard/systems/{systemId}/scans/import/{importId}/status`
+
+Personal-notification `rest.available` and polling recommendations do not
+authorize or schedule these separate resources. Default/scan polling uses five
+seconds; the package shortcut retains its three-second cadence. Terminal states
+stop polling. Status errors, including 401/403/404, stop automatic retries and
+remain visible. Context changes cancel requests and prevent stale downloads or
+completion callbacks.
+
+SSP status polling cannot supply a percentage or detailed failure reason because
+those fields are absent from the API response. It displays indeterminate status
+and generic failure text rather than inventing details. Package real-time events
+are hints to refetch authorized status; event-provided download URLs do not
+override the authenticated download route.
+
+For local acceptance, repeat package generation, ordinary SSP export and scan
+import with cookie-only and bearer sessions. Switch to another authorized
+organization while an operation is pending and verify no old-context completion
+or download appears there. Revoke access or remove the import job and verify
+polling stops with a visible error. Automated client tests use synthetic data;
+live cookie/bearer acceptance remains outstanding.
