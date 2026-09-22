@@ -27,6 +27,28 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
 
     public WorkspaceMembershipTests(WorkspaceMembershipFactory factory) => _factory = factory;
 
+    [Fact]
+    public async Task ProductionHost_RegistersSingletonWorkspaceConversationIdentity()
+    {
+        // Arrange
+        using var client = _factory.CreateClient();
+        var identity = _factory.Services.GetRequiredService<Ato.Copilot.State.Abstractions.IConversationIdentityAccessor>();
+        await using var first = _factory.Services.CreateAsyncScope();
+        await using var second = _factory.Services.CreateAsyncScope();
+
+        // Act
+        var firstIdentity = first.ServiceProvider.GetRequiredService<Ato.Copilot.State.Abstractions.IConversationIdentityAccessor>();
+        var secondIdentity = second.ServiceProvider.GetRequiredService<Ato.Copilot.State.Abstractions.IConversationIdentityAccessor>();
+
+        // Assert
+        identity.Should().BeOfType<Ato.Copilot.Mcp.Server.WorkspaceChatScope>();
+        firstIdentity.Should().BeSameAs(identity);
+        secondIdentity.Should().BeSameAs(identity);
+        first.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>().Should().NotBeNull();
+        first.ServiceProvider.GetRequiredService<ISystemWorkspaceAccessService>().Should().NotBeNull();
+        first.ServiceProvider.GetRequiredService<Ato.Copilot.State.Abstractions.IConversationStateManager>().Should().NotBeNull();
+    }
+
     private HttpClient Client(Guid directory, Guid actor, Guid? tenant = null, bool csp = false)
     {
         var client = _factory.CreateClient();
@@ -78,6 +100,8 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK, body.ToString());
         var data = body.GetProperty("data");
+        data.TryGetProperty("directoryTenantId", out var directory).Should().BeTrue();
+        directory.GetGuid().Should().Be(DirectoryId).And.NotBe(WorkspaceMembershipFactory.TenantAId);
         data.GetProperty("homeTenant").ValueKind.Should().Be(JsonValueKind.Null);
         data.GetProperty("effectiveTenant").GetProperty("id").GetGuid().Should().Be(WorkspaceMembershipFactory.TenantAId);
         data.GetProperty("workspace").GetProperty("personId").GetGuid().Should().Be(personId);
@@ -235,6 +259,9 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
         // Arrange
         var actor = Guid.NewGuid();
         using var admin = Client(AdminDirectory, actor, csp: true);
+        var providerMe = (await admin.GetFromJsonAsync<JsonElement>("/api/auth/me")).GetProperty("data");
+        providerMe.TryGetProperty("directoryTenantId", out var providerDirectory).Should().BeTrue();
+        providerDirectory.GetGuid().Should().Be(AdminDirectory);
         var start = await admin.PostAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate", null);
         start.StatusCode.Should().Be(HttpStatusCode.OK, await start.Content.ReadAsStringAsync());
         var cookie = start.Headers.GetValues("Set-Cookie").Single(h => h.StartsWith("ato-impersonate=")).Split(';')[0];
@@ -253,6 +280,9 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
 
         // Assert
         authorized.StatusCode.Should().Be(HttpStatusCode.OK, await authorized.Content.ReadAsStringAsync());
+        var supportMe = (await authorized.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        supportMe.GetProperty("directoryTenantId").GetGuid().Should().Be(AdminDirectory)
+            .And.NotBe(WorkspaceMembershipFactory.TenantAId);
         denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         var exit = await admin.DeleteAsync("/api/tenants/impersonation");
         exit.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -269,19 +299,31 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
     {
         // Arrange
         var actor = Guid.NewGuid();
-        var person = await PersonAsync(WorkspaceMembershipFactory.TenantAId);
-        await GrantAsync(WorkspaceMembershipFactory.TenantAId, actor, person);
+        var tenant = Guid.NewGuid();
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.Tenants.Add(new() { Id = tenant, DisplayName = "Profile role fixture",
+                OnboardingState = Ato.Copilot.Core.Models.Tenancy.OnboardingState.Active });
+            await db.SaveChangesAsync();
+        }
+        var person = await PersonAsync(tenant);
+        await GrantAsync(tenant, actor, person);
         var systemId = Guid.NewGuid().ToString();
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-            db.RegisteredSystems.Add(new() { Id = systemId, TenantId = WorkspaceMembershipFactory.TenantAId,
+            db.RegisteredSystems.Add(new() { Id = systemId, TenantId = tenant,
                 Name = "Assigned system", HostingEnvironment = "Test", CreatedBy = "fixture", IsActive = true });
-            db.SystemRoleAssignments.Add(new() { TenantId = WorkspaceMembershipFactory.TenantAId,
-                PersonId = person, RegisteredSystemId = systemId, Role = role });
+            if (role == OrganizationRole.Administrator)
+                db.OrganizationRoleAssignments.Add(new() { TenantId = tenant,
+                    PersonId = person, Role = role });
+            else
+                db.SystemRoleAssignments.Add(new() { TenantId = tenant,
+                    PersonId = person, RegisteredSystemId = systemId, Role = role });
             await db.SaveChangesAsync();
         }
-        using var member = Client(DirectoryId, actor, WorkspaceMembershipFactory.TenantAId);
+        using var member = Client(DirectoryId, actor, tenant);
 
         // Act
         var response = await member.GetAsync($"/api/dashboard/systems/{systemId}/profile/MissionAndPurpose");
@@ -426,6 +468,69 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
         // Assert
         mismatched.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         notMember.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task CapturedSupportCookie_IsRejectedAfterHttpExit()
+    {
+        // Arrange
+        var actor = Guid.NewGuid();
+        using var admin = Client(AdminDirectory, actor, csp: true);
+        var started = await admin.PostAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate", null);
+        started.StatusCode.Should().Be(HttpStatusCode.OK, await started.Content.ReadAsStringAsync());
+        var captured = started.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("ato-impersonate=")).Split(';')[0];
+        using var replay = Client(AdminDirectory, actor, WorkspaceMembershipFactory.TenantAId, csp: true);
+        replay.DefaultRequestHeaders.Remove("X-Workspace-Mode");
+        replay.DefaultRequestHeaders.Add("X-Workspace-Mode", "support");
+        replay.DefaultRequestHeaders.Add("Cookie", captured);
+        (await replay.GetAsync("/api/auth/me")).StatusCode.Should().Be(HttpStatusCode.OK);
+        admin.DefaultRequestHeaders.Add("Cookie", captured);
+
+        // Act
+        var ended = await admin.DeleteAsync("/api/tenants/impersonation");
+        var replayed = await replay.GetAsync("/api/auth/me");
+
+        // Assert
+        ended.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        replayed.StatusCode.Should().Be(HttpStatusCode.Forbidden, "deleting a browser cookie must also revoke its captured authorization token");
+        (await replayed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetProperty("errorCode")
+            .GetString().Should().Be("SUPPORT_SESSION_INVALID");
+    }
+
+    [Theory]
+    [InlineData("manual")]
+    [InlineData("idle_timeout")]
+    public async Task SignoutFromOrdinaryTab_RevokesCapturedSupportSessionForAnotherOrganization(string reason)
+    {
+        // Arrange
+        var actor = Guid.NewGuid();
+        using var admin = Client(AdminDirectory, actor, csp: true);
+        var started = await admin.PostAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate", null);
+        started.StatusCode.Should().Be(HttpStatusCode.OK, await started.Content.ReadAsStringAsync());
+        var captured = started.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("ato-impersonate=")).Split(';')[0];
+        var person = await PersonAsync(WorkspaceMembershipFactory.TenantBId);
+        (await admin.PostAsJsonAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantBId}/memberships",
+            new { directoryTenantId = AdminDirectory, objectId = actor, personId = person }))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+        using var ordinary = Client(AdminDirectory, actor, WorkspaceMembershipFactory.TenantBId, csp: true);
+        ordinary.DefaultRequestHeaders.Add("Cookie", captured);
+        using var replay = Client(AdminDirectory, actor, WorkspaceMembershipFactory.TenantAId, csp: true);
+        replay.DefaultRequestHeaders.Remove("X-Workspace-Mode");
+        replay.DefaultRequestHeaders.Add("X-Workspace-Mode", "support");
+        replay.DefaultRequestHeaders.Add("Cookie", captured);
+
+        // Act
+        var signedOut = await ordinary.PostAsJsonAsync("/api/auth/signout", new { reason });
+        var rejected = await replay.GetAsync("/api/auth/me");
+
+        // Assert
+        signedOut.StatusCode.Should().Be(HttpStatusCode.NoContent, await signedOut.Content.ReadAsStringAsync());
+        rejected.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var closed = await db.LoginAuditEvents.SingleAsync(e => e.Oid == actor.ToString()
+            && e.EventType == Ato.Copilot.Core.Models.Auth.LoginAuditEventType.ImpersonationEnd);
+        closed.EffectiveTenantId.Should().Be(WorkspaceMembershipFactory.TenantAId);
     }
 
     [Fact]

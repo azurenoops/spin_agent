@@ -9,6 +9,7 @@ using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Ato.Copilot.Mcp.Middleware;
+using Ato.Copilot.Core.Interfaces.Onboarding;
 
 namespace Ato.Copilot.Mcp.Services.Tenancy;
 
@@ -20,14 +21,48 @@ public interface IOrganizationMembershipService
     Task<(OrganizationMembershipResponse Membership, bool Created)> GrantAsync(HttpContext http, Guid tenantId, GrantOrganizationMembershipRequest request, CancellationToken ct);
     Task RevokeAsync(HttpContext http, Guid tenantId, Guid membershipId, CancellationToken ct);
     Task AuthorizeAdministrationAsync(ClaimsPrincipal actor, Guid tenantId, CancellationToken ct);
+    Task<OrganizationAdministratorResponse> EnrollAdministratorAsync(HttpContext http, Guid tenantId, Guid personId, CancellationToken ct);
+    Task<OrganizationAdministratorResponse> GetAdministratorAsync(HttpContext http, Guid tenantId, Guid assignmentId, CancellationToken ct);
 }
 
 /// <summary>Audits grant/revoke atomically and checks the selected organization, never directory affiliation.</summary>
 public sealed class OrganizationMembershipService(
     IDbContextFactory<AtoCopilotContext> dbFactory, ITenantContext context,
     ITenantContextAccessor accessor, IWorkspaceService workspace,
-    ILoginAuditService audit, LoginAuditContextAccessor auditContext) : IOrganizationMembershipService
+    ILoginAuditService audit, LoginAuditContextAccessor auditContext,
+    IOrganizationRoleAssignmentService roleAssignments) : IOrganizationMembershipService
 {
+    public async Task<OrganizationAdministratorResponse> GetAdministratorAsync(
+        HttpContext http, Guid tenantId, Guid assignmentId, CancellationToken ct)
+    {
+        await AuthorizeAdministrationAsync(http.User, tenantId, ct);
+        using var scope = accessor.Push(new TenantContext(tenantId));
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var row = await db.OrganizationRoleAssignments.AsNoTracking().SingleOrDefaultAsync(r =>
+            r.TenantId == tenantId && r.Id == assignmentId && r.Role == OrganizationRole.Administrator && r.RemovedAt == null, ct)
+            ?? throw new WorkspaceException(404, "ROLE_ASSIGNMENT_NOT_FOUND", "The Administrator assignment does not exist in this organization.");
+        return new(row.Id, tenantId, row.PersonId, nameof(OrganizationRole.Administrator));
+    }
+
+    public async Task<OrganizationAdministratorResponse> EnrollAdministratorAsync(
+        HttpContext http, Guid tenantId, Guid personId, CancellationToken ct)
+    {
+        if (!workspace.IsCspAdministrator(http.User) || workspace.Current?.Kind != "csp")
+            throw new WorkspaceException(403, "CSP_ADMIN_REQUIRED", "Initial Administrator enrollment requires the provider workspace and CSP administrator authority.");
+        await AuthorizeAdministrationAsync(http.User, tenantId, ct);
+        using var scope = accessor.Push(new TenantContext(tenantId));
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        if (!await db.Persons.AnyAsync(p => p.Id == personId && p.TenantId == tenantId, ct)
+            || !await db.OrganizationMemberships.AnyAsync(m => m.TenantId == tenantId && m.PersonId == personId && m.RevokedAt == null, ct))
+            throw new WorkspaceException(400, "ACTIVE_MEMBERSHIP_REQUIRED", "Grant this organization-local Person an explicit active membership first.");
+        if (await db.OrganizationRoleAssignments.AnyAsync(r => r.TenantId == tenantId
+            && r.Role == OrganizationRole.Administrator && r.RemovedAt == null, ct))
+            throw new WorkspaceException(409, "ADMINISTRATOR_ALREADY_ENROLLED", "Use the existing organization Administrator role-management workflow.");
+        var result = await roleAssignments.AddAsync(tenantId, OrganizationRole.Administrator, personId,
+            WorkspaceService.Identity(http.User).ObjectId, Guid.NewGuid(), ct);
+        return new(result.Assignment.Id, tenantId, personId, nameof(OrganizationRole.Administrator));
+    }
+
     public async Task AuthorizeAdministrationAsync(ClaimsPrincipal actor, Guid tenantId, CancellationToken ct)
     {
         WorkspaceService.Identity(actor);

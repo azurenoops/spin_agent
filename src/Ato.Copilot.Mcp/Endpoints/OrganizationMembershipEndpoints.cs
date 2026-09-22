@@ -12,6 +12,20 @@ public static class OrganizationMembershipEndpoints
     {
         var group = app.MapGroup("/api/tenants/{tenantId:guid}").WithTags("Organization membership")
             .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint());
+        group.MapPost("/administrator-assignments", async (Guid tenantId, EnrollOrganizationAdministratorRequest request,
+            HttpContext http, IOrganizationMembershipService service, CancellationToken ct) =>
+            await ExecuteAsync(async () =>
+            {
+                var role = await service.EnrollAdministratorAsync(http, tenantId, request.PersonId, ct);
+                return Results.Created($"/api/tenants/{tenantId}/administrator-assignments/{role.Id}", new { status = "success", data = role });
+            }))
+            .WithName("EnrollInitialOrganizationAdministrator")
+            .WithSummary("Explicitly enroll an organization's first Administrator using CSP authority");
+        group.MapGet("/administrator-assignments/{assignmentId:guid}", async (Guid tenantId, Guid assignmentId,
+            HttpContext http, IOrganizationMembershipService service, CancellationToken ct) =>
+            await ExecuteAsync(async () => Success(await service.GetAdministratorAsync(http, tenantId, assignmentId, ct))))
+            .WithName("GetOrganizationAdministratorAssignment")
+            .WithSummary("Read an explicitly enrolled organization Administrator assignment");
         group.MapGet("/memberships", async (Guid tenantId, int? page, int? pageSize,
             HttpContext http, IOrganizationMembershipService service, CancellationToken ct) =>
             await ExecuteAsync(async () => Success(await service.ListAsync(http, tenantId, page ?? 1, pageSize ?? 50, ct))))
