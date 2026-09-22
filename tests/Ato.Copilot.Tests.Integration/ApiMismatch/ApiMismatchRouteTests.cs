@@ -15,17 +15,21 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
+using Ato.Copilot.Mcp.Services;
 using Microsoft.AspNetCore.Authentication;
 using Moq;
 using Xunit;
@@ -314,6 +318,12 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         });
 
         builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
+        builder.Services.TryAddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+        builder.Services.TryAddScoped<ISystemWorkspaceAccessService, SystemWorkspaceAccessService>();
+        builder.Services.AddScoped<IWorkspaceNotificationService>(_ =>
+            new Mock<IWorkspaceNotificationService>(MockBehavior.Strict).Object);
+        builder.Services.AddScoped<INotificationCapabilitiesService>(_ =>
+            new Mock<INotificationCapabilitiesService>(MockBehavior.Strict).Object);
         if (profileOverride is not null)
             builder.Services.AddSingleton(profileOverride);
         builder.Services

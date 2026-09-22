@@ -9,6 +9,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Mcp.Services.Tenancy;
+using Ato.Copilot.Mcp.Authorization;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -98,6 +101,7 @@ public static class ScanImportEndpoints
                     FileName = file.FileName,
                     TemporaryFilePath = temporaryFilePath,
                     ImportType = detectedType,
+                    ImportedBy = WorkspaceService.Identity(request.HttpContext.User).ObjectId.ToString(),
                 });
 
                 if (!enqueued)
@@ -127,7 +131,8 @@ public static class ScanImportEndpoints
         .WithName("UploadScanImport")
         .WithTags("Scan Import")
         .DisableAntiforgery()
-        .RequireAuthorization();
+        .RequireAuthorization()
+        .RequireProgressAccess(mutate: true);
 
         // ─── GET .../scans/import/{importId}/status ───────────────────────────
         // Returns the current status of an import job for polling fallback.
@@ -152,7 +157,8 @@ public static class ScanImportEndpoints
         })
         .WithName("GetScanImportStatus")
         .WithTags("Scan Import")
-        .RequireAuthorization();
+        .RequireAuthorization()
+        .RequireProgressAccess(mutate: false);
 
         // ─── DELETE .../scans/import/{importId} ───────────────────────────────
         // Requests cancellation of an in-progress import job.
@@ -169,10 +175,42 @@ public static class ScanImportEndpoints
         })
         .WithName("CancelScanImport")
         .WithTags("Scan Import")
-        .RequireAuthorization();
+        .RequireAuthorization()
+        .RequireProgressAccess(mutate: true);
 
         return app;
     }
+
+    private static RouteHandlerBuilder RequireProgressAccess(this RouteHandlerBuilder route, bool mutate) =>
+        route.WithMetadata(new WorkspaceAuthorizedEndpoint()).AddEndpointFilter(async (invocation, next) =>
+        {
+            var http = invocation.HttpContext;
+            var services = http.RequestServices;
+            try
+            {
+                var actor = await WorkspaceNotificationActor.ResolveAsync(http,
+                    services.GetRequiredService<IWorkspaceService>(), http.RequestAborted);
+                using var tenantScope = services.GetRequiredService<ITenantContextAccessor>().Push(actor.Context);
+                var systemId = http.Request.RouteValues["systemId"]?.ToString();
+                if (string.IsNullOrWhiteSpace(systemId))
+                    throw new WorkspaceException(404, "SYSTEM_NOT_FOUND", "The system is not accessible in this workspace.");
+                var access = await services.GetRequiredService<ISystemWorkspaceAccessService>()
+                    .GetAccessAsync(actor.Context.EffectiveTenantId, actor.Workspace.PersonId, systemId,
+                        actor.Context.IsCspAdmin, http.RequestAborted);
+                if (!access.Permissions.CanRead)
+                    throw new WorkspaceException(404, "SYSTEM_NOT_FOUND", "The system is not accessible in this workspace.");
+                if (mutate && !access.Permissions.CanRunAssessments)
+                    throw new WorkspaceException(403, "WORKSPACE_OPERATION_NOT_AUTHORIZED", "Your system assignments do not authorize scan imports.");
+                return await next(invocation);
+            }
+            catch (WorkspaceException ex)
+            {
+                services.GetRequiredService<ILoggerFactory>().CreateLogger("ScanImportEndpoints")
+                    .LogInformation("Scan import request denied: {ErrorCode}", ex.Code);
+                return Results.Json(new { status = "error", error = new { errorCode = ex.Code, message = ex.Message } },
+                    statusCode: ex.StatusCode);
+            }
+        });
 
     // ─── File type detection ──────────────────────────────────────────────────
 
