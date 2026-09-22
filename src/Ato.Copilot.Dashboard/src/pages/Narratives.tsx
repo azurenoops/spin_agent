@@ -9,6 +9,7 @@ import type { BusinessContextDraftResponse, FlaggedControlItem } from '../types/
 import EvidenceSection from '../components/EvidenceSection';
 import ValidationEvidencePanel from '../features/compliance/components/ValidationEvidencePanel';
 import type { NarrativeProposal } from '../api/narrativeLibrary';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 
 function hasAiTechnicalNarrative(narrative: NarrativeListItem): boolean {
   return narrative.aiSuggested && !narrative.migratedFromLegacy &&
@@ -90,6 +91,7 @@ function AddNarrativeDialog({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const canAuthor = useSystemMutationPermission(systemId, 'canAuthorNarratives');
   const [controlSearch, setControlSearch] = useState('');
   const [controls, setControls] = useState<AvailableControl[]>([]);
   const [loadingControls, setLoadingControls] = useState(false);
@@ -114,6 +116,7 @@ function AddNarrativeDialog({
   }, [systemId, controlSearch]);
 
   const handleSubmit = async () => {
+    if (!canAuthor) { setError('Narrative authoring permission is required.'); return; }
     if (!selectedControl) return;
     setSubmitting(true);
     setError('');
@@ -225,7 +228,7 @@ function AddNarrativeDialog({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!selectedControl || submitting}
+            disabled={!canAuthor || !selectedControl || submitting}
             className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {submitting ? 'Creating...' : 'Create'}
@@ -304,6 +307,10 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
 } = {}) {
   const { id: systemId } = useParams<{ id: string }>();
   const { settings } = useSettings();
+  const canAuthor = useSystemMutationPermission(systemId, 'canAuthorNarratives');
+  const canReview = useSystemMutationPermission(systemId, 'canReviewNarratives');
+  const canCopyContext = useSystemMutationPermission(systemId, 'canAuthorNarratives', settings.role === 'ISSO');
+  const canManageValidationLinks = useSystemMutationPermission(systemId, null, settings.role === 'SCA');
   const [familyFilter, setFamilyFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [freshnessFilter, setFreshnessFilter] = useState('All');
@@ -404,6 +411,10 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
   };
 
   const handleBulkUpdate = async () => {
+    if (!canAuthor || (['Approved', 'NeedsRevision'].includes(bulkApproval) && !canReview)) {
+      setRegenError('The current narrative authoring or review permission does not authorize this update.');
+      return;
+    }
     if (!systemId || selected.size === 0) return;
     setUpdating(true);
     try {
@@ -416,6 +427,8 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
       setBulkStatus('');
       setBulkApproval('');
       refresh();
+    } catch (reason) {
+      setRegenError(reason instanceof Error ? reason.message : 'Unable to update narratives.');
     } finally {
       setUpdating(false);
     }
@@ -428,6 +441,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
     original: string | null,
   ) => {
     if (text === (original ?? '')) return; // No change
+    if (!canAuthor) { setRegenError('Narrative authoring permission is required. Your draft is retained.'); return; }
     if (!systemId) return;
     const current = narratives?.find(item => item.controlId === controlId);
     if (!current || current.approvalStatus === 'UnderReview') return;
@@ -464,6 +478,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
   };
 
   const handleRegenerate = async (controlId: string) => {
+    if (!canAuthor || (onGenerateDraft && !canGenerate)) { setRegenError('Narrative generation permission is required.'); return; }
     if (!systemId) return;
     const current = narratives?.find(item => item.controlId === controlId);
     const draftKey = `${systemId}:${controlId}`;
@@ -515,7 +530,11 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
             <p className="mt-1 text-sm text-gray-500">View and manage control implementation narratives for this system.</p>
           </div>
           <button
-            onClick={() => setShowAddDialog(true)}
+            disabled={!canAuthor}
+            onClick={() => {
+              if (!canAuthor) { setRegenError('Narrative authoring permission is required.'); return; }
+              setShowAddDialog(true);
+            }}
             className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             + Add Narrative
@@ -606,23 +625,23 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
         {!onGenerateDraft && selected.size > 0 && (
           <div className="flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
             <span className="text-sm font-medium text-indigo-700">{selected.size} selected</span>
-            <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
+            <select disabled={!canAuthor} value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
               <option value="">Set status...</option>
               <option value="Implemented">Implemented</option>
               <option value="PartiallyImplemented">Partially Implemented</option>
               <option value="Planned">Planned</option>
               <option value="NotApplicable">Not Applicable</option>
             </select>
-            <select value={bulkApproval} onChange={e => setBulkApproval(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
+            <select disabled={!canAuthor} value={bulkApproval} onChange={e => setBulkApproval(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
               <option value="">Set approval...</option>
               <option value="Draft">Draft</option>
               <option value="UnderReview">Under Review</option>
-              <option value="Approved">Approved</option>
-              <option value="NeedsRevision">Needs Revision</option>
+              <option value="Approved" disabled={!canReview}>Approved</option>
+              <option value="NeedsRevision" disabled={!canReview}>Needs Revision</option>
             </select>
             <button
               type="button"
-              disabled={updating || (!bulkStatus && !bulkApproval)}
+              disabled={!canAuthor || (['Approved', 'NeedsRevision'].includes(bulkApproval) && !canReview) || updating || (!bulkStatus && !bulkApproval)}
               onClick={handleBulkUpdate}
               className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
@@ -642,7 +661,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
           <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">{String(error)}</div>
         )}
         {regenError && (
-          <div className="flex items-center justify-between rounded-md bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
+          <div role="alert" className="flex items-center justify-between rounded-md bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
             <span>{regenError}</span>
             <button onClick={() => setRegenError('')} className="text-amber-500 hover:text-amber-700 text-xs font-medium ml-4">Dismiss</button>
           </div>
@@ -657,7 +676,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                   <th className="px-3 py-3 w-8">
                     <input
                       type="checkbox"
-                      disabled={Boolean(onGenerateDraft)}
+                      disabled={!canAuthor || Boolean(onGenerateDraft)}
                       checked={selected.size === items.length && items.length > 0}
                       onChange={toggleSelectAll}
                       className="rounded border-gray-300"
@@ -702,7 +721,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                       <td className="px-3 py-3">
                         <input
                           type="checkbox"
-                          disabled={Boolean(onGenerateDraft)}
+                          disabled={!canAuthor || Boolean(onGenerateDraft)}
                           checked={selected.has(n.controlId)}
                           onChange={() => toggleSelect(n.controlId)}
                           className="rounded border-gray-300"
@@ -752,7 +771,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                               </div>
                               <button
                                 className="inline-flex items-center gap-1 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-                                disabled={regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview' || Boolean(onGenerateDraft && !canGenerate)}
+                                disabled={!canAuthor || regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview' || Boolean(onGenerateDraft && !canGenerate)}
                                 onClick={() => handleRegenerate(n.controlId)}
                               >
                                 {regeneratingIds.has(n.controlId) ? 'Regenerating…' : onGenerateDraft ? 'Regenerate as draft' : 'Regenerate'}
@@ -768,7 +787,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                                   aria-label={`Policy narrative for ${n.controlId}`}
                                   className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                                   value={policyValue}
-                                  readOnly={Boolean(onGenerateDraft) || n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
+                                  readOnly={!canAuthor || Boolean(onGenerateDraft) || n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
                                   onChange={event => {
                                     draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
                                     setEditedNarratives(previous => ({ ...previous, [policyKey]: event.target.value }));
@@ -786,7 +805,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                                   aria-label={`Technical narrative for ${n.controlId}`}
                                   className="mt-2 min-h-[160px] w-full resize-y rounded-md border border-gray-200 bg-white p-4 text-sm font-normal text-gray-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                                   value={technicalValue}
-                                  readOnly={Boolean(onGenerateDraft) || n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
+                                  readOnly={!canAuthor || Boolean(onGenerateDraft) || n.approvalStatus === 'UnderReview' || regeneratingIds.has(n.controlId)}
                                   onChange={event => {
                                     draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
                                     setEditedNarratives(previous => ({ ...previous, [technicalKey]: event.target.value }));
@@ -820,7 +839,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                                 <ValidationEvidencePanel
                                   systemId={systemId}
                                   controlId={n.controlId}
-                                  canManage={settings.role === 'SCA'}
+                                  canManage={canManageValidationLinks}
                                 />
                               </>
                             )}
@@ -830,9 +849,10 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                               systemId={systemId}
                               controlId={n.controlId}
                               flags={contextFlags.key === contextKey ? contextFlags.result : { status: 'loading' }}
-                              canCopy={!onGenerateDraft && settings.role === 'ISSO' && n.approvalStatus !== 'UnderReview' && !regeneratingIds.has(n.controlId)}
+                              canCopy={!onGenerateDraft && canCopyContext && n.approvalStatus !== 'UnderReview' && !regeneratingIds.has(n.controlId)}
                               onRefresh={() => setContextRevision(revision => revision + 1)}
                               onCopy={content => {
+                                if (!canCopyContext) { setRegenError('Narrative authoring permission is required.'); return; }
                                 draftVersions.current[`${systemId}:${n.controlId}`] ??= n.version;
                                 setEditedNarratives(prev => ({
                                   ...prev,

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { addValidationLink, type ControlValidationLinkType } from '../api/complianceApi';
+import { useSystemMutationPermission } from '../../../components/permissions/useSystemMutationPermission';
 
 interface Props {
   systemId: string;
@@ -16,6 +17,7 @@ const LINK_TYPES: Array<{ value: ControlValidationLinkType; label: string }> = [
 ];
 
 export default function AddValidationLinkModal({ systemId, controlId, onClose, onAdded }: Props) {
+  const canManage = useSystemMutationPermission(systemId, null);
   const [linkType, setLinkType] = useState<ControlValidationLinkType>('AzureResource');
   const [linkTarget, setLinkTarget] = useState('');
   const [description, setDescription] = useState('');
@@ -24,6 +26,7 @@ export default function AddValidationLinkModal({ systemId, controlId, onClose, o
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (!canManage) { setError('Validation-link management permission is not available for this workspace.'); return; }
     if (!linkTarget.trim()) return;
     setSubmitting(true);
     setError('');
@@ -89,7 +92,7 @@ export default function AddValidationLinkModal({ systemId, controlId, onClose, o
         </div>
         <div className="flex justify-end gap-2 border-t border-gray-200 px-6 py-4">
           <button type="button" onClick={onClose} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700">Cancel</button>
-          <button type="submit" disabled={submitting || !linkTarget.trim()} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <button type="submit" disabled={!canManage || submitting || !linkTarget.trim()} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {submitting ? 'Adding...' : 'Add link'}
           </button>
         </div>

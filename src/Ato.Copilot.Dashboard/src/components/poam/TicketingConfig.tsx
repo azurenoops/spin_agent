@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getTicketingConfig, configureTicketing } from '../../api/poam';
 import type { ConfigureTicketingRequest } from '../../types/poam';
+import { useSystemMutationPermission } from '../permissions/useSystemMutationPermission';
 
 interface TicketingConfigProps {
   systemId: string;
@@ -14,6 +15,8 @@ const defaultFieldMapping: Record<string, string> = {
 };
 
 export default function TicketingConfig({ systemId }: TicketingConfigProps) {
+  // Ticketing configuration has no scoped workspace-operation projection yet.
+  const canConfigure = useSystemMutationPermission(systemId, null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +53,10 @@ export default function TicketingConfig({ systemId }: TicketingConfigProps) {
   }, [systemId]);
 
   const handleSave = useCallback(async () => {
+    if (!canConfigure) {
+      setError('Permission denied: ticketing configuration is unavailable in this workspace.');
+      return;
+    }
     setError(null);
     setSuccess(false);
     setSaving(true);
@@ -73,7 +80,7 @@ export default function TicketingConfig({ systemId }: TicketingConfigProps) {
     } finally {
       setSaving(false);
     }
-  }, [systemId, provider, baseUrl, projectKeyOrTableName, issueType, authToken, fieldMapping, syncEnabled]);
+  }, [systemId, provider, baseUrl, projectKeyOrTableName, issueType, authToken, fieldMapping, syncEnabled, canConfigure]);
 
   const updateMapping = useCallback((poamField: string, externalField: string) => {
     setFieldMapping(prev => ({ ...prev, [poamField]: externalField }));
@@ -96,9 +103,9 @@ export default function TicketingConfig({ systemId }: TicketingConfigProps) {
         </div>
       )}
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+      {(error || !canConfigure) && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error ?? 'Permission denied: ticketing configuration is unavailable in this workspace.'}
         </div>
       )}
 
@@ -232,7 +239,7 @@ export default function TicketingConfig({ systemId }: TicketingConfigProps) {
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving || !baseUrl.trim() || !projectKeyOrTableName.trim() || (!configured && !authToken.trim())}
+          disabled={!canConfigure || saving || !baseUrl.trim() || !projectKeyOrTableName.trim() || (!configured && !authToken.trim())}
           className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? 'Saving...' : configured ? 'Update Configuration' : 'Save Configuration'}

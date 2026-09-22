@@ -14,8 +14,11 @@
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { useWorkspaceSession, type WorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
+
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
 
 vi.mock('../../api/components', () => ({
   getComponents: vi.fn(),
@@ -114,6 +117,7 @@ function renderPage(scoped = false) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(useWorkspaceSession).mockReturnValue(null);
   // Default: system has no components (clean slate)
   mockGetComponents.mockResolvedValue(emptySystemResponse);
 });
@@ -134,6 +138,9 @@ async function openAddExistingTab() {
 describe('ComponentInventory — Add Existing empty-state messages', () => {
   it('keeps the component-library link inside the organization workspace', async () => {
     // Arrange
+    vi.mocked(useWorkspaceSession).mockReturnValue({
+      systemAccess: { systemId: SYSTEM_ID, permissions: { canRead: true, canManageSystem: true } },
+    } as WorkspaceSession);
     mockListComponents.mockResolvedValue({ items: [], totalCount: 0 });
     await act(async () => { renderPage(true); });
 

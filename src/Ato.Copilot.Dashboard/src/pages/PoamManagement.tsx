@@ -11,12 +11,15 @@ import TicketingConfig from '../components/poam/TicketingConfig';
 import PoamExportDialog from '../components/poam/PoamExportDialog';
 import type { PoamListItem, PoamListQuery, CreatePoamRequest } from '../types/poam';
 import AsyncErrorState from '../components/AsyncErrorState';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 
 type ViewTab = 'overview' | 'trends' | 'ticketing';
 
 export default function PoamManagement() {
   const { detail } = useSystemContext();
   const systemId = detail.systemId;
+  const canManageRemediation = useSystemMutationPermission(systemId, 'canManageRemediation');
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<ViewTab>('overview');
   const [query, setQuery] = useState<PoamListQuery>({ page: 1, pageSize: 25, sortBy: 'scheduledCompletionDate', sortDirection: 'asc' });
@@ -42,12 +45,14 @@ export default function PoamManagement() {
   const totalItems = poamData?.totalCount ?? 0;
 
   const handleCreate = useCallback(async (req: CreatePoamRequest) => {
+    if (!canManageRemediation) throw new Error('Permission denied: you cannot manage remediation for this system.');
     await create(systemId, req);
     setShowCreateForm(false);
-  }, [systemId, create]);
+  }, [systemId, create, canManageRemediation]);
 
   return (
     <div className="space-y-6">
+      {permissionError && <p role="alert" className="text-sm text-red-600">{permissionError}</p>}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -67,7 +72,14 @@ export default function PoamManagement() {
             Export
           </button>
           <button
-            onClick={() => setShowCreateForm(true)}
+            disabled={!canManageRemediation}
+            onClick={() => {
+              if (!canManageRemediation) {
+                setPermissionError('Permission denied: you cannot manage remediation for this system.');
+                return;
+              }
+              setShowCreateForm(true);
+            }}
             className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -154,6 +166,7 @@ export default function PoamManagement() {
       {/* Create Form */}
       {showCreateForm && (
         <PoamCreateForm
+          systemId={systemId}
           onClose={() => setShowCreateForm(false)}
           onSubmit={handleCreate}
           loading={creating}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getEvidence, downloadEvidence, deleteEvidence, replaceEvidence, downloadEvidenceVersion, getEvidenceVersions } from '../api/evidence';
 import type { EvidenceArtifactDto, EvidenceVersionDto } from '../types/evidence';
+import { useSystemMutationPermission } from './permissions/useSystemMutationPermission';
 
 interface Props {
   systemId: string;
@@ -58,6 +59,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 type DetailTab = 'details' | 'versions';
 
 export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onActionComplete }: Props) {
+  const canManageEvidence = useSystemMutationPermission(systemId, 'canManageEvidence');
   const [detail, setDetail] = useState<EvidenceArtifactDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +132,10 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
   };
 
   const handleDelete = async () => {
+    if (!canManageEvidence) {
+      setError('You do not have permission to delete evidence in this workspace.');
+      return;
+    }
     if (!confirm(`Delete "${detail?.fileName ?? 'this evidence'}"? This cannot be undone.`)) return;
     setDeleting(true);
     try {
@@ -144,6 +150,10 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
   };
 
   const handleReplace = async () => {
+    if (!canManageEvidence) {
+      setError('You do not have permission to replace evidence in this workspace.');
+      return;
+    }
     if (!replaceFile) return;
     setReplacing(true);
     try {
@@ -217,7 +227,7 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
       {/* Body */}
       <div className="space-y-6 px-6 py-4">
         {loading && <p className="text-sm text-gray-400">Loading...</p>}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
         {/* ── Details tab ─────────────────────────────────────────────── */}
         {activeTab === 'details' && detail && (
@@ -258,7 +268,14 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
               {detail.source === 'Manual' && (
                 <>
                   <button
-                    onClick={() => setShowReplace(true)}
+                    onClick={() => {
+                      if (!canManageEvidence) {
+                        setError('You do not have permission to replace evidence in this workspace.');
+                        return;
+                      }
+                      setShowReplace(true);
+                    }}
+                    disabled={!canManageEvidence}
                     className="inline-flex items-center justify-center gap-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -268,7 +285,7 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
                   </button>
                   <button
                     onClick={handleDelete}
-                    disabled={deleting}
+                    disabled={!canManageEvidence || deleting}
                     className="inline-flex items-center justify-center gap-1 rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -292,7 +309,7 @@ export default function EvidenceDetailPanel({ systemId, evidenceId, onClose, onA
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={handleReplace}
-                    disabled={!replaceFile || replacing}
+                    disabled={!canManageEvidence || !replaceFile || replacing}
                     className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {replacing ? 'Replacing...' : 'Upload Replacement'}

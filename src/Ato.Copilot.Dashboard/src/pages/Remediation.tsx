@@ -11,6 +11,7 @@ import type { RemediationSummary, RemediationTask } from '../api/remediation';
 import type { DeviationListItem } from '../types/dashboard';
 import SyncIndicator from '../components/poam/SyncIndicator';
 import CreateRemediationTaskModal from '../components/remediation/CreateRemediationTaskModal';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,10 @@ function SeverityBadge({ severity }: { severity: string }) {
 export default function Remediation() {
   const { detail } = useSystemContext();
   const systemId = detail.systemId;
+  const canManageRemediation = useSystemMutationPermission(systemId, 'canManageRemediation');
+  // Standalone task creation/movement lack explicit workspace-operation projections.
+  const canCreateTask = useSystemMutationPermission(systemId, null);
+  const canMoveTask = useSystemMutationPermission(systemId, null);
   const navigate = useNavigate();
   const { settings } = useSettings();
   const [searchText, setSearchText] = useState('');
@@ -109,6 +114,11 @@ export default function Remediation() {
   const [moveError, setMoveError] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    if (!canMoveTask) {
+      e.preventDefault();
+      setMoveError('Permission denied: task movement is unavailable in this workspace.');
+      return;
+    }
     dragTaskRef.current = taskId;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', taskId);
@@ -127,6 +137,7 @@ export default function Remediation() {
   };
 
   const handleDragOver = (e: React.DragEvent, colStatus: string) => {
+    if (!canMoveTask) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverCol(colStatus);
@@ -143,6 +154,11 @@ export default function Remediation() {
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
     setDragOverCol(null);
+    if (!canMoveTask) {
+      dragTaskRef.current = null;
+      setMoveError('Permission denied: task movement is unavailable in this workspace.');
+      return;
+    }
     const taskId = dragTaskRef.current;
     dragTaskRef.current = null;
     if (!taskId) return;
@@ -218,6 +234,10 @@ export default function Remediation() {
   };
 
   const handleLinkPoamToTask = async (poamId: string, taskId: string) => {
+    if (!canManageRemediation) {
+      setLinkError('Permission denied: you cannot manage remediation for this system.');
+      return;
+    }
     setLinkLoading(true);
     setLinkError(null);
     try {
@@ -239,7 +259,7 @@ export default function Remediation() {
   return (
     <div className="space-y-6">
         {moveError && (
-          <div className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div role="alert" className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
             <span>{moveError}</span>
             <button type="button" onClick={() => setMoveError(null)} className="ml-4 opacity-60 hover:opacity-100">✕</button>
           </div>
@@ -254,7 +274,14 @@ export default function Remediation() {
             {/* fix(#441): Create Task button — standalone task creation */}
             <button
               type="button"
-              onClick={() => setShowCreateModal(true)}
+              disabled={!canCreateTask}
+              onClick={() => {
+                if (!canCreateTask) {
+                  setMoveError('Permission denied: standalone task creation is unavailable in this workspace.');
+                  return;
+                }
+                setShowCreateModal(true);
+              }}
               className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -503,7 +530,7 @@ export default function Remediation() {
                         ) : tasks.map(t => (
                           <div
                             key={t.id}
-                            draggable
+                            draggable={canMoveTask}
                             onDragStart={(e) => handleDragStart(e, t.id)}
                             onDragEnd={handleDragEnd}
                             onClick={() => setSelectedTask(t)}
@@ -644,7 +671,14 @@ export default function Remediation() {
                     <div className="space-y-2">
                       <SyncIndicator linked={false} />
                       <button
-                        onClick={() => { setLinkPickerTask(selectedTask); setLinkPoamSearch(''); setLinkPoamResults([]); setLinkError(null); }}
+                        disabled={!canManageRemediation}
+                        onClick={() => {
+                          if (!canManageRemediation) {
+                            setMoveError('Permission denied: you cannot manage remediation for this system.');
+                            return;
+                          }
+                          setLinkPickerTask(selectedTask); setLinkPoamSearch(''); setLinkPoamResults([]); setLinkError(null);
+                        }}
                         className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
                       >
                         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -684,9 +718,9 @@ export default function Remediation() {
             <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
               <h3 className="mb-4 text-lg font-bold text-gray-900">Link to POA&M</h3>
               <p className="mb-3 text-sm text-gray-500">Search for an open POA&M item to link to task {linkPickerTask.taskNumber}.</p>
-              {linkError && (
+              {(linkError || !canManageRemediation) && (
                 <div className="mb-3 rounded-md bg-red-50 border border-red-200 p-2.5">
-                  <p className="text-xs text-red-700">{linkError}</p>
+                  <p role="alert" className="text-xs text-red-700">{linkError ?? 'Permission denied: you cannot manage remediation for this system.'}</p>
                 </div>
               )}
               <input
@@ -707,7 +741,7 @@ export default function Remediation() {
                   <button
                     key={p.id}
                     onClick={() => !p.hasTask && void handleLinkPoamToTask(p.id, linkPickerTask.id)}
-                    disabled={linkLoading || p.hasTask}
+                    disabled={!canManageRemediation || linkLoading || p.hasTask}
                     className={`w-full flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
                       p.hasTask
                         ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'

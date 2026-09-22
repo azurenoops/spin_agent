@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { BoundaryForm } from '../components/forms/BoundaryForm';
 import { usePolling } from '../hooks/usePolling';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import {
   fetchBoundaryDefinitions,
   createBoundaryDefinition,
@@ -44,6 +45,7 @@ type FormMode = { kind: 'closed' } | { kind: 'create' } | { kind: 'edit'; bounda
 
 export default function BoundaryManagement() {
   const { id: systemId } = useParams<{ id: string }>();
+  const canManage = useSystemMutationPermission(systemId, 'canManageSystem');
   const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +54,11 @@ export default function BoundaryManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<BoundaryDefinitionDto | null>(null);
   const [deleteResult, setDeleteResult] = useState<DeleteBoundaryDefinitionResponse | null>(null);
+  const requireManagement = () => {
+    if (canManage) return true;
+    setError('You do not have permission to manage boundaries.');
+    return false;
+  };
 
   // Filters
   const [search, setSearch] = useState('');
@@ -100,6 +107,7 @@ export default function BoundaryManagement() {
   });
 
   const handleCreate = async (data: CreateBoundaryDefinitionRequest) => {
+    if (!requireManagement()) return;
     if (!systemId) return;
     setSubmitting(true);
     setFormError(null);
@@ -118,6 +126,7 @@ export default function BoundaryManagement() {
   };
 
   const handleUpdate = async (data: CreateBoundaryDefinitionRequest) => {
+    if (!requireManagement()) return;
     if (formMode.kind !== 'edit') return;
     setSubmitting(true);
     setFormError(null);
@@ -136,6 +145,7 @@ export default function BoundaryManagement() {
   };
 
   const handleDelete = async () => {
+    if (!requireManagement()) return;
     if (!deleteConfirm) return;
     try {
       const result = await deleteBoundaryDefinition(deleteConfirm.id);
@@ -169,6 +179,7 @@ export default function BoundaryManagement() {
     } catch {
       setResources([]);
       setBoundaryComponents([]);
+      setError('Failed to load boundary resources and components');
     } finally {
       setResourcesLoading(false);
       setComponentsLoading(false);
@@ -191,7 +202,8 @@ export default function BoundaryManagement() {
           </div>
           <button
             type="button"
-            onClick={() => { setFormMode({ kind: 'create' }); setFormError(null); }}
+            disabled={!canManage}
+            onClick={() => { if (!requireManagement()) return; setFormMode({ kind: 'create' }); setFormError(null); }}
             className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             + Add Boundary
@@ -240,7 +252,7 @@ export default function BoundaryManagement() {
 
         {/* Banners */}
         {error && (
-          <div className="bg-red-50 text-red-700 p-3 rounded text-sm">{error}</div>
+          <div role="alert" className="bg-red-50 text-red-700 p-3 rounded text-sm">{error}</div>
         )}
         {deleteResult && (
           <div className="bg-green-50 text-green-800 p-3 rounded text-sm">
@@ -304,7 +316,8 @@ export default function BoundaryManagement() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); setFormMode({ kind: 'edit', boundary: b }); setFormError(null); }}
+                          disabled={!canManage}
+                          onClick={(e) => { e.stopPropagation(); if (!requireManagement()) return; setFormMode({ kind: 'edit', boundary: b }); setFormError(null); }}
                           className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                           title="Edit boundary"
                         >
@@ -315,7 +328,8 @@ export default function BoundaryManagement() {
                         {!b.isPrimary && (
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); setDeleteConfirm(b); }}
+                            disabled={!canManage}
+                            onClick={(e) => { e.stopPropagation(); if (!requireManagement()) return; setDeleteConfirm(b); }}
                             className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
                             title="Delete boundary"
                           >
@@ -341,6 +355,7 @@ export default function BoundaryManagement() {
                 {formMode.kind === 'create' ? 'Create Boundary' : 'Edit Boundary'}
               </h3>
               <BoundaryForm
+                canSubmit={canManage}
                 initial={formMode.kind === 'edit' ? formMode.boundary : undefined}
                 onSubmit={formMode.kind === 'create' ? handleCreate : handleUpdate}
                 onCancel={() => { setFormMode({ kind: 'closed' }); setFormError(null); }}
@@ -362,7 +377,7 @@ export default function BoundaryManagement() {
               </p>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setDeleteConfirm(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button onClick={handleDelete} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Delete</button>
+                <button disabled={!canManage} onClick={handleDelete} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Delete</button>
               </div>
             </div>
           </div>
@@ -400,11 +415,15 @@ export default function BoundaryManagement() {
                   components={boundaryComponents}
                   loading={componentsLoading}
                   onRefresh={async () => {
-                    const [comps] = await Promise.all([
-                      fetchBoundaryComponents(expandedBoundary),
-                      fetchData(),
-                    ]);
-                    setBoundaryComponents(comps);
+                    try {
+                      const [comps] = await Promise.all([
+                        fetchBoundaryComponents(expandedBoundary),
+                        fetchData(),
+                      ]);
+                      setBoundaryComponents(comps);
+                    } catch {
+                      setError('Failed to refresh boundary components');
+                    }
                   }}
                 />
               </div>
@@ -436,6 +455,7 @@ function BoundaryComponentsTab({
   loading: boolean;
   onRefresh: () => void;
 }) {
+  const canManage = useSystemMutationPermission(systemId, 'canManageSystem');
   const [showAdd, setShowAdd] = useState(false);
   const [candidates, setCandidates] = useState<BoundaryComponentCandidateDto[]>([]);
   const [search, setSearch] = useState('');
@@ -450,6 +470,11 @@ function BoundaryComponentsTab({
   const [editRationale, setEditRationale] = useState('');
   const [editProvider, setEditProvider] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
+  const requireManagement = () => {
+    if (canManage) return true;
+    setLoadError('You do not have permission to manage boundary components or locks.');
+    return false;
+  };
 
   // Fetch boundary-component assignments (Feature 040)
   const fetchAssignments = useCallback(async () => {
@@ -458,7 +483,7 @@ function BoundaryComponentsTab({
       const result = await listBoundaryComponents(systemId, boundaryId);
       setBcAssignments(result.items);
     } catch {
-      // Fall back to legacy components
+      setLoadError('Failed to load boundary assignments; showing legacy components.');
     } finally {
       setBcLoading(false);
     }
@@ -468,7 +493,9 @@ function BoundaryComponentsTab({
 
   // Check lock status on mount
   useEffect(() => {
-    checkLockStatus(systemId, boundaryId).then(setLockStatus).catch(() => {});
+    checkLockStatus(systemId, boundaryId).then(setLockStatus).catch(() => {
+      setLoadError('Failed to check boundary lock status');
+    });
   }, [systemId, boundaryId]);
 
   const fetchCandidates = useCallback(async () => {
@@ -484,26 +511,32 @@ function BoundaryComponentsTab({
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 
   const handleAcquireLock = async () => {
+    if (!requireManagement()) return false;
     try {
       const status = await acquireLock(systemId, boundaryId, 'current-user', 'Current User');
       setLockStatus(status);
       setHasLock(!status.message);
+      if (status.message) setLoadError(status.message);
+      return !status.message;
     } catch {
-      // conflict
+      setLoadError('Failed to acquire boundary lock');
+      return false;
     }
   };
 
   const handleReleaseLock = async () => {
+    if (!requireManagement()) return;
     try {
       await releaseLock(systemId, boundaryId);
       setLockStatus(null);
       setHasLock(false);
     } catch {
-      // ignore
+      setLoadError('Failed to release boundary lock');
     }
   };
 
   const handleAdd = async (candidate: BoundaryComponentCandidateDto) => {
+    if (!requireManagement()) return;
     setAddingIds((prev) => new Set([...prev, candidate.id]));
     try {
       await assignComponent(systemId, boundaryId, {
@@ -522,15 +555,19 @@ function BoundaryComponentsTab({
   };
 
   const handleToggleScope = async (assignment: BoundaryComponentDto) => {
-    if (!hasLock) {
-      await handleAcquireLock();
-    }
+    if (!requireManagement()) return;
+    if (!hasLock && !await handleAcquireLock()) return;
     setEditingScope(assignment.assignmentId);
     setEditRationale(assignment.exclusionRationale ?? '');
     setEditProvider(assignment.inheritanceProvider ?? '');
   };
 
   const handleSaveScope = async (assignmentId: string, isInScope: boolean) => {
+    if (!requireManagement()) return;
+    if (!hasLock) {
+      setLoadError('Acquire a boundary lock before changing scope.');
+      return;
+    }
     if (!isInScope && !editRationale.trim()) return;
     try {
       await updateAssignment(systemId, boundaryId, assignmentId, {
@@ -541,21 +578,23 @@ function BoundaryComponentsTab({
       setEditingScope(null);
       await fetchAssignments();
     } catch {
-      // ignore
+      setLoadError('Failed to update component scope');
     }
   };
 
   const handleRemoveNew = async (assignmentId: string) => {
+    if (!requireManagement()) return;
     try {
       await removeBoundaryAssignment(systemId, boundaryId, assignmentId);
       await fetchAssignments();
       onRefresh();
     } catch {
-      // ignore
+      setLoadError('Failed to remove boundary assignment');
     }
   };
 
   const handleRemove = async (comp: OrgComponentDto) => {
+    if (!requireManagement()) return;
     const assignment = comp.systemAssignments.find(
       (a) => a.boundaryDefinitionId === boundaryId
         || (a.registeredSystemId === systemId && !a.boundaryDefinitionId),
@@ -565,7 +604,7 @@ function BoundaryComponentsTab({
       await removeComponentFromBoundary(comp.id, assignment.id);
       onRefresh();
     } catch {
-      // ignore
+      setLoadError('Failed to remove component assignment');
     }
   };
 
@@ -578,7 +617,7 @@ function BoundaryComponentsTab({
     <div>
       {/* Load error banner */}
       {loadError && (
-        <p className="mb-2 text-sm text-red-600">{loadError}</p>
+        <p role="alert" className="mb-2 text-sm text-red-600">{loadError}</p>
       )}
 
       {/* Lock status banner */}
@@ -594,12 +633,13 @@ function BoundaryComponentsTab({
         </p>
         <div className="flex gap-2">
           {hasLock && (
-            <button onClick={handleReleaseLock} className="px-3 py-1.5 text-xs text-gray-600 border rounded hover:bg-gray-50">
+            <button disabled={!canManage} onClick={handleReleaseLock} className="px-3 py-1.5 text-xs text-gray-600 border rounded hover:bg-gray-50">
               Release Lock
             </button>
           )}
           <button
-            onClick={() => setShowAdd(!showAdd)}
+            disabled={!canManage}
+            onClick={() => { if (requireManagement()) setShowAdd(!showAdd); }}
             className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
           >
             {showAdd ? 'Done' : '+ Assign Component'}
@@ -637,7 +677,7 @@ function BoundaryComponentsTab({
                   </div>
                   <button
                     onClick={() => handleAdd(candidate)}
-                    disabled={addingIds.has(candidate.id)}
+                    disabled={!canManage || addingIds.has(candidate.id)}
                     className="ml-2 px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 flex-shrink-0"
                   >
                     {addingIds.has(candidate.id) ? 'Adding...' : 'Add'}
@@ -655,7 +695,7 @@ function BoundaryComponentsTab({
           <div className="text-center py-8">
             <p className="text-gray-500 mb-3">No components assigned to this boundary yet.</p>
             {!showAdd && (
-              <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
+              <button disabled={!canManage} onClick={() => { if (requireManagement()) setShowAdd(true); }} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
                 Assign Components
               </button>
             )}
@@ -686,6 +726,7 @@ function BoundaryComponentsTab({
                     {editingScope === a.assignmentId ? (
                       <div className="space-y-1">
                         <select
+                          disabled={!canManage}
                           defaultValue={a.isInScope ? 'inScope' : 'excluded'}
                           onChange={(e) => {
                             const inScope = e.target.value === 'inScope';
@@ -715,7 +756,7 @@ function BoundaryComponentsTab({
                             <div className="flex gap-1">
                               <button
                                 onClick={() => handleSaveScope(a.assignmentId, false)}
-                                disabled={!editRationale.trim()}
+                                disabled={!canManage || !hasLock || !editRationale.trim()}
                                 className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded disabled:opacity-50"
                               >
                                 Save
@@ -729,6 +770,7 @@ function BoundaryComponentsTab({
                       </div>
                     ) : (
                       <button
+                        disabled={!canManage}
                         onClick={() => handleToggleScope(a)}
                         className={`text-xs px-2 py-0.5 rounded cursor-pointer ${a.isInScope ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                       >
@@ -741,7 +783,7 @@ function BoundaryComponentsTab({
                     {a.inheritanceProvider && <div className="text-indigo-600 text-xs">↳ {a.inheritanceProvider}</div>}
                   </td>
                   <td className="py-2 text-right">
-                    <button onClick={() => handleRemoveNew(a.assignmentId)} className="text-xs text-red-600 hover:underline">Remove</button>
+                    <button disabled={!canManage} onClick={() => handleRemoveNew(a.assignmentId)} className="text-xs text-red-600 hover:underline">Remove</button>
                   </td>
                 </tr>
               ))}
@@ -754,7 +796,7 @@ function BoundaryComponentsTab({
           <div className="text-center py-8">
             <p className="text-gray-500 mb-3">No components assigned to this boundary yet.</p>
             {!showAdd && (
-              <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
+              <button disabled={!canManage} onClick={() => { if (requireManagement()) setShowAdd(true); }} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
                 Add Components
               </button>
             )}
@@ -800,7 +842,7 @@ function BoundaryComponentsTab({
                     )}
                   </td>
                   <td className="py-2 text-right">
-                    <button onClick={() => handleRemove(c)} className="text-xs text-red-600 hover:underline">Remove</button>
+                    <button disabled={!canManage} onClick={() => handleRemove(c)} className="text-xs text-red-600 hover:underline">Remove</button>
                   </td>
                 </tr>
               ))}

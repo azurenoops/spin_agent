@@ -3,6 +3,7 @@ import { deleteValidationLink, getControlValidationLinks, type ControlValidation
 import { buildAzurePortalUrl } from '../utils/azurePortalUrl';
 import AddValidationLinkModal from './AddValidationLinkModal';
 import { useWorkspaceHref } from '../../workspaces/workspaceNavigation';
+import { useSystemMutationPermission } from '../../../components/permissions/useSystemMutationPermission';
 
 interface Props {
   systemId: string;
@@ -31,8 +32,9 @@ function targetUrl(systemId: string, link: ControlValidationLink): string {
   return `/systems/${encodeURIComponent(systemId)}/assessments`;
 }
 
-export default function ValidationEvidencePanel({ systemId, controlId, canManage }: Props) {
+export default function ValidationEvidencePanel({ systemId, controlId, canManage: legacyCanManage }: Props) {
   const workspaceHref = useWorkspaceHref();
+  const canManage = useSystemMutationPermission(systemId, null, legacyCanManage);
   const [links, setLinks] = useState<ControlValidationLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -53,6 +55,7 @@ export default function ValidationEvidencePanel({ systemId, controlId, canManage
   useEffect(() => { void refresh(); }, [refresh]);
 
   const handleDelete = async (link: ControlValidationLink) => {
+    if (!canManage) { setError('Validation-link management permission is not available for this workspace.'); return; }
     if (!confirm(`Delete validation link "${link.description ?? link.linkTarget}"?`)) return;
     try {
       await deleteValidationLink(systemId, controlId, link.id);

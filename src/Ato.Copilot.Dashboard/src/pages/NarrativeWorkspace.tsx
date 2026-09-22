@@ -7,6 +7,7 @@ import { getNarratives, type NarrativeListItem } from '../api/narratives';
 import { generateProposal, getNarrativeAccess, getProposals, getReferences, importReference, publishReference, reviewProposal,
   type NarrativeAccess, type NarrativeProposal, type NarrativeReference, type ReferencePassage } from '../api/narrativeLibrary';
 import { useSettings } from '../hooks/useSettings';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import './NarrativeWorkspace.css';
 
 function errorMessage(error: unknown): string {
@@ -56,7 +57,7 @@ function Workspace({ systemId }: { systemId: string }) {
         if (!active) return;
         setReferences(nextReferences); setProposals(nextProposals); setAccess(nextAccess); setControls(nextControls);
         setControlId(current => current || nextControls[0]?.controlId || '');
-      }).catch(reason => { if (active) { setAccess(null); setError(errorMessage(reason)); } })
+      }).catch(reason => { if (active) { setAccess(null); setProposals([]); setError(errorMessage(reason)); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [systemId, revision]);
@@ -64,12 +65,21 @@ function Workspace({ systemId }: { systemId: string }) {
 
   const go = (next: string) => navigate(next === 'narratives' ? base : `${base}/${next}`);
   const locked = busy || loading;
-  const canAuthor = !locked && access?.canAuthor === true;
-  const proposal = proposals.find(item => item.id === query.get('proposal')) ?? proposals.find(item => item.status === 'Draft') ?? proposals[0];
+  const canRead = useSystemMutationPermission(systemId, 'canRead');
+  const canGenerateNarratives = useSystemMutationPermission(systemId, 'canAuthorNarratives', access?.canAuthor === true);
+  const canReviewNarratives = useSystemMutationPermission(systemId, 'canReviewNarratives');
+  const canAuthor = !locked && canRead && access?.canAuthor === true;
+  const canGenerate = !locked && canRead && access !== null && canGenerateNarratives;
+  const requestedProposalId = query.get('proposal');
+  const proposal = requestedProposalId !== null
+    ? proposals.find(item => item.id.toLowerCase() === requestedProposalId.toLowerCase())
+    : proposals.find(item => item.status === 'Draft') ?? proposals[0];
+  const generatedProposal = proposal !== undefined && ['Draft', 'Approved', 'NeedsRevision'].includes(proposal.status);
   const latestReferences = references.filter(item => !references.some(other => other.referenceKey === item.referenceKey &&
     other.isPublished && item.isPublished && other.version > item.version));
   const hasLegacy = Boolean(settings.sharePointSiteUrl || settings.sourceDocuments);
-  const readyToPublish = canAuthor && Boolean(draft) && reviewed && passages.length > 0 && passages.every(passage =>
+  const readyToPublish = canAuthor && Boolean(draft) && (draft?.scope === 'System' || access?.canPublishShared === true)
+    && reviewed && passages.length > 0 && passages.every(passage =>
     /^[A-Z]{2,3}-\d+(?:\(\d+\))?$/i.test(passage.controlId?.trim() ?? '') &&
     ['Policy', 'Technical'].includes(passage.narrativeType ?? '') && passage.content.trim().length > 0 && passage.content.length <= 20000);
 
@@ -79,6 +89,10 @@ function Workspace({ systemId }: { systemId: string }) {
     try { await action(); } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
   }
   function openDraft(reference: NarrativeReference) {
+    if (!canRead || access?.canAuthor !== true || (reference.scope !== 'System' && access?.canPublishShared !== true)) {
+      setError('Reference authoring permission is required for this scope.');
+      return;
+    }
     setDraft(reference); setPassages(reference.passages.map(passage => ({ ...passage })));
     setReviewed(false); go('import');
   }
@@ -87,6 +101,7 @@ function Workspace({ systemId }: { systemId: string }) {
     setReviewed(false);
   }
   async function generate(control: string, version: number, type = 'Technical') {
+    if (!canGenerate) { setError('Narrative generation permission is required.'); return; }
     await perform(async () => {
       const created = await generateProposal(systemId, control, type, version);
       setProposals(current => [created, ...current.filter(item => item.id !== created.id)]);
@@ -95,6 +110,10 @@ function Workspace({ systemId }: { systemId: string }) {
     });
   }
   function extract() {
+    if (!canAuthor || (scope !== 'System' && access?.canPublishShared !== true)) {
+      setError('Reference authoring permission is required for this scope.');
+      return;
+    }
     void perform(async () => {
       const content = file ?? new File([paste], 'pasted-reference.txt', { type: 'text/plain' });
       if (content.size > 5 * 1024 * 1024) throw new Error('Reference uploads must not exceed 5 MB.');
@@ -107,6 +126,10 @@ function Workspace({ systemId }: { systemId: string }) {
     });
   }
   function publish() {
+    if (!canAuthor || (draft?.scope !== 'System' && access?.canPublishShared !== true)) {
+      setError('Reference publishing permission is required for this scope.');
+      return;
+    }
     if (!draft || !readyToPublish) return;
     void perform(async () => {
       await publishReference(systemId, draft.id, draft.revision, passages);
@@ -115,7 +138,8 @@ function Workspace({ systemId }: { systemId: string }) {
     });
   }
   function decide(decision: string) {
-    if (!proposal || !proposal.canReview || locked || proposal.isStale && decision === 'Approve') return;
+    if (!canReviewNarratives || proposal?.canReview !== true) { setError('Narrative review permission is required.'); return; }
+    if (!proposal || proposal.status !== 'Draft' || !proposal.canReview || locked || proposal.isStale && decision === 'Approve') return;
     void perform(async () => {
       const result = await reviewProposal(systemId, proposal.id, proposal.revision, decision, note);
       setProposals(current => current.map(item => item.id === result.id ? result : item));
@@ -137,13 +161,13 @@ function Workspace({ systemId }: { systemId: string }) {
           {controls.map(control => <option key={control.controlId}>{control.controlId}</option>)}</select></label>
         <label>Type<select aria-label="Generate narrative type" value={narrativeType} onChange={event => setNarrativeType(event.target.value)}>
           <option>Policy</option><option>Technical</option></select></label>
-        <button className="nw-primary" disabled={!canAuthor || !controlId} onClick={() => {
+        <button className="nw-primary" disabled={!canGenerate || !controlId} onClick={() => {
           const control = controls.find(item => item.controlId === controlId); if (control) void generate(controlId, control.version, narrativeType);
         }}><RefreshCw size={16} />Generate draft</button>
       </div>
       {pending.length > 0 && <div className="nw-notice"><GitCompareArrows size={18} /><span>{pending.length} proposed update{pending.length === 1 ? '' : 's'} awaiting review</span>
         <button onClick={() => go('review')}>Review changes</button></div>}
-      <Narratives key={revision} onGenerateDraft={generate} proposals={proposals} canGenerate={canAuthor}
+      <Narratives key={revision} onGenerateDraft={generate} proposals={proposals} canGenerate={canGenerate}
         onReviewProposal={item => navigate(`${base}/review?proposal=${encodeURIComponent(item.id)}`)} />
     </>}
 
@@ -161,7 +185,7 @@ function Workspace({ systemId }: { systemId: string }) {
           {reference.passages.map((passage, index) => <div key={index} className="nw-passage"><span className="nw-badge">{passage.controlId ?? 'Unmapped'}</span>
             <span className="nw-muted">{passage.narrativeType ?? 'Unclassified'}</span><p>{passage.content}</p></div>)}
           {reference.scope === 'Capability' && <p className="nw-warning">Inherited responsibilities require confirmation.</p>}
-          {!reference.isPublished && <button disabled={!canAuthor} onClick={() => openDraft(reference)}>Review import</button>}
+          {!reference.isPublished && <button disabled={!canAuthor || (reference.scope !== 'System' && access?.canPublishShared !== true)} onClick={() => openDraft(reference)}>Review import</button>}
           {reference.isPublished && <details><summary>Version provenance</summary><p>Published by {reference.publishedBy} on {reference.publishedAt ? new Date(reference.publishedAt).toLocaleString() : 'Unknown'}</p>
             <p className="nw-hash">SHA-256 {reference.sourceSha256}</p>
             {references.filter(item => item.referenceKey === reference.referenceKey && item.version < reference.version).map(item =>
@@ -210,20 +234,38 @@ function Workspace({ systemId }: { systemId: string }) {
 
     {view === 'review' && <>
       <header className="nw-header"><div><h2>Review change</h2><p>Active content remains unchanged until approval.</p></div>
-        <button onClick={() => go('narratives')}><ArrowLeft size={16} />Narratives</button></header>
-      {!proposal ? <p className="nw-empty">No proposed narrative changes.</p> : <>
+        <div className="flex flex-wrap gap-2">
+          <button disabled={locked || !canRead} onClick={() => { setError(''); setRevision(current => current + 1); }}>
+            <RefreshCw size={16} />Refresh proposal status
+          </button>
+          <button onClick={() => go('narratives')}><ArrowLeft size={16} />Narratives</button>
+        </div></header>
+      {!proposal ? !loading && !error && (requestedProposalId !== null
+        ? <div className="nw-empty"><p role="alert">The requested proposal was not returned for this system. Refresh its status or choose another proposal.</p>
+          <Link to={`${base}/review`}>View other proposals</Link></div>
+        : <p className="nw-empty">No proposed narrative changes.</p>) : <>
         <label className="nw-review-select">Proposed change<select value={proposal.id} onChange={event => navigate(`${base}/review?proposal=${encodeURIComponent(event.target.value)}`)}>
-          {proposals.map(item => <option key={item.id} value={item.id}>{item.controlId} / {item.narrativeType} / v{item.baseVersion + 1} / {item.status}</option>)}</select></label>
-        <div className="nw-section-heading"><h3>{proposal.controlId} / {proposal.narrativeType} / Proposed v{proposal.baseVersion + 1}</h3>
+          {proposals.map(item => <option key={item.id} value={item.id}>{item.controlId} / {item.narrativeType} / base v{item.baseVersion} / {item.status}</option>)}</select></label>
+        <div className="nw-section-heading"><h3>{proposal.controlId} / {proposal.narrativeType} / {generatedProposal ? `Proposed v${proposal.baseVersion + 1}` : 'Queued work'}</h3>
           <span className="nw-badge">{proposal.status === 'Draft' ? 'Draft / Not active' : proposal.status}</span></div>
         {proposal.isStale && <p className="nw-warning" role="status">Source state changed. Generate a new proposal before approval.</p>}
-        <div className="nw-diff-grid">{['before', 'after'].map(side => <section key={side} className="nw-diff">
+        {proposal.status === 'PendingGeneration' && <p className="nw-notice" role="status">
+          Generation pending. This queued work has no generated draft yet. Active narratives remain unchanged; refresh proposal status to check progress.
+        </p>}
+        {proposal.status === 'GenerationFailed' && <p className="nw-warning" role="alert">
+          Generation failed. {proposal.generationErrorCode ? `Failure code: ${proposal.generationErrorCode}.` : 'No failure code was returned.'}
+          {' '}Active narratives remain unchanged. Refresh proposal status after generation is retried.
+        </p>}
+        {generatedProposal ? <div className="nw-diff-grid">{['before', 'after'].map(side => <section key={side} className="nw-diff">
           <h3>{side === 'before' ? `Previous v${proposal.baseVersion}` : `Proposed v${proposal.baseVersion + 1}`}</h3>
-          <p className="nw-muted">{side === 'before' ? 'Preserved version' : `Generated ${new Date(proposal.createdAt).toLocaleString()}`}</p>
+          <p className="nw-muted">{side === 'before' ? 'Preserved version' : `Proposal created ${new Date(proposal.createdAt).toLocaleString()}`}</p>
           <div className="nw-diff-text">{diffWordsWithSpace(proposal.beforeContent, proposal.proposedContent).map((part, index) =>
             side === 'before' ? !part.added && (part.removed ? <del key={index}>{part.value}</del> : <span key={index}>{part.value}</span>)
               : !part.removed && (part.added ? <ins key={index}>{part.value}</ins> : <span key={index}>{part.value}</span>))}</div>
-        </section>)}</div>
+        </section>)}</div> : <section className="nw-diff"><h3>Preserved base version {proposal.baseVersion}</h3>
+          <pre className="whitespace-pre-wrap">{proposal.beforeContent}</pre>
+          <p className="nw-muted">No generated draft is available for review.</p>
+        </section>}
         <section className="nw-sources"><h3>Sources and review findings</h3>
           <p className="nw-hash">Source state {proposal.stateHash}</p>
           {proposal.conflicts.map((conflict, index) => <p className="nw-warning" key={`conflict-${index}`}>{conflict}</p>)}
@@ -231,11 +273,11 @@ function Workspace({ systemId }: { systemId: string }) {
           <details><summary>Source snapshot</summary><pre>{JSON.stringify(proposal.provenance, null, 2)}</pre></details>
         </section>
         {proposal.status === 'Draft' ? <>
-          <label>Review note<textarea rows={3} maxLength={2000} value={note} disabled={locked || !proposal.canReview} onChange={event => setNote(event.target.value)} /></label>
-          <div className="nw-review-actions"><button disabled={locked || !proposal.canReview || !note.trim()} onClick={() => decide('RequestRevision')}>Return for revision</button>
-            <button className="nw-primary" disabled={locked || !proposal.canReview || proposal.isStale} onClick={() => decide('Approve')}><Check size={16} />Approve v{proposal.baseVersion + 1}</button></div>
+          <label>Review note<textarea rows={3} maxLength={2000} value={note} disabled={locked || !canReviewNarratives || !proposal.canReview} onChange={event => setNote(event.target.value)} /></label>
+          <div className="nw-review-actions"><button disabled={locked || !canReviewNarratives || !proposal.canReview || !note.trim()} onClick={() => decide('RequestRevision')}>Return for revision</button>
+            <button className="nw-primary" disabled={locked || !canReviewNarratives || !proposal.canReview || proposal.isStale} onClick={() => decide('Approve')}><Check size={16} />Approve v{proposal.baseVersion + 1}</button></div>
           <p className="nw-muted">Approval preserves version history. Implementation and authorization decisions are unchanged.</p>
-        </> : <p className="nw-muted">{proposal.status} by {proposal.reviewedBy}. {proposal.reviewNote}</p>}
+        </> : generatedProposal && <p className="nw-muted">{proposal.status} by {proposal.reviewedBy}. {proposal.reviewNote}</p>}
       </>}
     </>}
 

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../api/complianceApi', () => ({
   getControlValidationLinks: vi.fn(),
@@ -28,9 +29,11 @@ describe('ValidationEvidencePanel', () => {
 
     // Act
     render(
-      <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-alpha' }}>
-        <ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} />
-      </WorkspaceNavigationProvider>,
+      <MemoryRouter initialEntries={['/workspaces/organizations/org-alpha/systems/system-1/narratives']}>
+        <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-alpha' }}>
+          <ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} />
+        </WorkspaceNavigationProvider>
+      </MemoryRouter>,
     );
 
     // Assert
@@ -57,7 +60,7 @@ describe('ValidationEvidencePanel', () => {
     });
 
     // Act
-    render(<ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage />);
+    render(<MemoryRouter><ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage /></MemoryRouter>);
 
     // Assert
     await waitFor(() => expect(screen.getByText('Storage encryption configuration')).toBeInTheDocument());
@@ -76,7 +79,7 @@ describe('ValidationEvidencePanel', () => {
     getLinks.mockResolvedValue({ systemId: 'system-1', controlId: 'AC-2', total: 0, links: [] });
 
     // Act
-    render(<ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} />);
+    render(<MemoryRouter><ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} /></MemoryRouter>);
 
     // Assert
     expect(await screen.findByText('No validation links attached to this control.')).toBeInTheDocument();
@@ -89,7 +92,7 @@ describe('ValidationEvidencePanel', () => {
     getLinks.mockRejectedValue(new Error('Internal Server Error'));
 
     // Act
-    render(<ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} />);
+    render(<MemoryRouter><ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} /></MemoryRouter>);
 
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load validation links.');

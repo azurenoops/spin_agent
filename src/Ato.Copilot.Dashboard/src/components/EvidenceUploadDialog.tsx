@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { uploadEvidence } from '../api/evidence';
 import apiClient from '../api/client';
 import type { ArtifactCategory, CollectionMethod, EvidenceNarrativeType } from '../types/evidence';
+import { useSystemMutationPermission } from './permissions/useSystemMutationPermission';
 
 interface SystemControl {
   controlId: string;
@@ -54,6 +55,7 @@ export default function EvidenceUploadDialog({
   onClose,
   onUploaded,
 }: Props) {
+  const canManageEvidence = useSystemMutationPermission(systemId, 'canManageEvidence');
   const [file, setFile] = useState<File | null>(null);
   const [category, setCategory] = useState<ArtifactCategory>('Screenshot');
   const [collectionMethod, setCollectionMethod] = useState<CollectionMethod>('Manual');
@@ -134,6 +136,10 @@ export default function EvidenceUploadDialog({
   };
 
   const handleSubmit = async () => {
+    if (!canManageEvidence) {
+      setError('You do not have permission to upload evidence in this workspace.');
+      return;
+    }
     if (!file) return;
     setUploading(true);
     setError(null);
@@ -191,7 +197,7 @@ export default function EvidenceUploadDialog({
         {/* Body */}
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
           {error && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           )}
@@ -368,7 +374,8 @@ export default function EvidenceUploadDialog({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!isValid || uploading}
+            disabled={!canManageEvidence || !isValid || uploading}
+            title={!canManageEvidence ? 'You do not have permission to upload evidence' : undefined}
             className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {uploading ? (

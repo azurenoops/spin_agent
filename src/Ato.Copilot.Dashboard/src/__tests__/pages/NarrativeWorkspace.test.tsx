@@ -3,6 +3,12 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import NarrativeWorkspace from '../../pages/NarrativeWorkspace';
 import * as library from '../../api/narrativeLibrary';
+import type { SystemWorkspacePermissions } from '../../features/workspaces/types';
+
+const workspace = vi.hoisted(() => ({
+  session: null as { roles: string[]; systemAccess: { systemId: string; permissions: Partial<SystemWorkspacePermissions> } } | null,
+}));
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => workspace.session }));
 
 vi.mock('../../api/narrativeLibrary', () => ({
   getReferences: vi.fn(), getProposals: vi.fn(), getNarrativeAccess: vi.fn(),
@@ -25,6 +31,7 @@ function open(view = 'library') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  workspace.session = null;
   vi.mocked(library.getReferences).mockResolvedValue([]);
   vi.mocked(library.getProposals).mockResolvedValue([]);
   vi.mocked(library.getNarrativeAccess).mockResolvedValue({ tenantId: 'tenant-1', systemName: 'Synthetic system',
@@ -34,6 +41,56 @@ beforeEach(() => {
 });
 
 describe('Narratives workspace', () => {
+  it('does not turn a MissionOwner reference-author grant into narrative generation authority', async () => {
+    // Arrange
+    workspace.session = { roles: ['MissionOwner'], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canAuthorNarratives: false } } };
+    // Act
+    open('narratives');
+    // Assert
+    expect(await screen.findByRole('button', { name: /Generate/ })).toBeDisabled();
+    expect(library.generateProposal).not.toHaveBeenCalled();
+  });
+
+  it('allows real multi-role narrative generation independently from reference-author permission', async () => {
+    // Arrange
+    workspace.session = { roles: ['MissionOwner', 'Issm'], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canAuthorNarratives: true } } };
+    vi.mocked(library.getNarrativeAccess).mockResolvedValue({ tenantId: 'tenant-1', systemName: 'Synthetic system',
+      canAuthor: false, canPublishShared: false, capabilities: [] });
+    // Act
+    open('narratives');
+    // Assert
+    expect(await screen.findByRole('button', { name: /Generate/ })).toBeEnabled();
+  });
+
+  it('rejects forged shared-reference scope even when system reference authoring is allowed', async () => {
+    // Arrange
+    workspace.session = { roles: ['MissionOwner'], systemAccess: { systemId: 'system-1', permissions: { canRead: true } } };
+    open('import');
+    await screen.findByText('Synthetic system', { selector: 'p' });
+    fireEvent.change(screen.getByLabelText('Reference title'), { target: { value: 'Access policy' } });
+    fireEvent.change(screen.getByLabelText('Paste narratives'), { target: { value: 'Review quarterly.' } });
+    // Act
+    fireEvent.change(screen.getByLabelText('Reference scope'), { target: { value: 'Organization' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Extract passages' }));
+    // Assert
+    expect(library.importReference).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toHaveTextContent(/permission/i);
+  });
+
+  it('requires current review permission as well as per-proposal authorization', async () => {
+    // Arrange
+    workspace.session = { roles: ['Issm'], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canReviewNarratives: false } } };
+    vi.mocked(library.getProposals).mockResolvedValue([{ id: 'proposal-1', controlId: 'AC-2', narrativeType: 'Technical', baseVersion: 7,
+      beforeContent: 'Old accounts', proposedContent: 'Federated accounts', stateHash: 'SYNTHETIC', provenance: {}, conflicts: [],
+      missingEvidence: [], status: 'Draft', revision: 1, createdAt: '2026-01-01T00:00:00Z',
+      createdBy: 'author', reviewedAt: null, reviewedBy: null, reviewNote: null, acceptedVersion: null, isStale: false, canReview: true }]);
+    // Act
+    open('review?proposal=proposal-1');
+    // Assert
+    expect(await screen.findByRole('button', { name: 'Approve v8' })).toBeDisabled();
+    expect(library.reviewProposal).not.toHaveBeenCalled();
+  });
+
   it('navigates from the library to the real import form', async () => {
     // Arrange
     open();

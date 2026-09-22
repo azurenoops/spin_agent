@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createTask } from '../../api/remediation';
+import { useSystemMutationPermission } from '../permissions/useSystemMutationPermission';
 
 interface Props {
   systemId: string;
@@ -23,6 +24,8 @@ export default function CreateRemediationTaskModal({
   onClose,
   onCreated,
 }: Props) {
+  // Standalone task endpoints do not yet project a workspace operation.
+  const canCreateTask = useSystemMutationPermission(systemId, null);
   const isStandalone = !findingId;
 
   const [title, setTitle] = useState(findingTitle ?? '');
@@ -36,6 +39,10 @@ export default function CreateRemediationTaskModal({
   const isValid = title.trim().length > 0;
 
   const handleSubmit = async () => {
+    if (!canCreateTask) {
+      setError('Permission denied: standalone task creation is unavailable in this workspace.');
+      return;
+    }
     if (!isValid) return;
     setSaving(true);
     setError(null);
@@ -83,9 +90,9 @@ export default function CreateRemediationTaskModal({
 
         {/* Body */}
         <div className="px-6 py-4 space-y-4">
-          {error && (
+          {(error || !canCreateTask) && (
             <div className="rounded-md bg-red-50 border border-red-200 p-3">
-              <p className="text-sm text-red-700">{error}</p>
+              <p role="alert" className="text-sm text-red-700">{error ?? 'Permission denied: standalone task creation is unavailable in this workspace.'}</p>
             </div>
           )}
 
@@ -176,7 +183,7 @@ export default function CreateRemediationTaskModal({
           <button
             type="button"
             onClick={() => void handleSubmit()}
-            disabled={!isValid || saving}
+            disabled={!canCreateTask || !isValid || saving}
             className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Creating...' : 'Create Task'}

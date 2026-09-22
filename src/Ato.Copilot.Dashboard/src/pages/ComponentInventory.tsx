@@ -4,6 +4,7 @@ import { ComponentSection } from '../components/cards/ComponentSection';
 import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
 import { usePolling } from '../hooks/usePolling';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import { getComponents, createComponent, updateComponent, deleteComponent, discoverSystemAzureResources, importSystemAzureComponents, relinkComponentFindings, listComponents, assignToSystem } from '../api/components';
 import type { OrgComponentDto } from '../api/components';
 import { fetchBoundaryDefinitions } from '../api/boundaries';
@@ -20,6 +21,11 @@ const SECTIONS: { title: string; type: ComponentType }[] = [
 
 export default function ComponentInventory() {
   const { id: systemId } = useParams<{ id: string }>();
+  const canManage = useSystemMutationPermission(systemId, 'canManageSystem');
+  // Missing projections: canCreateCapabilities (organization scope) and
+  // canAssignSystemRoles (including the FR-027 target-role authorization matrix).
+  const canCreateCapability = useSystemMutationPermission(systemId, null);
+  const canAssignRmfRole = useSystemMutationPermission(systemId, null);
   const navigate = useNavigate();
   const [components, setComponents] = useState<SystemComponentDto[]>([]);
   const [boundaries, setBoundaries] = useState<BoundaryDefinitionDto[]>([]);
@@ -54,6 +60,11 @@ export default function ComponentInventory() {
   const [failedGroups, setFailedGroups] = useState<string[]>([]);
   const [noAzureSubscriptions, setNoAzureSubscriptions] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const requirePermission = (allowed = canManage) => {
+    if (allowed) return true;
+    setActionMessage({ type: 'error', text: 'You do not have permission to perform this component operation.' });
+    return false;
+  };
 
   const fetchData = useCallback(async () => {
     if (!systemId) return;
@@ -92,6 +103,9 @@ export default function ComponentInventory() {
   usePolling(fetchData, 15000);
 
   const handleSubmit = async (data: CreateComponentRequest) => {
+    if (!requirePermission()) return;
+    if (data.componentType === 'Person' && data.rmfRole && data.rmfRole !== editing?.rmfRole
+      && !requirePermission(canAssignRmfRole)) return;
     if (!systemId) return;
     setSubmitting(true);
     setFormError(null);
@@ -113,16 +127,19 @@ export default function ComponentInventory() {
   };
 
   const handleEdit = (comp: SystemComponentDto) => {
+    if (!requirePermission()) return;
     setEditing(comp);
     setShowForm(true);
     setFormError(null);
   };
 
   const handleCreateCapability = (comp: SystemComponentDto) => {
+    if (!requirePermission(canCreateCapability)) return;
     navigate(`/capabilities?createFrom=${encodeURIComponent(comp.name)}&provider=${encodeURIComponent(comp.name)}`);
   };
 
   const handleDelete = async (id: string) => {
+    if (!requirePermission()) return;
     try {
       const result = await deleteComponent(id);
       if (result.flaggedCapabilities.length > 0) {
@@ -138,6 +155,10 @@ export default function ComponentInventory() {
     }
   };
 
+  const handleConfirmDelete = (id: string) => {
+    if (requirePermission()) setDeleteConfirm(id);
+  };
+
   const handleCancel = () => {
     setShowForm(false);
     setEditing(undefined);
@@ -150,6 +171,7 @@ export default function ComponentInventory() {
   };
 
   const handleSwitchToExisting = async () => {
+    if (!requirePermission()) return;
     setAddMode('existing');
     setOrgAssignError(null);
     setOrgLoading(true);
@@ -167,6 +189,7 @@ export default function ComponentInventory() {
   };
 
   const handleAssignExisting = async (comp: OrgComponentDto) => {
+    if (!requirePermission()) return;
     if (!systemId) return;
     setOrgAssigning(comp.id);
     setOrgAssignError(null);
@@ -187,6 +210,7 @@ export default function ComponentInventory() {
 
   // Re-link findings handler (Feature 040 — FR-027)
   const handleRelink = async (comp: SystemComponentDto) => {
+    if (!requirePermission()) return;
     if (!systemId) return;
     try {
       const result = await relinkComponentFindings(systemId, comp.id);
@@ -199,6 +223,7 @@ export default function ComponentInventory() {
 
   // Azure discovery handlers (Feature 040 — US2)
   const handleDiscover = async () => {
+    if (!requirePermission()) return;
     if (!systemId || !discoverSubscription.trim()) return;
     setDiscoverLoading(true);
     setDiscoverError(null);
@@ -222,6 +247,7 @@ export default function ComponentInventory() {
   };
 
   const handleImportSelected = async () => {
+    if (!requirePermission()) return;
     if (!systemId || selectedResources.size === 0) return;
     setImportLoading(true);
     try {
@@ -261,7 +287,7 @@ export default function ComponentInventory() {
     <>
       {/* Action result banner */}
       {actionMessage && (
-        <div className={`mb-4 flex items-center justify-between rounded-lg px-4 py-3 text-sm ${actionMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+        <div role={actionMessage.type === 'error' ? 'alert' : 'status'} className={`mb-4 flex items-center justify-between rounded-lg px-4 py-3 text-sm ${actionMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
           <span>{actionMessage.text}</span>
           <button type="button" onClick={() => setActionMessage(null)} className="ml-4 text-current opacity-60 hover:opacity-100">✕</button>
         </div>
@@ -316,19 +342,23 @@ export default function ComponentInventory() {
           <option value="Decommissioned">Decommissioned</option>
         </select>
         <button
-          onClick={() => { setShowForm(true); setEditing(undefined); setFormError(null); }}
+          disabled={!canManage}
+          onClick={() => { if (!requirePermission()) return; setShowForm(true); setEditing(undefined); setFormError(null); }}
           className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
         >
           + Add Component
         </button>
         <button
+          disabled={!canManage}
           onClick={() => {
+            if (!requirePermission()) return;
             setShowDiscover(true);
             setDiscoverError(null);
             onboarding.listAzureRegistrations().then((regs) => {
               setNoAzureSubscriptions(regs.length === 0);
             }).catch(() => {
               setNoAzureSubscriptions(false);
+              setDiscoverError('Failed to load Azure subscription registrations');
             });
           }}
           className="px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700"
@@ -348,13 +378,15 @@ export default function ComponentInventory() {
               <div className="flex rounded-md border border-gray-200 overflow-hidden mb-4 text-sm">
                 <button
                   type="button"
-                  onClick={() => setAddMode('create')}
+                  disabled={!canManage}
+                  onClick={() => { if (requirePermission()) setAddMode('create'); }}
                   className={`flex-1 py-2 font-medium transition-colors ${addMode === 'create' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                 >
                   Create New
                 </button>
                 <button
                   type="button"
+                  disabled={!canManage}
                   onClick={addMode !== 'existing' ? handleSwitchToExisting : undefined}
                   className={`flex-1 py-2 font-medium transition-colors ${addMode === 'existing' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                 >
@@ -366,6 +398,8 @@ export default function ComponentInventory() {
             {/* Create New tab */}
             {(editing || addMode === 'create') && (
               <ComponentForm
+                canSubmit={canManage}
+                canAssignRmfRole={canAssignRmfRole}
                 initial={editing}
                 systemId={systemId}
                 onSubmit={handleSubmit}
@@ -444,7 +478,7 @@ export default function ComponentInventory() {
                           </div>
                           <button
                             onClick={() => handleAssignExisting(comp)}
-                            disabled={orgAssigning === comp.id}
+                            disabled={!canManage || orgAssigning === comp.id}
                             className="ml-3 shrink-0 px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                           >
                             {orgAssigning === comp.id ? 'Assigning…' : 'Assign'}
@@ -475,7 +509,7 @@ export default function ComponentInventory() {
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setDeleteConfirm(null)} className="text-sm text-gray-600 hover:text-gray-800 px-3 py-1.5">Cancel</button>
-              <button onClick={() => handleDelete(deleteConfirm)} className="text-sm bg-red-600 text-white rounded px-3 py-1.5 hover:bg-red-700">Delete</button>
+              <button disabled={!canManage} onClick={() => handleDelete(deleteConfirm)} className="text-sm bg-red-600 text-white rounded px-3 py-1.5 hover:bg-red-700">Delete</button>
             </div>
           </div>
         </div>
@@ -509,7 +543,7 @@ export default function ComponentInventory() {
               />
               <button
                 onClick={handleDiscover}
-                disabled={discoverLoading || !discoverSubscription.trim()}
+                disabled={!canManage || discoverLoading || !discoverSubscription.trim()}
                 className="px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
               >
                 {discoverLoading ? 'Scanning...' : 'Scan'}
@@ -597,7 +631,7 @@ export default function ComponentInventory() {
                   </button>
                   <button
                     onClick={handleImportSelected}
-                    disabled={importLoading || selectedResources.size === 0}
+                    disabled={!canManage || importLoading || selectedResources.size === 0}
                     className="px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
                   >
                     {importLoading ? 'Importing...' : `Import ${selectedResources.size} Selected`}
@@ -650,8 +684,10 @@ export default function ComponentInventory() {
                         type={type}
                         components={items}
                         count={items.length}
+                        canManage={canManage}
+                        canCreateCapability={canCreateCapability}
                         onEdit={handleEdit}
-                        onDelete={(id) => setDeleteConfirm(id)}
+                        onDelete={handleConfirmDelete}
                         onRelink={handleRelink}
                         onCreateCapability={handleCreateCapability}
                         riskMap={riskMap}
@@ -683,8 +719,10 @@ export default function ComponentInventory() {
                       type={type}
                       components={items}
                       count={items.length}
+                      canManage={canManage}
+                      canCreateCapability={canCreateCapability}
                       onEdit={handleEdit}
-                      onDelete={(id) => setDeleteConfirm(id)}
+                      onDelete={handleConfirmDelete}
                       onCreateCapability={handleCreateCapability}
                       riskMap={riskMap}
                     />
@@ -714,8 +752,10 @@ export default function ComponentInventory() {
                 type={type}
                 components={items}
                 count={count}
+                canManage={canManage}
+                canCreateCapability={canCreateCapability}
                 onEdit={handleEdit}
-                onDelete={(id) => setDeleteConfirm(id)}
+                onDelete={handleConfirmDelete}
                 onCreateCapability={handleCreateCapability}
                 riskMap={riskMap}
               />

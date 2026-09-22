@@ -4,6 +4,7 @@ interface CascadeConfirmDialogProps {
   message: string;
   detail?: string;
   confirmLabel?: string;
+  canConfirm?: boolean;
   onConfirm: () => void | Promise<void>;
   onDismiss: () => void;
 }
@@ -12,15 +13,24 @@ export default function CascadeConfirmDialog({
   message,
   detail,
   confirmLabel = 'Apply Cascade',
+  canConfirm = true,
   onConfirm,
   onDismiss,
 }: CascadeConfirmDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleConfirm = async () => {
+    if (!canConfirm) {
+      setError('Permission denied: you cannot apply this cascade.');
+      return;
+    }
+    setError(null);
     setLoading(true);
     try {
       await onConfirm();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to apply cascade.');
     } finally {
       setLoading(false);
     }
@@ -35,6 +45,7 @@ export default function CascadeConfirmDialog({
         </div>
         <p className="mt-3 text-sm text-gray-700">{message}</p>
         {detail && <p className="mt-1 text-xs text-gray-500">{detail}</p>}
+        {(error || !canConfirm) && <p role="alert" className="text-sm text-red-600">{error ?? 'Permission denied: you cannot apply this cascade.'}</p>}
 
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -45,7 +56,7 @@ export default function CascadeConfirmDialog({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={loading}
+            disabled={!canConfirm || loading}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {loading ? 'Applying...' : confirmLabel}

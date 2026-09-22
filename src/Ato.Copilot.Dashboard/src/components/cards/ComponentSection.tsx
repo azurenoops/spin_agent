@@ -23,6 +23,8 @@ interface ComponentSectionProps {
   onDelete: (id: string) => void;
   onRelink?: (comp: SystemComponentDto) => void;
   onCreateCapability?: (comp: SystemComponentDto) => void;
+  canManage?: boolean;
+  canCreateCapability?: boolean;
   riskMap?: Record<string, { openCount: number; overdueCount: number; highestSeverity: string | null }>;
 }
 
@@ -32,7 +34,7 @@ const severityBadge: Record<string, string> = {
   III: 'bg-yellow-400 text-gray-900',
 };
 
-export function ComponentSection({ title, type, components, count, onEdit, onDelete, onRelink, onCreateCapability, riskMap }: ComponentSectionProps) {
+export function ComponentSection({ title, type, components, count, onEdit, onDelete, onRelink, onCreateCapability, riskMap, canManage = true, canCreateCapability = true }: ComponentSectionProps) {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -100,13 +102,13 @@ export function ComponentSection({ title, type, components, count, onEdit, onDel
                   </div>
                   <div className="flex gap-1 ml-3">
                     {onCreateCapability && comp.componentType === 'Thing' && comp.linkedCapabilities.length === 0 && (
-                      <button onClick={() => onCreateCapability(comp)} className="text-xs text-green-600 hover:text-green-800 px-2 py-1">+ Capability</button>
+                      <button disabled={!canCreateCapability} onClick={() => onCreateCapability(comp)} className="text-xs text-green-600 hover:text-green-800 px-2 py-1">+ Capability</button>
                     )}
                     {onRelink && comp.azureResourceId && (
-                      <button onClick={() => onRelink(comp)} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1">Re-link</button>
+                      <button disabled={!canManage} onClick={() => onRelink(comp)} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1">Re-link</button>
                     )}
-                    <button onClick={() => onEdit(comp)} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1">Edit</button>
-                    <button onClick={() => onDelete(comp.id)} className="text-xs text-red-500 hover:text-red-700 px-2 py-1">Delete</button>
+                    <button disabled={!canManage} onClick={() => onEdit(comp)} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1">Edit</button>
+                    <button disabled={!canManage} onClick={() => onDelete(comp.id)} className="text-xs text-red-500 hover:text-red-700 px-2 py-1">Delete</button>
                   </div>
                 </div>
               ))}

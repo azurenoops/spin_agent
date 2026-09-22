@@ -10,6 +10,7 @@ import {
 } from '../api/systemDetail';
 import type { CategorizationInfo, Sp80060InfoType } from '../types/dashboard';
 import { useSettings } from '../hooks/useSettings';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import infoTypesData from '../data/sp800-60-information-types.json';
 
 // ─── Summary Card ────────────────────────────────────────────────────────────
@@ -50,12 +51,19 @@ function LevelBadge({ level }: { level: string }) {
 
 export default function BaselineManagement() {
   const { id: systemId } = useParams<{ id: string }>();
+  const canManage = useSystemMutationPermission(systemId, 'canManageSystem');
   const { settings } = useSettings();
 
   const [baseline, setBaseline] = useState<BaselineDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [noBaseline, setNoBaseline] = useState(false);
   const [categorization, setCategorization] = useState<CategorizationInfo | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const requireManagement = () => {
+    if (canManage) return true;
+    setActionError('You do not have permission to manage categorization or baseline.');
+    return false;
+  };
 
   // Select dialog
   const [showSelectDialog, setShowSelectDialog] = useState(false);
@@ -74,14 +82,19 @@ export default function BaselineManagement() {
     if (!systemId) return;
     setLoading(true);
     setNoBaseline(false);
+    setActionError(null);
     try {
       const [data, detail] = await Promise.all([
         getBaselineDetail(systemId).catch((err: unknown) => {
           const status = (err as { response?: { status?: number } })?.response?.status;
           if (status === 404) setNoBaseline(true);
+          else setActionError('Failed to load baseline');
           return null;
         }),
-        getSystemDetail(systemId).catch(() => null),
+        getSystemDetail(systemId).catch(() => {
+          setActionError('Failed to load system categorization');
+          return null;
+        }),
       ]);
       setBaseline(data);
       setCategorization(detail?.categorization ?? null);
@@ -102,8 +115,10 @@ export default function BaselineManagement() {
   };
 
   const handleSelectBaseline = async () => {
+    if (!requireManagement()) return;
     if (!systemId) return;
     setSelecting(true);
+    setActionError(null);
     try {
       await selectBaseline(systemId, {
         applyOverlay,
@@ -111,8 +126,8 @@ export default function BaselineManagement() {
       });
       setShowSelectDialog(false);
       await fetchBaseline();
-    } catch {
-      // Error handling
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to select baseline');
     } finally {
       setSelecting(false);
     }
@@ -140,6 +155,7 @@ export default function BaselineManagement() {
   if (noBaseline || !baseline) {
     return (
       <div className="p-6 space-y-6">
+        {actionError && <p role="alert">{actionError}</p>}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Categorization & Baseline</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -158,7 +174,8 @@ export default function BaselineManagement() {
               This system has not been categorized yet. Select SP 800-60 information types to derive the FIPS 199 security categorization.
             </p>
             <button
-              onClick={() => setShowRecategorizeDialog(true)}
+              disabled={!canManage}
+              onClick={() => { if (requireManagement()) setShowRecategorizeDialog(true); }}
               className="mt-5 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
             >
               Select Categorization
@@ -177,8 +194,8 @@ export default function BaselineManagement() {
             is automatically derived from the system&apos;s FIPS 199 categorization.
           </p>
           <button
-            onClick={() => setShowSelectDialog(true)}
-            disabled={!categorization}
+            onClick={() => { if (requireManagement()) setShowSelectDialog(true); }}
+            disabled={!canManage || !categorization}
             className="mt-5 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Select Baseline
@@ -191,6 +208,7 @@ export default function BaselineManagement() {
         {/* Select Dialog */}
         {showSelectDialog && (
           <SelectBaselineDialog
+            canSelect={canManage}
             applyOverlay={applyOverlay}
             overlayName={overlayName}
             selecting={selecting}
@@ -223,6 +241,7 @@ export default function BaselineManagement() {
 
   return (
     <div className="p-6 space-y-6">
+      {actionError && <p role="alert">{actionError}</p>}
       {/* Header */}
       <div>
         <div className="flex items-center gap-4">
@@ -277,7 +296,8 @@ export default function BaselineManagement() {
             <h3 className="text-sm font-semibold text-gray-700">No Categorization</h3>
             <p className="mt-1 text-xs text-gray-500">This system has not been categorized yet.</p>
             <button
-              onClick={() => setShowRecategorizeDialog(true)}
+              disabled={!canManage}
+              onClick={() => { if (requireManagement()) setShowRecategorizeDialog(true); }}
               className="mt-4 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
               Select Categorization
@@ -290,7 +310,8 @@ export default function BaselineManagement() {
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <h3 className="text-sm font-semibold text-gray-900">FIPS 199 Security Categorization</h3>
             <button
-              onClick={() => setShowRecategorizeDialog(true)}
+              disabled={!canManage}
+              onClick={() => { if (requireManagement()) setShowRecategorizeDialog(true); }}
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
             >
               Re-categorize
@@ -472,6 +493,7 @@ export default function BaselineManagement() {
       {/* Select Dialog */}
       {showSelectDialog && (
         <SelectBaselineDialog
+          canSelect={canManage}
           applyOverlay={applyOverlay}
           overlayName={overlayName}
           selecting={selecting}
@@ -528,6 +550,7 @@ function RecategorizeDialog({
   onClose: () => void;
   onSaved: (cascade?: { baselineReselected: string; baselineControls: number; inheritancesReapplied: number } | null) => void;
 }) {
+  const canManage = useSystemMutationPermission(systemId, 'canManageSystem');
   const allTypes: Sp80060InfoType[] = (infoTypesData as { informationTypes: Sp80060InfoType[] }).informationTypes;
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<SelectedInfoType[]>(() => {
@@ -579,6 +602,10 @@ function RecategorizeDialog({
   const categories = [...new Set(filtered.map(t => t.category))];
 
   const handleSave = async () => {
+    if (!canManage) {
+      setError('You do not have permission to change categorization.');
+      return;
+    }
     if (selected.length === 0) { setError('Select at least one information type.'); return; }
     setSaving(true);
     setError('');
@@ -729,7 +756,7 @@ function RecategorizeDialog({
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         </div>
 
         {/* Footer */}
@@ -737,7 +764,7 @@ function RecategorizeDialog({
           <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100">Cancel</button>
           <button
             onClick={handleSave}
-            disabled={saving || selected.length === 0}
+            disabled={!canManage || saving || selected.length === 0}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {saving ? 'Saving...' : 'Save Categorization'}
@@ -751,12 +778,13 @@ function RecategorizeDialog({
 // ─── Select Baseline Dialog ──────────────────────────────────────────────────
 
 function SelectBaselineDialog({
-  applyOverlay, overlayName, selecting,
+  applyOverlay, overlayName, selecting, canSelect,
   onApplyOverlayChange, onOverlayNameChange, onSelect, onClose,
 }: {
   applyOverlay: boolean;
   overlayName: string;
   selecting: boolean;
+  canSelect: boolean;
   onApplyOverlayChange: (v: boolean) => void;
   onOverlayNameChange: (v: string) => void;
   onSelect: () => void;
@@ -804,7 +832,7 @@ function SelectBaselineDialog({
           </button>
           <button
             onClick={onSelect}
-            disabled={selecting}
+            disabled={!canSelect || selecting}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {selecting ? 'Selecting...' : 'Select Baseline'}
