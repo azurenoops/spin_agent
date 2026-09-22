@@ -44,11 +44,7 @@ public class MessagesControllerIntegrationTests : IAsyncLifetime
             options.UseInMemoryDatabase(dbName));
         builder.Services.AddSingleton<IPathSanitizationService, PathSanitizationService>();
         builder.Services.AddScoped<IChatService, ChatService>();
-        builder.Services.AddHttpClient("McpServer", client =>
-        {
-            client.BaseAddress = new Uri("http://localhost:3001");
-            client.Timeout = TimeSpan.FromSeconds(10);
-        });
+        ChatControllerWorkspaceFixture.Register(builder.Services);
         builder.Services.AddControllers()
             .AddJsonOptions(o =>
             {
@@ -63,11 +59,11 @@ public class MessagesControllerIntegrationTests : IAsyncLifetime
         // ASP.NET Core throws InvalidOperationException at request time.
         builder.Services.AddAuthentication(options =>
         {
-            options.DefaultAuthenticateScheme = "Test";
-            options.DefaultChallengeScheme = "Test";
+            options.DefaultAuthenticateScheme = "Bearer";
+            options.DefaultChallengeScheme = "Bearer";
         })
         .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,
-            TestPassThroughAuthHandler>("Test", _ => { });
+            TestPassThroughAuthHandler>("Bearer", _ => { });
         builder.Services.AddAuthorization();
 
         builder.WebHost.UseTestServer();
@@ -85,6 +81,7 @@ public class MessagesControllerIntegrationTests : IAsyncLifetime
 
         await _app.StartAsync();
         _client = _app.GetTestClient();
+        ChatControllerWorkspaceFixture.Configure(_client);
     }
 
     public async Task DisposeAsync()
