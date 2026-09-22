@@ -316,6 +316,9 @@ workflow, then navigate/generate from each authorized workspace.
   Local Docker verification may select an organization-approved package feed,
   without changing dependency versions or the Azure build's default source.
   Feed reachability alone does not satisfy the build or browser acceptance gate.
+  SQL Server startup must create the narrative proposal schema with valid Unicode
+  storage for the existing 8,000-character fields. Applying the additive schema
+  again must preserve existing proposal contents and constraints.
   Mocked UI tests and live-API persistence tests are reported separately.
 - **SC-007**: No separate login implementation, implicit membership grant or
   database repair prerequisite is introduced.

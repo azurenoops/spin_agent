@@ -296,8 +296,35 @@ Startup then reached healthy SQL Server and Redis, but MCP terminated during
 `nvarchar` length is 4000. The same statement also declares
 `ProposedContent nvarchar(8000)`. This is a schema-startup blocker, not a package
 restore failure. The MCP restart loop was stopped without deleting any volumes;
-Dashboard and Chat did not reach running acceptance. The narrative schema fix
-and browser verification remain pending, separate from the package-source work.
+Dashboard and Chat did not reach running acceptance in that attempt. The
+narrative correction below is separate from the package-source work.
+
+The authorized SQL Server fix is limited to replacing the two invalid bounded
+Unicode declarations with `nvarchar(max)`, matching SQL Server's EF mapping for
+the existing `[MaxLength(8000)]` properties. The application limit, SQLite schema,
+tenant scope and approval behavior remain unchanged. A real SQL Server regression
+must verify fresh additive creation, 8,000-character Unicode persistence, correct
+column types and a repeat application preserving the row. No existing table is
+dropped or shortened. Reverting the source change restores the startup defect;
+no data-destructive rollback is needed or authorized.
+
+SQL correction verification: the new real SQL Server integration test first
+reproduced the same invalid-length exception, then passed after the two-column
+change (1 passed, 0 skipped). It verifies full-length Unicode contents, non-null
+`nvarchar(max)` columns, the unchanged EF 8,000-character maximum and row
+preservation after repeat schema application. The existing targeted unit suite
+also passed all 19 tests. Both backend images rebuilt as `linux/amd64`.
+
+With the existing database volumes preserved, MCP now starts healthy and
+`http://localhost:3002/health` returns HTTP 200 on this checkout's configured host
+port. SQL Server and Redis remain healthy. Browser acceptance is still blocked:
+Dashboard nginx exits with `unknown "force_single_tenant" variable`, and Chat's
+`/health` returns HTTP 500 while JWT bearer options reject the metadata/authority
+configuration. These are separate observed failures; their fixes are not part
+of the SQL correction. The Dashboard restart loop was stopped, not masked by
+changing its health check. No authentication or HTTPS checks were disabled.
+Manual workspace testing, broader integration failures and the PR release gates
+remain pending.
 
 ## Purpose
 

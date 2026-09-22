@@ -203,7 +203,7 @@ public static class NarrativeLibrarySchemaAdditions
                 [Id] uniqueidentifier NOT NULL PRIMARY KEY, [TenantId] uniqueidentifier NOT NULL,
                 [RegisteredSystemId] nvarchar(36) NOT NULL, [ControlId] nvarchar(20) NOT NULL,
                 [NarrativeType] nvarchar(20) NOT NULL, [BaseVersion] int NOT NULL,
-                [BeforeContent] nvarchar(8000) NOT NULL, [ProposedContent] nvarchar(8000) NOT NULL,
+                [BeforeContent] nvarchar(max) NOT NULL, [ProposedContent] nvarchar(max) NOT NULL,
                 [StateHash] nvarchar(64) NOT NULL, [DeduplicationKey] nvarchar(64) NOT NULL,
                 [ProvenanceJson] nvarchar(max) NOT NULL, [ConflictsJson] nvarchar(max) NOT NULL,
                 [MissingEvidenceJson] nvarchar(max) NOT NULL, [Status] nvarchar(20) NOT NULL,
