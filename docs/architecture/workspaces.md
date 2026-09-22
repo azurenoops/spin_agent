@@ -462,6 +462,17 @@ ISSO/ISSM allow and Mission Owner/AO/Assessor/Administrator deny matrix. The
 full CI-equivalent integration lane is the next gate; these focused results
 do not establish a green GitHub run.
 
+The full local CI-equivalent Release run at `d883a76f` completed on
+2026-09-22: **1,288 passed, zero failed, 20 skipped (1,308 total)** in
+3.0175 minutes. TRX comparison confirms the same 20 skipped test names as the
+earlier 26-failure run; none were newly skipped. The run used CI's Development
+environment, SQLite settings and `ATO_REQUIRE_DOCKER_TESTS=1`, with the local
+Docker Desktop socket for SQL Server containers. Local execution was macOS
+arm64, not the GitHub Linux runner. Actual GitHub CI verification awaits an
+approved push and a new workflow run. The separate Chat JWT health failure and
+manual workspace acceptance gates remain open; this result does not establish
+that the PR is merge-ready.
+
 ## Purpose
 
 The dashboard already resolves provider and organization variants of portfolio,
