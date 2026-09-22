@@ -5,7 +5,8 @@ public sealed record WorkspaceOptionResponse(
     string Kind, Guid? TenantId, string DisplayName, string Status, string OnboardingState);
 
 /// <summary>Operations authorized in the selected workspace, independently of RMF approval roles.</summary>
-public sealed record WorkspacePermissionsResponse(bool CanManageMemberships, bool CanManageOrganization, bool CanAccessCsp);
+public sealed record WorkspacePermissionsResponse(bool CanManageMemberships, bool CanManageOrganization, bool CanAccessCsp,
+    bool CanCreateSystem = false);
 
 /// <summary>Resolved request scope. PersonId is present only for ordinary organization membership.</summary>
 public sealed record WorkspaceResponse(
@@ -14,6 +15,12 @@ public sealed record WorkspaceResponse(
 
 /// <summary>Explicit directory identity association; assigning membership does not assign an RMF role.</summary>
 public sealed record GrantOrganizationMembershipRequest(Guid DirectoryTenantId, Guid ObjectId, Guid PersonId);
+
+/// <summary>Separate CSP-authorized enrollment of the initial organization Administrator.</summary>
+public sealed record EnrollOrganizationAdministratorRequest(Guid PersonId);
+
+/// <summary>Persisted organization Administrator assignment, not a membership grant.</summary>
+public sealed record OrganizationAdministratorResponse(Guid Id, Guid TenantId, Guid PersonId, string Role);
 
 /// <summary>Persisted access grant including revocation and actor attribution.</summary>
 public sealed record OrganizationMembershipResponse(
@@ -39,9 +46,10 @@ public sealed record WorkspacePimRoleResponse(string Name, DateTimeOffset Expire
 /// <summary>
 /// Authenticated workspace descriptor. HomeTenant is informational and nullable. Workspace is
 /// null while choosing a context; EffectiveTenant is also null in the provider workspace.
+/// DirectoryTenantId identifies the authenticated subject's directory, not an isolation tenant.
 /// </summary>
 public sealed record WorkspaceMeResponse(
-    Guid Oid, string DisplayName, string Persona,
+    Guid Oid, Guid DirectoryTenantId, string DisplayName, string Persona,
     WorkspaceTenantResponse? HomeTenant, WorkspaceTenantResponse? EffectiveTenant,
     bool IsImpersonating, WorkspaceImpersonationResponse? Impersonation,
     IReadOnlyList<WorkspacePimRoleResponse> PimRoles, bool IsCspAdmin, bool IsSocAnalyst,
