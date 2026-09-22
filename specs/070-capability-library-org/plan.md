@@ -4,6 +4,14 @@
 
 ## Overview
 
+Issue #957 follow-up: explicit system-scoped allocation confirmation supersedes the
+original automatic-inheritance assumption. See
+[the handoff contract](contracts/responsibility-handoff.md) for current API, persistence,
+concurrency, role, provider-source event and narrative outbox boundaries. The dedicated
+reconciler is necessary because the legacy designation writer also changes narrative
+implementation status and cannot safely own subscription overlap/unsubscribe behavior.
+No organization-default derivation is introduced.
+
 5-phase plan. Each phase has a hard checkpoint: the build must pass (`dotnet build`) and the
 relevant tests must pass before the next phase begins. All phases target the same branch
 `070-capability-library-org`.

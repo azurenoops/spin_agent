@@ -132,6 +132,31 @@ ones apply to my system.
 
 ### US2 (P1): Subscribe a Capability to a System
 
+#### Issue #957: approved responsibility handoff (2026-09-21)
+
+The automatic-inheritance wording below is superseded by explicit system-scoped
+confirmation. Flat provider control mappings are applicability hints, not allocations.
+Only an effective assigned ISSM or ISSO may confirm an Inherited, Shared, or Customer
+allocation for a subscribed capability/control. Organization membership, Mission Owner,
+or CSP administration alone grants no confirmation authority.
+
+The handoff exposes missing baseline, missing allocation, stale provider snapshot,
+and conflicting allocations separately. Confirmation pins the current baseline and a
+content-derived provider revision. Stale submissions fail rather than accepting unseen
+provider changes. Shared and Customer confirmations require customer responsibility;
+Inherited and Shared confirmations require a provider.
+
+Reconciliation considers only the selected system's current baseline. It preserves
+manual/profile/import/org-derived designations and never creates organization defaults.
+Overlapping subscription allocations must agree before a subscription-owned designation
+is applied. Removing one subscription preserves any remaining agreed active source.
+Repeated reconciliation and unsubscribe are idempotent. Provider changes and confirmed
+responsibility changes produce durable, deduplicated review impact; neither approved
+narrative text nor narrative implementation status is changed by this workflow.
+
+The implementation and HTTP/manual-test contract are documented in
+[contracts/responsibility-handoff.md](contracts/responsibility-handoff.md).
+
 **As an ISSO or ISSM**, I can subscribe a CSP capability to one of my systems so that the
 mapped NIST controls are automatically inherited into the system's SSP control baseline.
 
@@ -200,14 +225,14 @@ controls are removed from the SSP, reflecting a change in the cloud service conf
 | FR-003 | The endpoint is accessible to any authenticated tenant user regardless of role. Authorization filter: `RequireAuthorization("AnyTenantUser")`. |
 | FR-004 | Pagination: default `pageSize=20`, max `pageSize=100`. Query params: `?page=1&pageSize=20`. |
 | FR-005 | Filter params: `?provider={componentName}`, `?controlFamily={2-char prefix}`, `?search={text}`. All are optional and combinable. |
-| FR-006 | `POST /api/systems/{id}/capability-subscriptions` MUST be gated to roles `ISSO` and `ISSM` only. |
-| FR-007 | `DELETE /api/systems/{id}/capability-subscriptions/{capabilityId}` MUST be gated to roles `ISSO` and `ISSM` only. |
-| FR-008 | `GET /api/systems/{id}/capability-subscriptions` is accessible to any authenticated tenant member. |
+| FR-006 | Subscription POST MUST require an effective assigned ISSO or ISSM in the selected system; global claims alone are insufficient. |
+| FR-007 | Subscription DELETE MUST require an effective assigned ISSO or ISSM in the selected system. |
+| FR-008 | Subscription GET requires server-authorized visibility of the selected system, not membership alone. |
 | FR-009 | Subscribe is idempotent: if an Active subscription already exists for the (TenantId, SystemId, CapabilityId) triple, return the existing row with HTTP 200. |
 | FR-010 | Unsubscribe soft-deletes (Status → `Cancelled`). The row is never hard-deleted. |
 | FR-011 | Every mutation (subscribe/unsubscribe) writes an `AuditLogEntry` row with `Action`, `ActorOid`, `SystemId`, `CapabilityId`, `TenantId`, `Timestamp`. |
-| FR-012 | Unsubscribe triggers the Epic #223 inherited controls removal chain; implementation is async. |
-| FR-013 | The `CapabilitySubscription` entity MUST be `TenantScoped` so EF Core query filters prevent cross-tenant reads. |
+| FR-012 | Unsubscribe reconciles subscription-owned current-baseline designations and durable review impact in the same transaction. Narrative delivery is a separate retryable mark-only operation. |
+| FR-013 | The existing subscription linkage table is scoped through its authorized owning system. All request/service paths MUST enforce that tenant/system boundary. New confirmation/projection/impact entities are TenantScoped; background fanout MUST join subscriptions to the explicitly selected tenant's systems. |
 | FR-014 | The new `CapabilityLibraryEndpoints.cs` MUST be in namespace `Ato.Copilot.Mcp.Endpoints` and registered via `MapCapabilityLibraryEndpoints()` extension. |
 | FR-015 | The `CapabilityLibraryPage.tsx` route is `/capability-library` (top-level, not system-nested). |
 | FR-016 | The `CapabilityDetailPage.tsx` route is `/capability-library/:id` (capability UUID). |

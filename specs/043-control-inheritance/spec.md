@@ -176,6 +176,27 @@ When a user changes the system categorization (e.g., from Moderate to High), the
 
 ## Requirements *(mandatory)*
 
+### Issue #957 integration
+
+System CSP subscription allocations use explicit ISSM/ISSO confirmation, not the
+presence of mapped control IDs. Persisted subscription-derived designations are tagged
+`CspSubscription`; confirmation/source provenance is retained independently of the
+effective designation. Reconciliation never overwrites another designation source and
+does not call the legacy narrative-status update path. CRM and SSP consume the resulting
+persisted current-baseline `ControlInheritance` rows. See
+[the responsibility handoff contract](../070-capability-library-org/contracts/responsibility-handoff.md).
+
+For this workflow, effective system assignments authorize writes, not global role
+claims or organization membership alone. The existing REST designation write surface
+must enforce the same approved ISSM/ISSO boundary and cannot accept caller-forged
+subscription-derived provenance.
+
+Baseline reselection excludes subscription-owned designations from the legacy
+snapshot/reapply path: the explicit reconciler re-evaluates matching confirmed sources
+after selection, avoiding lost provenance or narrative implementation-status changes.
+Organization propagation preserves a subscription-owned designation rather than
+relabeling it as organization-derived.
+
 ### Functional Requirements
 
 - **FR-001**: System MUST expose a REST endpoint to list all inheritance designations for a system, filterable by control family and inheritance type.
@@ -205,7 +226,7 @@ When a user changes the system categorization (e.g., from Moderate to High), the
 - **FR-023**: The CRM import MUST flag unrecognizable control IDs and exclude them from import.
 - **FR-024**: System MUST support linking a control's inheritance to another registered system as the provider (cross-portfolio, future phase).
 - **FR-025**: System MUST support impact analysis showing which controls in dependent systems are affected when a providing system's status changes (future phase).
-- **FR-026**: Inheritance designation write operations (set, bulk-update, profile apply, CRM import) MUST be restricted to users with AO or Security Engineer roles; all system members MUST have read access to view designations and generated CRMs.
+- **FR-026**: Inheritance designation REST writes (set, bulk-update, profile apply, CRM import, and subscription confirmation) MUST require an effective assigned ISSM or ISSO for the selected system. Reads require authorized system visibility. Organization membership, Mission Owner, AO, or CSP administration alone MUST NOT grant write authority. This is the explicitly approved #957/#1002 responsibility policy; it does not change independent narrative-approval or MCP-tool policies.
 - **FR-028**: Every inheritance designation change (manual edit, bulk-update, profile apply, CRM import) MUST create an immutable audit entry recording the actor, previous value, new value, timestamp, and change source. The full audit history MUST be viewable per control.
 - **FR-030**: When inheritance designations are applied (via manual edit, bulk update, CSP profile, or CRM import), the system MUST automatically update the corresponding narrative implementation statuses: Inherited controls → Implemented, Shared controls → Partially Implemented. The write response MUST include the count of auto-updated narratives.
 - **FR-031**: When the system categorization changes and the resulting baseline level differs from the current baseline, the system MUST automatically reselect the baseline, preserve and reapply existing inheritance designations to matching controls in the new baseline, and auto-update narrative statuses for reapplied Inherited/Shared controls.
