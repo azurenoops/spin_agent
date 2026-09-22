@@ -4,6 +4,50 @@
 
 ## Overview
 
+### #1001 backend continuation on the workspace branch
+
+The [issue-specific design](issue-1001.md) and [HTTP contract](contracts/http-api.md)
+govern the continuation, not the historical migration instructions below.
+Reuse existing scoped services, configured `IControlNarrativeService`, immutable
+`NarrativeVersion` snapshots, SQLite/SQL Server schema-additions and the new
+`ISystemWorkspaceAccessService`. No model/provider/login deployment is involved.
+
+`NarrativeGroundingService` separates source capture from proposal transitions.
+`NarrativeProposalService.ChangeImpact` provides a trusted tenant-bound queue and
+generation entry point; callers own transaction/outbox delivery. This separation
+is necessary to avoid model calls in provider/subscription mutation transactions.
+Queue state lives in the existing proposal table, with three nullable source/error
+metadata columns. A tenant-scoped `NarrativeImpactReceipts` table records durable
+delivery identity, including no-change results; it is discovered through the
+proposal navigation and requires no new context DbSet. Schema additions create
+its foreign key with restricted deletion so removing a proposal cannot silently
+invalidate delivery idempotency.
+
+| Required complexity | Why a simpler alternative is insufficient |
+|---|---|
+| Separate durable impact receipts | A proposal's source hash does not record unchanged events, and replay after a human review or later source change must not reopen previously delivered work. |
+| Separate provider reference storage | Reusing tenant reference rows would require an inappropriate tenant bypass or fake system identity; provider claims have a distinct publication/applicability boundary. |
+| Separate tenant/provider publication outboxes | Reference publication must survive delivery failure atomically, without mixing private tenant source events into globally readable provider storage or making a model call during mutation. |
+
+Standalone organization/provider handlers live in
+`ScopedNarrativeLibraryEndpoints`, separate from the system endpoint file during
+the role-owner handoff. The parent registers the provider entity and service,
+maps the standalone routes, and wires source-event delivery. Customer grounding
+consumes the same applicable published-provider reader as the per-control API.
+The SQLite legacy-origin migration preserves existing system-origin values
+while allowing genuine null organization origins.
+
+Accepting one half while an unapproved working companion exists creates an
+approved snapshot from the previous approved companion plus the reviewed half;
+the working snapshot remains Draft. This avoids accidentally approving the
+companion or leaving accepted text absent from the approved export baseline.
+
+Constitution gates: failing tests precede fixes; tests use synthetic data and
+mocked models; no role grants from browser persona/admin status; no source event
+updates approval or authorization. Program/context, source mutation call sites,
+frontend work and upstream merge remain parent/peer owned. Full modified-path
+coverage, SQL Server/RLS and manual acceptance remain release gates.
+
 7-phase plan. Each phase has a hard checkpoint: `dotnet build` must pass before the next
 phase begins. All phases target branch `074-policy-technical-narrative`.
 

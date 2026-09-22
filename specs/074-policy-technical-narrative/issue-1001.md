@@ -221,6 +221,16 @@ recording time. Recording time is not the original provider change time.
 Historical receipt fields that were never recorded remain null; do not infer
 them from the proposal's first creator.
 
+The UI must generate/retry an existing queued proposal by its durable ID, not
+create a second proposal through the manual generation endpoint. The action
+requires current canonical narrative-author permission, expected proposal
+revision, matching tenant/system, and unchanged base/source state. Permission
+is checked again after the model call and before persistence. Queue/source
+dispatch stays mark-only; this explicit action is separate from those mutations.
+It retains proposal identity, creation origin, receipts and approved content.
+Durable review links resolve a proposal directly by ID, rather than depending
+on membership in the bounded system proposal-list window.
+
 Backend verification uses synthetic data, mocked model calls, dedicated build
 artifacts and targeted tests. Parent-owned context/DI wiring, upstream merge,
 frontend contracts, SQL Server/RLS and interactive manual acceptance remain

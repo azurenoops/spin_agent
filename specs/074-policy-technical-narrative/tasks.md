@@ -14,6 +14,45 @@ _Implementation issue #892 (Epic #64 — Feature 052). Each task cites the file 
 
 ---
 
+## #1001 workspace-backend continuation
+
+- [x] Add failing tests for semantic freshness, component/boundary scope and
+  declared inheritance; preserve unknown execution observations.
+- [x] Implement revision-checked draft mapping/scope editing and private-draft
+  write isolation; preserve immutable published revisions.
+- [x] Preserve approved companion snapshots during typed acceptance and append
+  governance review audit records.
+- [x] Add persistent change-impact queue/generation entry points and failure
+  states; keep model calls outside source mutation transactions.
+- [x] Persist immutable per-target delivery receipts and source-change context,
+  including removal provenance and no-change deliveries; verify shared-context
+  transaction rollback, replay after review, and receipt schema upgrade.
+- [x] Expose authorized paginated receipt history, retaining proposal creation
+  origin separately from later source deliveries and preserving unknown legacy
+  actor/source fields.
+- [x] Add SQLite schema/rerun and concurrency checks, authenticated HTTP tests,
+  mocked-model failures, and UTF-8/BOM/ambiguous-header parser regressions.
+- [x] Use workspace access decisions and distinguish reference-author from
+  narrative-generation permission.
+- [ ] Parent: register `INarrativeChangeImpactService` to the scoped proposal
+  service; wire source mutation events and durable generation/retry dispatch.
+- [ ] Source owners: replace/gate legacy organization capability and component
+  narrative cascades plus in-place regeneration paths identified in
+  [the source-writer handoff](issue-1001.md#mandatory-legacy-source-writer-handoff).
+  The component post-save/separate-context cascade is not an atomic delivery point.
+- [x] Implement provider/organization standalone reference storage and API
+  surfaces without fabricated systems, plus applicable published provider-reference
+  consumption and durable source publication outboxes.
+- [ ] Parent: register the provider reference entity, service and standalone
+  endpoint mapper; consume source publication outboxes with authorized target
+  dispatch before enabling provider grounding in the production context.
+- [ ] Complete endpoint authorization handoff, frontend contract consumption,
+  and upstream layout merge before browser acceptance.
+- [ ] Verify SQL Server/RLS, complete required modified-path coverage, and
+  offer interactive local manual acceptance before feature completion.
+
+---
+
 ## Phase 1 — Data Model: Additive Columns & Enum
 
 _Issue #892 | Priority: P1 | Unblocks all backend and export work_
