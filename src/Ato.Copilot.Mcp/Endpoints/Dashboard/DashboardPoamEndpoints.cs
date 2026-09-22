@@ -17,6 +17,7 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Mcp.Authorization;
 using System.Text.RegularExpressions;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
@@ -136,10 +137,10 @@ public static partial class DashboardEndpoints
                 systemId, req.Weakness, req.WeaknessSource ?? "Manual", req.ControlId,
                 sevEnum, req.Poc, req.ScheduledCompletionDate,
                 req.PocEmail, req.ResourcesRequired, req.CostEstimate, req.Comments,
-                req.FindingId, "mcp-user", req.ComponentIds, milestones, ct);
+                req.FindingId, currentUser.CurrentUserId, req.ComponentIds, milestones, ct);
 
             return Results.Created($"/api/dashboard/poam/{poam.Id}", MapToDetail(poam));
-        }).WithName("CreatePoamItemV2");
+        }).WithName("CreatePoamItemV2").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── PUT /poam/{poamId} — update
         group.MapPut("/poam/{poamId}", async (
@@ -172,7 +173,7 @@ public static partial class DashboardEndpoints
             {
                 return Results.NotFound(new ErrorResponse { Error = ex.Message, ErrorCode = "POAM_NOT_FOUND" });
             }
-        }).WithName("UpdatePoamItem");
+        }).WithName("UpdatePoamItem").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── DELETE /poam/{poamId} — delete
         group.MapDelete("/poam/{poamId}", async (
@@ -191,7 +192,7 @@ public static partial class DashboardEndpoints
                     ErrorCode = "POAM_NOT_FOUND"
                 });
             }
-        }).WithName("DeletePoamItem");
+        }).WithName("DeletePoamItem").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── GET /systems/{systemId}/poam/metrics
         group.MapGet("/systems/{systemId}/poam/metrics", async (
@@ -241,7 +242,7 @@ public static partial class DashboardEndpoints
             if (totalFailed == result.Results.Count)
                 return Results.BadRequest(response);
             return Results.Json(response, statusCode: StatusCodes.Status207MultiStatus);
-        }).WithName("BulkCreatePoamFromFindings");
+        }).WithName("BulkCreatePoamFromFindings").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── PUT /poam/{poamId}/status — lifecycle status change
         group.MapPut("/poam/{poamId}/status", async (
@@ -276,7 +277,7 @@ public static partial class DashboardEndpoints
             {
                 return Results.NotFound(new ErrorResponse { Error = ex.Message, ErrorCode = "POAM_NOT_FOUND" });
             }
-        }).WithName("UpdatePoamStatusV2");
+        }).WithName("UpdatePoamStatusV2").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── PUT /systems/{systemId}/poam/{poamId}/status — T005 #144 ──────────
         group.MapPut("/systems/{systemId}/poam/{poamId}/status", async (
@@ -324,7 +325,7 @@ public static partial class DashboardEndpoints
             {
                 return Results.NotFound(new ErrorResponse { Error = ex.Message, ErrorCode = "POAM_NOT_FOUND" });
             }
-        }).WithName("UpdatePoamStatusSystemScoped");
+        }).WithName("UpdatePoamStatusSystemScoped").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── POST /poam/bulk-status — bulk status updates
         group.MapPost("/poam/bulk-status", async (
@@ -384,7 +385,7 @@ public static partial class DashboardEndpoints
             {
                 return Results.NotFound(new ErrorResponse { Error = ex.Message, ErrorCode = "POAM_NOT_FOUND" });
             }
-        }).WithName("LinkPoamComponents");
+        }).WithName("LinkPoamComponents").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── DELETE /poam/{poamId}/components — unlink components
         group.MapDelete("/poam/{poamId}/components", async (
@@ -402,7 +403,7 @@ public static partial class DashboardEndpoints
             {
                 return Results.NotFound(new ErrorResponse { Error = ex.Message, ErrorCode = "POAM_NOT_FOUND" });
             }
-        }).WithName("UnlinkPoamComponents");
+        }).WithName("UnlinkPoamComponents").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── GET /components/{componentId}/poam — POA&Ms by component with risk summary
         group.MapGet("/components/{componentId}/poam", async (
@@ -440,7 +441,7 @@ public static partial class DashboardEndpoints
             {
                 return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "VALIDATION_ERROR" });
             }
-        }).WithName("CreateTaskFromPoam");
+        }).WithName("CreateTaskFromPoam").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── POST /poam/{poamId}/link-task — link existing task to POA&M
         group.MapPost("/poam/{poamId}/link-task", async (
@@ -462,7 +463,7 @@ public static partial class DashboardEndpoints
             {
                 return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "VALIDATION_ERROR" });
             }
-        }).WithName("LinkPoamTask");
+        }).WithName("LinkPoamTask").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── DELETE /poam/{poamId}/unlink-task — unlink task from POA&M
         group.MapDelete("/poam/{poamId}/unlink-task", async (
@@ -481,7 +482,7 @@ public static partial class DashboardEndpoints
             {
                 return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "VALIDATION_ERROR" });
             }
-        }).WithName("UnlinkPoamTask");
+        }).WithName("UnlinkPoamTask").RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation);
 
         // ── GET /systems/{systemId}/poam/trend — trend analysis
         group.MapGet("/systems/{systemId}/poam/trend", async (
