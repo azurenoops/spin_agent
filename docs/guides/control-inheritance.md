@@ -66,11 +66,12 @@ remaining agreed subscriptions are retained. Approved narratives and narrative
 implementation status are not changed. Provider/reconciliation changes are recorded
 as durable review work, with separate mark-only delivery to the narrative queue.
 
-After baseline reselection, explicitly reconcile for immediate results. Automatic
-re-evaluation requires the production source-event dispatcher; its scheduling and
-retry behavior remain an integration gate on this branch. This is not
-organization-wide default derivation. Missing baseline or narrative rows defer
-delivery without creating placeholder narratives or discarding review work.
+After baseline reselection, explicitly reconcile for immediate results. The HTTP
+host also registers a bounded source-event worker with durable routes, cursors,
+leases and retry state. Each target is handled in a separate tenant scope; this
+is not organization-wide default derivation. Missing baseline or narrative rows
+defer delivery without creating placeholder narratives or discarding review work.
+Production SQL Server and live multi-instance acceptance remain outstanding.
 
 Use **Review subscription responsibilities** from Control Inheritance or System
 Capabilities. The system-scoped route is `systems/{systemId}/inheritance/subscriptions`
@@ -116,9 +117,11 @@ status is a read operation, not generation or approval. A missing explicitly
 requested ID never selects an unrelated proposal.
 
 Exact-ID retrieval beyond the bounded proposal list and authorized same-ID
-generation/retry remain backend integration gates on this branch. Until those
-contracts are available, the UI does not invent retry requests or generate a
-different proposal as a substitute.
+generation/retry are connected to the existing backend contracts. Generation
+requires an explicit server grant and sends the selected proposal's revision.
+A retry does not create a replacement proposal or approve its content. The
+review page also separates its creation trigger from paged immutable delivery
+receipts; missing historical values are not inferred.
 
 The API and local manual request examples are documented in the
 [handoff contract](../../specs/070-capability-library-org/contracts/responsibility-handoff.md)

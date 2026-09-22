@@ -1,5 +1,26 @@
 # CSP and Organization Workspaces (Approved Design)
 
+## Draft workspace-testing checkpoint
+
+This branch is being published for local workspace testing, not as a completed
+or merge-ready implementation of #1002. The latest completed backend run built
+with zero errors and 121 warnings; 6,357 unit tests passed, while integration
+tests recorded 1,223 passes, 64 failures and 20 skips. The last full Dashboard
+run passed 1,160 tests. Subsequent focused checks are reported separately.
+
+Use an isolated development database and the existing [local setup](../../README.md#quick-start);
+do not point this draft's schema upgrades at production data. Test ordinary
+organization entry, workspace switching in two tabs, system-role restrictions,
+support exit, and the provider/organization/system narrative library entry
+points described below. Synthetic browser fixtures are not proof of live
+identity-provider or persistence behavior.
+
+Known open gates include the remaining integration failures, authorized write
+routes blocked before their existing policies, build warnings, final coverage,
+and live/manual acceptance. The agreed next bounded investigation is a role
+assignment returning HTTP 500 where its contract expects 403; that fix is not
+part of this initial testing checkpoint. (Approved Design)
+
 **Status:** Design approved by the user on 2026-09-21 for issue
 [#1002](https://github.com/azurenoops/spin_agent/issues/1002).
 Implementation was subsequently authorized. Release verification and publishing
@@ -166,6 +187,14 @@ Provider organization/system rows open ordinary membership context. Their
 separate **Audited support** actions require confirmation and use the existing
 support endpoints. The server-driven support banner also renders for cookie-only
 authentication. Ordinary selection does not end support in another tab.
+
+Workspace support cookies are backed by a durable, actor-bound authorization
+record. Exiting support revokes that presented session before deleting its cookie;
+replaying the captured token must fail on another application instance as well
+as on an existing hub connection. The server does not positively cache support
+authorization. Existing stateless workspace support tokens are not automatically
+enrolled by the schema upgrade: start a new audited support session after rollout.
+Ordinary tabs and independently issued support sessions are not implicitly revoked.
 
 Local synthetic checks (from `src/Ato.Copilot.Dashboard`):
 

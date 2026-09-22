@@ -34,8 +34,9 @@ applicable subscription and published provider component.
 
 Publication saves a durable source event without invoking a model. The
 change-impact backend exposes queued, failed and superseded states. Production
-model/host registration, automatic dispatch and the updated UI remain integration
-work; their completion must not be inferred from the isolated endpoint tests. See the
+model/host registration and the scoped library UI are now connected. Automatic
+publication dispatch, legacy source-writer coverage and full integration/manual
+acceptance remain open; isolated endpoint tests do not establish completion. See the
 [local HTTP scenarios](../../src/Ato.Copilot.Mcp/narrative-library.http) for manual
 testing with real authorized local IDs and two separate author/reviewer accounts.
 
@@ -188,8 +189,12 @@ button when the system sidebar is hidden.
 Expand a control to choose **Generate Policy draft** or **Generate Technical
 draft**. Each action uses that control's current version and opens a separate
 proposal for review; it does not immediately replace active content. Generation
-remains unavailable without author permission, while a write is in progress, or
-while the control is UnderReview.
+requires the system library's explicit `canGenerate: true`, as well as the current
+system permission and existing write/review/version locks. Missing permission fails
+closed. Reference `canAuthor`/publication permission is separate: a Mission Owner or
+System Owner may upload and map reference claims without generating narratives.
+Review continues to require the individual proposal's `canReview` and current
+review permission, not generation permission.
 
 Use **Upload narratives** in the library to enter Import & map, and **Library**
 to return. Pending-proposal actions open Review change; its **Narratives** button
@@ -199,6 +204,19 @@ A failed library request is not a valid empty library. Retry the displayed error
 generation, publication and review actions remain disabled until the required
 data reloads successfully. A missing API route may require the backend deployment
 to be repaired rather than changes to the control or its narratives.
+
+The workspace header also opens the standalone **Narrative Library**. Organization
+libraries use their real organization identity and Organization/Capability scopes;
+provider libraries use the server's provider profile and Provider/ProviderCapability
+scopes. Neither route invents a system ID or exposes system generation/approval
+actions. Listing, import/mapping, draft correction and reviewed publication reuse
+the same reference panels as the system library.
+
+Review change separates the immutable **Proposal creation trigger** from paged
+**Source delivery history**. Creation provenance is not necessarily the latest
+provider change. Receipt `recordedAt` is delivery-recording time, not the original
+event time; unrecorded actor/source fields remain explicitly unknown. History
+errors never appear as an empty successful history.
 
 ---
 
