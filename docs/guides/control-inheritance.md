@@ -40,6 +40,118 @@ The header area contains action buttons that adapt based on context:
 
 ## Managing Designations
 
+### System CSP subscription review
+
+A subscription and its mapped control IDs do **not** establish full inheritance.
+The responsibility handoff requires explicit confirmation by an effective assigned
+ISSM or ISSO for the selected system. Membership, Mission Owner, AO, or CSP
+administration alone does not grant confirmation authority.
+
+The backend review API distinguishes:
+
+- **MissingBaseline**: select a baseline first.
+- **MissingAllocation**: explicitly select Inherited, Shared, or Customer.
+- **PendingReview**: review changed or unavailable provider content.
+- **ConflictingAllocations**: overlapping sources disagree; no precedence is inferred.
+- **PreservedOverride**: another designation source remains authoritative.
+
+Confirmation pins the displayed baseline, provider-content revision and review
+revision. Shared/Customer allocations require customer responsibility text;
+Inherited/Shared require a provider. A stale submission returns HTTP 409 and must
+be refreshed before confirmation.
+
+Reconciliation affects only the current system/baseline, preserving manual, imported,
+profile and organization-derived rows. Unsubscribing removes only owned contributions;
+remaining agreed subscriptions are retained. Approved narratives and narrative
+implementation status are not changed. Provider/reconciliation changes are recorded
+as durable review work, with separate mark-only delivery to the narrative queue.
+
+After baseline reselection, explicitly reconcile for immediate results. Automatic
+re-evaluation requires the production source-event dispatcher; its scheduling and
+retry behavior remain an integration gate on this branch. This is not
+organization-wide default derivation. Missing baseline or narrative rows defer
+delivery without creating placeholder narratives or discarding review work.
+
+Use **Review subscription responsibilities** from Control Inheritance or System
+Capabilities. The system-scoped route is `systems/{systemId}/inheritance/subscriptions`
+beneath the active workspace. The review shows subscription/provider provenance,
+the displayed source and review revisions, existing confirmed allocations and the
+effective designation separately. Missing, stale, conflicting, preserved-override,
+outside-baseline and inactive states are not treated as inherited.
+
+Available provider sources expose a redacted current display snapshot. Review its
+capability/component descriptions and current `Controls` mappings before confirming.
+Unpublished/deleted sources withhold snapshot content and cannot be confirmed.
+Historical controls removed from the current snapshot retain provenance but cannot
+be submitted again. Missing or malformed required snapshot data blocks confirmation
+with a visible error; it never creates a default allocation.
+
+The display JSON has PascalCase keys and redacted artifact references. Its contents
+are not the source-revision token: the UI echoes the server's opaque `sourceRevision`
+unchanged and does not hash, regenerate or substitute it.
+
+When a control was previously confirmed, **Compare reviewed and current provider
+snapshots** uses its actual persisted `reviewedSourceSnapshotJson`. The reviewed
+content is not reconstructed from current metadata and remains available if the
+provider is later unpublished or deleted. The current side remains unavailable in
+that case; unpublished content is never substituted. Controls present only in the
+reviewed snapshot stay ineligible for a new confirmation.
+
+Only a server response with `canConfirm: true` enables review actions. Choose an
+explicit allocation for each control being submitted, supply the required provider
+and customer responsibility, then confirm that subscription's selected allocations.
+The request contains the displayed baseline/source/review revisions, not a browser
+role or actor. HTTP 409 clears stale edits and reloads the preview for a new review;
+denied/unavailable responses block the prior review instead of displaying stale authority.
+
+**Reconcile current baseline** and **Deliver pending review impacts** are separate
+actions. Delivery is mark-only: it does not generate a model response or approve
+narratives. Delivery failures remain visible and pending work can be explicitly
+retried. Returned `MissingNarrative` deferrals remain pending and identify the
+control/impact whose narrative prerequisite must be created before retry.
+Returned proposal IDs link to the scoped Narrative Review workflow; queued work
+is not presented as generated or approved content. Pending-generation and failed
+work retain their exact proposal ID, base content and status. Refreshing proposal
+status is a read operation, not generation or approval. A missing explicitly
+requested ID never selects an unrelated proposal.
+
+Exact-ID retrieval beyond the bounded proposal list and authorized same-ID
+generation/retry remain backend integration gates on this branch. Until those
+contracts are available, the UI does not invent retry requests or generate a
+different proposal as a substitute.
+
+The API and local manual request examples are documented in the
+[handoff contract](../../specs/070-capability-library-org/contracts/responsibility-handoff.md)
+and [HTTP request file](../../src/Ato.Copilot.Mcp/capability-responsibilities.http).
+
+#### Local UI verification
+
+From `src/Ato.Copilot.Dashboard`, run:
+
+```bash
+npm exec tsc -- --noEmit
+npm exec --yes --package=node@20 -- node node_modules/vitest/vitest.mjs run \
+  src/__tests__/api/capabilityResponsibilities.test.ts \
+  src/__tests__/pages/CapabilityResponsibilityReview.test.tsx
+```
+
+With a dedicated Vite server on a free port:
+
+```bash
+npm exec --yes --package=node@20 -- node node_modules/vite/bin/vite.js \
+  --host 127.0.0.1 --port 5187 --strictPort
+# In another terminal:
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:5187 \
+  npm exec --yes --package=node@20 -- node node_modules/@playwright/test/cli.js \
+  test e2e/tests/capability-responsibility-review.spec.ts --project=chromium
+```
+
+The browser fixture uses synthetic API responses; it verifies UI request shape,
+scope preservation and interaction, not backend authorization or SQL persistence.
+For real local acceptance, repeat with assigned ISSO/ISSM and read-only principals,
+change a provider revision between preview and confirmation, verify HTTP 409 forces
+a new review, and inspect preserved overrides plus deferred narrative work.
+
 ### Inline Editing
 
 Click any row in the table to edit its inheritance type:
@@ -70,7 +182,8 @@ Click any table row to open the **Audit History Panel** on the right side. It sh
 
 - Who made each change and when.
 - Previous → New values for inheritance type, provider, and responsibility.
-- The change source (Manual, BulkUpdate, ProfileApply, CrmImport, OrgDerived, OrgPropagation).
+- The change source (Manual, BulkUpdate, ProfileApply, CrmImport, OrgDerived, OrgPropagation,
+  SubscriptionReconcile). Subscription-derived effective rows use `CspSubscription`.
 
 ## Generating the CRM
 

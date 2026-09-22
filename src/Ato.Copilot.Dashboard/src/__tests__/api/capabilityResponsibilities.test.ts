@@ -4,6 +4,7 @@ import {
   confirmCapabilityResponsibilities, dispatchCapabilityResponsibilityImpacts,
   getCapabilityResponsibilities, reconcileCapabilityResponsibilities,
 } from '../../api/capabilityResponsibilities';
+import { responsibilityItem, responsibilitySnapshotJson } from '../helpers/capabilityResponsibilityFixture';
 
 vi.mock('../../api/client', () => ({ default: { get: vi.fn(), put: vi.fn(), post: vi.fn() } }));
 const preview = { systemId: 'system/a', baselineId: 'baseline-1', canConfirm: true, items: [], pendingImpacts: [] };
@@ -78,5 +79,72 @@ describe('capability responsibility API contract', () => {
     vi.mocked(apiClient.get).mockRejectedValue('offline');
     // Act / Assert
     await expect(getCapabilityResponsibilities('system/a')).rejects.toThrow('The responsibility request failed.');
+  });
+
+  it('retains the opaque source pin instead of hashing the redacted display snapshot', async () => {
+    // Arrange
+    const sourceRevision = 'OPAQUE.server-revision.not-the-redacted-JSON-hash';
+    const data = { ...preview, items: [{ ...responsibilityItem(), sourceRevision }] };
+    vi.mocked(apiClient.get).mockResolvedValue({ data });
+    vi.mocked(apiClient.put).mockResolvedValue({ data });
+    // Act
+    const read = await getCapabilityResponsibilities('system/a');
+    const body = { baselineId: read.baselineId!, sourceRevision: read.items[0]!.sourceRevision,
+      reviewRevision: read.items[0]!.reviewRevision, allocations: [{
+        controlId: 'AC-1', inheritanceType: 'Customer' as const, provider: null, customerResponsibility: 'Customer responsibility.',
+      }] };
+    await confirmCapabilityResponsibilities('system/a', 'capability-a', body);
+    // Assert
+    expect(read.items[0]!.sourceSnapshotJson).toContain('[redacted]');
+    expect(vi.mocked(apiClient.put).mock.calls[0]?.[1]).toMatchObject({ sourceRevision });
+  });
+
+  it('accepts an unavailable source with withheld snapshot content', async () => {
+    // Arrange
+    const data = { ...preview, items: [{ ...responsibilityItem('PendingReview'), sourceAvailable: false, sourceSnapshotJson: null }] };
+    vi.mocked(apiClient.get).mockResolvedValue({ data });
+    // Act / Assert
+    await expect(getCapabilityResponsibilities('system/a')).resolves.toEqual(data);
+  });
+
+  it.each([
+    { sourceAvailable: undefined },
+    { sourceSnapshotJson: null },
+    { sourceSnapshotJson: '{bad-json' },
+    { sourceSnapshotJson: responsibilitySnapshotJson({ Controls: undefined }) },
+    { sourceSnapshotJson: responsibilitySnapshotJson({ Controls: 'AC-1' }) },
+    { sourceSnapshotJson: responsibilitySnapshotJson({ Controls: [1] }) },
+    { sourceSnapshotJson: responsibilitySnapshotJson({ Id: 'another-capability' }) },
+    { sourceAvailable: false, sourceSnapshotJson: responsibilitySnapshotJson() },
+    { sourceSnapshotJson: responsibilitySnapshotJson({ Component: {
+      CspInheritedComponentId: 'component-a', CspProfileId: 'provider-a', Name: 'Component', Description: '', Status: 1,
+      SourceArtifactReference: 'https://example.test/source?sig=synthetic-secret',
+    } }) },
+  ])('rejects incomplete, malformed, mismatched or unredacted required snapshots', async fields => {
+    // Arrange
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { ...preview, items: [{ ...responsibilityItem(), ...fields }] } });
+    // Act / Assert
+    await expect(getCapabilityResponsibilities('system/a')).rejects.toThrow(/snapshot|incomplete/i);
+  });
+
+  it('retains the persisted public review snapshot after the provider metadata is unavailable', async () => {
+    // Arrange
+    const reviewedSourceSnapshotJson = responsibilitySnapshotJson({ Name: 'Previously reviewed public capability' });
+    const data = { ...preview, items: [{
+      ...responsibilityItem('PendingReview'), componentId: null, cspProfileId: null,
+      sourceAvailable: false, sourceSnapshotJson: null, reviewedSourceSnapshotJson, reviewedSourceRevision: 'OLD-OPAQUE-PIN',
+    }] };
+    vi.mocked(apiClient.get).mockResolvedValue({ data });
+    // Act / Assert
+    await expect(getCapabilityResponsibilities('system/a')).resolves.toEqual(data);
+  });
+
+  it('does not accept malformed persisted history as a current-snapshot fallback', async () => {
+    // Arrange
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { ...preview, items: [{
+      ...responsibilityItem(), reviewedSourceSnapshotJson: '{}',
+    }] } });
+    // Act / Assert
+    await expect(getCapabilityResponsibilities('system/a')).rejects.toThrow(/snapshot.*malformed/i);
   });
 });

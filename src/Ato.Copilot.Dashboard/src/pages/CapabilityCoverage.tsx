@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from '../features/workspaces/workspaceNavigation';
 import { usePolling } from '../hooks/usePolling';
 import {
   getCapabilityCoverage,
@@ -72,6 +72,10 @@ export default function CapabilityCoverage() {
           <p className="mt-1 text-sm text-gray-500">
             View and manage the org-wide capabilities mapped to this system, along with their narrative coverage and linked components.
           </p>
+          {systemId && <Link to={`/systems/${encodeURIComponent(systemId)}/inheritance/subscriptions`}
+            className="mt-2 inline-block text-sm font-medium text-indigo-700 underline">
+            Review subscription responsibilities
+          </Link>}
         </div>
         <button
           type="button"

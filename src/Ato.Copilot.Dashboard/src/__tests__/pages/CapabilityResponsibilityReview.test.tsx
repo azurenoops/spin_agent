@@ -4,17 +4,13 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import CapabilityResponsibilityReview from '../../pages/CapabilityResponsibilityReview';
 import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 import * as api from '../../api/capabilityResponsibilities';
-import type { CapabilityResponsibilityItem, CapabilityResponsibilityResponse } from '../../api/capabilityResponsibilities';
+import type { CapabilityResponsibilityResponse } from '../../api/capabilityResponsibilities';
+import { responsibilityItem as item, responsibilitySnapshotJson } from '../helpers/capabilityResponsibilityFixture';
 
 vi.mock('../../api/capabilityResponsibilities', async importOriginal => {
   const actual = await importOriginal<typeof import('../../api/capabilityResponsibilities')>();
   return { ...actual, getCapabilityResponsibilities: vi.fn(), confirmCapabilityResponsibilities: vi.fn(),
     reconcileCapabilityResponsibilities: vi.fn(), dispatchCapabilityResponsibilityImpacts: vi.fn() };
-});
-const item = (state = 'MissingAllocation', controlId = 'AC-1'): CapabilityResponsibilityItem => ({
-  subscriptionId: 'subscription-a', capabilityId: 'capability-a', componentId: 'component-a', cspProfileId: 'provider-a',
-  controlId, sourceRevision: 'source-1', reviewRevision: 'review-1', state, reviewedSourceRevision: null,
-  confirmedBy: null, confirmedAt: null, allocation: null, effectiveInheritanceType: null, designationSource: null,
 });
 const preview = (overrides: Partial<CapabilityResponsibilityResponse> = {}): CapabilityResponsibilityResponse => ({
   systemId: 'system-a', baselineId: 'baseline-a', canConfirm: true, items: [item()], pendingImpacts: [], ...overrides,
@@ -252,5 +248,98 @@ describe('system subscription responsibility review', () => {
     expect(screen.getByText('system-b-source')).toBeInTheDocument();
     expect(screen.queryByText('stale-source')).not.toBeInTheDocument();
     expect(vi.mocked(api.getCapabilityResponsibilities).mock.calls[0]?.[1]?.aborted).toBe(true);
+  });
+
+  it('shows the current redacted provider snapshot and echoes the opaque server revision', async () => {
+    // Arrange
+    const sourceRevision = 'OPAQUE-provider-revision-unchanged';
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{ ...item(), sourceRevision }] }));
+    renderReview();
+    // Act
+    const snapshot = await screen.findByRole('region', { name: 'Current provider snapshot' });
+    // Assert
+    expect(within(snapshot).getByText('Reviewed access capability')).toBeInTheDocument();
+    expect(within(snapshot).getByText('Published provider component')).toBeInTheDocument();
+    expect(within(snapshot).getByText('[redacted]', { exact: true })).toBeInTheDocument();
+    // Act
+    await chooseShared();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm selected allocations' }));
+    await screen.findByText(/Selected allocations confirmed/);
+    // Assert
+    expect(api.confirmCapabilityResponsibilities).toHaveBeenCalledWith('system-a', 'capability-a',
+      expect.objectContaining({ sourceRevision }), expect.anything());
+  });
+
+  it('withholds unavailable provider content and disables confirmation even when canConfirm is true', async () => {
+    // Arrange
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{
+      ...item('PendingReview'), sourceAvailable: false, sourceSnapshotJson: null,
+    }] }));
+    // Act
+    renderReview();
+    // Assert
+    expect(await screen.findByText(/Provider source unavailable/)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirm selected allocations' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Reviewed access capability')).not.toBeInTheDocument();
+  });
+
+  it('blocks a removed historical control but permits explicit review of a current mapping', async () => {
+    // Arrange
+    const sourceSnapshotJson = responsibilitySnapshotJson({ Controls: ['AC-2'] });
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [
+      { ...item('PendingReview'), sourceSnapshotJson }, { ...item('MissingAllocation', 'AC-2'), sourceSnapshotJson },
+    ] }));
+    // Act
+    renderReview();
+    // Assert
+    expect(await screen.findByText(/AC-1 is no longer mapped/)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Allocation for AC-1' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Allocation for AC-2' })).toHaveValue('');
+  });
+
+  it('shows a snapshot error and no allocation fields when a required snapshot is malformed', async () => {
+    // Arrange
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{ ...item(), sourceSnapshotJson: '{}' }] }));
+    // Act
+    renderReview();
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent(/snapshot.*malformed/i);
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
+  });
+
+  it('compares actual reviewed content against the changed current snapshot without copying metadata', async () => {
+    // Arrange
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{
+      ...item('PendingReview'),
+      sourceSnapshotJson: responsibilitySnapshotJson({ Name: 'Current published capability', Controls: ['AC-2'] }),
+      reviewedSourceSnapshotJson: responsibilitySnapshotJson({ Name: 'Persisted reviewed capability', Controls: ['AC-1'] }),
+      reviewedSourceRevision: 'REVIEWED-OPAQUE-PIN', confirmedBy: 'reviewer', confirmedAt: '2026-09-01T00:00:00Z',
+      allocation: { controlId: 'AC-1', inheritanceType: 'Shared', provider: 'Reviewed CSP', customerResponsibility: 'Original reviewed responsibility' },
+    }] }));
+    renderReview();
+    // Act
+    fireEvent.click(await screen.findByText('Compare reviewed and current provider snapshots for AC-1'));
+    // Assert
+    expect(within(screen.getByRole('region', { name: 'Reviewed provider snapshot for AC-1' })).getByText('Persisted reviewed capability')).toBeVisible();
+    expect(within(screen.getByRole('region', { name: 'Current provider snapshot for AC-1' })).getByText('Current published capability')).toBeVisible();
+    expect(screen.queryByRole('combobox', { name: 'Allocation for AC-1' })).not.toBeInTheDocument();
+  });
+
+  it('shows actual reviewed history but no current provider content after withdrawal', async () => {
+    // Arrange
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{
+      ...item('PendingReview'), sourceAvailable: false, sourceSnapshotJson: null,
+      reviewedSourceSnapshotJson: responsibilitySnapshotJson({ Name: 'Previously reviewed public capability' }),
+      reviewedSourceRevision: 'REVIEWED-OPAQUE-PIN',
+    }] }));
+    renderReview();
+    // Act
+    fireEvent.click(await screen.findByText('Compare reviewed and current provider snapshots for AC-1'));
+    // Assert
+    expect(screen.getByText('Previously reviewed public capability')).toBeVisible();
+    expect(screen.getByText('Current source unavailable; no unpublished content is shown.')).toBeVisible();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 });

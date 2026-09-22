@@ -13,6 +13,7 @@ export interface NarrativeProposal {
   missingEvidence: string[]; status: string; revision: number; createdAt: string; createdBy: string;
   reviewedAt: string | null; reviewedBy: string | null; reviewNote: string | null; acceptedVersion: number | null;
   isStale: boolean; canReview: boolean;
+  changeSourceKind?: string | null; changeSourceId?: string | null; generationErrorCode?: string | null;
 }
 export interface NarrativeAccess {
   tenantId: string; systemName: string; canAuthor: boolean; canPublishShared: boolean;

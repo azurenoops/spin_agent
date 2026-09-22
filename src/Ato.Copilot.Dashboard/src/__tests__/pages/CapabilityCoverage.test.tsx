@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
+import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -65,7 +67,7 @@ describe('CapabilityCoverage narrative regeneration', () => {
       failed: 1,
       regeneratedControlIds: ['AC-2', 'AC-6'],
     });
-    render(<CapabilityCoverage />);
+    render(<MemoryRouter><CapabilityCoverage /></MemoryRouter>);
     fireEvent.click(screen.getByText('CSP Identity Governance'));
 
     // Act
@@ -83,7 +85,7 @@ describe('CapabilityCoverage narrative regeneration', () => {
       error: 'Capability subscription is not active',
       suggestion: 'Subscribe the system to this CSP capability and try again',
     });
-    render(<CapabilityCoverage />);
+    render(<MemoryRouter><CapabilityCoverage /></MemoryRouter>);
     fireEvent.click(screen.getByText('CSP Identity Governance'));
 
     // Act
@@ -95,5 +97,18 @@ describe('CapabilityCoverage narrative regeneration', () => {
     });
     expect(screen.getByText(/Subscribe the system to this CSP capability and try again/))
       .toBeInTheDocument();
+  });
+
+  it('links to explicit subscription review without losing the workspace', () => {
+    // Arrange / Act
+    render(<MemoryRouter initialEntries={['/workspaces/organizations/org-a/systems/system-1/capability-coverage']}>
+      <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-a' }}>
+        <CapabilityCoverage />
+      </WorkspaceNavigationProvider>
+    </MemoryRouter>);
+    // Assert
+    expect(screen.getByRole('link', { name: 'Review subscription responsibilities' })).toHaveAttribute('href',
+      '/workspaces/organizations/org-a/systems/system-1/inheritance/subscriptions');
+    expect(mockBulkRegenerate).not.toHaveBeenCalled();
   });
 });

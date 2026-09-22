@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from '../features/workspaces/workspaceNavigation';
 import {
   confirmCapabilityResponsibilities, dispatchCapabilityResponsibilityImpacts, getCapabilityResponsibilities,
-  isResponsibilityType, reconcileCapabilityResponsibilities, ResponsibilityApiError,
+  isResponsibilityType, readProviderSnapshot, readReviewedProviderSnapshot, reconcileCapabilityResponsibilities, ResponsibilityApiError,
   type CapabilityResponsibilityAllocation, type CapabilityResponsibilityDispatchResponse,
   type CapabilityResponsibilityItem, type CapabilityResponsibilityResponse,
-  type ConfirmCapabilityResponsibilitiesRequest, type ResponsibilityInheritanceType,
+  type ConfirmCapabilityResponsibilitiesRequest, type ProviderReviewSnapshot, type ResponsibilityInheritanceType,
 } from '../api/capabilityResponsibilities';
 
 const button = 'rounded border border-indigo-600 px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50';
@@ -213,6 +213,25 @@ interface AllocationDraft {
 }
 const emptyDraft: AllocationDraft = { inheritanceType: '', provider: '', customerResponsibility: '' };
 
+function ProviderSnapshotView({ snapshot, label, revision }: {
+  snapshot: ProviderReviewSnapshot; label: string; revision?: string | null;
+}) {
+  return <section aria-label={label} className="space-y-2 rounded border bg-indigo-50/50 p-3">
+    <h3 className="font-semibold">{label}</h3>
+    {revision && <p className="break-all text-xs">Source revision: {revision}</p>}
+    <p className="font-medium">{snapshot.Name}</p>
+    <p>{snapshot.Description}</p>
+    <p className="font-medium">{snapshot.Component.Name}</p>
+    <p>{snapshot.Component.Description}</p>
+    <p>Mapped controls: {snapshot.Controls.length ? snapshot.Controls.join(', ') : 'None'}</p>
+    <dl><dt className="font-medium">Artifact reference</dt><dd>{snapshot.Component.SourceArtifactReference ?? 'Not supplied'}</dd></dl>
+    <p className="text-xs text-gray-600">Display snapshot; artifact references are redacted by the server.</p>
+    <details><summary className="cursor-pointer">View redacted snapshot JSON</summary>
+      <pre className="mt-2 whitespace-pre-wrap break-all text-xs">{JSON.stringify(snapshot, null, 2)}</pre>
+    </details>
+  </section>;
+}
+
 function SubscriptionReview({ items, baselineId, canConfirm, busy, onConfirm, systemId }: {
   items: CapabilityResponsibilityItem[]; baselineId: string | null; canConfirm: boolean; busy: boolean; systemId: string;
   onConfirm: (capabilityId: string, body: ConfirmCapabilityResponsibilitiesRequest) => Promise<void>;
@@ -221,9 +240,22 @@ function SubscriptionReview({ items, baselineId, canConfirm, busy, onConfirm, sy
   const [drafts, setDrafts] = useState<Record<string, AllocationDraft>>({});
   const [reviewed, setReviewed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  let snapshot: ProviderReviewSnapshot | null = null;
+  let snapshotError: string | null = null;
+  const reviewedSnapshots = new Map<string, ProviderReviewSnapshot | null>();
+  try {
+    snapshot = readProviderSnapshot(first);
+    items.forEach(item => reviewedSnapshots.set(item.controlId, readReviewedProviderSnapshot(item)));
+  } catch (reason) {
+    snapshotError = reason instanceof Error ? reason.message : 'The provider snapshot is malformed.';
+  }
   const consistent = items.every(item => item.capabilityId === first.capabilityId
-    && item.sourceRevision === first.sourceRevision && item.reviewRevision === first.reviewRevision);
-  const editable = canConfirm && !!baselineId && consistent && items.some(item => editableStates.has(item.state));
+    && item.sourceRevision === first.sourceRevision && item.reviewRevision === first.reviewRevision
+    && item.sourceAvailable === first.sourceAvailable && item.sourceSnapshotJson === first.sourceSnapshotJson);
+  const currentlyMapped = (item: CapabilityResponsibilityItem) =>
+    snapshot?.Controls.some(control => control.toUpperCase() === item.controlId.toUpperCase()) === true;
+  const editable = canConfirm && !!baselineId && consistent && !snapshotError && first.sourceAvailable && snapshot !== null
+    && items.some(item => editableStates.has(item.state) && currentlyMapped(item));
   const selected: CapabilityResponsibilityAllocation[] = Object.entries(drafts).flatMap(([controlId, draft]) =>
     isResponsibilityType(draft.inheritanceType) ? [{
       controlId, inheritanceType: draft.inheritanceType, provider: draft.provider.trim() || null,
@@ -260,6 +292,14 @@ function SubscriptionReview({ items, baselineId, canConfirm, busy, onConfirm, sy
           <div><dt className="font-medium">Displayed review revision</dt><dd className="break-all">{first.reviewRevision}</dd></div>
         </dl>
         {!consistent && <p role="alert">This subscription returned inconsistent revisions. Reload the preview before confirming.</p>}
+        {snapshotError && <p role="alert" className="text-red-800">{snapshotError}</p>}
+        {first.sourceAvailable === false && <p className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-900">
+          Provider source unavailable. Unpublished or deleted provider content is withheld; confirmation is disabled.
+        </p>}
+        {snapshot && <>
+          <ProviderSnapshotView snapshot={snapshot} label="Current provider snapshot" />
+          <p className="text-xs text-gray-600">Confirmation uses the unchanged opaque current source revision, not a hash of a display snapshot.</p>
+        </>}
       </header>
       <form onSubmit={submit} className="space-y-4">
         <fieldset disabled={busy} className="space-y-4">
@@ -267,6 +307,7 @@ function SubscriptionReview({ items, baselineId, canConfirm, busy, onConfirm, sy
           {items.map(item => {
             const status = states[item.state];
             const draft = drafts[item.controlId] ?? emptyDraft;
+            const reviewedSnapshot = reviewedSnapshots.get(item.controlId);
             const key = `${first.subscriptionId}-${item.controlId}`;
             return <article key={item.controlId} className="space-y-3 rounded border bg-gray-50 p-4">
               <div className="flex flex-wrap items-center gap-3">
@@ -274,6 +315,9 @@ function SubscriptionReview({ items, baselineId, canConfirm, busy, onConfirm, sy
                 <span className="rounded border bg-white px-2 py-1 text-xs">{status?.label ?? `Unknown state: ${item.state}`}</span>
               </div>
               <p className="text-sm text-gray-700">{status?.explanation ?? 'Refresh or contact support. This unrecognized state cannot be confirmed.'}</p>
+              {snapshot && !currentlyMapped(item) && <p className="text-sm text-amber-900">
+                {item.controlId} is no longer mapped by the current provider snapshot. Historical provenance is retained; confirmation is disabled.
+              </p>}
               <p className="text-sm">Effective designation: <strong>{item.effectiveInheritanceType ? `${item.effectiveInheritanceType} · ${item.designationSource ?? 'Source not reported'}` : 'Not designated'}</strong></p>
               {item.allocation && <div className="space-y-1 text-sm">
                 <p>Previously confirmed: {item.allocation.inheritanceType} · Provider: {item.allocation.provider ?? 'None'}</p>
@@ -281,7 +325,15 @@ function SubscriptionReview({ items, baselineId, canConfirm, busy, onConfirm, sy
                 <p className="break-all">Reviewed source: {item.reviewedSourceRevision ?? 'Not reported'}</p>
                 <p>Confirmed by {item.confirmedBy ?? 'Not reported'} at {item.confirmedAt ?? 'Not reported'}</p>
               </div>}
-              {editable && editableStates.has(item.state) && <div className="grid gap-3 sm:grid-cols-2">
+              {reviewedSnapshot && <details className="text-sm">
+                <summary className="cursor-pointer font-medium">Compare reviewed and current provider snapshots for {item.controlId}</summary>
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  <ProviderSnapshotView snapshot={reviewedSnapshot} label={`Reviewed provider snapshot for ${item.controlId}`} revision={item.reviewedSourceRevision} />
+                  {snapshot ? <ProviderSnapshotView snapshot={snapshot} label={`Current provider snapshot for ${item.controlId}`} revision={first.sourceRevision} />
+                    : <p className="rounded border border-amber-300 p-3 text-amber-900">Current source unavailable; no unpublished content is shown.</p>}
+                </div>
+              </details>}
+              {editable && editableStates.has(item.state) && currentlyMapped(item) && <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-sm" htmlFor={`${key}-allocation`}>Allocation for {item.controlId}
                   <select id={`${key}-allocation`} className={input} value={draft.inheritanceType} onChange={event =>
                     update(item.controlId, { inheritanceType: isResponsibilityType(event.target.value) ? event.target.value : '' })}>

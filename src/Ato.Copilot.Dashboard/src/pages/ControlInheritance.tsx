@@ -257,6 +257,12 @@ export default function ControlInheritance() {
         <Link to="/capabilities" className="font-medium underline hover:text-indigo-900">
           Manage Capabilities &rarr;
         </Link>
+        <p className="mt-2">
+          CSP subscriptions require explicit system allocations.{' '}
+          <Link to={`/systems/${encodeURIComponent(systemId)}/inheritance/subscriptions`} className="font-medium underline hover:text-indigo-900">
+            Review subscription responsibilities
+          </Link>
+        </p>
       </div>
       <div className="flex items-center justify-between">
         <div>
