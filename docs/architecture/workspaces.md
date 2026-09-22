@@ -8,6 +8,21 @@ regression test rather than only simulating its data transformation in memory.
 Development simulation may start before its configured organization exists.
 Such pre-workspace login events belong to the existing system audit tenant;
 simulation must not create organizations or memberships to satisfy an audit FK.
+The selected simulation cookie must be resolved on subsequent requests, rather
+than authenticating as the legacy default identity. For local verification,
+select CSP Admin, then check that `/api/auth/me` identifies that administrator
+and offers the provider workspace. An unknown selection must return 401.
+Organization personas still require explicit memberships and system roles.
+The identity-selection regression first passed 34 simulation tests. Live
+verification then exposed a missing `CspProfiles` table: SQLite startup uses
+migrations and explicit schema additions, whereas only SQL Server runs the
+missing-model-table pass. The tenancy schema module now creates `CspProfiles`
+idempotently without inserting a profile row. Real SQLite startup/read/restart
+tests cover both deployment modes and preserve an explicitly created profile.
+The combined focused run passed 47 tests. The local Dashboard proxy then
+returned 204 for simulated sign-in and 200 for `/api/auth/me`, with the selected
+CSP Admin identity and an ordinary Hosting CSP workspace. CSP onboarding remains
+Pending; this API smoke check does not replace browser/manual acceptance.
 
 This branch is being published for local workspace testing, not as a completed
 or merge-ready implementation of #1002. The latest completed backend run built

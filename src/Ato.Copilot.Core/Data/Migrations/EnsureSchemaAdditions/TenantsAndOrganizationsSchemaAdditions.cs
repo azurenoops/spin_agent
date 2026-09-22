@@ -6,7 +6,7 @@ namespace Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
 
 /// <summary>
 /// Idempotent additive SQL migrations for the Feature 048 tenancy tables
-/// (<c>Tenants</c>, <c>Organizations</c>). Called from <c>Program.cs</c>'s
+/// (<c>Tenants</c>, <c>Organizations</c>, <c>CspProfiles</c>). Called from <c>Program.cs</c>'s
 /// <c>EnsureSchemaAdditionsAsync</c> after <c>EnsureCreatedAsync</c>. Safe to
 /// run repeatedly. Detects the active EF Core provider and emits dialect-aware
 /// SQL.
@@ -15,7 +15,7 @@ namespace Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
 public static class TenantsAndOrganizationsSchemaAdditions
 {
     /// <summary>
-    /// Creates the <c>Tenants</c> and <c>Organizations</c> tables (and their
+    /// Creates the <c>Tenants</c>, <c>Organizations</c> and <c>CspProfiles</c> tables (and their
     /// indexes) if they do not already exist. No-op when the tables exist.
     /// </summary>
     public static async Task ApplyAsync(
@@ -49,7 +49,7 @@ public static class TenantsAndOrganizationsSchemaAdditions
             }
 
             logger.LogInformation(
-                "Verified Feature 048 tenancy schema (Tenants, Organizations) on {Provider}",
+                "Verified Feature 048 tenancy schema (Tenants, Organizations, CspProfiles) on {Provider}",
                 providerName);
         }
         catch (Exception ex)
@@ -133,13 +133,55 @@ public static class TenantsAndOrganizationsSchemaAdditions
         BEGIN
             CREATE INDEX IX_Organizations_TenantId_ParentOrganizationId ON dbo.Organizations (TenantId, ParentOrganizationId);
         END;
+
+        IF OBJECT_ID(N'dbo.CspProfiles', N'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.CspProfiles (
+                Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CspProfiles PRIMARY KEY,
+                LegalEntityName NVARCHAR(256) NOT NULL,
+                DisplayName NVARCHAR(64) NOT NULL,
+                LogoUrl NVARCHAR(2048) NULL,
+                PrimarySupportEmail NVARCHAR(254) NULL,
+                SupportPhone NVARCHAR(40) NULL,
+                DefaultClassificationFloor INT NOT NULL,
+                OnboardingState INT NOT NULL,
+                OnboardingCompletedAt DATETIMEOFFSET NULL,
+                IdentityCompletedAt DATETIMEOFFSET NULL,
+                SupportCompletedAt DATETIMEOFFSET NULL,
+                ClassificationCompletedAt DATETIMEOFFSET NULL,
+                CreatedAt DATETIMEOFFSET NOT NULL,
+                CreatedBy NVARCHAR(254) NOT NULL,
+                UpdatedAt DATETIMEOFFSET NULL,
+                UpdatedBy NVARCHAR(254) NULL,
+                RowVersion ROWVERSION NULL
+            );
+        END;
         """;
 
     // ─── SQLite (development) ────────────────────────────────────────────────
-    // SQLite supports IF NOT EXISTS on CREATE TABLE / CREATE INDEX, and EnsureCreated
-    // already creates these tables — this script exists only to support hosts
-    // that use a hand-managed SQLite database.
+    // SQLite startup uses migrations, so tables absent from the migration
+    // baseline must be created here even for a brand-new database.
     private const string SqliteScript = """
+        CREATE TABLE IF NOT EXISTS CspProfiles (
+            Id TEXT NOT NULL CONSTRAINT PK_CspProfiles PRIMARY KEY,
+            LegalEntityName TEXT NOT NULL,
+            DisplayName TEXT NOT NULL,
+            LogoUrl TEXT NULL,
+            PrimarySupportEmail TEXT NULL,
+            SupportPhone TEXT NULL,
+            DefaultClassificationFloor INTEGER NOT NULL,
+            OnboardingState INTEGER NOT NULL,
+            OnboardingCompletedAt TEXT NULL,
+            IdentityCompletedAt TEXT NULL,
+            SupportCompletedAt TEXT NULL,
+            ClassificationCompletedAt TEXT NULL,
+            CreatedAt TEXT NOT NULL,
+            CreatedBy TEXT NOT NULL,
+            UpdatedAt TEXT NULL,
+            UpdatedBy TEXT NULL,
+            RowVersion BLOB NULL
+        );
+
         CREATE TABLE IF NOT EXISTS Tenants (
             Id TEXT NOT NULL PRIMARY KEY,
             EntraTenantId TEXT NULL,

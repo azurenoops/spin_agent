@@ -163,7 +163,51 @@ public class EnsureSchemaAdditionsAsyncTests
         }
     }
 
-    private sealed class SchemaAdditionsFactory(string databaseFile) : WebApplicationFactory<McpProgram>
+    [Theory]
+    [InlineData("SingleTenant")]
+    [InlineData("MultiTenant")]
+    public async Task SqliteStartup_CspProfileSchema_IsReadableAndPreservesDataOnRestart(string deploymentMode)
+    {
+        // Arrange
+        var databaseFile = Path.Combine(Path.GetTempPath(), $"csp-schema-{Guid.NewGuid():N}.db");
+        using var environment = SchemaEnvironment();
+        Guid? profileId = null;
+        try
+        {
+            await using (var firstBoot = new SchemaAdditionsFactory(databaseFile, deploymentMode))
+            using (firstBoot.CreateClient())
+            {
+                var profiles = firstBoot.Services.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ICspProfileService>();
+                (await profiles.GetAsync()).Should().BeNull("startup must not seed a CSP profile");
+                if (deploymentMode == "MultiTenant")
+                    profileId = (await profiles.EnsureCreatedAsync("schema-regression")).Id;
+            }
+
+            // Act
+            await using var secondBoot = new SchemaAdditionsFactory(databaseFile, deploymentMode);
+            using var client = secondBoot.CreateClient();
+            var restartedProfiles = secondBoot.Services.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ICspProfileService>();
+            var profile = await restartedProfiles.GetAsync();
+
+            // Assert
+            if (profileId.HasValue)
+            {
+                profile.Should().NotBeNull();
+                profile!.Id.Should().Be(profileId.Value);
+                profile.CreatedBy.Should().Be("schema-regression");
+            }
+            else
+            {
+                profile.Should().BeNull("SingleTenant startup must not create a CSP profile");
+            }
+        }
+        finally
+        {
+            File.Delete(databaseFile);
+        }
+    }
+
+    private sealed class SchemaAdditionsFactory(string databaseFile, string deploymentMode = "SingleTenant") : WebApplicationFactory<McpProgram>
     {
         public IReadOnlyList<ServiceDescriptor> FanoutRegistrations { get; private set; } = [];
 
@@ -175,7 +219,7 @@ public class EnsureSchemaAdditionsAsyncTests
                 {
                     ["Database:Provider"] = "Sqlite",
                     ["ConnectionStrings:DefaultConnection"] = $"Data Source={databaseFile};Mode=ReadWriteCreate",
-                    ["Deployment:Mode"] = "SingleTenant",
+                    ["Deployment:Mode"] = deploymentMode,
                 }));
             builder.ConfigureServices(services =>
             {
