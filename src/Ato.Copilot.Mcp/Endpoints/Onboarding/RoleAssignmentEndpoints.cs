@@ -22,7 +22,8 @@ public static class RoleAssignmentEndpoints
     {
         var group = app.MapGroup("/api/onboarding/role-assignments")
             .WithTags("Onboarding")
-            .RequireAuthorization(OnboardingAdministratorRequirement.PolicyName);
+            .RequireAuthorization(OnboardingAdministratorRequirement.PolicyName)
+            .WithMetadata(new WorkspaceAuthorizedEndpoint());
 
         group.MapGet("/", async (
                 HttpContext http,

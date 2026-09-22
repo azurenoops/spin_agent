@@ -274,8 +274,7 @@ public class ComplianceAuthorizationMiddleware
             hasRole = HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method)
                 || (workspace.IsCspAdmin && workspace.ImpersonatedTenantId is null
                     && context.Request.Path.StartsWithSegments("/api/csp"))
-                || context.GetEndpoint()?.Metadata.GetMetadata<Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint>() is not null
-                || context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>() is not null;
+                || context.GetEndpoint()?.Metadata.GetMetadata<Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint>() is not null;
         }
 
         if (!hasRole)
