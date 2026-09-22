@@ -1,20 +1,23 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Ato.Copilot.Core.Models.Tenancy.Attributes;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Core.Models.Compliance;
 
-[TenantScoped]
-[Microsoft.EntityFrameworkCore.Index(nameof(TenantId), nameof(ReferenceKey), nameof(Version), IsUnique = true)]
-[Microsoft.EntityFrameworkCore.Index(nameof(TenantId), nameof(Scope), nameof(ScopeId), nameof(Title), nameof(Version), IsUnique = true)]
-public class NarrativeReference
+/// <summary>Provider-owned reference claims; only published, applicable revisions may cross into customer grounding.</summary>
+[GlobalReference]
+[Table("ProviderNarrativeReferences")]
+[Index(nameof(CspProfileId), nameof(ReferenceKey), nameof(Version), IsUnique = true)]
+[Index(nameof(CspProfileId), nameof(Scope), nameof(ScopeId), nameof(Title), nameof(Version), IsUnique = true)]
+public sealed class ProviderNarrativeReference
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid TenantId { get; set; }
+    public Guid CspProfileId { get; set; }
     public Guid ReferenceKey { get; set; } = Guid.NewGuid();
     [MaxLength(200)] public string Title { get; set; } = string.Empty;
-    [MaxLength(20)] public string Scope { get; set; } = "System";
-    [MaxLength(36)] public string ScopeId { get; set; } = string.Empty;
-    [MaxLength(36)] public string? ImportedForSystemId { get; set; }
+    [MaxLength(20)] public string Scope { get; set; } = "Provider";
+    public Guid ScopeId { get; set; }
     [MaxLength(200)] public string SourceName { get; set; } = string.Empty;
     [MaxLength(64)] public string SourceSha256 { get; set; } = string.Empty;
     public string OriginalPassagesJson { get; set; } = "[]";
@@ -26,5 +29,5 @@ public class NarrativeReference
     [MaxLength(200)] public string CreatedBy { get; set; } = string.Empty;
     public DateTime? PublishedAt { get; set; }
     [MaxLength(200)] public string? PublishedBy { get; set; }
-    public ICollection<NarrativeReferencePublication> Publications { get; set; } = new List<NarrativeReferencePublication>();
+    public ICollection<ProviderNarrativeReferencePublication> Publications { get; set; } = new List<ProviderNarrativeReferencePublication>();
 }
