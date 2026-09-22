@@ -1,353 +1,149 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
 using Ato.Copilot.Core.Data.Context;
-using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Services;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
-/// <summary>
-/// Org-user Capability Library endpoints (UF-CSP-01/02/03 — spec-070).
-///
-/// These endpoints serve the org-user (ISSO/ISSM/SCA) view of the CSP capability
-/// catalog. Only CspInheritedCapabilities with Status == Mapped are returned —
-/// NeedsReview and Archived capabilities are filtered out at the query level.
-///
-/// Separate from CSP-admin endpoints at /api/csp/inherited-components.
-///
-/// Routes:
-///   GET    /api/dashboard/capability-library
-///   GET    /api/dashboard/capability-library/{id}
-///   POST   /api/dashboard/systems/{systemId}/capability-subscriptions
-///   GET    /api/dashboard/systems/{systemId}/capability-subscriptions
-///   DELETE /api/dashboard/systems/{systemId}/capability-subscriptions/{capabilityId}
-/// </summary>
+/// <summary>Provider catalog and explicitly reviewed, system-scoped subscription responsibilities.</summary>
 public static class CapabilitySubscriptionEndpoints
 {
-    public static IEndpointRouteBuilder MapCapabilitySubscriptionEndpoints(
-        this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapCapabilitySubscriptionEndpoints(this IEndpointRouteBuilder app)
     {
-        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
-        var group = app.MapGroup("/api/dashboard")
-            .RequireAuthorization();
-
-        // ─── Capability Library — org-user browse ────────────────────────────
-
-        // GET /api/dashboard/capability-library
-        // Returns CSP capabilities with Status == Mapped, in org-user projection.
-        // Optional query params: search (name/description), provider (ComponentType enum),
-        // systemId (annotates isSubscribed per capability).
-        group.MapGet("/capability-library", async (
-            string? search,
-            string? provider,
-            string? systemId,
-            AtoCopilotContext db,
-            CancellationToken ct) =>
+        var group = app.MapGroup("/api/dashboard").RequireAuthorization().WithTags("Capability Library");
+        group.MapGet("/capability-library", async (string? search, string? provider, string? systemId,
+            AtoCopilotContext db, CancellationToken ct) =>
         {
-            // Base query: only published, mapped capabilities are consumable by org tenants.
-            var query = db.CspInheritedCapabilities
-                .Include(c => c.CspInheritedComponent)
-                .Where(c =>
-                    c.Status == CspInheritedCapabilityStatus.Mapped &&
-                    c.CspInheritedComponent.Status == CspInheritedComponentStatus.Published)
-                .AsQueryable();
-
+            var query = db.CspInheritedCapabilities.Include(c => c.CspInheritedComponent)
+                .Where(c => c.Status == CspInheritedCapabilityStatus.Mapped
+                    && c.CspInheritedComponent.Status == CspInheritedComponentStatus.Published);
             if (!string.IsNullOrWhiteSpace(search))
-                query = query.Where(c =>
-                    c.Name.Contains(search) || c.Description.Contains(search));
-
-            if (!string.IsNullOrWhiteSpace(provider) &&
-                Enum.TryParse<CspComponentType>(provider, ignoreCase: true, out var providerEnum))
-                query = query.Where(c => c.CspInheritedComponent.ComponentType == providerEnum);
-
-            var capabilities = await query
-                .OrderBy(c => c.Name)
-                .Select(c => new
-                {
-                    id = c.Id.ToString(),
-                    name = c.Name,
-                    description = c.Description,
-                    provider = c.CspInheritedComponent.ComponentType.ToString(),
-                    componentName = c.CspInheritedComponent.Name,
-                    controlCount = c.MappedNistControlIds.Count,
-                    mappedControls = c.MappedNistControlIds,
-                })
-                .ToListAsync(ct);
-
-            // Annotate subscription status if caller provided their systemId
-            HashSet<string> subscribed = new(StringComparer.OrdinalIgnoreCase);
-            if (!string.IsNullOrWhiteSpace(systemId))
+                query = query.Where(c => c.Name.Contains(search) || c.Description.Contains(search));
+            if (!string.IsNullOrWhiteSpace(provider) && Enum.TryParse<CspComponentType>(provider, true, out var type))
+                query = query.Where(c => c.CspInheritedComponent.ComponentType == type);
+            var capabilities = await query.OrderBy(c => c.Name).Select(c => new
             {
-                if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
-                    return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
-
-                subscribed = (await db.CapabilitySubscriptions
-                    .Where(s => s.RegisteredSystemId == systemId && s.IsActive)
-                    .Select(s => s.CspInheritedCapabilityId)
-                    .ToListAsync(ct))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            }
-
-            var result = capabilities.Select(c => new
+                id = c.Id.ToString(), name = c.Name, description = c.Description,
+                provider = c.CspInheritedComponent.ComponentType.ToString(), componentName = c.CspInheritedComponent.Name,
+                controlCount = c.MappedNistControlIds.Count, mappedControls = c.MappedNistControlIds
+            }).ToListAsync(ct);
+            var subscribed = string.IsNullOrWhiteSpace(systemId) ? [] : await db.CapabilitySubscriptions
+                .Where(s => s.RegisteredSystemId == systemId && s.IsActive).Select(s => s.CspInheritedCapabilityId).ToListAsync(ct);
+            var items = capabilities.Select(c => new
             {
-                c.id, c.name, c.description, c.provider,
-                c.componentName, c.controlCount, c.mappedControls,
-                isSubscribed = subscribed.Contains(c.id),
-            });
+                c.id, c.name, c.description, c.provider, c.componentName, c.controlCount, c.mappedControls,
+                isSubscribed = subscribed.Contains(c.id)
+            }).ToArray();
+            return TypedResults.Ok(new { items, totalCount = items.Length });
+        }).WithName("ListCapabilityLibrary").RequireResponsibilityAccess(false, optionalSystem: true);
 
-            return Results.Ok(new { items = result, totalCount = result.Count() });
-        })
-        .WithName("ListCapabilityLibrary")
-        .WithTags("Capability Library");
-
-        // ─────────────────────────────────────────────────────────────────────
-
-        // GET /api/dashboard/capability-library/{id}
-        // Returns a single Mapped capability with full control detail.
-        // Used by UF-CSP-02 (OrgCapabilityDetailPage).
-        group.MapGet("/capability-library/{id:guid}", async (
-            Guid id,
-            string? systemId,
-            AtoCopilotContext db,
-            CancellationToken ct) =>
+        group.MapGet("/capability-library/{id:guid}", async (Guid id, string? systemId, AtoCopilotContext db, CancellationToken ct) =>
         {
-            var capability = await db.CspInheritedCapabilities
-                .Include(c => c.CspInheritedComponent)
-                .FirstOrDefaultAsync(c =>
-                    c.Id == id &&
-                    c.Status == CspInheritedCapabilityStatus.Mapped &&
-                    c.CspInheritedComponent.Status == CspInheritedComponentStatus.Published, ct);
-
-            if (capability is null)
-                return Results.NotFound(new { error = "Capability not found", errorCode = "NOT_FOUND" });
-
-            // Check subscription if systemId provided
-            bool isSubscribed = false;
-            if (!string.IsNullOrWhiteSpace(systemId))
-            {
-                if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
-                    return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
-
-                isSubscribed = await db.CapabilitySubscriptions.AnyAsync(s =>
-                    s.RegisteredSystemId == systemId &&
-                    s.CspInheritedCapabilityId == id.ToString() &&
-                    s.IsActive, ct);
-            }
-
+            var c = await db.CspInheritedCapabilities.Include(c => c.CspInheritedComponent).SingleOrDefaultAsync(c =>
+                c.Id == id && c.Status == CspInheritedCapabilityStatus.Mapped
+                && c.CspInheritedComponent.Status == CspInheritedComponentStatus.Published, ct);
+            if (c is null) return Results.NotFound(new { error = "Capability not found", errorCode = "NOT_FOUND" });
+            var isSubscribed = !string.IsNullOrWhiteSpace(systemId) && await db.CapabilitySubscriptions.AnyAsync(s =>
+                s.RegisteredSystemId == systemId && s.CspInheritedCapabilityId == id.ToString() && s.IsActive, ct);
             return Results.Ok(new
             {
-                id = capability.Id.ToString(),
-                name = capability.Name,
-                description = capability.Description,
-                provider = capability.CspInheritedComponent.ComponentType.ToString(),
-                componentName = capability.CspInheritedComponent.Name,
-                mappedControls = capability.MappedNistControlIds,
-                mappingConfidence = capability.MappingConfidence,
-                reviewerNote = capability.ReviewerNote,
-                reviewedBy = capability.ReviewedBy,
-                reviewedAt = capability.ReviewedAt,
-                isSubscribed,
+                id = c.Id.ToString(), name = c.Name, description = c.Description,
+                provider = c.CspInheritedComponent.ComponentType.ToString(), componentName = c.CspInheritedComponent.Name,
+                mappedControls = c.MappedNistControlIds, mappingConfidence = c.MappingConfidence,
+                reviewerNote = c.ReviewerNote, reviewedBy = c.ReviewedBy, reviewedAt = c.ReviewedAt, isSubscribed
             });
-        })
-        .WithName("GetCapabilityLibraryDetail")
-        .WithTags("Capability Library");
+        }).WithName("GetCapabilityLibraryDetail").RequireResponsibilityAccess(false, optionalSystem: true);
 
-        // ─── Capability Subscriptions — per-system ────────────────────────────
-
-        // POST /api/dashboard/systems/{systemId}/capability-subscriptions
-        // Subscribe a system to a Mapped CSP capability (UF-CSP-01).
-        // Idempotent: re-subscribe after unsubscribe reactivates the record.
-        group.MapPost("/systems/{systemId}/capability-subscriptions", async (
-            string systemId,
-            SubscribeCapabilityRequest body,
-            AtoCopilotContext db,
-            CancellationToken ct) =>
+        var subscriptions = group.MapGroup("/systems/{systemId}/capability-subscriptions");
+        subscriptions.MapGet("", async (string systemId, AtoCopilotContext db, CancellationToken ct) =>
         {
-            if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
-                return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
+            var rows = await db.CapabilitySubscriptions.Where(s => s.RegisteredSystemId == systemId && s.IsActive)
+                .OrderBy(s => s.SubscribedAt).ToListAsync(ct);
+            var ids = rows.Select(s => Guid.Parse(s.CspInheritedCapabilityId)).ToArray();
+            var names = await db.CspInheritedCapabilities.Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+            var items = rows.Select(s => new
+            {
+                id = s.Id, capabilityId = s.CspInheritedCapabilityId,
+                capabilityName = names.GetValueOrDefault(Guid.Parse(s.CspInheritedCapabilityId), s.CspInheritedCapabilityId),
+                subscribedBy = s.SubscribedBy, subscribedAt = s.SubscribedAt
+            }).ToArray();
+            return TypedResults.Ok(new { items, totalCount = items.Length });
+        }).WithName("ListCapabilitySubscriptions").RequireResponsibilityAccess(false);
 
-            // Validate capability exists and is Mapped
-            if (!Guid.TryParse(body.CapabilityId, out var capGuid))
+        subscriptions.MapPost("", async (string systemId, SubscribeCapabilityRequest body,
+            ICapabilityResponsibilityService service, ICurrentUserService user, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(body.CapabilityId, out var id))
                 return Results.BadRequest(new { error = "Invalid capabilityId", errorCode = "INVALID_INPUT" });
+            var result = await service.SubscribeAsync(systemId, id, user.CurrentUserId, ct);
+            return !result.Created ? Results.Ok(result) : Results.Created(
+                $"/api/dashboard/systems/{systemId}/capability-subscriptions", result);
+        }).WithName("SubscribeToCapability").RequireResponsibilityAccess(true);
 
-            var capability = await db.CspInheritedCapabilities
-                .Include(c => c.CspInheritedComponent)
-                .FirstOrDefaultAsync(c => c.Id == capGuid, ct);
+        subscriptions.MapDelete("/{capabilityId:guid}", async (string systemId, Guid capabilityId,
+            ICapabilityResponsibilityService service, ICurrentUserService user, CancellationToken ct) =>
+            TypedResults.Ok(await service.UnsubscribeAsync(systemId, capabilityId, user.CurrentUserId, ct)))
+            .WithName("UnsubscribeFromCapability").RequireResponsibilityAccess(true);
 
-            if (capability is null)
-                return Results.NotFound(new { error = "Capability not found", errorCode = "NOT_FOUND" });
+        subscriptions.MapGet("/responsibilities", async (string systemId, ICapabilityResponsibilityService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.PreviewAsync(systemId, ct)))
+            .WithName("PreviewCapabilityResponsibilities").WithSummary("Preview responsibility prerequisites and reviewed source provenance")
+            .Produces<CapabilityResponsibilityResponse>().RequireResponsibilityAccess(false);
 
-            if (capability.Status != CspInheritedCapabilityStatus.Mapped)
-                return Results.BadRequest(new
-                {
-                    error = "Only Mapped capabilities can be subscribed to.",
-                    errorCode = "CAPABILITY_NOT_MAPPED",
-                });
+        subscriptions.MapPut("/{capabilityId:guid}/responsibilities", async (string systemId, Guid capabilityId,
+            ConfirmCapabilityResponsibilitiesRequest request, ICapabilityResponsibilityService service, ICurrentUserService user, CancellationToken ct) =>
+            TypedResults.Ok(await service.ConfirmAsync(systemId, capabilityId, request, user.CurrentUserId, ct)))
+            .WithName("ConfirmCapabilityResponsibilities").WithSummary("Confirm explicit allocations against the displayed provider revision")
+            .Produces<CapabilityResponsibilityResponse>().RequireResponsibilityAccess(true);
 
-            if (capability.CspInheritedComponent.Status != CspInheritedComponentStatus.Published)
-                return Results.BadRequest(new
-                {
-                    error = "Only capabilities from Published components can be subscribed to.",
-                    errorCode = "COMPONENT_NOT_PUBLISHED",
-                });
+        subscriptions.MapPost("/reconcile", async (string systemId, ICapabilityResponsibilityService service,
+            ICurrentUserService user, CancellationToken ct) =>
+            TypedResults.Ok(await service.ReconcileAsync(systemId, user.CurrentUserId, ct)))
+            .WithName("ReconcileCapabilityResponsibilities").WithSummary("Reconcile reviewed allocations without changing approved narratives")
+            .Produces<CapabilityResponsibilityResponse>().RequireResponsibilityAccess(true);
 
-            // Idempotency: re-activate if previously unsubscribed
-            var existing = await db.CapabilitySubscriptions.FirstOrDefaultAsync(s =>
-                s.RegisteredSystemId == systemId &&
-                s.CspInheritedCapabilityId == body.CapabilityId, ct);
-
-            if (existing is not null)
-            {
-                if (existing.IsActive)
-                    return Results.Ok(new { id = existing.Id, alreadySubscribed = true });
-
-                existing.IsActive = true;
-                existing.SubscribedAt = DateTime.UtcNow;
-                existing.SubscribedBy = currentUser.CurrentUserId;
-                await db.SaveChangesAsync(ct);
-                return Results.Ok(new { id = existing.Id, alreadySubscribed = false });
-            }
-
-            var subscription = new CapabilitySubscription
-            {
-                RegisteredSystemId = systemId,
-                CspInheritedCapabilityId = body.CapabilityId,
-                SubscribedBy = currentUser.CurrentUserId,
-            };
-
-            db.CapabilitySubscriptions.Add(subscription);
-
-            db.DashboardActivities.Add(new DashboardActivity
-            {
-                RegisteredSystemId = systemId,
-                EventType = "CapabilitySubscribed",
-                Actor = currentUser.CurrentUserId,
-                Summary = $"Subscribed to CSP capability: {capability.Name}",
-                RelatedEntityType = "CapabilitySubscription",
-                RelatedEntityId = subscription.Id,
-            });
-
-            await db.SaveChangesAsync(ct);
-
-            return Results.Created(
-                $"/api/dashboard/systems/{systemId}/capability-subscriptions/{subscription.Id}",
-                new { id = subscription.Id, alreadySubscribed = false });
-        })
-        .WithName("SubscribeToCapability")
-        .WithTags("Capability Library");
-
-        // ─────────────────────────────────────────────────────────────────────
-
-        // GET /api/dashboard/systems/{systemId}/capability-subscriptions
-        // Lists active capability subscriptions for a system.
-        group.MapGet("/systems/{systemId}/capability-subscriptions", async (
-            string systemId,
-            AtoCopilotContext db,
-            CancellationToken ct) =>
-        {
-            if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
-                return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
-
-            // Fetch subscriptions + enrich with capability names from CspInheritedCapabilities
-            var subs = await db.CapabilitySubscriptions
-                .Where(s => s.RegisteredSystemId == systemId && s.IsActive)
-                .OrderBy(s => s.SubscribedAt)
-                .Select(s => new
-                {
-                    id = s.Id,
-                    capabilityId = s.CspInheritedCapabilityId,
-                    subscribedBy = s.SubscribedBy,
-                    subscribedAt = s.SubscribedAt,
-                })
-                .ToListAsync(ct);
-
-            // Resolve capability names in one secondary query
-            var capIds = subs.Select(s => s.capabilityId).Distinct().ToList();
-            var capGuids = capIds
-                .Select(id => Guid.TryParse(id, out var g) ? (Guid?)g : null)
-                .Where(g => g.HasValue)
-                .Select(g => g!.Value)
-                .ToList();
-
-            var capNames = await db.CspInheritedCapabilities
-                .Where(c => capGuids.Contains(c.Id))
-                .Select(c => new { id = c.Id.ToString(), c.Name })
-                .ToListAsync(ct);
-
-            var nameMap = capNames.ToDictionary(c => c.id, c => c.Name);
-
-            var result = subs.Select(s => new
-            {
-                s.id, s.capabilityId,
-                capabilityName = nameMap.TryGetValue(s.capabilityId, out var n) ? n : s.capabilityId,
-                s.subscribedBy, s.subscribedAt,
-            });
-
-            return Results.Ok(new { items = result, totalCount = result.Count() });
-        })
-        .WithName("ListCapabilitySubscriptions")
-        .WithTags("Capability Library");
-
-        // ─────────────────────────────────────────────────────────────────────
-
-        // DELETE /api/dashboard/systems/{systemId}/capability-subscriptions/{capabilityId}
-        // Unsubscribes a system from a CSP capability (UF-CSP-03).
-        // Soft-delete: sets IsActive=false to preserve audit trail.
-        group.MapDelete(
-            "/systems/{systemId}/capability-subscriptions/{capabilityId}",
-            async (
-                string systemId,
-                string capabilityId,
-                AtoCopilotContext db,
-                CancellationToken ct) =>
-        {
-            if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId, ct))
-                return Results.NotFound(new { error = "System not found", errorCode = "SYSTEM_NOT_FOUND" });
-
-            var sub = await db.CapabilitySubscriptions.FirstOrDefaultAsync(s =>
-                s.RegisteredSystemId == systemId &&
-                s.CspInheritedCapabilityId == capabilityId &&
-                s.IsActive, ct);
-
-            if (sub is null)
-                return Results.NotFound(new { error = "Active subscription not found", errorCode = "NOT_FOUND" });
-
-            sub.IsActive = false;
-
-            // Capability name for audit log
-            Guid.TryParse(capabilityId, out var capGuid);
-            var capabilityName = (await db.CspInheritedCapabilities
-                .Where(c => c.Id == capGuid)
-                .Select(c => c.Name)
-                .FirstOrDefaultAsync(ct)) ?? capabilityId;
-
-            db.DashboardActivities.Add(new DashboardActivity
-            {
-                RegisteredSystemId = systemId,
-                EventType = "CapabilityUnsubscribed",
-                Actor = currentUser.CurrentUserId,
-                Summary = $"Unsubscribed from CSP capability: {capabilityName}",
-                RelatedEntityType = "CapabilitySubscription",
-                RelatedEntityId = sub.Id,
-            });
-
-            await db.SaveChangesAsync(ct);
-
-            return Results.Ok(new { id = sub.Id, unsubscribed = true });
-        })
-        .WithName("UnsubscribeFromCapability")
-        .WithTags("Capability Library");
-
+        subscriptions.MapPost("/review-impacts/dispatch", async (string systemId,
+            ICapabilityResponsibilityImpactDispatcher dispatcher, CancellationToken ct) =>
+            TypedResults.Ok(await dispatcher.DispatchAsync(systemId, ct)))
+            .WithName("DispatchCapabilityResponsibilityImpacts").WithSummary("Deliver pending review impacts without generating or approving narratives")
+            .Produces<CapabilityResponsibilityDispatchResponse>().RequireResponsibilityAccess(true);
         return app;
     }
 
-    // ─── Request DTOs ──────────────────────────────────────────────────────────
+    /// <summary>Same assignment-derived boundary for subscription review and REST inheritance writes.</summary>
+    public static RouteHandlerBuilder RequireResponsibilityAccess(this RouteHandlerBuilder route, bool write, bool optionalSystem = false) =>
+        route.WithMetadata(new WorkspaceAuthorizedEndpoint()).AddEndpointFilter(async (invocation, next) =>
+        {
+            var http = invocation.HttpContext;
+            var systemId = http.Request.RouteValues.GetValueOrDefault("systemId")?.ToString();
+            if (optionalSystem) systemId ??= http.Request.Query["systemId"].FirstOrDefault();
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(systemId))
+                    await http.RequestServices.GetRequiredService<ICapabilityResponsibilityService>()
+                        .AuthorizeAsync(systemId, write, http.RequestAborted);
+                else if (!optionalSystem)
+                    throw new KeyNotFoundException("System not found.");
+                return await next(invocation);
+            }
+            catch (Exception ex) when (ex is KeyNotFoundException or UnauthorizedAccessException or ArgumentException
+                or ResponsibilityReviewConflictException or DbUpdateConcurrencyException)
+            {
+                var (status, code, message) = ex switch
+                {
+                    KeyNotFoundException => (404, "NOT_FOUND", "The resource is not accessible in this system."),
+                    UnauthorizedAccessException => (403, "FORBIDDEN_ISSO_ISSM_REQUIRED", "An effective assigned ISSM or ISSO is required."),
+                    ArgumentException => (400, "INVALID_INPUT", ex.Message),
+                    _ => (409, "RESPONSIBILITY_REVIEW_CONFLICT", "The baseline, source, or review changed. Refresh and retry.")
+                };
+                http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(CapabilitySubscriptionEndpoints))
+                    .LogWarning(ex, "Responsibility operation rejected for system {SystemId} with code {Code}", systemId, code);
+                return Results.Problem(statusCode: status, title: message, extensions: new Dictionary<string, object?> { ["errorCode"] = code });
+            }
+        }).ProducesProblem(400).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409);
 
-    private record SubscribeCapabilityRequest(
-        string CapabilityId,
-        string? SubscribedBy);
+    /// <summary>Subscribe with server-stamped actor attribution.</summary>
+    public sealed record SubscribeCapabilityRequest(string CapabilityId);
 }

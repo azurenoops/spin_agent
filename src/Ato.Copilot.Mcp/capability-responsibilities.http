@@ -1,0 +1,49 @@
+@baseUrl = http://localhost:3001
+@token = replace-with-local-token
+@tenantId = replace-with-authorized-organization
+@systemId = replace-with-assigned-system
+@capabilityId = replace-with-published-capability
+@baselineId = copy-from-preview
+@sourceRevision = copy-from-preview
+@reviewRevision = copy-from-preview
+
+### Preview prerequisites and provenance; no writes and no inferred allocation
+GET {{baseUrl}}/api/dashboard/systems/{{systemId}}/capability-subscriptions/responsibilities
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+
+### Confirm as effective assigned ISSM/ISSO (not membership or global claims)
+PUT {{baseUrl}}/api/dashboard/systems/{{systemId}}/capability-subscriptions/{{capabilityId}}/responsibilities
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "baselineId": "{{baselineId}}",
+  "sourceRevision": "{{sourceRevision}}",
+  "reviewRevision": "{{reviewRevision}}",
+  "allocations": [{
+    "controlId": "AU-6",
+    "inheritanceType": "Shared",
+    "provider": "Synthetic provider",
+    "customerResponsibility": "Customer reviews alerts daily."
+  }]
+}
+
+### Reconcile current baseline (also repeat to check idempotence)
+POST {{baseUrl}}/api/dashboard/systems/{{systemId}}/capability-subscriptions/reconcile
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+
+### Deliver durable pending review work; no model call or approved-content change
+POST {{baseUrl}}/api/dashboard/systems/{{systemId}}/capability-subscriptions/review-impacts/dispatch
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+
+### Repeat a confirmation with stale source/review revision: expect 409
+### Repeat all write requests as Mission Owner or CSP-admin-only: expect denial
+### Change systemId to a foreign/unassigned system: expect 404 with no disclosure
