@@ -13,6 +13,21 @@ namespace Ato.Copilot.Tests.Unit.Chat;
 public class ChatDockerfileLockfileTests
 {
     [Fact]
+    public void Compose_chat_binds_published_port_on_all_container_interfaces()
+    {
+        // Arrange
+        var compose = File.ReadAllText(Path.Combine(FindRepoRoot(), "docker-compose.mcp.yml"));
+        var start = compose.IndexOf("  ato-chat:", StringComparison.Ordinal);
+        var end = compose.IndexOf("  ato-dashboard:", start, StringComparison.Ordinal);
+
+        // Act
+        var chatService = compose[start..end];
+
+        // Assert
+        chatService.Should().Contain("ATO_SERVER__URLS=http://0.0.0.0:5001");
+    }
+
+    [Fact]
     public void Frontend_stage_installs_from_committed_lockfile_via_npm_ci()
     {
         // Arrange

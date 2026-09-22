@@ -180,10 +180,15 @@ try
     var requireCac = azureAdSection.GetValue<bool>("RequireCac");
     builder.Services.AddAzureAdConfiguration(builder.Configuration);
     var azureAdOptions = azureAdSection.Get<AzureAdOptions>() ?? new AzureAdOptions();
+    var hasAzureAdConfiguration = !string.IsNullOrWhiteSpace(azureAdOptions.Instance)
+        && !string.IsNullOrWhiteSpace(azureAdOptions.TenantId)
+        && !string.IsNullOrWhiteSpace(azureAdOptions.ClientId);
+    if (!hasAzureAdConfiguration)
+        Log.Warning("Chat Entra configuration is incomplete. Public endpoints remain available in Development/Testing; protected endpoints require configured JWT authentication.");
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
-            options.Authority = azureAdOptions.Authority;
+            options.Authority = hasAzureAdConfiguration ? azureAdOptions.Authority : null;
             options.Audience = azureAdOptions.ClientId;
             options.MapInboundClaims = false;
             options.SaveToken = true;

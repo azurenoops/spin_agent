@@ -475,6 +475,49 @@ that the PR is merge-ready.
 
 ## Purpose
 
+### Docker Chat startup follow-up (2026-09-22)
+
+Live Chat logs show JWT options initialization rejecting `/v2.0`: Compose does
+not supply Entra settings, Development permits absent settings, and Chat still
+constructs an authority from empty values. Keep Development's unconfigured mode
+fail-closed for protected requests while permitting its existing public health
+and info endpoints; never disable HTTPS metadata or token validation. Production
+continues requiring Entra configuration at startup. Also set Chat's Compose
+`ATO_SERVER__URLS` explicitly: its Development JSON currently binds container
+loopback, making the published host port unreachable. Regression coverage must
+exercise the actual Chat host, public 200 responses, protected 401 responses,
+unchanged JWT validation flags and the Compose bind setting.
+
+Verification: 11 focused integration tests and 11 focused unit tests pass,
+including complete/partial/missing Entra settings, CAC token parity and
+production configuration validation. Rebuilt only the Chat amd64 image using
+the approved offline NuGet archives/npm registry, and recreated only Chat with
+the existing volumes. Docker reports healthy. From the host, `/health` and
+`/api/info` return 200; `/api/conversations` returns 401 both anonymously and
+with an invalid bearer token. Chat now listens on `0.0.0.0:5001`. This clears
+the JWT startup/port-reachability blocker, not authenticated Chat acceptance:
+valid Entra configuration and a real authorized identity are still required.
+
+Browser-assisted acceptance against the running Docker Dashboard:
+
+| Check | Observed result |
+|---|---|
+| CSP ordinary landing and refresh | Provider portfolio and CSP.Admin scope render |
+| Explicit workspace switch | Confirmation opens; chooser lists the authorized provider workspace; selecting it restores the provider URL |
+| Provider Narrative Library | Real scoped page renders, with no published reference narratives |
+| Mission Owner simulation | Identity selection returns 204, then explicit `NoTenantAssignment`; no membership was granted |
+| Organization-role and two-organization/tab scenarios | Not verified; require explicitly assigned acceptance identities |
+| Reference publication/consumption | Not verified; require scoped published reference fixtures |
+
+The CSP identity was restored after the checks. Provider navigation makes a
+background `/api/onboarding/organization-context` request that returns 403; the
+sequential server trace records `CacPassthrough` forbidden while provider summary
+and notification capabilities return 200. Its frontend call-site cause remains
+uninvestigated. No customer memberships, role grants or reference content were
+created during this pass. These checks are not user sign-off or proof of
+production Entra authorization. Separately, GitHub integration run 35795659028
+failed after the earlier local green run; that new failure remains undiagnosed.
+
 The dashboard already resolves provider and organization variants of portfolio,
 systems, components, capabilities and control pages. The proposed change makes
 that distinction a consistent authenticated workspace, rather than deriving

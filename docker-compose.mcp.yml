@@ -175,6 +175,7 @@ services:
       - "${CHAT_PORT:-5001}:5001"
     environment:
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}  # Fix #657: default to Development for local dev; set to Production in deployment pipelines
+      - ATO_SERVER__URLS=http://0.0.0.0:5001
 
       # ── Chat Database (SQL Server — separate DB) ──────────
       - ATO_CONNECTIONSTRINGS__CHATDB=Server=sqlserver,1433;Database=AtoCopilotChat;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True
