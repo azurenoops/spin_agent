@@ -5,6 +5,9 @@ import { getMsalInstance, DEFAULT_API_SCOPES } from '../features/auth/msalInstan
 import { useMe } from '../features/auth/useMe';
 import { workspaceHubUrl } from '../features/workspaces/workspaceHubUrl';
 import { msalAccountKey, selectMsalAccount } from '../features/auth/accountSelection';
+import { getNotificationCapabilities, type NotificationCapabilities } from '../features/notifications/capabilities';
+
+const notificationHubPath = '/hubs/notifications';
 
 export interface Notification {
   id: string;
@@ -22,13 +25,6 @@ export interface Notification {
 export interface NotificationSummary {
   unreadCount: number;
   totalCount: number;
-}
-
-interface NotificationCapabilities {
-  recipientId: string | null;
-  rest: { available: boolean; reasonCode: string | null };
-  realtime: { available: boolean; reasonCode: string | null };
-  fallback: { transport: 'rest-polling' | 'none'; pollIntervalSeconds: number | null };
 }
 
 interface NotificationState {
@@ -106,7 +102,7 @@ export function useNotifications(userId?: string) {
       if (!accountKey) throw new Error('A matching bearer identity is required for real-time notifications.');
       const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/dashboard', '') || '';
       const hub = new signalR.HubConnectionBuilder()
-        .withUrl(workspaceHubUrl(`${baseUrl}/hubs/notifications`), {
+        .withUrl(workspaceHubUrl(`${baseUrl}${notificationHubPath}`), {
           accessTokenFactory: async () => {
             const msal = getMsalInstance();
             const account = selectMsalAccount(msal);
@@ -137,7 +133,8 @@ export function useNotifications(userId?: string) {
         if (!current() || connection !== hub) return;
         try {
           await refresh();
-          if (current() && capabilities?.realtime.available && connection === hub) {
+          if (current() && capabilities?.realtime.available
+            && capabilities.realtime.hubPaths.includes(notificationHubPath) && connection === hub) {
             await hub.invoke('RegisterUser', capabilities.recipientId);
             realtimeConnected = true;
             schedulePolling();
@@ -187,13 +184,8 @@ export function useNotifications(userId?: string) {
       inFlight = Promise.resolve().then(async () => {
         try {
           if (userId && userId !== actor) throw new Error('Notification identity does not match the authenticated session.');
-          const response = await apiClient.get<NotificationCapabilities>('/notifications/capabilities', { signal: controller.signal });
+          const next = await getNotificationCapabilities(controller.signal);
           if (!current()) return;
-          const next = response.data;
-          if (typeof next?.rest?.available !== 'boolean' || typeof next?.realtime?.available !== 'boolean'
-            || !next.fallback || !['rest-polling', 'none'].includes(next.fallback.transport)) {
-            throw new Error('Unexpected notification capabilities response.');
-          }
           capabilities = next;
           if (!next.rest.available) {
             pollMs = 0;
@@ -208,24 +200,21 @@ export function useNotifications(userId?: string) {
           }
           if (next.recipientId !== actor) throw new Error('Notification identity does not match the authenticated session.');
           const seconds = next.fallback.pollIntervalSeconds;
-          if (next.fallback.transport === 'rest-polling') {
-            if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) {
-              throw new Error('Unexpected notification polling interval.');
-            }
-            pollMs = seconds * 1000;
-          } else pollMs = 0;
+          pollMs = next.fallback.transport === 'rest-polling' ? next.fallback.pollIntervalSeconds * 1000 : 0;
           const [list, summary] = await Promise.all([
             apiClient.get<{ items: Notification[] }>('/notifications', { params: { limit: 50 }, signal: controller.signal }),
             apiClient.get<NotificationSummary>('/notifications/summary', { signal: controller.signal }),
           ]);
           if (!current()) return;
+          const realtimeAvailable = next.realtime.available && next.realtime.hubPaths.includes(notificationHubPath);
           update({
             notifications: list.data.items, unreadCount: summary.data.unreadCount, error: null,
-            transportMessage: next.realtime.available ? null
-              : `Real-time notifications unavailable (${next.realtime.reasonCode ?? 'unsupported session'}).`
+            transportMessage: realtimeAvailable ? null
+              : `Real-time notifications unavailable (${next.realtime.available
+                ? 'notification hub not advertised' : next.realtime.reasonCode ?? 'unsupported session'}).`
                 + (pollMs ? ` Checking for updates every ${seconds} seconds.` : ''),
           });
-          if (next.realtime.available) connect();
+          if (realtimeAvailable) connect();
           else stopConnection();
         } catch (error) {
           if (!current()) return;

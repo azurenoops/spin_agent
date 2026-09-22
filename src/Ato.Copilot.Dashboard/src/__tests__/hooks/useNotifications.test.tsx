@@ -498,4 +498,36 @@ describe('notification session and workspace transport', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(mocks.get.mock.calls.filter(([url]) => url === '/notifications')).toHaveLength(2);
   });
+
+  it.each([
+    { ...capabilities.realtime, authentication: 'cookie' },
+    { ...capabilities.realtime, hubPaths: null },
+    { ...capabilities.realtime, cookieSessionSupported: undefined },
+  ])('rejects malformed transport metadata through the shared contract', async (realtime) => {
+    // Arrange
+    mocks.get.mockResolvedValue({ data: { ...capabilities, realtime } });
+    // Act
+    const { result } = renderHook(() => useNotifications());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    // Assert
+    expect(result.current.error).toMatch(/unexpected notification capabilities/i);
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+    expect(mocks.start).not.toHaveBeenCalled();
+  });
+
+  it('uses authorized REST fallback when the personal notification hub is not advertised', async () => {
+    // Arrange
+    mocks.getActiveAccount.mockReturnValue(account);
+    mocks.get.mockImplementation(async (url: string) => ({
+      data: url.endsWith('/capabilities') ? {
+        ...capabilities, realtime: { ...capabilities.realtime, available: true, hubPaths: ['/hubs/package'] },
+      } : url.endsWith('/summary') ? { unreadCount: 1, totalCount: 1 } : { items: [item] },
+    }));
+    // Act
+    const { result } = renderHook(() => useNotifications());
+    await waitFor(() => expect(result.current.notifications).toEqual([item]));
+    // Assert
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(result.current.transportMessage).toMatch(/not advertised/i);
+  });
 });

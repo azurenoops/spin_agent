@@ -200,6 +200,8 @@ API transport and current workspace selectors. REST access is based on the
 server session; an MSAL account is not required for cookie/simulation sessions.
 The response binds the recipient to the authenticated actor. The client never
 substitutes a placeholder recipient or sends a different account's object ID.
+Notification and progress clients share capability-response validation; a
+real-time client connects only to its explicitly advertised hub path.
 
 When real-time delivery is unavailable or disconnected and the server declares
 `rest-polling`, the client polls at the supplied interval (currently 30 seconds).
