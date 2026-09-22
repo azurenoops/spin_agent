@@ -8,6 +8,37 @@ The Compliance Dashboard provides a real-time visual overview of your organizati
 
 ## Overview
 
+### Narrative reference lifecycle (backend continuation)
+
+Uploaded policy/technical text remains a reference claim, not implementation
+evidence. Draft mappings and organization/system/capability scope can be corrected
+before publication; incomplete mappings may be saved but cannot be published.
+Published revisions are immutable. A stale edit or concurrent publication must
+be reloaded instead of overwriting another user's work.
+
+Policy and Technical proposal freshness are independent. Repeated identical
+observations and collection timestamps alone do not require new text. Applicable
+capability/component/boundary state and persisted responsibility designations
+inform proposals; absent execution observations remain explicitly unknown.
+
+Accepting a proposal requires a separate authorized ISSM and current source,
+content and version checks. It does not change implementation or authorization
+status. If the other narrative half has an unapproved edit, the approved snapshot
+retains its previous approved value.
+
+Standalone organization and provider library APIs are implemented without
+fabricated systems. Organization shared publishers manage organization-owned
+references; provider administrators manage provider-owned references separately.
+Customer grounding admits only published provider inputs supported by an active,
+applicable subscription and published provider component.
+
+Publication saves a durable source event without invoking a model. The
+change-impact backend exposes queued, failed and superseded states. Production
+model/host registration, automatic dispatch and the updated UI remain integration
+work; their completion must not be inferred from the isolated endpoint tests. See the
+[local HTTP scenarios](../../src/Ato.Copilot.Mcp/narrative-library.http) for manual
+testing with real authorized local IDs and two separate author/reviewer accounts.
+
 The dashboard is a standalone React SPA that connects to the MCP server's REST API endpoints. It provides:
 
 - **Portfolio Overview** — All registered systems with compliance scores, ATO countdown, and risk indicators

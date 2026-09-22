@@ -110,3 +110,132 @@ Remaining work and acceptance gates:
 	login configuration returned HTTP 500; screenshots alone are not acceptance.
 
 Keep the PR in draft and link, rather than close, #1001 and its stories.
+
+## Workspace backend completion contract (2026-09-21)
+
+This continuation preserves the existing workspace authorization work and does
+not merge upstream layout/schema changes or modify the application shell.
+
+- Grounding includes only capabilities mapped to the requested control and
+  components assigned to the system and those capabilities. Explicit boundary
+  exclusions are not implementation claims. Persisted inheritance is a declared
+  responsibility, not proof that the provider or customer implemented it.
+- Policy grounding includes the catalog control definition and declared owners
+  of applicable organization capabilities. Owner-only changes affect Policy
+  freshness without invalidating Technical state; an absent catalog definition
+  remains an explicit verification gap.
+- Source hashes describe semantic state. Observation collection timestamps,
+  validation timestamps and repeated identical scan records must not alone
+  invalidate an approved narrative. Policy and Technical remain independent.
+- Post-extraction draft editing checks the revision, original and destination
+  scope authority, and control/type mapping. Published revisions are immutable.
+- Acceptance checks current source state, base content and narrative version;
+  approved snapshots remain unchanged until the separate authorized ISSM accepts.
+  Source/model failures cannot create an approved or successful-looking result.
+- Change-impact integration belongs to the narrative service; subscription and
+  provider mutation callers belong to #957. Organization SecurityCapability and
+  published CspInheritedCapability are distinct source kinds. Dispatch must carry
+  a real tenant/system and changed control scope, never a fabricated system ID.
+
+The change-impact entry point queues persistent `PendingGeneration` proposals
+after source reconciliation, without calling a model inside the mutation
+transaction. A tenant-bound dispatcher invokes queued generation separately;
+failure persists `GenerationFailed` and a safe error code, and is rethrown for
+logging/retry. Identical semantic state does not enqueue duplicate work.
+Queued, failed and superseded proposals are never approvable. No event handler
+changes approved text, implementation status, or an authorization decision.
+
+Provider fan-out requires a producer-owned transactional outbox: the narrative
+queue can join a transaction only when it shares the exact context and affected
+tenant with the producer. Delivery supplies an optional deterministic `ImpactId`.
+Per-control/type delivery receipts are persisted atomically with queue results,
+including semantically unchanged events. This is distinct from proposal/source
+deduplication: replay after a review decision or a later source change must not
+reopen work from an already handled event. No cross-tenant provider callback is
+treated as a customer authorization context.
+
+Standalone reference libraries must not reuse a system ID field for an
+organization or provider identity. Organization imports have a nullable system
+origin and require the existing tenant ISSM/Administrator publication authority;
+this does not grant customer narrative authorship. Their scope is Organization
+or organization-owned Capability only. Provider imports live in separate global
+provider-owned reference storage, not tenant `SecurityCapability` storage, and
+require an actual provider workspace and real profile/capability identities.
+Customer consumption requires a published reference, an active subscription,
+a mapped capability on a published provider component, and the requested
+control's applicability. Unpublished or unrelated references never enter
+grounding. Shared system-library endpoint authorization remains parent-owned
+until handoff; standalone routes have their own service-side scope gates.
+
+Reference publication persists its own source outbox record in the same save as
+the immutable published revision. Tenant-owned and provider-owned publication
+outboxes remain separate. The event records both new and removed control/half
+mappings, source revision identity and publisher, but never enumerates customer
+tenants or calls a model. Parent dispatch consumes these pending source records
+and acknowledges them only after durable target delivery through the frozen
+change-impact port.
+
+The source-change envelope carries immutable source revision, explicit cause,
+baseline/subscription identity, optional real CSP profile/component/capability
+identifiers and optional previous/current allocation values. These are event
+provenance, not authority to assign responsibility. Queue provenance retains
+removal context after the active subscription is absent. Event metadata is not
+part of semantic freshness hashing, and delivery receipts retain it even when
+no new proposal is required. Reusing an ImpactId with different source context
+is an explicit conflict, not a new event.
+
+Proposal `provenance.changeOrigin` is the immutable creation trigger, not
+necessarily the latest provider event. Several offline source events may be
+delivered against the same current semantic state and share one proposal.
+Authorized reviewers must be able to page through its delivery receipts,
+including source kind/identity, recorded actor, source context and delivery
+recording time. Recording time is not the original provider change time.
+Historical receipt fields that were never recorded remain null; do not infer
+them from the proposal's first creator.
+
+Backend verification uses synthetic data, mocked model calls, dedicated build
+artifacts and targeted tests. Parent-owned context/DI wiring, upstream merge,
+frontend contracts, SQL Server/RLS and interactive manual acceptance remain
+explicit delivery gates until verified.
+
+### Local backend verification checkpoint
+
+157 focused tests pass using the pinned .NET SDK executable and a dedicated
+artifacts directory, including parser/service tests, real SQLite schema and
+optimistic-concurrency checks, authenticated SQLite HTTP workflows, mocked model
+failure tests, and existing dual/versioned-governance regressions. Red failures
+were observed before the scope/freshness, draft-editing, approved-baseline,
+change-impact, schema, parser, isolation and stale-review fixes. No real Azure
+model request or cloud write was performed.
+
+The selected 151-test narrative backend/endpoint coverage run measured 94.09%
+lines and 76.06% branches. The real SQLite concurrent-import test executes the
+unique-conflict translation path. This is not 100% modified-path coverage and
+does not close the constitution's coverage gate; the subsequent receipt-history
+extension requires an updated coverage run before release.
+Existing build warnings remain visible. SQL Server/RLS, automatic event dispatch,
+production registration of the standalone provider/organization library APIs,
+frontend integration, endpoint
+authorization handoff and interactive local acceptance are still incomplete.
+
+### Mandatory legacy source-writer handoff
+
+Sequential source inspection found additional paths outside this agent's owned
+library/proposal files that still mutate narrative text instead of marking work:
+
+- `CapabilityService.UpdateCapabilityAsync` regenerates non-customized Technical
+  text directly and saves it during an organization capability update; its
+  cascade does not gate on narrative approval status.
+- `ComponentService.CascadeNarrativeRegenerationForComponentAsync` writes
+  Technical text through a separately created context. Its
+  `UpdateOrgComponentAsync` caller saves the component first, then invokes the cascade. Replacing only that post-save call
+  with a callback would still lose impact work if delivery fails.
+- `CapabilityService.RegenerateNarrativeWithAiAsync` and
+  `BulkRegenerateNarrativesForCapabilityAsync` remain separate in-place generation
+  paths. They are not the new grounded proposal workflow.
+
+Parent/source owners must replace or appropriately gate these paths with
+transactional source events and the reviewed proposal workflow, keeping
+organization capabilities distinct from CSP publication. Do not claim global
+approved-view/export preservation until these paths have their own regression
+coverage. No changes to those source-writer files were made in this backend slice.
