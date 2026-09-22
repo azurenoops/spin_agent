@@ -66,10 +66,10 @@ function Workspace({ systemId }: { systemId: string }) {
   const go = (next: string) => navigate(next === 'narratives' ? base : `${base}/${next}`);
   const locked = busy || loading || Boolean(loadError);
   const canRead = useSystemMutationPermission(systemId, 'canRead');
-  const canGenerateNarratives = useSystemMutationPermission(systemId, 'canAuthorNarratives', access?.canAuthor === true);
+  const canGenerateNarratives = useSystemMutationPermission(systemId, 'canAuthorNarratives', access?.canGenerate === true);
   const canReviewNarratives = useSystemMutationPermission(systemId, 'canReviewNarratives');
   const canAuthor = !locked && canRead && access?.canAuthor === true;
-  const canGenerate = !locked && canRead && access !== null && canGenerateNarratives;
+  const canGenerate = !locked && canRead && access?.canGenerate === true && canGenerateNarratives;
   const requestedProposalId = query.get('proposal');
   const proposal = requestedProposalId !== null
     ? proposals.find(item => item.id.toLowerCase() === requestedProposalId.toLowerCase())

@@ -39,7 +39,7 @@ beforeEach(() => {
   vi.mocked(library.getReferences).mockResolvedValue([]);
   vi.mocked(library.getProposals).mockResolvedValue([]);
   vi.mocked(library.getNarrativeAccess).mockResolvedValue({ tenantId: 'tenant-1', systemName: 'Synthetic system',
-    canAuthor: true, canPublishShared: false, capabilities: [] });
+    canAuthor: true, canPublishShared: false, canGenerate: false, capabilities: [] });
   vi.mocked(library.importReference).mockResolvedValue(draft);
   vi.mocked(library.publishReference).mockResolvedValue({ ...draft, isPublished: true, revision: 2 });
 });
@@ -59,11 +59,34 @@ describe('Narratives workspace', () => {
     // Arrange
     workspace.session = { roles: ['MissionOwner', 'Issm'], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canAuthorNarratives: true } } };
     vi.mocked(library.getNarrativeAccess).mockResolvedValue({ tenantId: 'tenant-1', systemName: 'Synthetic system',
-      canAuthor: false, canPublishShared: false, capabilities: [] });
+      canAuthor: false, canPublishShared: false, canGenerate: true, capabilities: [] });
     // Act
     open('narratives');
     // Assert
-    expect(await screen.findByRole('button', { name: /Generate/ })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Generate/ })).toBeEnabled());
+  });
+
+  it.each([false, undefined])('does not generate from reference permission when canGenerate is %s', async canGenerate => {
+    // Arrange
+    workspace.session = { roles: ['Issm'], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canAuthorNarratives: true } } };
+    vi.mocked(library.getNarrativeAccess).mockResolvedValue({ tenantId: 'tenant-1', systemName: 'Synthetic system',
+      canAuthor: true, canPublishShared: true, canGenerate, capabilities: [] });
+    // Act
+    open('narratives');
+    await waitFor(() => expect(screen.queryByText('Loading narrative context...')).not.toBeInTheDocument());
+    // Assert
+    expect(screen.getByRole('button', { name: /Generate/ })).toBeDisabled();
+    expect(library.generateProposal).not.toHaveBeenCalled();
+  });
+
+  it.each(['MissionOwner', 'SystemOwner'])('%s may author references without generation permission', async role => {
+    // Arrange
+    workspace.session = { roles: [role], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canAuthorNarratives: false } } };
+    // Act
+    open('library');
+    // Assert
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload narratives' })).toBeEnabled());
+    expect(library.generateProposal).not.toHaveBeenCalled();
   });
 
   it('rejects forged shared-reference scope even when system reference authoring is allowed', async () => {

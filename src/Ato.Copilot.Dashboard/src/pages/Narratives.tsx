@@ -479,11 +479,11 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
   };
 
   const handleRegenerate = async (controlId: string, type: 'Policy' | 'Technical' = 'Technical') => {
-    if (!canAuthor || (onGenerateDraft && !canGenerate)) { setRegenError('Narrative generation permission is required.'); return; }
+    if (!canAuthor || canGenerate !== true) { setRegenError('Narrative generation permission is required.'); return; }
     if (!systemId) return;
     const current = narratives?.find(item => item.controlId === controlId);
     const draftKey = `${systemId}:${controlId}`;
-    if (!current || current.approvalStatus === 'UnderReview' || activeWrites.current.has(draftKey) || (onGenerateDraft && !canGenerate)) return;
+    if (!current || current.approvalStatus === 'UnderReview' || activeWrites.current.has(draftKey) || canGenerate !== true) return;
     const expectedVersion = draftVersions.current[draftKey] ?? current.version;
     activeWrites.current.add(draftKey);
     setRegeneratingIds(prev => new Set([...prev, controlId]));
@@ -784,7 +784,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                                   type="button"
                                   aria-label={`Generate ${type} draft for ${n.controlId}`}
                                   className="inline-flex items-center gap-1 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-                                  disabled={!canAuthor || regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview' || !canGenerate}
+                                  disabled={!canAuthor || regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview' || canGenerate !== true}
                                   onClick={() => void handleRegenerate(n.controlId, type)}
                                 >
                                   {regeneratingIds.has(n.controlId) ? 'Generating…' : `Generate ${type} draft`}
@@ -792,7 +792,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                               </div> : <button
                                 type="button"
                                 className="inline-flex items-center gap-1 rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-                                disabled={!canAuthor || regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview' || Boolean(onGenerateDraft && !canGenerate)}
+                                disabled={!canAuthor || regeneratingIds.has(n.controlId) || savingIds.has(n.controlId) || n.approvalStatus === 'UnderReview' || canGenerate !== true}
                                 onClick={() => handleRegenerate(n.controlId)}
                               >
                                 {regeneratingIds.has(n.controlId) ? 'Regenerating…' : 'Regenerate'}

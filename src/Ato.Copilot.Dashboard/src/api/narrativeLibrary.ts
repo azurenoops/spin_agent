@@ -17,6 +17,7 @@ export interface NarrativeProposal {
 }
 export interface NarrativeAccess {
   tenantId: string; systemName: string; canAuthor: boolean; canPublishShared: boolean;
+  canGenerate?: boolean;
   capabilities: { id: string; name: string }[];
 }
 const root = (systemId: string) => `/systems/${encodeURIComponent(systemId)}/narrative-library`;

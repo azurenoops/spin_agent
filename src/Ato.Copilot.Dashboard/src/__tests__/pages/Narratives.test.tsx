@@ -45,7 +45,7 @@ it('does not select generation sources from legacy browser settings (#1001)', as
   legacySources.sharePointSiteUrl = 'https://example.invalid/policies';
   legacySources.sourceDocuments = 'old-policy.docx';
   mockRegenerate.mockResolvedValue('Generated draft');
-  render(<Narratives />);
+  render(<Narratives canGenerate />);
   // Act
   fireEvent.click(screen.getByTitle('Expand'));
   fireEvent.click(screen.getByRole('button', { name: /Regenerate/i }));
@@ -222,6 +222,16 @@ describe('Narrative workspace permissions', () => {
 });
 
 describe('Narratives regeneration', () => {
+  it('does not allow legacy regeneration without an explicit generation projection', async () => {
+    // Arrange
+    render(<Narratives />);
+    // Act
+    fireEvent.click(screen.getByTitle('Expand'));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeDisabled();
+    expect(mockRegenerate).not.toHaveBeenCalled();
+    await screen.findByText('No business context provided');
+  });
   it('keeps a compact Library entry point for screens without the system sidebar', async () => {
     // Arrange
     const openLibrary = vi.fn();
@@ -349,7 +359,7 @@ describe('Narratives regeneration', () => {
   it('places regenerated content in the Technical editor and preserves Policy', async () => {
     // Arrange
     mockRegenerate.mockResolvedValue('Regenerated technical narrative');
-    render(<Narratives />);
+    render(<Narratives canGenerate />);
     fireEvent.click(screen.getByTitle('Expand'));
 
     // Act
@@ -366,7 +376,7 @@ describe('Narratives regeneration', () => {
   it('shows a configuration error without replacing either editor', async () => {
     // Arrange
     mockRegenerate.mockRejectedValue({ response: { status: 503 } });
-    render(<Narratives />);
+    render(<Narratives canGenerate />);
     fireEvent.click(screen.getByTitle('Expand'));
 
     // Act
