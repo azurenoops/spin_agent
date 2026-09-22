@@ -20,6 +20,7 @@ import AccountMenu from '../../features/auth/AccountMenu';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useCspBranding } from './useCspBranding';
 import spinLogo from '../../assets/2026-04-22_15-58-30.png';
+import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 
 const navItems = [
   { to: '/', label: 'Portfolio' },
@@ -41,6 +42,7 @@ interface PageLayoutProps {
 }
 
 export default function PageLayout({ title, children, sidePanel, leftPanel }: PageLayoutProps) {
+  const workspace = useWorkspaceSession();
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [helpPanelOpen, setHelpPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -72,9 +74,9 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
   }, [notificationsOpen]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className={`flex ${workspace ? 'h-full' : 'h-screen'} flex-col overflow-hidden`}>
       {/* Top header */}
-      <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
+      <header className="relative flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
         <div className="flex items-center gap-6">
           <NavLink
             to="/"
@@ -138,12 +140,12 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
           <div className="flex items-center gap-1">
             {/* Feature 048 (T076): tenant picker. Self-hides in SingleTenant
                 mode and for non-CSP.Admin callers per FR-041. */}
-            <TenantPicker />
+            {!workspace && <TenantPicker />}
             {/* Feature 051 cleanup: legacy <RoleSwitcher /> (the orange
                 "DEV ISSM" pre-login persona override) removed — real
                 identity now flows from /api/auth/me via AccountMenu. */}
-             <div ref={notifRef} className="relative">
-              <button type="button" onClick={() => setNotificationsOpen(!notificationsOpen)} className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 ${notificationsOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'}`} aria-label="Notifications" title="Notifications" aria-expanded={notificationsOpen}>
+             <div ref={notifRef} className="md:relative">
+              <button type="button" onClick={() => setNotificationsOpen(!notificationsOpen)} className={`relative rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 ${notificationsOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'}`} aria-label="Notifications" title="Notifications" aria-expanded={notificationsOpen}>
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
                 </svg>

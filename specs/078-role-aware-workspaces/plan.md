@@ -228,6 +228,13 @@ connection suspends the timer, and reconnect/disconnection resumes it. Progress
 polling has its own authorization and is not gated by personal-notification
 `rest.available`.
 
+The notification panel must fit the mobile viewport without forced clicks or
+horizontal scrolling. Browser regressions reproduced a zero visible area for
+the read action at 390px: a fixed 384px panel anchored to the bell extends past
+the left edge. On narrow screens, position it below the full-width header with
+left/right gutters; retain bell anchoring on desktop and keep the badge
+positioned relative to its button.
+
 The relational notification preference key is `(TenantId, UserId)`, not global
 `UserId`. The existing SQLite regression fails with the global index. Startup
 must replace that index for existing SQLite and SQL Server databases as well as

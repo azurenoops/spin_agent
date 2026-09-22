@@ -210,6 +210,8 @@ readiness. Token acquisition remains pinned to the original account, and each
 reconnect rechecks capabilities. Workspace/account changes abort REST work,
 discard late results, clear notification state and stop the previous connection.
 Errors are visible with retry rather than presented as an empty successful list.
+On narrow screens, the panel spans the header width with viewport gutters so
+read and retry actions remain visible; desktop keeps the bell-anchored popover.
 
 Preferences use the API's actual fields: POA&M overdue alerts, ATO expiration
 alerts, compliance drift alerts and warning days. Email/Teams/Slack delivery

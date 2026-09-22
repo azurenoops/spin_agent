@@ -88,7 +88,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
   const { notifications, unreadCount, loading, error, transportMessage, refresh, markAsRead, markAllAsRead } = useNotifications();
 
   return (
-    <div className="absolute right-0 top-full z-50 mt-1 w-96 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+    <div className="absolute inset-x-3 top-full z-50 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg md:inset-x-auto md:right-0 md:w-96">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <div className="flex items-center gap-2">
