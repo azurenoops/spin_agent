@@ -1,0 +1,17 @@
+{
+  "mockCommit": "7ca7d50085df84b23d70776d1d55316081b8d9e9",
+  "branch": "codex/system-security-capability-mocks",
+  "files": [
+    "docs/design/system-security-capability-mocks/01-overview-and-implementation.png",
+    "docs/design/system-security-capability-mocks/02-components-and-library.png",
+    "docs/design/system-security-capability-mocks/03-coverage-evidence-and-removal.png",
+    "docs/design/system-security-capability-mocks/04-applicability-and-confirmation.png",
+    "docs/design/system-security-capability-mocks/README.md"
+  ],
+  "title": "[UI] Complete system-level Security Capabilities with unified views, applicability and responsibility review",
+  "issueUrl": "https://github.com/azurenoops/spin_agent/issues/1037",
+  "issueNumber": 1037,
+  "parentIssue": 1002,
+  "verified": true,
+  "issueId": 5554572968
+}
