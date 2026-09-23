@@ -322,15 +322,26 @@ The user chose the supplied mock's visual design without its system-use stage.
 
 - [x] ORGFLOW001 Trace mocks, create/begin/resume, Person prerequisites and
   persistence; confirm explicit Person-creation extension with the user.
-- [ ] ORGFLOW002 Add failing backend contract/recovery/auth/concurrency tests,
+- [x] ORGFLOW002 Add failing backend contract/recovery/auth/concurrency tests,
   implement documented additive contracts using existing enrollment services.
-- [ ] ORGFLOW003 Add failing frontend tests; implement details/administrator/
+- [x] ORGFLOW003 Add failing frontend tests; implement details/administrator/
   review with readable inline validation and no writes before confirmation.
-- [ ] ORGFLOW004 Implement honest stage progress, refresh/recovery, deferred
+- [x] ORGFLOW004 Implement honest stage progress, refresh/recovery, deferred
   enrollment, organization detail and list handoff without system access grants.
-- [ ] ORGFLOW005 Verify frontend/backend regressions, build/type checks and
+- [x] ORGFLOW005 Verify frontend/backend regressions, build/type checks and
   responsive keyboard/browser flow; record local deployment and limitations.
 - [ ] ORGFLOW006 User manual acceptance with real CSP/organization identities.
+
+Organization-flow verification: 125 focused frontend tests (98.13% lines /
+90.87% branches), 119 backend unit tests and 54 integration tests pass.
+Twenty-five browser checks pass against both production preview and deployed
+Docker assets. Both services were deployed September 23 at 15:31 EDT and remain
+healthy; SQL/Redis and volumes were preserved. Full suites are not clean:
+Narratives timer teardown, SMTP timeout assertion and shared tenant-fixture
+failures remain documented in `docs/architecture/workspaces.md`. Isolated
+rechecks pass; no new organization-test leakage was found. ORGFLOW005 records
+executed verification and its limits, not a clean release signoff. The shared
+browser receives 403; authorized live acceptance remains ORGFLOW006.
 
 ### CSP catalog / authoring / publication verification
 

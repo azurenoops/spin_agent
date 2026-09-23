@@ -31,7 +31,53 @@ Organization setup is separate from system onboarding and RMF roles; handoff
 uses existing membership administration and audited support, without automatic
 subscriptions, customer-system grants or ATO changes.
 
-Manual acceptance checklist for this flow (implementation verification pending):
+Implementation verification and local deployment (September 23, 15:31 EDT):
+
+- Production routes now use the details / administrator / review wizard and
+  persisted provisioning status. Organization detail and list expose setup
+  status, saved profile fields, permitted membership actions and resume links.
+- 125 focused frontend tests pass. The four new flow/presentation components
+  have 98.13% line and 90.87% branch coverage. TypeScript and Dashboard production
+  build pass.
+- 119 focused backend unit tests and 54 integration tests pass; the latter
+  include real SQL concurrency, rollback, lost-response and startup checks with
+  no skips. Nineteen strengthened HTTP replay tests also pass. Backend changed
+  executable-line coverage is 94.74%.
+- The production preview and Docker-served Dashboard each pass 25 browser checks, including six organization
+  flow scenarios at 1440px/390px. Screenshots cover details, administrator,
+  review, in-progress, deferred, recovery, completion and handoff. Fixture
+  responses preserve the actual nullable Person-ID replay contract. These are
+  synthetic authorized API scenarios, not live customer/administrator writes.
+- The full Dashboard run has 1,338 passing assertions but exits unsuccessfully
+  because an existing Narratives saved-indicator timer fires after test teardown
+  (`window is not defined`). Its 30 tests pass when isolated; the affected
+  production/test files were not changed in this follow-up.
+- The full unit run has 6,499 passes and one SMTP delivery-error assertion
+  failure (`DELIVERY_TIMEOUT` instead of `DELIVERY_FAILED`). That unchanged
+  one-second-timeout test passes in isolation.
+- The full integration run has 1,343 passes, 11 failures and 61 skips.
+  Ten failures are in the shared tenant HTTP fixture: its 23 tests pass alone,
+  and all 42 pass when paired with organization-creation tests. Five controlled
+  probes reproduce retained workspace/Person context and non-GUID system-ID
+  contamination in unchanged fixture/helper paths. The exact preceding
+  full-suite test has not been identified. The separate impersonation test also
+  passes alone: its full-run failure occurs in unchanged workspace identity
+  validation before the changed enrollment paths. New organization tests use
+  separate factories/databases; inspection found no leakage into the shared
+  fixture. These results are not a clean full-suite signoff.
+- Solution build passes with zero warnings/errors incrementally. Container
+  rebuilds succeed but still emit existing compiler/frontend warnings.
+- MCP image `dab137f33dd6` and Dashboard image `134eba5449ad` are deployed,
+  healthy with zero restarts. SQL and Redis retain their previous container
+  start times; no volumes were reset. Sequential startup logs confirm workspace
+  schema verification, database-ready state and successful health responses.
+  Dashboard serves `/assets/index-Divl9wWr.js`.
+- The shared browser reaches the deployed Add Organization URL but its current
+  identity receives 403: no active access grant. Authorization was not bypassed
+  and no live organization or administrator was created during browser checks.
+  Use an authorized ordinary CSP administrator for the manual checklist below.
+
+Manual acceptance checklist for this flow (live identity acceptance remains open):
 
 1. Sign in with an authorized ordinary CSP administrator and open
    `http://localhost:5173/workspaces/csp/organizations/new`. Confirm Organizations

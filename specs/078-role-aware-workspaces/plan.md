@@ -1,6 +1,6 @@
 # Implementation Plan: CSP and Organization Workspaces
 
-**Branch**: `feature/1002-role-aware-workspaces`
+**Branch**: `feature/1002-workspace-ui-1025-1035`
 
 **Date**: 2026-09-21
 
@@ -16,7 +16,7 @@
 
 ### Complete CSP Add Organization flow (September 23, 13:17)
 
-Trace: the current AddOrganization immediately POSTs organization fields.
+Pre-change trace: AddOrganization immediately POSTed organization fields.
 Creation atomically saves an Active/Pending Tenant, name reservation and
 OrganizationProvisioningOperation with intent hash. Existing provisioning GETs
 recover only when tenant identity is known and omit persisted administrator IDs.
@@ -27,7 +27,7 @@ already use IPersonService to create that contact under authorized tenant scope.
 The current UI cannot recover a lost create response after refresh, supplies no
 review/defer workflow, and loses identity fields when returning to enrollment.
 
-Additive contract, to implement and test before UI integration:
+Additive contract, implemented and tested before UI integration:
 
 - Creation accepts optional `initialAdministrator`: directoryTenantId, objectId,
   and either personId or `newPerson: { displayName, email }`. Omission defers
@@ -61,6 +61,31 @@ refresh, stale requests, repeated clicks, duplicate races, scope denial and
 completed-work preservation. Verify narrow/desktop screens and keyboard focus;
 build/type/test the changed projects and record full-solution results separately.
 Keep live administrator acceptance distinct from synthetic browser coverage.
+
+Verified backend contract: organization field limits follow persisted storage
+(name 200, legal entity 300, contact name 200, contact email 254); local Person
+name/email remain 256/320. Required/optional rules are unchanged. In new-Person
+mode the public replay intent retains `newPerson` and a null `personId` even
+after binding; it can be resent unchanged. The generated binding stays internal.
+The UI must report saved Person state without claiming an unavailable record ID.
+Schema additions are two nullable operation columns; no new tables. Recovery
+distinguishes missing creation/operation from inactive or missing organizations.
+
+The production dispatcher now uses the extracted wizard/status components;
+organization detail and list routes expose saved setup state and resume actions.
+The integrated flow passes 125 focused frontend tests with 98.13% line and
+90.87% branch coverage across the four new presentation/flow components.
+Twenty-five browser checks pass against the production preview, including the
+six new desktop/mobile organization scenarios and existing workspace regressions.
+These browser writes use synthetic authorized API fixtures, not live enrollment.
+TypeScript, production Dashboard build and solution build pass. Full-suite
+results are recorded separately in the architecture document; focused success
+does not imply a clean full regression run or completed user acceptance.
+Both local Docker services were rebuilt and deployed September 23 at 15:31 EDT;
+the same 25 browser checks pass against the deployed Dashboard. MCP/Dashboard
+are healthy with zero restarts, and SQL/Redis were not recreated. The shared
+browser's current identity is denied provider access, so live authorized
+enrollment remains manual acceptance rather than a simulated success claim.
 
 ### CSP mock alignment correction (September 23, 12:32)
 

@@ -1,8 +1,8 @@
 # Feature Specification: CSP and Organization Workspaces
 
-**Feature issue**: [#1002](https://github.com/azurenoops/spin_agent/issues/1002)
+**Feature issue**: [#1002](https://github.com/azurenoops/ato-copilot/issues/1002)
 
-**Feature branch**: `feature/1002-role-aware-workspaces`
+**Feature branch**: `feature/1002-workspace-ui-1025-1035`
 
 **Created**: 2026-09-21
 
