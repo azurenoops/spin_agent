@@ -15,6 +15,7 @@ using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Models.Roadmap;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy.Attributes;
+using Ato.Copilot.Core.Models.Workspaces;
 
 namespace Ato.Copilot.Core.Data.Context;
 
@@ -564,6 +565,17 @@ public class AtoCopilotContext : DbContext
     /// (UF-CSP-01/02/03 — spec-070).
     /// </summary>
     public DbSet<CapabilitySubscription> CapabilitySubscriptions => Set<CapabilitySubscription>();
+    public DbSet<ProviderCapabilityWorkingRevision> ProviderCapabilityWorkingRevisions => Set<ProviderCapabilityWorkingRevision>();
+    public DbSet<ProviderCapabilityContributor> ProviderCapabilityContributors => Set<ProviderCapabilityContributor>();
+    public DbSet<ProviderCapabilityDuty> ProviderCapabilityDuties => Set<ProviderCapabilityDuty>();
+    public DbSet<ProviderCapabilityRelease> ProviderCapabilityReleases => Set<ProviderCapabilityRelease>();
+    public DbSet<ProviderPublicationPreview> ProviderPublicationPreviews => Set<ProviderPublicationPreview>();
+    public DbSet<ProviderReleaseImpact> ProviderReleaseImpacts => Set<ProviderReleaseImpact>();
+    public DbSet<OrganizationProvisioningOperation> OrganizationProvisioningOperations => Set<OrganizationProvisioningOperation>();
+    public DbSet<OrganizationNameReservation> OrganizationNameReservations => Set<OrganizationNameReservation>();
+    public DbSet<CapabilitySetupOperation> CapabilitySetupOperations => Set<CapabilitySetupOperation>();
+    public DbSet<OrganizationCatalogEntry> OrganizationCatalogEntries => Set<OrganizationCatalogEntry>();
+    public DbSet<OrganizationCatalogAddition> OrganizationCatalogAdditions => Set<OrganizationCatalogAddition>();
 
     // ─── OSCAL Feature 076 (T009 / T012) ─────────────────────────────────────
 
@@ -2452,7 +2464,8 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
             entity.Property(e => e.ModifiedBy).HasMaxLength(200);
 
-            entity.HasIndex(e => e.Name).IsUnique().HasDatabaseName("IX_SecurityCapability_Name");
+            entity.HasIndex(e => new { e.TenantId, e.Name }).IsUnique()
+                .HasDatabaseName("IX_SecurityCapability_Tenant_Name");
             entity.HasIndex(e => e.Category).HasDatabaseName("IX_SecurityCapability_Category");
             entity.HasIndex(e => e.ImplementationStatus).HasDatabaseName("IX_SecurityCapability_Status");
         });
@@ -3369,6 +3382,7 @@ public class AtoCopilotContext : DbContext
             .ConfigureTenantSupportSessions(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.CapabilityResponsibilityModelConfiguration
             .ConfigureCapabilityResponsibilities(modelBuilder);
+        ConfigureWorkspaceOperations(modelBuilder);
 
         // ─── Tenant query filters (Feature 048 T042) ─────────────────────────────
         // Applied last so all entity types are present in the model. Walks the
@@ -3376,6 +3390,88 @@ public class AtoCopilotContext : DbContext
         // [TenantScoped]. The filter resolves the active tenant via the
         // ambient accessor captured into the closure.
         ApplyTenantQueryFilters(modelBuilder);
+    }
+
+    private static void ConfigureWorkspaceOperations(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<OrganizationNameReservation>(entity =>
+        {
+            entity.HasKey(x => x.NormalizedName);
+            entity.Property(x => x.NormalizedName).HasMaxLength(256);
+            entity.HasIndex(x => x.TenantId);
+        });
+        modelBuilder.Entity<ProviderCapabilityWorkingRevision>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.CapabilityId).IsUnique();
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+            entity.Property(x => x.Classification).HasMaxLength(64);
+            entity.Property(x => x.ServiceCategory).HasMaxLength(120);
+            entity.Property(x => x.SnapshotHash).HasMaxLength(64);
+            entity.Property(x => x.ApprovedSnapshotHash).HasMaxLength(64);
+            entity.Property(x => x.ApprovedPreviewHash).HasMaxLength(64);
+        });
+        modelBuilder.Entity<ProviderCapabilityRelease>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.CapabilityId, x.Revision }).IsUnique();
+            entity.HasIndex(x => new { x.CapabilityId, x.IdempotencyKey }).IsUnique();
+            entity.Property(x => x.PreviewHash).HasMaxLength(64);
+        });
+        modelBuilder.Entity<ProviderPublicationPreview>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.CapabilityId, x.Revision });
+            entity.Property(x => x.WorkingSnapshotHash).HasMaxLength(64);
+            entity.Property(x => x.PreviewHash).HasMaxLength(64);
+        });
+        modelBuilder.Entity<ProviderCapabilityContributor>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.WorkingRevisionId, x.ContributorId }).IsUnique();
+            entity.HasOne<ProviderCapabilityWorkingRevision>().WithMany()
+                .HasForeignKey(x => x.WorkingRevisionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProviderCapabilityDuty>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.WorkingRevisionId, x.ControlId }).IsUnique();
+            entity.HasOne<ProviderCapabilityWorkingRevision>().WithMany()
+                .HasForeignKey(x => x.WorkingRevisionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProviderReleaseImpact>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.ReleaseId, x.TenantId, x.RegisteredSystemId, x.ControlId }).IsUnique();
+            entity.HasIndex(x => x.SourceEventId);
+        });
+        modelBuilder.Entity<OrganizationProvisioningOperation>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.IdempotencyKey).IsUnique();
+            entity.HasIndex(x => x.TenantId);
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+        });
+        modelBuilder.Entity<CapabilitySetupOperation>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique();
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+            entity.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<OrganizationCatalogEntry>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.TenantId, x.Source, x.RecordType, x.RecordId }).IsUnique();
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+            entity.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<OrganizationCatalogAddition>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique();
+            entity.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     /// <summary>

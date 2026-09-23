@@ -67,7 +67,7 @@ public class ImpersonationAuditTests
         // Act — start impersonation via the EXISTING Feature 048 endpoint.
         var resp = await client.PostAsync(
             $"/api/tenants/{targetTenantId}/impersonate",
-            content: null);
+            JsonContent.Create(new { reason = "Investigate organization support request", reference = "INC-42", acknowledged = true }));
 
         // Assert — start succeeds + audit row written stamped with the
         // IMPERSONATED tenant id (the row records "this tenant was acted

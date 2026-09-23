@@ -262,7 +262,8 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
         var providerMe = (await admin.GetFromJsonAsync<JsonElement>("/api/auth/me")).GetProperty("data");
         providerMe.TryGetProperty("directoryTenantId", out var providerDirectory).Should().BeTrue();
         providerDirectory.GetGuid().Should().Be(AdminDirectory);
-        var start = await admin.PostAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate", null);
+        var start = await admin.PostAsJsonAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate",
+            new { reason = "Investigate organization support request", acknowledged = true });
         start.StatusCode.Should().Be(HttpStatusCode.OK, await start.Content.ReadAsStringAsync());
         var cookie = start.Headers.GetValues("Set-Cookie").Single(h => h.StartsWith("ato-impersonate=")).Split(';')[0];
         using var support = Client(AdminDirectory, actor, WorkspaceMembershipFactory.TenantAId, csp: true);
@@ -452,7 +453,8 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
         // Arrange
         var actor = Guid.NewGuid();
         using var admin = Client(AdminDirectory, actor, csp: true);
-        var start = await admin.PostAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate", null);
+        var start = await admin.PostAsJsonAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate",
+            new { reason = "Investigate organization support request", acknowledged = true });
         var cookie = start.Headers.GetValues("Set-Cookie").Single(h => h.StartsWith("ato-impersonate=")).Split(';')[0];
         using var support = Client(AdminDirectory, actor, WorkspaceMembershipFactory.TenantBId, csp: true);
         support.DefaultRequestHeaders.Remove("X-Workspace-Mode");
@@ -476,7 +478,8 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
         // Arrange
         var actor = Guid.NewGuid();
         using var admin = Client(AdminDirectory, actor, csp: true);
-        var started = await admin.PostAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate", null);
+        var started = await admin.PostAsJsonAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate",
+            new { reason = "Investigate organization support request", acknowledged = true });
         started.StatusCode.Should().Be(HttpStatusCode.OK, await started.Content.ReadAsStringAsync());
         var captured = started.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("ato-impersonate=")).Split(';')[0];
         using var replay = Client(AdminDirectory, actor, WorkspaceMembershipFactory.TenantAId, csp: true);
@@ -505,7 +508,8 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
         // Arrange
         var actor = Guid.NewGuid();
         using var admin = Client(AdminDirectory, actor, csp: true);
-        var started = await admin.PostAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate", null);
+        var started = await admin.PostAsJsonAsync($"/api/tenants/{WorkspaceMembershipFactory.TenantAId}/impersonate",
+            new { reason = "Investigate organization support request", acknowledged = true });
         started.StatusCode.Should().Be(HttpStatusCode.OK, await started.Content.ReadAsStringAsync());
         var captured = started.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("ato-impersonate=")).Split(';')[0];
         var person = await PersonAsync(WorkspaceMembershipFactory.TenantBId);
@@ -557,8 +561,12 @@ public class WorkspaceMembershipTests : IClassFixture<WorkspaceMembershipFactory
         // Act
         var first = await admin.PostAsJsonAsync("/api/tenants", new { displayName = "Shared directory organization one" });
         var second = await admin.PostAsJsonAsync("/api/tenants", new { displayName = "Shared directory organization two" });
-        var providerCreate = await admin.PostAsJsonAsync("/api/csp/dashboard/tenants",
-            new { displayName = $"Provider UI organization {Guid.NewGuid():N}" });
+        using var providerRequest = new HttpRequestMessage(HttpMethod.Post, "/api/csp/dashboard/tenants")
+        {
+            Content = JsonContent.Create(new { displayName = $"Provider UI organization {Guid.NewGuid():N}" })
+        };
+        providerRequest.Headers.Add("Idempotency-Key", $"provider-create-{Guid.NewGuid():N}");
+        var providerCreate = await admin.SendAsync(providerRequest);
 
         // Assert
         first.StatusCode.Should().Be(HttpStatusCode.Created, await first.Content.ReadAsStringAsync());

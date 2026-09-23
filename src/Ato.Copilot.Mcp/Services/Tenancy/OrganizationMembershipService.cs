@@ -55,8 +55,11 @@ public sealed class OrganizationMembershipService(
         if (!await db.Persons.AnyAsync(p => p.Id == personId && p.TenantId == tenantId, ct)
             || !await db.OrganizationMemberships.AnyAsync(m => m.TenantId == tenantId && m.PersonId == personId && m.RevokedAt == null, ct))
             throw new WorkspaceException(400, "ACTIVE_MEMBERSHIP_REQUIRED", "Grant this organization-local Person an explicit active membership first.");
-        if (await db.OrganizationRoleAssignments.AnyAsync(r => r.TenantId == tenantId
-            && r.Role == OrganizationRole.Administrator && r.RemovedAt == null, ct))
+        var existing = await db.OrganizationRoleAssignments.AsNoTracking().SingleOrDefaultAsync(r =>
+            r.TenantId == tenantId && r.Role == OrganizationRole.Administrator && r.RemovedAt == null, ct);
+        if (existing?.PersonId == personId)
+            return new(existing.Id, tenantId, personId, nameof(OrganizationRole.Administrator));
+        if (existing is not null)
             throw new WorkspaceException(409, "ADMINISTRATOR_ALREADY_ENROLLED", "Use the existing organization Administrator role-management workflow.");
         var result = await roleAssignments.AddAsync(tenantId, OrganizationRole.Administrator, personId,
             WorkspaceService.Identity(http.User).ObjectId, Guid.NewGuid(), ct);

@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Mcp.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 
@@ -294,9 +295,10 @@ public static class CspDashboardEndpoints
     private static async Task<IResult> CreateTenantAsync(
         HttpContext http,
         ITenantContext tenantCtx,
-        ICspDashboardService service,
+        Ato.Copilot.Core.Interfaces.Workspaces.IWorkspaceOperationsService service,
         IOptions<DeploymentOptions> deployment,
         CreateCspTenantRequest? body,
+        [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
@@ -316,31 +318,32 @@ public static class CspDashboardEndpoints
         var actor = ResolveActor(http);
         try
         {
-            var tenant = await service.CreateTenantAsync(
-                body.DisplayName,
-                body.LegalEntityName,
-                body.PrimaryPocName,
-                body.PrimaryPocEmail,
-                actor,
-                ct);
+            var tenant = await service.CreateOrganizationAsync(
+                new(body.DisplayName, body.LegalEntityName, body.PrimaryPocName, body.PrimaryPocEmail),
+                idempotencyKey, actor, ct);
             return Results.Json(new
             {
                 status = "success",
                 data = new
                 {
-                    tenantId = tenant.Id,
+                    tenantId = tenant.TenantId,
                     displayName = tenant.DisplayName,
-                    status = tenant.Status.ToString(),
-                    onboardingState = tenant.OnboardingState.ToString(),
-                    createdAt = tenant.CreatedAt,
-                    createdBy = tenant.CreatedBy,
+                    status = tenant.Lifecycle,
+                    onboardingState = tenant.Onboarding,
+                    operationId = tenant.OperationId,
+                    existing = tenant.Existing,
                 },
                 metadata = new
                 {
                     executionTimeMs = sw.ElapsedMilliseconds,
                     timestamp = DateTimeOffset.UtcNow,
                 },
-            }, statusCode: StatusCodes.Status201Created);
+            }, statusCode: tenant.Existing ? StatusCodes.Status200OK : StatusCodes.Status201Created);
+        }
+        catch (InvalidOperationException ex) when (
+            ex.Message.Contains("Idempotency key", StringComparison.Ordinal))
+        {
+            return Error(StatusCodes.Status409Conflict, "IDEMPOTENCY_CONFLICT", ex.Message);
         }
         catch (InvalidOperationException ex)
         {

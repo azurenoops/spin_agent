@@ -70,7 +70,8 @@ public class CspDashboardDrillThroughTests
 
         // Act — the row click POSTs the impersonate endpoint.
         var startResp = await _client.PostAsync(
-            $"/api/tenants/{tenantBId}/impersonate", content: null);
+            $"/api/tenants/{tenantBId}/impersonate",
+            JsonContent.Create(new { reason = "Investigate organization support request", acknowledged = true }));
 
         // Assert — POST returns the canonical envelope with the target tenant id.
         startResp.StatusCode.Should().Be(HttpStatusCode.OK);

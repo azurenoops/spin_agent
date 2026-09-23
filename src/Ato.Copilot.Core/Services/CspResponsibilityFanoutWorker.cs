@@ -2,6 +2,7 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
+using Ato.Copilot.Core.Services.Workspaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -79,6 +80,12 @@ public sealed class CspResponsibilityFanoutWorker(
                 }
                 failures.Add(exception);
             }
+        }
+        await using (var projectionScope = scopes.CreateAsyncScope())
+        {
+            await new ProviderReleaseImpactProcessor(
+                projectionScope.ServiceProvider.GetRequiredService<AtoCopilotContext>())
+                .RunOnceAsync(ct);
         }
         if (failures.Count > 0)
             throw new AggregateException("One or more tenant responsibility deliveries remain pending.", failures);

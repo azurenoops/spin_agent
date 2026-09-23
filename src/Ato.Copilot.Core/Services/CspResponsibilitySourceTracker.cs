@@ -25,7 +25,10 @@ public static class CspResponsibilitySourceTracker
     /// <summary>Display captured content without exposing storage paths, signed URLs or artifact credentials.</summary>
     public static string RedactSnapshot(string snapshotJson)
     {
-        if (JsonNode.Parse(snapshotJson) is not JsonObject snapshot || snapshot["Component"] is not JsonObject component)
+        if (JsonNode.Parse(snapshotJson) is not JsonObject snapshot)
+            throw new InvalidDataException("The stored provider responsibility snapshot has an invalid structure.");
+        var source = snapshot["Capability"] as JsonObject ?? snapshot;
+        if (source["Component"] is not JsonObject component)
             throw new InvalidDataException("The stored provider responsibility snapshot has an invalid structure.");
         if (component["SourceArtifactReference"] is not null)
             component["SourceArtifactReference"] = "[redacted]";
@@ -64,5 +67,42 @@ public static class CspResponsibilitySourceTracker
                     && component.Status == CspInheritedComponentStatus.Published
             });
         }
+    }
+
+    public static async Task<CspResponsibilitySourceEvent> StageReleaseAsync(
+        AtoCopilotContext db,
+        CspInheritedCapability capability,
+        string releaseSnapshotHash,
+        string actor,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(releaseSnapshotHash);
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        if (actor.Length > 200)
+            throw new ArgumentException("Provider event actor exceeds 200 characters.", nameof(actor));
+
+        var component = capability.CspInheritedComponent
+            ?? await db.CspInheritedComponents.SingleAsync(
+                x => x.Id == capability.CspInheritedComponentId, ct);
+        var latest = await db.Set<CspResponsibilitySourceEvent>()
+            .Where(x => x.CapabilityId == capability.Id)
+            .OrderByDescending(x => x.Sequence)
+            .FirstOrDefaultAsync(ct);
+        if (latest?.SourceRevision == releaseSnapshotHash)
+            return latest;
+
+        var sourceEvent = new CspResponsibilitySourceEvent
+        {
+            CapabilityId = capability.Id,
+            ComponentId = component.Id,
+            CspProfileId = component.CspProfileId,
+            SourceRevision = releaseSnapshotHash,
+            Sequence = (latest?.Sequence ?? 0) + 1,
+            Actor = actor,
+            IsAvailable = capability.Status == CspInheritedCapabilityStatus.Mapped
+                && component.Status == CspInheritedComponentStatus.Published
+        };
+        db.Set<CspResponsibilitySourceEvent>().Add(sourceEvent);
+        return sourceEvent;
     }
 }

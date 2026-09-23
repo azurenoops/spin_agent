@@ -22,6 +22,7 @@ using Ato.Copilot.Mcp.Endpoints.Onboarding;
 using Ato.Copilot.Mcp.Endpoints.Csp;
 using Ato.Copilot.Mcp.Endpoints.Tenancy;
 using Ato.Copilot.Mcp.Endpoints.Auth;
+using Ato.Copilot.Mcp.Endpoints.Workspaces;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Services.Tenancy;
 using Ato.Copilot.Mcp.Logging;
@@ -487,6 +488,8 @@ async Task RunHttpModeAsync(string[] args)
     builder.Services.AddScoped<WorkspaceService>();
     builder.Services.AddScoped<IWorkspaceService>(services => services.GetRequiredService<WorkspaceService>());
     builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Workspaces.IWorkspaceOperationsService,
+        Ato.Copilot.Core.Services.Workspaces.WorkspaceOperationsService>();
     // T041: SaveChanges interceptor that stamps TenantId + validates FK consistency.
     builder.Services.AddSingleton<Ato.Copilot.Core.Data.Interceptors.TenantStampingSaveChangesInterceptor>();
     // T107 [US5]: SQL Server SESSION_CONTEXT publisher — emits TenantId /
@@ -648,6 +651,7 @@ async Task RunHttpModeAsync(string[] args)
     // Feature 048 (T208 [US9]): CSP-inherited components management surface
     // — read-only across tenants, write-gated to CSP-Admin (FR-104..FR-106).
     app.MapCspInheritedComponentEndpoints();
+    app.MapWorkspaceOperationsEndpoints();
     // Feature 048 (T181 [US8]): CSP-Admin cross-tenant operational dashboard.
     app.MapCspDashboardEndpoints();
     // Feature 048 (T116 [US6]): CSP-Admin audit query surface.
@@ -815,18 +819,21 @@ async Task EnsureNewTablesAsync(AtoCopilotContext db, Microsoft.Extensions.Loggi
         .Distinct()
         .ToList();
 
-    // 2. Gather all table names that actually exist in SQL Server
-    var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    await using (var cmd = db.Database.GetDbConnection().CreateCommand())
+    async Task<HashSet<string>> ReadExistingTablesAsync()
     {
+        var tables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using var cmd = db.Database.GetDbConnection().CreateCommand();
         cmd.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
         if (cmd.Connection!.State != System.Data.ConnectionState.Open)
             await cmd.Connection.OpenAsync(ct);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-            existingTables.Add(reader.GetString(0));
+            tables.Add(reader.GetString(0));
+        return tables;
     }
 
+    // 2. Gather all table names that actually exist in SQL Server
+    var existingTables = await ReadExistingTablesAsync();
     var missingTables = modelTables
         .Where(t => !existingTables.Contains(t!))
         .ToList();
@@ -841,6 +848,9 @@ async Task EnsureNewTablesAsync(AtoCopilotContext db, Microsoft.Extensions.Loggi
 
     // 3. Also ensure new columns on existing tables (schema additions)
     await EnsureSchemaAdditionsAsync(db, logger, ct);
+    // Additive modules can create tables, so the pre-upgrade snapshot is no longer authoritative.
+    existingTables = await ReadExistingTablesAsync();
+    missingTables.RemoveAll(table => existingTables.Contains(table!));
 
     // 4. Generate CREATE TABLE DDL from the EF model for missing tables
     var missingEntityTypes = model.GetEntityTypes()
@@ -1284,8 +1294,13 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // Feature 048: Tenancy schema additions (Tenants, Organizations) and system-tenant bootstrap.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantsAndOrganizationsSchemaAdditions
         .ApplyAsync(db, logger, ct);
-    // Feature 048 (T056): Adds TenantId column + index to every retrofitted
-    // [TenantScoped] entity table. Idempotent / additive.
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantSupportSessionSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.WorkspaceOperationsSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationCatalogSchemaAdditions
+        .EnsureTablesAsync(db, ct);
+    // Create workspace/catalog tables before retrofitting TenantId; legacy indexes below need the retrofit first.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantIdColumnAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.NotificationPreferencesSchemaAdditions
@@ -1320,7 +1335,7 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationMembershipSchemaAdditions
         .ApplyAsync(db, logger, ct);
-    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantSupportSessionSchemaAdditions
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationCatalogSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ControlValidationLinksSchemaAdditions
         .ApplyAsync(db, logger, ct);

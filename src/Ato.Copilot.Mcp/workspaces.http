@@ -15,7 +15,9 @@
 ### System role assignment: org Administrator or the exact Feature 049 target matrix.
 ### Validation links: applicable SCA (spec 069); never inferred from system management.
 ### Legacy Compliance.Administrator is not automatically an organization Administrator grant.
-### Ticketing, deviations, organization capability creation, organization override review,
+### Organization catalog creation/adoption requires CanManageOrganization (Administrator);
+### see organization-catalog.http. No system permission or subscription is involved.
+### Ticketing, deviations, organization override review,
 ### and deferred-prerequisite authority remain unavailable pending explicit policy decisions.
 
 ### Per-system permissions: effective assignments, never the first/highest persona.

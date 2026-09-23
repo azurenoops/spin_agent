@@ -1,0 +1,62 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_AUTHENTICATED_CSP_BEARER_TOKEN
+@capabilityId = 00000000-0000-0000-0000-000000000001
+@componentId = 00000000-0000-0000-0000-000000000002
+
+### First working save after manual capability creation:
+### GET working-revision returns 404 WORKING_REVISION_NOT_FOUND, not an editable baseline.
+### Bootstrap expectedRevision=1; classification and serviceCategory are required authored values.
+### Empty contributors [] and controlDuties {} are accepted; mapped controls do not infer duties.
+### Initial success returns data.revision=1 (no prior releases); use data.revision on the next save.
+### The classification/category below are examples, not backend defaults.
+PUT {{baseUrl}}/api/csp/catalog/capabilities/{{capabilityId}}/working-revision
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "expectedRevision": 1,
+  "classification": "CUI",
+  "serviceCategory": "Identity",
+  "contributors": [],
+  "controlDuties": {}
+}
+
+### Provider read contract: ordinary CSP only, never organization/support scope.
+### Responses use {data: ...}. All routes are read-only; publish/approval is unchanged.
+### Overview: providerName (persisted DisplayName, null if absent/blank),
+### sourceArtifacts {items,page,pageSize,total}, authorizationRecord (null).
+### Artifacts: componentId,componentName,sourceFormat,sourceFileName,sourceReference.
+### File/reference metadata is provenance, not a separate authorization or evidence record.
+GET {{baseUrl}}/api/csp/catalog/overview?page=1&pageSize=50
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Detail: capability (catalog item), supportingComponents, unresolvedContributorIds,
+### sourceArtifacts, mappedControlIds, sourceEvidenceReferences (null),
+### implementationNarrative (null). Description is never presented as implementation.
+### Supports direct lookup beyond page 200; missing capability returns explicit 404.
+### Catalog additions: supportingComponents [{id,name,componentType,source,description}],
+### distinctOrganizationCount, workingApprovalState (Approved/NotApproved/null).
+### No working row: workingRevision=null, workingApprovalState=null.
+### Existing release revision is independently persisted; never synthesized from status.
+GET {{baseUrl}}/api/csp/catalog/capabilities/{{capabilityId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Filter is applied before count/paging, not by client-side catalog scanning.
+### distinctAdoptionCount = distinct tenant-qualified systems; organizations counted separately.
+### Supporting contributor IDs resolve only to provider components; unresolved IDs remain explicit.
+GET {{baseUrl}}/api/csp/catalog?grouping=capability&componentId={{componentId}}&page=1&pageSize=50
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Missing capability: 404. Invalid componentId filter: 400.
+GET {{baseUrl}}/api/csp/catalog/capabilities/ffffffff-ffff-ffff-ffff-ffffffffffff
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary

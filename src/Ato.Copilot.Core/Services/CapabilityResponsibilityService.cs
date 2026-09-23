@@ -196,11 +196,23 @@ public sealed partial class CapabilityResponsibilityService(
         var ids = subscriptions.Select(s => Guid.Parse(s.CspInheritedCapabilityId)).ToArray();
         var capabilities = await db.CspInheritedCapabilities.Include(c => c.CspInheritedComponent)
             .Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
+        var releases = (await db.ProviderCapabilityReleases.AsNoTracking()
+                .Where(x => ids.Contains(x.CapabilityId))
+                .OrderBy(x => x.CapabilityId).ThenByDescending(x => x.Revision)
+                .ToListAsync(ct))
+            .GroupBy(x => x.CapabilityId)
+            .ToDictionary(x => x.Key, x => x.First());
         var sources = subscriptions.Select(s =>
         {
-            capabilities.TryGetValue(Guid.Parse(s.CspInheritedCapabilityId), out var capability);
-            var snapshot = CspResponsibilitySourceTracker.Snapshot(capability);
-            return new Source(s, capability, snapshot, Hash(snapshot));
+            var capabilityId = Guid.Parse(s.CspInheritedCapabilityId);
+            capabilities.TryGetValue(capabilityId, out var capability);
+            releases.TryGetValue(capabilityId, out var release);
+            var hasImmutableRelease = release is not null && HasCapabilitySnapshot(release.SnapshotJson);
+            var snapshot = hasImmutableRelease
+                ? release!.SnapshotJson
+                : CspResponsibilitySourceTracker.Snapshot(capability);
+            return new Source(s, capability, snapshot,
+                hasImmutableRelease ? release!.SnapshotHash : Hash(snapshot));
         }).ToList();
         var confirmations = await db.Set<CapabilityResponsibilityConfirmation>()
             .Where(c => c.TenantId == scopedTenant && c.RegisteredSystemId == systemId && c.IsCurrent).ToListAsync(ct);
@@ -256,6 +268,21 @@ public sealed partial class CapabilityResponsibilityService(
         && capability.CspInheritedComponent.Status == CspInheritedComponentStatus.Published;
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+    private static bool HasCapabilitySnapshot(string value)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return document.RootElement.TryGetProperty("Capability", out var capability)
+                && capability.ValueKind == JsonValueKind.Object
+                && capability.TryGetProperty("Component", out var component)
+                && component.ValueKind == JsonValueKind.Object;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
     private static string ReviewRevision(State state, Source source) => Hash(JsonSerializer.Serialize(state.Confirmations
         .Where(c => c.SubscriptionId == source.Subscription.Id && c.IsCurrent).OrderBy(c => c.ControlId)
         .Select(c => new { c.Id, c.ControlId, c.SourceRevision })));

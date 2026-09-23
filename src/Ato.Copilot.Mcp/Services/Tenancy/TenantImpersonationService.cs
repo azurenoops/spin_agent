@@ -46,6 +46,9 @@ public interface ITenantImpersonationService
     /// <summary>Persist server authorization before returning a workspace support token.</summary>
     Task<(string value, DateTimeOffset expiresAt)> IssueWorkspaceTokenAsync(
         string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId, CancellationToken cancellationToken);
+    Task<(string value, DateTimeOffset expiresAt)> IssueWorkspaceTokenAsync(
+        string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId,
+        string reason, string? reference, string correlationId, CancellationToken cancellationToken);
 
     /// <summary>Validate cryptography and current durable workspace authorization, with no positive cache.</summary>
     Task<ImpersonationCookiePayload?> ValidateWorkspaceTokenAsync(string cookieValue, CancellationToken cancellationToken);
@@ -184,6 +187,12 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
 
     public async Task<(string value, DateTimeOffset expiresAt)> IssueWorkspaceTokenAsync(
         string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId, CancellationToken cancellationToken)
+        => await IssueWorkspaceTokenAsync(impersonatorOid, directoryTenantId, impersonatedTenantId,
+            "Legacy authorized support session", null, Guid.NewGuid().ToString("N"), cancellationToken);
+
+    public async Task<(string value, DateTimeOffset expiresAt)> IssueWorkspaceTokenAsync(
+        string impersonatorOid, Guid directoryTenantId, Guid impersonatedTenantId,
+        string reason, string? reference, string correlationId, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(impersonatorOid, out var actor) || actor == Guid.Empty
             || directoryTenantId == Guid.Empty || impersonatedTenantId == Guid.Empty)
@@ -198,6 +207,8 @@ public sealed class TenantImpersonationService : ITenantImpersonationService
             {
                 Id = payload.SessionId!.Value, DirectoryTenantId = directoryTenantId, ObjectId = actor,
                 TargetTenantId = impersonatedTenantId, IssuedAt = payload.IssuedAt, ExpiresAt = payload.ExpiresAt,
+                Reason = reason.Trim(), Reference = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim(),
+                Acknowledged = true, CorrelationId = correlationId,
             }, cancellationToken);
             return true;
         });
