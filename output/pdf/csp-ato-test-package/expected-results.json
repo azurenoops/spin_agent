@@ -1,0 +1,76 @@
+{
+  "fixture": "TEST-ATO-HARBOR-001",
+  "synthetic": true,
+  "expectationsType": "target-workflow acceptance criteria, not a recorded application result",
+  "components": [
+    {
+      "fixtureId": "CMP-001",
+      "name": "Harbor Identity Service",
+      "sourcePage": 3,
+      "capabilities": [
+        {
+          "fixtureId": "CAP-001",
+          "name": "Multi factor authentication",
+          "control": "IA-2"
+        },
+        {
+          "fixtureId": "CAP-002",
+          "name": "Account lifecycle management",
+          "control": "AC-2"
+        }
+      ]
+    },
+    {
+      "fixtureId": "CMP-002",
+      "name": "Harbor Key Vault",
+      "sourcePage": 4,
+      "capabilities": [
+        {
+          "fixtureId": "CAP-003",
+          "name": "Cryptographic key management",
+          "control": "SC-12"
+        }
+      ]
+    },
+    {
+      "fixtureId": "CMP-003",
+      "name": "Harbor Backup Service",
+      "sourcePage": 5,
+      "capabilities": [
+        {
+          "fixtureId": "CAP-004",
+          "name": "Backup and recovery",
+          "control": "CP-9"
+        }
+      ]
+    },
+    {
+      "fixtureId": "CMP-004",
+      "name": "Harbor Security Monitoring",
+      "sourcePage": 6,
+      "capabilities": [
+        {
+          "fixtureId": "CAP-005",
+          "name": "Security event monitoring",
+          "control": "AU-6"
+        },
+        {
+          "fixtureId": "CAP-006",
+          "name": "Incident escalation",
+          "control": "IR-4"
+        }
+      ]
+    }
+  ],
+  "uniqueComponentCount": 4,
+  "uniqueCapabilityCount": 6,
+  "notes": [
+    "JSON repeats the same four PDF components; reconcile identities rather than create eight.",
+    "Current PDF extraction may produce a system-level candidate instead of all four components.",
+    "Capability mapping is AI-dependent; exact candidate counts are target semantic expectations, not guaranteed current outputs.",
+    "Assessment findings and POAM items are not capabilities.",
+    "No records publish during upload or onboarding completion.",
+    "All extracted components and capabilities await portal review, approval and explicit publication.",
+    "Authorization reference stays unconfirmed until reviewed."
+  ]
+}

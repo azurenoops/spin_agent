@@ -1,0 +1,19 @@
+{
+  "harbor-ato-clean.zip": {
+    "sha256": "e39544480d91b3e1536c480e535555630b927086ade6019d6c430c770beae0f9",
+    "entries": [
+      "01-harbor-synthetic-ato-package.pdf",
+      "02-harbor-components.json"
+    ]
+  },
+  "harbor-ato-needs-attention.zip": {
+    "sha256": "00fc8376fe3462ae911303b9169eb7826e45a303fdabec56483d338e5c543838",
+    "entries": [
+      "01-harbor-synthetic-ato-package.pdf",
+      "02-harbor-components.json",
+      "03-encrypted-appendix.pdf",
+      "04-unsupported-note.txt",
+      "05-malformed-source.json"
+    ]
+  }
+}
