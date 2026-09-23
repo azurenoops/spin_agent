@@ -22,7 +22,7 @@ export default function QuickActions({ context, onSend, disabled }: QuickActions
   const visible = suggestions.slice(0, 3);
 
   return (
-    <div className="border-t border-gray-100 bg-gray-50/80 px-3 py-2">
+    <div className="border-t border-gray-100 bg-gray-50/80 px-3 py-2 dark:border-gray-700 dark:bg-gray-950">
       {context.rmfPhase && (
         <div className="mb-1.5 flex items-center gap-1.5">
           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${colors.bg} ${colors.text} ${colors.ring}`}>
@@ -38,7 +38,7 @@ export default function QuickActions({ context, onSend, disabled }: QuickActions
             type="button"
             onClick={() => onSend(s.prompt)}
             disabled={disabled}
-            className="flex-shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-gray-700 shadow-sm hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] leading-tight text-gray-700 shadow-sm hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-indigo-500 dark:hover:bg-indigo-950 dark:hover:text-indigo-200"
           >
             {s.icon && <span className="mr-1">{s.icon}</span>}
             {s.label}

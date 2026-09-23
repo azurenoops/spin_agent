@@ -40,8 +40,8 @@ function NotificationItem({
   return (
     <div
       className={`flex gap-3 px-4 py-3 transition-colors ${
-        notification.isRead ? 'bg-white' : 'bg-indigo-50/60'
-      } hover:bg-gray-50`}
+        notification.isRead ? 'bg-white dark:bg-gray-900' : 'bg-indigo-50/60 dark:bg-indigo-950'
+      } hover:bg-gray-50 dark:hover:bg-gray-800`}
     >
       {/* Unread dot */}
       <div className="mt-1.5 flex-shrink-0">
@@ -55,7 +55,7 @@ function NotificationItem({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p className={`text-sm leading-snug ${notification.isRead ? 'text-gray-600' : 'font-medium text-gray-900'}`}>
+          <p className={`text-sm leading-snug ${notification.isRead ? 'text-gray-600 dark:text-gray-300' : 'font-medium text-gray-900 dark:text-gray-100'}`}>
             {notification.subject ?? notification.alertTitle ?? 'Notification'}
           </p>
           {notification.alertSeverity && (
@@ -64,7 +64,7 @@ function NotificationItem({
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-xs text-gray-500 line-clamp-2">
+        <p className="mt-0.5 text-xs text-gray-500 line-clamp-2 dark:text-gray-400">
           {notification.alertTitle && notification.subject ? notification.alertTitle : ''}
         </p>
         <div className="mt-1 flex items-center gap-2">
@@ -73,7 +73,7 @@ function NotificationItem({
             <button
               type="button"
               onClick={() => onMarkRead(notification.id)}
-              className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800"
+              className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-300 dark:hover:text-indigo-200"
             >
               Mark read
             </button>
@@ -88,11 +88,11 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
   const { notifications, unreadCount, loading, error, transportMessage, refresh, markAsRead, markAllAsRead } = useNotifications();
 
   return (
-    <div className="absolute inset-x-3 top-full z-50 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg md:inset-x-auto md:right-0 md:w-96">
+    <div className="absolute inset-x-3 top-full z-50 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg md:inset-x-auto md:right-0 md:w-96 dark:border-gray-700 dark:bg-gray-900">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Notifications</h3>
           {unreadCount > 0 && (
             <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
               {unreadCount}
@@ -104,7 +104,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
             <button
               type="button"
               onClick={markAllAsRead}
-              className="rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50"
+              className="rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950"
             >
               Mark all read
             </button>
@@ -112,7 +112,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
             aria-label="Close notifications"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -123,15 +123,15 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
       </div>
 
       {error && (
-        <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
           {error}
           <button type="button" onClick={() => void refresh()} className="ml-2 underline">Retry</button>
         </div>
       )}
-      {transportMessage && <p role="status" className="border-b px-4 py-2 text-xs text-gray-600">{transportMessage}</p>}
+      {transportMessage && <p role="status" className="border-b px-4 py-2 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-300">{transportMessage}</p>}
 
       {/* Notification list */}
-      <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
+      <div className="max-h-96 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
         {loading ? (
           <div className="px-4 py-8 text-center text-sm text-gray-400">Loading...</div>
         ) : error && notifications.length === 0 ? null : notifications.length === 0 ? (
@@ -139,7 +139,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
             <svg className="mx-auto h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
             </svg>
-            <p className="mt-2 text-sm text-gray-500">No notifications</p>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No notifications</p>
           </div>
         ) : (
           notifications.map((n) => (

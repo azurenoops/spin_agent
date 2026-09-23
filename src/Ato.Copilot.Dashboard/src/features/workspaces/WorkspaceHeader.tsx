@@ -13,7 +13,7 @@ export default function WorkspaceHeader() {
   const label = session.target.kind === 'csp' ? 'Provider workspace'
     : session.target.mode === 'support' ? 'Audited support workspace' : 'Organization workspace';
   return (
-    <section aria-label="Active workspace" className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-indigo-950 px-4 py-3 text-sm text-white">
+    <section aria-label="Active workspace" className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-100">
       <div className="min-w-0 space-y-1">
         <p className="font-semibold">{label} · {session.workspace.displayName}</p>
         {session.target.kind === 'organization' && <p>Active organization: {session.workspace.displayName}</p>}
@@ -36,7 +36,7 @@ export default function WorkspaceHeader() {
         <div role="dialog" aria-modal="true" aria-labelledby="workspace-switch-title"
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
           onKeyDown={event => { if (event.key === 'Escape') setConfirm(false); }}>
-          <div className="max-w-md space-y-4 rounded bg-white p-6 text-gray-900">
+          <div className="max-w-md space-y-4 rounded bg-white p-6 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
             <h2 id="workspace-switch-title" className="text-lg font-semibold">Switch workspace?</h2>
             <p>Save your work first. Continuing leaves this workspace and discards any unsaved changes in this tab.</p>
             <div className="flex flex-wrap justify-end gap-4">

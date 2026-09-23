@@ -18,12 +18,12 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSess
 vi.mock('../../components/layout/useCspDashboardAvailable', () => ({ useCspDashboardAvailable: () => true }));
 vi.mock('../../hooks/useImpersonationActive', () => ({ useImpersonationActive: () => false }));
 
-function mount() {
+function mount(updateSettings = vi.fn()) {
   return render(
     <MemoryRouter>
       <SettingsContext.Provider value={{
         settings: { ...DEFAULT_SETTINGS, displayName: 'Browser alias', role: 'AO', organization: 'Wrong organization' },
-        updateSettings: vi.fn(), resetSettings: vi.fn(),
+        updateSettings, resetSettings: vi.fn(),
       }}>
         <SettingsPanel onClose={vi.fn()} />
       </SettingsContext.Provider>
@@ -38,6 +38,21 @@ beforeEach(() => {
 });
 
 describe('workspace settings authority', () => {
+  it('offers light, dark and system themes without requiring organization administration', () => {
+    // Arrange
+    const update = vi.fn();
+    mount(update);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }));
+    const theme = screen.getByRole('combobox', { name: 'Theme' });
+    fireEvent.change(theme, { target: { value: 'dark' } });
+    // Assert
+    expect(screen.getByRole('option', { name: 'Light' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Dark' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'System' })).toBeInTheDocument();
+    expect(update).toHaveBeenCalledWith({ theme: 'dark' });
+  });
+
   it('shows verified identity and all roles without an editable browser persona', () => {
     // Arrange
     const name = 'Verified Mission Owner';

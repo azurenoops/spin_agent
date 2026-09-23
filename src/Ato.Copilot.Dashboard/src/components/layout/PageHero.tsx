@@ -37,7 +37,7 @@ export default function PageHero({
     : organization.displayName;
 
   return (
-    <div className="relative -mx-6 -mt-6 mb-6 overflow-hidden bg-gradient-to-r from-indigo-700 via-indigo-700 to-sky-600 text-white shadow-sm">
+    <div className="relative -mx-6 -mt-6 mb-6 overflow-hidden bg-gradient-to-r from-indigo-700 via-indigo-700 to-sky-600 text-white shadow-sm dark:from-indigo-950 dark:via-indigo-950 dark:to-sky-900">
       <div
         className="pointer-events-none absolute inset-0 opacity-25"
         style={{

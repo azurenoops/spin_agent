@@ -29,12 +29,12 @@ export function WorkspaceStatus({ message, loading = false, onRetry }: {
 }) {
   return (
     <main className="mx-auto max-w-xl space-y-4 px-6 py-16">
-      <h1 className="text-xl font-semibold text-gray-900">{loading ? 'Resolving workspace' : 'Workspace unavailable'}</h1>
-      <p role={loading ? 'status' : 'alert'} className="text-sm text-gray-700">{message}</p>
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{loading ? 'Resolving workspace' : 'Workspace unavailable'}</h1>
+      <p role={loading ? 'status' : 'alert'} className="text-sm text-gray-700 dark:text-gray-300">{message}</p>
       {!loading && (
         <div className="flex gap-4 text-sm">
-          {onRetry && <button type="button" onClick={onRetry} className="text-indigo-700 underline">Retry</button>}
-          <Link to="/login/select-tenant" className="text-indigo-700 underline">Choose a workspace</Link>
+          {onRetry && <button type="button" onClick={onRetry} className="text-indigo-700 underline dark:text-indigo-300">Retry</button>}
+          <Link to="/login/select-tenant" className="text-indigo-700 underline dark:text-indigo-300">Choose a workspace</Link>
         </div>
       )}
     </main>
