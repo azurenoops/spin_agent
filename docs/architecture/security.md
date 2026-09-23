@@ -21,7 +21,7 @@
 
 ### CAC/PIV Certificate Authentication
 
-ATO Copilot supports Common Access Card (CAC) and Personal Identity Verification (PIV) certificate authentication for DoD environments.
+Security Posture Intelligence Navigator supports Common Access Card (CAC) and Personal Identity Verification (PIV) certificate authentication for DoD environments.
 
 **Flow:**
 1. Client presents certificate via JWT `amr` claim

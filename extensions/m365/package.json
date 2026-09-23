@@ -1,7 +1,7 @@
 {
   "name": "ato-copilot-m365",
   "version": "1.0.0",
-  "description": "ATO Copilot M365 Extension — Teams Declarative Agent for compliance assessment and remediation",
+  "description": "Security Posture Intelligence Navigator M365 Extension — Teams Declarative Agent for compliance assessment and remediation",
   "main": "dist/index.js",
   "type": "commonjs",
   "scripts": {
@@ -11,7 +11,7 @@
     "test": "mocha",
     "lint": "eslint src/ --ext .ts"
   },
-  "author": "ATO Copilot Team",
+  "author": "Security Posture Intelligence Navigator Team",
   "license": "MIT",
   "dependencies": {
     "adaptivecards": "^3.0.1",

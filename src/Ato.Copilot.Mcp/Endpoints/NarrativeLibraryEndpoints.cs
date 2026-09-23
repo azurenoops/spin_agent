@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Ato.Copilot.Agents.Compliance.Services;
+using Ato.Copilot.Mcp.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -10,7 +11,12 @@ namespace Ato.Copilot.Mcp.Endpoints;
 
 public sealed record PublishNarrativeReferenceRequest(
     int ExpectedRevision, bool Reviewed, IReadOnlyList<NarrativeReferencePassage> Passages);
+/// <summary>Reviewed mapping and destination scope for an unpublished reference revision.</summary>
+public sealed record UpdateNarrativeReferenceDraftRequest(
+    int ExpectedRevision, string Scope, string ScopeId, IReadOnlyList<NarrativeReferencePassage> Passages);
 public sealed record GenerateNarrativeProposalRequest(string ControlId, string NarrativeType, int ExpectedVersion);
+/// <summary>Materialize or retry the existing queued proposal without changing its durable identity.</summary>
+public sealed record GenerateQueuedNarrativeProposalRequest(int ExpectedRevision);
 public sealed record ReviewNarrativeProposalRequest(int ExpectedRevision, string Decision, string? Note);
 
 public static class NarrativeLibraryEndpoints
@@ -18,7 +24,8 @@ public static class NarrativeLibraryEndpoints
     public static IEndpointRouteBuilder MapNarrativeLibraryEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/systems/{systemId}/narrative-library")
-            .WithTags("Narrative Library").RequireAuthorization();
+            .WithTags("Narrative Library").RequireAuthorization()
+            .WithMetadata(new WorkspaceAuthorizedEndpoint());
         group.AddEndpointFilter(async (context, next) =>
         {
             try { return await next(context); }
@@ -62,19 +69,64 @@ public static class NarrativeLibraryEndpoints
         group.MapPost("/{id:guid}/publish", async (string systemId, Guid id, PublishNarrativeReferenceRequest request,
             HttpContext http, NarrativeLibraryService service, CancellationToken ct) =>
             Results.Ok(await service.PublishAsync(systemId, id, Actor(http), request.ExpectedRevision, request.Passages, request.Reviewed, ct)));
+        group.MapPatch("/{id:guid}", async (string systemId, Guid id, UpdateNarrativeReferenceDraftRequest request,
+            HttpContext http, NarrativeLibraryService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.UpdateDraftAsync(systemId, id, Actor(http), request.ExpectedRevision,
+                request.Scope, request.ScopeId, request.Passages, ct)))
+            .WithSummary("Correct mappings and scope before reference publication")
+            .Produces<NarrativeReferenceResponse>()
+            .Produces(StatusCodes.Status403Forbidden).Produces(StatusCodes.Status409Conflict);
         group.MapGet("/proposals", async (string systemId, HttpContext http, NarrativeProposalService service, CancellationToken ct) =>
             Results.Ok(await service.ListAsync(systemId, Actor(http), ct)));
+        group.MapGet("/proposals/{id:guid}", async (string systemId, Guid id, HttpContext http,
+            NarrativeProposalService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.GetAsync(systemId, id, Actor(http), ct)))
+            .WithSummary("Resolve an authorized durable proposal independently of the list window")
+            .Produces<NarrativeProposalResponse>().Produces(StatusCodes.Status404NotFound);
         group.MapPost("/proposals", async (string systemId, GenerateNarrativeProposalRequest request,
             HttpContext http, NarrativeProposalService service, CancellationToken ct) =>
             Results.Ok(await service.GenerateAsync(systemId, request.ControlId, request.NarrativeType, Actor(http), request.ExpectedVersion, ct)));
+        group.MapPost("/proposals/{id:guid}/generate", GenerateQueuedAsync)
+            .WithSummary("Generate or retry an existing queued proposal using current narrative-author permission")
+            .Produces<NarrativeProposalResponse>().Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status409Conflict).Produces(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status503ServiceUnavailable).Produces(StatusCodes.Status504GatewayTimeout);
         group.MapPost("/proposals/{id:guid}/review", async (string systemId, Guid id, ReviewNarrativeProposalRequest request,
             HttpContext http, NarrativeProposalService service, CancellationToken ct) =>
             Results.Ok(await service.ReviewAsync(systemId, id, Actor(http), request.ExpectedRevision, request.Decision, request.Note, ct)));
         return app;
     }
 
-    private static string Actor(HttpContext http) => http.User.FindFirstValue("oid") ??
-        http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
+    private static async Task<IResult> GenerateQueuedAsync(string systemId, Guid id,
+        GenerateQueuedNarrativeProposalRequest request, HttpContext http, NarrativeProposalService service, CancellationToken ct)
+    {
+        try
+        {
+            return TypedResults.Ok(await service.GenerateQueuedForActorAsync(systemId, id, Actor(http), request.ExpectedRevision, ct));
+        }
+        catch (HttpRequestException)
+        { return GenerationFailure(http, 502, "GENERATION_FAILED"); }
+        catch (TimeoutException)
+        { return GenerationFailure(http, 504, "GENERATION_TIMEOUT"); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        { return GenerationFailure(http, 502, "GENERATION_CANCELLED"); }
+    }
+
+    private static IResult GenerationFailure(HttpContext http, int status, string code)
+    {
+        http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("NarrativeLibrary")
+            .LogWarning("Queued narrative generation failed with {ErrorCode}", code);
+        return Error(status, code, "Generation failed. Active content is unchanged; reload the proposal before retrying.");
+    }
+
+    private static string Actor(HttpContext http)
+    {
+        var tenant = http.RequestServices.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>();
+        if (tenant.IsWorkspaceRequest)
+            return tenant.PersonId?.ToString() ?? throw new UnauthorizedAccessException();
+        return http.User.FindFirstValue("oid") ??
+            http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
+    }
 
     private static IResult Error(int code, string errorCode, string error) => Results.Json(new { errorCode, error }, statusCode: code);
 }

@@ -8,9 +8,9 @@
 
 | Requirement | Details |
 |-------------|---------|
-| **MCP Server** | ATO Copilot MCP server running locally or in a deployed environment with all 118 tools registered |
+| **MCP Server** | Security Posture Intelligence Navigator MCP server running locally or in a deployed environment with all 118 tools registered |
 | **VS Code** | VS Code with the `@ato` chat participant extension installed and connected to the MCP server |
-| **Microsoft Teams** | Teams client with ATO Copilot bot installed (for ISSM, SCA, AO persona tests) |
+| **Microsoft Teams** | Teams client with Security Posture Intelligence Navigator bot installed (for ISSM, SCA, AO persona tests) |
 | **Azure Government** | Active Azure Government subscription (`sub-12345-abcde`) with test resources provisioned |
 | **PIM Roles** | Tester must have PIM eligibility for all 5 compliance roles |
 | **Test Data** | Clean environment or ability to create a new system named "Eagle Eye" |

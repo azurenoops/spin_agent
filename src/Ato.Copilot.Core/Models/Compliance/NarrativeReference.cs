@@ -5,6 +5,7 @@ namespace Ato.Copilot.Core.Models.Compliance;
 
 [TenantScoped]
 [Microsoft.EntityFrameworkCore.Index(nameof(TenantId), nameof(ReferenceKey), nameof(Version), IsUnique = true)]
+[Microsoft.EntityFrameworkCore.Index(nameof(TenantId), nameof(Scope), nameof(ScopeId), nameof(Title), nameof(Version), IsUnique = true)]
 public class NarrativeReference
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -13,7 +14,7 @@ public class NarrativeReference
     [MaxLength(200)] public string Title { get; set; } = string.Empty;
     [MaxLength(20)] public string Scope { get; set; } = "System";
     [MaxLength(36)] public string ScopeId { get; set; } = string.Empty;
-    [MaxLength(36)] public string ImportedForSystemId { get; set; } = string.Empty;
+    [MaxLength(36)] public string? ImportedForSystemId { get; set; }
     [MaxLength(200)] public string SourceName { get; set; } = string.Empty;
     [MaxLength(64)] public string SourceSha256 { get; set; } = string.Empty;
     public string OriginalPassagesJson { get; set; } = "[]";
@@ -25,4 +26,5 @@ public class NarrativeReference
     [MaxLength(200)] public string CreatedBy { get; set; } = string.Empty;
     public DateTime? PublishedAt { get; set; }
     [MaxLength(200)] public string? PublishedBy { get; set; }
+    public ICollection<NarrativeReferencePublication> Publications { get; set; } = new List<NarrativeReferencePublication>();
 }

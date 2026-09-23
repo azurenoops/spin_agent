@@ -4,7 +4,7 @@
 
 ## What This Feature Adds
 
-Feature 017 enables ATO Copilot to ingest real-world STIG assessment data:
+Feature 017 enables Security Posture Intelligence Navigator to ingest real-world STIG assessment data:
 
 - **CKL import** — Parse DISA STIG Viewer checklist files, create compliance findings and control effectiveness records
 - **XCCDF import** — Parse SCAP Compliance Checker results with automated evidence chains
@@ -14,7 +14,7 @@ Feature 017 enables ATO Copilot to ingest real-world STIG assessment data:
 
 ## Prerequisites
 
-- ATO Copilot running (Feature 015+ deployed)
+- Security Posture Intelligence Navigator running (Feature 015+ deployed)
 - At least one registered system with a control baseline selected
 - STIG Viewer CKL file or SCAP SCC XCCDF results file
 - .NET 9.0 SDK, Docker

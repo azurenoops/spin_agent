@@ -38,13 +38,13 @@
 
 The System Security Plan is the **single most important document** in the ATO package. Every federal system — from a minor application to a national security system — must have a complete SSP before it can receive an Authorization to Operate. NIST SP 800-18 Rev 1 defines 13 required sections that together describe the system's environment, security posture, and risk profile.
 
-ATO Copilot currently generates **5 of 13 required sections**. An SSP missing 8 sections is incomplete and cannot be submitted for authorization. Assessors (SCAs) will reject the package at first review. This means teams still maintain parallel documents in Word/SharePoint — defeating the purpose of an integrated compliance platform.
+Security Posture Intelligence Navigator currently generates **5 of 13 required sections**. An SSP missing 8 sections is incomplete and cannot be submitted for authorization. Assessors (SCAs) will reject the package at first review. This means teams still maintain parallel documents in Word/SharePoint — defeating the purpose of an integrated compliance platform.
 
 Additionally, the federal government is moving toward **OSCAL (Open Security Controls Assessment Language)** as the standard machine-readable format for security artifacts. OMB M-22-09 and the FedRAMP automation initiative require OSCAL-formatted SSPs for automated validation. The current OSCAL SSP output from `EmassExportService.BuildOscalSsp()` produces a minimal JSON document that covers metadata and control implementations but is missing the `system-implementation`, `import-profile`, and `back-matter` sections required by the OSCAL SSP schema. This output will not validate against the NIST OSCAL 1.1.2 schema.
 
 ### The Current Gap
 
-| What Teams Must Do | What ATO Copilot Can Do Today |
+| What Teams Must Do | What Security Posture Intelligence Navigator Can Do Today |
 |---------------------|-------------------------------|
 | Submit complete SSP with all 13 NIST 800-18 sections | Generates 5 of 13 sections (§1, §2, §3, §4, §10) |
 | Describe system operating environment (§5) | Nothing — no physical/logical environment model |
@@ -59,7 +59,7 @@ Additionally, the federal government is moving toward **OSCAL (Open Security Con
 
 ### The Opportunity
 
-ATO Copilot already has the foundational data to populate most missing sections:
+Security Posture Intelligence Navigator already has the foundational data to populate most missing sections:
 
 - **§11 Authorization Boundary**: `AuthorizationBoundary` entities with resource IDs, types, and inheritance providers — just need section rendering and OSCAL mapping
 - **§10 Interconnections**: Already implemented in Feature 021 — `SystemInterconnection` + `InterconnectionAgreement` data feeds the section

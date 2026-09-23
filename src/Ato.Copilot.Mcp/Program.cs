@@ -23,6 +23,7 @@ using Ato.Copilot.Mcp.Endpoints.Csp;
 using Ato.Copilot.Mcp.Endpoints.Tenancy;
 using Ato.Copilot.Mcp.Endpoints.Auth;
 using Ato.Copilot.Mcp.Middleware;
+using Ato.Copilot.Mcp.Services.Tenancy;
 using Ato.Copilot.Mcp.Logging;
 using Ato.Copilot.Mcp.Server;
 using Microsoft.EntityFrameworkCore;
@@ -34,7 +35,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 // ────────────────────────────────────────────────────────────────
-//  ATO Copilot — Compliance-Only MCP Server
+//  Security Posture Intelligence Navigator — Compliance-Only MCP Server
 //  Supports dual-mode: stdio (GitHub Copilot / Claude) and HTTP
 // ────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ var bootstrapConfig = new ConfigurationBuilder()
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(bootstrapConfig)
     .Enrich.FromLogContext()
-    .Enrich.WithProperty("Application", "ATO Copilot")
+    .Enrich.WithProperty("Application", "Security Posture Intelligence Navigator")
     // Feature 048 tenant log-context properties (populated per request via
     // LogContext.PushProperty in TenantResolutionMiddleware / TenantContextLogEnricher).
     // Declared up front so they appear consistently in structured logs.
@@ -74,7 +75,7 @@ if (mode != "stdio")
     Log.Logger = new LoggerConfiguration()
         .ReadFrom.Configuration(bootstrapConfig)
         .Enrich.FromLogContext()
-        .Enrich.WithProperty("Application", "ATO Copilot")
+        .Enrich.WithProperty("Application", "Security Posture Intelligence Navigator")
         // Feature 048 tenant log-context properties (see comment in stdio config above).
         .Enrich.WithProperty("TenantId", (string?)null)
         .Enrich.WithProperty("EffectiveTenantId", (string?)null)
@@ -87,7 +88,7 @@ if (mode != "stdio")
 
 try
 {
-    Log.Information("ATO Copilot starting in {Mode} mode", mode);
+    Log.Information("Security Posture Intelligence Navigator starting in {Mode} mode", mode);
 
     // BUG-21 (#694): validate dev/stdio auth-bypass configuration before
     // starting either transport so a misconfigured container fails fast.
@@ -100,7 +101,7 @@ try
 }
 catch (Exception ex) when (!IsHostBuildAbortedException(ex))
 {
-    Log.Fatal(ex, "ATO Copilot terminated unexpectedly");
+    Log.Fatal(ex, "Security Posture Intelligence Navigator terminated unexpectedly");
     Environment.ExitCode = 1;
 }
 finally
@@ -314,11 +315,14 @@ async Task RunHttpModeAsync(string[] args)
     });
 
     // SignalR for real-time notification push
+    builder.Services.AddSingleton<Ato.Copilot.State.Abstractions.IConversationIdentityAccessor,
+        Ato.Copilot.Mcp.Server.WorkspaceChatScope>();
     builder.Services.AddSignalR()
         .AddJsonProtocol(options =>
         {
             options.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         });
+    Ato.Copilot.Mcp.Hubs.Notifications.NotificationServiceRegistration.AddWorkspaceNotifications(builder.Services);
     builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Compliance.INotificationBroadcaster,
         Ato.Copilot.Mcp.Services.SignalRNotificationBroadcaster>();
     // #941 — Epic 10: model-call provenance ledger (append-only, singleton-safe via IDbContextFactory).
@@ -452,6 +456,7 @@ async Task RunHttpModeAsync(string[] args)
     builder.Services.AddSingleton<Ato.Copilot.Mcp.Services.ScanImportQueue>();
     builder.Services.AddSingleton<Ato.Copilot.Mcp.Services.ScanImportStatusTracker>();
     builder.Services.AddHostedService<Ato.Copilot.Mcp.Workers.ScanImportBackgroundWorker>();
+    builder.Services.AddHostedService<Ato.Copilot.Core.Services.CspResponsibilityFanoutWorker>();
 
     // Feature 051 (T032 / FR-034 / FR-035): throttle service + the
     // IDistributedCache backing store. Dev/Test use the in-process
@@ -479,6 +484,9 @@ async Task RunHttpModeAsync(string[] args)
         Ato.Copilot.Core.Services.Tenancy.TenantContextAccessor>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext,
         Ato.Copilot.Core.Services.Tenancy.TenantContext>();
+    builder.Services.AddScoped<WorkspaceService>();
+    builder.Services.AddScoped<IWorkspaceService>(services => services.GetRequiredService<WorkspaceService>());
+    builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
     // T041: SaveChanges interceptor that stamps TenantId + validates FK consistency.
     builder.Services.AddSingleton<Ato.Copilot.Core.Data.Interceptors.TenantStampingSaveChangesInterceptor>();
     // T107 [US5]: SQL Server SESSION_CONTEXT publisher — emits TenantId /
@@ -518,8 +526,9 @@ async Task RunHttpModeAsync(string[] args)
     // Feature 048 follow-up (user ask #2): per-org NIST control overrides.
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Tenancy.IOrgControlOverrideService,
         Ato.Copilot.Core.Services.Tenancy.OrgControlOverrideService>();
-    // T067: HMAC-signed impersonation cookie service. Singleton because the
-    // signing key is loaded once at startup; all state lives in the cookie.
+    // The singleton signer uses an uncached, factory-backed support authorization store.
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.Tenancy.ITenantSupportSessionStore,
+        Ato.Copilot.Core.Services.Tenancy.TenantSupportSessionStore>();
     builder.Services.AddSingleton<Ato.Copilot.Mcp.Services.Tenancy.ITenantImpersonationService>(sp =>
     {
         var cfg = sp.GetRequiredService<IConfiguration>();
@@ -541,7 +550,9 @@ async Task RunHttpModeAsync(string[] args)
             // Development fallback only — stable, non-secret dev key.
             key = "dev-only-impersonation-signing-key-change-me-please-32b";
         }
-        return new Ato.Copilot.Mcp.Services.Tenancy.TenantImpersonationService(key);
+        return new Ato.Copilot.Mcp.Services.Tenancy.TenantImpersonationService(key,
+            sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantSupportSessionStore>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Ato.Copilot.Mcp.Services.Tenancy.TenantImpersonationService>>());
     });
 
     var app = builder.Build();
@@ -595,6 +606,7 @@ async Task RunHttpModeAsync(string[] args)
     app.MapControlValidationEndpoints();
     app.MapNarrativeDualEndpoints();
     app.MapNarrativeLibraryEndpoints();
+    app.MapScopedNarrativeLibraryEndpoints();
 
     // Feature 051 [US1]: dashboard login surface — login-config + me.
     // The endpoint group lives under /api/auth and is anonymous-by-default
@@ -625,6 +637,8 @@ async Task RunHttpModeAsync(string[] args)
     app.MapImportedDocumentsEndpoints();
     // Feature 048 (T070): tenants administration + impersonation surface.
     app.MapTenantsEndpoints();
+    app.MapOrganizationMembershipEndpoints();
+    app.MapSystemWorkspaceAccessEndpoints();
     // Feature 048 (T084): deployment-mode probe for dashboard mode-aware UI.
     app.MapDeploymentEndpoints();
     // Feature 048 (T093 [US4]): tenant-and-organization onboarding wizard.
@@ -659,10 +673,13 @@ async Task RunHttpModeAsync(string[] args)
     app.MapSystemsEndpoints();
 
     // Map SignalR notification hub
-    app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications");
-    app.MapHub<Ato.Copilot.Mcp.Hubs.PackageHub>("/hubs/package");
+    app.MapHub<Ato.Copilot.Mcp.Hubs.NotificationHub>("/hubs/notifications",
+        options => options.CloseOnAuthenticationExpiration = true);
+    app.MapHub<Ato.Copilot.Mcp.Hubs.PackageHub>("/hubs/package",
+        options => options.CloseOnAuthenticationExpiration = true);
     // UF-005 (spec-063 Phase 4): SCAP/STIG import progress hub
-    app.MapHub<Ato.Copilot.Mcp.Hubs.ImportProgressHub>("/hubs/import-progress");
+    app.MapHub<Ato.Copilot.Mcp.Hubs.ImportProgressHub>("/hubs/import-progress",
+        options => options.CloseOnAuthenticationExpiration = true);
     // Feature 048 (T149): tenant impersonation fan-out for connected dashboards.
     app.MapHub<Ato.Copilot.Mcp.Hubs.TenantContextHub>("/hubs/tenant-context");
     // Feature 048 (T187, US8/SC-005): CSP cross-tenant dashboard fan-out for
@@ -693,7 +710,7 @@ async Task RunHttpModeAsync(string[] args)
     // Root endpoint
     app.MapGet("/", () => Results.Json(new
     {
-        service = "ATO Copilot MCP Server",
+        service = "Security Posture Intelligence Navigator MCP Server",
         version = "1.0.0",
         mode = "http",
         tools = "Use MCP protocol to list tools",
@@ -710,7 +727,7 @@ async Task RunHttpModeAsync(string[] args)
     var urls = builder.Configuration.GetValue("Server:Urls", $"http://0.0.0.0:{port}");
     app.Urls.Add(urls!);
 
-    Log.Information("ATO Copilot HTTP server listening on {Urls}", urls);
+    Log.Information("Security Posture Intelligence Navigator HTTP server listening on {Urls}", urls);
 
     await app.RunAsync();
 }
@@ -1271,6 +1288,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // [TenantScoped] entity table. Idempotent / additive.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantIdColumnAdditions
         .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.NotificationPreferencesSchemaAdditions
+        .ApplyAsync(db, logger, ct);
     // Issue 834: separate, auditable authorization override annotations.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.AuthorizationOverridesSchemaAdditions
         .ApplyAsync(db, logger, ct);
@@ -1299,6 +1318,10 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // forensic per-Oid lookup (Oid, OccurredAt DESC, filtered Oid IS NOT NULL).
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.LoginAuditEventsSchemaAdditions
         .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationMembershipSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantSupportSessionSchemaAdditions
+        .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ControlValidationLinksSchemaAdditions
         .ApplyAsync(db, logger, ct);
     // Issue 892: additive dual narrative and evidence classification columns.
@@ -1306,6 +1329,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.NarrativeLibrarySchemaAdditions
         .ApplyAsync(db, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CapabilityResponsibilitySchemaAdditions
+        .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Services.Tenancy.TenantBootstrapService.EnsureSystemTenantAsync(db, logger, ct);
     // T060: Backfill OrganizationContext rows whose TenantId still holds the
     // Entra `tid` rather than the new Tenants.Id. Idempotent; no-op once done.

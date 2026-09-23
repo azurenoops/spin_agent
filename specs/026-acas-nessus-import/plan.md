@@ -5,7 +5,7 @@
 
 ## Summary
 
-Import ACAS/Nessus .nessus vulnerability scan files into ATO Copilot. The parser extracts host and plugin data from NessusClientData_v2 XML, maps vulnerabilities to NIST 800-53 controls via a CVE→CCI→NIST chain and plugin-family heuristics, creates compliance findings and control effectiveness records, and generates POA&M weakness entries. The feature extends the existing scan import infrastructure (Feature 017/019) with a new `NessusXml` import type, a `NessusParser`, a curated plugin-family heuristic mapping table, and two new MCP tools.
+Import ACAS/Nessus .nessus vulnerability scan files into Security Posture Intelligence Navigator. The parser extracts host and plugin data from NessusClientData_v2 XML, maps vulnerabilities to NIST 800-53 controls via a CVE→CCI→NIST chain and plugin-family heuristics, creates compliance findings and control effectiveness records, and generates POA&M weakness entries. The feature extends the existing scan import infrastructure (Feature 017/019) with a new `NessusXml` import type, a `NessusParser`, a curated plugin-family heuristic mapping table, and two new MCP tools.
 
 ## Technical Context
 

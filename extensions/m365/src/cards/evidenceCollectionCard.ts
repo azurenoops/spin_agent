@@ -32,7 +32,7 @@ export function buildEvidenceCollectionCard(data: EvidenceCollectionData): Recor
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Evidence Collection",
+      text: "Security Posture Intelligence Navigator — Evidence Collection",
       weight: "Bolder",
       size: "Large",
     },

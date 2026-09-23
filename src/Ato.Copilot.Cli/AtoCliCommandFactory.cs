@@ -17,7 +17,7 @@ public static class AtoCliCommandFactory
     /// </summary>
     public static RootCommand Build()
     {
-        var root = new RootCommand("ato-cli — ATO Copilot administrative tooling");
+        var root = new RootCommand("ato-cli — Security Posture Intelligence Navigator administrative tooling");
         root.AddCommand(BuildTenantCommand());
         return root;
     }

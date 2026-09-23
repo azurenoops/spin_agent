@@ -3,7 +3,7 @@
 **Feature Branch**: `002-remediation-kanban`  
 **Created**: 2026-02-21  
 **Status**: Draft  
-**Input**: User description: "Remediation Workflow Management — Kanban-style tracking system for compliance remediation tasks within the ATO Copilot"
+**Input**: User description: "Remediation Workflow Management — Kanban-style tracking system for compliance remediation tasks within the Security Posture Intelligence Navigator"
 
 ## User Scenarios & Testing *(mandatory)*
 

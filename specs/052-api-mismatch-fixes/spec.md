@@ -75,7 +75,7 @@ The three `oscal*Url()` functions in `exports.ts` return plain strings that are 
 
 ### User Story 1 — File attachments are forwarded to the AI (Priority: P1)
 
-**As a** compliance officer using the ATO Copilot chat
+**As a** compliance officer using the Security Posture Intelligence Navigator chat
 **I want** files I attach in the chat input to be sent with my message
 **So that** the AI can analyze document content (e.g., a PDF SSP, a CSV evidence file) rather than only the text I type.
 

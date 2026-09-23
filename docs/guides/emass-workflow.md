@@ -1,6 +1,6 @@
 # eMASS Workflow Sync
 
-ATO Copilot tracks the working copy of system compliance data while eMASS remains the submission system of record. The eMASS workflow page shows what has been exported, what changed afterward, and where an imported workbook differs from SPIN data.
+Security Posture Intelligence Navigator tracks the working copy of system compliance data while eMASS remains the submission system of record. The eMASS workflow page shows what has been exported, what changed afterward, and where an imported workbook differs from SPIN data.
 
 ## Check Workflow Status
 

@@ -105,7 +105,7 @@ describe("IacCodeActionProvider", () => {
         finding.title,
         vscode.DiagnosticSeverity.Error
       );
-      diag.source = "ATO Copilot";
+      diag.source = "Security Posture Intelligence Navigator";
       (diag as any)._iacFinding = finding;
       return diag;
     }

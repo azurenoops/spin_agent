@@ -64,7 +64,7 @@ CNSSI 1253 defines **three separate baselines** — one for Confidentiality, one
 ```jsonc
 {
   "version": "2022-03",
-  "source": "CNSSI 1253 (March 2014, updated 2022) — ATO Copilot representation",
+  "source": "CNSSI 1253 (March 2014, updated 2022) — Security Posture Intelligence Navigator representation",
   "description": "DoD/CNSS overlay mappings to NIST SP 800-53 Rev 5 controls",
 
   // Per-control overlay entries
@@ -910,7 +910,7 @@ public record EmassImportOptions(
 
 public enum ConflictResolution
 {
-    PreferExisting,     // Keep ATO Copilot data, skip eMASS conflicts
+    PreferExisting,     // Keep Security Posture Intelligence Navigator data, skip eMASS conflicts
     PreferImported,     // Overwrite with eMASS data
     CreateBoth,         // Import as new version, keep existing
     PromptUser          // Flag for manual resolution

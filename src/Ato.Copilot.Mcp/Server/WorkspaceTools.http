@@ -1,0 +1,101 @@
+# #1002: requested tool names/actions are not permission grants.
+# Every mapped system operation needs the corresponding authoritative permission
+# for its actual target. Indirect evidence/POAM IDs resolve their stored owner;
+# a caller cannot authorize another owner's artifact by supplying an allowed ID.
+# Unknown tools/actions fail closed. Provider/support read oversight does not
+# imply write or approval authority.
+#
+# Chat system tools require an explicitly selected, validated system matching the
+# actual tool target. System-free chat may use only mapped public reference tools:
+# it must not put system data into an unbound persistent AI thread.
+# Workspace chat bypasses response caching so every turn executes authorization.
+#
+# Required shared hook: BaseTool.ExecuteAsync must demand the request-scoped
+# ToolExecutionAuthorization after canonical system-ID resolution and before
+# ExecuteCoreAsync. MCP supplies the policy through an async-flow-local scope;
+# no mutable singleton tool properties or global-role elevation are used.
+# Only /mcp, /mcp/chat and /mcp/chat/stream carry the self-authorizing workspace
+# marker. Their authenticated workspace resolution and shared execution guard
+# remain mandatory; unrelated POSTs receive no broader admission.
+# Next reviewed slice: explicit system reads for baseline, categorization,
+# profile/completeness, roadmap, imports, boundaries, inventory, privacy,
+# interconnections, POAM and SAP. Read renderers do not persist an artifact.
+# Optional metrics system IDs are REQUIRED in workspace calls (no unbounded
+# aggregate). Control-validation permits only default/get, never add/delete.
+# Import/item/SAP/component IDs resolve their persisted system. Boundary,
+# component, assessment and import-array filters must agree with that system.
+# AO issuance and risk acceptance require CanDecideAuthorization and every
+# finding's assessment owner must match the requested system. Inline inputs use
+# the native RiskAcceptanceInput JSON contract (camelCase/PascalCase).
+# Approved integrity verification: effective assigned SCA OR CanManageEvidence,
+# evaluated for the evidence's persisted assessment/system owner. This does not
+# confer assessment approval or evidence-authoring authority. A qualified
+# verifier and atomic audit are enforced by the domain service as well as MCP.
+# Evidence completeness is a read: optional assessment must belong to the
+# selected system, and evidence aggregates exclude other systems/unowned rows.
+# Still denied pending narrow domain decisions: SCA assessment recording,
+# snapshot creation, SAP mutations, SAR mutations,
+# queued package generation, cross-system bundle lookup, cloud/PIM operations.
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_TEST_TOKEN
+@organization = 11111111-1111-1111-1111-111111111111
+@system = REPLACE_WITH_AUTHORIZED_SYSTEM_ID
+@evidence = REPLACE_WITH_OWNED_COMPLIANCE_EVIDENCE_ID
+
+### Evidence integrity only: SCA or authorized evidence manager, not a browser role
+POST {{baseUrl}}/mcp
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": "verify-integrity",
+  "method": "tools/call",
+  "params": {
+    "name": "compliance_verify_evidence",
+    "arguments": { "evidence_id": "{{evidence}}" }
+  }
+}
+
+### Authoring: requires actual CanAuthorNarratives, not read permission
+POST {{baseUrl}}/mcp
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "narrative_set_policy",
+    "arguments": {
+      "system_id": "{{system}}",
+      "control_id": "AC-1",
+      "policy_narrative": "Synthetic local test narrative"
+    }
+  }
+}
+
+### Unknown operations must be denied even for a global administrator
+POST {{baseUrl}}/mcp
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "unmapped_mutator",
+    "arguments": { "system_id": "{{system}}", "user_role": "CSP.Admin" }
+  }
+}

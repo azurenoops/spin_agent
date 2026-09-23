@@ -19,7 +19,7 @@ public class McpStdioService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Starting ATO Copilot in stdio mode");
+        _logger.LogInformation("Starting Security Posture Intelligence Navigator in stdio mode");
 
         try
         {

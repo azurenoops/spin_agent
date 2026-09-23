@@ -201,7 +201,7 @@ For Prisma CSV import:
 
 **Rationale**: 
 - Prisma console allows exporting alerts across multiple cloud accounts in a single CSV
-- ATO Copilot systems are scoped to individual subscriptions/boundaries
+- Security Posture Intelligence Navigator systems are scoped to individual subscriptions/boundaries
 - Splitting ensures each system gets its own import record with accurate finding counts
 
 **Edge cases**:

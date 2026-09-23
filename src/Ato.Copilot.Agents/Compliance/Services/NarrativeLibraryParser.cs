@@ -15,6 +15,7 @@ public static class NarrativeLibraryParser
 {
     public const int MaxBytes = 5 * 1024 * 1024;
     private const int MaxTextLength = 500_000;
+    private static readonly Encoding StrictUtf8 = new UTF8Encoding(false, true);
     private static readonly Regex ControlHeading = new(
         @"^(?<control>[A-Z]{2,3}-\d+(?:\(\d+\))?)(?:\s|$)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
@@ -43,12 +44,12 @@ public static class NarrativeLibraryParser
                 ".xlsx" => ReadExcel(buffer),
                 ".docx" => ParseText(ReadWord(buffer)),
                 ".pdf" => ParseText(ReadPdf(buffer)),
-                ".txt" or ".md" => ParseText(Encoding.UTF8.GetString(buffer.ToArray())),
+                ".txt" or ".md" => ParseText(StrictUtf8.GetString(buffer.ToArray()).TrimStart('\uFEFF')),
                 _ => throw new InvalidDataException("Supported formats: XLSX, CSV, DOCX, digital PDF, TXT and Markdown.")
             };
         }
         catch (Exception exception) when (exception is MalformedLineException or UglyToad.PdfPig.Core.PdfDocumentFormatException
-            or OpenXmlPackageException or System.Xml.XmlException or System.IO.FileFormatException)
+            or OpenXmlPackageException or System.Xml.XmlException or System.IO.FileFormatException or DecoderFallbackException)
         {
             throw new InvalidDataException("The reference document is malformed or cannot be read. Check the file and import again.", exception);
         }
@@ -96,7 +97,7 @@ public static class NarrativeLibraryParser
 
     private static List<NarrativeReferencePassage> ReadCsv(Stream stream)
     {
-        using var parser = new TextFieldParser(stream, Encoding.UTF8, true, leaveOpen: true)
+        using var parser = new TextFieldParser(stream, StrictUtf8, true, leaveOpen: true)
         {
             TextFieldType = FieldType.Delimited,
             HasFieldsEnclosedInQuotes = true,
@@ -129,6 +130,9 @@ public static class NarrativeLibraryParser
         var controlIndex = Array.IndexOf(headers, "controlid");
         var policyIndex = Array.IndexOf(headers, "policynarrative");
         var technicalIndex = Array.IndexOf(headers, "technicalnarrative");
+        if (headers.Where(header => header is "controlid" or "policynarrative" or "technicalnarrative")
+            .GroupBy(header => header).Any(group => group.Count() > 1))
+            throw new InvalidDataException("Duplicate control or narrative columns make the import mapping ambiguous.");
         if (controlIndex < 0 || policyIndex < 0 || technicalIndex < 0)
             throw new InvalidDataException("Required columns: Control ID, Policy Narrative, Technical Narrative.");
         var passages = new List<NarrativeReferencePassage>();

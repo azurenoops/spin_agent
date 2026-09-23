@@ -1,3 +1,6 @@
+# Empty unless an approved package-only build context overrides this stage.
+FROM scratch AS nuget-packages
+
 # ─── Stage 1: Build React Frontend ───────────────────────────────
 FROM node:20.18.1-alpine AS frontend-build
 
@@ -13,7 +16,8 @@ COPY src/Ato.Copilot.Chat/ClientApp/package.json \
      src/Ato.Copilot.Chat/ClientApp/package-lock.json \
      src/Ato.Copilot.Chat/ClientApp/.npmrc \
      ./
-RUN npm ci
+ARG NPM_REGISTRY=https://registry.npmjs.org
+RUN npm ci --registry="$NPM_REGISTRY"
 
 # #region agent log
 RUN node -e "const fs=require('fs');const path=require('path');const pkg=require('ajv/package.json');const dir=path.dirname(require.resolve('ajv/package.json'));const codegen=fs.existsSync(path.join(dir,'dist/compile/codegen.js'))||fs.existsSync(path.join(dir,'dist/compile/codegen/index.js'));console.log(JSON.stringify({sessionId:'3a8241',hypothesisId:'C',location:'Chat/Dockerfile:npm-ci',message:'ajv resolved after npm ci',data:{ajvVersion:pkg.version,codegenExists:codegen,ajvDir:dir},timestamp:Date.now()}));"
@@ -36,14 +40,18 @@ COPY src/Ato.Copilot.Chat/Ato.Copilot.Chat.csproj src/Ato.Copilot.Chat/
 COPY src/Ato.Copilot.Core/Ato.Copilot.Core.csproj src/Ato.Copilot.Core/
 COPY src/Ato.Copilot.Agents/Ato.Copilot.Agents.csproj src/Ato.Copilot.Agents/
 COPY src/Ato.Copilot.State/Ato.Copilot.State.csproj src/Ato.Copilot.State/
+COPY src/Ato.Copilot.Channels/Ato.Copilot.Channels.csproj src/Ato.Copilot.Channels/
 COPY src/Ato.Copilot.Mcp/Ato.Copilot.Mcp.csproj src/Ato.Copilot.Mcp/
 
 # Restore only the Chat project and its dependencies
-RUN dotnet restore src/Ato.Copilot.Chat/Ato.Copilot.Chat.csproj
+ARG NUGET_SOURCE=https://api.nuget.org/v3/index.json
+RUN --mount=type=bind,from=nuget-packages,target=/nuget-feed \
+    dotnet restore src/Ato.Copilot.Chat/Ato.Copilot.Chat.csproj --source "$NUGET_SOURCE"
 
 # Copy all source code and publish
 COPY src/ src/
 RUN dotnet publish src/Ato.Copilot.Chat/Ato.Copilot.Chat.csproj \
+    --no-restore \
     -c Release \
     -o /app/publish
 

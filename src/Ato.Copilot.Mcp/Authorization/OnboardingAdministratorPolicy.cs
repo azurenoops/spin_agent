@@ -33,13 +33,16 @@ public class OnboardingAdministratorHandler : AuthorizationHandler<OnboardingAdm
 {
     private readonly IDbContextFactory<AtoCopilotContext> _contextFactory;
     private readonly ILogger<OnboardingAdministratorHandler> _logger;
+    private readonly Ato.Copilot.Core.Interfaces.Tenancy.ITenantContextAccessor? _tenants;
 
     public OnboardingAdministratorHandler(
         IDbContextFactory<AtoCopilotContext> contextFactory,
-        ILogger<OnboardingAdministratorHandler> logger)
+        ILogger<OnboardingAdministratorHandler> logger,
+        Ato.Copilot.Core.Interfaces.Tenancy.ITenantContextAccessor? tenants = null)
     {
         _contextFactory = contextFactory;
         _logger = logger;
+        _tenants = tenants;
     }
 
     /// <inheritdoc />
@@ -49,6 +52,17 @@ public class OnboardingAdministratorHandler : AuthorizationHandler<OnboardingAdm
     {
         if (context.User?.Identity?.IsAuthenticated != true)
         {
+            return;
+        }
+
+        var ct = (context.Resource as HttpContext)?.RequestAborted ?? CancellationToken.None;
+        if (_tenants?.Current is { IsWorkspaceRequest: true } workspace)
+        {
+            if (workspace.PersonId is not { } personId) return;
+            await using var scopedDb = await _contextFactory.CreateDbContextAsync(ct);
+            if (await scopedDb.OrganizationRoleAssignments.AnyAsync(a => a.TenantId == workspace.EffectiveTenantId
+                && a.PersonId == personId && a.Role == OrganizationRole.Administrator && a.RemovedAt == null, ct))
+                context.Succeed(requirement);
             return;
         }
 
@@ -63,11 +77,11 @@ public class OnboardingAdministratorHandler : AuthorizationHandler<OnboardingAdm
             return;
         }
 
-        await using var db = await _contextFactory.CreateDbContextAsync();
+        await using var db = await _contextFactory.CreateDbContextAsync(ct);
         var anyAdmin = await db.OrganizationRoleAssignments
             .AnyAsync(a => a.TenantId == tenantId
                         && a.Role == OrganizationRole.Administrator
-                        && a.RemovedAt == null);
+                        && a.RemovedAt == null, ct);
 
         if (!anyAdmin)
         {
@@ -83,7 +97,7 @@ public class OnboardingAdministratorHandler : AuthorizationHandler<OnboardingAdm
                      && a.Role == OrganizationRole.Administrator
                      && a.RemovedAt == null)
             .FirstOrDefaultAsync(a => a.Person != null
-                && (a.Person.EntraObjectId == subjectId || a.Person.Id == subjectId));
+                && (a.Person.EntraObjectId == subjectId || a.Person.Id == subjectId), ct);
 
         if (caller != null)
         {

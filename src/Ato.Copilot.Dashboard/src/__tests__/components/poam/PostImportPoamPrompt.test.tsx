@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import PostImportPoamPrompt from '../../../components/poam/PostImportPoamPrompt';
 
 describe('PostImportPoamPrompt', () => {
@@ -18,15 +19,17 @@ describe('PostImportPoamPrompt', () => {
     });
 
     render(
-      <PostImportPoamPrompt
-        systemId="system-1"
-        findings={[
-          { id: 'finding-valid', controlId: 'AC-2', title: 'Valid finding', severity: 'High', hasActivePoam: false },
-          { id: 'finding-missing', controlId: 'IA-2', title: 'Missing finding', severity: 'Medium', hasActivePoam: false },
-        ]}
-        onBulkCreate={onBulkCreate}
-        onClose={vi.fn()}
-      />,
+      <MemoryRouter initialEntries={['/systems/system-1/assessments']}>
+        <PostImportPoamPrompt
+          systemId="system-1"
+          findings={[
+            { id: 'finding-valid', controlId: 'AC-2', title: 'Valid finding', severity: 'High', hasActivePoam: false },
+            { id: 'finding-missing', controlId: 'IA-2', title: 'Missing finding', severity: 'Medium', hasActivePoam: false },
+          ]}
+          onBulkCreate={onBulkCreate}
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
     );
 
     // Act

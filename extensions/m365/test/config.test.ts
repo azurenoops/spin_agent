@@ -1,5 +1,5 @@
 /**
- * ATO Copilot M365 Extension — Config Validation Tests (T061-03)
+ * Security Posture Intelligence Navigator M365 Extension — Config Validation Tests (T061-03)
  *
  * Tests validateEnv() fail-fast behavior for required and conditional vars.
  * Each test manipulates process.env directly and restores it in afterEach.

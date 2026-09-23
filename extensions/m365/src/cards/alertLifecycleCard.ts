@@ -34,7 +34,7 @@ export function buildAlertLifecycleCard(data: AlertLifecycleData): Record<string
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Security Alert",
+      text: "Security Posture Intelligence Navigator — Security Alert",
       weight: "Bolder",
       size: "Large",
     },

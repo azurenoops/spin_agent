@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 /**
- * Open ATO Copilot settings filtered to this extension (FR-029, FR-032).
+ * Open Security Posture Intelligence Navigator settings filtered to this extension (FR-029, FR-032).
  */
 export async function configure(): Promise<void> {
   await vscode.commands.executeCommand(

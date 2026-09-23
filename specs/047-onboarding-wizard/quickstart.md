@@ -2,14 +2,14 @@
 
 **Date**: 2026-05-07 · **Spec**: [spec.md](./spec.md) · **Plan**: [plan.md](./plan.md) · **Research**: [research.md](./research.md) · **Data model**: [data-model.md](./data-model.md)
 
-This quickstart shows how to bring a fresh ATO Copilot tenant up using the new onboarding
+This quickstart shows how to bring a fresh Security Posture Intelligence Navigator tenant up using the new onboarding
 wizard, end-to-end, on a developer workstation. It is also the manual-test script for the
 **P1 user stories** (US1, US2) and reaches into the optional steps (US3–US7) for partial
 coverage.
 
 ## Prerequisites
 
-- macOS / Linux / Windows with the ATO Copilot dev container OR a workstation that has run
+- macOS / Linux / Windows with the Security Posture Intelligence Navigator dev container OR a workstation that has run
   `scripts/bootstrap.sh` (or `scripts/bootstrap.ps1`) successfully.
 - .NET 9.0 SDK (pinned via [global.json](../../global.json)).
 - Node.js ≥ 20 LTS.

@@ -142,7 +142,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
             UpdatedBy = actor,
         };
         db.CspInheritedComponents.Add(component);
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Manually created CspInheritedComponent {ComponentId} ('{Name}') by {Actor}",
@@ -257,7 +257,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
                     ct).ConfigureAwait(false);
             }
 
-            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
             if (tx is not null)
             {
                 await tx.CommitAsync(ct).ConfigureAwait(false);
@@ -302,7 +302,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
         component.UpdatedAt = DateTimeOffset.UtcNow;
         component.UpdatedBy = actor;
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
         return component;
     }
 
@@ -326,7 +326,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
                 component.Status = CspInheritedComponentStatus.Published;
                 component.UpdatedAt = DateTimeOffset.UtcNow;
                 component.UpdatedBy = actor;
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
+                await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
                 _logger.LogInformation(
                     "Published CspInheritedComponent {ComponentId} by {Actor}",
                     component.Id, actor);
@@ -368,7 +368,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
         component.Status = CspInheritedComponentStatus.Archived;
         component.UpdatedAt = DateTimeOffset.UtcNow;
         component.UpdatedBy = actor;
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
         _logger.LogInformation(
             "Archived CspInheritedComponent {ComponentId} by {Actor}",
             component.Id, actor);
@@ -498,7 +498,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
 
         component.UpdatedAt = DateTimeOffset.UtcNow;
         component.UpdatedBy = actor;
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Remapped CspInheritedComponent {ComponentId}: remapRunId={RemapRunId}, "
@@ -616,7 +616,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
                 : new { reviewerNote },
             ct).ConfigureAwait(false);
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
         _logger.LogInformation(
             "Reviewed CspInheritedCapability {CapabilityId} on component {ComponentId} by {Actor}",
             capability.Id, componentId, actor);
@@ -727,7 +727,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
             metadata: new { fields = changedFields },
             ct).ConfigureAwait(false);
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
         _logger.LogInformation(
             "Updated CspInheritedCapability {CapabilityId} on component {ComponentId} by {Actor}",
             capability.Id, componentId, actor);
@@ -798,7 +798,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
             metadata: null,
             ct).ConfigureAwait(false);
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
         _logger.LogInformation(
             "Archived CspInheritedCapability {CapabilityId} on component {ComponentId} by {Actor}",
             capability.Id, componentId, actor);
@@ -897,7 +897,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
                 ct).ConfigureAwait(false);
 
             // 6. Commit — DbUpdateConcurrencyException bubbles to the endpoint as 412.
-            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            await SaveProviderChangesAsync(db, actor, ct).ConfigureAwait(false);
             if (tx is not null)
             {
                 await tx.CommitAsync(ct).ConfigureAwait(false);
@@ -911,6 +911,12 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────
+
+    private static async Task SaveProviderChangesAsync(AtoCopilotContext db, string actor, CancellationToken ct)
+    {
+        await CspResponsibilitySourceTracker.StageAsync(db, actor, ct).ConfigureAwait(false);
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
 
     private static void PopulateCounts(CspInheritedComponent component)
     {

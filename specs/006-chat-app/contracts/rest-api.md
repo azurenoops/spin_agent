@@ -1,4 +1,4 @@
-# REST API Contract: ATO Copilot Chat Application
+# REST API Contract: Security Posture Intelligence Navigator Chat Application
 
 **Feature**: 006-chat-app | **Date**: 2026-02-23
 **Base URL**: `http://localhost:5001/api`

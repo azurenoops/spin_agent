@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../api/complianceApi', () => ({
   getControlValidationLinks: vi.fn(),
@@ -9,11 +10,36 @@ vi.mock('../../api/complianceApi', () => ({
 
 import * as validationApi from '../../api/complianceApi';
 import ValidationEvidencePanel from '../ValidationEvidencePanel';
+import { WorkspaceNavigationProvider } from '../../../workspaces/workspaceNavigation';
 
 const getLinks = validationApi.getControlValidationLinks as ReturnType<typeof vi.fn>;
 
 describe('ValidationEvidencePanel', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('keeps evidence targets inside the selected workspace', async () => {
+    // Arrange
+    getLinks.mockResolvedValue({
+      systemId: 'system-1', controlId: 'AC-2', total: 1,
+      links: [{
+        id: 'evidence-1', linkType: 'EvidenceArtifact', linkTarget: 'evidence-1',
+        addedBy: 'synthetic-reviewer', addedAt: '2026-09-21T12:00:00Z', isAutomated: false,
+      }],
+    });
+
+    // Act
+    render(
+      <MemoryRouter initialEntries={['/workspaces/organizations/org-alpha/systems/system-1/narratives']}>
+        <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-alpha' }}>
+          <ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} />
+        </WorkspaceNavigationProvider>
+      </MemoryRouter>,
+    );
+
+    // Assert
+    expect(await screen.findByRole('link', { name: /open validation target/i }))
+      .toHaveAttribute('href', '/workspaces/organizations/org-alpha/systems/system-1/evidence');
+  });
 
   it('renders linked Azure resource with type and automation badges', async () => {
     // Arrange
@@ -34,7 +60,7 @@ describe('ValidationEvidencePanel', () => {
     });
 
     // Act
-    render(<ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage />);
+    render(<MemoryRouter><ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage /></MemoryRouter>);
 
     // Assert
     await waitFor(() => expect(screen.getByText('Storage encryption configuration')).toBeInTheDocument());
@@ -53,7 +79,7 @@ describe('ValidationEvidencePanel', () => {
     getLinks.mockResolvedValue({ systemId: 'system-1', controlId: 'AC-2', total: 0, links: [] });
 
     // Act
-    render(<ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} />);
+    render(<MemoryRouter><ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} /></MemoryRouter>);
 
     // Assert
     expect(await screen.findByText('No validation links attached to this control.')).toBeInTheDocument();
@@ -66,7 +92,7 @@ describe('ValidationEvidencePanel', () => {
     getLinks.mockRejectedValue(new Error('Internal Server Error'));
 
     // Act
-    render(<ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} />);
+    render(<MemoryRouter><ValidationEvidencePanel systemId="system-1" controlId="AC-2" canManage={false} /></MemoryRouter>);
 
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load validation links.');

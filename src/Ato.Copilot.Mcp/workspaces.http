@@ -1,0 +1,164 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_AUTHENTICATED_BEARER_TOKEN
+@tenantId = REPLACE_WITH_INTERNAL_ORGANIZATION_ID
+@personId = REPLACE_WITH_PERSON_ID_FROM_CONTACT_RESPONSE
+@directoryTenantId = REPLACE_WITH_MEMBER_TOKEN_TID
+@objectId = REPLACE_WITH_MEMBER_TOKEN_OID
+@membershipId = REPLACE_WITH_MEMBERSHIP_ID_FROM_GRANT_RESPONSE
+@systemId = REPLACE_WITH_ASSIGNED_SYSTEM_ID
+@administratorAssignmentId = REPLACE_WITH_ADMINISTRATOR_ASSIGNMENT_ID
+
+### Additional verified scoped policy contract (server enforcement required):
+### SAP generate/finalize + SAR generate: applicable SCA or ISSM (specs 015/018).
+### Task creation: applicable ISSM (Kanban SecurityLead); task movement is ISSM-any
+### or ISSO-own and still requires the domain transition/comment/validation checks.
+### System role assignment: org Administrator or the exact Feature 049 target matrix.
+### Validation links: applicable SCA (spec 069); never inferred from system management.
+### Legacy Compliance.Administrator is not automatically an organization Administrator grant.
+### Ticketing, deviations, organization capability creation, organization override review,
+### and deferred-prerequisite authority remain unavailable pending explicit policy decisions.
+
+### Per-system permissions: effective assignments, never the first/highest persona.
+### Applicable overrides replace inherited/org roles; organization Administrator gives
+### oversight, not narrative approval or AO decision authority. Membership alone gives none.
+GET {{baseUrl}}/api/dashboard/systems/{{systemId}}/workspace-access
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Bounded portfolio action projection: repeated systemIds, at most 100 input IDs.
+### Returns data.items with full role sets and permissions; denied/unknown IDs have canRead=false.
+GET {{baseUrl}}/api/dashboard/workspace-access?systemIds={{systemId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Root canCreateSystem requires an active organization ISSM assignment (Feature 015).
+### Administrative oversight alone does not imply customer-system authorship or AO authority.
+POST {{baseUrl}}/api/dashboard/systems
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"name":"Locally verified system","systemType":"MajorApplication","missionCriticality":"MissionSupport"}
+
+### CSP-only separate role enrollment for an existing, actively linked organization Person.
+### Membership grant remains a separate operation and creates no RMF/Administrator role.
+POST {{baseUrl}}/api/tenants/{{tenantId}}/administrator-assignments
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"personId":"{{personId}}"}
+
+### Follow the enrollment Location with CSP or authorized organization administrator credentials
+GET {{baseUrl}}/api/tenants/{{tenantId}}/administrator-assignments/{{administratorAssignmentId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Create an isolation organization without inventing a directory mapping.
+### This remains Pending onboarding; it creates neither memberships nor administrator roles.
+POST {{baseUrl}}/api/tenants
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"displayName":"Local test organization"}
+
+### Public login bootstrap: no tenant or membership required
+GET {{baseUrl}}/api/auth/login-config
+
+### Discover contexts without choosing a browser-global active organization
+GET {{baseUrl}}/api/auth/workspaces?page=1&pageSize=50
+Authorization: Bearer {{token}}
+
+### Explicit organization request; homeTenant can be null.
+### Cache identity is (data.directoryTenantId, data.oid). directoryTenantId is the
+### authenticated subject's directory, never effectiveTenant.id or homeTenant.id.
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### CSP operator: find an existing organization-local Person (contact email grants no access)
+GET {{baseUrl}}/api/tenants/{{tenantId}}/membership-persons?query=
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### CSP operator: create contact if none exists; creates neither membership nor role
+POST {{baseUrl}}/api/tenants/{{tenantId}}/membership-persons
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"displayName":"Local test member","email":"local-member@example.invalid"}
+
+### CSP or existing organization Administrator: explicit trusted identity association
+POST {{baseUrl}}/api/tenants/{{tenantId}}/memberships
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"directoryTenantId":"{{directoryTenantId}}","objectId":"{{objectId}}","personId":"{{personId}}"}
+
+### List active and revoked grants (CSP context); org admins instead send their organization headers
+GET {{baseUrl}}/api/tenants/{{tenantId}}/memberships?page=1&pageSize=50
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Read the resource referenced by a successful grant's Location header
+GET {{baseUrl}}/api/tenants/{{tenantId}}/memberships/{{membershipId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Revoke; last accessible organization Administrator returns 409 LAST_ADMIN_PROTECTED
+DELETE {{baseUrl}}/api/tenants/{{tenantId}}/memberships/{{membershipId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Support entry is separately audited and never creates ordinary membership
+### Durable-session contract: new support tokens carry a persisted session ID.
+### Every support request/delivery must validate that server-side record; valid
+### JWT signatures alone do not authorize workspace support. Missing/revoked rows
+### fail closed. Pre-rollout stateless support tokens require a new support entry.
+POST {{baseUrl}}/api/tenants/{{tenantId}}/impersonate
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Use the response's HttpOnly cookie through your local HTTP client's cookie jar
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: support
+
+### Exit support using CSP scope, including when the support token has expired
+### Exit revokes the presented server-side session before clearing its cookie.
+### A captured copy replayed by another app instance or existing socket must fail
+### on its next authorization check. Other actors/sessions are not implicitly revoked.
+DELETE {{baseUrl}}/api/tenants/impersonation
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Negative test: unknown or revoked membership returns 403, never a home-tenant fallback
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Workspace-Mode: ordinary

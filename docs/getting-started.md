@@ -1,6 +1,6 @@
 # Getting Started
 
-> Set up, build, and run the ATO Copilot MCP server for NIST 800-53 compliance on Azure Government.
+> Set up, build, and run the Security Posture Intelligence Navigator MCP server for NIST 800-53 compliance on Azure Government.
 
 !!! tip "Looking for per-persona onboarding?"
     If you are an ISSM, ISSO, SCA, AO, or Engineer looking for role-specific getting-started guidance, see the [Getting Started hub](getting-started/index.md).
@@ -65,7 +65,7 @@ The solution contains six projects:
 
 ### Azure Credentials
 
-ATO Copilot needs Azure AD credentials to access your subscriptions. Edit `src/Ato.Copilot.Mcp/appsettings.json` or use environment variables:
+Security Posture Intelligence Navigator needs Azure AD credentials to access your subscriptions. Edit `src/Ato.Copilot.Mcp/appsettings.json` or use environment variables:
 
 ```json
 {

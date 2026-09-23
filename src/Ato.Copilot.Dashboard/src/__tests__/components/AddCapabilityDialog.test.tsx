@@ -11,6 +11,7 @@ vi.mock('../../api/capabilities', () => ({
 
 import * as capApi from '../../api/capabilities';
 import AddCapabilityDialog from '../../components/AddCapabilityDialog';
+import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 
 const mockGetAvailableCapabilities = capApi.getAvailableCapabilities as ReturnType<typeof vi.fn>;
 const mockCreateCapabilityMappings = capApi.createCapabilityMappings as ReturnType<typeof vi.fn>;
@@ -43,6 +44,22 @@ beforeEach(() => {
 // ─── Empty-state tests (the regression being fixed) ──────────────────────────
 
 describe('AddCapabilityDialog — empty-state messages', () => {
+  it('keeps the capability-library link inside the organization workspace', async () => {
+    // Arrange
+    mockGetAvailableCapabilities.mockResolvedValue({ items: [], totalCount: 0, excludedCount: 0 });
+
+    // Act
+    render(
+      <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-alpha' }}>
+        <AddCapabilityDialog {...defaultProps} />
+      </WorkspaceNavigationProvider>,
+    );
+
+    // Assert
+    expect(await screen.findByRole('link', { name: /capabilities hub/i }))
+      .toHaveAttribute('href', '/workspaces/organizations/org-alpha/capabilities');
+  });
+
   /**
    * SCENARIO A: org has zero capabilities (none created yet)
   * Expected: actionable copy covering both organization and CSP sources.

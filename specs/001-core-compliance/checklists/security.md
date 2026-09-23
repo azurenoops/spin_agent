@@ -39,7 +39,7 @@
 - [x] CHK019 Is the dual-cloud endpoint mapping (commercial vs. government) specified for all Azure services used (Resource Graph, Policy Insights, Defender, SQL, Identity)? [Completeness, Spec §R-004]
 - [x] CHK020 Are requirements defined for what happens when the system is misconfigured for the wrong cloud (e.g., government endpoints with commercial credentials)? [Coverage, Edge Case]
 - [x] CHK021 Is the NIST catalog GitHub fetch requirement compatible with air-gapped Azure Government environments where GitHub may be unreachable? [Consistency, Spec §FR-017]
-- [x] CHK022 Are FedRAMP/FISMA boundary requirements defined for the ATO Copilot itself as a system processing compliance data? [Compliance, Gap]
+- [x] CHK022 Are FedRAMP/FISMA boundary requirements defined for the Security Posture Intelligence Navigator itself as a system processing compliance data? [Compliance, Gap]
 
 ## Remediation Safety
 

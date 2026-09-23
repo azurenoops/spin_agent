@@ -7,7 +7,7 @@ This guide covers running the M365 Teams bot locally for development and testing
 ## Prerequisites
 
 - Node.js 20+
-- An ATO Copilot API instance (local or staging) — `ATO_API_URL`
+- An Security Posture Intelligence Navigator API instance (local or staging) — `ATO_API_URL`
 - (Optional) Azure Bot Framework Emulator for end-to-end bot testing
 - (Optional) ngrok for exposing local bot to Teams
 

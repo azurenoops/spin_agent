@@ -14,12 +14,12 @@ export async function requestFalsePositive(mcpClient: McpClient): Promise<void> 
     return;
   }
 
-  // Try to find an ATO Copilot diagnostic at the cursor position
+  // Try to find an Security Posture Intelligence Navigator diagnostic at the cursor position
   const diagnostics = vscode.languages
     .getDiagnostics(editor.document.uri)
     .filter(
       (d) =>
-        d.source === "ATO Copilot" &&
+        d.source === "Security Posture Intelligence Navigator" &&
         d.range.contains(editor.selection.active),
     );
 

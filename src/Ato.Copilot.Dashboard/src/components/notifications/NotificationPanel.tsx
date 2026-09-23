@@ -85,10 +85,10 @@ function NotificationItem({
 }
 
 export default function NotificationPanel({ onClose }: NotificationPanelProps) {
-  const { notifications, unreadCount, loading, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, loading, error, transportMessage, refresh, markAsRead, markAllAsRead } = useNotifications();
 
   return (
-    <div className="absolute right-0 top-full z-50 mt-1 w-96 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+    <div className="absolute inset-x-3 top-full z-50 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg md:inset-x-auto md:right-0 md:w-96">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <div className="flex items-center gap-2">
@@ -122,11 +122,19 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
         </div>
       </div>
 
+      {error && (
+        <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {error}
+          <button type="button" onClick={() => void refresh()} className="ml-2 underline">Retry</button>
+        </div>
+      )}
+      {transportMessage && <p role="status" className="border-b px-4 py-2 text-xs text-gray-600">{transportMessage}</p>}
+
       {/* Notification list */}
       <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
         {loading ? (
           <div className="px-4 py-8 text-center text-sm text-gray-400">Loading...</div>
-        ) : notifications.length === 0 ? (
+        ) : error && notifications.length === 0 ? null : notifications.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <svg className="mx-auto h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />

@@ -15,13 +15,13 @@ public interface ITenantProvisioningService
     /// <paramref name="entraTenantId"/> already maps to one. Returned tuple's
     /// <c>created</c> flag indicates whether a new row was inserted.
     /// </summary>
-    /// <param name="entraTenantId">Entra <c>tid</c> claim of the new tenant.</param>
+    /// <param name="entraTenantId">Optional legacy home-directory mapping. Null creates an independent isolation tenant.</param>
     /// <param name="displayName">Human-readable name (1..200 chars).</param>
     /// <param name="actor">OID / username of the provisioning principal.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The (possibly pre-existing) tenant row + <c>created</c> flag.</returns>
     Task<(Tenant Tenant, bool Created)> CreateAsync(
-        Guid entraTenantId,
+        Guid? entraTenantId,
         string displayName,
         string actor,
         CancellationToken cancellationToken = default);

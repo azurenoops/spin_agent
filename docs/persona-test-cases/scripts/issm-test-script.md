@@ -10,7 +10,7 @@
 
 1. **Activate PIM role**: `Activate my Compliance.SecurityLead role for 8 hours — persona test suite execution`
 2. **Verify role**: `Show my active PIM roles` → Confirm `Compliance.SecurityLead` is active
-3. **Open Teams**: Switch to the Microsoft Teams interface with ATO Copilot bot
+3. **Open Teams**: Switch to the Microsoft Teams interface with Security Posture Intelligence Navigator bot
 4. **Open results template**: `docs/persona-test-cases/results-template.md`
 5. **Confirm clean slate**: `Show system details for Eagle Eye` → Should return "System not found"
 

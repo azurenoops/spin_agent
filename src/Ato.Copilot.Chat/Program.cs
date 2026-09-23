@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -25,7 +26,7 @@ using Ato.Copilot.Chat.Services;
 using Ato.Copilot.Chat.Services.Auth;
 
 // ────────────────────────────────────────────────────────────────
-//  ATO Copilot — Chat Application
+//  Security Posture Intelligence Navigator — Chat Application
 //  Full-stack SPA + REST API + SignalR hub
 // ────────────────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ var bootstrapConfig = new ConfigurationBuilder()
 var logConfig = new LoggerConfiguration()
     .ReadFrom.Configuration(bootstrapConfig)
     .Enrich.FromLogContext()
-    .Enrich.WithProperty("Application", "ATO Copilot Chat");
+    .Enrich.WithProperty("Application", "Security Posture Intelligence Navigator Chat");
 
 // Conditionally add Application Insights sink when connection string is available
 var appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
@@ -59,7 +60,7 @@ Log.Logger = logConfig.CreateLogger();
 
 try
 {
-    Log.Information("ATO Copilot Chat starting");
+    Log.Information("Security Posture Intelligence Navigator Chat starting");
 
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
@@ -115,6 +116,8 @@ try
     // explicitly here. Singleton matches the canonical registration in
     // CoreServiceExtensions.AddAtoCopilotCore.
     builder.Services.AddSingleton<IPathSanitizationService, PathSanitizationService>();
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<ChatWorkspaceResolver>();
     builder.Services.AddScoped<IChatService, ChatService>();
 
     // ─── Channels Adapter Services ───────────────────────────────────
@@ -132,12 +135,17 @@ try
     builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
     builder.Services.AddSingleton<ITenantScopeBinder, AccessorTenantScopeBinder>();
 
+    builder.Services.AddHttpClient("McpWorkspace", client =>
+    {
+        client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("McpServer:BaseUrl") ?? "http://localhost:3001");
+        client.Timeout = TimeSpan.FromSeconds(30);
+    }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false });
     builder.Services.AddHttpClient("McpServer", client =>
     {
         var mcpBaseUrl = builder.Configuration.GetValue<string>("McpServer:BaseUrl") ?? "http://localhost:3001";
         client.BaseAddress = new Uri(mcpBaseUrl);
         client.Timeout = TimeSpan.FromSeconds(180);
-    })
+    }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false })
     .ConfigureResiliencePipeline(new ResiliencePipelineConfig
     {
         Name = "McpServer",
@@ -153,6 +161,7 @@ try
             options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
         });
     builder.Services.AddSignalR()
+        .AddHubOptions<ChatHub>(options => options.AddFilter<ChatWorkspaceHubFilter>())
         .AddJsonProtocol(options =>
         {
             options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
@@ -171,11 +180,18 @@ try
     var requireCac = azureAdSection.GetValue<bool>("RequireCac");
     builder.Services.AddAzureAdConfiguration(builder.Configuration);
     var azureAdOptions = azureAdSection.Get<AzureAdOptions>() ?? new AzureAdOptions();
+    var hasAzureAdConfiguration = !string.IsNullOrWhiteSpace(azureAdOptions.Instance)
+        && !string.IsNullOrWhiteSpace(azureAdOptions.TenantId)
+        && !string.IsNullOrWhiteSpace(azureAdOptions.ClientId);
+    if (!hasAzureAdConfiguration)
+        Log.Warning("Chat Entra configuration is incomplete. Public endpoints remain available in Development/Testing; protected endpoints require configured JWT authentication.");
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
-            options.Authority = azureAdOptions.Authority;
+            options.Authority = hasAzureAdConfiguration ? azureAdOptions.Authority : null;
             options.Audience = azureAdOptions.ClientId;
+            options.MapInboundClaims = false;
+            options.SaveToken = true;
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
@@ -248,6 +264,7 @@ try
                 TimeSpan.FromSeconds(chatDbOptions.MigrationTimeoutSeconds));
             logger.LogInformation("Ensuring chat database is created...");
             await db.Database.EnsureCreatedAsync(cts.Token);
+            await ChatWorkspaceSchema.EnsureAsync(db, cts.Token);
             logger.LogInformation("Chat database ready");
         }
         catch (Exception ex)
@@ -277,6 +294,19 @@ try
     app.UseCors("AllowDashboard");
     app.UseAuthentication();
     app.UseAuthorization();
+    app.Use(async (http, next) =>
+    {
+        try { await next(http); }
+        catch (ChatWorkspaceException ex) when (!http.Response.HasStarted)
+        {
+            http.Response.StatusCode = ex.StatusCode;
+            await http.Response.WriteAsJsonAsync(new Ato.Copilot.Chat.Models.ErrorResponse
+            {
+                Error = ex.Code, Message = ex.Message,
+                Suggestion = "Use your current user token and an explicitly authorized workspace; create a new conversation for a different scope."
+            }, http.RequestAborted);
+        }
+    });
 
     // ─── Endpoints ───────────────────────────────────────────────────
 
@@ -292,7 +322,7 @@ try
 
     app.MapGet("/api/info", () => Results.Json(new
     {
-        service = "ATO Copilot Chat",
+        service = "Security Posture Intelligence Navigator Chat",
         version = "1.0.0",
         endpoints = new
         {
@@ -316,13 +346,13 @@ try
     var urls = builder.Configuration.GetValue("Server:Urls", $"http://0.0.0.0:{port}");
     app.Urls.Add(urls!);
 
-    Log.Information("ATO Copilot Chat listening on {Urls}", urls);
+    Log.Information("Security Posture Intelligence Navigator Chat listening on {Urls}", urls);
 
     await app.RunAsync();
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "ATO Copilot Chat terminated unexpectedly");
+    Log.Fatal(ex, "Security Posture Intelligence Navigator Chat terminated unexpectedly");
     Environment.ExitCode = 1;
 }
 finally

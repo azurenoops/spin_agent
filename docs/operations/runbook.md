@@ -1,6 +1,6 @@
-# Operations Runbook — ATO Copilot
+# Operations Runbook — Security Posture Intelligence Navigator
 
-> Day-2 operations reference for the 4-service ATO Copilot stack:
+> Day-2 operations reference for the 4-service Security Posture Intelligence Navigator stack:
 > **SQL Server → Redis → MCP Server → Chat App → Dashboard**.
 > Covers migrations, log access, service restarts, health verification, and dev-data seeding.
 

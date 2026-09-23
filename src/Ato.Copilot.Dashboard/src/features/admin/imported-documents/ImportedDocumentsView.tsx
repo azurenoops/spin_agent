@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../../workspaces/workspaceNavigation';
 import axios from 'axios';
 import EmassImportWizard from './EmassImportWizard';
 import SspPdfImportWizard from './SspPdfImportWizard';

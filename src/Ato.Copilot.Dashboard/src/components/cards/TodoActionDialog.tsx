@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../features/workspaces/workspaceNavigation';
 import type { TodoItem } from '../../types/dashboard';
 
 interface TodoActionDialogProps {

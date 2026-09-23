@@ -2,6 +2,39 @@
 
 ---
 
+## #1001 Library and delivery additions
+
+- `NarrativeReference` remains tenant-scoped. `ImportedForSystemId` is nullable
+  for organization-origin imports; organization/provider IDs never substitute
+  for a system. SQLite upgrades the legacy NOT NULL column transactionally,
+  preserving records and known unique indexes, and refuses unmanaged schema
+  additions rather than dropping them silently. SQL Server relaxes nullability.
+- `ProviderNarrativeReference` is separate global-reference storage owned by
+  the real `CspProfileId`, with Provider/ProviderCapability scope and immutable
+  published revisions. Services gate private provider reads/writes to the
+  provider workspace. Customer readers admit only applicable published rows.
+  The parent has registered this entity in `AtoCopilotContext`.
+- `NarrativeProposal` stores independent Policy/Technical source state,
+  proposed versus base content, version/revision tokens, source/error metadata,
+  and pending/failed/superseded generation states. Existing approved snapshots
+  remain the approved baseline until a separate authorized review succeeds.
+- `NarrativeImpactReceipt` is tenant-scoped, with a deterministic key over
+  tenant, ImpactId, system, control and narrative type. It links to the durable
+  proposal and retains source context even for unchanged deliveries. Restricted
+  deletion preserves delivery idempotency.
+- `NarrativeReferencePublication` and `ProviderNarrativeReferencePublication`
+  are separate tenant/global source outboxes. Each publication records the
+  immutable reference revision, publisher, content-state hash, payload,
+  Pending/delivery status and a revision token in the same save as publication.
+  Payload targets include removed as well as added control-half mappings.
+  These are source events, not proof, approval or inferred responsibility.
+
+Delivery receipts and publication outboxes are discovered through reference/
+proposal navigations. No model invocation occurs in source mutation saves.
+Parent dispatch owns durable fan-out and retry in authorized target contexts.
+
+---
+
 ## 1. `ControlImplementation` Extensions (Additive — `SspModels.cs`)
 
 ### 1.1 New Properties

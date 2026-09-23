@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link } from '../features/workspaces/workspaceNavigation';
 import InheritanceSummaryBar from '../components/inheritance/InheritanceSummaryBar';
 import InheritanceTable from '../components/inheritance/InheritanceTable';
 import BulkUpdateToolbar from '../components/inheritance/BulkUpdateToolbar';
@@ -257,6 +257,12 @@ export default function ControlInheritance() {
         <Link to="/capabilities" className="font-medium underline hover:text-indigo-900">
           Manage Capabilities &rarr;
         </Link>
+        <p className="mt-2">
+          CSP subscriptions require explicit system allocations.{' '}
+          <Link to={`/systems/${encodeURIComponent(systemId)}/inheritance/subscriptions`} className="font-medium underline hover:text-indigo-900">
+            Review subscription responsibilities
+          </Link>
+        </p>
       </div>
       <div className="flex items-center justify-between">
         <div>

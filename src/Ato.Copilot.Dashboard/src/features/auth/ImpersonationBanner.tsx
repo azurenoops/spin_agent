@@ -6,6 +6,8 @@ import {
   getPreImpersonationUrl,
 } from './preImpersonationUrl';
 import { endImpersonation } from '../tenancy/api';
+import { safeDeepLink } from '../workspaces/WorkspaceEntry';
+import { workspaceErrorMessage } from '../workspaces/api';
 
 /**
  * Feature 051 T134 [US8] — sticky banner shown while the dashboard user
@@ -52,6 +54,7 @@ export default function ImpersonationBanner() {
   const navigate = useNavigate();
   const [exiting, setExiting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [exitError, setExitError] = useState<string | null>(null);
   // Track "now" in state so the countdown re-renders deterministically;
   // a counter would work too but explicitly storing the timestamp keeps
   // the test surface easy to reason about under fake timers.
@@ -87,36 +90,23 @@ export default function ImpersonationBanner() {
     }
   }, [isImpersonating, expiresAtMs, now, refetch]);
 
-  // Refetch on the cross-component "tenant changed" event so when the
-  // CSP-Admin starts impersonation from another component, this banner
-  // picks up the new /me state without a full reload.
-  useEffect(() => {
-    const handler = () => refetch();
-    window.addEventListener('ato:tenant-changed', handler);
-    return () => window.removeEventListener('ato:tenant-changed', handler);
-  }, [refetch]);
-
   const handleConfirm = useCallback(async () => {
     if (exiting) return;
     setExiting(true);
-    // Read + clear the pre-impersonation URL BEFORE any await so the
-    // navigation target is captured even if the user races a second
-    // impersonation start. Fall back to the SPA root when absent
-    // (the persona-default landing) per FR-029.
+    setExitError(null);
     const returnUrl = getPreImpersonationUrl();
-    clearPreImpersonationUrl();
     try {
       await endImpersonation();
-    } catch {
-      // endImpersonation already clears its local mirror in its finally;
-      // we still refetch so the banner unmounts.
-    } finally {
+      clearPreImpersonationUrl();
       refetch();
-      setExiting(false);
       setShowConfirm(false);
-      navigate(returnUrl ?? '/');
+      navigate(returnUrl ? safeDeepLink(returnUrl) : me?.workspace?.mode === 'support' ? '/workspaces/csp' : '/');
+    } catch (reason) {
+      setExitError(workspaceErrorMessage(reason));
+    } finally {
+      setExiting(false);
     }
-  }, [exiting, refetch, navigate]);
+  }, [exiting, refetch, navigate, me?.workspace?.mode]);
 
   if (!me || !isImpersonating || me.impersonation === null) return null;
 
@@ -184,8 +174,9 @@ export default function ImpersonationBanner() {
             <span className="font-semibold">{tenant.displayName}</span>?
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            You will be returned to your CSP-Admin view.
+            Save your work first. Exiting discards unsaved changes and returns to your CSP-Admin view.
           </p>
+          {exitError && <p role="alert" className="mt-2 text-xs text-red-700">{exitError}</p>}
           <div className="mt-3 flex justify-end gap-2">
             <button
               type="button"

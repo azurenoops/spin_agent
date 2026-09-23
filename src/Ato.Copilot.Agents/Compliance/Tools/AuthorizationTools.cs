@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Ato.Copilot.Agents.Common;
+using Ato.Copilot.State.Abstractions;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.Extensions.Logging;
@@ -24,13 +25,16 @@ namespace Ato.Copilot.Agents.Compliance.Tools;
 public class IssueAuthorizationTool : BaseTool
 {
     private readonly IAuthorizationService _service;
+    private readonly IConversationIdentityAccessor? _identityAccessor;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public IssueAuthorizationTool(
         IAuthorizationService service,
-        ILogger<IssueAuthorizationTool> logger) : base(logger)
+        ILogger<IssueAuthorizationTool> logger,
+        IConversationIdentityAccessor? identityAccessor = null) : base(logger)
     {
         _service = service;
+        _identityAccessor = identityAccessor;
     }
 
     public override string Name => "compliance_issue_authorization";
@@ -48,7 +52,7 @@ public class IssueAuthorizationTool : BaseTool
         ["terms_and_conditions"] = new() { Name = "terms_and_conditions", Description = "Authorization terms and conditions text", Type = "string", Required = false },
         ["residual_risk_level"] = new() { Name = "residual_risk_level", Description = "Low | Medium | High | Critical", Type = "string", Required = true },
         ["residual_risk_justification"] = new() { Name = "residual_risk_justification", Description = "Justification for the residual risk level", Type = "string", Required = false },
-        ["risk_acceptances"] = new() { Name = "risk_acceptances", Description = "JSON array of risk acceptances: [{finding_id, control_id, cat_severity, justification, compensating_control?, expiration_date}]", Type = "string", Required = false }
+        ["risk_acceptances"] = new() { Name = "risk_acceptances", Description = "JSON array of risk acceptances: [{findingId, controlId, catSeverity, justification, compensatingControl?, expirationDate}]", Type = "string", Required = false }
     };
 
     public override async Task<string> ExecuteCoreAsync(
@@ -94,12 +98,16 @@ public class IssueAuthorizationTool : BaseTool
             }
         }
 
+        var identity = _identityAccessor?.Current;
+        var actor = identity?.ActorId ?? "mcp-user";
+        var actorName = identity?.ActorId ?? "MCP User";
+
         try
         {
             var result = await _service.IssueAuthorizationAsync(
                 systemId, decisionType, expDate, riskLevel,
                 terms, riskJustification, riskAcceptances,
-                "mcp-user", "MCP User", cancellationToken);
+                actor, actorName, cancellationToken);
 
             sw.Stop();
             return JsonSerializer.Serialize(new
@@ -156,13 +164,16 @@ public class IssueAuthorizationTool : BaseTool
 public class AcceptRiskTool : BaseTool
 {
     private readonly IAuthorizationService _service;
+    private readonly IConversationIdentityAccessor? _identityAccessor;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public AcceptRiskTool(
         IAuthorizationService service,
-        ILogger<AcceptRiskTool> logger) : base(logger)
+        ILogger<AcceptRiskTool> logger,
+        IConversationIdentityAccessor? identityAccessor = null) : base(logger)
     {
         _service = service;
+        _identityAccessor = identityAccessor;
     }
 
     public override string Name => "compliance_accept_risk";
@@ -213,11 +224,13 @@ public class AcceptRiskTool : BaseTool
         if (!DateTime.TryParse(expirationRaw, out var expDate))
             return Error("INVALID_INPUT", $"Invalid expiration_date format: '{expirationRaw}'. Use ISO-8601.");
 
+        var actor = _identityAccessor?.Current?.ActorId ?? "mcp-user";
+
         try
         {
             var acceptance = await _service.AcceptRiskAsync(
                 systemId, findingId, controlId, catSeverity, justification,
-                expDate, compensatingControl, cancellationToken: cancellationToken);
+                expDate, compensatingControl, acceptedBy: actor, cancellationToken: cancellationToken);
 
             sw.Stop();
             return JsonSerializer.Serialize(new

@@ -5,7 +5,7 @@ namespace Ato.Copilot.Core.Models.Auth;
 
 /// <summary>
 /// Append-only audit-trail row for a single authentication-related event
-/// across the four ATO Copilot surfaces. Feature 051 FR-032 (schema),
+/// across the four Security Posture Intelligence Navigator surfaces. Feature 051 FR-032 (schema),
 /// FR-033 (privacy-preserving failure logging), FR-034 / FR-035 (throttle
 /// audit), FR-036a (13-month hot + indefinite cold archive retention).
 /// </summary>

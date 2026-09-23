@@ -49,7 +49,7 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     // directly via GetActiveContext().
     private readonly TenantContext _activeContext = new() { TenantId = TenantAId };
     private readonly string _sqliteFile = Path.Combine(
-        Path.GetTempPath(),
+        Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "TestResults")).FullName,
         $"ato-copilot-tests-{Guid.NewGuid():N}.db");
     private readonly string? _sqlServerConn =
         Environment.GetEnvironmentVariable("ATO_TEST_SQLSERVER_CONNSTRING");

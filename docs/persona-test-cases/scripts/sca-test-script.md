@@ -13,7 +13,7 @@
 1. **Deactivate ISSO role** (if active): `@ato Deactivate my Analyst role`
 2. **Activate SCA role**: `Activate my Compliance.Auditor role for 4 hours — persona test suite`
 3. **Verify role**: `Show my active PIM roles` → Confirm `Compliance.Auditor` is active
-4. **Switch to Teams**: Open Microsoft Teams with ATO Copilot bot
+4. **Switch to Teams**: Open Microsoft Teams with Security Posture Intelligence Navigator bot
 5. **Verify access**: `Show system details for Eagle Eye` → Should return system in Implement/Assess phase
 
 ### Preconditions from ISSO Phase

@@ -6,7 +6,8 @@ WORKDIR /app
 # Copy package files for layer caching
 COPY src/Ato.Copilot.Dashboard/package.json src/Ato.Copilot.Dashboard/package-lock.json ./
 
-RUN npm ci
+ARG NPM_REGISTRY=https://registry.npmjs.org
+RUN npm ci --registry="$NPM_REGISTRY"
 
 # Copy shared workspace package so vite.config.ts alias resolves (#2683).
 # vite.config.ts resolves @ato-copilot/shared to ../../packages/ato-shared/src/index.ts
@@ -29,6 +30,9 @@ RUN rm /etc/nginx/conf.d/default.conf
 
 # Default MCP upstream for local docker-compose runs; overridden in Container Apps.
 ENV MCP_BASE_URL=http://ato-copilot:3001
+
+# Define even when empty so nginx envsubst removes the runtime placeholder.
+ENV FORCE_SINGLE_TENANT=""
 
 # Copy nginx template to enable runtime env var substitution.
 COPY src/Ato.Copilot.Dashboard/nginx.conf /etc/nginx/templates/default.conf.template

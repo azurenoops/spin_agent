@@ -36,7 +36,7 @@ export function buildComplianceCard(data: ComplianceData): Record<string, unknow
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Compliance Assessment",
+      text: "Security Posture Intelligence Navigator — Compliance Assessment",
       weight: "Bolder",
       size: "Large",
     },

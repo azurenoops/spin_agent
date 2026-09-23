@@ -27,6 +27,9 @@ test(`import mappings, preserve active text and review a ${narrativeType} propos
     acceptedVersion: null as number | null, isStale: false, canReview: true };
   let imported = false;
   let generated = false;
+  const workspacePermissions = { canManageMemberships: false, canManageOrganization: false, canAccessCsp: false };
+  const workspace = { kind: 'organization', tenantId: 'synthetic-tenant', displayName: 'Synthetic Tenant',
+    mode: 'ordinary', personId: 'synthetic-person', roles: ['ISSM'], permissions: workspacePermissions };
   const responses: Record<string, unknown> = {
     '/api/auth/login-config': { status: 'success', data: {
       branding: { deploymentName: 'Synthetic dashboard', logoUrl: null, supportEmail: null }, defaultMethod: 'Simulation',
@@ -34,10 +37,13 @@ test(`import mappings, preserve active text and review a ${narrativeType} propos
       rememberTenantCookieDays: 7, simulation: { identities: [] }, msal: { clientId: '00000000-0000-4000-8000-000000000001',
         authority: 'https://login.microsoftonline.com/common', redirectUri: `${origin}/login/callback`, postLogoutRedirectUri: `${origin}/login` },
     } },
-    '/api/auth/me': { oid: 'synthetic-reviewer', displayName: 'Synthetic Reviewer', persona: 'ISSM',
+    '/api/auth/me': { status: 'success', data: { oid: 'synthetic-reviewer', directoryTenantId: 'synthetic-directory',
+      displayName: 'Synthetic Reviewer', persona: 'ISSM', workspace,
+      availableWorkspaces: [{ kind: workspace.kind, tenantId: workspace.tenantId, displayName: workspace.displayName,
+        status: 'Active', onboardingState: 'Active' }], availableWorkspacesTotal: 1, permissions: workspacePermissions,
       homeTenant: { id: 'synthetic-tenant', displayName: 'Synthetic Tenant', status: 'Active' },
       effectiveTenant: { id: 'synthetic-tenant', displayName: 'Synthetic Tenant', status: 'Active' },
-      isImpersonating: false, impersonation: null, pimRoles: [], isCspAdmin: false, isSocAnalyst: false, tenantMemberships: [] },
+      isImpersonating: false, impersonation: null, pimRoles: [], isCspAdmin: false, isSocAnalyst: false, tenantMemberships: [] } },
     '/api/onboarding/organization-context': { ok: true, data: null },
     '/api/onboarding/state': { ok: true, data: { steps: [{ step: 'OrganizationContext', status: 'Completed' }, { step: 'Roles', status: 'Completed' }] } },
     '/api/onboarding/tenant/state': { status: 'success', data: { tenantId: 'synthetic-tenant', currentStep: 'Submitted',
@@ -45,10 +51,20 @@ test(`import mappings, preserve active text and review a ${narrativeType} propos
       onboardingState: 'Active', firstOrganizationId: 'synthetic-organization' } },
     '/api/deployment/mode': { mode: 'SingleTenant' },
     '/api/dashboard/notifications': { items: [] }, '/api/dashboard/notifications/summary': { unreadCount: 0, totalCount: 0 },
+    '/api/dashboard/notifications/capabilities': { recipientId: 'synthetic-reviewer', rest: { available: true, reasonCode: null },
+      realtime: { available: false, authentication: 'bearer', cookieSessionSupported: false,
+        reasonCode: 'REALTIME_BEARER_REQUIRED', hubPaths: ['/hubs/notifications'] },
+      fallback: { transport: 'rest-polling', pollIntervalSeconds: 30 } },
     [dashboard]: systemDetail, [dashboard + '/todos']: { items: [] }, [dashboard + '/profile/completeness']: profileCompleteness,
+    [dashboard + '/profile/todos']: { hasProfileTasks: false, incompleteSections: [], revisionSections: [], flaggedControls: [] },
+    [dashboard + '/workspace-access']: { status: 'success', data: { systemId, roles: ['ISSM'],
+      permissions: { canRead: true, canEditProfile: true, canManageSystem: true, canAuthorNarratives: true,
+        canReviewNarratives: true, canManageEvidence: true, canRunAssessments: true,
+        canManageRemediation: true, canDecideAuthorization: false } } },
     [dashboard + '/business-context/flagged-controls']: [],
     [dashboard + '/business-context/AC-2']: null,
-    [root + '/access']: { tenantId: 'synthetic-tenant', systemName: systemDetail.name, canAuthor: true, canPublishShared: false, capabilities: [] },
+    [root + '/access']: { tenantId: 'synthetic-tenant', systemName: systemDetail.name,
+      canAuthor: true, canGenerate: true, canPublishShared: false, capabilities: [] },
   };
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
@@ -60,6 +76,8 @@ test(`import mappings, preserve active text and review a ${narrativeType} propos
     if (request.method() === 'GET') {
       if (endpoint === root) return reply(imported ? [reference] : []);
       if (endpoint === root + '/proposals') return reply(generated ? [proposal] : []);
+      if (endpoint === root + '/proposals/proposal-1/impact-receipts')
+        return reply({ items: [], totalCount: 0, page: 1, pageSize: 50 });
       if (endpoint === dashboard + '/narratives') return reply([narrative]);
       if (endpoint === '/api/csp/onboarding/state') return reply({}, 404);
       if (endpoint === '/api/tenants') return reply([], 403);
@@ -68,6 +86,9 @@ test(`import mappings, preserve active text and review a ${narrativeType} propos
       if (endpoint === dashboard + '/controls/AC-2/validation') return reply({ links: [] });
     }
     if (request.method() === 'POST') {
+      expect(request.headers()['x-workspace-kind']).toBe('organization');
+      expect(request.headers()['x-workspace-tenant-id']).toBe('synthetic-tenant');
+      expect(request.headers()['x-workspace-mode']).toBe('ordinary');
       if (endpoint === root + '/imports') {
         expect(request.headers()['content-type']).toContain('multipart/form-data');
         expect(request.postData()).toContain('Review access quarterly.');

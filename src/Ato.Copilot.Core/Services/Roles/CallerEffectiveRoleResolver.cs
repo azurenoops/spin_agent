@@ -45,7 +45,7 @@ public sealed class CallerEffectiveRoleResolver : ICallerEffectiveRoleResolver
     {
         await using var db = await _contextFactory.CreateDbContextAsync(ct);
 
-        var resolvedPersonId = await db.Persons
+        var resolvedPersonId = db.IsWorkspaceRequest ? db.WorkspacePersonId : await db.Persons
             .AsNoTracking()
             .Where(p => p.TenantId == tenantId
                      && (p.Id == principalPersonId || p.EntraObjectId == principalPersonId))

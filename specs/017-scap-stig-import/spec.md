@@ -2,7 +2,7 @@
 
 **Created**: 2026-03-01  
 **Status**: Strategic Plan  
-**Purpose**: Enable ATO Copilot to ingest real-world assessment scan results from DISA STIG Viewer (.ckl) and SCAP Compliance Checker (.xccdf) files, mapping them to registered systems, creating compliance findings, and linking evidence to the existing assessment pipeline.
+**Purpose**: Enable Security Posture Intelligence Navigator to ingest real-world assessment scan results from DISA STIG Viewer (.ckl) and SCAP Compliance Checker (.xccdf) files, mapping them to registered systems, creating compliance findings, and linking evidence to the existing assessment pipeline.
 
 ---
 
@@ -27,11 +27,11 @@ In every DoD ATO process, engineers and ISSOs run DISA STIG Viewer and SCAP Comp
 - **STIG Viewer** exports `.ckl` (Checklist) files — one per STIG benchmark per system. A typical ATO package has 5–20 CKL files (Windows Server, SQL Server, IIS, .NET, etc.).
 - **SCAP Compliance Checker (SCC)** exports `.xccdf` (XCCDF Results) files — automated scan results from DISA's SCAP benchmarks.
 
-Today, these results live in files on shared drives or in eMASS. Teams manually cross-reference CKL findings against their control baselines, hand-copy finding details into POA&Ms, and re-enter data into multiple systems. **There is no automated path to get scan results into ATO Copilot.**
+Today, these results live in files on shared drives or in eMASS. Teams manually cross-reference CKL findings against their control baselines, hand-copy finding details into POA&Ms, and re-enter data into multiple systems. **There is no automated path to get scan results into Security Posture Intelligence Navigator.**
 
 ### The Current Gap
 
-| What Teams Do Today | What ATO Copilot Can Do Today |
+| What Teams Do Today | What Security Posture Intelligence Navigator Can Do Today |
 |---------------------|-------------------------------|
 | Run STIG Viewer, save .ckl files per system | Nothing — no CKL parser exists |
 | Run SCAP SCC, export .xccdf results | Nothing — XCCDF fields exist on `StigControl` but no import |
@@ -42,7 +42,7 @@ Today, these results live in files on shared drives or in eMASS. Teams manually 
 
 ### The Opportunity
 
-ATO Copilot already has:
+Security Posture Intelligence Navigator already has:
 - `StigControl` records with XCCDF fields (StigId, VulnId, RuleId, BenchmarkId, StigVersion)
 - `ComplianceFinding` with `StigFinding` bool and `StigId` field
 - `ControlEffectiveness` for per-control assessment determinations
@@ -66,7 +66,7 @@ The missing piece is **file parsing** — getting data out of CKL/XCCDF XML and 
 - A **file import pipeline** that parses DISA-standard XML formats
 - A **mapping engine** that resolves STIG findings → CCI references → NIST 800-53 controls
 - An **assessment integration** that feeds parsed scan results into the existing assessment workflow
-- A **CKL export** capability that generates `.ckl` files from ATO Copilot assessment data (for eMASS upload)
+- A **CKL export** capability that generates `.ckl` files from Security Posture Intelligence Navigator assessment data (for eMASS upload)
 
 ### What It Is NOT
 
@@ -340,7 +340,7 @@ SCAP Compliance Checker (SCC) produces XCCDF results — an NIST-standardized XM
 
 | # | Capability | Persona | Description |
 |---|-----------|---------|-------------|
-| 3.1 | **CKL Generation** | ISSO, Engineer | Generate a complete `.ckl` file for a STIG benchmark from ATO Copilot assessment data. Enumerate **all** `StigControl` records matching the benchmark, fill in statuses from corresponding `ComplianceFinding` records, and default unassessed rules to `Not_Reviewed`. Includes ASSET metadata from `RegisteredSystem`. Produces eMASS-compliant CKL files with no gaps. |
+| 3.1 | **CKL Generation** | ISSO, Engineer | Generate a complete `.ckl` file for a STIG benchmark from Security Posture Intelligence Navigator assessment data. Enumerate **all** `StigControl` records matching the benchmark, fill in statuses from corresponding `ComplianceFinding` records, and default unassessed rules to `Not_Reviewed`. Includes ASSET metadata from `RegisteredSystem`. Produces eMASS-compliant CKL files with no gaps. |
 | 3.2 | **Benchmark Selection** | ISSO | Choose which STIG benchmark to export (system may have findings from multiple STIGs). List available benchmarks based on imported/assessed STIG data. |
 | 3.3 | **Export MCP Tool** | ISSO | `compliance_export_ckl` tool returning base64-encoded CKL XML content. |
 
@@ -523,7 +523,7 @@ Imported findings need an `AssessmentId` (FK to `ComplianceAssessment`). On impo
 
 2. **Phase 2 (XCCDF Import) second** because XCCDF extends the same pipeline with a different parser. The STIG resolution and NIST mapping logic from Phase 1 is reused.
 
-3. **Phase 3 (CKL Export) third** because export completes the round-trip. Teams need to upload CKL files to eMASS after updating remediation status in ATO Copilot.
+3. **Phase 3 (CKL Export) third** because export completes the round-trip. Teams need to upload CKL files to eMASS after updating remediation status in Security Posture Intelligence Navigator.
 
 4. **Phase 4 (Management) last** because import history and summary tools are observability features built on top of working import functionality.
 

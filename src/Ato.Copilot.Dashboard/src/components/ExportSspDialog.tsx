@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { requestExport, downloadExportUrl, listTemplates } from '../api/exports';
-import type { ExportSummary, TemplateInfo } from '../api/exports';
-import * as signalR from '@microsoft/signalr';
-import { acquireBearer, getMsalInstance } from '../features/auth/msalInstance';
+import { requestExport, getExport, downloadExportUrl, listTemplates } from '../api/exports';
+import type { ExportDetail, TemplateInfo } from '../api/exports';
 // Wave 6 GAP-018
 import apiClient from '../api/client';
 import { enqueuePackage, getPackageStatus, getPackageDownloadUrl } from '../api/packages';
+import type { PackageDetail } from '../api/package';
+import { downloadAuthenticatedFile } from '../api/downloads';
 import { ValidationBadge } from '../features/oscal';
+import AuthenticatedDownload from './AuthenticatedDownload';
+import { isProgressEvent, progressError, useJobProgress, useProgressSession, type ProgressSession } from '../hooks/useJobProgress';
+import ProgressTransportNotice from './ProgressTransportNotice';
 
 // ── Contract types for OSCAL SSP export ─────────────────────────────────────
 // GET /api/v1/systems/{systemId}/exports/oscal-ssp
@@ -32,21 +35,22 @@ interface ExportSspDialogProps {
 
 type ExportStatus = 'idle' | 'submitting' | 'processing' | 'completed' | 'failed';
 
-export default function ExportSspDialog({ systemId, onClose, onExportComplete }: ExportSspDialogProps) {
+export default function ExportSspDialog(props: ExportSspDialogProps) {
+  const session = useProgressSession(props.systemId);
+  return <ExportSspContent key={session.key} {...props} session={session} />;
+}
+
+function ExportSspContent({ systemId, onClose, onExportComplete, session }: ExportSspDialogProps & { session: ProgressSession }) {
   const [format, setFormat] = useState<'docx' | 'pdf'>('docx');
   const [templateId, setTemplateId] = useState<string>('');
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [status, setStatus] = useState<ExportStatus>('idle');
   const [progressStep, setProgressStep] = useState('');
-  const [progressPct, setProgressPct] = useState(0);
+  const [progressPct, setProgressPct] = useState<number | null>(null);
+  const hasRealtimeProgress = useRef(false);
   const [exportId, setExportId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const connectionRef = useRef<signalR.HubConnection | null>(null);
-  // Issue #850 — holds the start() promise so the cleanup useEffect can chain
-  // stop() off .finally() instead of calling it synchronously (race fix).
-  const startPromiseRef = useRef<Promise<void> | null>(null);
-  const cancelledRef = useRef(false);
   // Wave 6 GAP-018
   const [oscalExporting, setOscalExporting] = useState<string | null>(null);
   const [oscalError, setOscalError] = useState<string | null>(null);
@@ -56,26 +60,22 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
   // #180: PDF/XLSX/eMASS package export state
   const [pkgExporting, setPkgExporting] = useState<string | null>(null);
   const [pkgError, setPkgError] = useState<string | null>(null);
-  const pkgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [pkgJobId, setPkgJobId] = useState<string | null>(null);
 
   const handleOscalDownload = useCallback(async (artifactType: 'oscal-poam' | 'oscal-assessment-results' | 'oscal-sap') => {
+    if (!session.ready || !session.isCurrent()) { setOscalError('Authenticated workspace context is required.'); return; }
+    const request = session.request();
     setOscalExporting(artifactType);
     setOscalError(null);
     try {
-      const response = await apiClient.get(`/api/v1/systems/${systemId}/packages/${artifactType}`, { responseType: 'blob' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([response.data as BlobPart]));
-      a.download = `${artifactType}-${systemId}.json`;
-      document.body.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(a.href);
-      a.remove();
+      await downloadAuthenticatedFile(`/api/v1/systems/${systemId}/exports/${artifactType}`, `${artifactType}-${systemId}.json`, request.signal);
     } catch (e: unknown) {
-      setOscalError(`${artifactType} export failed: ${(e as Error).message ?? 'Unknown error'}`);
+      if (request.isCurrent()) setOscalError(`${artifactType} export failed: ${progressError(e)}`);
     } finally {
-      setOscalExporting(null);
+      if (request.isCurrent()) setOscalExporting(null);
+      request.complete();
     }
-  }, [systemId]);
+  }, [systemId, session.key, session.ready]);
 
   /**
    * #419 contract: two-phase OSCAL SSP export.
@@ -86,6 +86,8 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
    * and goes straight to download; re-validates only when summary is stale.
    */
   const handleOscalSspDownload = useCallback(async () => {
+    if (!session.ready || !session.isCurrent()) { setOscalError('Authenticated workspace context is required.'); return; }
+    const request = session.request();
     setOscalExporting('oscal-ssp');
     setOscalError(null);
     try {
@@ -95,78 +97,133 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
         setOscalSspSummaryLoading(true);
         const metaRes = await apiClient.get<OscalExportSummary>(
           `/api/v1/systems/${systemId}/exports/oscal-ssp`,
+          { baseURL: new URL(apiClient.defaults.baseURL ?? '/api/dashboard', window.location.origin).origin, signal: request.signal },
         );
+        if (!request.isCurrent()) return;
         summary = metaRes.data;
         setOscalSspSummary(summary);
         setOscalSspSummaryLoading(false);
       }
 
       // Step 2 — stream download
-      const downloadRes = await apiClient.get(
+      await downloadAuthenticatedFile(
         `/api/v1/systems/${systemId}/exports/oscal-ssp/download`,
-        { responseType: 'blob' },
+        `oscal-ssp-${systemId}.json`, request.signal,
       );
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([downloadRes.data as BlobPart]));
-      a.download = `oscal-ssp-${systemId}.json`;
-      document.body.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(a.href);
-      a.remove();
     } catch (e: unknown) {
+      if (!request.isCurrent()) return;
       setOscalSspSummaryLoading(false);
-      setOscalError(`OSCAL SSP export failed: ${(e as Error).message ?? 'Unknown error'}`);
+      setOscalError(`OSCAL SSP export failed: ${progressError(e)}`);
     } finally {
-      setOscalExporting(null);
+      if (request.isCurrent()) setOscalExporting(null);
+      request.complete();
     }
-  }, [systemId, oscalSspSummary]);
+  }, [systemId, oscalSspSummary, session.key, session.ready]);
 
   const handlePackageExport = useCallback(async (format: 'pdf' | 'xlsx' | 'emass-xlsx') => {
+    if (!session.ready || !session.isCurrent()) { setPkgError('Authenticated workspace context is required.'); return; }
+    const request = session.request();
+    setPkgJobId(null);
     setPkgExporting(format);
     setPkgError(null);
     try {
-      const job = await enqueuePackage(systemId, format === 'emass-xlsx' ? 'full' : 'inline');
-      // Poll until complete then trigger download
-      const poll = setInterval(async () => {
-        try {
-          const detail = await getPackageStatus(systemId, job.packageId);
-          if (detail.status === 'Completed') {
-            clearInterval(poll);
-            pkgPollRef.current = null;
-            // Trigger download
-            const a = document.createElement('a');
-            a.href = getPackageDownloadUrl(systemId, job.packageId);
-            a.download = `ato-package-${format}-${systemId.slice(0, 8)}.zip`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setPkgExporting(null);
-          } else if (detail.status === 'Failed') {
-            clearInterval(poll);
-            pkgPollRef.current = null;
-            setPkgError(detail.failureReason ?? 'Package generation failed');
-            setPkgExporting(null);
-          }
-        } catch {
-          clearInterval(poll);
-          pkgPollRef.current = null;
-          setPkgError('Failed to poll package status');
-          setPkgExporting(null);
-        }
-      }, 3000);
-      pkgPollRef.current = poll;
+      const job = await enqueuePackage(systemId, format === 'emass-xlsx' ? 'full' : 'inline', request.signal);
+      if (!request.isCurrent()) return;
+      if (!job || typeof job.packageId !== 'string' || !job.packageId.trim()) {
+        throw new Error('Unexpected package generation response.');
+      }
+      setPkgJobId(job.packageId);
     } catch (e: unknown) {
-      setPkgError(`${format} export failed: ${(e as Error).message ?? 'Unknown error'}`);
+      if (!request.isCurrent()) return;
+      setPkgError(`${format} export failed: ${progressError(e)}`);
       setPkgExporting(null);
+    } finally {
+      request.complete();
     }
-  }, [systemId]);
+  }, [systemId, session.key, session.ready]);
 
-  // Cleanup poll on unmount
-  useEffect(() => {
-    return () => {
-      if (pkgPollRef.current) clearInterval(pkgPollRef.current);
-    };
-  }, []);
+  const downloadCompletedPackage = async (job: PackageDetail) => {
+    if (!session.isCurrent()) return;
+    const request = session.request();
+    try {
+      await downloadAuthenticatedFile(getPackageDownloadUrl(systemId, job.packageId),
+        `ato-package-${pkgExporting}-${systemId.slice(0, 8)}.zip`, request.signal);
+    } catch (reason) {
+      if (request.isCurrent()) setPkgError(progressError(reason));
+    } finally {
+      if (request.isCurrent()) setPkgExporting(null);
+      request.complete();
+    }
+  };
+
+  const packageMonitor = useJobProgress<PackageDetail>({
+    session, jobId: pkgJobId, hubPath: '/hubs/package', pollIntervalMs: 3000,
+    events: ['PackageStatusChanged', 'PackageArtifactGenerated', 'PackageComplete', 'PackageFailed'],
+    matchesEvent: payload => isProgressEvent(payload, 'packageId', pkgJobId),
+    subscribe: connection => connection.invoke('SubscribeToPackage', pkgJobId),
+    poll: async signal => {
+      if (!pkgJobId) throw new Error('No package is selected.');
+      const result = await getPackageStatus(systemId, pkgJobId, signal);
+      if (result.packageId !== pkgJobId || result.systemId !== systemId
+        || !['Pending', 'Generating', 'Validating', 'Completed', 'Failed'].includes(result.status)) {
+        throw new Error('Unexpected package status response.');
+      }
+      return result;
+    },
+    isTerminal: result => result.status === 'Completed' || result.status === 'Failed',
+    onStatus: result => {
+      if (result.status === 'Completed') void downloadCompletedPackage(result);
+      else if (result.status === 'Failed') {
+        setPkgError(result.failureReason ?? 'Package generation failed.');
+        setPkgExporting(null);
+      }
+    },
+  });
+
+  const monitor = useJobProgress<ExportDetail>({
+    session, jobId: exportId, hubPath: '/hubs/notifications',
+    events: ['SspExportProgress', 'SspExportReady', 'SspExportFailed'],
+    matchesEvent: payload => isProgressEvent(payload, 'exportId', exportId),
+    subscribe: (connection, capabilities) => connection.invoke('RegisterUser', capabilities.recipientId),
+    poll: async signal => {
+      if (!exportId) throw new Error('No export is selected.');
+      const result = await getExport(systemId, exportId, signal);
+      if (result.exportId !== exportId || result.systemId !== systemId
+        || !['Pending', 'Processing', 'Completed', 'Failed'].includes(result.status)) {
+        throw new Error('Unexpected export status response.');
+      }
+      return result;
+    },
+    onEvent: (name, payload) => {
+      if (!isProgressEvent(payload, 'exportId', exportId)) return;
+      if (name === 'SspExportProgress') {
+        if (typeof payload.step !== 'string' || typeof payload.percentage !== 'number' || !Number.isFinite(payload.percentage)) {
+          throw new Error('Unexpected export progress event.');
+        }
+        setProgressStep(payload.step);
+        hasRealtimeProgress.current = true;
+        const percentage = Math.max(0, Math.min(100, payload.percentage));
+        setProgressPct(previous => Math.max(previous ?? 0, percentage));
+      } else if (name === 'SspExportFailed' && typeof payload.error === 'string') {
+        setError(payload.error);
+      }
+      return undefined;
+    },
+    isTerminal: result => result.status === 'Completed' || result.status === 'Failed',
+    onStatus: result => {
+      if (result.status === 'Completed') {
+        setStatus('completed');
+        setProgressPct(100);
+        setProgressStep('Complete');
+        onExportComplete?.();
+      } else if (result.status === 'Failed') {
+        setStatus('failed');
+        setError(previous => previous ?? 'Export failed. The status endpoint does not include a failure reason.');
+      } else {
+        if (!hasRealtimeProgress.current) setProgressStep(result.status);
+      }
+    },
+  });
 
   // Close on Escape
   useEffect(() => {
@@ -179,118 +236,42 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
 
   // Load templates when format is docx
   useEffect(() => {
-    if (format === 'docx') {
-      listTemplates({ limit: 50 })
-        .then(res => setTemplates(res.items))
-        .catch(() => setTemplates([]));
-    }
-  }, [format]);
-
-  // Set up SignalR listener for export progress
-  const setupSignalR = useCallback((eid: string) => {
-    const hubUrl = (import.meta.env.VITE_API_BASE_URL || '').replace('/api/dashboard', '') + '/hubs/notifications';
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        accessTokenFactory: () => acquireBearer(),
-      })
-      .withAutomaticReconnect()
-      .build();
-
-    connection.on('SspExportProgress', (payload: { exportId: string; step: string; percentage: number }) => {
-      if (payload.exportId === eid) {
-        setProgressStep(payload.step);
-        setProgressPct(payload.percentage);
-      }
-    });
-
-    connection.on('SspExportReady', (payload: { exportId: string; format: string }) => {
-      if (payload.exportId === eid) {
-        setStatus('completed');
-        setProgressPct(100);
-        setProgressStep('Complete');
-        onExportComplete?.();
-      }
-    });
-
-    connection.on('SspExportFailed', (payload: { exportId: string; error: string }) => {
-      if (payload.exportId === eid) {
-        setStatus('failed');
-        setError(payload.error);
-      }
-    });
-
-    // Issue #850 — guard against the start/stop race: if the component unmounts
-    // before start() settles, the cleanup must not call stop() synchronously
-    // (that throws "Failed to start the HttpConnection before stop() was called"
-    // and triggers withAutomaticReconnect thrash). Instead we:
-    //   1. Track cancellation with a ref so RegisterUser is skipped post-unmount.
-    //   2. Capture the start() promise into startPromiseRef and chain stop() off
-    //      .finally() in the cleanup so stop() only runs after start() settles.
-    //   3. Swallow only the benign "already stopped" rejection; surface everything else.
-    cancelledRef.current = false;
-
-    const startPromise = connection
-      .start()
-      .then(() => {
-        // DEF-001 R2: only register when there is an authenticated MSAL account.
-        // Never fall back to a phantom identity string.
-        if (cancelledRef.current) return;
-        const account = getMsalInstance().getAllAccounts()[0];
-        if (account) {
-          return connection.invoke('RegisterUser', account.localAccountId);
-        }
-      })
-      .catch(() => {
-        // SignalR connection optional — user can poll instead
-      });
-
-    startPromiseRef.current = startPromise;
-    connectionRef.current = connection;
-  }, [onExportComplete]);
-
-  // Clean up SignalR on unmount
-  useEffect(() => {
-    return () => {
-      cancelledRef.current = true;
-      const conn = connectionRef.current;
-      const startPromise = startPromiseRef.current;
-      if (!conn) return;
-      if (startPromise) {
-        startPromise.finally(() => {
-          conn.stop().catch((err: unknown) => {
-            if (
-              err instanceof Error &&
-              err.message.toLowerCase().includes('already stopped')
-            ) {
-              // Expected when the connection never fully started — safe to ignore.
-              return;
-            }
-            console.error('[ExportSspDialog] SignalR stop error:', err);
-          });
-        });
-      } else {
-        conn.stop().catch(() => {});
-      }
-    };
-  }, []);
+    if (format !== 'docx' || !session.ready) return;
+    const request = session.request();
+    listTemplates({ limit: 50 }, request.signal)
+      .then(result => { if (request.isCurrent()) setTemplates(result.items); })
+      .catch(reason => { if (request.isCurrent()) setError(`Unable to load templates: ${progressError(reason)}`); })
+      .finally(request.complete);
+    return () => { request.cancel(); request.complete(); };
+  }, [format, session.key, session.ready]);
 
   const handleExport = async () => {
+    if (!session.ready || !session.isCurrent()) { setError('Authenticated workspace context is required.'); return; }
+    const request = session.request();
     setStatus('submitting');
     setError(null);
     try {
-      const result: ExportSummary = await requestExport(
+      const result = await requestExport(
         systemId,
         format,
         format === 'docx' && templateId ? templateId : undefined,
+        request.signal,
       );
+      if (!request.isCurrent()) return;
+      if (!result || typeof result.exportId !== 'string' || !result.exportId.trim()) {
+        throw new Error('Unexpected export request response.');
+      }
       setExportId(result.exportId);
       setStatus('processing');
       setProgressStep('Queued');
-      setProgressPct(10);
-      setupSignalR(result.exportId);
+      hasRealtimeProgress.current = false;
+      setProgressPct(null);
     } catch (err: unknown) {
+      if (!request.isCurrent()) return;
       setStatus('failed');
-      setError(err instanceof Error ? err.message : 'Export request failed');
+      setError(progressError(err));
+    } finally {
+      request.complete();
     }
   };
 
@@ -340,6 +321,9 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
 
         {/* Body */}
         <div className="px-5 py-4 space-y-4">
+          <ProgressTransportNotice monitor={monitor} onClose={onClose} />
+          {pkgJobId && <ProgressTransportNotice monitor={packageMonitor} onClose={onClose} />}
+          {error && status !== 'failed' && <p role="alert">{error}</p>}
           {/* Format selection */}
           {(status === 'idle' || status === 'submitting') && (
             <>
@@ -394,7 +378,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 {status === 'processing' && (
-                  <svg className="h-5 w-5 text-indigo-500 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <svg role="status" aria-label="Export processing" className="h-5 w-5 text-indigo-500 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path
                       className="opacity-75"
@@ -412,32 +396,35 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                   {progressStep}
                 </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              {progressPct !== null && <div role="progressbar" aria-label="SSP export progress"
+                aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPct}
+                className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={`h-2 rounded-full transition-all duration-500 ${
                     status === 'completed' ? 'bg-green-500' : 'bg-indigo-500'
                   }`}
                   style={{ width: `${progressPct}%` }}
                 />
-              </div>
+              </div>}
+              {progressPct === null && <p className="text-xs text-gray-500">Detailed progress is unavailable from the status endpoint.</p>}
               {status === 'completed' && exportId && (
-                <a
-                  href={downloadExportUrl(systemId, exportId)}
+                <AuthenticatedDownload
+                  url={downloadExportUrl(systemId, exportId)}
+                  fileName={`ssp-${systemId}.${format}`}
                   className="inline-flex items-center gap-2 mt-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-                  download
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Download {formatLabel[format]}
-                </a>
+                </AuthenticatedDownload>
               )}
             </div>
           )}
 
           {/* Error */}
           {status === 'failed' && error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+            <div role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3">
               <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
@@ -455,7 +442,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                   <button
                     key={fmt}
                     onClick={() => void handlePackageExport(fmt)}
-                    disabled={pkgExporting !== null}
+                    disabled={!session.ready || pkgExporting !== null}
                     title={tooltip}
                     className="flex w-full items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                   >
@@ -474,7 +461,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                   </button>
                 ))}
               </div>
-              {pkgError && <div className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">{pkgError}</div>}
+              {pkgError && <div role="alert" className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">{pkgError}</div>}
             </div>
           )}
 
@@ -525,7 +512,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                   </div>
                   <button
                     onClick={() => void handleOscalSspDownload()}
-                    disabled={oscalExporting !== null}
+                    disabled={!session.ready || oscalExporting !== null}
                     className="flex-shrink-0 inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
                   >
                     {oscalExporting === 'oscal-ssp' ? (
@@ -550,7 +537,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                   { type: 'oscal-assessment-results' as const, label: 'OSCAL Assessment Results', icon: '📊' },
                   { type: 'oscal-sap' as const, label: 'OSCAL SAP', icon: '📝' },
                 ] as const).map(({ type, label, icon }) => (
-                  <button key={type} onClick={() => void handleOscalDownload(type)} disabled={oscalExporting !== null}
+                  <button key={type} onClick={() => void handleOscalDownload(type)} disabled={!session.ready || oscalExporting !== null}
                     className="flex w-full items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
                     <span className="text-base">{icon}</span>
                     <span className="flex-1 text-left">{label}</span>
@@ -568,7 +555,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
                   </button>
                 ))}
               </div>
-              {oscalError && <div className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">{oscalError}</div>}
+              {oscalError && <div role="alert" className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">{oscalError}</div>}
             </div>
           )}
         </div>
@@ -585,6 +572,7 @@ export default function ExportSspDialog({ systemId, onClose, onExportComplete }:
               </button>
               <button
                 onClick={handleExport}
+                disabled={!session.ready}
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
               >
                 Export

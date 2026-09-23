@@ -68,7 +68,7 @@ An ISSM or AO navigates to a system's detail page in the Visual Compliance Dashb
 
 ### User Story 3 - View Roadmap via M365 Teams Chat (Priority: P1)
 
-An ISSM working in Microsoft Teams asks the ATO Copilot bot to generate or view an implementation roadmap for a system. The bot returns an Adaptive Card summarizing the roadmap with phase names, timelines, control counts, effort estimates, risk reduction projections, and action buttons to create a Kanban board or drill into phase details.
+An ISSM working in Microsoft Teams asks the Security Posture Intelligence Navigator bot to generate or view an implementation roadmap for a system. The bot returns an Adaptive Card summarizing the roadmap with phase names, timelines, control counts, effort estimates, risk reduction projections, and action buttons to create a Kanban board or drill into phase details.
 
 **Why this priority**: The ISSM persona operates primarily through Teams. Roadmap generation and viewing must work through the conversational interface to be usable in the ISSM's natural workflow.
 

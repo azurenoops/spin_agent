@@ -19,7 +19,7 @@ using Ato.Copilot.Core.Models.Tenancy.Attributes;
 namespace Ato.Copilot.Core.Data.Context;
 
 /// <summary>
-/// Database context for ATO Copilot compliance data.
+/// Database context for Security Posture Intelligence Navigator compliance data.
 /// Supports SQLite (development) and SQL Server (production) providers.
 /// </summary>
 public class AtoCopilotContext : DbContext
@@ -471,6 +471,15 @@ public class AtoCopilotContext : DbContext
     /// <summary>Per-tenant identity records for RMF role assignees.</summary>
     public DbSet<Person> Persons => Set<Person>();
 
+    /// <summary>Pre-scope authorization index; queries must be identity- or administration-bound.</summary>
+    public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
+
+    /// <summary>Canonical Person for explicit workspace authorization, never inferred from email.</summary>
+    public Guid? WorkspacePersonId => _tenantAccessor?.Current?.PersonId;
+
+    /// <summary>Distinguishes explicit workspace authorization from legacy service callers.</summary>
+    public bool IsWorkspaceRequest => _tenantAccessor?.Current?.IsWorkspaceRequest == true;
+
     /// <summary>Assignments of <see cref="Persons"/> to organization-level RMF roles.</summary>
     public DbSet<OrganizationRoleAssignment> OrganizationRoleAssignments => Set<OrganizationRoleAssignment>();
 
@@ -493,6 +502,7 @@ public class AtoCopilotContext : DbContext
     /// <summary>Tenant-scoped reference documents seeded for narrative generation (Step 7).</summary>
     public DbSet<NarrativeSeedDocument> NarrativeSeedDocuments => Set<NarrativeSeedDocument>();
     public DbSet<NarrativeReference> NarrativeReferences => Set<NarrativeReference>();
+    public DbSet<ProviderNarrativeReference> ProviderNarrativeReferences => Set<ProviderNarrativeReference>();
     public DbSet<NarrativeProposal> NarrativeProposals => Set<NarrativeProposal>();
 
     /// <summary>Source→dependent links powering FR-094 cascade flagging.</summary>
@@ -1086,7 +1096,8 @@ public class AtoCopilotContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.UserId).HasMaxLength(200).IsRequired();
 
-            entity.HasIndex(e => e.UserId).IsUnique().HasDatabaseName("IX_NotificationPreferences_UserId");
+            entity.HasIndex(e => new { e.TenantId, e.UserId }).IsUnique()
+                .HasDatabaseName("IX_NotificationPreferences_TenantId_UserId");
         });
 
         // ─── MonitoringConfiguration ─────────────────────────────────────────
@@ -3354,6 +3365,11 @@ public class AtoCopilotContext : DbContext
         // ─── Tenancy (Feature 048) ───────────────────────────────────────────────
         ConfigureTenancyEntities(modelBuilder);
 
+        Ato.Copilot.Core.Data.Configurations.TenantSupportSessionModelConfiguration
+            .ConfigureTenantSupportSessions(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.CapabilityResponsibilityModelConfiguration
+            .ConfigureCapabilityResponsibilities(modelBuilder);
+
         // ─── Tenant query filters (Feature 048 T042) ─────────────────────────────
         // Applied last so all entity types are present in the model. Walks the
         // model and attaches a HasQueryFilter to every CLR type decorated with
@@ -3412,6 +3428,10 @@ public class AtoCopilotContext : DbContext
             var lambda = BuildTenantFilterExpression(clrType);
             modelBuilder.Entity(clrType).HasQueryFilter(lambda);
         }
+
+        // Membership alone does not grant visibility of every system in the organization.
+        modelBuilder.Entity<RegisteredSystem>().HasQueryFilter(
+            Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.ReadFilter(this));
     }
 
     /// <summary>
@@ -3458,6 +3478,35 @@ public class AtoCopilotContext : DbContext
         var body = Expression.OrElse(
             filterDisabled,
             Expression.OrElse(cspAdminAll, tenantMatches));
+
+        // Authorization-source rows must not recurse through RegisteredSystem's role filter.
+        // Resource rows with a direct system owner inherit its read predicate, including on
+        // artifact-only URLs which have no systemId route value.
+        if (clrType != typeof(RegisteredSystem) && clrType != typeof(SystemRoleAssignment)
+            && clrType != typeof(RmfRoleAssignment)
+            && clrType.GetProperty("RegisteredSystemId")?.PropertyType == typeof(string))
+        {
+            var system = Expression.Parameter(typeof(RegisteredSystem), "system");
+            var owns = Expression.Equal(Expression.Property(system, nameof(RegisteredSystem.Id)),
+                Expression.Property(parameter, "RegisteredSystemId"));
+            Expression visible = Expression.Call(typeof(Queryable), nameof(Queryable.Any), [typeof(RegisteredSystem)],
+                Expression.Property(thisExpr, nameof(RegisteredSystems)),
+                Expression.Lambda<Func<RegisteredSystem, bool>>(owns, system));
+            if (clrType == typeof(SystemComponent) || clrType == typeof(CapabilityControlMapping))
+            {
+                Expression organizationWide = Expression.Equal(Expression.Property(parameter, "RegisteredSystemId"),
+                    Expression.Constant(null, typeof(string)));
+                if (clrType == typeof(CapabilityControlMapping))
+                    organizationWide = Expression.AndAlso(organizationWide,
+                        Expression.Equal(Expression.Property(parameter, nameof(CapabilityControlMapping.AuthorizationBoundaryDefinitionId)),
+                            Expression.Constant(null, typeof(string))));
+                visible = Expression.OrElse(organizationWide, visible);
+            }
+            var enforce = Expression.AndAlso(
+                Expression.Property(thisExpr, nameof(IsWorkspaceRequest)),
+                Expression.NotEqual(Expression.Property(thisExpr, nameof(WorkspacePersonId)), Expression.Constant(null, typeof(Guid?))));
+            body = Expression.AndAlso(body, Expression.OrElse(Expression.Not(enforce), visible));
+        }
 
         var delegateType = typeof(Func<,>).MakeGenericType(clrType, typeof(bool));
         return Expression.Lambda(delegateType, body, parameter);
@@ -3930,6 +3979,18 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.AuthoritativeRepositoryUrl).HasMaxLength(2048);
             entity.Property(e => e.PrimaryPocEmail).HasMaxLength(320);
             entity.HasIndex(e => e.TenantId).IsUnique().HasDatabaseName("UX_OrganizationContext_TenantId");
+        });
+
+        modelBuilder.Entity<OrganizationMembership>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.GrantedBy).HasMaxLength(80).IsRequired();
+            entity.Property(e => e.RevokedBy).HasMaxLength(80);
+            entity.HasIndex(e => new { e.TenantId, e.DirectoryTenantId, e.ObjectId }).IsUnique();
+            entity.HasIndex(e => new { e.DirectoryTenantId, e.ObjectId });
+            entity.HasIndex(e => e.PersonId).IsUnique().HasFilter("[RevokedAt] IS NULL");
+            entity.HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Person>().WithMany().HasForeignKey(e => e.PersonId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // Person

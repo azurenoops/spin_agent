@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ATO Copilot — Onboarding Wizard Imports API (eMASS + SSP PDF)
+  title: Security Posture Intelligence Navigator — Onboarding Wizard Imports API (eMASS + SSP PDF)
   version: 0.1.0
   description: |
     Endpoints for Step 3 (eMASS bulk import) and Step 4 (SSP PDF ingestion). All

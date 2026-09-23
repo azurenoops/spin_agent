@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ATO Copilot — Onboarding Wizard Custom Templates API
+  title: Security Posture Intelligence Navigator — Onboarding Wizard Custom Templates API
   version: 0.1.0
   description: |
     Endpoints for Step 6 (Custom Document Template Upload) and the cross-cutting

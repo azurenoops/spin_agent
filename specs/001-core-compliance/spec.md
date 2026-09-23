@@ -379,7 +379,7 @@ the audit log captures who, what, when, and outcome.
 
 ### A.7 FedRAMP Boundary
 
-- **SEC-017**: The ATO Copilot system itself processes CUI (Controlled Unclassified Information) in the form of compliance findings, evidence, and assessment metadata. Deployments in Azure Government SHOULD be within a FedRAMP-authorized boundary (ATO inherited from Azure Government). The system does not require its own independent ATO for Phase 1.
+- **SEC-017**: The Security Posture Intelligence Navigator system itself processes CUI (Controlled Unclassified Information) in the form of compliance findings, evidence, and assessment metadata. Deployments in Azure Government SHOULD be within a FedRAMP-authorized boundary (ATO inherited from Azure Government). The system does not require its own independent ATO for Phase 1.
 
 ### A.8 Remediation Safety
 

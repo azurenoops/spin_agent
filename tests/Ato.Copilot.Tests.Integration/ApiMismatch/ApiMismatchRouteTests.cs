@@ -15,17 +15,21 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
+using Ato.Copilot.Mcp.Services;
 using Microsoft.AspNetCore.Authentication;
 using Moq;
 using Xunit;
@@ -38,7 +42,7 @@ namespace Ato.Copilot.Tests.Integration.ApiMismatch;
 ///
 /// T007 — apply-profile route returns 200 (GAP-001, issue #141)
 /// T008 — import/preview route returns 200 (GAP-002, issue #142)
-/// T009 — import/apply route returns 200 (GAP-002, issue #142)
+/// T009 — import/apply is covered by CapabilityResponsibilityAuthorizationTests
 /// T010 — bulk POAM PUT /remediation/poam/bulk-status returns 200 (GAP-003, issue #143)
 /// T011 — single POAM status with systemId prefix returns 200 (GAP-004, issue #144)
 /// T012 — chat stream accepts multipart/form-data with attachment (GAP-014, issue #145)
@@ -296,6 +300,7 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         });
 
         _dbName = $"ApiMismatch_052_{Guid.NewGuid():N}";
+        builder.Configuration["Deployment:Mode"] = "SingleTenant";
 
         builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection(GatewayOptions.SectionName));
         builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection(AzureAdOptions.SectionName));
@@ -314,6 +319,12 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         });
 
         builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
+        builder.Services.TryAddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+        builder.Services.TryAddScoped<ISystemWorkspaceAccessService, SystemWorkspaceAccessService>();
+        builder.Services.AddScoped<IWorkspaceNotificationService>(_ =>
+            new Mock<IWorkspaceNotificationService>(MockBehavior.Strict).Object);
+        builder.Services.AddScoped<INotificationCapabilitiesService>(_ =>
+            new Mock<INotificationCapabilitiesService>(MockBehavior.Strict).Object);
         if (profileOverride is not null)
             builder.Services.AddSingleton(profileOverride);
         builder.Services
@@ -336,10 +347,18 @@ public class ApiMismatchRouteTests : IAsyncLifetime
             if (context.Request.Headers.ContainsKey("X-Test-Authenticated"))
             {
                 context.User = new ClaimsPrincipal(new ClaimsIdentity(
-                    [new Claim(ClaimTypes.NameIdentifier, TestActorId)],
+                    [
+                        new Claim(ClaimTypes.NameIdentifier, TestActorId),
+                        new Claim("tid", "11111111-1111-1111-1111-111111111111"),
+                        new Claim("oid", "22222222-2222-2222-2222-222222222222"),
+                    ],
                     CacPassthroughAuthHandler.SchemeName));
             }
 
+            using var tenantScope = context.Request.Path.StartsWithSegments("/mcp")
+                ? IntegrationTestServiceExtensions.BindSingleTenantContext(
+                    context, Guid.Parse("33333333-3333-3333-3333-333333333333"))
+                : null;
             await next(context);
         });
         _app.UseCors();
@@ -358,7 +377,7 @@ public class ApiMismatchRouteTests : IAsyncLifetime
 
         _app.MapGet("/healthz-test", () => Microsoft.AspNetCore.Http.Results.Json(new
         {
-            service = "ATO Copilot",
+            service = "Security Posture Intelligence Navigator",
             version = "1.0.0",
             mode = "test"
         }));
@@ -503,37 +522,6 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         // RED: route does not exist — expect 404
         response.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
             because: "POST /api/dashboard/systems/{id}/inheritance/import/preview must be registered (GAP-002, issue #142)");
-    }
-
-    // ─── T009: GAP-002 — import/apply route ──────────────────────────────────
-
-    /// <summary>
-    /// T009 (issue #142 GAP-002): POST /api/dashboard/systems/{id}/inheritance/import/apply
-    /// must be registered and return a non-404 response.
-    /// </summary>
-    [Fact]
-    public async Task T009_ImportApply_Route_Returns_NotFound404_Without_Fix()
-    {
-        var request = new
-        {
-            previewToken = "fake-preview-token",
-            columnMapping = new
-            {
-                controlId = "controlId",
-                inheritanceType = "inheritanceType",
-                provider = "provider",
-                customerResponsibility = "customerResponsibility"
-            },
-            conflictResolution = "overwrite"
-        };
-
-        var response = await _client.PostAsJsonAsync(
-            $"/api/dashboard/systems/{TestSystemId}/inheritance/import/apply",
-            request, _jsonOptions);
-
-        // RED: route does not exist — expect 404
-        response.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
-            because: "POST /api/dashboard/systems/{id}/inheritance/import/apply must be registered (GAP-002, issue #142)");
     }
 
     // ─── T010: GAP-003 — bulk POAM PUT /remediation/poam/bulk-status ─────────

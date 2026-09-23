@@ -1,4 +1,4 @@
-# Tasks: ATO Copilot Chat Application
+# Tasks: Security Posture Intelligence Navigator Chat Application
 
 **Input**: Design documents from `/specs/006-chat-app/`
 **Prerequisites**: plan.md (required), spec.md (required), research.md, data-model.md, contracts/rest-api.md, contracts/signalr.md, quickstart.md
@@ -155,8 +155,8 @@
 
 ### Implementation for User Story 6
 
-- [x] T042 [P] [US6] Implement Header component with dynamic title (conversation title when active, "ATO Copilot" when none), hamburger menu button for sidebar toggle, settings gear icon, and "New Conversation" shortcut button in src/Ato.Copilot.Chat/ClientApp/src/components/Header.tsx
-- [x] T043 [US6] Implement settings modal (triggered from Header gear icon) with application name "ATO Copilot", version "1.0.0", feature list, keyboard shortcuts reference table (Ctrl+K, Ctrl+N, Enter, Shift+Enter, Escape), close on Escape per FR-045, and close on backdrop click in src/Ato.Copilot.Chat/ClientApp/src/components/Header.tsx
+- [x] T042 [P] [US6] Implement Header component with dynamic title (conversation title when active, "Security Posture Intelligence Navigator" when none), hamburger menu button for sidebar toggle, settings gear icon, and "New Conversation" shortcut button in src/Ato.Copilot.Chat/ClientApp/src/components/Header.tsx
+- [x] T043 [US6] Implement settings modal (triggered from Header gear icon) with application name "Security Posture Intelligence Navigator", version "1.0.0", feature list, keyboard shortcuts reference table (Ctrl+K, Ctrl+N, Enter, Shift+Enter, Escape), close on Escape per FR-045, and close on backdrop click in src/Ato.Copilot.Chat/ClientApp/src/components/Header.tsx
 - [x] T044 [US6] Implement global keyboard shortcut handler: Ctrl+K toggles sidebar, Ctrl+N creates new conversation, Escape dismisses active modal, integrate with sidebar state and conversation actions in src/Ato.Copilot.Chat/ClientApp/src/App.tsx
 
 **Checkpoint**: All 6 user stories complete — full-featured chat application with navigation and settings.

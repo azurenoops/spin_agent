@@ -17,6 +17,7 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Mcp.Authorization;
 using System.Text.RegularExpressions;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
@@ -204,7 +205,8 @@ public static partial class DashboardEndpoints
                     currentRmfStep = system.CurrentRmfStep.ToString()
                 });
             })
-            .WithName("RegisterSystem");
+            .WithName("RegisterSystem")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.CreateSystem);
 
         // ─── Update System ───────────────────────────────────────────────────
         group.MapPut("/systems/{systemId}", async (
@@ -264,7 +266,8 @@ public static partial class DashboardEndpoints
                     description = system.Description,
                 });
             })
-            .WithName("UpdateSystem");
+            .WithName("UpdateSystem")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageSystem);
 
         // ─── Delete System — #519/#524 ───────────────────────────────────────
         // Default (permanent=false): soft-delete — sets IsActive=false so the
@@ -309,7 +312,8 @@ public static partial class DashboardEndpoints
 
                 return Results.Ok(new { id = systemId, deleted = true, permanent = false });
             })
-            .WithName("DeleteSystem");
+            .WithName("DeleteSystem")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageSystem);
 
         // ─── RMF Role Assignments ────────────────────────────────────────────
         group.MapGet("/systems/{systemId}/roles", async (

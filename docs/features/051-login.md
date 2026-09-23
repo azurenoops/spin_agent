@@ -9,7 +9,7 @@ Manual sign-off pending per quickstart § 18.
 
 ## Overview
 
-ATO Copilot had authentication plumbing (CAC/PIV MSAL — Feature 003,
+Security Posture Intelligence Navigator had authentication plumbing (CAC/PIV MSAL — Feature 003,
 simulation mode for dev — Feature 027, tenant isolation + CSP-Admin
 impersonation — Feature 048) but **no first-class Login experience**.
 Users landed on protected pages and the browser silently negotiated

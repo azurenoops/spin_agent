@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { useSseStream } from './useSseStream';
 import { useChatContext } from './useChatContext';
+import { useWorkspaceStorageKey } from '../features/workspaces/workspaceStorage';
 import type {
   Conversation,
   Message,
@@ -46,6 +47,7 @@ export interface AttachmentValidationError {
 }
 
 export interface UseChatReturn {
+  historyPersistenceEnabled: boolean;
   conversations: Conversation[];
   activeConversation: Conversation | null;
   isProcessing: boolean;
@@ -72,8 +74,10 @@ function generateTitle(content: string): string {
 }
 
 export function useChat(): UseChatReturn {
-  const [conversations, setConversations] = useLocalStorage<Conversation[]>(CONVERSATIONS_KEY, []);
-  const [panelState, setPanelState] = useLocalStorage<ChatPanelState>(PANEL_STATE_KEY, DEFAULT_PANEL_STATE);
+  const conversationsKey = useWorkspaceStorageKey(CONVERSATIONS_KEY);
+  const selectionKey = useWorkspaceStorageKey(PANEL_STATE_KEY);
+  const [conversations, setConversations] = useLocalStorage<Conversation[]>(conversationsKey, []);
+  const [panelState, setPanelState] = useLocalStorage<ChatPanelState>(selectionKey, DEFAULT_PANEL_STATE);
   const context = useChatContext();
   const { isStreaming, progressSteps, activeToolChips, cancel, stream } = useSseStream();
 
@@ -348,6 +352,7 @@ export function useChat(): UseChatReturn {
   );
 
   return {
+    historyPersistenceEnabled: conversationsKey !== null,
     conversations,
     activeConversation,
     isProcessing,

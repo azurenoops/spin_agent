@@ -3,6 +3,9 @@ import { useMsal } from '@azure/msal-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { DEFAULT_API_SCOPES } from './msalInstance';
+import { useOptionalMe, type UseMeResult } from './useMe';
+import { WorkspaceStatus } from '../workspaces/WorkspaceBoundary';
+import { workspaceErrorMessage } from '../workspaces/api';
 
 /**
  * Feature 051 T051 [US1] — gate component for protected routes.
@@ -29,7 +32,36 @@ import { DEFAULT_API_SCOPES } from './msalInstance';
  * Probing the server is the only check that honors BOTH auth modes
  * uniformly.
  */
-export default function RequireAuth({ children }: { children: ReactNode }) {
+export default function RequireAuth({ children, scoped = false }: { children: ReactNode; scoped?: boolean }) {
+  const shared = useOptionalMe();
+  return shared ? <SharedAuthentication identity={shared} scoped={scoped}>{children}</SharedAuthentication>
+    : <LegacyRequireAuth>{children}</LegacyRequireAuth>;
+}
+
+function SharedAuthentication({ identity, scoped, children }: {
+  identity: UseMeResult; scoped: boolean; children: ReactNode;
+}) {
+  const { instance } = useMsal();
+  const navigate = useNavigate();
+  const status = (identity.error as { response?: { status?: number } } | null)?.response?.status;
+  useEffect(() => {
+    if (status === 401) {
+      void instance.loginRedirect({
+        scopes: DEFAULT_API_SCOPES,
+        state: window.location.pathname + window.location.search + window.location.hash,
+      });
+    } else if (status === 403 && !scoped) {
+      navigate('/login/error?errorClass=NoTenantAssignment', { replace: true });
+    }
+  }, [status, scoped, instance, navigate]);
+  if (identity.isLoading) return <WorkspaceStatus loading message="Checking authentication..." />;
+  if (status === 401 || (status === 403 && !scoped)) return null;
+  if (identity.error) return <WorkspaceStatus message={workspaceErrorMessage(identity.error)} onRetry={identity.refetch} />;
+  if (!identity.data) return <WorkspaceStatus message="Your authenticated identity could not be resolved." onRetry={identity.refetch} />;
+  return <>{children}</>;
+}
+
+function LegacyRequireAuth({ children }: { children: ReactNode }) {
   const { instance } = useMsal();
   const navigate = useNavigate();
   const [state, setState] = useState<'probing' | 'authenticated' | 'redirecting'>('probing');

@@ -97,7 +97,7 @@ implemented in application code (not a DB unique constraint, to allow re-subscri
    authorize changes to control inheritance. Allowing SCAs to subscribe would blur this
    separation of duties.
 3. **AO (Authorizing Official) may approve, but the ISSO/ISSM executes.** The AO role in
-   ATO Copilot is already scoped to authorization decisions, not SSP authoring.
+   Security Posture Intelligence Navigator is already scoped to authorization decisions, not SSP authoring.
 4. **Consistent with existing write gates.** `CspInheritedComponentEndpoints.cs` comment
    block explicitly lists the write-gate pattern: writes require `CSP.Admin`; this epic
    applies the same pattern with `ISSO/ISSM` as the write-authorized roles.

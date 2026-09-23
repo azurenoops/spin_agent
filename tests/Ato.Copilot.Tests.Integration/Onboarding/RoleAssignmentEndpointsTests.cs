@@ -19,8 +19,10 @@ using Xunit;
 using Ato.Copilot.Agents.Compliance.Services.Onboarding;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Onboarding;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Services.Roles;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Endpoints.Onboarding;
 
@@ -51,6 +53,7 @@ public class RoleAssignmentEndpointsTests : IAsyncLifetime
 
         _dbName = $"RoleAssignmentEndpoints_{Guid.NewGuid():N}";
         builder.Services.AddDbContextFactory<AtoCopilotContext>(o => o.UseInMemoryDatabase(_dbName));
+        builder.Services.AddScoped<ITenantContext, TenantContext>();
         builder.Services.AddScoped<IWizardAuditService>(_ => _auditMock.Object);
         builder.Services.AddScoped<IOrganizationRoleAssignmentService, OrganizationRoleAssignmentService>();
         // IOnboardingStateService is required by POST /role-assignments to mark wizard

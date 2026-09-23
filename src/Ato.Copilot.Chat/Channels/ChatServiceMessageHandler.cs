@@ -44,7 +44,10 @@ public sealed class ChatServiceMessageHandler : IMessageHandler
             };
 
             // Delegate to existing ChatService pipeline (DB persist → MCP HTTP → DB persist)
-            var response = await _chatService.SendMessageAsync(request);
+            ct.ThrowIfCancellationRequested();
+            var response = ct.CanBeCanceled
+                ? await _chatService.SendMessageAsync(request, null, ct)
+                : await _chatService.SendMessageAsync(request);
 
             // Map ChatResponse → ChannelMessage
             var channelMessage = ChatMessageMapper.ToChannelMessage(response, message.ConversationId);
@@ -54,6 +57,7 @@ public sealed class ChatServiceMessageHandler : IMessageHandler
 
             return channelMessage;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling message for conversation {ConversationId}", message.ConversationId);

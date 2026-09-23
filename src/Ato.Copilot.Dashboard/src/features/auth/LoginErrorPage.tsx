@@ -118,7 +118,7 @@ export default function LoginErrorPage() {
               Need help? Contact{' '}
               <a
                 href={`mailto:${supportEmail}?subject=${encodeURIComponent(
-                  `ATO Copilot sign-in error (${rawClass ?? 'unknown'})`,
+                  `Security Posture Intelligence Navigator sign-in error (${rawClass ?? 'unknown'})`,
                 )}&body=${encodeURIComponent(
                   `Correlation ID: ${correlationId}\nError class: ${rawClass ?? 'unknown'}`,
                 )}`}

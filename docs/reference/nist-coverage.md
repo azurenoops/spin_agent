@@ -6,7 +6,7 @@
 
 ## Coverage Overview
 
-ATO Copilot supports the complete NIST SP 800-53 Rev. 5 control catalog with coverage through automated Azure resource scanning and manual SSP narrative attestation.
+Security Posture Intelligence Navigator supports the complete NIST SP 800-53 Rev. 5 control catalog with coverage through automated Azure resource scanning and manual SSP narrative attestation.
 
 ### Baseline Sizes
 

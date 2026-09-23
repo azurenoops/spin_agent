@@ -10,7 +10,7 @@
 
 ## Background
 
-ATO Copilot is Azure-native today. The `AzureEnvironmentProfile` entity and `ComplianceAssessmentTool` (`compliance_assess`) are built exclusively around Azure subscriptions, Azure Policy, Microsoft Defender for Cloud, and Azure SDK clients. Mission owners running workloads in AWS Commercial, AWS GovCloud, or Google Cloud Platform (GCP) have no path to onboard those systems into SPIN.
+Security Posture Intelligence Navigator is Azure-native today. The `AzureEnvironmentProfile` entity and `ComplianceAssessmentTool` (`compliance_assess`) are built exclusively around Azure subscriptions, Azure Policy, Microsoft Defender for Cloud, and Azure SDK clients. Mission owners running workloads in AWS Commercial, AWS GovCloud, or Google Cloud Platform (GCP) have no path to onboard those systems into SPIN.
 
 DoD multi-cloud reality: DISA's milCloud2 (AWS GovCloud), AWS GovCloud IL2/IL4/IL5, and GCP Public Sector are all in active use. SPIN must support these environments using the same `RegisteredSystem` → `ComplianceFinding` → POA&M / SSP pipeline that Azure uses.
 
@@ -25,7 +25,7 @@ DoD multi-cloud reality: DISA's milCloud2 (AWS GovCloud), AWS GovCloud IL2/IL4/I
 ## User Stories
 
 ### US1 — Onboard AWS Account (P1)
-As a mission owner running workloads in AWS Commercial or AWS GovCloud, I want to authenticate ATO Copilot to my AWS account (IAM role + external ID) and register it as a `RegisteredSystem` so that I can begin the RMF process for that system.
+As a mission owner running workloads in AWS Commercial or AWS GovCloud, I want to authenticate Security Posture Intelligence Navigator to my AWS account (IAM role + external ID) and register it as a `RegisteredSystem` so that I can begin the RMF process for that system.
 
 ### US2 — Run AWS Security Hub Compliance Scan (P1)
 As an ISSO, I want to run a compliance scan against my registered AWS account that collects findings from AWS Security Hub (mapped to NIST 800-53 controls) so that I get a `ComplianceFinding` list equivalent to what Azure Defender provides.

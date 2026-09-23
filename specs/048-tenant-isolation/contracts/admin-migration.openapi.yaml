@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: ATO Copilot — Multi-Tenant Migration Admin API
+  title: Security Posture Intelligence Navigator — Multi-Tenant Migration Admin API
   version: "1.0.0"
   description: |
     CSP-Admin endpoints to preview and execute the backfill of `TenantId`

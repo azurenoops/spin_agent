@@ -1,11 +1,18 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SystemWorkspacePermissions } from '../../features/workspaces/types';
 
-const route = vi.hoisted(() => ({ systemId: 'system-1' }));
+const route = vi.hoisted(() => ({
+  systemId: 'system-1',
+  pathname: '/systems/system-1/narratives',
+  role: 'ISSO',
+  session: null as { roles: string[]; systemAccess: { systemId: string; permissions: Partial<SystemWorkspacePermissions> } } | null,
+}));
 const legacySources = vi.hoisted(() => ({ sharePointSiteUrl: '', sourceDocuments: '' }));
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => route.session }));
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
-  return { ...actual, useParams: () => ({ id: route.systemId }) };
+  return { ...actual, useParams: () => ({ id: route.systemId }), useLocation: () => ({ pathname: route.pathname }) };
 });
 
 vi.mock('../../api/narratives', () => ({
@@ -19,7 +26,7 @@ vi.mock('../../api/narratives', () => ({
 vi.mock('../../api/businessContext', () => ({ getBusinessContext: vi.fn(), getFlaggedControls: vi.fn() }));
 vi.mock('../../hooks/usePolling', () => ({ usePolling: vi.fn() }));
 vi.mock('../../hooks/useSettings', () => ({
-  useSettings: () => ({ settings: { role: 'ISSO', ...legacySources } }),
+  useSettings: () => ({ settings: { role: route.role, ...legacySources } }),
 }));
 vi.mock('../../components/EvidenceSection', () => ({ default: () => null }));
 vi.mock('../../features/compliance/components/ValidationEvidencePanel', () => ({ default: () => null }));
@@ -38,7 +45,7 @@ it('does not select generation sources from legacy browser settings (#1001)', as
   legacySources.sharePointSiteUrl = 'https://example.invalid/policies';
   legacySources.sourceDocuments = 'old-policy.docx';
   mockRegenerate.mockResolvedValue('Generated draft');
-  render(<Narratives />);
+  render(<Narratives canGenerate />);
   // Act
   fireEvent.click(screen.getByTitle('Expand'));
   fireEvent.click(screen.getByRole('button', { name: /Regenerate/i }));
@@ -53,6 +60,9 @@ beforeEach(() => {
   legacySources.sharePointSiteUrl = '';
   legacySources.sourceDocuments = '';
   route.systemId = 'system-1';
+  route.pathname = '/systems/system-1/narratives';
+  route.role = 'ISSO';
+  route.session = null;
   vi.mocked(narrativeApi.saveNarrative).mockReset().mockResolvedValue({ currentVersion: 2 });
   vi.mocked(businessContextApi.getBusinessContext).mockReset().mockResolvedValue(null);
   vi.mocked(businessContextApi.getFlaggedControls).mockReset().mockResolvedValue([]);
@@ -79,7 +89,149 @@ beforeEach(() => {
   });
 });
 
+describe('Narrative workspace permissions', () => {
+  it.each(['AO', 'ISSM'])('ignores a MissionOwner forged %s preference', async role => {
+    // Arrange
+    route.pathname = '/workspaces/organizations/org-1/systems/system-1/narratives';
+    route.role = role;
+    route.session = { roles: ['MissionOwner'], systemAccess: { systemId: 'system-1', permissions: { canAuthorNarratives: false } } };
+    render(<Narratives />);
+    // Act
+    fireEvent.click(screen.getByTitle('Expand'));
+    const editor = screen.getByLabelText('Policy narrative for AC-1');
+    fireEvent.change(editor, { target: { value: 'Unauthorized text' } });
+    fireEvent.blur(editor);
+    // Assert
+    expect(screen.getByRole('button', { name: '+ Add Narrative' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeDisabled();
+    expect(editor).toHaveAttribute('readonly');
+    expect(narrativeApi.saveNarrative).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toHaveTextContent(/permission/i);
+  });
+
+  it('accepts the explicit author flag for a multi-role member regardless of browser persona', async () => {
+    // Arrange
+    route.pathname = '/workspaces/organizations/org-1/systems/system-1/narratives';
+    route.role = 'MissionOwner';
+    route.session = { roles: ['MissionOwner', 'Isso'], systemAccess: { systemId: 'system-1', permissions: { canAuthorNarratives: true } } };
+    render(<Narratives />);
+    fireEvent.click(screen.getByTitle('Expand'));
+    const editor = screen.getByLabelText('Policy narrative for AC-1');
+    // Act
+    fireEvent.change(editor, { target: { value: 'Authorized text' } });
+    fireEvent.blur(editor);
+    // Assert
+    expect(editor).not.toHaveAttribute('readonly');
+    await waitFor(() => expect(narrativeApi.saveNarrative).toHaveBeenCalledWith('system-1', 'AC-1', { policyNarrative: 'Authorized text', expectedVersion: 1 }));
+  });
+
+  it('guards a pending editor blur after author permission is revoked', async () => {
+    // Arrange
+    route.session = { roles: ['Isso'], systemAccess: { systemId: 'system-1', permissions: { canAuthorNarratives: true } } };
+    const view = render(<Narratives />);
+    fireEvent.click(screen.getByTitle('Expand'));
+    const editor = screen.getByLabelText('Technical narrative for AC-1');
+    fireEvent.change(editor, { target: { value: 'Draft before revocation' } });
+    // Act
+    route.session.systemAccess.permissions.canAuthorNarratives = false;
+    view.rerender(<Narratives />);
+    fireEvent.blur(editor);
+    // Assert
+    expect(narrativeApi.saveNarrative).not.toHaveBeenCalled();
+    expect(editor).toHaveAttribute('readonly');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/permission/i);
+  });
+
+  it('fails closed without a canonical session, including parent-provided generation affordances', async () => {
+    // Arrange
+    route.pathname = '/workspaces/organizations/org-1/systems/system-1/narratives';
+    const generate = vi.fn();
+    await act(async () => { render(<Narratives onGenerateDraft={generate} canGenerate />); });
+    // Act
+    await act(async () => { fireEvent.click(screen.getByTitle('Expand')); });
+    const buttons = screen.getAllByRole('button', { name: /^Generate (Policy|Technical) draft for AC-1$/ });
+    buttons.forEach(button => fireEvent.click(button));
+    // Assert
+    expect(buttons).toHaveLength(2);
+    buttons.forEach(button => expect(button).toBeDisabled());
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('rechecks author permission in an open create dialog and permits an explicit regrant', async () => {
+    // Arrange
+    route.session = { roles: ['Isso'], systemAccess: { systemId: 'system-1', permissions: { canAuthorNarratives: true } } };
+    vi.mocked(narrativeApi.getAvailableControls).mockResolvedValue([{ id: 'AC-2', family: 'AC', title: 'Account Management' }]);
+    vi.mocked(narrativeApi.createNarrative).mockResolvedValue(mockUsePolling.getMockImplementation()!().data[0]);
+    const view = render(<Narratives />);
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Narrative' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'AC-2 Account Management' }));
+    fireEvent.change(screen.getByPlaceholderText(/Enter the implementation narrative text/), { target: { value: 'Synthetic draft' } });
+    // Act
+    route.session.systemAccess.permissions.canAuthorNarratives = false;
+    view.rerender(<Narratives />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+    expect(narrativeApi.createNarrative).not.toHaveBeenCalled();
+    // Act
+    route.session.systemAccess.permissions.canAuthorNarratives = true;
+    view.rerender(<Narratives />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    // Assert
+    await waitFor(() => expect(narrativeApi.createNarrative).toHaveBeenCalledWith('system-1', {
+      controlId: 'AC-2', narrative: 'Synthetic draft', implementationStatus: 'Planned',
+    }));
+  });
+
+  it('requires review permission for approval changes and does not infer it from author access', async () => {
+    // Arrange
+    route.role = 'AO';
+    route.session = { roles: ['Isso'], systemAccess: { systemId: 'system-1', permissions: { canAuthorNarratives: true, canReviewNarratives: false } } };
+    vi.mocked(narrativeApi.bulkUpdateNarratives).mockResolvedValue({ updatedCount: 1, controlIds: ['AC-1'] });
+    const view = render(<Narratives />);
+    fireEvent.click(screen.getAllByRole('checkbox')[1]!);
+    // Act
+    fireEvent.change(screen.getByDisplayValue('Set approval...'), { target: { value: 'Approved' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    expect(narrativeApi.bulkUpdateNarratives).not.toHaveBeenCalled();
+    // Act
+    route.session.roles.push('Issm');
+    route.session.systemAccess.permissions.canReviewNarratives = true;
+    view.rerender(<Narratives />);
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    // Assert
+    await waitFor(() => expect(narrativeApi.bulkUpdateNarratives).toHaveBeenCalledWith('system-1', {
+      controlIds: ['AC-1'], approvalStatus: 'Approved', implementationStatus: undefined,
+    }));
+  });
+
+  it('reports a failed bulk mutation without presenting success', async () => {
+    // Arrange
+    vi.mocked(narrativeApi.bulkUpdateNarratives).mockRejectedValue(new Error('Bulk update rejected.'));
+    render(<Narratives />);
+    fireEvent.click(screen.getAllByRole('checkbox')[1]!);
+    fireEvent.change(screen.getByDisplayValue('Set status...'), { target: { value: 'Implemented' } });
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('Bulk update rejected.');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
 describe('Narratives regeneration', () => {
+  it('does not allow legacy regeneration without an explicit generation projection', async () => {
+    // Arrange
+    render(<Narratives />);
+    // Act
+    fireEvent.click(screen.getByTitle('Expand'));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeDisabled();
+    expect(mockRegenerate).not.toHaveBeenCalled();
+    await screen.findByText('No business context provided');
+  });
   it('keeps a compact Library entry point for screens without the system sidebar', async () => {
     // Arrange
     const openLibrary = vi.fn();
@@ -207,7 +359,7 @@ describe('Narratives regeneration', () => {
   it('places regenerated content in the Technical editor and preserves Policy', async () => {
     // Arrange
     mockRegenerate.mockResolvedValue('Regenerated technical narrative');
-    render(<Narratives />);
+    render(<Narratives canGenerate />);
     fireEvent.click(screen.getByTitle('Expand'));
 
     // Act
@@ -224,7 +376,7 @@ describe('Narratives regeneration', () => {
   it('shows a configuration error without replacing either editor', async () => {
     // Arrange
     mockRegenerate.mockRejectedValue({ response: { status: 503 } });
-    render(<Narratives />);
+    render(<Narratives canGenerate />);
     fireEvent.click(screen.getByTitle('Expand'));
 
     // Act

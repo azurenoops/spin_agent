@@ -5,7 +5,7 @@
 
 ## Summary
 
-Stand up a first-class **Login** experience across all four ATO Copilot
+Stand up a first-class **Login** experience across all four Security Posture Intelligence Navigator
 surfaces (Dashboard, VS Code extension, M365 Teams bot, Web Chat) on top of
 the existing CAC/PIV (Feature 003), simulation (Feature 027), and tenancy
 (Feature 048) plumbing. The implementation adds **one new entity**
@@ -146,7 +146,7 @@ AzureUSGovernment (primary) + AzureCloud (secondary) regions.
   is the contract.
 - **Branding falls back gracefully** (FR-002) — missing logo MUST NOT
   render a broken image; missing deployment name MUST fall back to
-  "ATO Copilot".
+  "Security Posture Intelligence Navigator".
 - **Throttle counter persistence non-negotiable** (FR-036) — backed by
   `IDistributedCache` (Redis in prod) so a process restart cannot bypass
   the rate-limit. Unit tests use `IDistributedMemoryCache`.

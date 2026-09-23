@@ -2,10 +2,10 @@
 
 > Feature 015 — Phase 9: Assessment Artifacts & CAT Severity
 
-This guide walks Security Control Assessors through the assessment workflow using ATO Copilot's MCP tools.
+This guide walks Security Control Assessors through the assessment workflow using Security Posture Intelligence Navigator's MCP tools.
 
-!!! tip "New to ATO Copilot?"
-    If this is your first time using ATO Copilot as an SCA, start with the [SCA Getting Started](../getting-started/sca.md) page for prerequisites, first-time setup, and your first 3 commands.
+!!! tip "New to Security Posture Intelligence Navigator?"
+    If this is your first time using Security Posture Intelligence Navigator as an SCA, start with the [SCA Getting Started](../getting-started/sca.md) page for prerequisites, first-time setup, and your first 3 commands.
 
 ---
 
@@ -14,7 +14,7 @@ This guide walks Security Control Assessors through the assessment workflow usin
 As an SCA, you record per-control effectiveness determinations, map findings to DoD CAT severity levels, take immutable assessment snapshots, verify evidence chain of custody, and generate Security Assessment Reports (SARs).
 
 !!! warning "Read-Only Role"
-    As SCA you have **read-only** access. You cannot modify narratives, fix findings, or issue authorization decisions. If you attempt a write operation, ATO Copilot will return an RBAC denial with explanation.
+    As SCA you have **read-only** access. You cannot modify narratives, fix findings, or issue authorization decisions. If you attempt a write operation, Security Posture Intelligence Navigator will return an RBAC denial with explanation.
 
 ### RBAC Constraints
 
@@ -218,7 +218,7 @@ The SAR includes:
 
 ## Evidence Integrity
 
-All evidence collected by ATO Copilot is integrity-protected:
+All evidence collected by Security Posture Intelligence Navigator is integrity-protected:
 
 - **Collection**: Each evidence item receives a SHA-256 hash at collection time
 - **Verification**: `compliance_verify_evidence` recomputes the hash and compares it to the stored value

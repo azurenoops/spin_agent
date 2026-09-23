@@ -535,7 +535,7 @@ Serilog writes to two sinks:
 ### Structured Log Output
 
 Logs include structured properties:
-- `Application`: `"ATO Copilot"`
+- `Application`: `"Security Posture Intelligence Navigator"`
 - `CorrelationId`: Unique per-request ID
 - `AgentName`: Which agent handled the request
 - `ToolName`: Which tool was executed

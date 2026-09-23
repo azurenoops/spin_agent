@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getControlEvidence, downloadEvidence, collectEvidence, deleteEvidence } from '../api/evidence';
 import type { EvidenceArtifactDto, ControlEvidenceDto } from '../types/evidence';
 import EvidenceUploadDialog from './EvidenceUploadDialog';
+import { useSystemMutationPermission } from './permissions/useSystemMutationPermission';
 
 interface Props {
   systemId: string;
@@ -56,6 +57,8 @@ function EvidenceRow({
   onDeleted?: () => void;
 }) {
   const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState('');
+  const canManageEvidence = useSystemMutationPermission(systemId, 'canManageEvidence');
 
   const handleDownload = async () => {
     if (!item.fileName) return;
@@ -71,24 +74,27 @@ function EvidenceRow({
       URL.revokeObjectURL(url);
       a.remove();
     } catch {
-      // Download failed silently
+      setError('Unable to download evidence.');
     } finally {
       setDownloading(false);
     }
   };
 
   const handleDelete = async () => {
+    if (!canManageEvidence) { setError('Evidence management permission is required.'); return; }
     if (!confirm(`Delete "${item.fileName ?? 'this evidence'}"? This action is soft-delete.`)) return;
+    setError('');
     try {
       await deleteEvidence(systemId, item.id);
       onDeleted?.();
     } catch {
-      // delete failed silently
+      setError('Unable to delete evidence.');
     }
   };
 
   return (
     <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
+      {error && <span role="alert">{error}</span>}
       {/* File icon */}
       <div className="flex-shrink-0 text-gray-400">
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -155,7 +161,7 @@ function EvidenceRow({
           </button>
         )}
         {/* Delete button (only for manual evidence) */}
-        {item.source === 'Manual' && onDeleted && (
+        {item.source === 'Manual' && onDeleted && canManageEvidence && (
           <button
             onClick={handleDelete}
             className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
@@ -181,14 +187,16 @@ export default function EvidenceSection({ systemId, controlId, controlImplementa
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [collecting, setCollecting] = useState(false);
+  const [error, setError] = useState('');
+  const canManageEvidence = useSystemMutationPermission(systemId, 'canManageEvidence');
 
   const fetchEvidence = useCallback(async () => {
     try {
       const data = await getControlEvidence(systemId, controlId);
       setEvidence(data);
+      setError('');
     } catch {
-      // silently fail — no evidence to show
-      setEvidence({ direct: [], inherited: [], automated: [] });
+      setError('Unable to load evidence.');
     } finally {
       setLoading(false);
     }
@@ -204,12 +212,14 @@ export default function EvidenceSection({ systemId, controlId, controlImplementa
     (evidence?.automated.length ?? 0);
 
   const handleCollect = async () => {
+    if (!canManageEvidence) { setError('Evidence management permission is required.'); return; }
+    setError('');
     setCollecting(true);
     try {
       await collectEvidence(systemId, controlId);
       await fetchEvidence();
     } catch {
-      // collection failed silently
+      setError('Unable to collect evidence.');
     } finally {
       setCollecting(false);
     }
@@ -217,6 +227,7 @@ export default function EvidenceSection({ systemId, controlId, controlImplementa
 
   return (
     <div className="mt-4 border-t border-gray-200 pt-4">
+      {error && <p role="alert">{error}</p>}
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold text-gray-700">
           Evidence
@@ -229,7 +240,7 @@ export default function EvidenceSection({ systemId, controlId, controlImplementa
         <div className="flex items-center gap-2">
           <button
             onClick={handleCollect}
-            disabled={collecting}
+            disabled={!canManageEvidence || collecting}
             className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             {collecting ? (
@@ -245,7 +256,11 @@ export default function EvidenceSection({ systemId, controlId, controlImplementa
             {collecting ? 'Collecting...' : 'Collect Evidence'}
           </button>
           <button
-            onClick={() => setShowUpload(true)}
+            disabled={!canManageEvidence}
+            onClick={() => {
+              if (!canManageEvidence) { setError('Evidence management permission is required.'); return; }
+              setShowUpload(true);
+            }}
             className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -258,7 +273,7 @@ export default function EvidenceSection({ systemId, controlId, controlImplementa
 
       {loading ? (
         <p className="mt-3 text-xs text-gray-400">Loading evidence...</p>
-      ) : totalCount === 0 ? (
+      ) : error ? null : totalCount === 0 ? (
         <p className="mt-3 text-xs text-gray-400">No evidence attached to this control.</p>
       ) : (
         <div className="mt-3 space-y-2">

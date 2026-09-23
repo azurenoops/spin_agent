@@ -91,10 +91,10 @@ npm test
 ```
 
 **Command Palette**:
-- `ATO Copilot: Check API Health`
-- `ATO Copilot: Configure Connection`
-- `ATO Copilot: Analyze Current File for Compliance` (open a `.bicep` file first)
-- `ATO Copilot: Analyze Workspace for Compliance`
+- `Security Posture Intelligence Navigator: Check API Health`
+- `Security Posture Intelligence Navigator: Configure Connection`
+- `Security Posture Intelligence Navigator: Analyze Current File for Compliance` (open a `.bicep` file first)
+- `Security Posture Intelligence Navigator: Analyze Workspace for Compliance`
 
 ### 4. M365 Extension
 
@@ -112,7 +112,7 @@ npm start
 
 # Test health
 curl http://localhost:3978/health
-# {"name":"ATO Copilot M365 Extension","version":"1.0.0","timestamp":"..."}
+# {"name":"Security Posture Intelligence Navigator M365 Extension","version":"1.0.0","timestamp":"..."}
 
 # Test message processing
 curl -X POST http://localhost:3978/api/messages \

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../workspaces/workspaceNavigation';
 import { onboarding, type OnboardingStateDto, type WizardStepName } from './api/onboardingApi';
 import { WIZARD_STEPS } from './components/WizardStepNavigator';
 import Step1OrganizationContext from './steps/Step1OrganizationContext';
@@ -194,7 +194,7 @@ export default function OnboardingWizardModal({
             </div>
             <div>
               <h1 id="onboarding-wizard-title" className="text-xl font-semibold tracking-tight">
-                SPIN Agent - Organization Onboarding
+                Security Posture Intelligence Navigator - Organization Onboarding
               </h1>
               <p className="text-sm text-white/80">
                 Set up your organization, roles, and authoritative sources to begin authorizing systems.

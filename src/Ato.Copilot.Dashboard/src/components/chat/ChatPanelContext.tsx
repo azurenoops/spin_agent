@@ -1,6 +1,7 @@
 import { createContext, useContext, useCallback, useEffect, type ReactNode } from 'react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import type { ChatPanelState } from '../../types/chat';
+import { useWorkspaceStorageKey } from '../../features/workspaces/workspaceStorage';
 
 const DEFAULT_PANEL_STATE: ChatPanelState = {
   isOpen: false,
@@ -18,7 +19,9 @@ interface ChatPanelContextValue {
 const ChatPanelContext = createContext<ChatPanelContextValue | null>(null);
 
 export function ChatPanelProvider({ children }: { children: ReactNode }) {
-  const [panelState, setPanelState] = useLocalStorage<ChatPanelState>('ato-chat-panel-state', DEFAULT_PANEL_STATE);
+  const scopedKey = useWorkspaceStorageKey('ato-chat-panel-state');
+  const presentationKey = scopedKey && scopedKey !== 'ato-chat-panel-state' ? `${scopedKey}:presentation` : scopedKey;
+  const [panelState, setPanelState] = useLocalStorage<ChatPanelState>(presentationKey, DEFAULT_PANEL_STATE);
 
   const togglePanel = useCallback(() => {
     setPanelState((prev) => ({ ...prev, isOpen: !prev.isOpen }));

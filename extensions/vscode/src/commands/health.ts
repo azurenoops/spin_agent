@@ -13,11 +13,11 @@ export async function checkHealth(
     await mcpClient.checkHealth();
 
     if (!silent) {
-      vscode.window.showInformationMessage("ATO Copilot API is healthy");
+      vscode.window.showInformationMessage("Security Posture Intelligence Navigator API is healthy");
     }
   } catch (error) {
     const mcpError = error as McpError;
-    const message = mcpError.message ?? "ATO Copilot API is unreachable";
+    const message = mcpError.message ?? "Security Posture Intelligence Navigator API is unreachable";
 
     if (silent) {
       // Background check — log only, no UI

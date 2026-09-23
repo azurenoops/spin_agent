@@ -1,12 +1,12 @@
-# ATO Copilot End-to-End Demo Runbook
+# Security Posture Intelligence Navigator End-to-End Demo Runbook
 
-> A complete, persona-based demo that showcases ATO Copilot capabilities from system intake to continuous monitoring.
+> A complete, persona-based demo that showcases Security Posture Intelligence Navigator capabilities from system intake to continuous monitoring.
 
 ---
 
 ## Purpose
 
-Use this runbook to deliver a single end-to-end demonstration that covers the major ATO Copilot feature set across:
+Use this runbook to deliver a single end-to-end demonstration that covers the major Security Posture Intelligence Navigator feature set across:
 
 - RMF lifecycle execution (Prepare through Monitor)
 - Multi-channel AI interaction (Dashboard, Chat, Teams, VS Code)
@@ -32,7 +32,7 @@ Use this runbook to deliver a single end-to-end demonstration that covers the ma
 
 ## Success Criteria
 
-By the end of the demo, attendees should see that ATO Copilot can:
+By the end of the demo, attendees should see that Security Posture Intelligence Navigator can:
 
 1. Stand up a new system with guided intake.
 2. Drive RMF phase progression with guardrails and role-aware actions.
@@ -101,7 +101,7 @@ By the end of the demo, attendees should see that ATO Copilot can:
 ## Common Audience Questions (Quick Answers)
 
 - Q: "Is this replacing eMASS?"
-- A: "No. ATO Copilot is where the team does the work; eMASS remains the official submission system."
+- A: "No. Security Posture Intelligence Navigator is where the team does the work; eMASS remains the official submission system."
 
 - Q: "How is AI output controlled?"
 - A: "AI drafts and suggests, but approvals, phase transitions, and governance actions remain role-controlled and auditable."
@@ -567,7 +567,7 @@ Use short callouts at the end of the demo to highlight enterprise readiness:
 
 Summarize in under 2 minutes:
 
-1. ATO Copilot covered the full RMF lifecycle in one guided experience.
+1. Security Posture Intelligence Navigator covered the full RMF lifecycle in one guided experience.
 2. It combined AI assistance with governance, auditability, and role controls.
 3. It linked technical implementation data to formal compliance outputs.
 4. It delivered the same workflow across dashboard, chat, Teams, and VS Code.

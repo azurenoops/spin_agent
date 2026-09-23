@@ -17,9 +17,9 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// The UF-019 tests (marked with the region comment) validate the new
 /// <c>X-Admin-Confirm-Migration</c> guard added in Wave 8. Because the test
 /// factory does not configure <c>Auth:Branding:DeploymentName</c>, the
-/// deployment name defaults to <c>"ATO Copilot"</c> (per the endpoint's
+/// deployment name defaults to <c>"Security Posture Intelligence Navigator"</c> (per the endpoint's
 /// null/empty fallback), so tests that need to pass the guard send
-/// <c>X-Admin-Confirm-Migration: ATO Copilot</c>.
+/// <c>X-Admin-Confirm-Migration: Security Posture Intelligence Navigator</c>.
 /// </remarks>
 [Collection("Tenancy")]
 public class AdminMigrationEndpointTests
@@ -32,7 +32,7 @@ public class AdminMigrationEndpointTests
     /// Deployment name used by the confirmation guard when no
     /// <c>Auth:Branding:DeploymentName</c> is configured in the test factory.
     /// </summary>
-    private const string DefaultDeploymentName = "ATO Copilot";
+    private const string DefaultDeploymentName = "Security Posture Intelligence Navigator";
 
     public AdminMigrationEndpointTests(MultiTenantWebApplicationFactory<McpProgram> factory)
     {
@@ -201,12 +201,12 @@ public class AdminMigrationEndpointTests
     [Fact]
     public async Task Execute_WithCaseInsensitiveConfirmationValue_Returns200()
     {
-        // The guard is case-insensitive, so "ato copilot" must be accepted.
+        // The guard is case-insensitive, so "Security Posture Intelligence Navigator" must be accepted.
         using var req = new HttpRequestMessage(
             HttpMethod.Post,
             "/api/admin/migrate-to-multitenant");
         req.Content = JsonContent.Create(new { defaultTenantId = _tenantA, installRls = false });
-        req.Headers.Add(AdminMigrationEndpoints.ConfirmationHeaderName, "ato copilot");
+        req.Headers.Add(AdminMigrationEndpoints.ConfirmationHeaderName, "Security Posture Intelligence Navigator");
 
         var resp = await _client.SendAsync(req);
 

@@ -1,6 +1,6 @@
 # Persona Overview
 
-> ATO Copilot supports five primary personas aligned to NIST SP 800-37 RMF roles, plus an infrastructure Administrator role.
+> Security Posture Intelligence Navigator supports five primary personas aligned to NIST SP 800-37 RMF roles, plus an infrastructure Administrator role.
 
 ---
 
@@ -14,7 +14,7 @@
 | **AO** | `Compliance.AuthorizingOfficial` | Accepts risk and issues authorization decisions | Teams (Adaptive Cards) |
 | **Engineer** | `Compliance.PlatformEngineer` | Builds/operates the system; implements controls and fixes findings | VS Code (`@ato`) |
 | **Mission Owner** | `MissionOwner` | System mission authority — provides business context and system details | Dashboard, VS Code (`@ato`) |
-| **Administrator** | `Compliance.Administrator` | Manages ATO Copilot templates and infrastructure configuration | MCP API, VS Code |
+| **Administrator** | `Compliance.Administrator` | Manages Security Posture Intelligence Navigator templates and infrastructure configuration | MCP API, VS Code |
 
 ---
 
@@ -36,7 +36,7 @@
 
 ## RBAC Role Resolution
 
-ATO Copilot resolves user roles through a 4-tier chain:
+Security Posture Intelligence Navigator resolves user roles through a 4-tier chain:
 
 1. **Custom Header** — `X-User-Roles` (used in development/testing)
 2. **Azure AD Group** — Mapped from group membership claims in JWT
@@ -49,7 +49,7 @@ The most specific match wins. System-level assignments enable the same user to h
 
 ## Separation of Duties
 
-ATO Copilot enforces separation between roles per DoDI 8510.01:
+Security Posture Intelligence Navigator enforces separation between roles per DoDI 8510.01:
 
 | Constraint | Enforcement |
 |------------|-------------|

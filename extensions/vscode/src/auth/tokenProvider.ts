@@ -44,6 +44,6 @@ export async function getActiveTenantToken(
   }
   throw new Error(
     result.errorMessage ??
-      "ATO Copilot sign-in is required for this action. Cancelled.",
+      "Security Posture Intelligence Navigator sign-in is required for this action. Cancelled.",
   );
 }

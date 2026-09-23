@@ -20,7 +20,9 @@ using Xunit;
 using Ato.Copilot.Agents.Compliance.Services.Onboarding;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Onboarding;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Onboarding;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Endpoints.Onboarding;
 
@@ -54,6 +56,7 @@ public class OrganizationContextEndpointsTests : IAsyncLifetime
 
         var dbName = $"OrgContextEndpoints_{Guid.NewGuid():N}";
         builder.Services.AddDbContextFactory<AtoCopilotContext>(o => o.UseInMemoryDatabase(dbName));
+        builder.Services.AddScoped<ITenantContext, TenantContext>();
         builder.Services.AddScoped<IWizardAuditService>(_ => _auditMock.Object);
         builder.Services.AddScoped<IOrganizationContextService, OrganizationContextService>();
         // IOnboardingStateService is required by PUT /organization-context to mark wizard

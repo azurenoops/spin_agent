@@ -370,7 +370,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
       dispatch({ type: 'ADD_MESSAGE', payload: optimisticMessage });
       dispatch({ type: 'SET_PROCESSING', payload: true });
-      dispatch({ type: 'SET_PROGRESS', payload: 'Sending message to ATO Copilot...' });
+      dispatch({ type: 'SET_PROGRESS', payload: 'Sending message to Security Posture Intelligence Navigator...' });
       dispatch({ type: 'SET_ERROR', payload: null });
 
       try {

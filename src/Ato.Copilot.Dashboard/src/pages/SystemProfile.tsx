@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { useSettings } from '../hooks/useSettings';
+import { useWorkspaceSession } from '../features/workspaces/WorkspaceBoundary';
+import { displayWorkspaceRoles } from '../features/workspaces/workspaceRoles';
 import ProfileSectionForm from '../components/forms/ProfileSectionForm';
 import { getProfileSection, saveProfileSection, submitSections, withdrawSections, reviewSection } from '../api/systemProfile';
 import { getProfileCompleteness } from '../api/systemProfile';
@@ -44,6 +46,7 @@ function SystemProfileSection() {
   const { sectionType: sectionParam } = useParams<{ sectionType: string }>();
   const { detail } = useSystemContext();
   const { settings } = useSettings();
+  const workspace = useWorkspaceSession();
 
   const [section, setSection] = useState<ProfileSectionDetail | null>(null);
   const [completeness, setCompleteness] = useState<ProfileCompletenessResponse | null>(null);
@@ -224,7 +227,7 @@ function SystemProfileSection() {
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${approvalVariant(status)}`}>
               {status}
             </span>
-            {isReadOnly && settings.role && settings.role !== 'MissionOwner' && (
+            {isReadOnly && (
               <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
                 Read-only
               </span>
@@ -246,6 +249,7 @@ function SystemProfileSection() {
               reviewerComments={section?.reviewerComments ?? null}
               isReadOnly={isReadOnly}
               userRole={settings.role}
+              effectiveRoles={workspace ? displayWorkspaceRoles(workspace.roles) : undefined}
               isSubmitting={saving}
               error={error}
               systemContext={{
@@ -266,51 +270,6 @@ function SystemProfileSection() {
         </div>
       )}
 
-      {/* Section Header */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-bold text-gray-900">{label}</h1>
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${approvalVariant(status)}`}>
-          {status}
-        </span>
-        {isReadOnly && (
-          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
-            Read-only
-          </span>
-        )}
-      </div>
-
-      {/* Success message */}
-      {successMsg && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{successMsg}</div>
-      )}
-
-      {/* Section Form */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <ProfileSectionForm
-          sectionType={sectionType}
-          governanceStatus={status}
-          initialContent={section?.draftContent ?? null}
-          initialChildItems={getChildItems()}
-          reviewerComments={section?.reviewerComments ?? null}
-          isReadOnly={isReadOnly}
-          userRole={settings.role}
-          isSubmitting={saving}
-          error={error}
-          systemContext={{
-            hostingEnvironment: detail.hostingEnvironment,
-            systemType: detail.systemType,
-            missionCriticality: detail.missionCriticality,
-            impactLevel: detail.impactLevel,
-            baselineLevel: detail.baselineLevel,
-            categorization: detail.categorization,
-          }}
-          onSave={handleSave}
-          onSubmit={handleSubmit}
-          onWithdraw={handleWithdraw}
-          onApprove={handleApprove}
-          onRequestRevision={handleRequestRevision}
-        />
-      </div>
     </div>
   );
 }

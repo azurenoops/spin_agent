@@ -17,6 +17,7 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Mcp.Authorization;
 using System.Text.RegularExpressions;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
@@ -552,9 +553,26 @@ public static partial class DashboardEndpoints
                 CreateComponentRequest request,
                 ComponentService compService,
                 AtoCopilotContext context,
+                ITenantContext tenant,
+                ISystemWorkspaceAccessService accessService,
                 CancellationToken ct) =>
             {
-                var result = await compService.CreateComponentAsync(systemId, request, "system", ct);
+                if (tenant.IsWorkspaceRequest && Enum.TryParse<ComponentType>(request.ComponentType, true, out var componentType)
+                    && componentType == ComponentType.Person
+                    && !string.IsNullOrWhiteSpace(request.RmfRole))
+                {
+                    if (!Enum.TryParse<RmfRole>(request.RmfRole, true, out var targetRole) || !Enum.IsDefined(targetRole))
+                        return Results.BadRequest(new ErrorResponse { Error = "Choose a defined RMF role.", ErrorCode = "INVALID_RMF_ROLE" });
+                    var access = await accessService.GetAccessAsync(tenant.EffectiveTenantId, tenant.PersonId,
+                        systemId, tenant.IsCspAdmin, ct);
+                    if (!access.Permissions.CanAssignSystemRoles || !access.AssignableSystemRoles.Contains(targetRole.ToString()))
+                        return Results.Json(new { status = "error", error = new
+                        {
+                            errorCode = "WORKSPACE_OPERATION_NOT_AUTHORIZED",
+                            message = "Your assignments do not authorize this target role."
+                        } }, statusCode: StatusCodes.Status403Forbidden);
+                }
+                var result = await compService.CreateComponentAsync(systemId, request, currentUser.CurrentUserId, ct);
                 if (result is null)
                     return Results.NotFound(new ErrorResponse
                     {
@@ -576,7 +594,8 @@ public static partial class DashboardEndpoints
 
                 return Results.Created($"/api/dashboard/components/{result.Id}", result);
             })
-            .WithName("CreateComponent");
+            .WithName("CreateComponent")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageSystem);
 
         // ─── AI Component Description ────────────────────────────────────────
         group.MapPost("/ai/component-description", GenerateComponentDescription)

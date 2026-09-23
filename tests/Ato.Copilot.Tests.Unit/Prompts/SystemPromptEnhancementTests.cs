@@ -54,7 +54,7 @@ public class SystemPromptEnhancementTests
     public void ComplianceAgent_Prompt_PreservesOriginalContent()
     {
         var prompt = CreateComplianceAgent().GetSystemPrompt();
-        prompt.Should().Contain("ATO Copilot");
+        prompt.Should().Contain("Security Posture Intelligence Navigator");
         prompt.Should().Contain("compliance_assess");
         prompt.Should().Contain("RMF Workflow Guidance");
     }

@@ -59,7 +59,7 @@ export function buildKanbanBoardCard(data: KanbanBoardData): Record<string, unkn
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: data.boardTitle ?? "ATO Copilot — Remediation Board",
+      text: data.boardTitle ?? "Security Posture Intelligence Navigator — Remediation Board",
       weight: "Bolder",
       size: "Large",
     },

@@ -4,14 +4,14 @@
 
 This guide covers the Authorizing Official's tools for issuing authorization decisions, accepting risk, and reviewing the risk register.
 
-!!! tip "New to ATO Copilot?"
-    If this is your first time using ATO Copilot as an AO, start with the [AO Getting Started](../getting-started/ao.md) page for prerequisites, first-time setup, and your first 3 commands.
+!!! tip "New to Security Posture Intelligence Navigator?"
+    If this is your first time using Security Posture Intelligence Navigator as an AO, start with the [AO Getting Started](../getting-started/ao.md) page for prerequisites, first-time setup, and your first 3 commands.
 
 ---
 
 ## Prerequisites
 
-- ATO Copilot MCP server access
+- Security Posture Intelligence Navigator MCP server access
 - `Compliance.AuthorizingOfficial` role assigned to the system
 - Assessment completed (SAR generated, POA&M items created)
 

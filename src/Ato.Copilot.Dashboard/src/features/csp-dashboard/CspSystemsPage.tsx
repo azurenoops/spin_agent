@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../workspaces/workspaceNavigation';
 import PageLayout from '../../components/layout/PageLayout';
 import PageHero from '../../components/layout/PageHero';
 import {
@@ -12,6 +12,9 @@ import {
   type SystemsSortField,
 } from './api';
 import { startImpersonation } from '../tenancy/api';
+import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
+import { buildWorkspaceUrl } from '../workspaces/workspaceRoutes';
+import SupportWorkspaceButton from '../workspaces/SupportWorkspaceButton';
 
 /**
  * Feature 048 follow-up — Cross-tenant systems table for the CSP-level
@@ -79,6 +82,7 @@ export default function CspSystemsPage({
   initialPageSize = 50,
 }: CspSystemsPageProps): ReactElement {
   const navigate = useNavigate();
+  const session = useWorkspaceSession();
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(initialPageSize);
@@ -143,6 +147,10 @@ export default function CspSystemsPage({
   };
 
   const handleRowClick = async (system: SystemRow) => {
+    if (session) {
+      navigate(buildWorkspaceUrl({ kind: 'organization', tenantId: system.tenantId }, `/systems/${encodeURIComponent(system.systemId)}`));
+      return;
+    }
     setBusySystemId(system.systemId);
     try {
       await startImpersonation(system.tenantId, system.orgDisplayName);
@@ -167,7 +175,7 @@ export default function CspSystemsPage({
         <PageHero
           eyebrow="Portfolio"
           title="Systems across all organizations"
-          description="Cross-organizational view of every registered system. Click a row to impersonate the system's owning organization and open its detail page. Disabled-organization systems and the CSP's system-reference organization are excluded."
+          description="Cross-organizational system oversight. Open a system using ordinary membership, or explicitly start a separate audited support session. System access is checked in the selected organization."
           showOrgName={false}
           actions={
             data ? (
@@ -330,7 +338,13 @@ export default function CspSystemsPage({
                           {s.orgDisplayName}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-900">
-                          {s.name}
+                          <button type="button" disabled={busy} onClick={event => {
+                            event.stopPropagation(); void handleRowClick(s);
+                          }} className="hover:underline">{s.name}</button>
+                          {session?.target.kind === 'csp' && <span className="ml-2">
+                            <SupportWorkspaceButton tenantId={s.tenantId} tenantName={s.orgDisplayName}
+                              route={`/systems/${encodeURIComponent(s.systemId)}`} />
+                          </span>}
                           {s.acronym ? (
                             <span className="ml-1 text-xs text-gray-500">
                               ({s.acronym})

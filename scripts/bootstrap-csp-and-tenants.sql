@@ -1,5 +1,5 @@
 -- ============================================================================
---  ATO Copilot — CSP Profile + Default Tenant Bootstrap
+--  Security Posture Intelligence Navigator — CSP Profile + Default Tenant Bootstrap
 --
 --  PURPOSE: Seeds the minimum data needed for the app to start accepting
 --  requests in MultiTenant mode. Without a CspProfile row in OnboardingState

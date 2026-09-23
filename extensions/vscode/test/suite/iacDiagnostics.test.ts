@@ -162,9 +162,9 @@ describe("IacDiagnosticsProvider", () => {
       expect(diag.severity).to.equal(vscode.DiagnosticSeverity.Warning);
     });
 
-    it("should set source to ATO Copilot", () => {
+    it("should set source to Security Posture Intelligence Navigator", () => {
       const diag = createDiagnostic(makeFinding(), mockDocumentForDiag());
-      expect(diag.source).to.equal("ATO Copilot");
+      expect(diag.source).to.equal("Security Posture Intelligence Navigator");
     });
 
     it("should include rule ID in message", () => {

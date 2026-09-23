@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from '../workspaces/workspaceNavigation';
 import {
   getCspOnboardingState,
   isUnavailable,
@@ -340,7 +340,7 @@ export default function CspWizard(): ReactElement {
             </div>
             <div>
               <h1 id="csp-wizard-title" className="text-xl font-semibold tracking-tight">
-                SPIN Agent — CSP Onboarding
+                Security Posture Intelligence Navigator — CSP Onboarding
               </h1>
               <p className="text-sm text-white/80">
                 One-time setup for this hosting deployment. After submission you can pre-provision tenants.

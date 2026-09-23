@@ -6,7 +6,7 @@
 
 ## Overview
 
-ATO Copilot includes a STIG (Security Technical Implementation Guide) library parsed from DISA XCCDF benchmarks. STIGs are mapped to NIST 800-53 controls via CCI (Control Correlation Identifier) cross-references.
+Security Posture Intelligence Navigator includes a STIG (Security Technical Implementation Guide) library parsed from DISA XCCDF benchmarks. STIGs are mapped to NIST 800-53 controls via CCI (Control Correlation Identifier) cross-references.
 
 ### Data Model
 
@@ -150,7 +150,7 @@ Risk acceptances for specific findings bypass the gate block for accepted contro
 
 > Feature 017: SCAP/STIG Viewer Import
 
-ATO Copilot can import and export STIG assessment data in industry-standard formats:
+Security Posture Intelligence Navigator can import and export STIG assessment data in industry-standard formats:
 
 ### Supported Import Formats
 

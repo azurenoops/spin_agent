@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from '../workspaces/workspaceNavigation';
 import { getCspOnboardingState, isUnavailable } from './api';
 
 interface CspOnboardingGuardProps {

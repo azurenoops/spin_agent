@@ -5,7 +5,7 @@
 
 ## Summary
 
-Implement the Compliance Agent and Configuration Agent for the ATO Copilot. The Compliance Agent
+Implement the Compliance Agent and Configuration Agent for the Security Posture Intelligence Navigator. The Compliance Agent
 provides NIST 800-53 compliance assessment (resource, policy, and combined scans), remediation
 (single and batch with dry-run), evidence collection, document generation (SSP/SAR/POA&M), and
 compliance monitoring against Azure Government subscriptions. The Configuration Agent manages

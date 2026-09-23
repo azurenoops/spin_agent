@@ -1,6 +1,6 @@
 {
   "name": "ato-copilot-vscode",
-  "displayName": "ATO Copilot",
+  "displayName": "Security Posture Intelligence Navigator",
   "description": "GitHub Copilot Chat participant for ATO compliance assessments, NIST 800-53 controls, and infrastructure-as-code generation",
   "version": "1.0.0",
   "publisher": "ato-copilot",
@@ -40,7 +40,7 @@
     "chatParticipants": [
       {
         "id": "ato",
-        "fullName": "ATO Copilot",
+        "fullName": "Security Posture Intelligence Navigator",
         "name": "ato",
         "description": "Ask about ATO compliance, NIST 800-53 controls, and infrastructure-as-code",
         "isSticky": true,
@@ -56,7 +56,7 @@
           },
           {
             "name": "config",
-            "description": "Manage ATO Copilot configuration settings"
+            "description": "Manage Security Posture Intelligence Navigator configuration settings"
           }
         ]
       }
@@ -64,58 +64,58 @@
     "commands": [
       {
         "command": "ato.checkHealth",
-        "title": "ATO Copilot: Check API Health",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Check API Health",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.configure",
-        "title": "ATO Copilot: Configure Connection",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Configure Connection",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.signIn",
-        "title": "ATO Copilot: Sign In",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Sign In",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.signOut",
-        "title": "ATO Copilot: Sign Out",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Sign Out",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.switchTenant",
-        "title": "ATO Copilot: Switch Tenant",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Switch Tenant",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.analyzeCurrentFile",
-        "title": "ATO Copilot: Analyze Current File for Compliance",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Analyze Current File for Compliance",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.analyzeWorkspace",
-        "title": "ATO Copilot: Analyze Workspace for Compliance",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Analyze Workspace for Compliance",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.followUpSuggestion",
-        "title": "ATO Copilot: Follow-Up Suggestion",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Follow-Up Suggestion",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.requestFalsePositive",
-        "title": "ATO Copilot: Request False Positive",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Request False Positive",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.saveTemplate",
-        "title": "ATO Copilot: Save Template",
-        "category": "ATO Copilot"
+        "title": "Security Posture Intelligence Navigator: Save Template",
+        "category": "Security Posture Intelligence Navigator"
       },
       {
         "command": "ato.openRmfOverview",
-        "title": "ATO Copilot: Open RMF Overview",
-        "category": "ATO Copilot",
+        "title": "Security Posture Intelligence Navigator: Open RMF Overview",
+        "category": "Security Posture Intelligence Navigator",
         "icon": "$(book)"
       }
     ],
@@ -124,7 +124,7 @@
         {
           "command": "ato.requestFalsePositive",
           "when": "editorTextFocus",
-          "group": "ATO Copilot"
+          "group": "Security Posture Intelligence Navigator"
         }
       ],
       "editor/title": [
@@ -141,7 +141,7 @@
       ]
     },
     "configuration": {
-      "title": "ATO Copilot",
+      "title": "Security Posture Intelligence Navigator",
       "properties": {
         "ato-copilot.apiUrl": {
           "type": "string",
@@ -166,7 +166,7 @@
         "ato-copilot.tenantId": {
           "type": "string",
           "default": "",
-          "description": "Caller's home tenant id (Guid). Surfaced on the ATO Copilot status bar and forwarded on outbound MCP requests so server-side tools see the correct tenant scope."
+          "description": "Caller's home tenant id (Guid). Surfaced on the Security Posture Intelligence Navigator status bar and forwarded on outbound MCP requests so server-side tools see the correct tenant scope."
         },
         "ato-copilot.impersonatedTenantId": {
           "type": "string",

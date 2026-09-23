@@ -38,7 +38,7 @@ Direct quote from M-24-15:
 | Telos Xacta | OSCAL import/export, marketed as FedRAMP automation tool |
 | SPIN Agent (current) | No OSCAL support — gap vs. all named competitors |
 
-Batman's gap assessment: "OSCAL is the compliance automation language of the federal government. Not supporting it means we can't interoperate with the emerging ecosystem and can't claim to be a true ATO copilot."
+Batman's gap assessment: "OSCAL is the compliance automation language of the federal government. Not supporting it means we can't interoperate with the emerging ecosystem and can't claim to be a true Security Posture Intelligence Navigator."
 
 ### W10 Scoping Context
 

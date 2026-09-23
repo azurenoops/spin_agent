@@ -5,6 +5,7 @@ import { listEvidence, getEvidenceSummary, downloadEvidence, deleteEvidence, col
 import type { EvidenceArtifactDto, EvidenceSummaryDto, ArtifactCategory, EvidenceSource } from '../types/evidence';
 import EvidenceUploadDialog from '../components/EvidenceUploadDialog';
 import EvidenceDetailPanel from '../components/EvidenceDetailPanel';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,8 @@ const SOURCES: { value: EvidenceSource | ''; label: string }[] = [
 
 export default function EvidenceRepository() {
   const { id: systemId } = useParams<{ id: string }>();
+  const canManageEvidence = useSystemMutationPermission(systemId, 'canManageEvidence');
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
@@ -98,6 +101,10 @@ export default function EvidenceRepository() {
   // T282: Collect Evidence handler — calls POST .../controls/{controlId}/collect-evidence
   const handleCollectEvidence = useCallback(
     async (controlId: string) => {
+      if (!canManageEvidence) {
+        setCollectError('You do not have permission to collect evidence in this workspace.');
+        return;
+      }
       if (!systemId) return;
       setCollectingControlId(controlId);
       setCollectError(null);
@@ -112,7 +119,7 @@ export default function EvidenceRepository() {
         setCollectingControlId(null);
       }
     },
-    [systemId, refresh, refreshSummary],
+    [systemId, canManageEvidence, refresh, refreshSummary],
   );
 
   const items: EvidenceArtifactDto[] = evidenceData?.items ?? [];
@@ -169,7 +176,16 @@ export default function EvidenceRepository() {
           </p>
         </div>
         <button
-          onClick={() => setShowUpload(true)}
+          onClick={() => {
+            if (!canManageEvidence) {
+              setMutationError('You do not have permission to upload evidence in this workspace.');
+              return;
+            }
+            setMutationError(null);
+            setShowUpload(true);
+          }}
+          disabled={!canManageEvidence}
+          title={!canManageEvidence ? 'You do not have permission to upload evidence' : undefined}
           className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -179,9 +195,11 @@ export default function EvidenceRepository() {
         </button>
       </div>
 
+      {mutationError && <p role="alert" className="text-sm text-red-700">{mutationError}</p>}
+
       {/* T282: Collect Evidence inline error */}
       {collectError && (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           Collection failed: {collectError}
           <button onClick={() => setCollectError(null)} className="ml-2 text-red-500 hover:text-red-700">✕</button>
         </div>
@@ -326,7 +344,7 @@ export default function EvidenceRepository() {
                           e.stopPropagation();
                           void handleCollectEvidence(item.controlId!);
                         }}
-                        disabled={collectingControlId === item.controlId}
+                        disabled={!canManageEvidence || collectingControlId === item.controlId}
                         className="rounded p-1 text-gray-400 hover:bg-emerald-100 hover:text-emerald-600 disabled:opacity-50"
                         title="Collect Evidence"
                         aria-label="Collect automated evidence for this control"
@@ -344,11 +362,21 @@ export default function EvidenceRepository() {
                       <button
                         onClick={async (e) => {
                           e.stopPropagation();
+                          if (!canManageEvidence) {
+                            setMutationError('You do not have permission to delete evidence in this workspace.');
+                            return;
+                          }
                           if (!confirm(`Delete "${item.fileName ?? 'this evidence'}"?`)) return;
-                          await deleteEvidence(systemId, item.id);
-                          refresh();
-                          refreshSummary();
+                          setMutationError(null);
+                          try {
+                            await deleteEvidence(systemId, item.id);
+                            refresh();
+                            refreshSummary();
+                          } catch {
+                            setMutationError('Failed to delete evidence. Please try again.');
+                          }
                         }}
+                        disabled={!canManageEvidence}
                         className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
                         title="Delete"
                       >

@@ -1,5 +1,5 @@
 -- ============================================================================
---  ATO Copilot — Seed varied RMF / ATO progress against the AZURE SQL DB.
+--  Security Posture Intelligence Navigator — Seed varied RMF / ATO progress against the AZURE SQL DB.
 --  Target:  Azure SQL `AtoCopilot`
 --  Idempotent: re-running is a no-op (deterministic UUIDs from HASHBYTES).
 --

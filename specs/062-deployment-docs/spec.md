@@ -9,7 +9,7 @@ beyond what spec 061 adds for the M365 bot.
 
 ## Background
 
-ATO Copilot has a substantial `docs/deployment.md` (646 lines) that covers Docker, Azure
+Security Posture Intelligence Navigator has a substantial `docs/deployment.md` (646 lines) that covers Docker, Azure
 Container Apps, App Service, env vars, migrations, security, monitoring, and a brief runbook
 section. The architecture is documented across `docs/architecture/` and per-persona quickstarts
 exist in `docs/getting-started/`.
@@ -120,7 +120,7 @@ standalone value because the runbook is useful regardless of whether the smoke t
 
 ### User Story 2 — Smoke test script validates deployed instance (Priority: P1)
 
-**As an** operator who just deployed a new version of ATO Copilot
+**As an** operator who just deployed a new version of Security Posture Intelligence Navigator
 **I want** to run a single script that validates the deployment is healthy
 **So that** I know immediately whether to proceed or roll back.
 
@@ -172,7 +172,7 @@ the GitHub Actions run; download the `vscode-extension` artifact; install it wit
 
 ### User Story 4 — M365 bot deployment steps in deployment guide (Priority: P2)
 
-**As an** operator deploying the full ATO Copilot stack
+**As an** operator deploying the full Security Posture Intelligence Navigator stack
 **I want** the M365 bot deployment to be included in the main deployment guide
 **So that** I don't have to find a separate document or discover the bot through the codebase.
 
@@ -193,7 +193,7 @@ or prominent link to `docs/deployment-m365.md` exists; confirm a new operator fo
 
 ### User Story 5 — Backup/restore procedure documented (Priority: P2)
 
-**As an** operator managing an ATO Copilot production instance
+**As an** operator managing an Security Posture Intelligence Navigator production instance
 **I want** a documented backup and restore procedure for both SQLite (dev) and SQL Server (prod)
 **So that** I can recover data after a failure without improvising.
 

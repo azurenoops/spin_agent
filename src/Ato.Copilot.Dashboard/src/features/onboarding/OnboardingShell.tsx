@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from '../workspaces/workspaceNavigation';
 import { onboarding, type OnboardingStateDto } from './api/onboardingApi';
 import OnboardingWizardModal from './OnboardingWizardModal';
 

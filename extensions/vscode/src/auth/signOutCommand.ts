@@ -45,7 +45,7 @@ export async function signOutCommand(
   if (!tenantId) {
     statusBar.update({ state: "signedOut" });
     void vscode.window.showInformationMessage(
-      "ATO Copilot: you are not signed in.",
+      "Security Posture Intelligence Navigator: you are not signed in.",
     );
     return { outcome: "noActiveTenant" };
   }
@@ -93,7 +93,7 @@ export async function signOutCommand(
 
   // 4) Status bar.
   statusBar.update({ state: "signedOut" });
-  void vscode.window.showInformationMessage("Signed out of ATO Copilot.");
+  void vscode.window.showInformationMessage("Signed out of Security Posture Intelligence Navigator.");
 
   return { outcome: "signedOut", tenantId, serverCallSucceeded };
 }

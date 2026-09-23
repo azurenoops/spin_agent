@@ -54,7 +54,7 @@ function writeCached(value: boolean): void {
   }
 }
 
-export function useCspDashboardAvailable(): boolean | null {
+export function useCspDashboardAvailable(enabled = true): boolean | null {
   // Synchronous bootstrap from sessionStorage so the first paint of a
   // remounted route component already has the correct boolean — no
   // null-window, no flash of the wrong page.
@@ -65,7 +65,7 @@ export function useCspDashboardAvailable(): boolean | null {
     // We trust the cache for the lifetime of the tab; impersonation
     // toggles do not change CSP-Admin membership, so no invalidation
     // hook is needed here.
-    if (available !== null) return;
+    if (!enabled || available !== null) return;
 
     let cancelled = false;
     getCspDashboardSummary()
@@ -83,7 +83,7 @@ export function useCspDashboardAvailable(): boolean | null {
     return () => {
       cancelled = true;
     };
-  }, [available]);
+  }, [available, enabled]);
 
   return available;
 }

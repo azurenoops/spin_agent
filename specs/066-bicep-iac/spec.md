@@ -8,7 +8,7 @@
 
 ## Background
 
-ATO Copilot has no Infrastructure-as-Code. Deployment is 100% manual, documented only
+Security Posture Intelligence Navigator has no Infrastructure-as-Code. Deployment is 100% manual, documented only
 in `docs/deployment.md`. The bootstrap script (`scripts/bootstrap.sh`) handles developer
 machine setup but performs no Azure provisioning. There are no Bicep, ARM, or Terraform
 files anywhere in the repository.
@@ -21,7 +21,7 @@ Operators must translate `docs/deployment.md` into manual Azure portal clicks or
 4. Cannot be tested in CI
 
 This epic establishes a Bicep IaC layer for the core Azure resources needed to run
-ATO Copilot in production (Azure Container Apps + SQL Server + Key Vault + Azure OpenAI).
+Security Posture Intelligence Navigator in production (Azure Container Apps + SQL Server + Key Vault + Azure OpenAI).
 
 ---
 
@@ -55,7 +55,7 @@ This epic delivers the Bicep modules only, runnable manually via `az deployment`
 ## User Stories
 
 ### US1 (P1): Core Bicep Module — Container Apps + SQL
-**As an operator**, I can deploy ATO Copilot to Azure with a single `az deployment` command.
+**As an operator**, I can deploy Security Posture Intelligence Navigator to Azure with a single `az deployment` command.
 
 **Deliverables:**
 - `infra/main.bicep` — orchestration module
@@ -78,7 +78,7 @@ This epic delivers the Bicep modules only, runnable manually via `az deployment`
 ---
 
 ### US2 (P1): Azure Container Registry Module
-**As a DevOps engineer**, I can push the ATO Copilot container image to an ACR and have
+**As a DevOps engineer**, I can push the Security Posture Intelligence Navigator container image to an ACR and have
 the Container App reference it automatically.
 
 **Deliverables:**

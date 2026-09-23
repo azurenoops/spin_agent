@@ -1,6 +1,6 @@
 # E2E Persona Test Guide
 
-Persona-driven end-to-end tests for ATO Copilot. Covers realistic ISSO and SCA user journeys through the RMF lifecycle.
+Persona-driven end-to-end tests for Security Posture Intelligence Navigator. Covers realistic ISSO and SCA user journeys through the RMF lifecycle.
 
 ## Persona Specs
 

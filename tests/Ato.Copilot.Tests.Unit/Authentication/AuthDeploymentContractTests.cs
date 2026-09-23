@@ -6,6 +6,19 @@ namespace Ato.Copilot.Tests.Unit.Authentication;
 public class AuthDeploymentContractTests
 {
     [Fact]
+    public void Local_compose_forwards_the_simulation_startup_switch()
+    {
+        // Arrange
+        var path = Path.Combine(FindRepoRoot(), "docker-compose.mcp.yml");
+
+        // Act
+        var compose = File.ReadAllText(path);
+
+        // Assert
+        compose.Should().Contain("ATO_CACAUTH__SIMULATIONMODE=${ATO_CACAUTH__SIMULATIONMODE:-true}");
+    }
+
+    [Fact]
     public void Mcp_deployment_requires_complete_browser_and_api_auth_configuration()
     {
         // Arrange

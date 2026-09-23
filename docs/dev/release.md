@@ -6,7 +6,7 @@
 
 ## Versioning
 
-ATO Copilot follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`):
+Security Posture Intelligence Navigator follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`):
 
 | Component | Version Source | Example |
 |-----------|---------------|---------|
@@ -167,7 +167,7 @@ npm run build
 The `ato-compliance-gate` GitHub Action runs on every PR:
 - Scans IaC files (Terraform, Bicep, ARM templates)
 - Blocks merge on CAT I/II findings
-- Respects risk acceptances from the ATO Copilot database
+- Respects risk acceptances from the Security Posture Intelligence Navigator database
 - Adds annotations with finding details
 
 See `.github/actions/ato-compliance-gate/action.yml` for configuration.

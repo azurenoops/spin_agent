@@ -59,9 +59,13 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddMemoryCache();
-        services.AddDbContext<AtoCopilotContext>(opt => opt.UseSqlite(_connection));
+        services.AddDbContextFactory<AtoCopilotContext>(opt => opt.UseSqlite(_connection));
         services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         services.AddScoped<ITenantContext, TenantContext>();
+        services.AddSingleton(BuildImpersonationStub());
+        services.AddSingleton(BuildCspProfileStub());
+        services.AddSingleton<IOptions<RoleClaimMappingsOptions>>(Options.Create(new RoleClaimMappingsOptions()));
+        services.AddScoped<IWorkspaceService, WorkspaceService>();
         _sp = services.BuildServiceProvider();
 
         await using var scope = _sp.CreateAsyncScope();
@@ -106,6 +110,21 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
             Description = "Tenant B system",
             CreatedBy = "test",
             IsActive = true,
+        });
+        var person = new Ato.Copilot.Core.Models.Onboarding.Person
+        {
+            TenantId = TenantA, DisplayName = "Explicit test member", Email = "member@example.invalid"
+        };
+        db.Persons.Add(person);
+        db.OrganizationMemberships.Add(new()
+        {
+            TenantId = TenantA, DirectoryTenantId = EntraTidA,
+            ObjectId = Guid.Parse("00000000-0000-0000-0000-000000000099"),
+            PersonId = person.Id, GrantedBy = "fixture"
+        });
+        db.OrganizationRoleAssignments.Add(new()
+        {
+            TenantId = TenantA, PersonId = person.Id, Role = Ato.Copilot.Core.Models.Onboarding.OrganizationRole.MissionOwner
         });
         await db.SaveChangesAsync();
     }
@@ -245,11 +264,14 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
         var claims = new List<Claim>
         {
             new("tid", entraTid.ToString()),
+            new("oid", "00000000-0000-0000-0000-000000000099"),
             new(ClaimTypes.NameIdentifier, "00000000-0000-0000-0000-000000000099"),
         };
         if (isCspAdmin)
         {
             claims.Add(new Claim(ClaimTypes.Role, "CSP.Admin"));
+            http.Request.Headers["X-Workspace-Kind"] = "csp";
+            http.Request.Headers["X-Workspace-Mode"] = "ordinary";
         }
         var identity = new ClaimsIdentity(claims, "Test");
         http.User = new ClaimsPrincipal(identity);

@@ -1,5 +1,5 @@
 /**
- * ATO Copilot M365 Extension — Health Endpoint Tests (T061-04)
+ * Security Posture Intelligence Navigator M365 Extension — Health Endpoint Tests (T061-04)
  *
  * Verifies that GET /health returns 200 with { status: 'ok' } body
  * and responds within 500 ms. Uses the built-in http module to avoid

@@ -1,204 +1,85 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
-using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
+using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Services;
-using Microsoft.Extensions.DependencyInjection;
+using Ato.Copilot.Mcp.Services.Tenancy;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
-/// <summary>
-/// Maps /api/dashboard/notifications/* REST endpoints for the notification center.
-/// </summary>
+/// <summary>Maps the actor- and workspace-authorized notification center API.</summary>
 public static class NotificationEndpoints
 {
     public static IEndpointRouteBuilder MapNotificationEndpoints(this IEndpointRouteBuilder app)
     {
-        var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
+        app.MapGet("/api/dashboard/notifications/capabilities", async (
+            HttpContext http, INotificationCapabilitiesService service, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await service.GetAsync(http, ct));
+            }
+            catch (WorkspaceException ex)
+            {
+                return WorkspaceError(http, ex);
+            }
+        })
+            .RequireAuthorization().WithTags("Notifications")
+            .WithName("GetNotificationTransportCapabilities")
+            .WithSummary("Describe authenticated notification access and bearer-only realtime readiness")
+            .Produces<NotificationCapabilitiesResponse>()
+            .Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status409Conflict);
+
         var group = app.MapGroup("/api/dashboard/notifications")
-            .WithTags("Notifications")
-            .RequireAuthorization();
-
-        // ─── List notifications for the current user ─────────────────────────
-        group.MapGet("/", async (
-                string? userId,
-                bool? unreadOnly,
-                int? limit,
-                AtoCopilotContext db,
-                CancellationToken ct) =>
+            .WithTags("Notifications").RequireAuthorization()
+            .WithMetadata(new WorkspaceAuthorizedEndpoint())
+            .AddEndpointFilter(async (invocation, next) =>
             {
-                var resolvedUserId = currentUser.CurrentUserId;
-                var take = Math.Clamp(limit ?? 50, 1, 200);
-
-                var query = db.AlertNotifications
-                    .Include(n => n.Alert)
-                    .Where(n => n.UserId == resolvedUserId)
-                    .AsQueryable();
-
-                if (unreadOnly == true)
-                    query = query.Where(n => !n.IsRead);
-
-                var notifications = await query
-                    .OrderByDescending(n => n.SentAt)
-                    .Take(take)
-                    .Select(n => new NotificationDto
-                    {
-                        Id = n.Id,
-                        AlertId = n.AlertId,
-                        Channel = n.Channel.ToString(),
-                        Subject = n.Subject,
-                        Body = n.Body,
-                        IsRead = n.IsRead,
-                        ReadAt = n.ReadAt,
-                        SentAt = n.SentAt,
-                        AlertTitle = n.Alert.Title,
-                        AlertSeverity = n.Alert.Severity.ToString(),
-                    })
-                    .ToListAsync(ct);
-
-                return Results.Ok(new { items = notifications, totalCount = notifications.Count });
-            })
-            .WithName("ListNotifications");
-
-        // ─── Unread count (badge) ────────────────────────────────────────────
-        group.MapGet("/summary", async (
-                string? userId,
-                AtoCopilotContext db,
-                CancellationToken ct) =>
-            {
-                var resolvedUserId = currentUser.CurrentUserId;
-
-                var unreadCount = await db.AlertNotifications
-                    .CountAsync(n => n.UserId == resolvedUserId && !n.IsRead, ct);
-
-                var totalCount = await db.AlertNotifications
-                    .CountAsync(n => n.UserId == resolvedUserId, ct);
-
-                return Results.Ok(new NotificationSummaryDto
+                var http = invocation.HttpContext;
+                try
                 {
-                    UnreadCount = unreadCount,
-                    TotalCount = totalCount,
-                });
-            })
-            .WithName("GetNotificationSummary");
-
-        // ─── Mark notifications as read ──────────────────────────────────────
-        group.MapPost("/mark-read", async (
-                MarkNotificationsReadRequest body,
-                AtoCopilotContext db,
-                CancellationToken ct) =>
-            {
-                if (body.NotificationIds.Count == 0)
-                    return Results.BadRequest(new { error = "NotificationIds is required", errorCode = "INVALID_INPUT" });
-
-                var now = DateTimeOffset.UtcNow;
-                var notifications = await db.AlertNotifications
-                    .Where(n => body.NotificationIds.Contains(n.Id) && !n.IsRead)
-                    .ToListAsync(ct);
-
-                foreach (var n in notifications)
-                {
-                    n.IsRead = true;
-                    n.ReadAt = now;
+                    await http.RequestServices.GetRequiredService<IWorkspaceNotificationService>()
+                        .InitializeAsync(http, http.RequestAborted);
+                    return await next(invocation);
                 }
-
-                await db.SaveChangesAsync(ct);
-
-                return Results.Ok(new { markedCount = notifications.Count });
-            })
-            .WithName("MarkNotificationsRead");
-
-        // ─── Mark all as read ────────────────────────────────────────────────
-        group.MapPost("/mark-all-read", async (
-                string? userId,
-                AtoCopilotContext db,
-                CancellationToken ct) =>
-            {
-                var resolvedUserId = currentUser.CurrentUserId;
-                var now = DateTimeOffset.UtcNow;
-
-                var unread = await db.AlertNotifications
-                    .Where(n => n.UserId == resolvedUserId && !n.IsRead)
-                    .ToListAsync(ct);
-
-                foreach (var n in unread)
+                catch (WorkspaceException ex)
                 {
-                    n.IsRead = true;
-                    n.ReadAt = now;
+                    return WorkspaceError(http, ex);
                 }
+            });
 
-                await db.SaveChangesAsync(ct);
+        group.MapGet("/", async (string? userId, bool? unreadOnly, int? limit, IWorkspaceNotificationService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.ListAsync(unreadOnly == true, limit ?? 50, ct)))
+            .WithName("ListNotifications").WithSummary("List the actor's notifications visible in this organization");
 
-                return Results.Ok(new { markedCount = unread.Count });
-            })
-            .WithName("MarkAllNotificationsRead");
+        group.MapGet("/summary", async (string? userId, IWorkspaceNotificationService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.SummaryAsync(ct)))
+            .WithName("GetNotificationSummary").WithSummary("Count the actor's system-visible notifications");
 
-        // ─── Notification preferences ────────────────────────────────────────
-        group.MapGet("/preferences", async (
-                string? userId,
-                AtoCopilotContext db,
-                CancellationToken ct) =>
-            {
-                var resolvedUserId = currentUser.CurrentUserId;
+        group.MapPost("/mark-read", async (MarkNotificationsReadRequest body, IWorkspaceNotificationService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.MarkReadAsync(body.NotificationIds, ct)))
+            .WithName("MarkNotificationsRead").WithSummary("Mark authorized notifications read; reject mixed-access batches")
+            .Produces(StatusCodes.Status400BadRequest).Produces(StatusCodes.Status404NotFound);
 
-                var prefs = await db.NotificationPreferences
-                    .FirstOrDefaultAsync(p => p.UserId == resolvedUserId, ct);
+        group.MapPost("/mark-all-read", async (string? userId, IWorkspaceNotificationService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.MarkAllReadAsync(ct)))
+            .WithName("MarkAllNotificationsRead").WithSummary("Mark only the actor's visible notifications read");
 
-                if (prefs is null)
-                    return Results.Ok(new NotificationPreferencesDto());
+        group.MapGet("/preferences", async (string? userId, IWorkspaceNotificationService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.GetPreferencesAsync(ct)))
+            .WithName("GetNotificationPreferences").WithSummary("Get preferences for the actor and selected organization");
 
-                return Results.Ok(new NotificationPreferencesDto
-                {
-                    PoamOverdueAlerts = prefs.PoamOverdueAlerts,
-                    AtoExpirationAlerts = prefs.AtoExpirationAlerts,
-                    ComplianceDriftAlerts = prefs.ComplianceDriftAlerts,
-                    AlertDaysBefore = prefs.AlertDaysBefore,
-                });
-            })
-            .WithName("GetNotificationPreferences");
-
-        group.MapPut("/preferences", async (
-                string? userId,
-                NotificationPreferencesDto body,
-                AtoCopilotContext db,
-                CancellationToken ct) =>
-            {
-                var resolvedUserId = currentUser.CurrentUserId;
-
-                var prefs = await db.NotificationPreferences
-                    .FirstOrDefaultAsync(p => p.UserId == resolvedUserId, ct);
-
-                if (prefs is null)
-                {
-                    prefs = new Core.Models.Compliance.NotificationPreferences
-                    {
-                        Id = Guid.NewGuid(),
-                        UserId = resolvedUserId,
-                        CreatedAt = DateTimeOffset.UtcNow,
-                    };
-                    db.NotificationPreferences.Add(prefs);
-                }
-
-                prefs.PoamOverdueAlerts = body.PoamOverdueAlerts;
-                prefs.AtoExpirationAlerts = body.AtoExpirationAlerts;
-                prefs.ComplianceDriftAlerts = body.ComplianceDriftAlerts;
-                prefs.AlertDaysBefore = body.AlertDaysBefore;
-                prefs.UpdatedAt = DateTimeOffset.UtcNow;
-
-                await db.SaveChangesAsync(ct);
-
-                return Results.Ok(new NotificationPreferencesDto
-                {
-                    PoamOverdueAlerts = prefs.PoamOverdueAlerts,
-                    AtoExpirationAlerts = prefs.AtoExpirationAlerts,
-                    ComplianceDriftAlerts = prefs.ComplianceDriftAlerts,
-                    AlertDaysBefore = prefs.AlertDaysBefore,
-                });
-            })
-            .WithName("UpdateNotificationPreferences");
+        group.MapPut("/preferences", async (string? userId, NotificationPreferencesDto body, IWorkspaceNotificationService service, CancellationToken ct) =>
+            TypedResults.Ok(await service.SavePreferencesAsync(body, ct)))
+            .WithName("UpdateNotificationPreferences").WithSummary("Save preferences for the actor and selected organization");
 
         return app;
+    }
+
+    private static IResult WorkspaceError(HttpContext http, WorkspaceException ex)
+    {
+        http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("NotificationEndpoints")
+            .LogInformation("Notification request denied: {ErrorCode}", ex.Code);
+        return Results.Json(new { status = "error", error = new { errorCode = ex.Code, message = ex.Message } },
+            statusCode: ex.StatusCode);
     }
 }

@@ -30,7 +30,7 @@ As a backend developer, I need a shared .NET Channels library that provides mess
 
 ### User Story 2 — GitHub Copilot Chat Extension (Priority: P2)
 
-As a DevSecOps engineer working in VS Code, I want to type `@ato` in GitHub Copilot Chat and ask compliance questions, run assessments, and generate remediation scripts so that I can stay in my editor and get ATO Copilot assistance without switching to the web Chat app.
+As a DevSecOps engineer working in VS Code, I want to type `@ato` in GitHub Copilot Chat and ask compliance questions, run assessments, and generate remediation scripts so that I can stay in my editor and get Security Posture Intelligence Navigator assistance without switching to the web Chat app.
 
 **Why this priority**: VS Code is the primary IDE for engineers writing Infrastructure-as-Code. This integration meets users where they already work and provides the highest-value developer experience.
 
@@ -50,7 +50,7 @@ As a DevSecOps engineer working in VS Code, I want to type `@ato` in GitHub Copi
 
 ### User Story 3 — M365 Copilot Extension for Teams (Priority: P3)
 
-As a compliance officer using Microsoft Teams, I want to interact with the ATO Copilot through Teams chat and receive rich Adaptive Card responses so that I can request compliance assessments, view results, and trigger remediation without leaving my collaboration tool.
+As a compliance officer using Microsoft Teams, I want to interact with the Security Posture Intelligence Navigator through Teams chat and receive rich Adaptive Card responses so that I can request compliance assessments, view results, and trigger remediation without leaving my collaboration tool.
 
 **Why this priority**: Teams/M365 is the communication hub for non-developer stakeholders (compliance officers, auditors, program managers). This integration broadens the copilot's reach beyond the engineering team.
 
@@ -73,7 +73,7 @@ As an engineer writing Infrastructure-as-Code, I want to analyze the current fil
 
 **Why this priority**: File-level and workspace-level compliance scanning is a critical developer workflow that provides immediate, actionable feedback during the coding process.
 
-**Independent Test**: Can be tested by opening a Bicep file and running "ATO Copilot: Analyze Current File for Compliance" from the command palette, verifying that findings appear in a side-by-side webview panel with severity-colored badges.
+**Independent Test**: Can be tested by opening a Bicep file and running "Security Posture Intelligence Navigator: Analyze Current File for Compliance" from the command palette, verifying that findings appear in a side-by-side webview panel with severity-colored badges.
 
 **Acceptance Scenarios**:
 
@@ -192,7 +192,7 @@ As a DevSecOps engineer, I want to export compliance analysis results in multipl
 - Q: Should building `/mcp/analyze-code` and `/mcp/analyze-repository` endpoints be part of this feature, or should analysis commands use the existing `/mcp/chat` endpoint? → A: Route analysis through existing `/mcp/chat` with structured prompts — no new backend endpoints needed.
 - Q: FR-023 states "six slash commands" but only 3 agents exist (ComplianceAgent, KnowledgeBaseAgent, ConfigurationAgent). How many slash commands? → A: Three commands (`/compliance`, `/knowledge`, `/config`) matching the 3 existing agents.
 - Q: Should the InMemoryChannel implement any eviction/cleanup strategy for idle connections? → A: Yes — periodic idle connection cleanup using the existing `IdleConnectionTimeout` from `ChannelOptions` (default 30 minutes).
-- Q: The spec uses both "ATO Copilot" and "Platform Copilot" in different places. Which canonical name? → A: "ATO Copilot" everywhere — rename M365 references (manifest, app ID, domain, card headers) to match the codebase's `Ato.Copilot.*` naming.
+- Q: The spec uses both "Security Posture Intelligence Navigator" and "Platform Copilot" in different places. Which canonical name? → A: "Security Posture Intelligence Navigator" everywhere — rename M365 references (manifest, app ID, domain, card headers) to match the codebase's `Ato.Copilot.*` naming.
 - Q: FR-012 says DefaultMessageHandler returns an Error when no AgentInvoker is configured, but the user description says "echo". Which behavior? → A: Both — configurable via `ChannelOptions.DefaultHandlerBehavior` (Echo or Error), defaulting to Echo for testing convenience.
 
 ## Assumptions
@@ -204,7 +204,7 @@ As a DevSecOps engineer, I want to export compliance analysis results in multipl
 - Azure AD / Bot Framework authentication for the M365 extension is configured externally — the extension reads credentials from environment variables but does not implement the OAuth flow itself.
 - App icon files (`color.png` 192x192, `outline.png` 32x32) for the Teams manifest will use placeholder images initially.
 - The VS Code extension targets VS Code 1.90+ which includes stable GitHub Copilot Chat API support.
-- All components MUST use "ATO Copilot" as the canonical product name. The M365 extension's Teams manifest, app ID, deploy domain, and Adaptive Card headers must use "ATO Copilot" (not "Platform Copilot") for brand consistency with the `Ato.Copilot.*` codebase.
+- All components MUST use "Security Posture Intelligence Navigator" as the canonical product name. The M365 extension's Teams manifest, app ID, deploy domain, and Adaptive Card headers must use "Security Posture Intelligence Navigator" (not "Platform Copilot") for brand consistency with the `Ato.Copilot.*` codebase.
 
 ## Success Criteria *(mandatory)*
 

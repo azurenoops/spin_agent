@@ -109,6 +109,8 @@ public class BaselineService : IBaselineService
 
         // Snapshot existing inheritance designations before removing
         var inheritanceSnapshot = existing?.Inheritances
+            // Subscription ownership must be re-evaluated against the new baseline.
+            .Where(i => i.DesignationSource != "CspSubscription")
             .Select(i => new { i.ControlId, i.InheritanceType, i.Provider, i.CustomerResponsibility, i.SetBy })
             .ToList() ?? [];
 
@@ -293,6 +295,14 @@ public class BaselineService : IBaselineService
             _logger.LogInformation(
                 "Propagated {Count} org-level defaults to system '{SystemId}' during baseline selection, {Skipped} existing overrides preserved",
                 propagation.PropagatedCount, systemId, propagation.SkippedCount);
+        }
+
+        if (system.TenantId != Guid.Empty && await context.CapabilitySubscriptions
+            .AnyAsync(s => s.RegisteredSystemId == systemId && s.IsActive, cancellationToken))
+        {
+            baseline.TenantId = system.TenantId;
+            Ato.Copilot.Core.Services.CapabilityResponsibilityRouting.StageBaseline(context, baseline);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         _logger.LogInformation(

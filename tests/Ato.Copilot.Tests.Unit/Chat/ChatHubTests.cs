@@ -19,6 +19,37 @@ namespace Ato.Copilot.Tests.Unit.Chat;
 /// </summary>
 public class ChatHubTests
 {
+    [Theory]
+    [InlineData("join")]
+    [InlineData("send")]
+    [InlineData("typing")]
+    public async Task ForeignConversation_DeniedBeforeGroupOrChannelDelivery(string operation)
+    {
+        // Arrange
+        var service = new Mock<IChatService>();
+        service.Setup(s => s.GetConversationAsync(It.IsAny<string>())).ReturnsAsync((Conversation?)null);
+        var provider = new Mock<IServiceProvider>();
+        provider.Setup(p => p.GetService(typeof(IChatService))).Returns(service.Object);
+        var scope = new Mock<IServiceScope>();
+        scope.Setup(s => s.ServiceProvider).Returns(provider.Object);
+        _scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scope.Object);
+        var hub = CreateHub();
+
+        // Act
+        Func<Task> action = operation switch
+        {
+            "join" => () => hub.JoinConversation("foreign"),
+            "send" => () => hub.SendMessage(new() { ConversationId = "foreign", Message = "forged" }),
+            _ => () => hub.NotifyTyping("foreign")
+        };
+
+        // Assert
+        await action.Should().ThrowAsync<HubException>();
+        _channelMock.VerifyNoOtherCalls();
+        _channelManagerMock.VerifyNoOtherCalls();
+        _clientsMock.VerifyNoOtherCalls();
+    }
+
     private readonly Mock<IChannelManager> _channelManagerMock;
     private readonly Mock<IChannel> _channelMock;
     private readonly Mock<IServiceScopeFactory> _scopeFactoryMock;
@@ -40,6 +71,14 @@ public class ChatHubTests
         _clientProxyMock = new Mock<IClientProxy>();
 
         _contextMock.Setup(c => c.ConnectionId).Returns("test-connection-id");
+        var service = new Mock<IChatService>();
+        service.Setup(s => s.GetConversationAsync(It.IsAny<string>()))
+            .ReturnsAsync(new Conversation { UserId = LegacyChatTestScope.ActorId });
+        var provider = new Mock<IServiceProvider>();
+        provider.Setup(p => p.GetService(typeof(IChatService))).Returns(service.Object);
+        var scope = new Mock<IServiceScope>();
+        scope.Setup(s => s.ServiceProvider).Returns(provider.Object);
+        _scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scope.Object);
     }
 
     private ChatHub CreateHub()
@@ -96,7 +135,8 @@ public class ChatHubTests
 
         // Setup scoped ChatService
         var chatServiceMock = new Mock<IChatService>();
-        chatServiceMock.Setup(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<IProgress<string>?>()))
+        chatServiceMock.Setup(s => s.GetConversationAsync(It.IsAny<string>())).ReturnsAsync(new Conversation());
+        chatServiceMock.Setup(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<IProgress<string>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChatResponse
             {
                 MessageId = "msg-789",
@@ -122,12 +162,12 @@ public class ChatHubTests
 
         // Assert — processing + response sent via IChannel
         _channelMock.Verify(
-            c => c.SendToConversationAsync(conversationId,
+            c => c.SendAsync("test-connection-id",
                 It.Is<ChannelMessage>(m => m.Type == MessageType.AgentThinking),
                 default),
             Times.Once);
         _channelMock.Verify(
-            c => c.SendToConversationAsync(conversationId,
+            c => c.SendAsync("test-connection-id",
                 It.Is<ChannelMessage>(m => m.Type == MessageType.AgentResponse),
                 default),
             Times.Once);
@@ -230,7 +270,8 @@ public class ChatHubTests
         var conversationId = "conv-boundary";
 
         var chatServiceMock = new Mock<IChatService>();
-        chatServiceMock.Setup(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<IProgress<string>?>()))
+        chatServiceMock.Setup(s => s.GetConversationAsync(It.IsAny<string>())).ReturnsAsync(new Conversation());
+        chatServiceMock.Setup(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<IProgress<string>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChatResponse
             {
                 MessageId = "msg-boundary",
@@ -278,7 +319,8 @@ public class ChatHubTests
         var conversationId = "conv-error";
 
         var chatServiceMock = new Mock<IChatService>();
-        chatServiceMock.Setup(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<IProgress<string>?>()))
+        chatServiceMock.Setup(s => s.GetConversationAsync(It.IsAny<string>())).ReturnsAsync(new Conversation());
+        chatServiceMock.Setup(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<IProgress<string>?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Unexpected error"));
 
         var scopeMock = new Mock<IServiceScope>();
@@ -298,7 +340,7 @@ public class ChatHubTests
 
         // Assert — error sent via IChannel
         _channelMock.Verify(
-            c => c.SendToConversationAsync(conversationId,
+            c => c.SendAsync("test-connection-id",
                 It.Is<ChannelMessage>(m => m.Type == MessageType.Error),
                 default),
             Times.Once);

@@ -30,7 +30,7 @@ export function buildSignInCard(options: SignInCardOptions = {}): Record<string,
     body: [
       {
         type: "TextBlock",
-        text: "Sign in to ATO Copilot",
+        text: "Sign in to Security Posture Intelligence Navigator",
         weight: "Bolder",
         size: "Medium",
       },
@@ -72,7 +72,7 @@ export function buildSignOutConfirmationCard(): Record<string, unknown> {
       },
       {
         type: "TextBlock",
-        text: "Your Microsoft account is no longer linked to ATO Copilot in this Teams tenant. Mention me again to sign back in.",
+        text: "Your Microsoft account is no longer linked to Security Posture Intelligence Navigator in this Teams tenant. Mention me again to sign back in.",
         wrap: true,
       },
     ],

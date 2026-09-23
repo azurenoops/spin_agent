@@ -485,7 +485,7 @@ export class McpClient {
 
       if (code === "ECONNREFUSED") {
         return {
-          message: `Cannot connect to ATO Copilot API at ${config.apiUrl}`,
+          message: `Cannot connect to Security Posture Intelligence Navigator API at ${config.apiUrl}`,
           actionButton: "Configure Connection",
           code: "ECONNREFUSED",
         };
@@ -493,7 +493,7 @@ export class McpClient {
 
       if (code === "ETIMEDOUT" || code === "ECONNABORTED") {
         return {
-          message: "ATO Copilot API request timed out",
+          message: "Security Posture Intelligence Navigator API request timed out",
           actionButton: "Configure Connection",
           code: "ETIMEDOUT",
         };
@@ -502,7 +502,7 @@ export class McpClient {
       const status = axiosError.response?.status;
       if (status === 401) {
         return {
-          message: "ATO Copilot API authentication failed",
+          message: "Security Posture Intelligence Navigator API authentication failed",
           actionButton: "Configure Connection",
           code: "HTTP_401",
         };
@@ -510,7 +510,7 @@ export class McpClient {
 
       if (status === 500) {
         return {
-          message: "ATO Copilot API encountered an error",
+          message: "Security Posture Intelligence Navigator API encountered an error",
           actionButton: "Retry",
           code: "HTTP_500",
         };

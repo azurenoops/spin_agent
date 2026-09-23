@@ -70,7 +70,7 @@ Expected result: Component inventory listing all People, Places, and Things for 
 
 > **"Define the authorization boundary for system {id} — add the production VMs, SQL database, and Key Vault"**
 
-Expected result: Azure resource IDs added to the authorization boundary. ATO Copilot confirms the resource count.
+Expected result: Azure resource IDs added to the authorization boundary. Security Posture Intelligence Navigator confirms the resource count.
 
 ### 4. Assign RMF Roles
 
@@ -90,7 +90,7 @@ Expected result: RMF roles assigned. You can verify with "What roles are assigne
 |-------|-------|-----|
 | "Role not recognized" | CAC certificate not mapped to any RBAC role | Contact Administrator to map your CAC thumbprint, or verify Azure AD group membership |
 | "Cannot register system" | Missing `Compliance.SecurityLead` role | Verify your role with "What role am I logged in as?" — only SecurityLead can register systems |
-| "Subscription not found" | Azure subscription not linked to ATO Copilot | Verify the subscription ID and ensure the ATO Copilot service principal has Reader access |
+| "Subscription not found" | Azure subscription not linked to Security Posture Intelligence Navigator | Verify the subscription ID and ensure the Security Posture Intelligence Navigator service principal has Reader access |
 
 ---
 

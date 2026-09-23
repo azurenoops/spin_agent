@@ -19,7 +19,7 @@ export function buildGenericCard(data: GenericData): Record<string, unknown> {
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot",
+      text: "Security Posture Intelligence Navigator",
       weight: "Bolder",
       size: "Large",
     },

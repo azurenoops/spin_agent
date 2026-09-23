@@ -4,9 +4,12 @@ import CspSystemsPage from '../features/csp-dashboard/CspSystemsPage';
 import RouteResolverFallback from '../components/layout/RouteResolverFallback';
 import { useCspDashboardAvailable } from '../components/layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../hooks/useImpersonationActive';
+import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
 
 /**
  * Scope-aware resolver mounted at `/systems`. Mirrors `PortfolioRoute` for
+ * explicit workspace context. The compatibility matrix below applies only
+ * when no explicit workspace is mounted.
  * `/`: when the caller is a CSP-Admin in `MultiTenant` mode and is NOT
  * currently impersonating, render the cross-tenant `CspSystemsPage`; in
  * every other case render the per-tenant `PortfolioDashboard` (which
@@ -29,8 +32,12 @@ import { useImpersonationActive } from '../hooks/useImpersonationActive';
  * the sessionStorage cache makes subsequent navigations instant.
  */
 export default function SystemsRoute(): ReactElement {
+  const workspace = useWorkspaceTarget();
   const impersonating = useImpersonationActive();
-  const cspAdminAvailable = useCspDashboardAvailable();
+  const cspAdminAvailable = useCspDashboardAvailable(!workspace);
+
+  if (workspace?.kind === 'csp') return <CspSystemsPage />;
+  if (workspace?.kind === 'organization') return <PortfolioDashboard />;
 
   if (impersonating) {
     return <PortfolioDashboard />;

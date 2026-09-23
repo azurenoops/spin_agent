@@ -335,7 +335,7 @@ public class CompareSnapshotsTool : BaseTool
 
 /// <summary>
 /// MCP tool: compliance_verify_evidence — Recompute hash and verify evidence integrity.
-/// RBAC: Compliance.Auditor (SCA)
+/// Requires effective assigned SCA or system evidence-management permission.
 /// </summary>
 public class VerifyEvidenceTool : BaseTool
 {
@@ -353,8 +353,9 @@ public class VerifyEvidenceTool : BaseTool
 
     public override string Description =>
         "Recompute SHA-256 hash of evidence content and verify it matches the stored hash. " +
-        "Reports verified or tampered status with collector identity and collection method. " +
-        "RBAC: Compliance.Auditor (SCA).";
+        "Reports verified or tampered status with original collector and trusted verifier identities. " +
+        "Requires effective assigned SCA or evidence-management permission for the owning system; " +
+        "this is not assessment approval or evidence authorship.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {
@@ -387,11 +388,20 @@ public class VerifyEvidenceTool : BaseTool
                     recomputed_hash = result.RecomputedHash,
                     verification_status = result.Status,
                     collector_identity = result.CollectorIdentity,
+                    verifier_identity = result.VerifierIdentity,
                     collection_method = result.CollectionMethod,
                     integrity_verified_at = result.IntegrityVerifiedAt?.ToString("O")
                 },
                 metadata = Meta(sw)
             }, JsonOpts);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Error("FORBIDDEN", ex.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (InvalidOperationException ex)
         {

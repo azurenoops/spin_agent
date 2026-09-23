@@ -180,7 +180,7 @@ npm run dev
 
 **Verify**:
 
-- First `@ATO Copilot` mention triggers either Bot Framework SSO
+- First `@Security Posture Intelligence Navigator` mention triggers either Bot Framework SSO
   (`Auth:TeamsSso:Mode = Optional`) OR `OAuthPrompt` fallback.
 - After successful auth, subsequent mentions DO NOT re-prompt.
 - Switching to a different Teams tenant DOES re-prompt.

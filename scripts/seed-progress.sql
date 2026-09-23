@@ -1,5 +1,5 @@
 -- ============================================================================
---  ATO Copilot — Seed varied RMF / ATO progress per registered system
+--  Security Posture Intelligence Navigator — Seed varied RMF / ATO progress per registered system
 --  Target:  AtoCopilot (SQL Server in docker compose, container ato-copilot-sql)
 --  Idempotent: re-running is a no-op.
 --  Tiers (May 6, 2026 reference date):

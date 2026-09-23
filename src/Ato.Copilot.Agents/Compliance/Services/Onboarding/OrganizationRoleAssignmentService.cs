@@ -173,7 +173,9 @@ public class OrganizationRoleAssignmentService : IOrganizationRoleAssignmentServ
                 .CountAsync(r => r.TenantId == tenantId &&
                                  r.Role == OrganizationRole.Administrator &&
                                  r.RemovedAt == null &&
-                                 r.Id != assignmentId, ct);
+                                 r.Id != assignmentId &&
+                                 (!db.IsWorkspaceRequest || db.OrganizationMemberships.Any(m =>
+                                     m.TenantId == tenantId && m.PersonId == r.PersonId && m.RevokedAt == null)), ct);
             if (remainingAdmins == 0)
             {
                 throw new InvalidOperationException(WizardErrorCodes.LastAdminProtected);

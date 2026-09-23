@@ -887,6 +887,14 @@ public class SystemProfileService : ISystemProfileService
         RmfRole? simulatedRole,
         CancellationToken cancellationToken)
     {
+        if (db.IsWorkspaceRequest)
+        {
+            if (db.WorkspacePersonId is not { } personId) return false;
+            var roles = await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.ResolveRolesAsync(
+                db, db.TenantFilterEffectiveId, personId, systemId, cancellationToken);
+            return roles.Any(allowedRoles.Contains);
+        }
+
         if (simulatedRole.HasValue && allowedRoles.Contains(simulatedRole.Value))
             return true;
 

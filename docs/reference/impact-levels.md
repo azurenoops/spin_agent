@@ -8,7 +8,7 @@
 
 Department of Defense (DoD) Impact Levels classify information systems by the sensitivity of data processed, stored, or transmitted. Each level imposes progressively stricter security requirements aligned with NIST 800-53 baselines and FedRAMP authorization levels.
 
-ATO Copilot models impact levels through the `ImpactLevel` entity, which associates data classification rules, security requirements, and Azure-specific implementation guidance.
+Security Posture Intelligence Navigator models impact levels through the `ImpactLevel` entity, which associates data classification rules, security requirements, and Azure-specific implementation guidance.
 
 ---
 

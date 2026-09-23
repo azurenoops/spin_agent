@@ -65,6 +65,9 @@ public class SspService : ISspService
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            context, systemId, permission => permission.CanAuthorNarratives, cancellationToken);
+
         // Verify system exists
         var system = await context.RegisteredSystems
             .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken)

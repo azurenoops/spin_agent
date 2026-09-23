@@ -19,7 +19,7 @@ host. All fields below are currently set in `extensions/vscode/package.json`.
 | Field | Type | Current value | v1.0 requirement |
 |-------|------|--------------|-----------------|
 | `name` | `string` | `ato-copilot-vscode` | unchanged |
-| `displayName` | `string` | `ATO Copilot` | unchanged |
+| `displayName` | `string` | `Security Posture Intelligence Navigator` | unchanged |
 | `version` | `string` | `0.1.0` | unchanged for initial release |
 | `publisher` | `string` | `ato-copilot` | must be a **claimed** Marketplace account |
 | `description` | `string` | set | unchanged |
@@ -34,7 +34,7 @@ host. All fields below are currently set in `extensions/vscode/package.json`.
 | Field | Value |
 |-------|-------|
 | `id` | `"ato"` |
-| `fullName` | `"ATO Copilot"` |
+| `fullName` | `"Security Posture Intelligence Navigator"` |
 | `name` | `"ato"` (used as `@ato` in chat) |
 | `isSticky` | `true` |
 | `iconPath` | `"media/icon.svg"` |
@@ -79,7 +79,7 @@ Settings are accessed via `vscode.workspace.getConfiguration('ato-copilot')`.
   "ato-copilot.enableLogging": {
     "type": "boolean",
     "default": false,
-    "description": "Enable debug logging to the ATO Copilot output channel"
+    "description": "Enable debug logging to the Security Posture Intelligence Navigator output channel"
   },
   "ato-copilot.tenantId": {
     "type": "string",

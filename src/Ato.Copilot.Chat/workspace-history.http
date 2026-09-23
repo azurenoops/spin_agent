@@ -1,0 +1,83 @@
+# #1002 legacy persisted Chat contract (documented before implementation).
+# Use only disposable local test data. No additional login/provider is introduced.
+# Every persistence operation requires the existing JWT authentication handler AND
+# successful MCP GET /api/auth/me with this exact user's bearer and explicit selectors.
+# Actor = validated directory tid + oid; selected organization/person/mode comes from /me.
+# No caller UserId, role, email, context owner, or default service credential grants access.
+# New conversations receive a versioned qualified-owner key; old ownerless rows remain
+# inaccessible. Nullable additive columns do NOT adopt/migrate any legacy ownership.
+# A conversation can bind a system on its first message/context update only; that
+# system is checked at the upstream workspace-access route before history is returned.
+# Changing system after history exists is rejected: create another conversation.
+# Revoked membership, invalid tokens, /me outage/mismatch fail before Chat DB access.
+# Hub join/send/typing use the same checks, not client-provided group authorization.
+# Responses/progress are delivered to the invoking connection, not a persistent group:
+# a stale previously-joined connection must never receive later private history.
+# All service operations honor the trusted HTTP RequestAborted token; channel send
+# also exposes explicit cancellation linked to that request lifetime.
+# Manual verification: create as A, send twice, GET messages/search/history; replay
+# each conversation/message/attachment ID with B, another directory, organization,
+# or ordinary/support mode: no content and no writes. Confirm ownerless rows 404.
+# Cancel an active request and confirm cancellation reaches upstream/EF operations.
+# Deployment: Chat startup adds nullable Conversations.OwnerKey/SystemId columns
+# for SQLite/SQL Server; it never backfills either column. Back up the Chat database
+# before deployment. Rollback may leave these additive columns in place, but do not
+# expose a pre-isolation Chat binary against persisted sensitive history.
+@chat = https://localhost:5001
+@token = REPLACE_WITH_USER_BEARER
+@organization = 11111111-1111-1111-1111-111111111111
+@conversation = REPLACE_WITH_CREATED_ID
+@message = REPLACE_WITH_CREATED_MESSAGE_ID
+
+### Create (UserId is deliberately forged; it must never select ownership).
+POST {{chat}}/api/conversations
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"title":"Workspace isolation manual test","userId":"forged-owner"}
+
+### First message, then repeat for continuation.
+POST {{chat}}/api/messages
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"conversationId":"{{conversation}}","message":"Explain the RMF phases"}
+
+### History (repeat with a different user's token or workspace).
+GET {{chat}}/api/messages?conversationId={{conversation}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+
+### Search ignores caller-supplied ownership filters.
+GET {{chat}}/api/conversations/search?query=Workspace&userId=forged-owner
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary
+
+### Denied without explicit selectors (no implicit home workspace).
+GET {{chat}}/api/conversations/{{conversation}}
+Authorization: Bearer {{token}}
+
+### Support is a separate scope; only this mode forwards ato-impersonate.
+GET {{chat}}/api/conversations/{{conversation}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: support
+Cookie: ato-impersonate=REPLACE_WITH_VALID_SUPPORT_COOKIE
+
+### Delete own disposable conversation only.
+DELETE {{chat}}/api/conversations/{{conversation}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{organization}}
+X-Workspace-Mode: ordinary

@@ -68,6 +68,7 @@ public class MeEndpointTests
         body.GetProperty("status").GetString().Should().Be("success");
         var data = body.GetProperty("data");
         data.GetProperty("oid").GetString().Should().Be(oid);
+        data.GetProperty("directoryTenantId").GetGuid().Should().Be(EntraTidForTenantA);
         data.GetProperty("displayName").GetString().Should().Be("Jane Spinella");
         data.TryGetProperty("persona", out _).Should().BeTrue();
         data.GetProperty("homeTenant").GetProperty("id").GetGuid()

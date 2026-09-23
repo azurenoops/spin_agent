@@ -5,7 +5,7 @@
 
 ## Summary
 
-Create comprehensive, all-encompassing user documentation for ATO Copilot organized by persona (ISSM, ISSO, SCA, AO, Engineer, Administrator). The documentation covers natural language interaction patterns, RMF phase workflows, document production, assessment guidance, cross-persona collaboration, portfolio management, air-gapped operations, onboarding, and troubleshooting. Delivered as a static documentation site (MkDocs) generated from Markdown files in `docs/`.
+Create comprehensive, all-encompassing user documentation for Security Posture Intelligence Navigator organized by persona (ISSM, ISSO, SCA, AO, Engineer, Administrator). The documentation covers natural language interaction patterns, RMF phase workflows, document production, assessment guidance, cross-persona collaboration, portfolio management, air-gapped operations, onboarding, and troubleshooting. Delivered as a static documentation site (MkDocs) generated from Markdown files in `docs/`.
 
 **Technical Approach**: Restructure and expand the existing `docs/guides/` Markdown files into a comprehensive documentation site using MkDocs with Material theme. No production code changes — this is a documentation-only feature. Existing guides are preserved and enhanced; new pages are added for gaps identified in the spec (getting started, portfolio management, troubleshooting, NL query reference, document catalog).
 

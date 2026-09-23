@@ -71,7 +71,7 @@ export function buildSystemSummaryCard(data: SystemSummaryData): Record<string, 
     // Header
     {
       type: "TextBlock",
-      text: "ATO Copilot — System Summary",
+      text: "Security Posture Intelligence Navigator — System Summary",
       weight: "Bolder",
       size: "Large",
     },

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../features/workspaces/workspaceNavigation';
 import type { ReactElement } from 'react';
 import type { PortfolioSystemSummary } from '../../types/dashboard';
 import AtoCountdown from './AtoCountdown';

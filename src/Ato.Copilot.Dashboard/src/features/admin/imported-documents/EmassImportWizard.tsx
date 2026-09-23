@@ -12,7 +12,7 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../workspaces/workspaceNavigation';
 import { attachAuthInterceptor } from '../../auth/interceptors';
 import { getMsalInstance, DEFAULT_API_SCOPES } from '../../auth/msalInstance';
 

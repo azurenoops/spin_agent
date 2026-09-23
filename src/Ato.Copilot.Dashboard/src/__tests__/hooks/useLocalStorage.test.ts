@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
@@ -6,6 +6,73 @@ describe('useLocalStorage', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('never exposes the previous scope when the storage key changes', () => {
+    // Arrange
+    localStorage.setItem('scope-a', JSON.stringify('alpha'));
+    localStorage.setItem('scope-b', JSON.stringify('beta'));
+    const seen: string[] = [];
+    const hook = renderHook(({ storageKey }) => {
+      const value = useLocalStorage(storageKey, 'empty');
+      seen.push(`${storageKey}:${value[0]}`);
+      return value;
+    }, { initialProps: { storageKey: 'scope-a' } });
+
+    // Act
+    hook.rerender({ storageKey: 'scope-b' });
+
+    // Assert
+    expect(hook.result.current[0]).toBe('beta');
+    expect(seen).not.toContain('scope-b:alpha');
+  });
+
+  it('flushes a pending write to its original scope before unmount', () => {
+    // Arrange
+    const hook = renderHook(() => useLocalStorage('scope-a', 'empty'));
+    act(() => hook.result.current[1]('last alpha message'));
+
+    // Act
+    hook.unmount();
+
+    // Assert
+    expect(localStorage.getItem('scope-a')).toBe(JSON.stringify('last alpha message'));
+  });
+
+  it('ignores a setter captured by a previous scope', () => {
+    // Arrange
+    localStorage.setItem('scope-b', JSON.stringify('beta'));
+    const hook = renderHook(({ storageKey }) => useLocalStorage(storageKey, 'empty'),
+      { initialProps: { storageKey: 'scope-a' } });
+    const oldSetter = hook.result.current[1];
+    hook.rerender({ storageKey: 'scope-b' });
+
+    // Act
+    act(() => oldSetter('obsolete response'));
+    act(() => vi.advanceTimersByTime(150));
+
+    // Assert
+    expect(hook.result.current[0]).toBe('beta');
+    expect(localStorage.getItem('scope-a')).toBeNull();
+    expect(localStorage.getItem('scope-b')).toBe(JSON.stringify('beta'));
+  });
+
+  it('uses memory only when qualified persistence is disabled', () => {
+    // Arrange
+    localStorage.setItem('null', JSON.stringify('foreign data'));
+    const { result } = renderHook(() => useLocalStorage<string>(null, 'empty'));
+
+    // Act
+    act(() => result.current[1]('ephemeral'));
+    act(() => vi.advanceTimersByTime(150));
+
+    // Assert
+    expect(result.current[0]).toBe('ephemeral');
+    expect(localStorage.getItem('null')).toBe(JSON.stringify('foreign data'));
   });
 
   it('returns initial value when key is not in localStorage', () => {
@@ -51,9 +118,11 @@ describe('useLocalStorage', () => {
   });
 
   it('handles JSON parse errors gracefully', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementationOnce(() => {});
     localStorage.setItem('bad-key', 'not-json');
     const { result } = renderHook(() => useLocalStorage('bad-key', 'fallback'));
     expect(result.current[0]).toBe('fallback');
+    expect(warn).toHaveBeenCalledWith('Browser storage could not be read; using the initial value.');
   });
 
   it('stores complex objects', () => {

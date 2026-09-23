@@ -6,10 +6,12 @@ using System.Text.Json;
 using Ato.Copilot.Agents.Compliance.Services.Onboarding;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Onboarding;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Onboarding;
 using Ato.Copilot.Core.Services.Roles;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Endpoints.Onboarding;
 using FluentAssertions;
@@ -59,6 +61,7 @@ public class RoleAuthorizationMatrixCoverageTests : IAsyncLifetime
 
         _dbName = $"AuthzMatrix_{Guid.NewGuid():N}";
         builder.Services.AddDbContextFactory<AtoCopilotContext>(o => o.UseInMemoryDatabase(_dbName));
+        builder.Services.AddScoped<ITenantContext, TenantContext>();
         builder.Services.AddScoped<IWizardAuditService>(_ => Mock.Of<IWizardAuditService>());
         builder.Services.AddScoped<IOrganizationRoleAssignmentService, OrganizationRoleAssignmentService>();
         builder.Services.AddSingleton(NullLogger<OrganizationRoleAssignmentService>.Instance);
@@ -163,10 +166,15 @@ public class RoleAuthorizationMatrixCoverageTests : IAsyncLifetime
         payload.GetProperty("errorCode").GetString()
             .Should().Be("RBAC_ROLE_ASSIGN_DENIED",
                 "every FR-027 denial MUST use the closed error code RBAC_ROLE_ASSIGN_DENIED");
-        payload.TryGetProperty("callerEffectiveRole", out _).Should().BeTrue(
-            "the envelope MUST carry the caller's effective role so the dashboard can render an actionable message");
-        payload.TryGetProperty("targetRole", out _).Should().BeTrue(
-            "the envelope MUST carry the target role for the same reason");
+        payload.GetProperty("callerEffectiveRole").GetString().Should()
+            .Be(OrganizationRoleToRmfRoleMap.TryMap(callerRole)!.Value.ToString());
+        payload.GetProperty("targetRole").GetString().Should()
+            .Be(OrganizationRoleToRmfRoleMap.TryMap(targetRole)!.Value.ToString());
+        await using var verificationDb = await factory.CreateDbContextAsync();
+        var assignments = await verificationDb.OrganizationRoleAssignments.ToListAsync();
+        assignments.Should().ContainSingle();
+        assignments[0].PersonId.Should().Be(callerPersonId);
+        assignments[0].Role.Should().Be(callerRole);
     }
 
     private sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>

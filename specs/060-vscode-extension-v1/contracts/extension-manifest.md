@@ -11,7 +11,7 @@ at the v1.0 release. All fields marked **v1.0 required** must be set before
 | Field | Type | v1.0 value | Notes |
 |-------|------|-----------|-------|
 | `name` | string | `ato-copilot-vscode` | npm package name; must be unique on Open VSX / Marketplace |
-| `displayName` | string | `ATO Copilot` | Shown in Extensions sidebar |
+| `displayName` | string | `Security Posture Intelligence Navigator` | Shown in Extensions sidebar |
 | `version` | string | `0.1.0` | SemVer; bump before publish |
 | `publisher` | string | `ato-copilot` | **Must be a claimed Marketplace account** |
 | `description` | string | (existing) | < 100 chars, no markdown |
@@ -43,7 +43,7 @@ of activation event.
 "chatParticipants": [
   {
     "id": "ato",
-    "fullName": "ATO Copilot",
+    "fullName": "Security Posture Intelligence Navigator",
     "name": "ato",
     "description": "Ask about ATO compliance, NIST 800-53 controls, and infrastructure-as-code",
     "isSticky": true,
@@ -51,7 +51,7 @@ of activation event.
     "commands": [
       { "name": "compliance", "description": "Run compliance assessments, query controls, remediation" },
       { "name": "knowledge",  "description": "Query ATO knowledge base, best practices, documentation" },
-      { "name": "config",     "description": "Manage ATO Copilot configuration settings" }
+      { "name": "config",     "description": "Manage Security Posture Intelligence Navigator configuration settings" }
     ]
   }
 ]
@@ -67,15 +67,15 @@ All nine commands must be registered via `vscode.commands.registerCommand` in
 
 | `command` | `title` | Handler module | Menu |
 |-----------|---------|---------------|------|
-| `ato.checkHealth` | ATO Copilot: Check API Health | `commands/health.ts` | — |
-| `ato.configure` | ATO Copilot: Configure Connection | `commands/configure.ts` | — |
-| `ato.signIn` | ATO Copilot: Sign In | `commands/signIn.ts` | — |
-| `ato.signOut` | ATO Copilot: Sign Out | `commands/signOut.ts` | — |
-| `ato.switchTenant` | ATO Copilot: Switch Tenant | `commands/switchTenant.ts` | — |
-| `ato.analyzeCurrentFile` | ATO Copilot: Analyze Current File for Compliance | `commands/analyzeFile.ts` | — |
-| `ato.analyzeWorkspace` | ATO Copilot: Analyze Workspace for Compliance | `commands/analyzeWorkspace.ts` | — |
-| `ato.followUpSuggestion` | ATO Copilot: Follow-Up Suggestion | `commands/followUpSuggestion.ts` | — |
-| `ato.requestFalsePositive` | ATO Copilot: Request False Positive | `commands/requestFalsePositive.ts` | `editor/context` when `editorTextFocus` |
+| `ato.checkHealth` | Security Posture Intelligence Navigator: Check API Health | `commands/health.ts` | — |
+| `ato.configure` | Security Posture Intelligence Navigator: Configure Connection | `commands/configure.ts` | — |
+| `ato.signIn` | Security Posture Intelligence Navigator: Sign In | `commands/signIn.ts` | — |
+| `ato.signOut` | Security Posture Intelligence Navigator: Sign Out | `commands/signOut.ts` | — |
+| `ato.switchTenant` | Security Posture Intelligence Navigator: Switch Tenant | `commands/switchTenant.ts` | — |
+| `ato.analyzeCurrentFile` | Security Posture Intelligence Navigator: Analyze Current File for Compliance | `commands/analyzeFile.ts` | — |
+| `ato.analyzeWorkspace` | Security Posture Intelligence Navigator: Analyze Workspace for Compliance | `commands/analyzeWorkspace.ts` | — |
+| `ato.followUpSuggestion` | Security Posture Intelligence Navigator: Follow-Up Suggestion | `commands/followUpSuggestion.ts` | — |
+| `ato.requestFalsePositive` | Security Posture Intelligence Navigator: Request False Positive | `commands/requestFalsePositive.ts` | `editor/context` when `editorTextFocus` |
 
 ---
 
@@ -86,7 +86,7 @@ All nine commands must be registered via `vscode.commands.registerCommand` in
 | `ato-copilot.apiUrl` | `string` | `http://localhost:3001` | MCP Server base URL. Examples: `https://ato-copilot-staging.example.com`, `https://ato.example.com` |
 | `ato-copilot.apiKey` | `string` | `""` | API key for authentication (if required). Stored in SecretStorage when non-empty. |
 | `ato-copilot.timeout` | `number` | `30000` | Request timeout in milliseconds. Range: 1000–300000. |
-| `ato-copilot.enableLogging` | `boolean` | `false` | Enable debug logging to the "ATO Copilot" Output channel. |
+| `ato-copilot.enableLogging` | `boolean` | `false` | Enable debug logging to the "Security Posture Intelligence Navigator" Output channel. |
 | `ato-copilot.tenantId` | `string` | `""` | Home tenant id (GUID). Forwarded as `X-Tenant-Id` on MCP requests. |
 | `ato-copilot.impersonatedTenantId` | `string` | `""` | CSP-Admin impersonated tenant id (GUID). Forwarded as `X-Impersonated-Tenant-Id`. |
 
@@ -100,7 +100,7 @@ All nine commands must be registered via `vscode.commands.registerCommand` in
     {
       "command": "ato.requestFalsePositive",
       "when": "editorTextFocus",
-      "group": "ATO Copilot"
+      "group": "Security Posture Intelligence Navigator"
     }
   ]
 }

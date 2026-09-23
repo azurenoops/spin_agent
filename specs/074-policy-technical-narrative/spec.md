@@ -11,7 +11,7 @@
 
 ## Background
 
-Every NIST 800-53 control implementation in ATO Copilot today has exactly one `ControlImplementation.Narrative`
+Every NIST 800-53 control implementation in Security Posture Intelligence Navigator today has exactly one `ControlImplementation.Narrative`
 field. In real RMF practice auditors expect **two** canonical halves:
 
 | Half | Covers | Evidence | Reviewer |

@@ -88,7 +88,7 @@ public class CspOnboardingContractTests
         // Arrange
         var request = new
         {
-            legalEntityName = "ATO Copilot Test Hosting LLC",
+            legalEntityName = "Security Posture Intelligence Navigator Test Hosting LLC",
             displayName = "ATO Test CSP",
         };
 
@@ -102,7 +102,7 @@ public class CspOnboardingContractTests
         body.GetProperty("data").GetProperty("currentStep").GetString()
             .Should().Be("SupportContact");
         body.GetProperty("data").GetProperty("identity").GetProperty("legalEntityName").GetString()
-            .Should().Be("ATO Copilot Test Hosting LLC");
+            .Should().Be("Security Posture Intelligence Navigator Test Hosting LLC");
     }
 
     [Fact]

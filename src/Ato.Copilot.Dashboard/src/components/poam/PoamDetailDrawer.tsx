@@ -8,6 +8,7 @@ import ComponentPicker from './ComponentPicker';
 import PoamLifecycleActions from './PoamLifecycleActions';
 import SyncIndicator from './SyncIndicator';
 import AsyncErrorState from '../AsyncErrorState';
+import { useSystemMutationPermission } from '../permissions/useSystemMutationPermission';
 
 const syncStatusColors: Record<string, string> = {
   Synced: 'bg-green-100 text-green-700',
@@ -23,10 +24,39 @@ interface PoamDetailDrawerProps {
 
 export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerProps) {
   const { data: detail, loading, error, refresh } = usePoamDetail(poamId);
+  const canManageRemediation = useSystemMutationPermission(detail?.systemId, 'canManageRemediation');
+  // Ticket push/pull has no scoped workspace-operation projection yet.
+  const canSyncTickets = useSystemMutationPermission(detail?.systemId, null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [showComponentPicker, setShowComponentPicker] = useState(false);
   const [pickerComponentIds, setPickerComponentIds] = useState<string[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [deviation, setDeviation] = useState<DeviationDetail | null>(null);
+
+  const mutate = async (action: () => Promise<unknown>, allowed = canManageRemediation) => {
+    if (!allowed) {
+      setMutationError('Permission denied: this mutation is not authorized for this system.');
+      return false;
+    }
+    setMutationError(null);
+    try {
+      await action();
+      refresh();
+      return true;
+    } catch (err: unknown) {
+      setMutationError(err instanceof Error ? err.message : 'Failed to update POA&M.');
+      return false;
+    }
+  };
+
+  const handleSync = async (direction: 'push' | 'pull') => {
+    setSyncing(true);
+    try {
+      await mutate(() => syncTicket(poamId, { direction }), canSyncTickets);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     if (detail?.deviationId) {
@@ -75,6 +105,7 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
 
         {/* Content */}
         <div className="flex-1 space-y-6 p-6">
+          {mutationError && <p role="alert" className="text-sm text-red-600">{mutationError}</p>}
           {error && (
             <AsyncErrorState title="Unable to refresh POA&amp;M details." onRetry={refresh} />
           )}
@@ -160,7 +191,14 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                   <dt className="text-gray-500">Components ({detail.components?.length ?? 0})</dt>
                   <button
                     type="button"
-                    onClick={() => { setShowComponentPicker(p => !p); setPickerComponentIds([]); }}
+                    disabled={!canManageRemediation && !showComponentPicker}
+                    onClick={() => {
+                      if (!showComponentPicker && !canManageRemediation) {
+                        setMutationError('Permission denied: you cannot manage remediation for this system.');
+                        return;
+                      }
+                      setShowComponentPicker(p => !p); setPickerComponentIds([]);
+                    }}
                     className="text-xs text-indigo-600 hover:underline"
                   >
                     {showComponentPicker ? 'Cancel' : '+ Link'}
@@ -173,10 +211,8 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                         {c.name}
                         <button
                           type="button"
-                          onClick={async () => {
-                            await unlinkComponents(poamId, { componentIds: [c.id] });
-                            refresh();
-                          }}
+                          disabled={!canManageRemediation}
+                          onClick={() => void mutate(() => unlinkComponents(poamId, { componentIds: [c.id] }))}
                           className="text-gray-400 hover:text-red-500"
                           title="Unlink component"
                         >&times;</button>
@@ -190,11 +226,12 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                     {pickerComponentIds.length > 0 && (
                       <button
                         type="button"
+                        disabled={!canManageRemediation}
                         onClick={async () => {
-                          await linkComponents(poamId, { componentIds: pickerComponentIds });
-                          setShowComponentPicker(false);
-                          setPickerComponentIds([]);
-                          refresh();
+                          if (await mutate(() => linkComponents(poamId, { componentIds: pickerComponentIds }))) {
+                            setShowComponentPicker(false);
+                            setPickerComponentIds([]);
+                          }
                         }}
                         className="mt-1 rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700"
                       >
@@ -218,24 +255,24 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                       <>
                         <button
                           type="button"
-                          onClick={async () => {
+                          disabled={!canManageRemediation}
+                          onClick={() => void mutate(async () => {
                             const boardId = prompt('Enter board ID for the new task:');
                             if (!boardId) return;
                             await createTaskFromPoam(poamId, { boardId });
-                            refresh();
-                          }}
+                          })}
                           className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700 hover:bg-indigo-100"
                         >
                           Create Task
                         </button>
                         <button
                           type="button"
-                          onClick={async () => {
+                          disabled={!canManageRemediation}
+                          onClick={() => void mutate(async () => {
                             const taskId = prompt('Enter existing task ID to link:');
                             if (!taskId) return;
                             await linkTask(poamId, { taskId });
-                            refresh();
-                          }}
+                          })}
                           className="rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-100"
                         >
                           Link Task
@@ -245,11 +282,11 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                     {detail.remediationTaskId && (
                       <button
                         type="button"
-                        onClick={async () => {
+                        disabled={!canManageRemediation}
+                        onClick={() => void mutate(async () => {
                           if (!confirm('Unlink the remediation task from this POA&M?')) return;
                           await unlinkTask(poamId);
-                          refresh();
-                        }}
+                        })}
                         className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-700 hover:bg-red-100"
                       >
                         Unlink
@@ -341,26 +378,16 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                       <div className="flex gap-1.5">
                         <button
                           type="button"
-                          disabled={syncing}
-                          onClick={async () => {
-                            setSyncing(true);
-                            try { await syncTicket(poamId, { direction: 'push' }); refresh(); }
-                            catch { /* handled by refresh */ }
-                            finally { setSyncing(false); }
-                          }}
+                          disabled={!canSyncTickets || syncing}
+                          onClick={() => void handleSync('push')}
                           className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
                         >
                           {syncing ? 'Syncing...' : 'Push'}
                         </button>
                         <button
                           type="button"
-                          disabled={syncing}
-                          onClick={async () => {
-                            setSyncing(true);
-                            try { await syncTicket(poamId, { direction: 'pull' }); refresh(); }
-                            catch { /* handled by refresh */ }
-                            finally { setSyncing(false); }
-                          }}
+                          disabled={!canSyncTickets || syncing}
+                          onClick={() => void handleSync('pull')}
                           className="rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                         >
                           Pull
@@ -373,13 +400,8 @@ export default function PoamDetailDrawer({ poamId, onClose }: PoamDetailDrawerPr
                       <div>
                         <button
                           type="button"
-                          disabled={syncing}
-                          onClick={async () => {
-                            setSyncing(true);
-                            try { await syncTicket(poamId, { direction: 'push' }); refresh(); }
-                            catch { /* handled by refresh */ }
-                            finally { setSyncing(false); }
-                          }}
+                          disabled={!canSyncTickets || syncing}
+                          onClick={() => void handleSync('push')}
                           className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
                         >
                           {syncing ? 'Creating...' : 'Sync to Ticketing System'}

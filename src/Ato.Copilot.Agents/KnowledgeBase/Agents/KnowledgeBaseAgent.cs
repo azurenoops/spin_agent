@@ -525,7 +525,7 @@ public class KnowledgeBaseAgent : BaseAgent
     /// Fallback system prompt if the embedded resource cannot be loaded.
     /// </summary>
     private static string GetFallbackPrompt() =>
-        "You are the KnowledgeBase Agent for the ATO Copilot. " +
+        "You are the KnowledgeBase Agent for the Security Posture Intelligence Navigator. " +
         "You provide informational compliance guidance about NIST 800-53, DISA STIGs, " +
         "RMF, DoD Impact Levels, and FedRAMP templates. " +
         "You do NOT scan, assess, or modify any resources.";

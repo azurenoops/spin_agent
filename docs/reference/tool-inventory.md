@@ -1,6 +1,6 @@
 # Tool Inventory
 
-> Complete reference of all 140 MCP tools available in ATO Copilot, grouped by category.
+> Complete reference of all 140 MCP tools available in Security Posture Intelligence Navigator, grouped by category.
 
 ---
 

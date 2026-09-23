@@ -4,6 +4,8 @@ import SystemProfile,{ computeIsReadOnly } from '../../pages/SystemProfile';
 import type { ProfileSectionDetail,ProfileSectionType } from '../../types/dashboard';
 
 const state=vi.hoisted(() => ({ systemId: 'system-a',sectionType: 'MissionAndPurpose',role: '' }));
+const workspace = vi.hoisted(() => ({ value: null as { roles: string[] } | null }));
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => workspace.value }));
 const api=vi.hoisted(() => ({
   getProfileSection: vi.fn(),getProfileCompleteness: vi.fn(),saveProfileSection: vi.fn(),
   submitSections: vi.fn(),withdrawSections: vi.fn(),reviewSection: vi.fn(),
@@ -12,6 +14,10 @@ vi.mock('react-router-dom',() => ({ useParams: () => ({ sectionType: state.secti
 vi.mock('../../components/layout/SystemLayout',() => ({ useSystemContext: () => ({ detail: { systemId: state.systemId } }) }));
 vi.mock('../../hooks/useSettings',() => ({ useSettings: () => ({ settings: { role: state.role } }) }));
 vi.mock('../../api/systemProfile',() => api);
+// Keep these tests focused on profile permissions, not Azure attachment requests.
+vi.mock('../../components/AssessmentEnvironmentPanel', () => ({
+  default: () => <div data-testid="assessment-environment" />,
+}));
 
 function section(canEditProfile?: boolean,governanceStatus='NotStarted') {
   return {
@@ -23,11 +29,54 @@ function section(canEditProfile?: boolean,governanceStatus='NotStarted') {
 beforeEach(() => {
   vi.resetAllMocks();
   Object.assign(state,{ systemId: 'system-a',sectionType: 'MissionAndPurpose',role: '' });
+  workspace.value = null;
   api.getProfileSection.mockResolvedValue(section(false));
   api.getProfileCompleteness.mockResolvedValue({ statusCounts: {},totalSections: 5,approvedPercentage: 0 });
 });
 
 describe('server-authoritative profile editing (#968)',() => {
+  it('does not infer profile approval from a browser ISSM preference in a workspace', async () => {
+    // Arrange
+    state.role = 'ISSM';
+    workspace.value = { roles: ['MissionOwner'] };
+    api.getProfileSection.mockResolvedValue(section(false, 'UnderReview'));
+
+    // Act
+    render(<SystemProfile />);
+
+    // Assert
+    expect(await screen.findByText('This section is under ISSM review — content is read-only.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
+  it('renders exactly one profile form after workspace navigation (#1017)', async () => {
+    // Arrange
+    api.getProfileSection.mockResolvedValue(section(true));
+
+    // Act
+    render(<SystemProfile />);
+    await screen.findByText('Profile Completeness');
+
+    // Assert
+    expect(screen.getAllByPlaceholderText("Describe the system's mission...")).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /Save Draft/i })).toHaveLength(1);
+  });
+
+  it('does not render a profile form before scoped permissions load or when they fail (#1017)', async () => {
+    // Arrange
+    let rejectLoad!: (error: Error) => void;
+    api.getProfileSection.mockReturnValue(new Promise((_, reject) => { rejectLoad = reject; }));
+    render(<SystemProfile />);
+    expect(screen.queryByPlaceholderText("Describe the system's mission...")).not.toBeInTheDocument();
+
+    // Act
+    await act(async () => rejectLoad(new Error('Permission response unavailable')));
+
+    // Assert
+    expect(await screen.findByText('Unable to load profile section.')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Describe the system's mission...")).not.toBeInTheDocument();
+  });
+
   it.each(['NotStarted','Draft','NeedsRevision','Approved','UnderReview',undefined])(
     'fails closed without capability for %s',governanceStatus => {
       // Arrange

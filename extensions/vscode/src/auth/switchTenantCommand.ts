@@ -49,14 +49,14 @@ export async function switchTenantCommand(
     getActiveTenantId: (ctx) => getActiveTenantId(ctx as vscode.ExtensionContext),
     showQuickPick: async (items: TenantPickItem[]) => {
       const result = await vscode.window.showQuickPick(items, {
-        placeHolder: "Choose an ATO Copilot tenant",
+        placeHolder: "Choose an Security Posture Intelligence Navigator tenant",
         ignoreFocusOut: true,
       });
       return result as TenantPickItem | undefined;
     },
     showInputBox: async () => {
       return await vscode.window.showInputBox({
-        title: "Sign in to another ATO Copilot tenant",
+        title: "Sign in to another Security Posture Intelligence Navigator tenant",
         prompt:
           "Enter the Entra tenant id (GUID) to sign in against. The previous tenant's session is kept.",
         placeHolder: "00000000-0000-0000-0000-000000000000",

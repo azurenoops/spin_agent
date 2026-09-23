@@ -194,11 +194,9 @@ public static partial class DashboardEndpoints
                     }
                 }
             });
-        }).WithName("ListInheritanceDesignations");
+        }).WithName("ListInheritanceDesignations").RequireResponsibilityAccess(false);
 
         // ── PUT /systems/{systemId}/inheritance — set designations (single + bulk)
-        // TODO(FR-026): Add role validation — restrict writes to AO and Security Engineer roles
-        //   when auth context is available. Return 403 Forbidden for unauthorized users.
         group.MapPut("/systems/{systemId}/inheritance", async (
             string systemId,
             Feature043SetInheritanceRequest req,
@@ -224,7 +222,11 @@ public static partial class DashboardEndpoints
 
             var changeSource = InheritanceChangeSource.Manual;
             if (!string.IsNullOrWhiteSpace(req.ChangeSource))
-                Enum.TryParse(req.ChangeSource, true, out changeSource);
+            {
+                if (!Enum.TryParse(req.ChangeSource, true, out changeSource)
+                    || changeSource is not (InheritanceChangeSource.Manual or InheritanceChangeSource.BulkUpdate))
+                    return Results.BadRequest(new ErrorResponse { Error = "This route accepts only manual designations.", ErrorCode = "INVALID_INPUT" });
+            }
 
             var mappings = req.Designations.Select(d => new InheritanceInput
             {
@@ -269,7 +271,7 @@ public static partial class DashboardEndpoints
                     inheritancePercentage = pct
                 }
             });
-        }).WithName("SetInheritanceDesignations");
+        }).WithName("SetInheritanceDesignations").RequireResponsibilityAccess(true);
 
         // ── POST /systems/{systemId}/inheritance/revert-to-org-defaults — revert selected controls
         group.MapPost("/systems/{systemId}/inheritance/revert-to-org-defaults", async (
@@ -300,7 +302,7 @@ public static partial class DashboardEndpoints
                 revertedCount = result.RevertedCount,
                 skipped = result.Skipped.Select(s => new { s.ControlId, s.Reason }),
             });
-        }).WithName("RevertToOrgDefaults");
+        }).WithName("RevertToOrgDefaults").RequireResponsibilityAccess(true);
 
         // ── GET /systems/{systemId}/inheritance/{controlId}/audit — per-control audit trail
         group.MapGet("/systems/{systemId}/inheritance/{controlId}/audit", async (
@@ -348,7 +350,7 @@ public static partial class DashboardEndpoints
                 controlId,
                 entries
             });
-        }).WithName("GetInheritanceAudit");
+        }).WithName("GetInheritanceAudit").RequireResponsibilityAccess(false);
 
         // ── GET /systems/{systemId}/inheritance/crm — generate CRM
         group.MapGet("/systems/{systemId}/inheritance/crm", async (
@@ -370,7 +372,7 @@ public static partial class DashboardEndpoints
                     Suggestion = "Ensure the system has a control baseline configured"
                 });
             }
-        }).WithName("GetCrm");
+        }).WithName("GetCrm").RequireResponsibilityAccess(false);
 
         // ── GET /systems/{systemId}/inheritance/crm/export — export CRM as CSV or Excel
         group.MapGet("/systems/{systemId}/inheritance/crm/export", async (
@@ -408,7 +410,7 @@ public static partial class DashboardEndpoints
                 var bytes = crmExportService.GenerateExcel(crm, exportLayout);
                 return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"crm-{systemId}-{date}.xlsx");
             }
-        }).WithName("ExportCrm");
+        }).WithName("ExportCrm").RequireResponsibilityAccess(false);
 
         // ── GET /systems/{systemId}/inheritance/csp-profiles — list available profiles
         group.MapGet("/systems/{systemId}/inheritance/csp-profiles", (
@@ -478,7 +480,7 @@ public static partial class DashboardEndpoints
                 profile = new { profile.Name, profile.Provider },
                 baseline = new { result.InheritedCount, result.SharedCount, result.CustomerCount }
             });
-        }).WithName("ApplyInheritanceProfile");
+        }).WithName("ApplyInheritanceProfile").RequireResponsibilityAccess(true);
 
         // ── POST /systems/{systemId}/inheritance/import/preview — T002 #142 ────
         group.MapPost("/systems/{systemId}/inheritance/import/preview", async (
@@ -550,7 +552,7 @@ public static partial class DashboardEndpoints
                 "inheritance-import.csv", rows, req.ConflictResolution ?? "overwrite", ct);
 
             return Results.Ok(result);
-        }).WithName("InheritanceImportApply");
+        }).WithName("InheritanceImportApply").RequireResponsibilityAccess(true);
 
         // Feature 045: Old CSP/CRM import endpoints removed — replaced by
         // POST /capabilities/import/csp-profile and POST /capabilities/import/crm

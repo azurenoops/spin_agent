@@ -13,7 +13,7 @@
     <ToolCommandName>ato-cli</ToolCommandName>
     <PackageId>Ato.Copilot.Cli</PackageId>
     <Version>0.1.0</Version>
-    <Description>ATO Copilot administrative CLI for tenancy migration and operational tooling.</Description>
+    <Description>Security Posture Intelligence Navigator administrative CLI for tenancy migration and operational tooling.</Description>
   </PropertyGroup>
 
   <ItemGroup>

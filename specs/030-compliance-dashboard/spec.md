@@ -19,7 +19,7 @@
 
 ### User Story 1 — Portfolio Dashboard Overview (Priority: P1)
 
-An ISSM or AO opens the ATO Copilot web application and immediately sees a portfolio-level dashboard showing all registered systems at a glance. Each system displays its impact level, current RMF phase, overall compliance score, ATO expiration countdown, and open POA&M count. The user can sort and filter by any column. Clicking a system row drills into the single-system detail view.
+An ISSM or AO opens the Security Posture Intelligence Navigator web application and immediately sees a portfolio-level dashboard showing all registered systems at a glance. Each system displays its impact level, current RMF phase, overall compliance score, ATO expiration countdown, and open POA&M count. The user can sort and filter by any column. Clicking a system row drills into the single-system detail view.
 
 **Why this priority**: This is the foundational visual layer. Without a portfolio overview, users must query each system individually via chat commands. A single-pane view transforms usability and is the #1 gap vs. Paramify.
 

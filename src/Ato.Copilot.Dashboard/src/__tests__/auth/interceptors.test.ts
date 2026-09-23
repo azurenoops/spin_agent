@@ -1,11 +1,13 @@
 import axios, { type AxiosInstance } from 'axios';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { stubbedPublicClientApplication } from '@azure/msal-browser';
 import { attachAuthInterceptor } from '../../features/auth/interceptors';
 
 // ─── MSAL mock — minimal IPublicClientApplication surface ───────────────
 
 interface MsalMock {
   getAllAccounts: ReturnType<typeof vi.fn>;
+  getActiveAccount: ReturnType<typeof vi.fn>;
   acquireTokenSilent: ReturnType<typeof vi.fn>;
   loginRedirect: ReturnType<typeof vi.fn>;
 }
@@ -14,6 +16,7 @@ function buildMsalMock(opts?: { hasAccount?: boolean }): MsalMock {
   const hasAccount = opts?.hasAccount ?? true;
   return {
     getAllAccounts: vi.fn(() => (hasAccount ? [{ homeAccountId: 'oid-1' }] : [])),
+    getActiveAccount: vi.fn(() => null),
     acquireTokenSilent: vi.fn(async () => ({ accessToken: 'token-123' })),
     loginRedirect: vi.fn(async () => undefined),
   };
@@ -80,6 +83,102 @@ describe('attachAuthInterceptor', () => {
   beforeEach(() => {
     // Reset URL fixture for deep-link assertions.
     window.history.replaceState({}, '', '/dashboard/systems?id=123');
+  });
+
+  it('acquires for the active account rather than the first cached account', async () => {
+    // Arrange
+    const ax = buildAxios([{ status: 200 }]);
+    const msal = buildMsalMock();
+    const selected = { homeAccountId: 'active-user' };
+    msal.getActiveAccount.mockReturnValue(selected);
+    attachAuthInterceptor(ax, Object.assign({}, stubbedPublicClientApplication, msal), ['api://ato-copilot/.default']);
+
+    // Act
+    await ax.get('/api/anything');
+
+    // Assert
+    expect(msal.acquireTokenSilent).toHaveBeenCalledWith(expect.objectContaining({ account: selected }));
+  });
+
+  it.each([200, 401])('does not deliver or retry an old-account response with status %s', async status => {
+    // Arrange
+    const ax = axios.create();
+    const msal = buildMsalMock();
+    msal.getActiveAccount.mockReturnValue({ homeAccountId: 'account-a', tenantId: 'directory-a', localAccountId: 'object-a' });
+    const sent: unknown[] = [];
+    let finish!: () => void;
+    ax.defaults.adapter = async config => {
+      sent.push(config.data);
+      if (sent.length === 1) {
+        return new Promise<import('axios').AxiosResponse>((resolve, reject) => {
+          finish = () => {
+            const response = { data: {}, status, statusText: 'fixture', headers: {}, config };
+            if (status === 401) reject(new axios.AxiosError('Expired', '401', config, undefined, response));
+            else resolve(response);
+          };
+        });
+      }
+      return { data: {}, status: 200, statusText: 'OK', headers: {}, config };
+    };
+    attachAuthInterceptor(ax, Object.assign({}, stubbedPublicClientApplication, msal), []);
+    const pending = ax.post('/api/tenants/org-alpha/memberships', { personId: 'person-a' });
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+
+    // Act
+    msal.getActiveAccount.mockReturnValue({ homeAccountId: 'account-b', tenantId: 'directory-b', localAccountId: 'object-b' });
+    finish();
+
+    // Assert
+    await expect(pending).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+    expect(sent).toHaveLength(1);
+    expect(msal.acquireTokenSilent).toHaveBeenCalledTimes(1);
+    expect(msal.loginRedirect).not.toHaveBeenCalled();
+  });
+
+  it('does not send a mutation if identity changes during token acquisition', async () => {
+    // Arrange
+    const ax = axios.create();
+    const adapter = vi.fn(async (config: import('axios').InternalAxiosRequestConfig) => ({
+      data: {}, status: 200, statusText: 'OK', headers: {}, config,
+    }));
+    ax.defaults.adapter = adapter;
+    const msal = buildMsalMock();
+    msal.getActiveAccount.mockReturnValue({ homeAccountId: 'account-a' });
+    let finishToken!: (value: { accessToken: string }) => void;
+    msal.acquireTokenSilent.mockReturnValue(new Promise(resolve => { finishToken = resolve; }));
+    attachAuthInterceptor(ax, Object.assign({}, stubbedPublicClientApplication, msal), []);
+    const pending = ax.post('/api/tenants/org-alpha/memberships', { personId: 'person-a' });
+    await vi.waitFor(() => expect(msal.acquireTokenSilent).toHaveBeenCalledTimes(1));
+
+    // Act
+    msal.getActiveAccount.mockReturnValue({ homeAccountId: 'account-b' });
+    finishToken({ accessToken: 'synthetic-old-account-token' });
+
+    // Assert
+    await expect(pending).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+    expect(adapter).not.toHaveBeenCalled();
+  });
+
+  it('does not turn an identity change during silent renewal into a login redirect', async () => {
+    // Arrange
+    const ax = buildAxios([{ status: 401 }, { status: 200 }]);
+    const msal = buildMsalMock();
+    msal.getActiveAccount.mockReturnValue({ homeAccountId: 'account-a' });
+    let finishRenewal!: (value: { accessToken: string }) => void;
+    msal.acquireTokenSilent.mockResolvedValueOnce({ accessToken: 'synthetic-first-token' })
+      .mockReturnValueOnce(new Promise(resolve => { finishRenewal = resolve; }));
+    attachAuthInterceptor(ax, Object.assign({}, stubbedPublicClientApplication, msal), []);
+    const pending = ax.post('/api/tenants/org-alpha/memberships', { personId: 'person-a' });
+    await vi.waitFor(() => expect(msal.acquireTokenSilent).toHaveBeenCalledTimes(2));
+
+    // Act
+    msal.getActiveAccount.mockReturnValue({ homeAccountId: 'account-b' });
+    finishRenewal({ accessToken: 'synthetic-renewed-old-token' });
+
+    // Assert
+    await expect(pending).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+    expect(msal.acquireTokenSilent).toHaveBeenCalledTimes(2);
+    expect(msal.loginRedirect).not.toHaveBeenCalled();
   });
 
   it('dispatches ato:user-input on a non-renewal 2xx response', async () => {

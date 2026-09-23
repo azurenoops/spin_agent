@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -346,7 +347,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<INarrativeGovernanceService, NarrativeGovernanceService>();
         services.AddSingleton<IDualNarrativeService, DualNarrativeService>();
         services.AddScoped<NarrativeLibraryService>();
+        services.AddScoped<ProviderNarrativeLibraryService>();
         services.AddScoped<NarrativeProposalService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.INarrativeChangeImpactService>(
+            provider => provider.GetRequiredService<NarrativeProposalService>());
+        services.TryAddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService,
+            Ato.Copilot.Core.Services.Tenancy.SystemWorkspaceAccessService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.ICapabilityResponsibilityService,
+            Ato.Copilot.Core.Services.CapabilityResponsibilityService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.ICapabilityResponsibilityImpactDispatcher,
+            Ato.Copilot.Core.Services.CapabilityResponsibilityImpactDispatcher>();
+        services.AddScoped<Ato.Copilot.Core.Services.CspResponsibilityFanoutService>();
         services.AddSingleton<IEvidenceNarrativeClassifier, EvidenceNarrativeClassifier>();
         services.AddSingleton<EvidenceNarrativeBulkClassifierJob>();
 

@@ -206,7 +206,7 @@ Verify each tool is in the `/tools/list` response:
 
 | # | Check | Action | Expected Result | Status | Notes |
 |---|-------|--------|-----------------|--------|-------|
-| 2.1 | `@ato` extension installed | Check VS Code Extensions panel | ATO Copilot extension listed and enabled | ⬜ | Version: ___ |
+| 2.1 | `@ato` extension installed | Check VS Code Extensions panel | Security Posture Intelligence Navigator extension listed and enabled | ⬜ | Version: ___ |
 | 2.2 | `@ato` chat participant active | Type `@ato` in VS Code chat | Auto-complete shows `@ato` participant | ⬜ | |
 | 2.3 | Extension connected to MCP | `@ato Show my active PIM roles` | Returns response (not connection error) | ⬜ | |
 
@@ -216,7 +216,7 @@ Verify each tool is in the `/tools/list` response:
 
 | # | Check | Action | Expected Result | Status | Notes |
 |---|-------|--------|-----------------|--------|-------|
-| 3.1 | ATO Copilot bot installed | Check Teams Apps | Bot listed and accessible | ⬜ | |
+| 3.1 | Security Posture Intelligence Navigator bot installed | Check Teams Apps | Bot listed and accessible | ⬜ | |
 | 3.2 | Bot responds to queries | Send any compliance query | Bot returns Adaptive Card response | ⬜ | |
 | 3.3 | Adaptive Cards render | Send a query with structured output | Card renders with proper formatting | ⬜ | |
 

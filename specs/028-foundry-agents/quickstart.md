@@ -8,7 +8,7 @@
 - .NET 9.0 SDK
 - Azure AI Foundry project with a deployed model (e.g., `gpt-4o`)
 - `DefaultAzureCredential` configured (Azure CLI logged in, or Managed Identity in production)
-- Existing ATO Copilot build working (`dotnet build Ato.Copilot.sln`)
+- Existing Security Posture Intelligence Navigator build working (`dotnet build Ato.Copilot.sln`)
 
 ## Configuration
 

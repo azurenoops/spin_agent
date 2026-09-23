@@ -1,0 +1,214 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_AUTHENTICATED_LOCAL_AUTHOR_TOKEN
+@reviewerToken = REPLACE_WITH_DIFFERENT_LOCAL_ISSM_TOKEN
+@tenantId = REPLACE_WITH_AUTHORIZED_ORGANIZATION_ID
+@systemId = REPLACE_WITH_ASSIGNED_SYSTEM_ID
+@referenceId = REPLACE_WITH_IMPORTED_DRAFT_ID
+@proposalId = REPLACE_WITH_GENERATED_PROPOSAL_ID
+@providerToken = REPLACE_WITH_AUTHENTICATED_LOCAL_PROVIDER_TOKEN
+@providerId = REPLACE_WITH_REAL_CSP_PROFILE_ID_FROM_ACCESS
+@providerCapabilityId = REPLACE_WITH_REAL_CSP_CAPABILITY_ID_FROM_ACCESS
+@providerReferenceId = REPLACE_WITH_IMPORTED_PROVIDER_REFERENCE_ID
+@organizationReferenceId = REPLACE_WITH_IMPORTED_ORGANIZATION_REFERENCE_ID
+
+### List organization-owned references.
+GET {{baseUrl}}/api/narrative-library
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Import an organization reference without choosing a system.
+POST {{baseUrl}}/api/narrative-library/imports
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: multipart/form-data; boundary=organization-reference-boundary
+
+--organization-reference-boundary
+Content-Disposition: form-data; name="title"
+
+Local organization reference
+--organization-reference-boundary
+Content-Disposition: form-data; name="scope"
+
+Organization
+--organization-reference-boundary
+Content-Disposition: form-data; name="scopeId"
+
+{{tenantId}}
+--organization-reference-boundary
+Content-Disposition: form-data; name="file"; filename="reference.txt"
+Content-Type: text/plain
+
+AC-2
+Policy Narrative:
+Unverified organization reference claim.
+--organization-reference-boundary--
+
+### Read the organization draft returned by import.
+GET {{baseUrl}}/api/narrative-library/{{organizationReferenceId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Edit an organization draft mapping.
+PATCH {{baseUrl}}/api/narrative-library/{{organizationReferenceId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"expectedRevision":1,"scope":"Organization","scopeId":"{{tenantId}}","passages":[{"controlId":"AC-2","narrativeType":"Policy","content":"Corrected unverified organization reference claim."}]}
+
+### Publish the reviewed organization mapping.
+POST {{baseUrl}}/api/narrative-library/{{organizationReferenceId}}/publish
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"expectedRevision":2,"reviewed":true,"passages":[{"controlId":"AC-2","narrativeType":"Policy","content":"Corrected unverified organization reference claim."}]}
+
+### List provider revisions.
+GET {{baseUrl}}/api/csp/narrative-library
+Authorization: Bearer {{providerToken}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Read a provider revision.
+GET {{baseUrl}}/api/csp/narrative-library/{{providerReferenceId}}
+Authorization: Bearer {{providerToken}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Standalone organization library; no system parameter.
+GET {{baseUrl}}/api/narrative-library/access
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Standalone provider library; provider and capability IDs are returned, never fabricated.
+GET {{baseUrl}}/api/csp/narrative-library/access
+Authorization: Bearer {{providerToken}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Import provider reference claims (requires parent model/service/route registration).
+POST {{baseUrl}}/api/csp/narrative-library/imports
+Authorization: Bearer {{providerToken}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: multipart/form-data; boundary=narrative-reference-boundary
+
+--narrative-reference-boundary
+Content-Disposition: form-data; name="title"
+
+Local provider reference
+--narrative-reference-boundary
+Content-Disposition: form-data; name="scope"
+
+Provider
+--narrative-reference-boundary
+Content-Disposition: form-data; name="scopeId"
+
+{{providerId}}
+--narrative-reference-boundary
+Content-Disposition: form-data; name="file"; filename="reference.txt"
+Content-Type: text/plain
+
+AC-2
+Policy Narrative:
+Unverified local reference claim.
+--narrative-reference-boundary--
+
+### Correct provider capability scope after extraction.
+PATCH {{baseUrl}}/api/csp/narrative-library/{{providerReferenceId}}
+Authorization: Bearer {{providerToken}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"expectedRevision":1,"scope":"ProviderCapability","scopeId":"{{providerCapabilityId}}","passages":[{"controlId":"AC-2","narrativeType":"Policy","content":"Unverified local reference claim."}]}
+
+### Publication creates durable pending source work, not an approved customer narrative.
+POST {{baseUrl}}/api/csp/narrative-library/{{providerReferenceId}}/publish
+Authorization: Bearer {{providerToken}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"expectedRevision":2,"reviewed":true,"passages":[{"controlId":"AC-2","narrativeType":"Policy","content":"Unverified local reference claim."}]}
+
+### An authorized system sees only applicable published provider passages.
+GET {{baseUrl}}/api/systems/{{systemId}}/narrative-library/provider-references?controlId=AC-2
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Reference author and narrative generator are separate permissions.
+GET {{baseUrl}}/api/systems/{{systemId}}/narrative-library/access
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Save an incomplete mapping; publishing this mapping must fail.
+PATCH {{baseUrl}}/api/systems/{{systemId}}/narrative-library/{{referenceId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"expectedRevision":1,"scope":"System","scopeId":"{{systemId}}","passages":[{"controlId":null,"narrativeType":"Policy","content":"Unverified local reference claim."}]}
+
+### Complete and publish using the latest revision returned by PATCH.
+POST {{baseUrl}}/api/systems/{{systemId}}/narrative-library/{{referenceId}}/publish
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"expectedRevision":2,"reviewed":true,"passages":[{"controlId":"AC-2","narrativeType":"Policy","content":"Unverified local reference claim."}]}
+
+### Generate only when canGenerate is true; use the actual current version.
+POST {{baseUrl}}/api/systems/{{systemId}}/narrative-library/proposals
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"controlId":"AC-2","narrativeType":"Policy","expectedVersion":1}
+
+### Review source claims, gaps and conflicts before submitting this request.
+POST {{baseUrl}}/api/systems/{{systemId}}/narrative-library/proposals/{{proposalId}}/review
+Authorization: Bearer {{reviewerToken}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"expectedRevision":1,"decision":"Approve","note":"Reviewed policy only; preserve approved technical text."}
+
+### Confirm statuses and provenance. Repeat a mutation with its stale revision to expect 409.
+GET {{baseUrl}}/api/systems/{{systemId}}/narrative-library/proposals
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Inspect deliveries that share a proposal; creation origin is not necessarily the latest change.
+GET {{baseUrl}}/api/systems/{{systemId}}/narrative-library/proposals/{{proposalId}}/impact-receipts?page=1&pageSize=50
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary

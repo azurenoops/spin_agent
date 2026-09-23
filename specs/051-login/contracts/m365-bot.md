@@ -140,7 +140,7 @@ shape:
   "type": "AdaptiveCard",
   "version": "1.5",
   "body": [
-    { "type": "TextBlock", "text": "Sign in to ATO Copilot", "weight": "Bolder", "size": "Medium" },
+    { "type": "TextBlock", "text": "Sign in to Security Posture Intelligence Navigator", "weight": "Bolder", "size": "Medium" },
     { "type": "TextBlock", "text": "Connect your Microsoft account so I can answer questions about your ATO packages.", "wrap": true }
   ],
   "actions": [

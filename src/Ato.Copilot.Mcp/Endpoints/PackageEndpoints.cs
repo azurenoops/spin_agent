@@ -1,6 +1,7 @@
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -38,7 +39,8 @@ public static class PackageEndpoints
                     return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "SAR_CREATION_FAILED" });
                 }
             })
-            .WithName("CreateSar");
+            .WithName("CreateSar")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.GenerateSar);
 
         systems.MapGet("/sar", async (
                 string systemId,
@@ -171,7 +173,8 @@ public static class PackageEndpoints
                     return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "SAP_GENERATION_FAILED" });
                 }
             })
-            .WithName("GenerateSap");
+            .WithName("GenerateSap")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.GenerateSap);
 
         systems.MapGet("/sap", async (
                 string systemId,
@@ -201,7 +204,8 @@ public static class PackageEndpoints
                     return Results.Conflict(new ErrorResponse { Error = ex.Message, ErrorCode = "SAP_FINALIZE_FAILED" });
                 }
             })
-            .WithName("FinalizeSap");
+            .WithName("FinalizeSap")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.FinalizeSap);
 
         // ─── OSCAL Schema Validation Endpoints ─────────────────────────────
 

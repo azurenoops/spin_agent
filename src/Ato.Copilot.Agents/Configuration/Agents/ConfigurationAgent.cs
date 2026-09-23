@@ -10,7 +10,7 @@ using Ato.Copilot.Core.Configuration;
 
 namespace Ato.Copilot.Agents.Configuration.Agents;
 /// <summary>
-/// Configuration Agent — manages ATO Copilot settings including subscription,
+/// Configuration Agent — manages Security Posture Intelligence Navigator settings including subscription,
 /// framework, baseline, and environment preferences.
 /// Routes configuration intents to the ConfigurationTool.
 /// Extends BaseAgent per Constitution Principle II.
@@ -49,7 +49,7 @@ public class ConfigurationAgent : BaseAgent
 
     /// <inheritdoc />
     public override string Description =>
-        "Manages ATO Copilot settings: subscription, framework, baseline, environment, and preferences";
+        "Manages Security Posture Intelligence Navigator settings: subscription, framework, baseline, environment, and preferences";
 
     /// <summary>
     /// Evaluates confidence that this agent can handle the given message.
@@ -316,6 +316,6 @@ public class ConfigurationAgent : BaseAgent
     /// </summary>
     /// <returns>Fallback prompt string.</returns>
     private static string GetFallbackPrompt() =>
-        "You are the ATO Copilot Configuration Agent. You help users configure their " +
+        "You are the Security Posture Intelligence Navigator Configuration Agent. You help users configure their " +
         "Azure compliance settings including subscription, framework, baseline, and environment.";
 }

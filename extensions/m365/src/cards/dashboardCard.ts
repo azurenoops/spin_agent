@@ -75,7 +75,7 @@ export function buildDashboardCard(data: DashboardData): Record<string, unknown>
     // Header
     {
       type: "TextBlock",
-      text: data.title ?? "ATO Copilot — Multi-System Dashboard",
+      text: data.title ?? "Security Posture Intelligence Navigator — Multi-System Dashboard",
       weight: "Bolder",
       size: "Large",
     },

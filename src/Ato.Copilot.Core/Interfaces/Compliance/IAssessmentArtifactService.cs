@@ -68,12 +68,15 @@ public interface IAssessmentArtifactService
 
     /// <summary>
     /// Recompute the SHA-256 hash of evidence content and verify it matches the stored hash.
-    /// Updates the IntegrityVerifiedAt timestamp on successful verification.
+    /// Requires an active directory-qualified organization member whose effective system access
+    /// permits evidence management or assigns SCA. This is integrity verification, not approval
+    /// or evidence authorship. Atomically audits the trusted verifier and updates
+    /// IntegrityVerifiedAt only on a hash match; original collector attribution is preserved.
     /// </summary>
     /// <param name="evidenceId">ComplianceEvidence ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Verification result with original hash, recomputed hash, and match status.</returns>
-    /// <exception cref="InvalidOperationException">Evidence not found.</exception>
+    /// <exception cref="UnauthorizedAccessException">Identity, ownership, or effective system access is not authorized.</exception>
     Task<EvidenceVerificationResult> VerifyEvidenceAsync(
         string evidenceId,
         CancellationToken cancellationToken = default);
@@ -198,6 +201,9 @@ public class EvidenceVerificationResult
 
     /// <summary>Identity of original collector.</summary>
     public string? CollectorIdentity { get; set; }
+
+    /// <summary>Trusted directory/object-qualified identity that performed this integrity check.</summary>
+    public string VerifierIdentity { get; set; } = string.Empty;
 
     /// <summary>Collection method used.</summary>
     public string? CollectionMethod { get; set; }

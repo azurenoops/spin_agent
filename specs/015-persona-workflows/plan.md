@@ -5,7 +5,7 @@
 
 ## Summary
 
-Transform ATO Copilot from a compliance scanner with Kanban into a full RMF lifecycle copilot by adding the missing structural steps (Prepare, Categorize, Select, Authorize), enriching existing steps (Implement, Assess, Monitor), and aligning all workflows to the four DoD personas (ISSM, SCA, Engineer, AO). Introduces system registration as the anchor entity, FIPS 199 categorization, CNSSI 1253 overlays, control baselines with tailoring/inheritance, SSP authoring with AI-suggested narratives, assessment artifacts (CAT I/II/III, snapshots, RAR), authorization decisions (ATO/ATOwC/IATT/DATO), and ConMon lifecycle management. Adds a 7th RBAC role (`AuthorizingOfficial`). Ships with 20+ documentation deliverables.
+Transform Security Posture Intelligence Navigator from a compliance scanner with Kanban into a full RMF lifecycle copilot by adding the missing structural steps (Prepare, Categorize, Select, Authorize), enriching existing steps (Implement, Assess, Monitor), and aligning all workflows to the four DoD personas (ISSM, SCA, Engineer, AO). Introduces system registration as the anchor entity, FIPS 199 categorization, CNSSI 1253 overlays, control baselines with tailoring/inheritance, SSP authoring with AI-suggested narratives, assessment artifacts (CAT I/II/III, snapshots, RAR), authorization decisions (ATO/ATOwC/IATT/DATO), and ConMon lifecycle management. Adds a 7th RBAC role (`AuthorizingOfficial`). Ships with 20+ documentation deliverables.
 
 ## Technical Context
 
@@ -327,7 +327,7 @@ docs/
 - `stig-controls.json` — Expand to ~880 rules
 
 **Key design decisions**:
-- Template engine: ATO Copilot built-in format as default, pluggable custom DOCX templates via mail-merge
+- Template engine: Security Posture Intelligence Navigator built-in format as default, pluggable custom DOCX templates via mail-merge
 - Excel export via ClosedXML (column headers match eMASS import template exactly)
 - eMASS import supports dry-run mode + conflict resolution (prefer existing, prefer imported, flag)
 - CI/CD gate: GitHub Actions action scans IaC in PRs, blocks on CAT I/II, respects risk acceptances

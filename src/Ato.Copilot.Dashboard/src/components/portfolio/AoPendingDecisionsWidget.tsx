@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../../features/workspaces/workspaceNavigation';
 import apiClient from '../../api/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

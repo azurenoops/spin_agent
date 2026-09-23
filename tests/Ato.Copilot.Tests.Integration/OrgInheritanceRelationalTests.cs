@@ -123,6 +123,30 @@ public sealed class OrgInheritanceRelationalTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PropagateToSystem_PreservesSubscriptionOwnedDesignation()
+    {
+        // Arrange
+        await using (var scope = _serviceProvider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var row = await db.ControlInheritances.SingleAsync(i => i.ControlBaselineId == "baseline-stale-default");
+            row.DesignationSource = "CspSubscription";
+            row.Provider = "Reviewed subscription provider";
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        await _sut.PropagateToSystemAsync("system-stale-default", "baseline-stale-default", new HashSet<string> { "AC-2" }, "fixture");
+
+        // Assert
+        await using var verifyScope = _serviceProvider.CreateAsyncScope();
+        var verify = verifyScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var designation = await verify.ControlInheritances.SingleAsync(i => i.ControlBaselineId == "baseline-stale-default");
+        designation.DesignationSource.Should().Be("CspSubscription");
+        designation.Provider.Should().Be("Reviewed subscription provider");
+    }
+
+    [Fact]
     public async Task DeriveOrgDefaults_RemovingReferencedDefault_ReconcilesDependentsAtomically()
     {
         // Arrange

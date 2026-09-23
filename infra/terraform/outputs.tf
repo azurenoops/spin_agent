@@ -8,7 +8,7 @@ output "resource_group_name" {
 }
 
 output "container_app_fqdn" {
-  description = "Fully qualified domain name of the ATO Copilot Container App (public ingress)."
+  description = "Fully qualified domain name of the Security Posture Intelligence Navigator Container App (public ingress)."
   value       = azurerm_container_app.mcp.ingress[0].fqdn
 }
 

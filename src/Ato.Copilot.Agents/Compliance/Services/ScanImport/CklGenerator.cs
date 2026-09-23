@@ -64,7 +64,7 @@ public class CklGenerator : ICklGenerator
 
         var doc = new XDocument(
             new XDeclaration("1.0", "UTF-8", null),
-            new XComment("DISA STIG Viewer :: ATO Copilot Export"),
+            new XComment("DISA STIG Viewer :: Security Posture Intelligence Navigator Export"),
             checklist);
 
         _logger.LogInformation(

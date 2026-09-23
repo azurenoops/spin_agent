@@ -5,7 +5,7 @@
 
 ## Summary
 
-Extend the ATO Copilot with a Kanban-style task management layer for compliance remediation.
+Extend the Security Posture Intelligence Navigator with a Kanban-style task management layer for compliance remediation.
 This feature adds four new EF Core entities (RemediationBoard, RemediationTask, TaskComment,
 TaskHistoryEntry) plus two ephemeral models (SavedView, NotificationConfig) to the existing
 data context. A new `IKanbanService` interface coordinates board/task/comment lifecycle,

@@ -1,7 +1,7 @@
 # Data Model: M365 Teams Extension (Epic 061)
 
 There is no database schema for the M365 bot itself — it delegates all persistence to the
-ATO Copilot API. This document covers two persistence concerns the bot owns:
+Security Posture Intelligence Navigator API. This document covers two persistence concerns the bot owns:
 
 1. **Environment variable schema** — the configuration contract (see also `contracts/env-schema.md`)
 2. **Identity store state model** — the shape of SSO token records persisted by

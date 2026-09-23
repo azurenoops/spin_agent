@@ -52,10 +52,12 @@ export async function requestExport(
   systemId: string,
   format: string,
   templateId?: string,
+  signal?: AbortSignal,
 ): Promise<ExportSummary> {
   const { data } = await apiClient.post<ExportSummary>(
     `/systems/${systemId}/exports`,
     { format, templateId: templateId || undefined },
+    { signal },
   );
   return data;
 }
@@ -74,9 +76,11 @@ export async function listExports(
 export async function getExport(
   systemId: string,
   exportId: string,
+  signal?: AbortSignal,
 ): Promise<ExportDetail> {
   const { data } = await apiClient.get<ExportDetail>(
     `/systems/${systemId}/exports/${exportId}`,
+    { signal },
   );
   return data;
 }
@@ -104,10 +108,11 @@ export function oscalSapUrl(systemId: string): string {
 
 export async function listTemplates(
   options?: { limit?: number; offset?: number },
+  signal?: AbortSignal,
 ): Promise<{ items: TemplateInfo[]; totalCount: number }> {
   const { data } = await apiClient.get<{ items: TemplateInfo[]; totalCount: number }>(
     '/templates',
-    { params: options },
+    { params: options, signal },
   );
   return data;
 }

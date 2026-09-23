@@ -1,11 +1,11 @@
-# Implementation Plan: ATO Copilot Chat Application
+# Implementation Plan: Security Posture Intelligence Navigator Chat Application
 
 **Branch**: `006-chat-app` | **Date**: 2026-02-23 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from `/specs/006-chat-app/spec.md`
 
 ## Summary
 
-Build a full-stack conversational chat application that serves as the primary user interface for the ATO Copilot. The backend is an ASP.NET Core 9.0 host providing REST APIs for CRUD operations and a SignalR hub for real-time bidirectional messaging. The frontend is a React 18 + TypeScript SPA styled with Tailwind CSS. The chat app is a thin client: it persists conversations and messages in its own database, builds conversation history, and forwards user messages to the existing MCP Server at `/mcp/chat` for AI processing. Rich metadata (intent classification, tool results, multi-step progress, proactive suggestions) is rendered in the UI.
+Build a full-stack conversational chat application that serves as the primary user interface for the Security Posture Intelligence Navigator. The backend is an ASP.NET Core 9.0 host providing REST APIs for CRUD operations and a SignalR hub for real-time bidirectional messaging. The frontend is a React 18 + TypeScript SPA styled with Tailwind CSS. The chat app is a thin client: it persists conversations and messages in its own database, builds conversation history, and forwards user messages to the existing MCP Server at `/mcp/chat` for AI processing. Rich metadata (intent classification, tool results, multi-step progress, proactive suggestions) is rendered in the UI.
 
 ## Technical Context
 

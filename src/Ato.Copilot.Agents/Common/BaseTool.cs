@@ -7,7 +7,7 @@ using Ato.Copilot.Core.Observability;
 namespace Ato.Copilot.Agents.Common;
 
 /// <summary>
-/// Base class for all tools in the ATO Copilot.
+/// Base class for all tools in the Security Posture Intelligence Navigator.
 /// All tools MUST extend this class (Constitution Principle II).
 /// </summary>
 public abstract class BaseTool
@@ -76,6 +76,8 @@ public abstract class BaseTool
     {
         // Auto-resolve system_id from name/acronym to GUID if needed
         await TryResolveSystemIdAsync(arguments, cancellationToken);
+        await Ato.Copilot.State.Abstractions.ToolExecutionAuthorization
+            .DemandAsync(Name, arguments, cancellationToken);
 
         ToolMetrics.RecordStart(Name, AgentName);
         var sw = Stopwatch.StartNew();

@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import type { CreatePoamRequest } from '../../types/poam';
 import ComponentPicker from './ComponentPicker';
+import { useSystemMutationPermission } from '../permissions/useSystemMutationPermission';
 
 interface PoamCreateFormProps {
+  systemId: string;
   onClose: () => void;
   onSubmit: (req: CreatePoamRequest) => Promise<void>;
   loading: boolean;
 }
 
-export default function PoamCreateForm({ onClose, onSubmit, loading }: PoamCreateFormProps) {
+export default function PoamCreateForm({ systemId, onClose, onSubmit, loading }: PoamCreateFormProps) {
+  const canManageRemediation = useSystemMutationPermission(systemId, 'canManageRemediation');
+  const [error, setError] = useState<string | null>(null);
   const [weakness, setWeakness] = useState('');
   const [controlId, setControlId] = useState('');
   const [severity, setSeverity] = useState<'I' | 'II' | 'III'>('II');
@@ -28,21 +32,30 @@ export default function PoamCreateForm({ onClose, onSubmit, loading }: PoamCreat
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit({
-      weakness,
-      weaknessSource: source || 'Manual',
-      controlId,
-      catSeverity: severity,
-      poc,
-      pocEmail: pocEmail || undefined,
-      scheduledCompletionDate: dueDate,
-      resourcesRequired: resourcesRequired || undefined,
-      comments: comments || undefined,
-      milestones: milestones.filter(m => m.description && m.targetDate).length > 0
-        ? milestones.filter(m => m.description && m.targetDate)
-        : undefined,
-      componentIds: componentIds.length > 0 ? componentIds : undefined,
-    });
+    if (!canManageRemediation) {
+      setError('Permission denied: you cannot manage remediation for this system.');
+      return;
+    }
+    setError(null);
+    try {
+      await onSubmit({
+        weakness,
+        weaknessSource: source || 'Manual',
+        controlId,
+        catSeverity: severity,
+        poc,
+        pocEmail: pocEmail || undefined,
+        scheduledCompletionDate: dueDate,
+        resourcesRequired: resourcesRequired || undefined,
+        comments: comments || undefined,
+        milestones: milestones.filter(m => m.description && m.targetDate).length > 0
+          ? milestones.filter(m => m.description && m.targetDate)
+          : undefined,
+        componentIds: componentIds.length > 0 ? componentIds : undefined,
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create POA&M.');
+    }
   };
 
   return (
@@ -50,6 +63,9 @@ export default function PoamCreateForm({ onClose, onSubmit, loading }: PoamCreat
       <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
         <h2 className="mb-4 text-lg font-bold text-gray-900">New POA&amp;M Item</h2>
         <form onSubmit={handleSubmit} className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+          {(error || !canManageRemediation) && (
+            <p role="alert" className="text-sm text-red-600">{error ?? 'Permission denied: you cannot manage remediation for this system.'}</p>
+          )}
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">Weakness *</label>
             <textarea
@@ -137,7 +153,7 @@ export default function PoamCreateForm({ onClose, onSubmit, loading }: PoamCreat
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="rounded-lg border px-4 py-2 text-sm">Cancel</button>
-            <button type="submit" disabled={loading} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+            <button type="submit" disabled={!canManageRemediation || loading} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
               {loading ? 'Creating...' : 'Create POA&M'}
             </button>
           </div>

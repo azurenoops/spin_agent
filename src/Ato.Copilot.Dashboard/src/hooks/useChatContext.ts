@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from '../features/workspaces/workspaceNavigation';
 import { useSystemContext } from './useSystemContext';
 import type { ChatContext } from '../types/chat';
 

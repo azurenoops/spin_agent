@@ -64,6 +64,8 @@ public class ChatFailurePathTests : IAsyncLifetime
         });
 
         builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, dbName);
+        builder.Services.AddScoped<ISystemWorkspaceAccessService,
+            Ato.Copilot.Core.Services.Tenancy.SystemWorkspaceAccessService>();
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>
                 policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));

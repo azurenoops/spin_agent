@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from '../features/workspaces/workspaceNavigation';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { usePolling } from '../hooks/usePolling';
@@ -15,6 +15,7 @@ import type { SapResponse } from '../api/sap';
 import type { SarResponse } from '../api/sar';
 import CreateRemediationTaskModal from '../components/remediation/CreateRemediationTaskModal';
 import AddDeviationDialog from '../components/AddDeviationDialog';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,15 @@ function SeverityBadge({ severity }: { severity: string }) {
 export default function Assessments() {
   const { detail } = useSystemContext();
   const systemId = detail.systemId;
+  const canRunAssessments = useSystemMutationPermission(systemId, 'canRunAssessments');
+  const canManageRemediation = useSystemMutationPermission(systemId, 'canManageRemediation');
+  // SAP generation/finalization, SAR generation and deviation requests need distinct
+  // server projections; neither system management nor assessment execution grants them.
+  const canGenerateSap = useSystemMutationPermission(systemId, null);
+  const canFinalizeSap = useSystemMutationPermission(systemId, null);
+  const canGenerateSar = useSystemMutationPermission(systemId, null);
+  const canRequestDeviation = useSystemMutationPermission(systemId, null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const navigate = useNavigate();
   const [filter, setFilter] = useState('');
   const [showRunDialog, setShowRunDialog] = useState(false);
@@ -101,6 +111,23 @@ export default function Assessments() {
   // #296: state for deviation creation modal
   const [deviationModalFinding, setDeviationModalFinding] = useState<AssessmentFinding | null>(null);
 
+  const requirePermission = (allowed: boolean, action: string) => {
+    if (!allowed) {
+      setMutationError(`You do not have permission to ${action} in this workspace.`);
+      return false;
+    }
+    setMutationError(null);
+    return true;
+  };
+
+  useEffect(() => {
+    if ((!canManageRemediation && taskModalFinding) || (!canRequestDeviation && deviationModalFinding)) {
+      setMutationError('Your permission changed. The pending mutation dialog has been closed.');
+    }
+    if (!canManageRemediation) setTaskModalFinding(null);
+    if (!canRequestDeviation) setDeviationModalFinding(null);
+  }, [canManageRemediation, canRequestDeviation, taskModalFinding, deviationModalFinding]);
+
   const fetchAssessments = useCallback(() => getAssessments(), []);
   const { data: allAssessments, loading, error, refresh } = usePolling<AssessmentListItem[]>(fetchAssessments, 30_000);
 
@@ -129,6 +156,7 @@ export default function Assessments() {
   }, [systemId]);
 
   const handleRunAssessment = async () => {
+    if (!requirePermission(canRunAssessments, 'run assessments')) return;
     if (!readiness.isReady || runLoading) return;
     const request = ++runGeneration.current;
     setRunLoading(true);
@@ -147,6 +175,7 @@ export default function Assessments() {
   };
 
   const handleGenerateSap = async () => {
+    if (!requirePermission(canGenerateSap, 'generate a SAP')) return;
     setSapLoading(true);
     setSapError(null);
     try {
@@ -166,6 +195,7 @@ export default function Assessments() {
   };
 
   const handleFinalizeSap = async () => {
+    if (!requirePermission(canFinalizeSap, 'finalize a SAP')) return;
     if (!sapData) return;
     setSapLoading(true);
     setSapError(null);
@@ -185,6 +215,7 @@ export default function Assessments() {
   };
 
   const handleGenerateSar = async () => {
+    if (!requirePermission(canGenerateSar, 'generate a SAR')) return;
     setSarLoading(true);
     setSarError(null);
     try {
@@ -256,9 +287,12 @@ export default function Assessments() {
             />
             <div className="flex flex-col items-start gap-0.5">
               <button
-                onClick={() => { setShowSapDialog(true); setSapError(null); }}
-                disabled={!detail.baselineLevel || detail.baselineLevel === 'None'}
-                title={!detail.baselineLevel || detail.baselineLevel === 'None' ? 'Select a control baseline before generating a SAP' : 'Generate Security Assessment Plan'}
+                onClick={() => {
+                  if (!requirePermission(canGenerateSap, 'generate a SAP')) return;
+                  setShowSapDialog(true); setSapError(null);
+                }}
+                disabled={!canGenerateSap || !detail.baselineLevel || detail.baselineLevel === 'None'}
+                title={!canGenerateSap ? 'SAP generation permission is unavailable in this workspace' : !detail.baselineLevel || detail.baselineLevel === 'None' ? 'Select a control baseline before generating a SAP' : 'Generate Security Assessment Plan'}
                 className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -276,10 +310,13 @@ export default function Assessments() {
               )}
             </div>
             <button
-              onClick={() => { setShowSarDialog(true); setSarError(null); }}
-              disabled={assessments.filter(a => a.status === 'Completed').length === 0}
+              onClick={() => {
+                if (!requirePermission(canGenerateSar, 'generate a SAR')) return;
+                setShowSarDialog(true); setSarError(null);
+              }}
+              disabled={!canGenerateSar || assessments.filter(a => a.status === 'Completed').length === 0}
               className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title={assessments.filter(a => a.status === 'Completed').length === 0 ? 'Run at least one assessment first' : 'Generate Security Assessment Report'}
+              title={!canGenerateSar ? 'SAR generation permission is unavailable in this workspace' : assessments.filter(a => a.status === 'Completed').length === 0 ? 'Run at least one assessment first' : 'Generate Security Assessment Report'}
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -287,8 +324,12 @@ export default function Assessments() {
               Generate SAR
             </button>
             <button
-              onClick={() => setShowRunDialog(true)}
-              disabled={!readiness.isReady || runLoading}
+              onClick={() => {
+                if (!requirePermission(canRunAssessments, 'run assessments')) return;
+                setShowRunDialog(true);
+              }}
+              disabled={!canRunAssessments || !readiness.isReady || runLoading}
+              title={!canRunAssessments ? 'You do not have permission to run assessments' : undefined}
               aria-describedby="assessment-readiness"
               className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -300,6 +341,8 @@ export default function Assessments() {
             </button>
           </div>
         </div>
+
+        {mutationError && <p role="alert" className="text-sm text-red-700">{mutationError}</p>}
 
         <div id="assessment-readiness" aria-live="polite" className="rounded-lg border border-gray-200 bg-white p-4 text-sm">
           <p className="font-medium text-gray-900">Run Assessment uses real Azure resources only.</p>
@@ -374,7 +417,8 @@ export default function Assessments() {
                   {sapData.status === 'Draft' && (
                   <button
                     onClick={() => void handleFinalizeSap()}
-                    disabled={sapLoading}
+                    disabled={!canFinalizeSap || sapLoading}
+                    title={!canFinalizeSap ? 'SAP finalization permission is unavailable in this workspace' : undefined}
                     className="inline-flex items-center rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                   >
                     {sapLoading ? 'Finalizing...' : 'Finalize SAP'}
@@ -745,14 +789,23 @@ export default function Assessments() {
                                             )}
                                             <button
                                               type="button"
-                                              onClick={() => setTaskModalFinding(f)}
+                                              onClick={() => {
+                                                if (!requirePermission(canManageRemediation, 'create remediation tasks')) return;
+                                                setTaskModalFinding(f);
+                                              }}
+                                              disabled={!canManageRemediation}
                                               className="ml-auto inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
                                             >
                                               + Create Task
                                             </button>
                                             <button
                                               type="button"
-                                              onClick={() => setDeviationModalFinding(f)}
+                                              onClick={() => {
+                                                if (!requirePermission(canRequestDeviation, 'request deviations')) return;
+                                                setDeviationModalFinding(f);
+                                              }}
+                                              disabled={!canRequestDeviation}
+                                              title={!canRequestDeviation ? 'Deviation request permission is unavailable in this workspace' : undefined}
                                               className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700 hover:bg-purple-100 transition-colors"
                                             >
                                               + Create Deviation
@@ -877,7 +930,7 @@ export default function Assessments() {
                 <button
                   type="button"
                   onClick={() => void handleRunAssessment()}
-                  disabled={runLoading || !readiness.isReady}
+                  disabled={!canRunAssessments || runLoading || !readiness.isReady}
                   className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                 >
                   {runLoading ? 'Running...' : 'Run Assessment'}
@@ -948,7 +1001,7 @@ export default function Assessments() {
               </div>
               <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end gap-2">
                 <button type="button" onClick={() => setShowSapDialog(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>
-                <button type="button" onClick={() => void handleGenerateSap()} disabled={sapLoading} className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                <button type="button" onClick={() => void handleGenerateSap()} disabled={!canGenerateSap || sapLoading} className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                   {sapLoading ? 'Generating...' : 'Generate SAP'}
                 </button>
               </div>
@@ -1004,7 +1057,7 @@ export default function Assessments() {
               </div>
               <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex justify-end gap-2">
                 <button type="button" onClick={() => setShowSarDialog(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>
-                <button type="button" onClick={() => void handleGenerateSar()} disabled={sarLoading} className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                <button type="button" onClick={() => void handleGenerateSar()} disabled={!canGenerateSar || sarLoading} className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors">
                   {sarLoading ? 'Generating...' : 'Generate SAR'}
                 </button>
               </div>
@@ -1351,7 +1404,7 @@ export default function Assessments() {
           </div>
         )}
 
-      {deviationModalFinding && (
+      {canRequestDeviation && deviationModalFinding && (
         <AddDeviationDialog
           systemId={systemId}
           initialFindingId={deviationModalFinding.findingId}
@@ -1362,7 +1415,7 @@ export default function Assessments() {
         />
       )}
       {/* Create Remediation Task Modal */}
-      {taskModalFinding && (
+      {canManageRemediation && taskModalFinding && (
         <CreateRemediationTaskModal
           systemId={systemId}
           findingId={taskModalFinding.findingId}

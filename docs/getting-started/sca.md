@@ -14,7 +14,7 @@
 | **Knowledge** | Assigned as SCA to one or more systems by the ISSM |
 
 !!! warning "Read-Only Role"
-    As SCA you have **read-only** access. You cannot modify narratives, fix findings, or issue authorization decisions. If you attempt a write operation, ATO Copilot will return an RBAC denial with explanation.
+    As SCA you have **read-only** access. You cannot modify narratives, fix findings, or issue authorization decisions. If you attempt a write operation, Security Posture Intelligence Navigator will return an RBAC denial with explanation.
 
 ## First-Time Setup
 

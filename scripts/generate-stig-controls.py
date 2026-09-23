@@ -427,7 +427,7 @@ def main():
 
     stig_data = {
         "version": "2.0.0",
-        "source": "DISA STIG Library (curated subset for ATO Copilot — Feature 015)",
+        "source": "DISA STIG Library (curated subset for Security Posture Intelligence Navigator — Feature 015)",
         "controls": controls
     }
 

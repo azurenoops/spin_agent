@@ -1,6 +1,6 @@
 # MCP Tools Contract — 074: Policy + Technical Narrative Split
 
-All tools follow the existing ATO Copilot `BaseTool` response envelope:
+All tools follow the existing Security Posture Intelligence Navigator `BaseTool` response envelope:
 
 ```json
 {

@@ -26,7 +26,7 @@ using System.ClientModel;
 namespace Ato.Copilot.Core.Extensions;
 
 /// <summary>
-/// Extension methods for registering ATO Copilot Core services including
+/// Extension methods for registering Security Posture Intelligence Navigator Core services including
 /// database context, Azure clients, and configuration bindings.
 /// </summary>
 public static class CoreServiceExtensions

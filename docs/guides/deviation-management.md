@@ -112,7 +112,7 @@ Extend the expiration date of an approved deviation.
 
 ### Request False Positive
 
-Right-click on an ATO Copilot diagnostic in the editor and select **"Request False Positive"** from the context menu. This creates a `FalsePositive` deviation linked to the specific finding.
+Right-click on an Security Posture Intelligence Navigator diagnostic in the editor and select **"Request False Positive"** from the context menu. This creates a `FalsePositive` deviation linked to the specific finding.
 
 ## Notifications
 

@@ -4,9 +4,12 @@ import CspDashboardPage from '../features/csp-dashboard/CspDashboardPage';
 import RouteResolverFallback from '../components/layout/RouteResolverFallback';
 import { useCspDashboardAvailable } from '../components/layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../hooks/useImpersonationActive';
+import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
 
 /**
  * Scope-aware landing page mounted at `/`.
+ * Explicit workspace context takes precedence; the probe matrix below
+ * describes compatibility behavior for unscoped routes only.
  *
  * Resolves at render time based on three signals:
  *
@@ -43,8 +46,12 @@ import { useImpersonationActive } from '../hooks/useImpersonationActive';
  * fallback only ever shows once per tab session.
  */
 export default function PortfolioRoute(): ReactElement {
+  const workspace = useWorkspaceTarget();
   const impersonating = useImpersonationActive();
-  const cspAdminAvailable = useCspDashboardAvailable();
+  const cspAdminAvailable = useCspDashboardAvailable(!workspace);
+
+  if (workspace?.kind === 'csp') return <CspDashboardPage />;
+  if (workspace?.kind === 'organization') return <PortfolioRiskProfile />;
 
   if (impersonating) {
     return <PortfolioRiskProfile />;

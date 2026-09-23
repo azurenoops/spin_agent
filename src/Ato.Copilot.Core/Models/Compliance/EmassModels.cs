@@ -174,10 +174,10 @@ public record EmassImportOptions(
 /// </summary>
 public enum ConflictResolution
 {
-    /// <summary>Keep ATO Copilot data, skip eMASS conflicts.</summary>
+    /// <summary>Keep Security Posture Intelligence Navigator data, skip eMASS conflicts.</summary>
     Skip,
 
-    /// <summary>Overwrite ATO Copilot data with eMASS data.</summary>
+    /// <summary>Overwrite Security Posture Intelligence Navigator data with eMASS data.</summary>
     Overwrite,
 
     /// <summary>Per-field merge — text fields appended, enum/status prefer imported, dates prefer more recent.</summary>

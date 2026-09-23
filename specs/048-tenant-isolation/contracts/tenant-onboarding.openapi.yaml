@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: ATO Copilot — Tenant Onboarding Wizard API
+  title: Security Posture Intelligence Navigator — Tenant Onboarding Wizard API
   version: "1.0.0"
   description: |
     Step-by-step capture of tenant-level information (FR-054) and creation of

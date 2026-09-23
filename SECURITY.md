@@ -1,4 +1,4 @@
-# SECURITY.md — ATO Copilot Security Engineering Notes
+# SECURITY.md — Security Posture Intelligence Navigator Security Engineering Notes
 
 This file records security vulnerabilities, their root causes, fixes, and reviewer
 checklists so future contributors can catch similar patterns during code review.
@@ -108,6 +108,6 @@ using var _ = accessor.Push(ctx);
 
 ## Reporting Security Issues
 
-To report a security vulnerability in ATO Copilot, contact the maintainers directly
+To report a security vulnerability in Security Posture Intelligence Navigator, contact the maintainers directly
 via the channel defined in the project's contributor guide (`docs/dev/contributing.md`).
 Do **not** open a public GitHub issue for security vulnerabilities.

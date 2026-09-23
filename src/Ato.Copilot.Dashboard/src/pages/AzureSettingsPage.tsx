@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../features/workspaces/workspaceNavigation';
 import { onboarding } from '../features/onboarding/api/onboardingApi';
 import type { AzureSubscriptionRegistrationDto } from '../features/onboarding/api/onboardingApi';
 

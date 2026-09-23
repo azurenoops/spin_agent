@@ -237,7 +237,7 @@ job runs and uploads a `playwright-report` artifact on failure.
 - [ ] T501 [P] [#139] Create (or verify existence of) at least one smoke test
   in `src/Ato.Copilot.Dashboard/e2e/smoke.spec.ts` tagged `@smoke`.
   Minimum viable test: navigate to `http://localhost:5173`, assert the page
-  title matches `/ATO Copilot/i`. This test must pass when the Vite dev
+  title matches `/Security Posture Intelligence Navigator/i`. This test must pass when the Vite dev
   server is running locally (`PLAYWRIGHT_BASE_URL=http://localhost:5173`).
 
 - [ ] T502 [P] [#139] Dry-run validate the new `playwright-e2e` job using

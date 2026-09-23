@@ -8,7 +8,7 @@
 
 - .NET 8 SDK
 - Running Cosmos DB emulator or Azure Cosmos DB connection
-- Existing registered system in ATO Copilot (for import testing)
+- Existing registered system in Security Posture Intelligence Navigator (for import testing)
 - Sample .nessus file (see Test Fixtures below)
 
 ## Build & Run

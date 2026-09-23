@@ -28,7 +28,7 @@ export function buildRemediationPlanCard(data: RemediationPlanData): Record<stri
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Remediation Plan",
+      text: "Security Posture Intelligence Navigator — Remediation Plan",
       weight: "Bolder",
       size: "Large",
     },

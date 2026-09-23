@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -47,7 +48,7 @@ describe('Narrative provenance', () => {
     });
 
     // Act
-    await act(async () => { render(<Narratives />); });
+    await act(async () => { render(<MemoryRouter initialEntries={['/systems/system-1/narratives']}><Narratives /></MemoryRouter>); });
     await act(async () => { fireEvent.click(screen.getByTitle('Expand')); });
 
     // Assert

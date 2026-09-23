@@ -23,7 +23,8 @@ namespace Ato.Copilot.Tests.Unit.Tenancy;
 /// <summary>
 /// T090 [US4]: Drives <see cref="TenantResolutionMiddleware"/> in
 /// isolation against an in-memory SQLite database. Verifies the
-/// FR-055 self-onboarding branch in both modes.
+/// MultiTenant requests require explicit membership even when the legacy
+/// AllowSelfOnboarding setting is enabled; directory affiliation creates no grants.
 /// </summary>
 /// <remarks>
 /// We invoke the middleware directly so the test does not need to stand up
@@ -43,9 +44,13 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddMemoryCache();
-        services.AddDbContext<AtoCopilotContext>(opt => opt.UseSqlite(_connection));
+        services.AddDbContextFactory<AtoCopilotContext>(opt => opt.UseSqlite(_connection));
         services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         services.AddScoped<ITenantContext, TenantContext>();
+        services.AddSingleton(BuildImpersonationStub());
+        services.AddSingleton(BuildCspProfileStub());
+        services.AddSingleton<IOptions<RoleClaimMappingsOptions>>(Options.Create(new RoleClaimMappingsOptions()));
+        services.AddScoped<IWorkspaceService, WorkspaceService>();
         _sp = services.BuildServiceProvider();
 
         await using var scope = _sp.CreateAsyncScope();
@@ -60,11 +65,13 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SelfOnboardingEnabled_UnknownEntraTenant_AutoCreatesInWizardRow()
+    public async Task SelfOnboardingEnabled_UnknownIdentity_DoesNotCreateTenantOrMembership()
     {
+        // Arrange
         var unknownEntra = Guid.NewGuid();
         var (mw, http) = await BuildMiddlewareAsync(unknownEntra, allowSelfOnboarding: true);
 
+        // Act
         await mw.InvokeAsync(
             http,
             http.RequestServices.GetRequiredService<ITenantContext>(),
@@ -77,23 +84,26 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
             BuildConfiguration(),
             BuildCspProfileStub());
 
+        // Assert
         await using var scope = _sp.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         var row = await db.Tenants.AsNoTracking()
             .FirstOrDefaultAsync(t => t.EntraTenantId == unknownEntra);
-        row.Should().NotBeNull("self-onboarding should auto-create a Tenants row.");
-        row!.OnboardingState.Should().Be(OnboardingState.InWizard);
-        row.Status.Should().Be(TenantStatus.Active);
+        row.Should().BeNull("directory affiliation is not an enrollment grant");
+        (await db.OrganizationMemberships.CountAsync()).Should().Be(0);
+        http.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
     }
 
     [Fact]
-    public async Task SelfOnboardingDisabled_UnknownEntraTenant_Writes401TenantNotProvisioned()
+    public async Task SelfOnboardingDisabled_UnknownIdentity_Writes403NoTenantAssignment()
     {
+        // Arrange
         var unknownEntra = Guid.NewGuid();
         var (mw, http) = await BuildMiddlewareAsync(unknownEntra, allowSelfOnboarding: false);
         // Hit a path that is *not* on the bypass list so the resolver runs.
         http.Request.Path = "/api/onboarding/tenant/state";
 
+        // Act
         await mw.InvokeAsync(
             http,
             http.RequestServices.GetRequiredService<ITenantContext>(),
@@ -106,9 +116,10 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
             BuildConfiguration(),
             BuildCspProfileStub());
 
-        http.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        // Assert
+        http.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         var body = await ReadBodyAsync(http);
-        body.Should().Contain("\"errorCode\":\"TENANT_NOT_PROVISIONED\"");
+        body.Should().Contain("\"errorCode\":\"NO_TENANT_ASSIGNMENT\"");
     }
 
     private async Task<(TenantResolutionMiddleware, DefaultHttpContext)> BuildMiddlewareAsync(
@@ -130,6 +141,7 @@ public class SelfOnboardingGuardTests : IAsyncLifetime
         var identity = new ClaimsIdentity(new[]
         {
             new Claim("tid", entraTid.ToString()),
+            new Claim("oid", "00000000-0000-0000-0000-000000000099"),
             new Claim(ClaimTypes.NameIdentifier, "00000000-0000-0000-0000-000000000099"),
         }, "Test");
         http.User = new ClaimsPrincipal(identity);

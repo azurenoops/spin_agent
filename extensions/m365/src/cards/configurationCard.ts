@@ -1,7 +1,7 @@
 /**
  * Configuration Adaptive Card Builder (FR-010)
  *
- * Displays current ATO Copilot configuration settings as a table
+ * Displays current Security Posture Intelligence Navigator configuration settings as a table
  * with "Update" action buttons for each setting.
  */
 
@@ -21,7 +21,7 @@ export function buildConfigurationCard(data: ConfigurationData): Record<string, 
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Configuration",
+      text: "Security Posture Intelligence Navigator — Configuration",
       weight: "Bolder",
       size: "Large",
     },

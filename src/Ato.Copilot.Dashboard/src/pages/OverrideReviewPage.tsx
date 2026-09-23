@@ -1,7 +1,7 @@
 /**
  * OverrideReviewPage — SCA review queue for org-level control overrides
  * Route: /controls/overrides
- * Access: SecurityControlAssessor role can approve/reject; all roles can view
+ * Access: legacy assessor review; canonical review awaits its organization-level permission projection.
  *
  * Issues: #244 — Epic #219 Task
  */
@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
 import { useSettings } from '../hooks/useSettings';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import {
   type OrgControlOverrideDto,
   type OrgControlOverrideApprovalStatus,
@@ -39,7 +40,7 @@ function getApprovalStatus(row: OrgControlOverrideDto): OrgControlOverrideApprov
 
 export default function OverrideReviewPage() {
   const { settings } = useSettings();
-  const isScaRole = (settings.role as string) === 'SecurityControlAssessor';
+  const isScaRole = useSystemMutationPermission(undefined, null, (settings.role as string) === 'SecurityControlAssessor');
 
   const [allOverrides, setAllOverrides] = useState<OrgControlOverrideDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +80,7 @@ export default function OverrideReviewPage() {
 
   // ─── Approve handler ───────────────────────────────────────────────────────
   const handleApprove = async (row: OrgControlOverrideDto) => {
+    if (!isScaRole) { setActionError('Organization override review permission is not available for this workspace.'); return; }
     setActingOn(row.controlId);
     setActionError(null);
     try {
@@ -93,11 +95,13 @@ export default function OverrideReviewPage() {
 
   // ─── Reject handler ────────────────────────────────────────────────────────
   const openReject = (row: OrgControlOverrideDto) => {
+    if (!isScaRole) { setActionError('Organization override review permission is not available for this workspace.'); return; }
     setRejectTarget(row);
     setRejectComment('');
   };
 
   const handleRejectConfirm = async () => {
+    if (!isScaRole) { setActionError('Organization override review permission is not available for this workspace.'); return; }
     if (!rejectTarget) return;
     setRejecting(true);
     setActionError(null);
@@ -160,7 +164,7 @@ export default function OverrideReviewPage() {
 
         {/* Action error */}
         {actionError && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {actionError}
           </div>
         )}
@@ -168,7 +172,7 @@ export default function OverrideReviewPage() {
         {/* Role gate notice */}
         {!isScaRole && (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            You are viewing in read-only mode. Switch to <strong>SecurityControlAssessor</strong> role to approve or reject overrides.
+            You are viewing in read-only mode. Organization override review requires server-authorized review access.
           </div>
         )}
 
@@ -312,7 +316,7 @@ export default function OverrideReviewPage() {
               <button
                 type="button"
                 onClick={() => void handleRejectConfirm()}
-                disabled={rejecting || !rejectComment.trim()}
+                disabled={!isScaRole || rejecting || !rejectComment.trim()}
                 className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {rejecting ? 'Rejecting…' : 'Confirm Reject'}

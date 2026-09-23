@@ -4,8 +4,13 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Services;
 using FluentAssertions;
@@ -14,7 +19,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,19 +30,33 @@ namespace Ato.Copilot.Tests.Integration;
 
 public sealed class CapabilitySubscriptionEndpointTests : IAsyncLifetime
 {
-    private readonly InMemoryDatabaseRoot _databaseRoot = new();
+    private readonly SqliteConnection _connection = new("Data Source=:memory:");
+    private static readonly Guid ProfileId = Guid.Parse("95700000-0000-0000-0000-000000000001");
     private WebApplication _app = null!;
     private HttpClient _client = null!;
 
     public async Task InitializeAsync()
     {
+        await _connection.OpenAsync();
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             EnvironmentName = "Testing",
         });
         builder.WebHost.UseTestServer();
         builder.Services.AddDbContext<AtoCopilotContext>(options =>
-            options.UseInMemoryDatabase("CapabilitySubscriptions", _databaseRoot));
+            options.UseSqlite(_connection));
+        var personId = Guid.NewGuid();
+        var options = new DbContextOptionsBuilder<AtoCopilotContext>().UseSqlite(_connection).Options;
+        var factory = new Mock<IDbContextFactory<AtoCopilotContext>>();
+        factory.Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new AtoCopilotContext(options));
+        builder.Services.AddSingleton(factory.Object);
+        builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+        builder.Services.AddSingleton<ITenantContext>(new TenantContext(Guid.Empty) { PersonId = personId, IsWorkspaceRequest = true });
+        builder.Services.AddSingleton<ISystemWorkspaceAccessService, SystemWorkspaceAccessService>();
+        builder.Services.AddScoped<ICapabilityResponsibilityService, CapabilityResponsibilityService>();
+        builder.Services.AddScoped<ICapabilityResponsibilityImpactDispatcher, CapabilityResponsibilityImpactDispatcher>();
+        builder.Services.AddSingleton(new Mock<INarrativeChangeImpactService>(MockBehavior.Strict).Object);
         builder.Services
             .AddAuthentication("Test")
             .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
@@ -51,6 +70,17 @@ public sealed class CapabilitySubscriptionEndpointTests : IAsyncLifetime
         _app.UseAuthentication();
         _app.UseAuthorization();
         _app.MapCapabilitySubscriptionEndpoints();
+        await using (var db = new AtoCopilotContext(options))
+        {
+            await db.Database.EnsureCreatedAsync();
+            db.Tenants.Add(new() { Id = Guid.Empty, DisplayName = "Synthetic subscription tenant" });
+            db.Persons.Add(new() { Id = personId, TenantId = Guid.Empty, DisplayName = "Synthetic reviewer", Email = "reviewer@example.invalid" });
+            db.OrganizationMemberships.Add(new() { TenantId = Guid.Empty, PersonId = personId,
+                DirectoryTenantId = Guid.NewGuid(), ObjectId = Guid.NewGuid(), GrantedBy = "fixture" });
+            db.OrganizationRoleAssignments.Add(new() { TenantId = Guid.Empty, PersonId = personId, Role = OrganizationRole.Isso });
+            db.CspProfiles.Add(new() { Id = ProfileId, DisplayName = "Synthetic CSP", LegalEntityName = "Synthetic CSP" });
+            await db.SaveChangesAsync();
+        }
         await _app.StartAsync();
         _client = _app.GetTestClient();
     }
@@ -59,6 +89,7 @@ public sealed class CapabilitySubscriptionEndpointTests : IAsyncLifetime
     {
         _client.Dispose();
         await _app.DisposeAsync();
+        await _connection.DisposeAsync();
     }
 
     [Fact]
@@ -176,7 +207,7 @@ public sealed class CapabilitySubscriptionEndpointTests : IAsyncLifetime
         string name,
         CspInheritedComponentStatus status) => new()
     {
-        CspProfileId = Guid.NewGuid(),
+        CspProfileId = ProfileId,
         Name = name,
         Description = $"{name} component",
         ComponentType = CspComponentType.Service,

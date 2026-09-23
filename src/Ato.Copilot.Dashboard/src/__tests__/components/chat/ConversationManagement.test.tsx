@@ -47,7 +47,7 @@ describe('ConversationList', () => {
 describe('WelcomeMessage', () => {
   it('renders branding and example questions', () => {
     render(<WelcomeMessage onSendExample={vi.fn()} />);
-    expect(screen.getByText('ATO Copilot')).toBeDefined();
+    expect(screen.getByText('Security Posture Intelligence Navigator')).toBeDefined();
     // Portfolio/no-system context shows generic suggestions
     expect(screen.getByText('Portfolio overview')).toBeDefined();
   });

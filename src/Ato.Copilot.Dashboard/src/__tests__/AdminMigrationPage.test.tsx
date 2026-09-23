@@ -13,7 +13,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { LoginConfig } from '../features/auth/types';
 import AdminMigrationPage from '../pages/AdminMigrationPage';
 
-const DEPLOYMENT_NAME = 'ACME ATO Copilot';
+const DEPLOYMENT_NAME = 'ACME Security Posture Intelligence Navigator';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { BulkCreateFromFindingsRequest, BulkCreateResponse } from '../../types/poam';
+import { useSystemMutationPermission } from '../permissions/useSystemMutationPermission';
 
 interface FindingItem {
   id: string;
@@ -16,7 +17,9 @@ interface PostImportPoamPromptProps {
   onClose: () => void;
 }
 
-export default function PostImportPoamPrompt({ findings, systemId: _systemId, onBulkCreate, onClose }: PostImportPoamPromptProps) {
+export default function PostImportPoamPrompt({ findings, systemId, onBulkCreate, onClose }: PostImportPoamPromptProps) {
+  const canManageRemediation = useSystemMutationPermission(systemId, 'canManageRemediation');
+  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(
     new Set(findings.filter(f => !f.hasActivePoam).map(f => f.id)),
   );
@@ -42,13 +45,18 @@ export default function PostImportPoamPrompt({ findings, systemId: _systemId, on
   };
 
   const handleCreate = async () => {
+    if (!canManageRemediation) {
+      setError('Permission denied: you cannot manage remediation for this system.');
+      return;
+    }
     if (selected.size === 0) return;
+    setError(null);
     setLoading(true);
     try {
       const res = await onBulkCreate({ findingIds: Array.from(selected) });
       setResult(res);
-    } catch {
-      // handled by parent
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create POA&M items.');
     } finally {
       setLoading(false);
     }
@@ -58,6 +66,9 @@ export default function PostImportPoamPrompt({ findings, systemId: _systemId, on
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
       <div className="w-full max-w-xl rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
         <h2 className="mb-1 text-lg font-bold text-gray-900">Create POA&amp;M Items from Findings</h2>
+        {(error || !canManageRemediation) && (
+          <p role="alert" className="text-sm text-red-600">{error ?? 'Permission denied: you cannot manage remediation for this system.'}</p>
+        )}
         <p className="mb-4 text-sm text-gray-500">
           {eligible.length} finding(s) without active POA&amp;M items detected.
           {grayed.length > 0 && ` ${grayed.length} finding(s) already have active POA&Ms.`}
@@ -132,7 +143,7 @@ export default function PostImportPoamPrompt({ findings, systemId: _systemId, on
               </button>
               <button
                 onClick={handleCreate}
-                disabled={loading || selected.size === 0}
+                disabled={!canManageRemediation || loading || selected.size === 0}
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {loading ? 'Creating...' : `Create ${selected.size} POA&M Item(s)`}

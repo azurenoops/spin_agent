@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-#  ATO Copilot — Full Stack Docker Compose
+#  Security Posture Intelligence Navigator — Full Stack Docker Compose
 #  Services: SQL Server + MCP Server + Chat App
 #  Usage:  docker compose -f docker-compose.mcp.yml up --build -d
 #  Env:    All secrets in .env (gitignored)
@@ -34,6 +34,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NUGET_SOURCE: ${NUGET_SOURCE:-https://api.nuget.org/v3/index.json}
     container_name: ato-copilot-mcp
     restart: unless-stopped
     depends_on:
@@ -51,6 +53,7 @@ services:
       # an authenticated simulated identity. Production deployments use a
       # different compose / Container Apps manifest.
       - ASPNETCORE_ENVIRONMENT=Development
+      - ATO_CACAUTH__SIMULATIONMODE=${ATO_CACAUTH__SIMULATIONMODE:-true}
       - ASPNETCORE_URLS=http://+:3001
       - Logging__LogLevel__Microsoft.AspNetCore=Information
       - Logging__LogLevel__Microsoft.Hosting=Information
@@ -129,7 +132,7 @@ services:
       - ATO_AUTH__ROLECLAIMMAPPINGS__CSPADMIN=${ATO_AUTH__ROLECLAIMMAPPINGS__CSPADMIN}
       - ATO_AUTH__ROLECLAIMMAPPINGS__SOCANALYST=${ATO_AUTH__ROLECLAIMMAPPINGS__SOCANALYST}
       # Branding shown on the dashboard's /login page. All three are
-      # optional — empty values fall back to "ATO Copilot" / no logo /
+      # optional — empty values fall back to "Security Posture Intelligence Navigator" / no logo /
       # no support link.
       - ATO_AUTH__BRANDING__DEPLOYMENTNAME=${ATO_AUTH__BRANDING__DEPLOYMENTNAME}
       - ATO_AUTH__BRANDING__LOGOURL=${ATO_AUTH__BRANDING__LOGOURL}
@@ -158,6 +161,9 @@ services:
     build:
       context: .
       dockerfile: src/Ato.Copilot.Chat/Dockerfile
+      args:
+        NUGET_SOURCE: ${NUGET_SOURCE:-https://api.nuget.org/v3/index.json}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     container_name: ato-copilot-chat
     restart: unless-stopped
     depends_on:
@@ -169,6 +175,7 @@ services:
       - "${CHAT_PORT:-5001}:5001"
     environment:
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}  # Fix #657: default to Development for local dev; set to Production in deployment pipelines
+      - ATO_SERVER__URLS=http://0.0.0.0:5001
 
       # ── Chat Database (SQL Server — separate DB) ──────────
       - ATO_CONNECTIONSTRINGS__CHATDB=Server=sqlserver,1433;Database=AtoCopilotChat;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True
@@ -194,6 +201,8 @@ services:
     build:
       context: .
       dockerfile: src/Ato.Copilot.Dashboard/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     container_name: ato-copilot-dashboard
     restart: unless-stopped
     depends_on:

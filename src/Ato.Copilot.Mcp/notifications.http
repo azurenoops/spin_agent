@@ -1,0 +1,111 @@
+# Notification and progress isolation contract (#1002).
+# Supply a real access token and internal organization GUID. UserId, when supplied,
+# is only an assertion of the authenticated oid; it never selects another user.
+# Lists/counts/read mutations include only the actor's system-visible notifications.
+# Cross-actor, foreign-tenant or inaccessible IDs in mark-read reject the entire batch.
+# Ordinary mode ignores support cookies. Explicit support requires a matching live session.
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_ACCESS_TOKEN
+@tenantId = REPLACE_WITH_INTERNAL_ORGANIZATION_GUID
+@notificationId = REPLACE_WITH_AUTHORIZED_NOTIFICATION_GUID
+
+### Transport capabilities (also usable with an existing server-authenticated session)
+# Missing bearer credentials do not enable cookie-based SignalR. The response exposes
+# server-bound recipientId, REST availability, realtime availability/reason, and a polling
+# recommendation. Frontends must not require an MSAL account merely to use authorized REST.
+# To test an existing server-authenticated session without bearer, omit Authorization;
+# do not manufacture cookies or identity headers. Anonymous requests remain 401.
+# A session-only organization response has:
+# rest.available=true; realtime.available=false; realtime.cookieSessionSupported=false;
+# realtime.reasonCode=REALTIME_BEARER_REQUIRED;
+# fallback.transport=rest-polling; fallback.pollIntervalSeconds=30.
+# Other realtime reasons: REALTIME_BEARER_INVALID, REALTIME_ACTOR_MISMATCH,
+# REALTIME_WORKSPACE_NOT_AUTHORIZED. Presence of an Authorization header alone is not readiness.
+# Subscription/resource authorization still runs even when realtime.available=true.
+GET {{baseUrl}}/api/dashboard/notifications/capabilities
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### List visible notifications
+GET {{baseUrl}}/api/dashboard/notifications?unreadOnly=true&limit=50
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Visible summary
+GET {{baseUrl}}/api/dashboard/notifications/summary
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Mark only authorized actor-owned notifications
+POST {{baseUrl}}/api/dashboard/notifications/mark-read
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"notificationIds":["{{notificationId}}"]}
+
+### Mark all visible notifications; inaccessible systems remain unchanged
+POST {{baseUrl}}/api/dashboard/notifications/mark-all-read
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Actor and organization bound preferences
+GET {{baseUrl}}/api/dashboard/notifications/preferences
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Save preferences
+PUT {{baseUrl}}/api/dashboard/notifications/preferences
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"poamOverdueAlerts":true,"atoExpirationAlerts":true,"complianceDriftAlerts":true,"alertDaysBefore":30}
+
+### A forged userId assertion must be forbidden, never another user's inbox
+GET {{baseUrl}}/api/dashboard/notifications?userId=00000000-0000-0000-0000-000000000001
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+# SignalR transports: /hubs/notifications, /hubs/package, /hubs/import-progress.
+# Append workspaceKind=organization&workspaceTenantId=<internal GUID>&workspaceMode=ordinary.
+# Retain accessTokenFactory (negotiate bearer header, WS/SSE GET access_token).
+# Reconnect on context changes. Package: SubscribeToPackage/UnsubscribeFromPackage(packageId).
+# Import: JoinImportGroup/LeaveImportGroup(importJobId). Both IDs are server-created GUIDs.
+# Each operation and progress delivery revalidates workspace membership and system read access.
+# Job knowledge alone grants no access. Do not use ordinary contexts as support-session aliases.
+#
+# The import polling fallback applies identical workspace/system read checks. Upload and
+# cancellation additionally require the shared CanRunAssessments permission.
+@systemId = REPLACE_WITH_REGISTERED_SYSTEM_ID
+@importId = REPLACE_WITH_IMPORT_JOB_GUID
+
+### Import polling fallback (404 for inaccessible system/job)
+GET {{baseUrl}}/api/dashboard/systems/{{systemId}}/scans/import/{{importId}}/status
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Cancel import (403 for read-only system assignees)
+DELETE {{baseUrl}}/api/dashboard/systems/{{systemId}}/scans/import/{{importId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary

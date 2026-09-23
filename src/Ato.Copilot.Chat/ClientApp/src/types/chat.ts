@@ -1,5 +1,5 @@
 // ────────────────────────────────────────────────────────────────
-//  ATO Copilot Chat — TypeScript Type Definitions
+//  Security Posture Intelligence Navigator Chat — TypeScript Type Definitions
 //  Mirrors backend Models/ChatModels.cs exactly
 // ────────────────────────────────────────────────────────────────
 

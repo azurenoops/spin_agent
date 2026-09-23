@@ -11,11 +11,14 @@
  * mock the API layer (getComponents / listComponents), click the "Add Existing"
  * tab, then assert the correct empty-state copy.
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { useWorkspaceSession, type WorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
+
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
 
 vi.mock('../../api/components', () => ({
   getComponents: vi.fn(),
@@ -53,12 +56,14 @@ vi.mock('../../components/forms/ComponentForm', () => ({
 vi.mock('../../components/cards/MetricCard', () => ({
   default: () => <div />,
 }));
-vi.mock('../../hooks/usePolling', () => ({
-  usePolling: (fn: () => void) => { fn(); },
-}));
+vi.mock('../../hooks/usePolling', async () => {
+  const { useEffect } = await import('react');
+  return { usePolling: (fn: () => void) => useEffect(() => { fn(); }, [fn]) };
+});
 
 import * as compApi from '../../api/components';
 import ComponentInventory from '../../pages/ComponentInventory';
+import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 
 const mockGetComponents = compApi.getComponents as ReturnType<typeof vi.fn>;
 const mockListComponents = compApi.listComponents as ReturnType<typeof vi.fn>;
@@ -96,11 +101,15 @@ const makeOrgComp = (id: string, name: string) => ({
 
 const emptySystemResponse = { items: [], summary: { total: 0 } };
 
-function renderPage() {
+function renderPage(scoped = false) {
+  const prefix = scoped ? '/workspaces/organizations/org-alpha' : '';
+  const page = scoped
+    ? <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-alpha' }}><ComponentInventory /></WorkspaceNavigationProvider>
+    : <ComponentInventory />;
   return render(
-    <MemoryRouter initialEntries={[`/systems/${SYSTEM_ID}/components`]}>
+    <MemoryRouter initialEntries={[`${prefix}/systems/${SYSTEM_ID}/components`]}>
       <Routes>
-        <Route path="/systems/:id/components" element={<ComponentInventory />} />
+        <Route path={`${prefix}/systems/:id/components`} element={page} />
       </Routes>
     </MemoryRouter>,
   );
@@ -108,6 +117,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(useWorkspaceSession).mockReturnValue(null);
   // Default: system has no components (clean slate)
   mockGetComponents.mockResolvedValue(emptySystemResponse);
 });
@@ -117,15 +127,31 @@ beforeEach(() => {
 async function openAddExistingTab() {
   // First click "Add Component" to show the panel (or find it if always visible)
   const addBtn = await screen.findByRole('button', { name: /add component/i });
-  fireEvent.click(addBtn);
+  await act(async () => { fireEvent.click(addBtn); });
   // Then click the "Add Existing" tab
   const existingTab = await screen.findByRole('button', { name: /add existing/i });
-  fireEvent.click(existingTab);
+  await act(async () => { fireEvent.click(existingTab); });
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('ComponentInventory — Add Existing empty-state messages', () => {
+  it('keeps the component-library link inside the organization workspace', async () => {
+    // Arrange
+    vi.mocked(useWorkspaceSession).mockReturnValue({
+      systemAccess: { systemId: SYSTEM_ID, permissions: { canRead: true, canManageSystem: true } },
+    } as WorkspaceSession);
+    mockListComponents.mockResolvedValue({ items: [], totalCount: 0 });
+    await act(async () => { renderPage(true); });
+
+    // Act
+    await openAddExistingTab();
+
+    // Assert
+    expect(await screen.findByRole('link', { name: /components library/i }))
+      .toHaveAttribute('href', '/workspaces/organizations/org-alpha/components');
+  });
+
   /**
    * SCENARIO A: org has zero components (none created yet)
    * Expected: actionable guidance + link to /components

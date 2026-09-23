@@ -19,6 +19,8 @@ using Xunit;
 using Ato.Copilot.Agents.Compliance.Services.Onboarding;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Onboarding;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Endpoints.Onboarding;
 
@@ -48,6 +50,7 @@ public class PersonEndpointsTests : IAsyncLifetime
 
         var dbName = $"PersonEndpoints_{Guid.NewGuid():N}";
         builder.Services.AddDbContextFactory<AtoCopilotContext>(o => o.UseInMemoryDatabase(dbName));
+        builder.Services.AddScoped<ITenantContext, TenantContext>();
         builder.Services.AddScoped<IWizardAuditService>(_ => _auditMock.Object);
         builder.Services.AddScoped<IDirectorySearchClient>(_ => _directoryMock.Object);
         builder.Services.AddScoped<IPersonService, PersonService>();
@@ -128,15 +131,19 @@ public class PersonEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task Promote_HappyPath_ReturnsOk()
     {
+        // Arrange
         var create = await _client.PostAsJsonAsync("/api/onboarding/persons",
             new { displayName = "Carol", email = "carol@x.mil" });
+        create.StatusCode.Should().Be(HttpStatusCode.OK);
         var createBody = await create.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var personId = createBody.GetProperty("data").GetProperty("id").GetGuid();
 
+        // Act
         var promote = await _client.PostAsJsonAsync(
             $"/api/onboarding/persons/{personId}/promote",
             new { entraObjectId = Guid.NewGuid() });
 
+        // Assert
         promote.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await promote.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         body.GetProperty("data").GetProperty("isLinkedToDirectory").GetBoolean().Should().BeTrue();
@@ -147,19 +154,24 @@ public class PersonEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task Promote_AlreadyLinked_Returns409()
     {
+        // Arrange
         var create = await _client.PostAsJsonAsync("/api/onboarding/persons",
             new { displayName = "Carol", email = "carol2@x.mil" });
+        create.StatusCode.Should().Be(HttpStatusCode.OK);
         var createBody = await create.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var personId = createBody.GetProperty("data").GetProperty("id").GetGuid();
 
-        await _client.PostAsJsonAsync(
+        var first = await _client.PostAsJsonAsync(
             $"/api/onboarding/persons/{personId}/promote",
             new { entraObjectId = Guid.NewGuid() });
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
 
+        // Act
         var second = await _client.PostAsJsonAsync(
             $"/api/onboarding/persons/{personId}/promote",
             new { entraObjectId = Guid.NewGuid() });
 
+        // Assert
         second.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 

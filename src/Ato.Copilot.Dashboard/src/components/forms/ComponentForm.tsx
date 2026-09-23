@@ -20,9 +20,12 @@ interface ComponentFormProps {
   onCancel: () => void;
   isSubmitting?: boolean;
   error?: string | null;
+  canSubmit?: boolean;
+  canAssignRmfRole?: boolean;
 }
 
-export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel, isSubmitting, error }: ComponentFormProps) {
+export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel, isSubmitting, error, canSubmit = true, canAssignRmfRole = true }: ComponentFormProps) {
+  const [permissionError, setPermissionError] = useState<string | null>(null);
   const [name, setName] = useState(initial?.name ?? '');
   const [componentType, setComponentType] = useState<ComponentType>(initial?.componentType ?? 'Thing');
   const [subType, setSubType] = useState(initial?.subType ?? '');
@@ -51,6 +54,11 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSubmit || (!canAssignRmfRole && componentType === 'Person' && rmfRole && rmfRole !== initial?.rmfRole)) {
+      setPermissionError('You do not have permission to make this component change.');
+      return;
+    }
+    setPermissionError(null);
     onSubmit({
       name,
       componentType,
@@ -65,6 +73,10 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
   };
 
   const handleGenerateDescription = async () => {
+    if (!canSubmit) {
+      setPermissionError('You do not have permission to generate a component description.');
+      return;
+    }
     if (!name.trim()) return;
     setGeneratingDesc(true);
     try {
@@ -86,6 +98,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {permissionError && <p role="alert">{permissionError}</p>}
       {error && (
         <div className="bg-red-50 text-red-700 p-3 rounded text-sm">{error}</div>
       )}
@@ -139,7 +152,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
           <button
             type="button"
             onClick={handleGenerateDescription}
-            disabled={!name.trim() || generatingDesc}
+            disabled={!canSubmit || !name.trim() || generatingDesc}
             className="inline-flex items-center gap-1.5 rounded-md bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {generatingDesc ? (
@@ -229,7 +242,8 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
           <label className="block text-sm font-medium text-gray-700 mb-1">RMF Role</label>
           <select
             value={rmfRole}
-            onChange={(e) => setRmfRole(e.target.value)}
+            disabled={!canSubmit || !canAssignRmfRole}
+            onChange={(e) => { if (canSubmit && canAssignRmfRole) setRmfRole(e.target.value); }}
             className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
           >
             {RMF_ROLE_OPTIONS.map((opt) => (
@@ -250,7 +264,7 @@ export function ComponentForm({ initial, systemId: _systemId, onSubmit, onCancel
         </button>
         <button
           type="submit"
-          disabled={!isValid || isSubmitting}
+          disabled={!canSubmit || !isValid || isSubmitting}
           className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? 'Saving...' : initial ? 'Update' : 'Create'}

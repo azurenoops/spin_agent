@@ -10,7 +10,7 @@ using Ato.Copilot.State.Abstractions;
 namespace Ato.Copilot.Agents.Configuration.Tools;
 
 /// <summary>
-/// MCP tool for managing ATO Copilot configuration settings.
+/// MCP tool for managing Security Posture Intelligence Navigator configuration settings.
 /// Supports sub-actions: get_configuration, set_subscription, set_framework,
 /// set_baseline, and set_preference.
 /// Settings are persisted in IAgentStateManager shared state with "config:" key prefix.
@@ -63,7 +63,7 @@ public class ConfigurationTool : BaseTool
 
     /// <inheritdoc />
     public override string Description =>
-        "Manage ATO Copilot settings: subscription, framework, baseline, environment, and preferences";
+        "Manage Security Posture Intelligence Navigator settings: subscription, framework, baseline, environment, and preferences";
 
     /// <inheritdoc />
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>

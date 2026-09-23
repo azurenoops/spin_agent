@@ -33,7 +33,7 @@ public sealed class TenantProvisioningService : ITenantProvisioningService
 
     /// <inheritdoc />
     public async Task<(Tenant Tenant, bool Created)> CreateAsync(
-        Guid entraTenantId,
+        Guid? entraTenantId,
         string displayName,
         string actor,
         CancellationToken cancellationToken = default)
@@ -52,9 +52,9 @@ public sealed class TenantProvisioningService : ITenantProvisioningService
         }
 
         // Idempotent: if a row already exists for this EntraTenantId, return it.
-        var existing = await _db.Tenants
+        var existing = entraTenantId.HasValue ? await _db.Tenants
             .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.EntraTenantId == entraTenantId, cancellationToken);
+            .FirstOrDefaultAsync(t => t.EntraTenantId == entraTenantId, cancellationToken) : null;
         if (existing is not null)
         {
             return (existing, Created: false);

@@ -291,7 +291,7 @@ public class OrgInheritanceService : IOrgInheritanceService
             {
                 // Only skip if the existing designation is a manual override / profile / import
                 var source = existing.DesignationSource;
-                if (source is "Manual" or "ProfileApply" or "CrmImport" or "BulkUpdate")
+                if (source is "Manual" or "ProfileApply" or "CrmImport" or "BulkUpdate" or "CspSubscription")
                 {
                     skippedCount++;
                     continue;

@@ -330,6 +330,12 @@ public sealed record MigrationTableReport(
 
 ## 9. Schema-add idempotency contract
 
+`CspProfiles` must also be created by the additive tenancy schema path, not
+only by model-based database creation. SQLite migration-based startup must
+support reading the complete CSP profile model on both first and repeat
+startup. Schema initialization creates no profile row; onboarding remains
+lazy per FR-006. Repeat startup must preserve any existing profile.
+
 Every modification to existing tables MUST be expressible as an additive, idempotent SQL fragment in `EnsureSchemaAdditionsAsync`:
 
 ```sql

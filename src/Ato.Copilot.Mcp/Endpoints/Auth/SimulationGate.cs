@@ -138,7 +138,7 @@ public static class SimulationGate
                }))
         {
             logger.LogWarning(
-                "Simulation blocked in non-Development environment {Environment} (attemptedIdentityId={AttemptedIdentityId})",
+                "Simulation blocked by environment or configuration in {Environment} (attemptedIdentityId={AttemptedIdentityId})",
                 environmentName, attempt);
         }
     }

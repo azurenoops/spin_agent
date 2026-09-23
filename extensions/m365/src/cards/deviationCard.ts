@@ -34,7 +34,7 @@ export function buildDeviationCard(data: DeviationData): Record<string, unknown>
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Deviation Request",
+      text: "Security Posture Intelligence Navigator — Deviation Request",
       weight: "Bolder",
       size: "Large",
     },

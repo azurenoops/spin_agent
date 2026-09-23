@@ -96,7 +96,7 @@ All new entities are correctly attributed. The only actionable work is:
 
 ### User Story 1 — Verified RLS coverage matrix for 044–050 (Priority: P1)
 
-**As a** Security Engineer or auditor reviewing the ATO Copilot codebase
+**As a** Security Engineer or auditor reviewing the Security Posture Intelligence Navigator codebase
 **I want** a machine-verifiable record of every entity's isolation classification
 for Features 044–050
 **So that** I can confirm compliance requirements are met without reading raw source.
@@ -121,7 +121,7 @@ the two attributes.
 
 ### User Story 2 — FR-026 RBAC gate on inheritance write endpoints (Priority: P1)
 
-**As an** ATO Copilot platform operator
+**As an** Security Posture Intelligence Navigator platform operator
 **I want** `PUT /systems/{systemId}/inheritance` (and any other 044–050 write
 endpoints lacking role gates) restricted to `Compliance.AuthorizingOfficial` and
 `Compliance.Engineer`

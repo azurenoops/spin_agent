@@ -17,6 +17,7 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Mcp.Authorization;
 using System.Text.RegularExpressions;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
@@ -152,6 +153,7 @@ public static partial class DashboardEndpoints
                 }
             })
             .WithName("UploadEvidence")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageEvidence)
             .DisableAntiforgery();
 
         // ─── Control Evidence (US1 T015) ─────────────────────────────────────
@@ -244,7 +246,7 @@ public static partial class DashboardEndpoints
                         ArtifactCategory = ce.EvidenceCategory.ToString(),
                         ce.ControlId,
                         Description = $"Automated evidence for {ce.ControlId}",
-                        UploadedBy = "ATO Copilot (automated)",
+                        UploadedBy = "Security Posture Intelligence Navigator (automated)",
                         UploadedAt = ce.CollectedAt,
                         ce.ContentHash,
                     }),
@@ -373,7 +375,7 @@ public static partial class DashboardEndpoints
                         ControlImplementationId = (string?)null,
                         SecurityCapabilityId = (string?)null,
                         Description = (string?)ce.Description,
-                        UploadedBy = "ATO Copilot (automated)",
+                        UploadedBy = "Security Posture Intelligence Navigator (automated)",
                         UploadedAt = ce.CollectedAt,
                         ContentHash = (string?)ce.ContentHash,
                     }));
@@ -487,7 +489,7 @@ public static partial class DashboardEndpoints
                         SecurityCapabilityId = (string?)null,
                         CapabilityName = (string?)null,
                         Description = (string?)compEvidence.Description,
-                        UploadedBy = "ATO Copilot (automated)",
+                        UploadedBy = "Security Posture Intelligence Navigator (automated)",
                         UploadedAt = compEvidence.CollectedAt,
                         ContentHash = (string?)compEvidence.ContentHash,
                         Versions = Array.Empty<object>(),
@@ -545,7 +547,8 @@ public static partial class DashboardEndpoints
                     return Results.StatusCode(502);
                 }
             })
-            .WithName("CollectEvidence");
+            .WithName("CollectEvidence")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageEvidence);
 
         // ─── Delete Evidence (US6 T035) ─────────────────────────────────────
 
@@ -568,7 +571,8 @@ public static partial class DashboardEndpoints
                         ErrorCode = "NOT_FOUND",
                     });
             })
-            .WithName("DeleteEvidence");
+            .WithName("DeleteEvidence")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageEvidence);
 
         // ─── Replace Evidence (US6 T036) ─────────────────────────────────────
 
@@ -650,6 +654,7 @@ public static partial class DashboardEndpoints
                 }
             })
             .WithName("ReplaceEvidence")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageEvidence)
             .DisableAntiforgery();
 
         // ─── Version History (US6 T037) ──────────────────────────────────────

@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import axios from 'axios';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from '../workspaces/workspaceNavigation';
 import { useMe } from './useMe';
 import type { TenantSummary } from './types';
+import { hasWorkspaceContract } from '../workspaces/WorkspaceEntry';
+import WorkspacePicker from '../workspaces/WorkspacePicker';
 
 /**
  * Feature 051 T072 [US3] — tenant / organization picker page.
@@ -22,6 +24,11 @@ import type { TenantSummary } from './types';
  * own cross-tenant scope.
  */
 export default function TenantPickerPage() {
+  const { data } = useMe();
+  return data && hasWorkspaceContract(data) ? <WorkspacePicker /> : <LegacyTenantPickerPage />;
+}
+
+function LegacyTenantPickerPage() {
   const { data: me, isLoading, error } = useMe();
   const [remember, setRemember] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);

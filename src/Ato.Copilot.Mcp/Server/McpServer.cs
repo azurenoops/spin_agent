@@ -14,6 +14,8 @@ using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Models.Provenance;
 using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Mcp.Services.Tenancy;
+using Ato.Copilot.State.Abstractions;
 using ErrorDetail = Ato.Copilot.Mcp.Models.ErrorDetail;
 using Microsoft.Extensions.Options;
 using System.Collections;
@@ -24,7 +26,7 @@ using System.Text.Json;
 namespace Ato.Copilot.Mcp.Server;
 
 /// <summary>
-/// MCP server for the ATO Copilot - compliance-only agent.
+/// MCP server for the Security Posture Intelligence Navigator - compliance-only agent.
 /// Exposes compliance tools via stdio/HTTP for GitHub Copilot, Claude Desktop, etc.
 /// </summary>
 public class McpServer
@@ -126,10 +128,32 @@ public class McpServer
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var identity = _httpContextAccessor.HttpContext is { } http
+                ? await WorkspaceChatScope.ResolveAsync(http, context, actionContext, cancellationToken)
+                : null;
+            if (identity is not null)
+            {
+                context = WorkspaceChatScope.BindContext(context, identity);
+                actionContext = actionContext is null ? null : WorkspaceChatScope.BindContext(actionContext, identity);
+            }
+            var toolAuthorization = identity is not null && identity.Kind != "legacy"
+                ? new WorkspaceToolAuthorizer(_httpContextAccessor.HttpContext!, conversation: true, _logger)
+                : null;
+            using var toolScope = toolAuthorization is not null
+                ? ToolExecutionAuthorization.Push(toolAuthorization.AuthorizeAsync) : null;
+            using var requestScope = _logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["DirectoryTenantId"] = identity?.DirectoryId,
+                ["ActorObjectId"] = identity?.ObjectId,
+                ["WorkspaceTenantId"] = identity?.TenantId,
+                ["WorkspaceKind"] = identity?.Kind,
+                ["WorkspaceMode"] = identity?.Mode
+            });
             var agentContext = new AgentConversationContext
             {
-                ConversationId = conversationId,
-                UserId = ResolveCurrentUserId()
+                ConversationId = identity?.StorageKey(conversationId) ?? $"local:{conversationId}",
+                UserId = identity?.ActorId ?? ResolveCurrentUserId()
             };
 
             if (conversationHistory != null)
@@ -144,12 +168,22 @@ public class McpServer
                     agentContext.WorkflowState[kvp.Key] = kvp.Value;
             }
 
+            if (identity is not null)
+            {
+                agentContext.WorkflowState["user_id"] = identity.ActorId;
+                agentContext.WorkflowState["userId"] = identity.ActorId;
+                activity?.SetTag("mcp.user_id", identity.ActorId);
+                activity?.SetTag("mcp.workspace_kind", identity.Kind);
+                activity?.SetTag("mcp.workspace_mode", identity.Mode);
+                activity?.SetTag("mcp.workspace_tenant", identity.TenantId);
+            }
+
             // T016: Action routing — when Action is present, route to tool directly
             if (!string.IsNullOrEmpty(action))
             {
                 return await HandleActionRoutingAsync(
                     action, actionContext, message, conversationId, agentContext,
-                    stopwatch, cancellationToken, progress);
+                    stopwatch, cancellationToken, progress, toolAuthorization);
             }
 
             // T052: Offline guard — AI chat requires network (FR-035)
@@ -210,22 +244,27 @@ public class McpServer
                 : null;
 
             var contextJson = context != null ? JsonSerializer.Serialize(context, _jsonOptions) : "{}";
-            var paramsJson = $"{message}::{contextJson}";
-            var cacheStatus = _cacheService.GetCacheStatus(targetAgent.AgentName, paramsJson, subscriptionId);
+            var historyJson = JsonSerializer.Serialize(
+                conversationHistory?.Select(m => new { m.Role, m.Content }), _jsonOptions);
+            var cacheScope = identity is null ? "local" : agentContext.ConversationId;
+            var paramsJson = $"{cacheScope}::{message}::{contextJson}::{historyJson}";
+            var cacheStatus = identity is not null ? "BYPASS"
+                : _cacheService.GetCacheStatus(targetAgent.AgentName, paramsJson, subscriptionId);
             string cachedResponse;
             using (var agentActivity = ActivitySource.StartActivity("AgentDispatch", ActivityKind.Internal))
             {
                 agentActivity?.SetTag("mcp.agent", targetAgent.AgentName);
                 agentActivity?.SetTag("mcp.cache_status", cacheStatus);
-                cachedResponse = await _cacheService.GetOrSetAsync(
-                    targetAgent.AgentName, paramsJson, subscriptionId,
-                    async () =>
-                    {
-                        var resp = await targetAgent.ProcessAsync(message, agentContext, cancellationToken, progress);
-                        // #941 — persist model-call provenance records (cache-miss path only)
-                        await PersistModelCallRecordsAsync(resp, conversationId, cancellationToken);
-                        return JsonSerializer.Serialize(resp, _jsonOptions);
-                    });
+                async Task<string> DispatchAsync()
+                {
+                    var resp = await targetAgent.ProcessAsync(message, agentContext, cancellationToken, progress);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    toolAuthorization?.ThrowIfDenied();
+                    await PersistModelCallRecordsAsync(resp, agentContext.ConversationId, cancellationToken);
+                    return JsonSerializer.Serialize(resp, _jsonOptions);
+                }
+                cachedResponse = identity is not null ? await DispatchAsync()
+                    : await _cacheService.GetOrSetAsync(targetAgent.AgentName, paramsJson, subscriptionId, DispatchAsync);
             }
 
             var response = JsonSerializer.Deserialize<AgentResponse>(cachedResponse, _jsonOptions);
@@ -331,6 +370,20 @@ public class McpServer
             ApplyPagination(chatResponse, context);
 
             return chatResponse;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (WorkspaceException ex)
+        {
+            _logger.LogWarning("Chat context denied | Code: {Code} | ConvId: {ConvId}", ex.Code, conversationId);
+            return new McpChatResponse
+            {
+                Success = false,
+                ConversationId = conversationId,
+                Errors = [new ErrorDetail { ErrorCode = ex.Code, Message = ex.Message }]
+            };
         }
         catch (TenantUnresolvedException ex)
         {
@@ -566,6 +619,10 @@ public class McpServer
                 };
                 await _modelCallLedger.RecordAsync(entity, cancellationToken);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex,
@@ -625,7 +682,8 @@ public class McpServer
         AgentConversationContext agentContext,
         Stopwatch stopwatch,
         CancellationToken cancellationToken,
-        IProgress<string>? progress)
+        IProgress<string>? progress,
+        WorkspaceToolAuthorizer? toolAuthorization)
     {
         if (!ActionToToolMap.TryGetValue(action, out var toolName))
         {
@@ -699,6 +757,12 @@ public class McpServer
         if (!string.IsNullOrEmpty(message))
             toolArgs.TryAdd("message", message);
 
+        if (toolAuthorization is not null)
+        {
+            var authorizedArgs = toolArgs.ToDictionary(p => p.Key, p => (object?)p.Value);
+            await toolAuthorization.AuthorizeAsync(toolName, authorizedArgs, cancellationToken);
+        }
+
         // Route to compliance agent to execute the tool
         AgentResponse response;
         using (var toolActivity = ActivitySource.StartActivity($"ToolExecution:{toolName}", ActivityKind.Internal))
@@ -709,9 +773,11 @@ public class McpServer
                 $"Execute tool '{toolName}' with context: {JsonSerializer.Serialize(toolArgs, _jsonOptions)}",
                 agentContext, cancellationToken, progress);
         }
+        cancellationToken.ThrowIfCancellationRequested();
+        toolAuthorization?.ThrowIfDenied();
 
         // #941 — persist model-call provenance records
-        await PersistModelCallRecordsAsync(response, conversationId, cancellationToken);
+        await PersistModelCallRecordsAsync(response, agentContext.ConversationId, cancellationToken);
 
         stopwatch.Stop();
 
@@ -752,7 +818,7 @@ public class McpServer
     /// </summary>
     public async Task StartAsync()
     {
-        _logger.LogInformation("Starting ATO Copilot MCP Server (compliance-only)");
+        _logger.LogInformation("Starting Security Posture Intelligence Navigator MCP Server (compliance-only)");
 
         try
         {
@@ -830,7 +896,7 @@ public class McpServer
                 },
                 serverInfo = new
                 {
-                    name = "ATO Copilot",
+                    name = "Security Posture Intelligence Navigator",
                     version = "1.0.0"
                 }
             }
@@ -882,6 +948,55 @@ public class McpServer
             _logger.LogError(ex, "Error executing tool call");
             return CreateErrorResponse(request.Id, -32603, "Tool execution failed", ex.Message);
         }
+    }
+
+    /// <summary>Executes an explicit HTTP tool request under its actual workspace operation policy.</summary>
+    public async Task<McpToolResult> ProcessWorkspaceToolRequestAsync(string toolName,
+        Dictionary<string, object>? arguments, CancellationToken cancellationToken = default)
+    {
+        var http = _httpContextAccessor.HttpContext
+            ?? throw new WorkspaceException(401, "INVALID_WORKSPACE_IDENTITY", "An authenticated HTTP request is required.");
+        var identity = WorkspaceChatScope.Resolve(http);
+        var tool = _allTools.FirstOrDefault(t => string.Equals(t.Name, toolName, StringComparison.Ordinal))
+            ?? throw new WorkspaceException(403, "WORKSPACE_TOOL_NOT_SUPPORTED", "This tool has no approved workspace operation mapping.");
+        var args = arguments?.ToDictionary(p => p.Key, p => (object?)p.Value) ?? new();
+        var authorization = identity.Kind == "legacy" ? null : new WorkspaceToolAuthorizer(http, conversation: false, _logger);
+        using var scope = authorization is null ? null : ToolExecutionAuthorization.Push(authorization.AuthorizeAsync);
+        if (identity.Kind == "legacy")
+        {
+            foreach (var key in args.Keys.Where(key => key.Replace("_", "", StringComparison.Ordinal)
+                .Equals("userId", StringComparison.OrdinalIgnoreCase)).ToArray()) args.Remove(key);
+            args["user_id"] = identity.ActorId;
+        }
+        if (tool.SystemIdResolver is not null && tool.Parameters.ContainsKey("system_id")
+            && args.TryGetValue("system_id", out var value))
+        {
+            var reference = value switch
+            {
+                string text => text,
+                JsonElement { ValueKind: JsonValueKind.String } json => json.GetString(),
+                _ => null
+            };
+            if (!string.IsNullOrWhiteSpace(reference) && !Guid.TryParse(reference, out _))
+                args["system_id"] = await tool.SystemIdResolver.ResolveAsync(reference, cancellationToken);
+        }
+        // Explicit HTTP calls are guarded here as well as by the shared BaseTool boundary.
+        if (authorization is not null) await authorization.AuthorizeAsync(tool.Name, args, cancellationToken);
+        var result = await tool.ExecuteAsync(args, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        authorization?.ThrowIfDenied();
+        if (result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+            return McpToolResult.Error(result);
+        if (result.TrimStart().StartsWith('{'))
+        {
+            using var document = JsonDocument.Parse(result);
+            var root = document.RootElement;
+            if ((root.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String
+                    && string.Equals(status.GetString(), "error", StringComparison.OrdinalIgnoreCase))
+                || (root.TryGetProperty("success", out var success) && success.ValueKind == JsonValueKind.False))
+                return McpToolResult.Error(result);
+        }
+        return McpToolResult.Success(result);
     }
 
     private async Task<McpToolResult> ExecuteToolAsync(string toolName, Dictionary<string, object> args)

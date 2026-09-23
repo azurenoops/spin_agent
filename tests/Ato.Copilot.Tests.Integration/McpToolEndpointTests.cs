@@ -26,7 +26,7 @@ namespace Ato.Copilot.Tests.Integration;
 /// <summary>
 /// Integration tests for MCP tool HTTP endpoints. Tests the full HTTP pipeline
 /// including middleware, routing, serialization, and tool execution.
-/// Uses InMemory database and Development environment (bypasses auth middleware).
+/// Uses synthetic authenticated single-tenant context and an InMemory database.
 /// </summary>
 [Collection("IntegrationTests")]
 public class McpToolEndpointTests : IAsyncLifetime
@@ -53,6 +53,7 @@ public class McpToolEndpointTests : IAsyncLifetime
         });
 
         var dbName = $"IntegrationTest_{Guid.NewGuid():N}";
+        builder.Configuration["Deployment:Mode"] = "SingleTenant";
 
         // Register InMemory DbContext as singleton (all options singleton to avoid captive dependency)
         // Bind configuration (no real Azure client — just the settings)
@@ -84,8 +85,9 @@ public class McpToolEndpointTests : IAsyncLifetime
 
         _app = builder.Build();
 
-        // Configure middleware pipeline (matches Program.cs HTTP mode)
+        // Authentication and tenant binding are synthetic here; workspace authorization has separate full-pipeline tests.
         _app.UseCors();
+        _app.UseSyntheticSingleTenantIdentity();
         _app.UseMiddleware<ComplianceAuthorizationMiddleware>();
         _app.UseMiddleware<AuditLoggingMiddleware>();
 
@@ -96,7 +98,7 @@ public class McpToolEndpointTests : IAsyncLifetime
         // Root endpoint
         _app.MapGet("/", () => Microsoft.AspNetCore.Http.Results.Json(new
         {
-            service = "ATO Copilot",
+            service = "Security Posture Intelligence Navigator",
             version = "1.0.0",
             mode = "http"
         }));
@@ -130,7 +132,7 @@ public class McpToolEndpointTests : IAsyncLifetime
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         json.RootElement.GetProperty("status").GetString().Should().Be("healthy");
-        json.RootElement.GetProperty("service").GetString().Should().Contain("ATO Copilot");
+        json.RootElement.GetProperty("service").GetString().Should().Contain("Security Posture Intelligence Navigator");
     }
 
     [Fact]
@@ -142,7 +144,7 @@ public class McpToolEndpointTests : IAsyncLifetime
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
-        json.RootElement.GetProperty("service").GetString().Should().Be("ATO Copilot");
+        json.RootElement.GetProperty("service").GetString().Should().Be("Security Posture Intelligence Navigator");
         json.RootElement.GetProperty("version").GetString().Should().Be("1.0.0");
     }
 

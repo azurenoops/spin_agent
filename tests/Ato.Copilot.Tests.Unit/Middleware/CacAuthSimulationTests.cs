@@ -65,6 +65,49 @@ public class CacAuthSimulationTests
     //  T006: Core Simulation Scenarios (US1)
     // ────────────────────────────────────────────────────────────────
 
+    [Theory]
+    [InlineData("dev-admin", true)]
+    [InlineData("unknown", false)]
+    public async Task SelectedCookie_UsesOnlyTheConfiguredIdentity(string selection, bool valid)
+    {
+        // Arrange
+        var options = CreateSimulationOptions();
+        var selected = new Ato.Copilot.Core.Configuration.Auth.SimulatedIdentityDescriptor
+        {
+            IdentityId = "dev-admin", DisplayName = "Selected administrator", Persona = "CspAdmin",
+            Oid = "10000000-0000-0000-0000-000000000001",
+            Tid = "20000000-0000-0000-0000-000000000001",
+            TenantId = Guid.Parse("30000000-0000-0000-0000-000000000001"),
+            Roles = ["CSP.Admin"],
+        };
+        options.SimulatedIdentities = [selected];
+        var called = false;
+        var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; }, options);
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Cookie = $"ato-simulation={selection}";
+        var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+
+        // Act
+        try { await middleware.InvokeAsync(context); }
+        finally { Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", previous); }
+
+        // Assert
+        called.Should().Be(valid);
+        if (valid)
+        {
+            context.User.FindFirstValue("oid").Should().Be(selected.Oid);
+            context.User.FindFirstValue("tid").Should().Be(selected.Tid, "the directory is not the internal tenant ID");
+            context.User.FindFirstValue(ClaimTypes.Name).Should().Be(selected.DisplayName);
+            context.User.IsInRole("CSP.Admin").Should().BeTrue();
+        }
+        else
+        {
+            context.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+            (context.User.Identity?.IsAuthenticated ?? false).Should().BeFalse();
+        }
+    }
+
     [Fact]
     public async Task SimulationMode_Development_SynthesizesClaimsPrincipal()
     {

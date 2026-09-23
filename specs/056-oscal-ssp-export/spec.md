@@ -8,7 +8,7 @@
 
 ## Background
 
-ATO Copilot can export system security plans in OSCAL JSON format via
+Security Posture Intelligence Navigator can export system security plans in OSCAL JSON format via
 `OscalSspExportService.cs`. However, the export pipeline has three critical
 gaps that allow silent regressions and compliance failures:
 

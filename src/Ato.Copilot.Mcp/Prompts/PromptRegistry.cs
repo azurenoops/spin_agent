@@ -69,7 +69,7 @@ public static class CompliancePrompts
 }
 
 /// <summary>
-/// Registry of all MCP prompts - compliance only for ATO Copilot
+/// Registry of all MCP prompts - compliance only for Security Posture Intelligence Navigator
 /// </summary>
 public static class PromptRegistry
 {

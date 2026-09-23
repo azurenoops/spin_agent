@@ -99,7 +99,7 @@ List all evidence artifacts for a system (paginated). Returns both user-uploaded
       "controlImplementationId": null,
       "securityCapabilityId": null,
       "description": "Automated evidence collection for AC-2",
-      "uploadedBy": "ATO Copilot (automated)",
+      "uploadedBy": "Security Posture Intelligence Navigator (automated)",
       "uploadedAt": "2026-03-17T10:00:00Z",
       "contentHash": "a7ffc6f8bf1ed7667..."
     }

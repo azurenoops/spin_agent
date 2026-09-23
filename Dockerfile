@@ -1,6 +1,9 @@
 # ──────────────────────────────────────────────────────────────
-#  ATO Copilot — Multi-stage Docker Build
+#  Security Posture Intelligence Navigator — Multi-stage Docker Build
 # ──────────────────────────────────────────────────────────────
+
+# Empty unless an approved package-only build context overrides this stage.
+FROM scratch AS nuget-packages
 
 # Stage 1: Build
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
@@ -14,13 +17,16 @@ COPY src/Ato.Copilot.Agents/Ato.Copilot.Agents.csproj src/Ato.Copilot.Agents/
 COPY src/Ato.Copilot.Mcp/Ato.Copilot.Mcp.csproj src/Ato.Copilot.Mcp/
 
 # Restore
-RUN dotnet restore src/Ato.Copilot.Mcp/Ato.Copilot.Mcp.csproj
+ARG NUGET_SOURCE=https://api.nuget.org/v3/index.json
+RUN --mount=type=bind,from=nuget-packages,target=/nuget-feed \
+    dotnet restore src/Ato.Copilot.Mcp/Ato.Copilot.Mcp.csproj --source "$NUGET_SOURCE"
 
 # Copy source
 COPY src/ src/
 
 # Build & Publish
 RUN dotnet publish src/Ato.Copilot.Mcp/Ato.Copilot.Mcp.csproj \
+    --no-restore \
     -c Release \
     -o /app/publish
 

@@ -1,6 +1,6 @@
 # HTTP API Contract — 072: Anti-Double-Entry (SPIN/eMASS Sync Status)
 
-All endpoints use the standard ATO Copilot envelope:
+All endpoints use the standard Security Posture Intelligence Navigator envelope:
 
 ```json
 { "status": "success|error", "data": { ... }, "metadata": { "executionTimeMs": N, "timestamp": "ISO" } }

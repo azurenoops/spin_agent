@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Agents.Common;
+using Ato.Copilot.State.Abstractions;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 
@@ -212,13 +213,16 @@ public class NarrativeDiffTool : BaseTool
 public class RollbackNarrativeTool : BaseTool
 {
     private readonly INarrativeGovernanceService _svc;
+    private readonly IConversationIdentityAccessor? _identityAccessor;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public RollbackNarrativeTool(
         INarrativeGovernanceService svc,
-        ILogger<RollbackNarrativeTool> logger) : base(logger)
+        ILogger<RollbackNarrativeTool> logger,
+        IConversationIdentityAccessor? identityAccessor = null) : base(logger)
     {
         _svc = svc;
+        _identityAccessor = identityAccessor;
     }
 
     public override string Name => "compliance_rollback_narrative";
@@ -252,10 +256,12 @@ public class RollbackNarrativeTool : BaseTool
         if (!int.TryParse(targetVersionStr, out var targetVersion))
             return Error("INVALID_INPUT", "The 'target_version' parameter must be an integer.");
 
+        var actor = _identityAccessor?.Current?.ActorId ?? "mcp-user";
+
         try
         {
             var version = await _svc.RollbackNarrativeAsync(
-                systemId, controlId, targetVersion, "mcp-user", changeReason, cancellationToken);
+                systemId, controlId, targetVersion, actor, changeReason, cancellationToken);
 
             sw.Stop();
             return JsonSerializer.Serialize(new
@@ -305,13 +311,16 @@ public class RollbackNarrativeTool : BaseTool
 public class SubmitNarrativeTool : BaseTool
 {
     private readonly INarrativeGovernanceService _svc;
+    private readonly IConversationIdentityAccessor? _identityAccessor;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public SubmitNarrativeTool(
         INarrativeGovernanceService svc,
-        ILogger<SubmitNarrativeTool> logger) : base(logger)
+        ILogger<SubmitNarrativeTool> logger,
+        IConversationIdentityAccessor? identityAccessor = null) : base(logger)
     {
         _svc = svc;
+        _identityAccessor = identityAccessor;
     }
 
     public override string Name => "compliance_submit_narrative";
@@ -338,10 +347,12 @@ public class SubmitNarrativeTool : BaseTool
         if (string.IsNullOrWhiteSpace(controlId))
             return Error("INVALID_INPUT", "The 'control_id' parameter is required.");
 
+        var actor = _identityAccessor?.Current?.ActorId ?? "mcp-user";
+
         try
         {
             var version = await _svc.SubmitNarrativeAsync(
-                systemId, controlId, "mcp-user", cancellationToken);
+                systemId, controlId, actor, cancellationToken);
 
             sw.Stop();
             return JsonSerializer.Serialize(new
@@ -390,13 +401,16 @@ public class SubmitNarrativeTool : BaseTool
 public class ReviewNarrativeTool : BaseTool
 {
     private readonly INarrativeGovernanceService _svc;
+    private readonly IConversationIdentityAccessor? _identityAccessor;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public ReviewNarrativeTool(
         INarrativeGovernanceService svc,
-        ILogger<ReviewNarrativeTool> logger) : base(logger)
+        ILogger<ReviewNarrativeTool> logger,
+        IConversationIdentityAccessor? identityAccessor = null) : base(logger)
     {
         _svc = svc;
+        _identityAccessor = identityAccessor;
     }
 
     public override string Name => "compliance_review_narrative";
@@ -432,10 +446,12 @@ public class ReviewNarrativeTool : BaseTool
         if (!TryParseDecision(decisionStr, out var decision))
             return Error("INVALID_INPUT", "The 'decision' must be 'approve' or 'request_revision'.");
 
+        var actor = _identityAccessor?.Current?.ActorId ?? "mcp-user";
+
         try
         {
             var review = await _svc.ReviewNarrativeAsync(
-                systemId, controlId, decision, "mcp-user", comments, cancellationToken);
+                systemId, controlId, decision, actor, comments, cancellationToken);
 
             sw.Stop();
             return JsonSerializer.Serialize(new

@@ -62,19 +62,21 @@ public class EnsureSchemaAdditionsAsyncTests
     private static Mock<ILogger<AtoCopilotContext>> BuildLogger() =>
         new Mock<ILogger<AtoCopilotContext>>(MockBehavior.Loose);
 
+    private static TestEnvironmentVariables SchemaEnvironment() => new(new Dictionary<string, string?>
+    {
+        ["ASPNETCORE_ENVIRONMENT"] = "Testing",
+        ["ATO_RUN_MODE"] = "http",
+        ["ATO_AZUREAI__ENABLED"] = "false",
+        ["ATO_Auth__BypassForTests"] = "true",
+        ["ATO_Auth__Impersonation__SigningKey"] = "schema-idempotency-tests-signing-key-32-bytes!",
+    });
+
     [Fact]
     public async Task EnsureSchemaAdditions_OnSecondSqliteStartup_DoesNotThrow()
     {
         // Arrange
         var databaseFile = Path.Combine(Path.GetTempPath(), $"schema-idempotency-{Guid.NewGuid():N}.db");
-        using var environment = new TestEnvironmentVariables(new Dictionary<string, string?>
-        {
-            ["ASPNETCORE_ENVIRONMENT"] = "Testing",
-            ["ATO_RUN_MODE"] = "http",
-            ["ATO_AZUREAI__ENABLED"] = "false",
-            ["ATO_Auth__BypassForTests"] = "true",
-            ["ATO_Auth__Impersonation__SigningKey"] = "schema-idempotency-tests-signing-key-32-bytes!",
-        });
+        using var environment = SchemaEnvironment();
         try
         {
             await using (var firstBoot = new SchemaAdditionsFactory(databaseFile))
@@ -98,8 +100,117 @@ public class EnsureSchemaAdditionsAsyncTests
         }
     }
 
-    private sealed class SchemaAdditionsFactory(string databaseFile) : WebApplicationFactory<McpProgram>
+    [Fact]
+    public async Task HttpComposition_RegistersOneHostedFanoutWorker_AndScopedDeliveryService()
     {
+        // Arrange
+        var databaseFile = Path.Combine(Path.GetTempPath(), $"fanout-composition-{Guid.NewGuid():N}.db");
+        using var environment = SchemaEnvironment();
+        try
+        {
+            await using var factory = new SchemaAdditionsFactory(databaseFile);
+            using var client = factory.CreateClient();
+            await using var first = factory.Services.CreateAsyncScope();
+            await using var second = factory.Services.CreateAsyncScope();
+
+            // Act
+            var delivery = first.ServiceProvider.GetRequiredService<Ato.Copilot.Core.Services.CspResponsibilityFanoutService>();
+
+            // Assert
+            delivery.Should().BeSameAs(first.ServiceProvider.GetRequiredService<Ato.Copilot.Core.Services.CspResponsibilityFanoutService>());
+            delivery.Should().NotBeSameAs(second.ServiceProvider.GetRequiredService<Ato.Copilot.Core.Services.CspResponsibilityFanoutService>());
+            factory.FanoutRegistrations.Should().ContainSingle().Which.Lifetime.Should().Be(ServiceLifetime.Singleton);
+            using var worker = ActivatorUtilities.CreateInstance<Ato.Copilot.Core.Services.CspResponsibilityFanoutWorker>(factory.Services);
+            await worker.RunOnceAsync();
+        }
+        finally
+        {
+            File.Delete(databaseFile);
+        }
+    }
+
+    [Fact]
+    public async Task HttpComposition_MapsStandaloneLibrariesAndReceiptHistory()
+    {
+        // Arrange
+        var databaseFile = Path.Combine(Path.GetTempPath(), $"library-routes-{Guid.NewGuid():N}.db");
+        using var environment = SchemaEnvironment();
+        try
+        {
+            await using var factory = new SchemaAdditionsFactory(databaseFile);
+            using var client = factory.CreateClient();
+
+            // Act
+            var endpoints = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>()
+                .Endpoints.OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>().ToArray();
+
+            // Assert
+            foreach (var path in new[]
+            {
+                "/api/narrative-library/access",
+                "/api/csp/narrative-library/access",
+                "/api/systems/{systemId}/narrative-library/proposals/{id:guid}/impact-receipts",
+            })
+            {
+                var endpoint = endpoints.Should().ContainSingle(candidate => candidate.RoutePattern.RawText == path).Which;
+                endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>()
+                    .Should().NotBeNull("reference scope endpoints must remain authenticated");
+            }
+        }
+        finally
+        {
+            File.Delete(databaseFile);
+        }
+    }
+
+    [Theory]
+    [InlineData("SingleTenant")]
+    [InlineData("MultiTenant")]
+    public async Task SqliteStartup_CspProfileSchema_IsReadableAndPreservesDataOnRestart(string deploymentMode)
+    {
+        // Arrange
+        var databaseFile = Path.Combine(Path.GetTempPath(), $"csp-schema-{Guid.NewGuid():N}.db");
+        using var environment = SchemaEnvironment();
+        Guid? profileId = null;
+        try
+        {
+            await using (var firstBoot = new SchemaAdditionsFactory(databaseFile, deploymentMode))
+            using (firstBoot.CreateClient())
+            {
+                var profiles = firstBoot.Services.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ICspProfileService>();
+                (await profiles.GetAsync()).Should().BeNull("startup must not seed a CSP profile");
+                if (deploymentMode == "MultiTenant")
+                    profileId = (await profiles.EnsureCreatedAsync("schema-regression")).Id;
+            }
+
+            // Act
+            await using var secondBoot = new SchemaAdditionsFactory(databaseFile, deploymentMode);
+            using var client = secondBoot.CreateClient();
+            var restartedProfiles = secondBoot.Services.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ICspProfileService>();
+            var profile = await restartedProfiles.GetAsync();
+
+            // Assert
+            if (profileId.HasValue)
+            {
+                profile.Should().NotBeNull();
+                profile!.Id.Should().Be(profileId.Value);
+                profile.CreatedBy.Should().Be("schema-regression");
+            }
+            else
+            {
+                profile.Should().BeNull("SingleTenant startup must not create a CSP profile");
+            }
+        }
+        finally
+        {
+            File.Delete(databaseFile);
+        }
+    }
+
+    private sealed class SchemaAdditionsFactory(string databaseFile, string deploymentMode = "SingleTenant") : WebApplicationFactory<McpProgram>
+    {
+        public IReadOnlyList<ServiceDescriptor> FanoutRegistrations { get; private set; } = [];
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
@@ -108,10 +219,12 @@ public class EnsureSchemaAdditionsAsyncTests
                 {
                     ["Database:Provider"] = "Sqlite",
                     ["ConnectionStrings:DefaultConnection"] = $"Data Source={databaseFile};Mode=ReadWriteCreate",
-                    ["Deployment:Mode"] = "SingleTenant",
+                    ["Deployment:Mode"] = deploymentMode,
                 }));
             builder.ConfigureServices(services =>
             {
+                FanoutRegistrations = services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
+                    && descriptor.ImplementationType == typeof(Ato.Copilot.Core.Services.CspResponsibilityFanoutWorker)).ToArray();
                 services.RemoveAll<IHostedService>();
             });
         }

@@ -4,7 +4,7 @@
 
 ## Overview
 
-This contract defines the interface between ATO Copilot agents and the Azure AI Foundry service during agent provisioning. Each concrete agent (Compliance, Configuration, KnowledgeBase) creates or updates a Foundry agent at startup.
+This contract defines the interface between Security Posture Intelligence Navigator agents and the Azure AI Foundry service during agent provisioning. Each concrete agent (Compliance, Configuration, KnowledgeBase) creates or updates a Foundry agent at startup.
 
 ## Provisioning Interface
 

@@ -5,11 +5,18 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Mcp.Extensions;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Ato.Copilot.Core.Constants;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
 
 namespace Ato.Copilot.Tests.Integration;
 
 /// <summary>
-/// Shared service-collection helpers for integration test scaffolding.
+/// Shared service and request-context helpers for integration test scaffolding.
 /// Centralizes the DI registration ceremony required to bring up an MCP test
 /// server with strict scope validation against an InMemory database.
 /// </summary>
@@ -60,6 +67,33 @@ internal static class IntegrationTestServiceExtensions
         services.AddHealthChecks();
 
         return services;
+    }
+
+    /// <summary>
+    /// Supplies explicit identity and tenant binding for single-tenant routing
+    /// contract tests, not authentication or workspace authorization tests.
+    /// </summary>
+    public static void UseSyntheticSingleTenantIdentity(this WebApplication app)
+    {
+        app.Use(async (http, next) =>
+        {
+            http.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new("tid", "11111111-1111-1111-1111-111111111111"),
+                new("oid", "22222222-2222-2222-2222-222222222222"),
+                new(ClaimTypes.Role, ComplianceRoles.Administrator),
+            ], "Synthetic contract identity"));
+            using var scope = BindSingleTenantContext(http, Guid.Parse("33333333-3333-3333-3333-333333333333"));
+            await next(http);
+        });
+    }
+
+    public static IDisposable BindSingleTenantContext(HttpContext http, Guid tenantId)
+    {
+        var tenant = (TenantContext)http.RequestServices.GetRequiredService<ITenantContext>();
+        tenant.TenantId = tenantId;
+        tenant.Status = TenantStatus.Active;
+        return http.RequestServices.GetRequiredService<ITenantContextAccessor>().Push(tenant);
     }
 
     /// <summary>

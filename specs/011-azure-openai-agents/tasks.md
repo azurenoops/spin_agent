@@ -1,4 +1,4 @@
-# Tasks: Add Azure OpenAI to ATO Copilot Agents
+# Tasks: Add Azure OpenAI to Security Posture Intelligence Navigator Agents
 
 **Input**: Design documents from `/specs/011-azure-openai-agents/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/agent-ai-contract.md, quickstart.md

@@ -113,7 +113,7 @@
 - [x] T052 [US2] Update existing compliance card `extensions/m365/src/cards/complianceCard.ts` to use enriched `data` fields (score color coding, control counts, action buttons) (FR-011)
 - [x] T053 [US2] Implement M365 Adaptive Card action button payloads — all action buttons submit structured `{ action, actionContext }` to `/mcp/chat` in `extensions/m365/src/` route handler (FR-014b)
 - [x] T054 [US2] Implement conversation history accumulation in `extensions/m365/src/services/atoApiClient.ts` — `Map<string, ChatMessage[]>` keyed by conversationId, capped at 20 exchanges, pass to `/mcp/chat` requests (FR-014d, R-011)
-- [x] T055 [US2] Add typing indicator / "ATO Copilot is processing..." message while waiting for MCP server response in `extensions/m365/src/` bot handler (FR-014)
+- [x] T055 [US2] Add typing indicator / "Security Posture Intelligence Navigator is processing..." message while waiting for MCP server response in `extensions/m365/src/` bot handler (FR-014)
 - [x] T056 [US2] Implement SSE client in `extensions/m365/src/services/sseClient.ts` — native `fetch` + `ReadableStream`, line-based SSE parser, event type dispatch, retry with exponential backoff, fallback to sync `/mcp/chat`. MUST support `AbortController` for cancellation (FR-029d, FR-029e, R-005, Constitution VIII)
 - [x] T057 [US2] Integrate SSE client in M365 bot handler — show typing indicator on `agentRouted`/`thinking`, update intermediate status on `toolStart`/`toolComplete`, render final card on `complete` (FR-029d)
 - [x] T058 [US2] Implement PIM pre-flight check flow in M365 — `action: "checkPimStatus"` before infrastructure-modifying actions, display PIM activation card with eligible roles on failure, `action: "activatePim"` button (FR-018c-ii)
@@ -145,7 +145,7 @@
 
 **Goal**: VS Code analysis panel displays 5-level severity, control family grouping, framework reference, resource context, auto-remediation with diff preview, finding status lifecycle, CAC+PIM security, and SSE streaming progress.
 
-**Independent Test**: Run "ATO Copilot: Analyze Current File" on a `.bicep` file → panel shows findings with 5 severity levels, control family groupings, "NIST 800-53 Rev 5" badge, resource identifiers, and "Auto-Remediate" badges.
+**Independent Test**: Run "Security Posture Intelligence Navigator: Analyze Current File" on a `.bicep` file → panel shows findings with 5 severity levels, control family groupings, "NIST 800-53 Rev 5" badge, resource identifiers, and "Auto-Remediate" badges.
 
 ### Implementation for User Story 3
 

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Mcp.Hubs;
+using Ato.Copilot.Mcp.Hubs.Notifications;
 
 namespace Ato.Copilot.Mcp.Services;
 
@@ -14,36 +15,31 @@ public class SignalRNotificationBroadcaster : INotificationBroadcaster
 {
     private readonly IHubContext<NotificationHub> _hubContext;
     private readonly ILogger<SignalRNotificationBroadcaster> _logger;
+    private readonly NotificationDeliveryService _delivery;
 
     public SignalRNotificationBroadcaster(
         IHubContext<NotificationHub> hubContext,
-        ILogger<SignalRNotificationBroadcaster> logger)
+        ILogger<SignalRNotificationBroadcaster> logger,
+        NotificationDeliveryService delivery)
     {
         _hubContext = hubContext;
         _logger = logger;
+        _delivery = delivery;
     }
 
     public async Task BroadcastToUserAsync(string userId, AlertNotification notification, CancellationToken cancellationToken = default)
     {
-        await _hubContext.Clients.Group($"user:{userId}").SendAsync("NewNotification", new
-        {
-            id = notification.Id,
-            alertId = notification.AlertId,
-            channel = notification.Channel.ToString(),
-            subject = notification.Subject,
-            body = notification.Body,
-            sentAt = notification.SentAt,
-            isRead = notification.IsRead,
-        }, cancellationToken);
+        await _delivery.BroadcastAsync(userId, notification, SendAsync, cancellationToken);
 
-        _logger.LogDebug("Broadcast notification {NotificationId} to user {UserId}", notification.Id, userId);
+        _logger.LogDebug("Processed notification delivery {NotificationId}", notification.Id);
     }
 
     public async Task BroadcastUnreadCountAsync(string userId, int unreadCount, CancellationToken cancellationToken = default)
     {
-        await _hubContext.Clients.Group($"user:{userId}").SendAsync("UnreadCountUpdated", new
-        {
-            unreadCount,
-        }, cancellationToken);
+        // The legacy argument may aggregate multiple workspaces; recompute from authorized rows.
+        await _delivery.UnreadCountAsync(userId, SendAsync, cancellationToken);
     }
+
+    private Task SendAsync(string connectionId, string method, object?[] arguments, CancellationToken ct) =>
+        _hubContext.Clients.Client(connectionId).SendCoreAsync(method, arguments, ct);
 }

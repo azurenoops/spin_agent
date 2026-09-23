@@ -2,7 +2,7 @@
 
 > **Spec**: [`specs/048-tenant-isolation/spec.md`](../../specs/048-tenant-isolation/spec.md) · **Status**: live (Feature 048)
 
-ATO Copilot is built so a single deployment can host one customer (SingleTenant)
+Security Posture Intelligence Navigator is built so a single deployment can host one customer (SingleTenant)
 or many customers (MultiTenant) without a code rebuild. This document is the
 authoritative reference for how that isolation is enforced and where the
 defense-in-depth boundaries sit.

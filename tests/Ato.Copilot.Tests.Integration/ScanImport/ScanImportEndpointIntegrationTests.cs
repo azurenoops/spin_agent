@@ -5,6 +5,14 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Mcp.Services.Tenancy;
+using Ato.Copilot.Mcp.Configuration;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Onboarding;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -13,6 +21,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.ScanImport;
@@ -20,6 +30,9 @@ namespace Ato.Copilot.Tests.Integration.ScanImport;
 public sealed class ScanImportEndpointIntegrationTests : IAsyncLifetime
 {
     private const string AuthScheme = "TestAuth";
+    private static readonly Guid TenantId = Guid.Parse("74dfc91c-6a22-4182-8e99-7c2ecc37d010");
+    private static readonly Guid DirectoryId = Guid.Parse("74dfc91c-6a22-4182-8e99-7c2ecc37d011");
+    private static readonly Guid ActorId = Guid.Parse("74dfc91c-6a22-4182-8e99-7c2ecc37d012");
     private WebApplication _app = null!;
     private HttpClient _client = null!;
     private ScanImportQueue _queue = null!;
@@ -33,6 +46,14 @@ public sealed class ScanImportEndpointIntegrationTests : IAsyncLifetime
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton<ScanImportQueue>();
         builder.Services.AddSingleton<ScanImportStatusTracker>();
+        var database = Guid.NewGuid().ToString();
+        builder.Services.AddDbContextFactory<AtoCopilotContext>(options => options.UseInMemoryDatabase(database));
+        builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+        builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
+        builder.Services.AddScoped<ISystemWorkspaceAccessService, SystemWorkspaceAccessService>();
+        builder.Services.AddSingleton(Mock.Of<ICspProfileService>());
+        builder.Services.AddSingleton(Mock.Of<ITenantImpersonationService>());
+        builder.Services.AddOptions<RoleClaimMappingsOptions>();
         builder.Services.AddAuthentication(AuthScheme)
             .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(AuthScheme, _ => { });
         builder.Services.AddAuthorization();
@@ -42,9 +63,25 @@ public sealed class ScanImportEndpointIntegrationTests : IAsyncLifetime
         _app.UseAuthorization();
         _app.MapScanImportEndpoints();
         await _app.StartAsync();
+        await using (var db = await _app.Services.GetRequiredService<IDbContextFactory<AtoCopilotContext>>().CreateDbContextAsync())
+        {
+            var person = new Person { TenantId = TenantId, DisplayName = "Scan operator", Email = "scan@example.invalid" };
+            db.Tenants.Add(new Tenant { Id = TenantId, DisplayName = "Scan organization" });
+            db.Persons.Add(person);
+            db.OrganizationMemberships.Add(new OrganizationMembership { TenantId = TenantId, PersonId = person.Id,
+                DirectoryTenantId = DirectoryId, ObjectId = ActorId, GrantedBy = "test" });
+            db.OrganizationRoleAssignments.Add(new OrganizationRoleAssignment
+                { TenantId = TenantId, PersonId = person.Id, Role = OrganizationRole.Isso });
+            db.RegisteredSystems.AddRange(new[] { "system-1", "system-a", "system-b" }
+                .Select(id => new RegisteredSystem { Id = id, TenantId = TenantId, Name = id }));
+            await db.SaveChangesAsync();
+        }
 
         _client = _app.GetTestClient();
         _client.DefaultRequestHeaders.Add("X-Test-User", "scan-import-user");
+        _client.DefaultRequestHeaders.Add("X-Workspace-Kind", "organization");
+        _client.DefaultRequestHeaders.Add("X-Workspace-Tenant-Id", TenantId.ToString());
+        _client.DefaultRequestHeaders.Add("X-Workspace-Mode", "ordinary");
         _queue = _app.Services.GetRequiredService<ScanImportQueue>();
     }
 
@@ -64,6 +101,7 @@ public sealed class ScanImportEndpointIntegrationTests : IAsyncLifetime
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         job.ImportType.Should().Be("Nessus");
+        job.ImportedBy.Should().Be(ActorId.ToString());
         job.TemporaryFilePath.Should().NotBeNullOrWhiteSpace();
         File.Exists(job.TemporaryFilePath).Should().BeTrue();
         (await File.ReadAllTextAsync(job.TemporaryFilePath, timeout.Token)).Should().Be(NessusXml);
@@ -164,7 +202,8 @@ public sealed class ScanImportEndpointIntegrationTests : IAsyncLifetime
                 return Task.FromResult(AuthenticateResult.NoResult());
 
             var principal = new ClaimsPrincipal(new ClaimsIdentity(
-                [new Claim(ClaimTypes.NameIdentifier, "scan-import-user")],
+                [new Claim(ClaimTypes.NameIdentifier, "scan-import-user"),
+                 new Claim("oid", ActorId.ToString()), new Claim("tid", DirectoryId.ToString())],
                 AuthScheme));
             return Task.FromResult(AuthenticateResult.Success(
                 new AuthenticationTicket(principal, AuthScheme)));

@@ -1,5 +1,5 @@
 # =============================================================================
-# ATO Copilot — Terraform Root Module
+# Security Posture Intelligence Navigator — Terraform Root Module
 #
 # Wires azurenoops overlay modules for all core Azure resources.
 # Native azurerm resources are used for ACA (no overlay exists).

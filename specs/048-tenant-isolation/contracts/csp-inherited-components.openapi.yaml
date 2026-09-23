@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ATO Copilot — CSP-Inherited Components API (US9)
+  title: Security Posture Intelligence Navigator — CSP-Inherited Components API (US9)
   version: 1.0.0
   description: |
     Endpoints that ingest a CSP's existing ATO artifacts (PDF SSP, DOCX, OSCAL JSON,

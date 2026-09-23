@@ -1,6 +1,6 @@
 # Document Production Catalog
 
-> Complete reference of all documents ATO Copilot can produce, including format options, owning personas, and generation tools.
+> Complete reference of all documents Security Posture Intelligence Navigator can produce, including format options, owning personas, and generation tools.
 
 ---
 
@@ -183,7 +183,7 @@ Generates NIST OSCAL v1.0.6 JSON for interoperability with other GRC tools. Work
 
 ## Template System
 
-ATO Copilot supports two template modes:
+Security Posture Intelligence Navigator supports two template modes:
 
 ### Default Format
 

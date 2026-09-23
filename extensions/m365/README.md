@@ -1,10 +1,10 @@
-# ATO Copilot — M365 Extension for Teams
+# Security Posture Intelligence Navigator — M365 Extension for Teams
 
-Express.js webhook server that integrates ATO Copilot with Microsoft Teams, delivering compliance assessment results as Adaptive Cards.
+Express.js webhook server that integrates Security Posture Intelligence Navigator with Microsoft Teams, delivering compliance assessment results as Adaptive Cards.
 
 ## Features
 
-- **Teams Bot** — Chat with ATO Copilot directly in Microsoft Teams
+- **Teams Bot** — Chat with Security Posture Intelligence Navigator directly in Microsoft Teams
 - **Adaptive Cards** — Rich, intent-routed card responses for compliance, infrastructure, cost, deployment, and resource discovery
 - **Azure Government** — "View in Azure Portal" links to `portal.azure.us`
 - **Follow-Up Prompts** — Interactive quick-reply buttons for missing information
@@ -15,7 +15,7 @@ Express.js webhook server that integrates ATO Copilot with Microsoft Teams, deli
 ### Prerequisites
 
 - Node.js 20 LTS or later
-- ATO Copilot MCP Server running
+- Security Posture Intelligence Navigator MCP Server running
 
 ### Installation
 

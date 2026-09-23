@@ -1,12 +1,12 @@
-# ATO Copilot: Product Identity, Persona Workflows & RMF Alignment
+# Security Posture Intelligence Navigator: Product Identity, Persona Workflows & RMF Alignment
 
 **Created**: 2026-02-27  
 **Status**: Strategic Plan  
-**Purpose**: Define what ATO Copilot *is*, who it's for, and how it maps to the real DoD RMF process — then identify what we have, what we're missing, and what to build next.
+**Purpose**: Define what Security Posture Intelligence Navigator *is*, who it's for, and how it maps to the real DoD RMF process — then identify what we have, what we're missing, and what to build next.
 
 ---
 
-## Part 1: What Is ATO Copilot?
+## Part 1: What Is Security Posture Intelligence Navigator?
 
 ### The Problem
 
@@ -23,7 +23,7 @@ The key friction points:
 
 ### The Product
 
-**ATO Copilot is an AI-powered assistant that guides DoD teams through every step of the Risk Management Framework** — from system registration through continuous monitoring — by combining real Azure compliance scanning with RMF workflow automation, natural language interaction, and document generation.
+**Security Posture Intelligence Navigator is an AI-powered assistant that guides DoD teams through every step of the Risk Management Framework** — from system registration through continuous monitoring — by combining real Azure compliance scanning with RMF workflow automation, natural language interaction, and document generation.
 
 It is **not** a replacement for eMASS. It is **not** a GRC platform. It is **not** a vulnerability scanner.
 
@@ -100,7 +100,7 @@ The RMF is a **7-step lifecycle** (NIST SP 800-37 Rev 2 added "Prepare" as Step 
 
 **Key artifacts**: Security Assessment Plan (SAP), Security Assessment Report (SAR), Risk Assessment Report (RAR), Plan of Action & Milestones (POA&M)
 
-> **Note on SAP**: The Security Assessment Plan (SAP) is a pre-assessment planning document typically owned by the SCA. ATO Copilot does not generate SAPs — assessment planning is an organizational process outside scope. The copilot supports assessment *execution* (§3.1–3.6) and *reporting* (SAR/RAR).
+> **Note on SAP**: The Security Assessment Plan (SAP) is a pre-assessment planning document typically owned by the SCA. Security Posture Intelligence Navigator does not generate SAPs — assessment planning is an organizational process outside scope. The copilot supports assessment *execution* (§3.1–3.6) and *reporting* (SAR/RAR).
 
 **Who does the work**: SCA (independent), with ISSO/ISSM support
 
@@ -148,7 +148,7 @@ The system detail experience MUST expose the transition history in reverse chron
 - Brief leadership on security posture
 - Interface with eMASS
 
-**What they need from ATO Copilot**:
+**What they need from Security Posture Intelligence Navigator**:
 
 | Need | RMF Step | Status Today |
 |------|----------|-------------|
@@ -183,7 +183,7 @@ The system detail experience MUST expose the transition history in reverse chron
 - Produce the RAR (residual risk determination)
 - Provide the AO with a risk-informed recommendation
 
-**What they need from ATO Copilot**:
+**What they need from Security Posture Intelligence Navigator**:
 
 | Need | RMF Step | Status Today |
 |------|----------|-------------|
@@ -216,7 +216,7 @@ The system detail experience MUST expose the transition history in reverse chron
 - Collect evidence proving their fixes work
 - Write control implementation narratives for the SSP (or help the ISSO do it)
 
-**What they need from ATO Copilot**:
+**What they need from Security Posture Intelligence Navigator**:
 
 | Need | RMF Step | Status Today |
 |------|----------|-------------|
@@ -235,11 +235,11 @@ The system detail experience MUST expose the transition history in reverse chron
 
 ### Persona 4: AO (Authorizing Official) — *Limited Interaction*
 
-**Real-world role**: Senior leader (O-6/GS-15+) who accepts risk and signs the ATO. Interacts with ATO Copilot infrequently but for the most consequential decisions.
+**Real-world role**: Senior leader (O-6/GS-15+) who accepts risk and signs the ATO. Interacts with Security Posture Intelligence Navigator infrequently but for the most consequential decisions.
 
 **Maps to**: `Compliance.AuthorizingOfficial` (new — dedicated role with authorization-decision-only permissions, separated from `Compliance.Administrator` which handles copilot infrastructure)
 
-**What they need from ATO Copilot**:
+**What they need from Security Posture Intelligence Navigator**:
 
 | Need | RMF Step | Status Today |
 |------|----------|-------------|
@@ -253,7 +253,7 @@ The system detail experience MUST expose the transition history in reverse chron
 
 ---
 
-## Part 4: Gap Analysis — ATO Copilot vs. Real RMF
+## Part 4: Gap Analysis — Security Posture Intelligence Navigator vs. Real RMF
 
 ### What We Have That's Strong
 
@@ -298,7 +298,7 @@ Step 5 (Authorize):   ░░░░░░░░░░  0% — Nothing exists
 Step 6 (Monitor):     ████████░░ 80% — Watch + Kanban strong, no ConMon structure
 ```
 
-**The bottom line**: ATO Copilot is strong at Steps 4 (Assess) and 6 (Monitor) — the parts most amenable to automation. But Steps 0–2 and 5 essentially don't exist, and these are the **structural steps** that frame the entire process. Without them, the system is a compliance scanner with Kanban, not an RMF copilot.
+**The bottom line**: Security Posture Intelligence Navigator is strong at Steps 4 (Assess) and 6 (Monitor) — the parts most amenable to automation. But Steps 0–2 and 5 essentially don't exist, and these are the **structural steps** that frame the entire process. Without them, the system is a compliance scanner with Kanban, not an RMF copilot.
 
 ---
 
@@ -306,11 +306,11 @@ Step 6 (Monitor):     ████████░░ 80% — Watch + Kanban stro
 
 ### Session 2026-02-27
 
-- Q: Is ATO Copilot single-deployment multi-system, per-system deployment, or hybrid? → A: Single deployment, multi-system. One MCP server + DB serves all registered systems. `RegisteredSystem` is a row. RBAC scoped per-system.
+- Q: Is Security Posture Intelligence Navigator single-deployment multi-system, per-system deployment, or hybrid? → A: Single deployment, multi-system. One MCP server + DB serves all registered systems. `RegisteredSystem` is a row. RBAC scoped per-system.
 - Q: Do all controls in the tailored baseline require SSP implementation narratives, or only customer-responsible controls? → A: All controls require a narrative. Inherited controls get a standard inherited-control narrative auto-populated (referencing the CRM). Customer and Shared controls require human-authored narratives (AI can suggest drafts).
 - Q: Can the copilot function without live Azure connectivity (air-gapped, disconnected)? → A: Azure is required for assessments. Air-gapped environments still have Azure (e.g., Azure Government IL5/IL6 isolated regions). The copilot needs configurable Azure environment profiles (endpoints, auth, proxy) to support air-gapped Azure deployments.
 - Q: Should the AO (Authorizing Official) share the Administrator role, or get a dedicated role for separation of duties? → A: Add a dedicated `Compliance.AuthorizingOfficial` RBAC role. AO gets authorization-decision-only permissions (issue ATO, accept risk, set terms). `Administrator` retains copilot infrastructure management only. Enforces DoD separation of duties.
-- Q: Should generated documents (SSP, SAR, etc.) follow exact DISA templates, ATO Copilot's own format, or support pluggable templates? → A: Both B and C. ATO Copilot ships a built-in compliant format covering all DoDI 8510.01 / NIST required sections as the default. Additionally, a pluggable template engine allows organizations to upload their own DOCX templates. At generation time, users choose: "ATO Copilot format" or a named custom template.
+- Q: Should generated documents (SSP, SAR, etc.) follow exact DISA templates, Security Posture Intelligence Navigator's own format, or support pluggable templates? → A: Both B and C. Security Posture Intelligence Navigator ships a built-in compliant format covering all DoDI 8510.01 / NIST required sections as the default. Additionally, a pluggable template engine allows organizations to upload their own DOCX templates. At generation time, users choose: "Security Posture Intelligence Navigator format" or a named custom template.
 
 ---
 
@@ -353,7 +353,7 @@ Rather than organizing features by personas or by "what's cool," we organize by 
 - **Proxy configuration** (if required for air-gapped egress)
 - **Subscription ID(s)** within the boundary
 
-All Azure SDK calls use the registered system's environment profile rather than a global default. This enables one ATO Copilot instance to manage systems across both connected and air-gapped Azure environments simultaneously.
+All Azure SDK calls use the registered system's environment profile rather than a global default. This enables one Security Posture Intelligence Navigator instance to manage systems across both connected and air-gapped Azure environments simultaneously.
 
 ### Phase 2: SSP Authoring & Engineer Experience (Step 3) — *"Implement and Document"*
 
@@ -363,7 +363,7 @@ All Azure SDK calls use the registered system's environment profile rather than 
 |---|-----------|---------|-------------|
 | 2.1 | **Per-Control Implementation Authoring** | ISSO, Engineer | Write/edit implementation narratives per control. Track status (Implemented/Partial/Planned/N-A). Show SSP completeness %. All controls in the tailored baseline require a narrative: inherited controls are auto-populated with a standard inherited-control statement referencing the CRM; customer and shared controls require human authoring (AI drafts available via 2.2). |
 | 2.2 | **AI-Suggested Implementation Narratives** | ISSO, Engineer | KnowledgeBase agent suggests draft narratives based on system type, IL, and Azure implementation patterns. ISSO reviews and saves. Suggestions include a confidence score (0.0–1.0). Suggestions with confidence < 0.5 are flagged as "low confidence — requires significant review." All AI-suggested narratives are marked `AiSuggested = true` and require explicit human review (`ReviewedBy` + `ReviewedAt`) before counting toward SSP completeness. |
-| 2.3 | **SSP Generation with Control Details** | ISSM | Generate formal SSP containing per-control implementation narratives, CRM, boundary description, interconnections, ports/protocols. User selects output template: **ATO Copilot format** (built-in, covers all DoDI 8510.01 / NIST SP 800-18 required sections) or a **custom organizational template** (uploaded DOCX with merge fields). |
+| 2.3 | **SSP Generation with Control Details** | ISSM | Generate formal SSP containing per-control implementation narratives, CRM, boundary description, interconnections, ports/protocols. User selects output template: **Security Posture Intelligence Navigator format** (built-in, covers all DoDI 8510.01 / NIST SP 800-18 required sections) or a **custom organizational template** (uploaded DOCX with merge fields). |
 | 2.4 | **IaC Suggested Fixes** | Engineer | IaC scanner findings include `suggestedFix` as unified diff. Language-specific (Bicep/HCL/ARM JSON). |
 | 2.5 | **VS Code Inline Diagnostics** | Engineer | Findings as `Diagnostic` entries with squiggly underlines. CAT I/II → Error, CAT III → Warning. Hover shows control + STIG info. |
 | 2.6 | **VS Code Quick Fix (Code Actions)** | Engineer | Lightbulb Code Actions to apply suggested fixes. "Apply All Fixes" for non-conflicting changes. |
@@ -386,13 +386,13 @@ All Azure SDK calls use the registered system's environment profile rather than 
 | 3.4 | **Assessment Comparison (Diff)** | SCA | Compare two snapshots side-by-side: controls that changed, score delta, new/resolved findings. |
 | 3.5 | **Evidence Chain of Custody** | SCA | Enrich evidence with collector identity, collection method, access log, tamper detection (hash recompute). |
 | 3.6 | **Evidence Completeness Check** | SCA, ISSM | Report which controls have verified evidence vs. missing evidence. Show completeness %. |
-| 3.7 | **RAR Generation** | SCA | Generate Risk Assessment Report: residual risk by family, aggregate risk level, threat/vuln analysis. Supports ATO Copilot format or custom template. |
+| 3.7 | **RAR Generation** | SCA | Generate Risk Assessment Report: residual risk by family, aggregate risk level, threat/vuln analysis. Supports Security Posture Intelligence Navigator format or custom template. |
 | 3.8 | **Formal POA&M with DoD Fields** | ISSM | POA&M with DoD-required columns: weakness source, severity (CAT), POC, resources required, cost estimate, milestones with dates. |
 | 3.9 | **POA&M Milestone Tracking** | ISSM | Milestones with target dates, auto-overdue detection, alert generation, Kanban task linkage. |
 | 3.10 | **Authorization Decision Workflow** | AO | Issue ATO/ATOwC/IATT/DATO with terms, conditions, expiration, residual risk acceptance. Requires `Compliance.AuthorizingOfficial` role (not `Administrator`). |
 | 3.11 | **Risk Acceptance with Expiration** | AO | Accept risk per-finding with justification, compensating control, expiration date. Auto-expire and revert: when a risk acceptance expires, `RiskAcceptance.IsActive` is set to `false`, the associated finding's CAT severity is restored to active status, any linked POA&M item reverts from `RiskAccepted` to `Ongoing`, and an alert is sent to both the AO and ISSM. Compensating controls are flagged for re-evaluation. Requires `Compliance.AuthorizingOfficial` role. |
 | 3.12 | **Risk Register** | All | View all active/expired/revoked acceptances. Read-only for SCA. |
-| 3.13 | **Authorization Package Bundling** | ISSM | Generate complete package (SSP + SAR + RAR + POA&M + CRM + ATO Letter) as ZIP. Export is blocked unless the system has an active, unexpired AO authorization decision. The package includes the identity-bound AO decision, decision timestamp, expiration, residual-risk justification, and terms or conditions. Each document is rendered using the system's selected template (ATO Copilot default or custom organizational template). |
+| 3.13 | **Authorization Package Bundling** | ISSM | Generate complete package (SSP + SAR + RAR + POA&M + CRM + ATO Letter) as ZIP. Export is blocked unless the system has an active, unexpired AO authorization decision. The package includes the identity-bound AO decision, decision timestamp, expiration, residual-risk justification, and terms or conditions. Each document is rendered using the system's selected template (Security Posture Intelligence Navigator default or custom organizational template). |
 
 **New entities**: `AssessmentRecord`, `ControlEffectiveness`, `AuthorizationDecision`, `RiskAcceptance`, `PoamItem` (enriched)
 
@@ -420,11 +420,11 @@ All Azure SDK calls use the registered system's environment profile rather than 
 
 ### Phase 5: Interoperability & Production Readiness — *"Connect to the Real World"*
 
-**Goal**: Bridge ATO Copilot to the DoD ecosystem and make it production-grade.
+**Goal**: Bridge Security Posture Intelligence Navigator to the DoD ecosystem and make it production-grade.
 
 | # | Capability | Persona | Description |
 |---|-----------|---------|-------------|
-| 5.1 | **Formatted Document Export (PDF/DOCX)** | ISSM, SCA | Export all artifacts as formatted PDF/DOCX. Two template modes: **(1) ATO Copilot format** — built-in compliant format covering all DoDI 8510.01 required sections (per NIST SP 800-18 for SSP, NIST SP 800-53A for SAR, etc.); not locked to a specific DISA template revision. **(2) Custom organizational template** — organizations upload their own DOCX templates with merge fields (mail-merge style); the template engine injects data into placeholders. Templates are managed per-organization via the Configuration Agent. Users choose template at generation time. |
+| 5.1 | **Formatted Document Export (PDF/DOCX)** | ISSM, SCA | Export all artifacts as formatted PDF/DOCX. Two template modes: **(1) Security Posture Intelligence Navigator format** — built-in compliant format covering all DoDI 8510.01 required sections (per NIST SP 800-18 for SSP, NIST SP 800-53A for SAR, etc.); not locked to a specific DISA template revision. **(2) Custom organizational template** — organizations upload their own DOCX templates with merge fields (mail-merge style); the template engine injects data into placeholders. Templates are managed per-organization via the Configuration Agent. Users choose template at generation time. |
 | 5.1a | **Template Management** | Administrator | Upload, list, update, and delete custom DOCX templates. Each template declares which document type it applies to (SSP, SAR, RAR, POA&M, CRM, ConMon Report, ATO Letter). Validate merge fields on upload. |
 | 5.2 | **eMASS Data Exchange** | ISSM | Export to eMASS-compatible Excel (xlsx) via ClosedXML. Import eMASS Excel data with conflict resolution (skip/overwrite/merge). Dry-run mode for preview. |
 | 5.3 | **CI/CD Compliance Gate** | Engineer | GitHub Actions action that scans IaC in PRs. Blocks on CAT I/II. Respects risk acceptances. |
@@ -542,13 +542,13 @@ Each phase must ship with documentation. The copilot is a complex, multi-surface
 | **Data Model Reference** | `docs/architecture/data-model.md` | All EF Core entities with relationships, field descriptions, constraints, and an ER diagram (Mermaid). Updated as new entities land per phase. | Every phase |
 | **Agent & Tool Catalog** | `docs/architecture/agent-tool-catalog.md` | Every agent and every tool: name, description, parameters, return type, required RBAC role, RMF step mapping. Auto-generated from code attributes where possible. | Every phase |
 | **RMF Step Map** | `docs/architecture/rmf-step-map.md` | Matrix of RMF steps × tools × personas × artifacts. The single-page reference showing "what exists and where it fits." | Every phase |
-| **Security Architecture** | `docs/architecture/security.md` | RBAC model (roles, permissions, enforcement points), CAC/session management, PIM integration, audit logging, data protection (encryption at rest/in transit), and how ATO Copilot's own security posture aligns with the controls it assesses. | Phase 1 and Phase 5 |
+| **Security Architecture** | `docs/architecture/security.md` | RBAC model (roles, permissions, enforcement points), CAC/session management, PIM integration, audit logging, data protection (encryption at rest/in transit), and how Security Posture Intelligence Navigator's own security posture aligns with the controls it assesses. | Phase 1 and Phase 5 |
 
 ### 8.2 User & Operator Guides
 
 | Document | Location | Audience | Contents |
 |----------|----------|----------|----------|
-| **ISSM User Guide** | `docs/guides/issm-guide.md` | ISSM | End-to-end walkthrough of the RMF lifecycle using ATO Copilot: registering a system, categorizing, selecting/tailoring baselines, tracking SSP completeness, reviewing assessments, preparing authorization packages, managing ConMon. Written as a step-by-step workflow with screenshots/Adaptive Card examples. |
+| **ISSM User Guide** | `docs/guides/issm-guide.md` | ISSM | End-to-end walkthrough of the RMF lifecycle using Security Posture Intelligence Navigator: registering a system, categorizing, selecting/tailoring baselines, tracking SSP completeness, reviewing assessments, preparing authorization packages, managing ConMon. Written as a step-by-step workflow with screenshots/Adaptive Card examples. |
 | **SCA / Auditor Guide** | `docs/guides/sca-guide.md` | SCA | How to perform an independent assessment: reviewing SSP claims, running assessments, marking per-control effectiveness, collecting/verifying evidence, generating SAR/RAR, taking snapshots, comparing assessment cycles. Emphasizes read-only enforcement and evidence integrity. |
 | **Engineer Guide** | `docs/guides/engineer-guide.md` | Platform Engineer | Using `@ato` in VS Code: slash commands, IaC scanning, inline diagnostics, Quick Fix actions, understanding STIG findings, viewing/completing remediation tasks, collecting evidence, writing implementation narratives. |
 | **AO Quick Reference** | `docs/guides/ao-quick-reference.md` | AO | One-page guide: viewing authorization package summary, issuing decisions (ATO/ATOwC/IATT/DATO), accepting risk, setting terms/conditions/expiration. Deliberately brief — AOs have limited time. |
@@ -560,7 +560,7 @@ Each phase must ship with documentation. The copilot is a complex, multi-surface
 | Document | Location | Contents |
 |----------|----------|----------|
 | **MCP Server API Reference** | `docs/api/mcp-server.md` | All MCP tools as an API reference: request/response schemas (JSON), transport options (SSE, stdio, HTTP), authentication, error codes, rate limits. Grouped by RMF step. |
-| **eMASS Integration Guide** | `docs/api/emass-integration.md` | Export formats (Excel xlsx field mappings), import workflow, conflict resolution, delta sync behavior, field mapping table (ATO Copilot field → eMASS field). *(Phase 5)* |
+| **eMASS Integration Guide** | `docs/api/emass-integration.md` | Export formats (Excel xlsx field mappings), import workflow, conflict resolution, delta sync behavior, field mapping table (Security Posture Intelligence Navigator field → eMASS field). *(Phase 5)* |
 | **CI/CD Integration Guide** | `docs/api/cicd-integration.md` | GitHub Actions usage: action YAML, inputs/outputs, IaC scanning in PRs, blocking on CAT I/II, respecting risk acceptances, badge generation. *(Phase 5)* |
 | **VS Code Extension API** | `docs/api/vscode-extension.md` | Chat participant commands, contributed diagnostics, Code Action providers, webview panel messages, configuration settings, extension activation events. |
 
@@ -568,7 +568,7 @@ Each phase must ship with documentation. The copilot is a complex, multi-surface
 
 | Document | Location | Contents |
 |----------|----------|----------|
-| **NIST 800-53 Rev 5 Coverage** | `docs/reference/nist-coverage.md` | Which controls from the catalog ATO Copilot can actively scan/assess vs. which require manual attestation. Coverage percentage by family. Updated as scanner rules expand. |
+| **NIST 800-53 Rev 5 Coverage** | `docs/reference/nist-coverage.md` | Which controls from the catalog Security Posture Intelligence Navigator can actively scan/assess vs. which require manual attestation. Coverage percentage by family. Updated as scanner rules expand. |
 | **STIG Coverage Matrix** | `docs/reference/stig-coverage.md` | STIG IDs included in the library, mapped to NIST controls, with CAT levels and applicability by technology (Azure, Windows Server, SQL, etc.). |
 | **DoD Impact Level Reference** | `docs/reference/impact-levels.md` | IL2–IL6 definitions, Azure environment requirements, control implications, CNSSI 1253 overlay summary. Sourced from existing `impact-levels.json` but presented in human-readable form. |
 | **RMF Process Reference** | `docs/reference/rmf-process.md` | The 7-step RMF process with DoD-specific guidance, service-specific variations (Navy/Army/Air Force), artifact checklists per step, and role responsibilities. Sourced from existing `rmf-process.json` + DoDI 8510.01. |
@@ -701,7 +701,7 @@ Three monitoring services and two alert services were built in separate features
 
 ## Part 10: Summary
 
-**ATO Copilot's identity**: An AI assistant that guides DoD teams through the 7-step RMF process, combining real Azure compliance scanning with workflow automation and document generation.
+**Security Posture Intelligence Navigator's identity**: An AI assistant that guides DoD teams through the 7-step RMF process, combining real Azure compliance scanning with workflow automation and document generation.
 
 **The core gap**: Steps 0 (Prepare), 1 (Categorize), 2 (Select), and 5 (Authorize) don't exist at all. This means the copilot can scan and monitor, but it can't frame that work within the RMF lifecycle that DoD requires.
 

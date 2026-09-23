@@ -95,10 +95,10 @@ Who to contact if remediation does not resolve the issue within `<time>`.
 The `docs/runbook.md` file must begin with:
 
 ```markdown
-# ATO Copilot Operations Runbook
+# Security Posture Intelligence Navigator Operations Runbook
 
 **Last Updated**: YYYY-MM-DD  
-**Scope**: Production incidents for the ATO Copilot API, MCP server, and M365 Teams bot  
+**Scope**: Production incidents for the Security Posture Intelligence Navigator API, MCP server, and M365 Teams bot  
 **Deployment Guide**: [docs/deployment.md](./deployment.md)  
 **Smoke Test**: [scripts/smoke-test.sh](../scripts/smoke-test.sh)
 

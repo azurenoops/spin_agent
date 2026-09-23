@@ -54,6 +54,7 @@ public sealed class AssessmentEnvironmentAdmissionTests : IAsyncLifetime
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+        builder.Services.AddScoped<ITenantContext>(_ => new TenantContext(_tenantId));
         builder.Services.AddSingleton<TenantStampingSaveChangesInterceptor>();
         builder.Services.AddDbContextFactory<AtoCopilotContext>((sp, options) =>
             options.UseInMemoryDatabase($"assessment-admission-{_tenantId}")

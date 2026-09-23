@@ -4,7 +4,7 @@
 
 ## Audience
 
-Operations engineers migrating an existing **SingleTenant** ATO Copilot
+Operations engineers migrating an existing **SingleTenant** Security Posture Intelligence Navigator
 deployment to **MultiTenant** mode. This is a one-way operation: rolling back
 requires a database restore.
 

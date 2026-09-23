@@ -2,7 +2,7 @@
 
 **Created**: 2026-02-28
 **Status**: Feature Specification
-**Purpose**: Provide all-encompassing user documentation for ATO Copilot organized by persona, covering natural language interaction patterns, RMF phase workflows, document production, assessment guidance, and cross-persona collaboration.
+**Purpose**: Provide all-encompassing user documentation for Security Posture Intelligence Navigator organized by persona, covering natural language interaction patterns, RMF phase workflows, document production, assessment guidance, and cross-persona collaboration.
 
 ---
 
@@ -27,16 +27,16 @@
 
 ## 1. Overview
 
-### 1.1 What Is ATO Copilot?
+### 1.1 What Is Security Posture Intelligence Navigator?
 
-ATO Copilot is an AI-powered assistant that guides DoD teams through every step of the NIST Risk Management Framework (RMF) — from system registration through continuous monitoring. It combines real Azure compliance scanning with RMF workflow automation, natural language interaction, and document generation.
+Security Posture Intelligence Navigator is an AI-powered assistant that guides DoD teams through every step of the NIST Risk Management Framework (RMF) — from system registration through continuous monitoring. It combines real Azure compliance scanning with RMF workflow automation, natural language interaction, and document generation.
 
-**ATO Copilot is NOT:**
+**Security Posture Intelligence Navigator is NOT:**
 - A replacement for eMASS (it exports *to* eMASS)
 - A GRC platform (it is a productivity copilot)
 - A vulnerability scanner (it orchestrates Azure Policy + Defender for Cloud)
 
-**ATO Copilot IS:**
+**Security Posture Intelligence Navigator IS:**
 - A copilot that knows the RMF process and guides users step by step
 - An assistant that has the full NIST 800-53 Rev 5 catalog embedded (1,000+ controls)
 - A scanner that queries real Azure infrastructure via Policy, Defender, and ARM APIs
@@ -56,9 +56,9 @@ ATO Copilot is an AI-powered assistant that guides DoD teams through every step 
 
 ### 1.3 Applicable Standards
 
-| Standard | How ATO Copilot Uses It |
+| Standard | How Security Posture Intelligence Navigator Uses It |
 |----------|------------------------|
-| DoDI 8510.01 | Defines the 7-step RMF lifecycle ATO Copilot implements |
+| DoDI 8510.01 | Defines the 7-step RMF lifecycle Security Posture Intelligence Navigator implements |
 | NIST SP 800-37 Rev 2 | RMF framework including Step 0 (Prepare) |
 | NIST SP 800-53 Rev 5 | Full control catalog embedded (254K lines, sourced from OSCAL) |
 | NIST SP 800-60 Vol 1 & 2 | Information type catalog for FIPS 199 categorization |
@@ -70,7 +70,7 @@ ATO Copilot is an AI-powered assistant that guides DoD teams through every step 
 
 ### 1.4 RBAC Roles
 
-ATO Copilot enforces role-based access control at every tool invocation. A user's role determines what they can do:
+Security Posture Intelligence Navigator enforces role-based access control at every tool invocation. A user's role determines what they can do:
 
 | RBAC Role | Maps To | Access Level |
 |-----------|---------|-------------|
@@ -102,7 +102,7 @@ ATO Copilot enforces role-based access control at every tool invocation. A user'
 
 ### 2.1 RMF Role Assignments
 
-Each registered system has named personnel in specific RMF roles. These are tracked by ATO Copilot and linked to the RBAC system:
+Each registered system has named personnel in specific RMF roles. These are tracked by Security Posture Intelligence Navigator and linked to the RBAC system:
 
 | RMF Role | RBAC Mapping | Description |
 |----------|-------------|-------------|
@@ -141,8 +141,8 @@ The ISSM manages the security posture for one or more systems. They report to th
 ### 3.2 Getting Started (ISSM)
 
 **Prerequisites:**
-1. CAC enrolled with ATO Copilot (thumbprint mapped or Azure AD group membership as `Compliance.SecurityLead`)
-2. Azure subscription linked to ATO Copilot server
+1. CAC enrolled with Security Posture Intelligence Navigator (thumbprint mapped or Azure AD group membership as `Compliance.SecurityLead`)
+2. Azure subscription linked to Security Posture Intelligence Navigator server
 3. Access to Microsoft Teams (primary) or MCP API client
 
 **First-Time Setup:**
@@ -748,7 +748,7 @@ Step 3: Begin your first assessment
 
 **What to do next:** Systematically assess each control (§5.4), take snapshots, and generate SAR.
 
-> ⚠️ **Important**: As SCA you have read-only access. You cannot modify narratives, fix findings, or issue authorization decisions. If you attempt a write operation, ATO Copilot will return an RBAC denial with explanation.
+> ⚠️ **Important**: As SCA you have read-only access. You cannot modify narratives, fix findings, or issue authorization decisions. If you attempt a write operation, Security Posture Intelligence Navigator will return an RBAC denial with explanation.
 
 ### 5.3 Assessment Methods
 
@@ -859,7 +859,7 @@ What's the overall compliance score?
 
 ### 6.1 Role Summary
 
-The AO is a senior leader (typically O-6/GS-15+) who accepts risk and signs the authorization decision. They interact with ATO Copilot infrequently but make the highest-stakes decisions: granting or denying authorization to operate.
+The AO is a senior leader (typically O-6/GS-15+) who accepts risk and signs the authorization decision. They interact with Security Posture Intelligence Navigator infrequently but make the highest-stakes decisions: granting or denying authorization to operate.
 
 **RBAC Role**: `Compliance.AuthorizingOfficial` (dedicated role — separated from Administrator for separation of duties per DoDI 8510.01)
 **Primary Interface**: Microsoft Teams (Adaptive Cards)
@@ -1142,7 +1142,7 @@ Show compliance trend for my subscription
 
 ### 8.1 Role Summary
 
-The Administrator manages ATO Copilot server configuration, template management, and infrastructure settings. This role is explicitly separated from the AO role to enforce DoD separation of duties.
+The Administrator manages Security Posture Intelligence Navigator server configuration, template management, and infrastructure settings. This role is explicitly separated from the AO role to enforce DoD separation of duties.
 
 **RBAC Role**: `Compliance.Administrator`
 **Primary Interface**: MCP API, VS Code
@@ -1441,9 +1441,9 @@ The generated System Security Plan contains these sections:
 
 ### 11.6 Document Template System
 
-ATO Copilot supports two template modes:
+Security Posture Intelligence Navigator supports two template modes:
 
-1. **ATO Copilot Format** (default) — Built-in compliant format covering all DoDI 8510.01 required sections. Not locked to a specific DISA template revision.
+1. **Security Posture Intelligence Navigator Format** (default) — Built-in compliant format covering all DoDI 8510.01 required sections. Not locked to a specific DISA template revision.
 
 2. **Custom Organizational Template** — Organizations upload DOCX templates with `{{merge_field}}` placeholders. The template engine validates merge fields on upload and injects data at generation time.
 
@@ -1734,7 +1734,7 @@ User: @ato Fix finding SC-7-001 in main.bicep
 
 ### 13.2 Microsoft Teams (M365 Bot)
 
-**How to Access**: Message the ATO Copilot bot in Teams or use it in a channel.
+**How to Access**: Message the Security Posture Intelligence Navigator bot in Teams or use it in a channel.
 
 **Adaptive Cards:**
 | Card | Purpose | Primary Persona |
@@ -1959,7 +1959,7 @@ User (ISSM):
   Register a new system called 'ACME Portal' as a Major Application
   with mission-critical designation in Azure Government IL5
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ System registered: ACME Portal (ID: sys-acme-001)
   Current RMF Phase: Prepare
   Next steps:
@@ -1984,7 +1984,7 @@ User (ISSM):
   Suggest information types for ACME Portal — it handles financial
   transactions and stores PII
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   Suggested types (confidence scores):
   1. C.3.1.4 Financial Management (0.92)
   2. C.2.4.1 General Information (0.87)
@@ -1994,7 +1994,7 @@ User (ISSM):
   Categorize with Financial Management (C:High, I:High, A:Moderate)
   and Information Security (C:Moderate, I:High, A:Moderate)
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Categorization complete:
   FIPS 199: SC ACME Portal = {(C, HIGH), (I, HIGH), (A, MODERATE)}
   Overall: HIGH | DoD IL: IL5 | Baseline: High (400 controls)
@@ -2029,7 +2029,7 @@ User (Engineer):
 User (ISSO):
   What's the SSP completion percentage?
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   SSP Progress: 78% complete
   ├─ AC: 18/20 ██████████████████░░ 90%
   ├─ AU: 12/14 █████████████████░░░ 86%
@@ -2052,7 +2052,7 @@ User (SCA):
 
   Generate the Security Assessment Report
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   SAR Generated:
   Overall Score: 87.3%
   Findings: 0 CAT I, 12 CAT II, 31 CAT III
@@ -2080,7 +2080,7 @@ User (AO):
   90 days, quarterly POA&M reviews required. Expiration: January 15, 2029.
   Accept risk on 5 CAT III findings with compensating controls.
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Authorization Issued: ATO with Conditions
   System: ACME Portal | Expires: 2029-01-15
   Risk Level: Medium | Score at Decision: 87.3%
@@ -2099,7 +2099,7 @@ User (ISSM):
 
   Show the multi-system dashboard
 
-ATO Copilot (automated):
+Security Posture Intelligence Navigator (automated):
   ⚠️ Alert: ATO for ACME Portal expires in 90 days
   Action: Begin reauthorization planning
 
@@ -2129,7 +2129,7 @@ ATO Copilot (automated):
 | **IL** | Impact Level — DoD classification (IL2 through IL6) |
 | **ISSM** | Information System Security Manager — manages security program for systems |
 | **ISSO** | Information System Security Officer — day-to-day security operations |
-| **MCP** | Model Context Protocol — the API protocol used by ATO Copilot |
+| **MCP** | Model Context Protocol — the API protocol used by Security Posture Intelligence Navigator |
 | **NIST 800-53** | National Institute of Standards and Technology Special Publication 800-53 — security controls catalog |
 | **OSCAL** | Open Security Controls Assessment Language — machine-readable compliance data format |
 | **PIM** | Privileged Identity Management — just-in-time role activation |
@@ -2279,7 +2279,7 @@ ATO Copilot (automated):
 |-------|-------|------------|
 | `Azure Policy query failed: connection timeout` | Cannot reach Azure Resource Manager APIs | Check network connectivity. In air-gapped environments, use scheduled monitoring with local policy cache. |
 | `Defender for Cloud unavailable` | Azure Defender not enabled or unreachable | Verify Defender for Cloud is enabled on the subscription. In disconnected mode, assessment runs against cached policy data only. |
-| `Subscription not found: {sub-id}` | Subscription ID is incorrect or ATO Copilot lacks access | Verify the subscription ID and ensure the ATO Copilot service principal has Reader access. |
+| `Subscription not found: {sub-id}` | Subscription ID is incorrect or Security Posture Intelligence Navigator lacks access | Verify the subscription ID and ensure the Security Posture Intelligence Navigator service principal has Reader access. |
 
 #### F.6 Monitoring & Alert Errors
 
@@ -2302,4 +2302,4 @@ ATO Copilot (automated):
 
 ---
 
-*This specification covers all user interactions with ATO Copilot across all personas and all RMF phases. It serves as both a planning document for feature development and a foundation for end-user documentation.*
+*This specification covers all user interactions with Security Posture Intelligence Navigator across all personas and all RMF phases. It serves as both a planning document for feature development and a foundation for end-user documentation.*

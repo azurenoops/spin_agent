@@ -33,7 +33,7 @@ export function buildRoadmapCard(data: RoadmapCardData): Record<string, unknown>
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: `ATO Copilot — Implementation Roadmap`,
+      text: `Security Posture Intelligence Navigator — Implementation Roadmap`,
       weight: "Bolder",
       size: "Large",
     },

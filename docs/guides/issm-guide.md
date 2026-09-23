@@ -2,16 +2,16 @@
 
 > Feature 015: Persona-Driven RMF Workflows
 
-This guide walks an Information System Security Manager (ISSM) through the system registration and RMF lifecycle workflow using the ATO Copilot MCP tools.
+This guide walks an Information System Security Manager (ISSM) through the system registration and RMF lifecycle workflow using the Security Posture Intelligence Navigator MCP tools.
 
-!!! tip "New to ATO Copilot?"
-    If this is your first time using ATO Copilot as an ISSM, start with the [ISSM Getting Started](../getting-started/issm.md) page for prerequisites, first-time setup, and your first 3 commands.
+!!! tip "New to Security Posture Intelligence Navigator?"
+    If this is your first time using Security Posture Intelligence Navigator as an ISSM, start with the [ISSM Getting Started](../getting-started/issm.md) page for prerequisites, first-time setup, and your first 3 commands.
 
 ---
 
 ## Prerequisites
 
-- Access to the ATO Copilot MCP server
+- Access to the Security Posture Intelligence Navigator MCP server
 - `Compliance.SecurityLead` role assigned (see [Persona Overview](../personas/index.md) for role details)
 - Knowledge of the system's Azure resource inventory
 
@@ -668,7 +668,7 @@ The `compliance_multi_system_dashboard` tool provides an at-a-glance view of all
 
 ## eMASS & OSCAL Interoperability
 
-ATO Copilot supports bidirectional data exchange with eMASS and OSCAL-compliant
+Security Posture Intelligence Navigator supports bidirectional data exchange with eMASS and OSCAL-compliant
 systems, enabling ISSMs to work seamlessly across tools.
 
 ### Exporting to eMASS
@@ -783,7 +783,7 @@ custom template for DOCX generation.
 
 > Feature 017: SCAP/STIG Viewer Import
 
-ATO Copilot supports importing DISA STIG Viewer CKL checklists and SCAP Compliance Checker XCCDF results directly into the compliance database. Imported data auto-creates compliance findings, assessment evidence, and control effectiveness records.
+Security Posture Intelligence Navigator supports importing DISA STIG Viewer CKL checklists and SCAP Compliance Checker XCCDF results directly into the compliance database. Imported data auto-creates compliance findings, assessment evidence, and control effectiveness records.
 
 ### Import CKL Checklists
 
@@ -866,7 +866,7 @@ Parameters:
 
 ## Import Prisma Cloud Scan Results
 
-Cloud systems using Prisma Cloud for CSPM can import scan results directly into ATO Copilot for compliance tracking.
+Cloud systems using Prisma Cloud for CSPM can import scan results directly into Security Posture Intelligence Navigator for compliance tracking.
 
 ### CSV Import from Prisma Console
 
@@ -902,7 +902,7 @@ API JSON imports include `remediable_count`, `cli_scripts_extracted`, and `alert
 
 ### Multi-Subscription Resolution
 
-When `system_id` is omitted, ATO Copilot auto-resolves Azure subscription IDs to registered systems. If a subscription is unregistered, the import reports it in `unresolvedSubscriptions`. Register the subscription's system first, then re-import.
+When `system_id` is omitted, Security Posture Intelligence Navigator auto-resolves Azure subscription IDs to registered systems. If a subscription is unregistered, the import reports it in `unresolvedSubscriptions`. Register the subscription's system first, then re-import.
 
 ### Re-Import After Remediation
 

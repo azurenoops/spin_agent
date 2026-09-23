@@ -8,7 +8,7 @@
 
 ## Background
 
-The RMF authorization workflow in ATO Copilot has a fundamental UX gap: the
+The RMF authorization workflow in Security Posture Intelligence Navigator has a fundamental UX gap: the
 Authorizing Official (AO) can only issue authorization decisions through the AI
 chat interface (`compliance_issue_authorization` MCP tool). There is no
 dedicated UI page for authorization and no REST endpoint that non-chat clients

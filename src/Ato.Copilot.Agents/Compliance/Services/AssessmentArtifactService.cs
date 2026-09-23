@@ -1,9 +1,14 @@
+using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services.Roles;
+using Ato.Copilot.State.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -327,25 +332,100 @@ public class AssessmentArtifactService : IAssessmentArtifactService
         string evidenceId,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(evidenceId, nameof(evidenceId));
 
         using var scope = _scopeFactory.CreateScope();
+        var actor = scope.ServiceProvider.GetService<IConversationIdentityAccessor>()?.Current;
+        // This service is singleton and creates a child scope. Its scoped ITenantContext is
+        // not the HTTP request's context; use the already-bound ambient request context.
+        var tenant = scope.ServiceProvider.GetService<ITenantContextAccessor>()?.Current;
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        RequireIntegrityVerificationIdentity(actor, tenant, context);
+        var auditId = Guid.NewGuid().ToString();
+
+        return await context.Database.CreateExecutionStrategy().ExecuteAsync(async ct =>
+        {
+            // Retry the complete authorization + commit unit, not an individual write.
+            context.ChangeTracker.Clear();
+            RequireIntegrityVerificationIdentity(actor, tenant, context);
+            return await VerifyEvidenceIntegrityAsync(evidenceId, auditId, actor!, context, scope.ServiceProvider, ct);
+        }, cancellationToken);
+    }
+
+    private async Task<EvidenceVerificationResult> VerifyEvidenceIntegrityAsync(
+        string evidenceId, string auditId, ConversationIdentity actor, AtoCopilotContext context,
+        IServiceProvider services, CancellationToken cancellationToken)
+    {
+        var tenantId = actor.TenantId!.Value;
+        var personId = actor.PersonId!.Value;
+
+        // Keep the ownership rows stable from authorization through timestamp + audit commit.
+        await using var transaction = context.Database.IsRelational()
+            ? await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            : null;
+
+        if (!await context.OrganizationMemberships.AnyAsync(m =>
+                m.DirectoryTenantId == actor.DirectoryId && m.ObjectId == actor.ObjectId
+                && m.TenantId == tenantId && m.PersonId == personId && m.RevokedAt == null, cancellationToken)
+            || !await context.Tenants.AnyAsync(t => t.Id == tenantId && t.Status == TenantStatus.Active, cancellationToken))
+            throw IntegrityVerificationDenied();
+
+        // Resolve only ownership metadata until the effective system permission is known.
+        var owner = await (
+            from item in context.Evidence.AsNoTracking()
+            join assessment in context.Assessments on item.AssessmentId equals assessment.Id
+            join system in context.RegisteredSystems on assessment.RegisteredSystemId equals system.Id
+            where item.Id == evidenceId && item.TenantId == tenantId
+                && assessment.TenantId == tenantId && system.TenantId == tenantId && system.IsActive
+            select new { EvidenceId = item.Id, AssessmentId = assessment.Id, SystemId = system.Id })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw IntegrityVerificationDenied();
+
+        var accessService = services.GetService<ISystemWorkspaceAccessService>()
+            ?? throw IntegrityVerificationDenied();
+        var access = await accessService.GetAccessAsync(tenantId, personId, owner.SystemId,
+            isCspOversight: false, cancellationToken);
+        if (!string.Equals(access.SystemId, owner.SystemId, StringComparison.Ordinal)
+            || !EvidenceIntegrityVerificationPolicy.IsAllowed(access))
+            throw IntegrityVerificationDenied();
 
         var evidence = await context.Evidence
-            .FirstOrDefaultAsync(e => e.Id == evidenceId, cancellationToken)
-            ?? throw new InvalidOperationException($"Evidence '{evidenceId}' not found.");
+            .SingleOrDefaultAsync(e => e.Id == owner.EvidenceId && e.TenantId == tenantId
+                && e.AssessmentId == owner.AssessmentId, cancellationToken)
+            ?? throw IntegrityVerificationDenied();
 
-        // Recompute SHA-256 hash of content
         var recomputedHash = ComputeSha256(evidence.Content);
         var isVerified = string.Equals(evidence.ContentHash, recomputedHash, StringComparison.OrdinalIgnoreCase);
+        var verifiedAt = DateTime.UtcNow;
+        var status = isVerified ? "verified" : "tampered";
 
-        // Update verification timestamp on success
         if (isVerified)
+            evidence.IntegrityVerifiedAt = verifiedAt;
+
+        context.AuditLogs.Add(new AuditLogEntry
         {
-            evidence.IntegrityVerifiedAt = DateTime.UtcNow;
-            await context.SaveChangesAsync(cancellationToken);
-        }
+            Id = auditId,
+            TenantId = tenantId,
+            ActorTenantId = tenantId,
+            UserId = actor.ActorId,
+            UserRole = access.Roles.Contains(nameof(RmfRole.Sca), StringComparer.Ordinal) ? nameof(RmfRole.Sca) : "EvidenceManager",
+            Action = "EvidenceIntegrityVerification",
+            Timestamp = verifiedAt,
+            Outcome = isVerified ? AuditOutcome.Success : AuditOutcome.Failure,
+            Details = JsonSerializer.Serialize(new
+            {
+                evidenceId = evidence.Id,
+                assessmentId = owner.AssessmentId,
+                systemId = owner.SystemId,
+                status,
+                effectiveRoles = access.Roles,
+                canManageEvidence = access.Permissions.CanManageEvidence
+            }, CanonicalJsonOpts)
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+            await transaction.CommitAsync(cancellationToken);
 
         var result = new EvidenceVerificationResult
         {
@@ -353,8 +433,9 @@ public class AssessmentArtifactService : IAssessmentArtifactService
             ControlId = evidence.ControlId,
             OriginalHash = evidence.ContentHash,
             RecomputedHash = recomputedHash,
-            Status = isVerified ? "verified" : "tampered",
+            Status = status,
             CollectorIdentity = evidence.CollectorIdentity,
+            VerifierIdentity = actor.ActorId,
             CollectionMethod = evidence.CollectionMethod,
             IntegrityVerifiedAt = evidence.IntegrityVerifiedAt
         };
@@ -365,6 +446,25 @@ public class AssessmentArtifactService : IAssessmentArtifactService
 
         return result;
     }
+
+    private static void RequireIntegrityVerificationIdentity(
+        ConversationIdentity? actor, ITenantContext? tenant, AtoCopilotContext context)
+    {
+        if (actor is null || actor.DirectoryId == Guid.Empty || actor.ObjectId == Guid.Empty
+            || actor.Kind != "organization" || actor.Mode != "ordinary"
+            || actor.TenantId is null || actor.TenantId == Guid.Empty
+            || actor.PersonId is null || actor.PersonId == Guid.Empty
+            || tenant is null || !tenant.IsWorkspaceRequest || tenant.IsCspAdmin
+            || tenant.ImpersonatedTenantId is not null || tenant.Status != TenantStatus.Active
+            || tenant.TenantId != actor.TenantId || tenant.EffectiveTenantId != actor.TenantId
+            || tenant.PersonId != actor.PersonId
+            || context.TenantFilterDisabled || context.TenantFilterCspAdminAll || !context.IsWorkspaceRequest
+            || context.TenantFilterEffectiveId != actor.TenantId || context.WorkspacePersonId != actor.PersonId)
+            throw IntegrityVerificationDenied();
+    }
+
+    private static UnauthorizedAccessException IntegrityVerificationDenied() =>
+        new("Evidence integrity verification is not authorized in this workspace.");
 
     /// <inheritdoc />
     public async Task<EvidenceCompletenessReport> CheckEvidenceCompletenessAsync(
@@ -377,6 +477,11 @@ public class AssessmentArtifactService : IAssessmentArtifactService
 
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+
+        if (!string.IsNullOrWhiteSpace(assessmentId)
+            && !await context.Assessments.AnyAsync(a => a.Id == assessmentId
+                && a.RegisteredSystemId == systemId, cancellationToken))
+            throw new InvalidOperationException("The assessment is not accessible for the requested system.");
 
         // Get all effectiveness determinations for this system
         var query = context.ControlEffectivenessRecords
@@ -394,7 +499,11 @@ public class AssessmentArtifactService : IAssessmentArtifactService
             .ToListAsync(cancellationToken);
 
         // Get evidence per control
-        var evidenceQuery = context.Evidence.AsQueryable();
+        var evidenceQuery = from evidence in context.Evidence
+                            join assessment in context.Assessments on evidence.AssessmentId equals assessment.Id
+                            where assessment.RegisteredSystemId == systemId
+                                && evidence.TenantId == assessment.TenantId
+                            select evidence;
         if (!string.IsNullOrWhiteSpace(assessmentId))
             evidenceQuery = evidenceQuery.Where(e => e.AssessmentId == assessmentId);
 

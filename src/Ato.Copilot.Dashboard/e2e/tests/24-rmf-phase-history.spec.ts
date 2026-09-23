@@ -12,7 +12,7 @@ async function mockDashboard(page: Page) {
     json: {
       status: 'success',
       data: {
-        branding: { deploymentName: 'ATO Copilot', logoUrl: null, supportEmail: null },
+        branding: { deploymentName: 'Security Posture Intelligence Navigator', logoUrl: null, supportEmail: null },
         defaultMethod: 'Simulation',
         enabledMethods: [{ id: 'Simulation', displayName: 'Simulation' }],
         cloud: 'AzurePublic',

@@ -135,7 +135,7 @@ Steps:
    ```markdown
    ## Microsoft Teams Bot
 
-   The ATO Copilot Teams bot (`extensions/m365/`) requires a separate deployment process,
+   The Security Posture Intelligence Navigator Teams bot (`extensions/m365/`) requires a separate deployment process,
    including Azure Bot Service registration and Azure Container Apps hosting.
 
    → See [M365 Bot Deployment Guide](./deployment-m365.md) for full instructions.

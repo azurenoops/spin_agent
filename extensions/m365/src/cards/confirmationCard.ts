@@ -24,7 +24,7 @@ export function buildConfirmationCard(data: ConfirmationData): Record<string, un
   const bodyItems: Record<string, unknown>[] = [
     {
       type: "TextBlock",
-      text: "ATO Copilot — Confirm Remediation",
+      text: "Security Posture Intelligence Navigator — Confirm Remediation",
       weight: "Bolder",
       size: "Large",
       color: "Warning",

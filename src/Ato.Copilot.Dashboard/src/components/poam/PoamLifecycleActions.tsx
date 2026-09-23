@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { PoamDetail, PoamStatus } from '../../types/poam';
 import { updatePoamStatus } from '../../api/poam';
 import CascadeConfirmDialog from './CascadeConfirmDialog';
+import { useSystemMutationPermission } from '../permissions/useSystemMutationPermission';
 
 interface PoamLifecycleActionsProps {
   detail: PoamDetail;
@@ -9,6 +10,7 @@ interface PoamLifecycleActionsProps {
 }
 
 export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLifecycleActionsProps) {
+  const canManageRemediation = useSystemMutationPermission(detail.systemId, 'canManageRemediation');
   const [dialog, setDialog] = useState<'delay' | 'resume' | 'complete' | 'risk' | null>(null);
   const [loading, setLoading] = useState(false);
   const [delayReason, setDelayReason] = useState('');
@@ -28,6 +30,10 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
   };
 
   const handleSubmit = async (newStatus: PoamStatus) => {
+    if (!canManageRemediation) {
+      setError('Permission denied: you cannot manage remediation for this system.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -57,6 +63,7 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
   };
 
   const handleCascadeConfirm = async () => {
+    if (!canManageRemediation) throw new Error('Permission denied: you cannot manage remediation for this system.');
     if (!cascadePrompt) return;
     await updatePoamStatus(detail.id, {
       status: cascadePrompt.newStatus,
@@ -67,13 +74,24 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
     onStatusChanged();
   };
 
+  const openDialog = (next: NonNullable<typeof dialog>) => {
+    if (!canManageRemediation) {
+      setError('Permission denied: you cannot manage remediation for this system.');
+      return;
+    }
+    setDialog(next);
+  };
+
   return (
     <section>
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Lifecycle Actions</h3>
+      {!canManageRemediation && <p role="alert" className="text-sm text-red-600">Permission denied: you cannot manage remediation for this system.</p>}
+      {error && !dialog && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <div className="flex flex-wrap gap-2">
         {canTransitionTo('Delayed') && (
           <button
-            onClick={() => setDialog('delay')}
+            disabled={!canManageRemediation}
+            onClick={() => openDialog('delay')}
             className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100"
           >
             Mark Delayed
@@ -81,7 +99,8 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
         )}
         {detail.status === 'Delayed' && canTransitionTo('Ongoing') && (
           <button
-            onClick={() => setDialog('resume')}
+            disabled={!canManageRemediation}
+            onClick={() => openDialog('resume')}
             className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
           >
             Resume
@@ -89,7 +108,8 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
         )}
         {canTransitionTo('Completed') && (
           <button
-            onClick={() => setDialog('complete')}
+            disabled={!canManageRemediation}
+            onClick={() => openDialog('complete')}
             className="rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100"
           >
             Mark Completed
@@ -97,7 +117,8 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
         )}
         {canTransitionTo('RiskAccepted') && (
           <button
-            onClick={() => setDialog('risk')}
+            disabled={!canManageRemediation}
+            onClick={() => openDialog('risk')}
             className="rounded-lg bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100"
           >
             Risk Accepted
@@ -165,7 +186,7 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
                 </div>
               )}
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setDialog(null)} className="rounded-lg bg-gray-100 px-4 py-2 text-sm hover:bg-gray-200">
@@ -177,7 +198,7 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
                     dialog === 'resume' ? 'Ongoing' :
                     dialog === 'complete' ? 'Completed' : 'RiskAccepted'
                   )}
-                  disabled={loading ||
+                  disabled={!canManageRemediation || loading ||
                     (dialog === 'delay' && (!delayReason || !revisedDate)) ||
                     (dialog === 'resume' && !revisedDate) ||
                     (dialog === 'risk' && !deviationId)}
@@ -192,6 +213,7 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
       )}
       {cascadePrompt && (
         <CascadeConfirmDialog
+          canConfirm={canManageRemediation}
           message={`Propagate status change to linked remediation task?`}
           detail={`The linked task (${detail.remediationTaskId}) will be updated to reflect the new POA&M status.`}
           onConfirm={handleCascadeConfirm}

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo } from 'react';
 import { useMsal } from '@azure/msal-react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from '../workspaces/workspaceNavigation';
 import { useLoginConfig } from './LoginConfigContext';
 import { DEFAULT_API_SCOPES } from './msalInstance';
 import { useLoginRaceListener } from './useLoginRaceListener';

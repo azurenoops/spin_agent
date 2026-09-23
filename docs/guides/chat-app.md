@@ -1,8 +1,8 @@
-# ATO Copilot Chat Application
+# Security Posture Intelligence Navigator Chat Application
 
 ## Overview
 
-The ATO Copilot Chat Application provides a full-stack conversational interface for interacting with the ATO compliance AI system. Users can send messages, receive AI-powered responses with rich metadata, manage multiple conversations, and attach files for analysis.
+The Security Posture Intelligence Navigator Chat Application provides a full-stack conversational interface for interacting with the ATO compliance AI system. Users can send messages, receive AI-powered responses with rich metadata, manage multiple conversations, and attach files for analysis.
 
 ### Architecture
 

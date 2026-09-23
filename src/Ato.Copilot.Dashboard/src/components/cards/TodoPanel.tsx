@@ -1,11 +1,13 @@
 import { useCallback, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../features/workspaces/workspaceNavigation';
 import { usePolling } from '../../hooks/usePolling';
 import { useSettings } from '../../hooks/useSettings';
 import type { TodoList, TodoItem, ProfileTodoResponse } from '../../types/dashboard';
 import apiClient from '../../api/client';
 import { getProfileTodos } from '../../api/systemProfile';
 import TodoActionDialog from './TodoActionDialog';
+import { useSystemMutationPermission } from '../permissions/useSystemMutationPermission';
+import { workspaceErrorMessage } from '../../features/workspaces/api';
 
 interface ResolveBlockedInfo {
   gateName: string;
@@ -25,15 +27,20 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
   const [profileTodos, setProfileTodos] = useState<ProfileTodoResponse | null>(null);
   const { settings } = useSettings();
   const navigate = useNavigate();
+  const canViewProfileTasks = useSystemMutationPermission(systemId, 'canEditProfile', settings.role === 'MissionOwner');
+  const canResolve = useSystemMutationPermission(systemId, null);
+  const [actionError, setActionError] = useState('');
 
-  // Fetch profile todos for MissionOwner
   useEffect(() => {
-    if (settings.role !== 'MissionOwner') {
+    if (!canViewProfileTasks) {
       setProfileTodos(null);
       return;
     }
-    getProfileTodos(systemId).then(setProfileTodos).catch(() => setProfileTodos(null));
-  }, [systemId, settings.role]);
+    let current = true;
+    getProfileTodos(systemId).then(result => { if (current) setProfileTodos(result); })
+      .catch(reason => { if (current) setActionError(workspaceErrorMessage(reason)); });
+    return () => { current = false; };
+  }, [systemId, canViewProfileTasks]);
 
   const fetcher = useCallback(
     () => apiClient.get<TodoList>(`/systems/${systemId}/todos`).then((r) => r.data),
@@ -41,9 +48,11 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
   );
   const { data, loading, error, refresh } = usePolling(fetcher, 30000);
 
-  const handleResolve = async (item: TodoItem, e: React.MouseEvent) => {
+  const handleResolve = async (item: TodoItem, e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
+    if (!canResolve) { setActionError('Deferred prerequisite resolution permission is not available for this workspace.'); return; }
     if (!item.deferredId) return;
+    setActionError('');
     setResolving(item.deferredId);
     try {
       await apiClient.post(`/systems/${systemId}/deferred-prerequisites/${item.deferredId}/resolve`);
@@ -57,6 +66,7 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
           return;
         }
       }
+      setActionError(workspaceErrorMessage(err));
     } finally {
       setResolving(null);
     }
@@ -87,8 +97,8 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
 
   return (
     <>
-      {/* Profile Tasks (MissionOwner only) */}
-      {profileTodos?.hasProfileTasks && (
+      {actionError && <p role="alert">{actionError}</p>}
+      {canViewProfileTasks && profileTodos?.hasProfileTasks && (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 mb-3">
           <div className="px-5 pt-3 pb-1">
             <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Your Profile Tasks</p>
@@ -155,9 +165,10 @@ export default function TodoPanel({ systemId }: TodoPanelProps) {
               {item.category === 'deferred' && item.deferredId ? (
                 <span
                   role="button"
+                  aria-disabled={!canResolve || resolving === item.deferredId}
                   tabIndex={0}
                   onClick={(e) => void handleResolve(item, e)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void handleResolve(item, e as unknown as React.MouseEvent); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void handleResolve(item, e); } }}
                   className="flex-shrink-0 rounded-md border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
                 >
                   {resolving === item.deferredId ? 'Resolving...' : 'Resolve'}

@@ -1,14 +1,14 @@
-# ATO Copilot Documentation
+# Security Posture Intelligence Navigator Documentation
 
 > AI-powered NIST Risk Management Framework compliance assistant for DoD teams.
 
 ---
 
-## What Is ATO Copilot?
+## What Is Security Posture Intelligence Navigator?
 
-ATO Copilot is an AI-powered assistant that guides DoD teams through every step of the NIST Risk Management Framework (RMF) — from system registration through continuous monitoring. It combines real Azure compliance scanning with RMF workflow automation, natural language interaction, and document generation.
+Security Posture Intelligence Navigator is an AI-powered assistant that guides DoD teams through every step of the NIST Risk Management Framework (RMF) — from system registration through continuous monitoring. It combines real Azure compliance scanning with RMF workflow automation, natural language interaction, and document generation.
 
-**ATO Copilot IS:**
+**Security Posture Intelligence Navigator IS:**
 
 - A copilot that knows the RMF process and guides users step by step
 - An assistant with the full NIST 800-53 Rev 5 catalog embedded (1,000+ controls)
@@ -18,7 +18,7 @@ ATO Copilot is an AI-powered assistant that guides DoD teams through every step 
 - A continuous monitor that detects compliance drift and creates graduated alerts
 - A natural language interface where each persona sees information tailored to their role
 
-**ATO Copilot is NOT:**
+**Security Posture Intelligence Navigator is NOT:**
 
 - A replacement for eMASS (it exports *to* eMASS)
 - A GRC platform (it is a productivity copilot)
@@ -54,9 +54,9 @@ Select your role to get started:
 
 ## Applicable Standards
 
-| Standard | How ATO Copilot Uses It |
+| Standard | How Security Posture Intelligence Navigator Uses It |
 |----------|------------------------|
-| DoDI 8510.01 | Defines the 7-step RMF lifecycle ATO Copilot implements |
+| DoDI 8510.01 | Defines the 7-step RMF lifecycle Security Posture Intelligence Navigator implements |
 | NIST SP 800-37 Rev 2 | RMF framework including Step 0 (Prepare) |
 | NIST SP 800-53 Rev 5 | Full control catalog embedded (254K lines, sourced from OSCAL) |
 | NIST SP 800-60 Vol 1 & 2 | Information type catalog for FIPS 199 categorization |
@@ -68,7 +68,7 @@ Select your role to get started:
 
 ## RBAC Roles
 
-ATO Copilot enforces role-based access control at every tool invocation. Your role determines what you can do:
+Security Posture Intelligence Navigator enforces role-based access control at every tool invocation. Your role determines what you can do:
 
 | RBAC Role | Maps To | Access Level |
 |-----------|---------|-------------|
@@ -89,7 +89,7 @@ ATO Copilot enforces role-based access control at every tool invocation. Your ro
 - [RMF Phase Reference](rmf-phases/index.md) — Step-by-step walkthrough of all 7 RMF phases
 - [NL Query Reference](guides/nl-query-reference.md) — Natural language query examples by category
 - [Tool Inventory](reference/tool-inventory.md) — Complete list of 114 MCP tools
-- [Document Catalog](guides/document-catalog.md) — All documents ATO Copilot produces
+- [Document Catalog](guides/document-catalog.md) — All documents Security Posture Intelligence Navigator produces
 - [Troubleshooting](reference/troubleshooting.md) — Common errors and resolutions
 - [Quick Reference Cards](reference/quick-reference-cards.md) — Printable cheat sheets by persona
 - [Glossary](reference/glossary.md) — Terms and definitions

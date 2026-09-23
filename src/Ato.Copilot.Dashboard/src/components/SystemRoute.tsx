@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from '../features/workspaces/workspaceNavigation';
 import { SystemContextProvider } from '../hooks/useSystemContext';
 import { usePolling } from '../hooks/usePolling';
 import { getSystemDetail } from '../api/systemDetail';

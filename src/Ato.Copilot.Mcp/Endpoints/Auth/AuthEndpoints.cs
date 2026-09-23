@@ -81,7 +81,7 @@ public static class AuthEndpoints
         var b = auth.Branding;
         var branding = new
         {
-            deploymentName = string.IsNullOrWhiteSpace(b.DeploymentName) ? "ATO Copilot" : b.DeploymentName,
+            deploymentName = string.IsNullOrWhiteSpace(b.DeploymentName) ? "Security Posture Intelligence Navigator" : b.DeploymentName,
             logoUrl = string.IsNullOrWhiteSpace(b.LogoUrl) ? (string?)null : b.LogoUrl,
             supportEmail = string.IsNullOrWhiteSpace(b.SupportEmail) ? (string?)null : b.SupportEmail,
         };
@@ -160,6 +160,9 @@ public static class AuthEndpoints
         var sw = Stopwatch.StartNew();
         var logger = loggerFactory.CreateLogger("AuthEndpoints.Me");
 
+        if (http.RequestServices.GetRequiredService<ITenantContext>().IsWorkspaceRequest)
+            return await GetWorkspaceMeAsync(http, dbFactory, audit, auditCtxAccessor, cache, ct);
+
         if (!(http.User.Identity?.IsAuthenticated ?? false))
         {
             return Unauthorized(sw);
@@ -227,7 +230,7 @@ public static class AuthEndpoints
         ImpersonationCookiePayload? impPayload = null;
         if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue))
         {
-            if (impersonation.Validate(cookieValue) is { } payload)
+            if (await impersonation.ValidateAsync(cookieValue, ct) is { } payload)
             {
                 var target = await db.Tenants
                     .IgnoreQueryFilters()
@@ -253,7 +256,7 @@ public static class AuthEndpoints
                     var expiryMetadata = System.Text.Json.JsonSerializer.Serialize(new
                     {
                         impersonatedTenantId = expiredPayload.ImpersonatedTenantId.ToString(),
-                        reason = "expired",
+                        reason = expiredPayload.ExpiresAt <= DateTimeOffset.UtcNow ? "expired" : "invalidated",
                     });
                     await audit.AppendAsync(db, new LoginAuditEventDraft(
                         EventType: LoginAuditEventType.ImpersonationEnd,
@@ -424,6 +427,7 @@ public static class AuthEndpoints
         var data = new
         {
             oid,
+            directoryTenantId = Guid.TryParse(tid, out var authenticatedDirectoryId) ? (Guid?)authenticatedDirectoryId : null,
             displayName,
             persona,
             homeTenant = ProjectTenant(homeTenant),
@@ -444,6 +448,66 @@ public static class AuthEndpoints
         };
 
         return Success(sw, data);
+    }
+
+    private static async Task<IResult> GetWorkspaceMeAsync(
+        HttpContext http, IDbContextFactory<AtoCopilotContext> dbFactory,
+        ILoginAuditService audit, LoginAuditContextAccessor auditAccessor, IDistributedCache cache, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        var workspaces = http.RequestServices.GetRequiredService<IWorkspaceService>();
+        var identity = WorkspaceService.Identity(http.User);
+        var available = await workspaces.ListAsync(http.User, 1, 200, ct);
+        if (available.Total == 0 && workspaces.Current is null)
+            return ErrorEnvelope(sw, 403, "NO_TENANT_ASSIGNMENT",
+                "Your identity has no explicit organization membership or provider workspace access.",
+                "Ask an organization Administrator or CSP administrator to grant access.");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var home = await db.Tenants.AsNoTracking().SingleOrDefaultAsync(t => t.EntraTenantId == identity.DirectoryId, ct);
+        var current = workspaces.Current;
+        var effective = current?.TenantId is { } id
+            ? await db.Tenants.AsNoTracking().SingleAsync(t => t.Id == id, ct)
+            : null;
+        var support = workspaces.SupportSession;
+        var key = $"workspace-login:{identity.DirectoryId:N}:{identity.ObjectId:N}:{effective?.Id}:{current?.Mode}";
+        if (await cache.GetStringAsync(key, ct) is null)
+        {
+            var request = auditAccessor.FromHttpContext(http);
+            await audit.AppendAsync(db, new(LoginAuditEventType.LoginSuccess, identity.ObjectId.ToString(),
+                identity.DirectoryId.ToString(), effective?.Id ?? Guid.Empty, request.CorrelationId,
+                request.SourceIp, request.UserAgent, LoginSurface.Dashboard), ct);
+            await db.SaveChangesAsync(ct);
+            await cache.SetStringAsync(key, "1",
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) }, ct);
+        }
+        var effectiveDto = effective is null ? null : new WorkspaceTenantResponse(effective.Id, effective.DisplayName, effective.Status.ToString());
+        // Legacy PIM rows lack a directory key. Only project them in their mapped directory's
+        // own tenant; a same-oid guest membership must not inherit another directory's PIM.
+        var pimRoles = new List<WorkspacePimRoleResponse>();
+        if (effective is not null && home?.Id == effective.Id)
+        {
+            var oid = identity.ObjectId.ToString();
+            var jit = await db.JitRequests.Where(j => j.TenantId == effective.Id && j.UserId == oid
+                    && j.Status == JitRequestStatus.Active)
+                .Select(j => new { j.RoleName, j.ExpiresAt }).ToListAsync(ct);
+            pimRoles.AddRange(jit.Where(j => j.ExpiresAt > DateTimeOffset.UtcNow)
+                .Select(j => new WorkspacePimRoleResponse(j.RoleName, j.ExpiresAt!.Value)));
+        }
+        http.Response.Headers.CacheControl = "no-store";
+        return Success(sw, new WorkspaceMeResponse(
+            identity.ObjectId,
+            identity.DirectoryId,
+            http.User.FindFirstValue(ClaimTypes.Name) ?? http.User.FindFirstValue("name") ?? "Authenticated user",
+            current?.Roles.FirstOrDefault() ?? "User",
+            home is null ? null : new(home.Id, home.DisplayName, home.Status.ToString()),
+            effectiveDto, support is not null,
+            support is null || effectiveDto is null ? null : new(effectiveDto, support.IssuedAt, support.ExpiresAt),
+            pimRoles, workspaces.IsCspAdministrator(http.User),
+            http.User.IsInRole("Auth.SocAnalyst") || http.User.IsInRole("SOC.Analyst"),
+            available.Items.Where(w => w.Kind == "organization")
+                .Select(w => new WorkspaceTenantResponse(w.TenantId!.Value, w.DisplayName, w.Status)).ToArray(),
+            current, available.Items, available.Total,
+            current?.Permissions ?? new(false, false, false)));
     }
 
     // ─── POST /signout ──────────────────────────────────────────────────
@@ -543,7 +607,13 @@ public static class AuthEndpoints
 
         Guid effectiveTenantId = Guid.Empty;
         ImpersonationCookiePayload? impersonationPayload = null;
-        if (Guid.TryParse(tid, out var tidGuid))
+        if (http.RequestServices.GetRequiredService<ITenantContext>().IsWorkspaceRequest)
+        {
+            var workspace = http.RequestServices.GetRequiredService<IWorkspaceService>();
+            effectiveTenantId = workspace.Current?.TenantId ?? Guid.Empty;
+            impersonationPayload = workspace.SupportSession;
+        }
+        else if (Guid.TryParse(tid, out var tidGuid))
         {
             var homeTenant = await db.Tenants
                 .IgnoreQueryFilters()
@@ -555,7 +625,7 @@ public static class AuthEndpoints
                 // Promote to the impersonated tenant when the cookie is
                 // present + valid, matching /me's resolution path.
                 if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var cookieValue) &&
-                    impersonation.Validate(cookieValue) is { } payload)
+                    await impersonation.ValidateAsync(cookieValue, ct) is { } payload)
                 {
                     var target = await db.Tenants
                         .IgnoreQueryFilters()
@@ -569,6 +639,25 @@ public static class AuthEndpoints
             }
         }
 
+        // A browser-wide signout also revokes its support session when this tab is ordinary.
+        if (http.Request.Cookies.TryGetValue(impersonation.CookieName, out var supportCookie)
+            && impersonation.ValidateIgnoringLifetime(supportCookie) is { DirectoryTenantId: not null } signedSupport
+            && Guid.TryParse(tid, out var actorDirectory) && signedSupport.DirectoryTenantId == actorDirectory
+            && Guid.TryParse(oid, out var actorObject) && Guid.TryParse(signedSupport.ImpersonatorOid, out var cookieActor)
+            && cookieActor == actorObject)
+        {
+            try
+            {
+                await impersonation.RevokeWorkspaceTokenAsync(supportCookie, actorDirectory, actorObject,
+                    eventType == LoginAuditEventType.IdleSignOut ? "idle_timeout" : "signout", ct);
+                impersonationPayload = signedSupport;
+            }
+            catch (WorkspaceException ex)
+            {
+                return ErrorEnvelope(sw, ex.StatusCode, ex.Code, ex.Message);
+            }
+        }
+
         // Feature 051 T132 [US8] — when sign-out is driven by idle
         // timeout AND an impersonation cookie is in flight, write the
         // ImpersonationEnd(idle_timeout) row FIRST so the audit trail
@@ -577,18 +666,23 @@ public static class AuthEndpoints
         //   2. IdleSignOut                     // the session itself ends
         // The cookie is then deleted by the existing block below; the
         // SignOut path is otherwise unchanged.
-        if (eventType == LoginAuditEventType.IdleSignOut && impersonationPayload is not null)
+        if (impersonationPayload is not null && (eventType == LoginAuditEventType.IdleSignOut
+            || impersonationPayload.DirectoryTenantId.HasValue))
         {
+            var endTenantId = await db.Tenants.AnyAsync(t => t.Id == impersonationPayload.ImpersonatedTenantId, ct)
+                ? impersonationPayload.ImpersonatedTenantId : Guid.Empty;
+            using var endScope = http.RequestServices.GetRequiredService<ITenantContextAccessor>()
+                .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(endTenantId));
             var impMetadata = System.Text.Json.JsonSerializer.Serialize(new
             {
                 impersonatedTenantId = impersonationPayload.ImpersonatedTenantId.ToString(),
-                reason = "idle_timeout",
+                reason = eventType == LoginAuditEventType.IdleSignOut ? "idle_timeout" : "signout",
             });
             await audit.AppendAsync(db, new LoginAuditEventDraft(
                 EventType: LoginAuditEventType.ImpersonationEnd,
                 Oid: oid,
                 Tid: tid,
-                EffectiveTenantId: impersonationPayload.ImpersonatedTenantId,
+                EffectiveTenantId: endTenantId,
                 CorrelationId: auditCtx.CorrelationId,
                 SourceIp: auditCtx.SourceIp,
                 UserAgent: auditCtx.UserAgent,
@@ -640,6 +734,10 @@ public static class AuthEndpoints
     /// <c>contracts/http-api.md § 4</c>.
     /// </summary>
     /// <remarks>
+    /// <para>Workspace requests require an explicit active OrganizationMembership, including
+    /// for CSP administrators. Selection audits an ordinary navigation preference; subsequent
+    /// per-tab requests must still carry their workspace headers. The legacy behavior below
+    /// applies only to SingleTenant requests without explicit workspace context.</para>
     /// <para>Membership rule: per the current data model the only
     /// authoritative "user→tenant membership" signal is the Entra
     /// <c>tid</c> claim mapped to <see cref="Tenant.EntraTenantId"/> —
@@ -740,9 +838,19 @@ public static class AuthEndpoints
                 "Contact CSP support to re-enable the tenant.");
         }
 
+        var canonicalWorkspace = http.RequestServices.GetRequiredService<ITenantContext>().IsWorkspaceRequest;
+        if (canonicalWorkspace)
+        {
+            var identity = WorkspaceService.Identity(http.User);
+            if (target.Status == TenantStatus.Disabled || !await db.OrganizationMemberships.AnyAsync(m =>
+                m.TenantId == targetTenantId && m.DirectoryTenantId == identity.DirectoryId
+                && m.ObjectId == identity.ObjectId && m.RevokedAt == null, ct))
+                return ErrorEnvelope(sw, 403, "FORBIDDEN_NOT_TENANT_MEMBER",
+                    "An explicit active organization membership is required.");
+        }
         // Membership check (FR-009). Non-CSP-Admin: tid claim must map to
         // the target tenant's EntraTenantId. CSP-Admin bypasses this gate.
-        if (!isCspAdmin)
+        if (!canonicalWorkspace && !isCspAdmin)
         {
             var tidGuid = Guid.TryParse(tid, out var t) ? (Guid?)t : null;
             var isMember = tidGuid is not null &&
@@ -772,6 +880,10 @@ public static class AuthEndpoints
             }
         }
 
+        using var selectionAuditScope = canonicalWorkspace
+            ? http.RequestServices.GetRequiredService<ITenantContextAccessor>()
+                .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(targetTenantId))
+            : null;
         var auditCtx = auditCtxAccessor.FromHttpContext(http);
         var metadata = System.Text.Json.JsonSerializer.Serialize(new
         {
@@ -876,11 +988,11 @@ public static class AuthEndpoints
         var logger = loggerFactory.CreateLogger("AuthEndpoints.Simulate");
         var auditCtx = auditCtxAccessor.FromHttpContext(http);
 
-        // ─── Layer 3 — environment gate ────────────────────────────────
+        // ─── Layer 3 — environment and configuration gate ─────────────
         // MUST run FIRST so non-Development requests cannot leak signal
         // about identity-lookup state. The response is a BARE 404 (no
         // envelope, no body) so the route looks like it does not exist.
-        if (!env.IsDevelopment())
+        if (!env.IsDevelopment() || !cacAuthOptions.Value.SimulationMode)
         {
             var blockedMetadata = System.Text.Json.JsonSerializer.Serialize(new
             {
@@ -976,7 +1088,6 @@ public static class AuthEndpoints
             SameSite = SameSiteMode.Strict,
             Path = "/",
         };
-        http.Response.Cookies.Append("ato-simulation", descriptor.IdentityId, sessionCookieOpts);
 
         // FR-025 (clarified 2026-05-28 / analysis C9) — discrete X-Simulated
         // sentinel cookie. NOT a cookie attribute, a separate cookie.
@@ -987,21 +1098,29 @@ public static class AuthEndpoints
             SameSite = SameSiteMode.Strict,
             Path = "/",
         };
-        http.Response.Cookies.Append("X-Simulated", "true", sentinelOpts);
 
         // Audit row — § 5.3 step 5 + data-model.md § 1.5.
         var metadata = System.Text.Json.JsonSerializer.Serialize(new
         {
             identityId = descriptor.IdentityId,
+            configuredTenantId = descriptor.TenantId,
         });
 
         await using (var db = await dbFactory.CreateDbContextAsync(ct))
         {
+            var auditTenantId = await db.Tenants.AsNoTracking()
+                .AnyAsync(tenant => tenant.Id == descriptor.TenantId, ct)
+                ? descriptor.TenantId : Guid.Empty;
+            if (auditTenantId != descriptor.TenantId)
+                logger.LogWarning("Simulated identity {IdentityId} has no provisioned tenant; recording pre-workspace login in the system audit tenant",
+                    descriptor.IdentityId);
+            using var auditScope = tenantAccessor.Push(
+                new Ato.Copilot.Core.Services.Tenancy.TenantContext(auditTenantId));
             await audit.AppendAsync(db, new LoginAuditEventDraft(
                 EventType: LoginAuditEventType.SimulatedLogin,
                 Oid: descriptor.Oid,
                 Tid: descriptor.Tid,
-                EffectiveTenantId: descriptor.TenantId,
+                EffectiveTenantId: auditTenantId,
                 CorrelationId: auditCtx.CorrelationId,
                 SourceIp: auditCtx.SourceIp,
                 UserAgent: auditCtx.UserAgent,
@@ -1009,6 +1128,9 @@ public static class AuthEndpoints
                 MetadataJson: metadata), ct);
             await db.SaveChangesAsync(ct);
         }
+
+        http.Response.Cookies.Append("ato-simulation", descriptor.IdentityId, sessionCookieOpts);
+        http.Response.Cookies.Append("X-Simulated", "true", sentinelOpts);
 
         logger.LogInformation(
             "Simulated login issued for identityId={IdentityId} (oid={Oid}, tenantId={TenantId})",

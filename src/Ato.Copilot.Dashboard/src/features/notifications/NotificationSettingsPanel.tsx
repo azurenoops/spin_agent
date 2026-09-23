@@ -1,176 +1,127 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import apiClient from '../../api/client';
-import { getMsalInstance } from '../../features/auth/msalInstance';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { useMe } from '../auth/useMe';
 
 interface NotificationPreferences {
-  userId: string;
-  emailEnabled: boolean;
-  emailAddress: string | null;
-  teamsEnabled: boolean;
-  slackEnabled: boolean;
+  poamOverdueAlerts: boolean;
+  atoExpirationAlerts: boolean;
+  complianceDriftAlerts: boolean;
+  alertDaysBefore: number;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function isPreferences(value: unknown): value is NotificationPreferences {
+  if (!value || typeof value !== 'object') return false;
+  return 'poamOverdueAlerts' in value && typeof value.poamOverdueAlerts === 'boolean'
+    && 'atoExpirationAlerts' in value && typeof value.atoExpirationAlerts === 'boolean'
+    && 'complianceDriftAlerts' in value && typeof value.complianceDriftAlerts === 'boolean'
+    && 'alertDaysBefore' in value && typeof value.alertDaysBefore === 'number'
+    && Number.isInteger(value.alertDaysBefore) && value.alertDaysBefore >= 0;
+}
 
-/**
- * UF-016 — Notification Settings Panel (spec-063 T-077 / #200).
- *
- * Embeddable panel for configuring per-user notification delivery channels
- * (Email, Teams, Slack). Saves to PUT /api/dashboard/notifications/preferences.
- */
 export default function NotificationSettingsPanel() {
-  // DEF-001 R2: resolve userId from MSAL at mount. The API response will
-  // overwrite this on successful load; the initializer must never use a
-  // phantom placeholder identity.
-  const msalUserId = getMsalInstance().getAllAccounts()[0]?.localAccountId ?? '';
-  const [prefs, setPrefs] = useState<NotificationPreferences>({
-    userId: msalUserId,
-    emailEnabled: false,
-    emailAddress: null,
-    teamsEnabled: false,
-    slackEnabled: false,
-  });
+  const { data: identity, isLoading, error, refetch } = useMe();
+  if (isLoading) return <p role="status">Resolving notification preferences access...</p>;
+  if (error || !identity) return (
+    <div role="alert">Notification preferences require an authenticated workspace.
+      <button type="button" onClick={refetch} className="ml-2 underline">Retry</button>
+    </div>
+  );
+  const key = JSON.stringify([
+    identity.directoryTenantId, identity.oid, identity.workspace?.kind, identity.workspace?.tenantId,
+    identity.workspace?.mode, identity.effectiveTenant?.id,
+  ]);
+  return <PreferencesForm key={key} />;
+}
+
+function PreferencesForm() {
+  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const request = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    apiClient
-      .get<NotificationPreferences>('/notifications/preferences')
-      .then((res) => setPrefs(res.data))
-      .catch(() => {/* use defaults */})
-      .finally(() => setLoading(false));
-  }, []);
+    const controller = new AbortController();
+    request.current = controller;
+    setLoading(true);
+    setError(null);
+    void apiClient.get<unknown>('/notifications/preferences', { signal: controller.signal })
+      .then(response => {
+        if (controller.signal.aborted) return;
+        if (!isPreferences(response.data)) throw new Error('Unexpected notification preferences response.');
+        setPrefs(response.data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError('Unable to load notification preferences. Please retry.');
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [revision]);
 
   const handleSave = async () => {
+    const controller = request.current;
+    if (!prefs || !controller || controller.signal.aborted) return;
     setSaving(true);
+    setSaved(false);
     setError(null);
     try {
-      await apiClient.put('/notifications/preferences', prefs);
+      const response = await apiClient.put<unknown>('/notifications/preferences', {
+        poamOverdueAlerts: prefs.poamOverdueAlerts,
+        atoExpirationAlerts: prefs.atoExpirationAlerts,
+        complianceDriftAlerts: prefs.complianceDriftAlerts,
+        alertDaysBefore: prefs.alertDaysBefore,
+      }, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      if (!isPreferences(response.data)) throw new Error('Unexpected notification preferences response.');
+      setPrefs(response.data);
       setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
     } catch {
-      setError('Failed to save preferences. Please try again.');
+      if (!controller.signal.aborted) setError('Failed to save preferences. Please try again.');
     } finally {
-      setSaving(false);
+      if (!controller.signal.aborted) setSaving(false);
     }
   };
 
-  if (loading)
-    return <div className="py-4 text-sm text-gray-500">Loading notification preferences…</div>;
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900">Notification Delivery</h3>
-        <p className="mt-0.5 text-xs text-gray-500">
-          Configure how you receive RMF event notifications (authorization decisions, POA&M due dates, SCAP imports).
-        </p>
-      </div>
-
-      {/* Email */}
-      <div className="space-y-2 rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {/* Mail icon */}
-            <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-            </svg>
-            <span className="text-sm font-medium text-gray-900">Email</span>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={prefs.emailEnabled}
-            onClick={() => setPrefs((p) => ({ ...p, emailEnabled: !p.emailEnabled }))}
-            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-              prefs.emailEnabled ? 'bg-indigo-600' : 'bg-gray-200'
-            }`}
-          >
-            <span
-              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                prefs.emailEnabled ? 'translate-x-4' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-        {prefs.emailEnabled && (
-          <input
-            type="email"
-            value={prefs.emailAddress ?? ''}
-            onChange={(e) => setPrefs((p) => ({ ...p, emailAddress: e.target.value }))}
-            placeholder="Your email address"
-            className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-          />
-        )}
-      </div>
-
-      {/* Microsoft Teams */}
-      <div className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center gap-2">
-          <svg className="h-4 w-4 text-indigo-600" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19.5 8.5a3 3 0 100-6 3 3 0 000 6zm0 1.5a4.5 4.5 0 100-9 4.5 4.5 0 000 9z" />
-            <path d="M12 2a5 5 0 100 10A5 5 0 0012 2zm0 1.5a3.5 3.5 0 110 7 3.5 3.5 0 010-7zM2 17c0-2.761 4.477-5 10-5 .578 0 1.145.028 1.697.082A6.5 6.5 0 0012 17.5V21.5C6.477 21.5 2 19.261 2 17z" />
-          </svg>
-          <span className="text-sm font-medium text-gray-900">Microsoft Teams</span>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={prefs.teamsEnabled}
-          onClick={() => setPrefs((p) => ({ ...p, teamsEnabled: !p.teamsEnabled }))}
-          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-            prefs.teamsEnabled ? 'bg-indigo-600' : 'bg-gray-200'
-          }`}
-        >
-          <span
-            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-              prefs.teamsEnabled ? 'translate-x-4' : 'translate-x-0'
-            }`}
-          />
-        </button>
-      </div>
-
-      {/* Slack */}
-      <div className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center gap-2">
-          <svg className="h-4 w-4 text-green-600" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.165 0a2.528 2.528 0 012.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.165 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 01-2.52-2.523 2.526 2.526 0 012.52-2.52h6.313A2.527 2.527 0 0124 15.165a2.528 2.528 0 01-2.522 2.523h-6.313z" />
-          </svg>
-          <span className="text-sm font-medium text-gray-900">Slack</span>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={prefs.slackEnabled}
-          onClick={() => setPrefs((p) => ({ ...p, slackEnabled: !p.slackEnabled }))}
-          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-            prefs.slackEnabled ? 'bg-indigo-600' : 'bg-gray-200'
-          }`}
-        >
-          <span
-            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-              prefs.slackEnabled ? 'translate-x-4' : 'translate-x-0'
-            }`}
-          />
-        </button>
-      </div>
-
-      {/* Save */}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => void handleSave()}
-          disabled={saving}
-          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save Preferences'}
-        </button>
-      </div>
+  if (loading) return <p role="status" className="py-4 text-sm text-gray-500">Loading notification preferences...</p>;
+  if (!prefs) return (
+    <div role="alert" className="text-sm text-red-700">{error}
+      <button type="button" onClick={() => setRevision(value => value + 1)} className="ml-2 underline">Retry</button>
     </div>
+  );
+  const alerts = [
+    ['poamOverdueAlerts', 'POA&M overdue alerts'],
+    ['atoExpirationAlerts', 'ATO expiration alerts'],
+    ['complianceDriftAlerts', 'Compliance drift alerts'],
+  ] as const;
+  return (
+    <form className="space-y-5" onSubmit={event => { event.preventDefault(); void handleSave(); }}>
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900">Notification preferences</h3>
+        <p className="mt-1 text-xs text-gray-500">Preferences apply to your identity in this organization.</p>
+      </div>
+      <fieldset disabled={saving} className="space-y-4">
+        {alerts.map(([field, label]) => (
+          <label key={field} className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 text-sm">
+            <input type="checkbox" checked={prefs[field]} onChange={event => {
+              setPrefs({ ...prefs, [field]: event.target.checked }); setSaved(false);
+            }} />
+            {label}
+          </label>
+        ))}
+        <label className="block text-sm">
+          Warning days before expiration
+          <input type="number" min={0} step={1} required value={prefs.alertDaysBefore}
+            onChange={event => { setPrefs({ ...prefs, alertDaysBefore: Number(event.target.value) }); setSaved(false); }}
+            className="mt-1 block rounded border border-gray-300 px-3 py-2" />
+        </label>
+        <button type="submit" className="rounded bg-indigo-600 px-4 py-2 text-sm text-white">
+          {saving ? 'Saving...' : 'Save preferences'}
+        </button>
+      </fieldset>
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {saved && <p role="status" className="text-sm text-green-700">Preferences saved.</p>}
+    </form>
   );
 }

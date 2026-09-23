@@ -45,30 +45,56 @@ public class InMemoryAgentStateManager : IAgentStateManager
 /// <summary>
 /// In-memory implementation of conversation state management
 /// </summary>
-public class InMemoryConversationStateManager : IConversationStateManager
+public class InMemoryConversationStateManager(IConversationIdentityAccessor? identityAccessor = null) : IConversationStateManager
 {
     private readonly ConcurrentDictionary<string, ConversationState> _conversations = new();
 
     /// <inheritdoc />
     public Task<ConversationState?> GetConversationAsync(string conversationId, CancellationToken cancellationToken = default)
     {
-        _conversations.TryGetValue(conversationId, out var state);
-        return Task.FromResult(state);
+        cancellationToken.ThrowIfCancellationRequested();
+        var key = StorageKey(conversationId);
+        _conversations.TryGetValue(key, out var state);
+        return Task.FromResult(state is null ? null : Snapshot(state));
     }
 
     /// <inheritdoc />
     public Task SaveConversationAsync(ConversationState state, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        var identity = identityAccessor?.Current;
+        var key = identity?.StorageKey(state.Id) ?? $"local:{state.Id}";
+        if (state.StorageKey is not null && state.StorageKey != key)
+            throw new UnauthorizedAccessException("Conversation belongs to another workspace or actor.");
+        state.StorageKey = key;
+        if (identity is not null)
+            state.UserId = identity.ActorId;
         state.LastActivityAt = DateTime.UtcNow;
-        _conversations[state.Id] = state;
+        _conversations[key] = Snapshot(state);
         return Task.CompletedTask;
     }
 
     /// <inheritdoc />
-    public Task<string> CreateConversationAsync(CancellationToken cancellationToken = default)
+    public async Task<string> CreateConversationAsync(CancellationToken cancellationToken = default)
     {
         var state = new ConversationState();
-        _conversations[state.Id] = state;
-        return Task.FromResult(state.Id);
+        await SaveConversationAsync(state, cancellationToken);
+        return state.Id;
     }
+
+    private string StorageKey(string id) => identityAccessor?.Current?.StorageKey(id) ?? $"local:{id}";
+
+    private static ConversationState Snapshot(ConversationState state) => new()
+    {
+        Id = state.Id,
+        StorageKey = state.StorageKey,
+        UserId = state.UserId,
+        CreatedAt = state.CreatedAt,
+        LastActivityAt = state.LastActivityAt,
+        Messages = state.Messages.Select(m => new ConversationMessage
+        {
+            Role = m.Role, Content = m.Content, Timestamp = m.Timestamp
+        }).ToList(),
+        Variables = new(state.Variables)
+    };
 }

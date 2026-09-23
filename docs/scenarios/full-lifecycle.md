@@ -33,7 +33,7 @@ User (ISSM):
   Register a new system called 'ACME Portal' as a Major Application
   with mission-critical designation in Azure Government IL5
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ System registered: ACME Portal (ID: sys-acme-001)
   Current RMF Phase: Prepare
   Next steps:
@@ -49,7 +49,7 @@ User (ISSM):
   Define the authorization boundary — add 3 production VMs, the SQL
   database, Key Vault, and the App Service
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Authorization boundary updated: 6 resources added
   Resources: 3× Virtual Machine, 1× SQL Database, 1× Key Vault, 1× App Service
 ```
@@ -61,7 +61,7 @@ User (ISSM):
   Assign Jane Smith as ISSM, Bob Jones as ISSO, Dr. Alice Chen as SCA,
   and COL Davis as Authorizing Official
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Roles assigned:
   • Jane Smith → ISSM (Compliance.SecurityLead)
   • Bob Jones → ISSO (Compliance.Analyst)
@@ -75,7 +75,7 @@ ATO Copilot:
 User (ISSM):
   Advance to Categorize
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Phase advanced: Prepare → Categorize
   Gate conditions met: ✓ 4 RMF roles assigned, ✓ 6 boundary resources
 ```
@@ -91,7 +91,7 @@ User (ISSM):
   Suggest information types for ACME Portal — it handles financial
   transactions and stores PII
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   Suggested types (confidence scores):
   1. C.3.1.4 Financial Management (0.92)
   2. C.2.4.1 General Information (0.87)
@@ -105,7 +105,7 @@ User (ISSM):
   Categorize with Financial Management (C:High, I:High, A:Moderate)
   and Information Security (C:Moderate, I:High, A:Moderate)
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Categorization complete:
   FIPS 199: SC ACME Portal = {(C, HIGH), (I, HIGH), (A, MODERATE)}
   Overall: HIGH | DoD IL: IL5 | Baseline: High (400 controls)
@@ -117,7 +117,7 @@ ATO Copilot:
 User (ISSM):
   Advance to Select
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Phase advanced: Categorize → Select
   Gate conditions met: ✓ FIPS 199 categorization recorded
 ```
@@ -132,7 +132,7 @@ ATO Copilot:
 User (ISSM):
   Select the High baseline with CNSSI 1253 overlay
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Baseline selected: High (400 controls)
   Overlay applied: CNSSI 1253
   Total controls in scope: 412
@@ -144,7 +144,7 @@ ATO Copilot:
 User (ISSM):
   Set all physical security controls as inherited from Azure Government
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Inheritance set for 23 controls:
   PE-1 through PE-23 → Fully Inherited from Azure Government
   Provider: Azure Government FedRAMP High P-ATO
@@ -156,7 +156,7 @@ ATO Copilot:
 User (ISSM):
   Generate the CRM
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ CRM generated: 412 controls mapped
   • Fully Inherited: 23 controls
   • Shared: 89 controls
@@ -169,7 +169,7 @@ ATO Copilot:
 User (ISSM):
   Advance to Implement
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Phase advanced: Select → Implement
   Gate conditions met: ✓ Baseline selected with 412 controls
 ```
@@ -184,7 +184,7 @@ ATO Copilot:
 User (ISSO):
   Auto-populate inherited control narratives
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ 112 narratives auto-populated:
   • Fully Inherited: 23 narratives from Azure Gov P-ATO
   • Shared (provider portion): 89 narratives
@@ -197,7 +197,7 @@ ATO Copilot:
 User (ISSO):
   Suggest narratives for all AC family customer controls
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   Generated 20 narrative suggestions for AC family:
   • AC-1: Access Control Policy (confidence: 0.91) ✅
   • AC-2: Account Management (confidence: 0.88) ✅
@@ -215,7 +215,7 @@ User (Engineer):
   rules, and Azure DDoS Protection Standard. All inbound traffic routes
   through Azure Front Door with WAF policy v2..."
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Narrative saved for SC-7 (Boundary Protection)
   Author: Engineer | Status: Draft
   Word count: 287 | Sections: Implementation, Evidence
@@ -227,7 +227,7 @@ ATO Copilot:
 User (ISSO):
   What's the SSP completion percentage?
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   SSP Progress: 78% complete
   ├─ AC: 18/20 ██████████████████░░ 90%
   ├─ AU: 12/14 █████████████████░░░ 86%
@@ -247,7 +247,7 @@ User (SCA):
   Assess AC-2 as Satisfied — tested Azure AD account management against
   STIG checklist, all 15 sub-requirements met
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ AC-2 assessed: Satisfied
   Method: Test | Evidence: Azure AD audit logs, STIG checklist
 ```
@@ -257,7 +257,7 @@ User (SCA):
   Assess AC-3 as Other Than Satisfied, CAT II — missing mandatory access
   control for 3 storage accounts
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ AC-3 assessed: Other Than Satisfied (CAT II)
   Finding: Missing MAC for 3 storage accounts
   POA&M recommended: Yes
@@ -269,7 +269,7 @@ ATO Copilot:
 User (SCA):
   Take an assessment snapshot
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Snapshot created: SNAP-2026-02-15-001
   Controls assessed: 412 | Score: 87.3%
   Findings: 0 CAT I, 12 CAT II, 31 CAT III
@@ -282,7 +282,7 @@ ATO Copilot:
 User (SCA):
   Generate the Security Assessment Report
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ SAR generated: SAR-ACME-2026-001
   Sections: Executive Summary, Methodology, Findings (43), Recommendations
   Overall Score: 87.3%
@@ -300,7 +300,7 @@ ATO Copilot:
 User (ISSM):
   Create POA&M items for all 12 CAT II findings
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ 12 POA&M items created:
   • POA&M-001: AC-3 — Missing MAC for storage accounts (90 days)
   • POA&M-002: AU-6 — Incomplete audit review process (60 days)
@@ -314,7 +314,7 @@ ATO Copilot:
 User (ISSM):
   Generate the RAR
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ RAR generated: RAR-ACME-2026-001
   Sections: Risk Summary, Residual Risks (43), Recommendations
   Overall Risk Level: Medium
@@ -326,7 +326,7 @@ ATO Copilot:
 User (ISSM):
   Bundle the authorization package with evidence
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Authorization package bundled: PKG-ACME-2026-001
   Contents:
   • System Security Plan (SSP)
@@ -347,7 +347,7 @@ ATO Copilot:
 User (AO):
   Review the authorization package for ACME Portal
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   Authorization Package: PKG-ACME-2026-001
   ┌──────────────────────────────────────┐
   │ System: ACME Portal (IL5)            │
@@ -366,7 +366,7 @@ User (AO):
   90 days, quarterly POA&M reviews required. Expiration: January 15, 2029.
   Accept risk on 5 CAT III findings with compensating controls.
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ Authorization Issued: ATO with Conditions
   System: ACME Portal | Expires: 2029-01-15
   Risk Level: Medium | Score at Decision: 87.3%
@@ -385,7 +385,7 @@ ATO Copilot:
 User (ISSM):
   Create a ConMon plan with monthly assessments, annual review June 15
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ ConMon plan created:
   • Monthly assessment: 1st of each month
   • Annual review: June 15
@@ -399,7 +399,7 @@ ATO Copilot:
 User (ISSM):
   Generate the February 2026 ConMon report
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ✅ ConMon report generated: ConMon-ACME-2026-02
   Score: 89.1% (↑1.8% from January)
   POA&M: 3 of 12 items closed
@@ -413,7 +413,7 @@ ATO Copilot:
 User (ISSM):
   Show the multi-system dashboard
 
-ATO Copilot:
+Security Posture Intelligence Navigator:
   ┌──────────────┬─────┬─────────┬───────┬─────────┬──────┐
   │ System       │ IL  │ Phase   │ Auth  │ Score   │ Exp  │
   ├──────────────┼─────┼─────────┼───────┼─────────┼──────┤
@@ -426,7 +426,7 @@ ATO Copilot:
 ### Automated: Expiration Alert
 
 ```text
-ATO Copilot (automated):
+Security Posture Intelligence Navigator (automated):
   ⚠️ Alert: ATO for ACME Portal expires in 90 days
   Action: Begin reauthorization planning
 ```
@@ -434,7 +434,7 @@ ATO Copilot (automated):
 ### Automated: Drift Detection
 
 ```text
-ATO Copilot (automated):
+Security Posture Intelligence Navigator (automated):
   🔴 Alert: Configuration drift detected — 7 resources drifted beyond
   threshold. Significant change auto-reported.
   Action required: ISSO must review and ISSM must determine if

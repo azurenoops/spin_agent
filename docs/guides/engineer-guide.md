@@ -4,8 +4,8 @@
 
 This guide walks through the complete SSP authoring workflow using the MCP compliance tools, from initial system registration through SSP document generation.
 
-!!! tip "New to ATO Copilot?"
-    If this is your first time using ATO Copilot as an Engineer, start with the [Engineer Getting Started](../getting-started/engineer.md) page for prerequisites, first-time setup, and your first 3 commands.
+!!! tip "New to Security Posture Intelligence Navigator?"
+    If this is your first time using Security Posture Intelligence Navigator as an Engineer, start with the [Engineer Getting Started](../getting-started/engineer.md) page for prerequisites, first-time setup, and your first 3 commands.
 
 ---
 
@@ -244,7 +244,7 @@ Parameters:
 
 ## Remediation Workflows
 
-ATO Copilot provides two remediation paths:
+Security Posture Intelligence Navigator provides two remediation paths:
 
 | Path | Tools | When to Use |
 |------|-------|-------------|
@@ -304,7 +304,7 @@ Backlog → ToDo → InProgress → InReview → Done
 
 ## VS Code IaC Diagnostics
 
-ATO Copilot integrates compliance checking directly into your VS Code editing experience:
+Security Posture Intelligence Navigator integrates compliance checking directly into your VS Code editing experience:
 
 - **IaC Diagnostics** — Compliance findings appear as squiggly underlines in Bicep, Terraform, and ARM template files
   - CAT I / CAT II findings → Error severity (red underline)

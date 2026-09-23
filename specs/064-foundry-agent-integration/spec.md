@@ -208,7 +208,7 @@ list.
 
 ### User Story 4 — Foundry configuration documentation (Priority: P2)
 
-**As a** platform engineer setting up ATO Copilot for a new government tenant
+**As a** platform engineer setting up Security Posture Intelligence Navigator for a new government tenant
 **I want** a complete guide for configuring Azure AI Foundry as the AI backend
 **So that** I can provision the required Azure resources and configure the
 application without trial and error.
