@@ -21,10 +21,14 @@ describe('explicit audited support entry', () => {
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Audited support' }));
     expect(startImpersonation).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Support reason' }), { target: { value: 'Investigate incident' } });
+    fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Start audited support' }));
     // Assert
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('/workspaces/support/organizations/org-a/systems/system-a'));
-    expect(startImpersonation).toHaveBeenCalledWith('org-a', 'Organization A');
+    expect(startImpersonation).toHaveBeenCalledWith('org-a', 'Organization A', {
+      reason: 'Investigate incident', reference: undefined, acknowledged: true,
+    });
   });
   it('does not navigate after a failed support request', async () => {
     // Arrange
@@ -32,9 +36,34 @@ describe('explicit audited support entry', () => {
     renderButton();
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Audited support' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Support reason' }), { target: { value: 'Investigate incident' } });
+    fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Start audited support' }));
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('Support denied');
     expect(screen.getByRole('status')).toHaveTextContent('/workspaces/csp');
+  });
+
+  it('matches backend purpose bounds and traps/restores modal focus', async () => {
+    // Arrange
+    renderButton();
+    const invoker = screen.getByRole('button', { name: 'Audited support' });
+    invoker.focus();
+    fireEvent.click(invoker);
+    const reason = screen.getByRole('textbox', { name: 'Support reason' });
+    const reference = screen.getByRole('textbox', { name: /Ticket or reference/ });
+    // Act
+    fireEvent.change(reason, { target: { value: 'ab' } });
+    fireEvent.change(reference, { target: { value: 'x'.repeat(101) } });
+    fireEvent.click(screen.getByRole('checkbox'));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Start audited support' })).toBeDisabled();
+    expect(reference).toHaveAttribute('maxLength', '100');
+    expect(reason.className).toContain('dark:bg-gray-800');
+    expect(screen.getByRole('button', { name: 'Start audited support' }).className)
+      .toContain('dark:bg-indigo-500');
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(invoker).toHaveFocus();
   });
 });
