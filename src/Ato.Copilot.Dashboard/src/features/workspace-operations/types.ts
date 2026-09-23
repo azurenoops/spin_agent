@@ -162,8 +162,8 @@ export interface ProvisioningResult {
 export interface InitialAdministrator {
   directoryTenantId: string;
   objectId: string;
-  personId?: string;
-  newPerson?: { displayName: string; email: string };
+  personId?: string | null;
+  newPerson?: { displayName: string; email: string } | null;
 }
 
 export interface OrganizationCreationRequest {

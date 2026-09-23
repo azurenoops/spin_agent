@@ -186,7 +186,8 @@ export default function OrganizationProvisioningPage({ tenantId }: { tenantId: s
               <dl className="space-y-2 break-all text-sm">
                 <div><dt>Directory tenant ID</dt><dd>{result.initialAdministrator?.directoryTenantId}</dd></div>
                 <div><dt>User object ID</dt><dd>{result.initialAdministrator?.objectId}</dd></div>
-                <div><dt>Person record ID</dt><dd>{result.initialAdministrator?.personId ?? 'Pending local Person creation'}</dd></div>
+                <div><dt>Person record ID</dt><dd>{result.initialAdministrator?.personId
+                  ?? (result.personState === 'Completed' ? 'Created; available through membership management' : 'Pending local Person creation')}</dd></div>
               </dl>
               <p className="text-xs text-slate-500">Identifiers are not directory-verified by this flow.</p>
               <button className={buttonClass} disabled={!allowed} onClick={() => result.initialAdministrator && void resume(result.initialAdministrator)}>{busy ? 'Enrollment in progress...' : retryLabel}</button>

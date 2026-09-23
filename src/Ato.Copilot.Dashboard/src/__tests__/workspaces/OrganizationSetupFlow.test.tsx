@@ -3,9 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import WorkspaceOperationsPage from '../../features/workspace-operations/WorkspaceOperationsPage';
-import AddOrganizationPage from '../../features/workspace-operations/AddOrganizationPage';
-import OrganizationProvisioningPage from '../../features/workspace-operations/OrganizationProvisioningPage';
 import * as api from '../../features/workspace-operations/api';
+import { emptyOrganization, validateOrganization } from '../../features/workspace-operations/OrganizationSetupPresentation';
 
 vi.mock('../../features/workspace-operations/api', async importOriginal => ({
   ...(await importOriginal<typeof api>()),
@@ -39,15 +38,8 @@ const created = {
   status: 'Active', onboardingState: 'Pending', existing: false,
 };
 function Route() { const location = useLocation(); return <output aria-label="Route">{location.pathname}{location.search}</output>; }
-function StagedFlow() {
-  const location = useLocation();
-  if (!permissions.canAccessCsp) return <WorkspaceOperationsPage />;
-  if (location.pathname === '/organizations/new') return <AddOrganizationPage />;
-  const parts = location.pathname.split('/');
-  return <OrganizationProvisioningPage key={parts[2]} tenantId={parts[2]!} />;
-}
 function page(route = '/organizations/new') {
-  return render(<MemoryRouter initialEntries={[route]}><Route /><StagedFlow /></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[route]}><Route /><WorkspaceOperationsPage /></MemoryRouter>);
 }
 function details() {
   fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Mission Operations' } });
@@ -78,6 +70,19 @@ beforeEach(() => {
 });
 
 describe('CSP Add Organization approved flow', () => {
+  it.each([
+    ['displayName', 200], ['legalEntityName', 300], ['primaryPocName', 200], ['primaryPocEmail', 254],
+  ] as const)('enforces the persisted %s length boundary of %s', (field, limit) => {
+    // Arrange
+    const value = (length: number) => field === 'primaryPocEmail' ? `${'a'.repeat(length - 6)}@x.mil` : 'a'.repeat(length);
+    const fields = { ...emptyOrganization, displayName: 'Organization', [field]: value(limit) };
+    // Act
+    const atLimit = validateOrganization(fields);
+    const tooLong = validateOrganization({ ...fields, [field]: value(limit + 1) });
+    // Assert
+    expect(atLimit[field]).toBeUndefined();
+    expect(tooLong[field]).toBeTruthy();
+  });
   it('validates only invalid fields and clears errors when corrected', async () => {
     // Arrange
     page();

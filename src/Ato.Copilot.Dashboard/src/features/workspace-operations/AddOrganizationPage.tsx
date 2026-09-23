@@ -8,7 +8,7 @@ import { buttonClass, errorClass, message, secondaryButtonClass, warningClass } 
 import {
   AdministratorInputs, administratorIntent, emptyAdministrator, emptyOrganization, SetupField,
   SetupInfo, setupCard, SetupSteps, SetupSummary, validateAdministrator, validateOrganization,
-  type FieldErrors,
+  organizationFieldLimits, type FieldErrors,
 } from './OrganizationSetupPresentation';
 
 export default function AddOrganizationPage() {
@@ -137,7 +137,7 @@ export default function AddOrganizationPage() {
                 ['displayName', 'Organization name'], ['legalEntityName', 'Legal entity name (optional)'],
                 ['primaryPocName', 'Primary contact name (optional)'], ['primaryPocEmail', 'Primary contact email (optional)'],
               ] as const).map(([field, label]) => <SetupField key={field} label={label} value={organization[field]}
-                type={field === 'primaryPocEmail' ? 'email' : 'text'} error={errors[field]}
+                type={field === 'primaryPocEmail' ? 'email' : 'text'} error={errors[field]} maxLength={organizationFieldLimits[field]}
                 onChange={value => {
                   setOrganization(current => ({ ...current, [field]: value }));
                   setErrors(current => { const next = { ...current }; delete next[field]; return next; });

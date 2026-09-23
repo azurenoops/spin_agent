@@ -4,6 +4,8 @@ import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
 import PageLayout from '../../components/layout/PageLayout';
 import PageHero from '../../components/layout/PageHero';
 import { Organizations, OrganizationDetailView } from './OrganizationPages';
+import AddOrganization from './AddOrganizationPage';
+import Provisioning from './OrganizationProvisioningPage';
 import {
   inputClass, buttonClass, secondaryButtonClass, surfaceClass, warningClass, errorClass,
   message, useQueryState, useRemote, Status, Pager, moveTabFocus, ItemList,
@@ -18,7 +20,7 @@ import { ProviderComponentPicker, ProviderArtifacts, ProviderOfferingSummary, Pr
 import * as api from './api';
 import type {
   CatalogQuery, OrganizationCapability, OrganizationCapabilityDetail,
-  ProviderCatalogItem, ProviderSubscriber, ProvisioningResult, PublicationPreview,
+  ProviderCatalogItem, ProviderSubscriber, PublicationPreview,
   SetupResult, WorkingRevision, SupportingComponent,
 } from './types';
 
@@ -598,170 +600,6 @@ function PublicationImpact({ preview, current, subscribers, components, title, a
         : <p>No subscribed systems are affected.</p>}
       <p className="mt-3 text-xs text-slate-500">Only systems subscribed to this capability receive review work. Unresolved names retain their source IDs.</p>
     </section></>;
-}
-
-function AddOrganization() {
-  const navigate = useNavigate();
-  const { params, set } = useQueryState();
-  const key = useRef(params.get('key') ?? crypto.randomUUID());
-  const [fields, setFields] = useState({
-    displayName: '', legalEntityName: '', primaryPocName: '', primaryPocEmail: '',
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const create = async () => {
-    if (!fields.displayName.trim()) {
-      setError('Organization display name is required.');
-      return;
-    }
-    setBusy(true); setError(null);
-    try {
-      set({ key: key.current });
-      const organization = await api.createOrganization({
-        displayName: fields.displayName.trim(),
-        legalEntityName: fields.legalEntityName.trim() || undefined,
-        primaryPocName: fields.primaryPocName.trim() || undefined,
-        primaryPocEmail: fields.primaryPocEmail.trim() || undefined,
-      }, key.current);
-      navigate(`/organizations/${organization.tenantId}/provisioning?key=${encodeURIComponent(key.current)}`);
-    } catch (reason) { setError(message(reason)); }
-    finally { setBusy(false); }
-  };
-  return <PageLayout title="Add organization"><PageHero eyebrow="Provider administration" title="Add organization"
-    description="Create the organization once, then resume administrator and membership enrollment independently." />
-    <div className="grid max-w-2xl gap-4">
-      {error && <p role="alert" className={errorClass}>{error}</p>}
-      {Object.entries(fields).map(([name, value]) => <label key={name} className="grid gap-1">{name}
-        <input className={inputClass} value={value}
-          onChange={event => setFields(current => ({ ...current, [name]: event.target.value }))} />
-      </label>)}
-      <button type="button" className={buttonClass} disabled={busy} onClick={() => void create()}>
-        {busy ? 'Creating organization…' : 'Create organization and start enrollment'}
-      </button>
-    </div>
-  </PageLayout>;
-}
-
-function Provisioning({ tenantId }: { tenantId: string }) {
-  const { params, set } = useQueryState();
-  const location = useLocation();
-  const initial = (location.state as { provisioning?: ProvisioningResult } | null)?.provisioning ?? null;
-  const requestedKey = params.get('key');
-  const requestIdentity = `${tenantId}:${requestedKey ?? 'current'}`;
-  const currentIdentity = useRef(requestIdentity);
-  currentIdentity.current = requestIdentity;
-  const idempotency = useRef<string | null>(requestedKey);
-  const startedLocally = useRef(false);
-  const localRequestIdentity = useRef<string | null>(null);
-  const [resultState, setResultState] = useState({
-    identity: requestIdentity,
-    value: initial as ProvisioningResult | null,
-  });
-  const transitioning = resultState.identity !== requestIdentity;
-  const result = transitioning ? null : resultState.value;
-  const operationId = result?.operationId ?? null;
-  const [fields, setFields] = useState({ directoryTenantId: '', objectId: '', personId: '' });
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const loadedRequest = useRef<string | null>(null);
-  const actionController = useRef<AbortController | null>(null);
-  useEffect(() => () => actionController.current?.abort(), []);
-  useEffect(() => {
-    const isLocalRequest = startedLocally.current && localRequestIdentity.current === requestIdentity;
-    if (!isLocalRequest) {
-      startedLocally.current = false;
-      localRequestIdentity.current = null;
-    }
-    setFields({ directoryTenantId: '', objectId: '', personId: '' });
-    setError(null);
-    setBusy(false);
-    idempotency.current = requestedKey;
-    if (!isLocalRequest) actionController.current?.abort();
-    if (initial || result || isLocalRequest) return;
-    if (loadedRequest.current === requestIdentity) return;
-    loadedRequest.current = requestIdentity;
-    const controller = new AbortController();
-    setBusy(true);
-    const load = requestedKey
-      ? api.getOrganizationProvisioning(tenantId, requestedKey, controller.signal)
-      : api.getCurrentOrganizationProvisioning(tenantId, controller.signal);
-    load.then(value => {
-      if (controller.signal.aborted || !value) return;
-      const stableKey = value.idempotencyKey || requestedKey;
-      if (!stableKey) {
-        setError('The current provisioning operation has no stable recovery key.');
-        return;
-      }
-      idempotency.current = stableKey;
-      if (!requestedKey) {
-        const stableIdentity = `${tenantId}:${stableKey}`;
-        startedLocally.current = true;
-        localRequestIdentity.current = stableIdentity;
-        setResultState({ identity: stableIdentity, value });
-        set({ key: stableKey });
-      } else {
-        setResultState({ identity: requestIdentity, value });
-      }
-    })
-      .catch(reason => { if (!controller.signal.aborted) setError(message(reason)); })
-      .finally(() => { if (!controller.signal.aborted) setBusy(false); });
-    return () => controller.abort();
-  }, [tenantId, requestedKey, requestIdentity, initial, result, set]);
-  const begin = async () => {
-    setBusy(true); setError(null);
-    const controller = new AbortController();
-    actionController.current?.abort();
-    actionController.current = controller;
-    try {
-      startedLocally.current = true;
-      idempotency.current ??= crypto.randomUUID();
-      const targetIdentity = `${tenantId}:${idempotency.current}`;
-      localRequestIdentity.current = targetIdentity;
-      set({ key: idempotency.current });
-      const next = await api.beginOrganizationProvisioning(tenantId, idempotency.current, controller.signal);
-      if (controller.signal.aborted || currentIdentity.current !== targetIdentity) return;
-      setResultState({ identity: targetIdentity, value: next });
-    }
-    catch (reason) { if (!controller.signal.aborted) setError(message(reason)); }
-    finally { if (!controller.signal.aborted) setBusy(false); }
-  };
-  const resume = async () => {
-    if (!operationId || Object.values(fields).some(value => !value.trim())) {
-      setError('Directory tenant, object, and person identifiers are required.');
-      return;
-    }
-    setBusy(true); setError(null);
-    const mutationIdentity = requestIdentity;
-    const controller = new AbortController();
-    actionController.current?.abort();
-    actionController.current = controller;
-    try {
-      const next = await api.resumeOrganizationProvisioning(tenantId, operationId, fields, controller.signal);
-      if (!controller.signal.aborted && currentIdentity.current === mutationIdentity) {
-        setResultState({ identity: mutationIdentity, value: next });
-      }
-    }
-    catch (reason) { if (!controller.signal.aborted) setError(message(reason)); }
-    finally { if (!controller.signal.aborted) setBusy(false); }
-  };
-  return <PageLayout title="Organization enrollment"><PageHero title="Organization enrollment"
-    description="Tenant creation, administrator enrollment, and ordinary membership are persisted independently." />
-    <div className="max-w-2xl space-y-4">
-      {(busy || transitioning) && !result &&
-        <p role="status" className={`${surfaceClass} p-4`}>Loading workspace data…</p>}
-      {!transitioning && error && <p role="alert" className={errorClass}>{error}</p>}
-      {!transitioning && !operationId &&
-        <button type="button" className={buttonClass} disabled={busy} onClick={() => void begin()}>Start enrollment</button>}
-      {result && <><p>Tenant: {result.tenantState}</p><p>Administrator: {result.administratorState}</p>
-        <p>Membership: {result.membershipState}</p>{result.lastError && <p role="alert" className={errorClass}>{result.lastError}</p>}
-        {(result.administratorState !== 'Completed' || result.membershipState !== 'Completed') && <>
-          {Object.keys(fields).map(key => <label key={key} className="grid gap-1">{key}
-            <input className={inputClass} value={fields[key as keyof typeof fields]}
-              onChange={event => setFields(value => ({ ...value, [key]: event.target.value }))} /></label>)}
-          <button type="button" className={buttonClass} disabled={busy} onClick={() => void resume()}>Resume incomplete enrollment</button>
-        </>}</>}
-    </div>
-  </PageLayout>;
 }
 
 function OrganizationRecordList({ items, routeSystemId, systemId }: {

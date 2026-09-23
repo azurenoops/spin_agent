@@ -2,7 +2,7 @@ import { Link } from '../workspaces/workspaceNavigation';
 import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
 import type { OrganizationDetail, ProvisioningResult } from './types';
 import { buttonClass, secondaryButtonClass } from './workspaceUi';
-import { enrollmentComplete, setupCard } from './OrganizationSetupPresentation';
+import { enrollmentComplete, organizationSetupLabel, setupCard } from './OrganizationSetupPresentation';
 
 export default function OrganizationSetupHandoff({ detail, provisioning }: {
   detail: OrganizationDetail; provisioning: ProvisioningResult | null;
@@ -12,7 +12,7 @@ export default function OrganizationSetupHandoff({ detail, provisioning }: {
   return <section aria-label="Organization setup and next steps" className="space-y-4">
     <div className="flex flex-wrap items-center gap-3"><h2 className="text-lg font-semibold">Organization setup</h2>
       <span className={`rounded border px-2 py-1 text-xs ${complete ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
-        {complete ? 'Setup complete' : detail.setupState === 'Failed' || provisioning?.lastError ? 'Enrollment needs attention' : 'Enrollment pending'}
+        {organizationSetupLabel(complete ? 'Completed' : provisioning?.lastError ? 'Failed' : provisioning ? 'Pending' : detail.setupState)}
       </span>
     </div>
     <div className="grid gap-3 sm:grid-cols-3">

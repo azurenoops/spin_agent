@@ -4,9 +4,8 @@ import type { InitialAdministrator, ProvisioningResult } from '../../src/feature
 
 const directory = '11111111-1111-1111-1111-111111111111';
 const object = '22222222-2222-2222-2222-222222222222';
-const person = '33333333-3333-3333-3333-333333333333';
 const administrator: InitialAdministrator = { directoryTenantId: directory, objectId: object,
-  newPerson: { displayName: 'Jordan Lee', email: 'administrator@example.mil' } };
+  personId: null, newPerson: { displayName: 'Jordan Lee', email: 'administrator@example.mil' } };
 const organization = { id: 'org-new', displayName: 'Mission Operations', lifecycle: 'Active', onboarding: 'Pending',
   legalEntityName: 'Mission Operations Directorate', primaryPocName: 'Primary Contact', primaryPocEmail: 'contact@example.mil',
   memberCount: 0, setupState: 'Pending', systems: [], subscriptions: [], activity: [] };
@@ -42,16 +41,17 @@ async function fixture(context: BrowserContext, baseURL: string, failFirst = fal
     creates++;
     const body = route.request().postDataJSON();
     saved = { ...initial, idempotencyKey: route.request().headers()['idempotency-key'],
-      initialAdministrator: body.initialAdministrator ?? null, personState: body.initialAdministrator ? 'Pending' : 'NotRequested' };
+      initialAdministrator: body.initialAdministrator ? { ...body.initialAdministrator, personId: null } : null,
+      personState: body.initialAdministrator ? 'Pending' : 'NotRequested' };
     return route.fulfill({ status: 201, json: { data: { tenantId: organization.id, operationId: saved.operationId,
       displayName: organization.displayName, status: 'Active', onboardingState: 'Pending', existing: false } } });
   });
   await context.route('**/api/csp/organizations/org-new/provisioning**', route => {
     if (route.request().method() !== 'PATCH') return route.fulfill({ json: { data: saved } });
+    expect(route.request().postDataJSON()).toEqual(saved.initialAdministrator);
     resumes++;
     if (failFirst && resumes === 1) {
       saved = { ...saved, personState: 'Completed', membershipState: 'Completed', canEditAdministrator: false,
-        initialAdministrator: { directoryTenantId: directory, objectId: object, personId: person },
         lastError: 'Administrator assignment could not be saved.' };
       return route.fulfill({ status: 503, json: { error: { code: 'ENROLLMENT_FAILED', message: saved.lastError } } });
     }
@@ -74,6 +74,15 @@ for (const width of [1440, 390]) {
     // Arrange
     await page.setViewportSize({ width, height: 1100 });
     const state = await fixture(context, baseURL!);
+    await page.route('**/api/csp/organizations/org-new/provisioning/*', async route => {
+      if (route.request().method() === 'PATCH') {
+        await expect(page.getByRole('heading', { name: 'Organization created · Enrollment in progress' })).toBeVisible();
+        await expect(page.getByText('Organization: Completed', { exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Organization setup complete' })).toHaveCount(0);
+        await capture(page, info, 'setup-progress');
+      }
+      await route.fallback();
+    });
     await page.goto('/workspaces/csp/organizations/new');
     // Act
     await page.getByRole('button', { name: 'Continue', exact: true }).click();

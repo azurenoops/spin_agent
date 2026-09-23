@@ -7,6 +7,8 @@ import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
 import { Link } from '../workspaces/workspaceNavigation';
 import * as api from './api';
 import type { OrganizationCatalogItem, OrganizationDetail } from './types';
+import OrganizationSetupHandoff from './OrganizationSetupHandoff';
+import { organizationSetupLabel } from './OrganizationSetupPresentation';
 import {
   errorClass, inputClass, moveTabFocus, Pager, secondaryButtonClass, Status,
   useQueryState, useRemote, warningClass,
@@ -190,6 +192,7 @@ function OrganizationRow({ organization: org }: { organization: OrganizationCata
     <td className="px-4 py-5">
       <Badge tone={accountTone(org.lifecycle)}>{org.lifecycle}</Badge>
       {org.onboarding !== 'Active' && <p className={`mt-1 text-xs ${mutedClass}`}>Onboarding: {onboardingLabel(org.onboarding)}</p>}
+      {org.setupState && <p className={`mt-1 text-xs ${mutedClass}`}>{organizationSetupLabel(org.setupState)}</p>}
     </td>
     <td className="whitespace-nowrap px-4 py-5 text-xs">{org.systemCount} registered</td>
     <td className="px-4 py-5">
@@ -199,6 +202,8 @@ function OrganizationRow({ organization: org }: { organization: OrganizationCata
     </td>
     <td className="px-4 py-5">
       <Link className={`${secondaryButtonClass} inline-flex whitespace-nowrap text-xs`} to={path}>View organization</Link>
+      {org.setupState && org.setupState !== 'Completed' && <Link className="mt-2 block text-xs font-medium text-indigo-700 dark:text-indigo-300"
+        to={`${path}/provisioning`}>{org.setupState === 'NotStarted' ? 'Start enrollment' : 'Resume setup'}</Link>}
     </td>
   </tr>;
 }
@@ -237,6 +242,7 @@ function OrganizationDetailContent({ tenantId }: { tenantId: string }) {
       </Link>
       <Status loading={state.loading} error={state.error} retry={state.retry} />
       {detail && <>
+        <OrganizationSetupHandoff detail={detail} provisioning={provisioning.data} />
         <div role="tablist" aria-label="Organization detail sections"
           className="flex flex-wrap gap-x-6 border-b border-slate-200 dark:border-gray-700" onKeyDown={moveTabFocus}>
           {tabs.map(item => <button type="button" key={item.id} id={`organization-tab-${item.id}`} role="tab"
@@ -260,7 +266,9 @@ function OrganizationDetailContent({ tenantId }: { tenantId: string }) {
                 <div><dt className={mutedClass}>Organization identifier</dt><dd className="mt-1 break-all">{detail.id}</dd></div>
                 <div><dt className={mutedClass}>Account status</dt><dd className="mt-1"><Badge tone={accountTone(detail.lifecycle)}>{detail.lifecycle}</Badge></dd></div>
                 <div><dt className={mutedClass}>Onboarding</dt><dd className="mt-1">{onboardingLabel(detail.onboarding)}</dd></div>
-                <div><dt className={mutedClass}>Organization contact</dt><dd className="mt-1">Not provided in this summary.</dd></div>
+                <div><dt className={mutedClass}>Legal entity name</dt><dd className="mt-1 break-words">{detail.legalEntityName || 'Not provided'}</dd></div>
+                <div><dt className={mutedClass}>Organization contact</dt><dd className="mt-1 break-words">{detail.primaryPocName || 'Not provided'}</dd>
+                  {detail.primaryPocEmail && <dd className="mt-1 break-all">{detail.primaryPocEmail}</dd>}</div>
                 <div><dt className={mutedClass}>Provider relationship</dt><dd className="mt-1">
                   Hosted organization · {detail.subscriptions.filter(item => item.isActive).length} active provider subscriptions
                 </dd></div>

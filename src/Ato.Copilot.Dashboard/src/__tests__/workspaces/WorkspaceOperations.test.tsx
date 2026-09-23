@@ -24,6 +24,7 @@ vi.mock('../../features/workspace-operations/api', async importOriginal => ({
   approveWorkingRevision: vi.fn(),
   publishWorkingRevision: vi.fn(),
   createOrganization: vi.fn(),
+  getOrganizationCreation: vi.fn(),
   beginOrganizationProvisioning: vi.fn(),
   getOrganizationProvisioning: vi.fn(),
   getCurrentOrganizationProvisioning: vi.fn(),
@@ -176,6 +177,10 @@ beforeEach(() => {
     approvedAt: null, approvedBy: null,
   });
   vi.mocked(api.getCurrentOrganizationProvisioning).mockResolvedValue(null);
+  vi.mocked(api.getOrganization).mockImplementation(async tenantId => ({
+    id: tenantId, displayName: 'Organization', lifecycle: 'Active', onboarding: 'Pending',
+    systems: [], subscriptions: [], activity: [],
+  }));
 });
 
 describe('workspace operations dashboard T050-T059', () => {
@@ -673,11 +678,14 @@ describe('workspace operations dashboard T050-T059', () => {
       administratorState: 'Pending', membershipState: 'Pending', lastError: null,
     });
     page('/organizations/new');
-    fireEvent.change(await screen.findByLabelText('displayName'), {
+    fireEvent.change(await screen.findByLabelText('Organization name'), {
       target: { value: 'New organization' },
     });
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Create organization and start enrollment' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByLabelText('Complete enrollment later'));
+    fireEvent.click(screen.getByRole('button', { name: 'Review setup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create organization' }));
     // Assert
     await waitFor(() => expect(api.createOrganization).toHaveBeenCalledOnce());
     const key = vi.mocked(api.createOrganization).mock.calls[0]![1];
@@ -788,8 +796,11 @@ describe('workspace operations dashboard T050-T059', () => {
       new Promise(resolve => { finishResume = resolve; }));
     page('/organizations/org-a/provisioning?key=key-a');
     await screen.findByText('Administrator: Pending');
+    fireEvent.click(screen.getByLabelText('Use an existing Person record'));
     for (const [name, value] of [
-      ['directoryTenantId', 'directory-a'], ['objectId', 'object-a'], ['personId', 'person-a'],
+      ['Directory tenant ID', '11111111-1111-1111-1111-111111111111'],
+      ['User object ID', '22222222-2222-2222-2222-222222222222'],
+      ['Person record ID', '33333333-3333-3333-3333-333333333333'],
     ] as const) fireEvent.change(screen.getByLabelText(name), { target: { value } });
     fireEvent.click(screen.getByRole('button', { name: 'Resume incomplete enrollment' }));
     // Act
@@ -797,7 +808,7 @@ describe('workspace operations dashboard T050-T059', () => {
     // Assert
     expect(screen.getByText('Loading workspace data…')).toBeInTheDocument();
     expect(screen.queryByText('Administrator: Pending')).not.toBeInTheDocument();
-    expect(screen.queryByDisplayValue('directory-a')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('11111111-1111-1111-1111-111111111111')).not.toBeInTheDocument();
     finishResume({
       operationId: 'operation-a', tenantId: 'org-a', tenantState: 'Completed',
       administratorState: 'Completed', membershipState: 'Completed', lastError: null,
@@ -812,7 +823,7 @@ describe('workspace operations dashboard T050-T059', () => {
       idempotencyKey: 'key-b',
     });
     expect(await screen.findByText('Administrator: Failed')).toBeInTheDocument();
-    expect(screen.getByLabelText('directoryTenantId')).toHaveValue('');
+    expect(screen.getByLabelText('Directory tenant ID')).toHaveValue('');
   });
 
   it('T056 requires a support reason, reference choice and acknowledgement', async () => {

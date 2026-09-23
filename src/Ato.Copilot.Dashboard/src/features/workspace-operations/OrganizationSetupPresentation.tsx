@@ -5,6 +5,7 @@ import { inputClass } from './workspaceUi';
 
 export const setupCard = 'min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900';
 export const emptyOrganization = { displayName: '', legalEntityName: '', primaryPocName: '', primaryPocEmail: '' };
+export const organizationFieldLimits = { displayName: 200, legalEntityName: 300, primaryPocName: 200, primaryPocEmail: 254 };
 export const emptyAdministrator = { directoryTenantId: '', objectId: '', personId: '', displayName: '', email: '' };
 export type AdministratorFields = typeof emptyAdministrator;
 export type FieldErrors = Record<string, string>;
@@ -14,7 +15,9 @@ const email = /^[^\s@]+@[^\s@]+$/;
 export function validateOrganization(fields: typeof emptyOrganization): FieldErrors {
   const errors: FieldErrors = {};
   if (!fields.displayName.trim()) errors.displayName = 'Enter an organization name.';
-  else if (fields.displayName.trim().length > 256) errors.displayName = 'Use 256 characters or fewer.';
+  for (const field of ['displayName', 'legalEntityName', 'primaryPocName', 'primaryPocEmail'] as const) {
+    if (fields[field].trim().length > organizationFieldLimits[field]) errors[field] = `Use ${organizationFieldLimits[field]} characters or fewer.`;
+  }
   if (fields.primaryPocEmail.trim() && !email.test(fields.primaryPocEmail.trim())) errors.primaryPocEmail = 'Enter a valid contact email.';
   return errors;
 }
@@ -40,6 +43,12 @@ export function enrollmentComplete(result: ProvisioningResult) {
     && result.membershipState === 'Completed'
     && (result.personState === 'Completed' || result.personState === 'NotRequested'
       || (!result.personState && !result.initialAdministrator?.newPerson));
+}
+
+export function organizationSetupLabel(state?: string) {
+  return ({ Completed: 'Setup complete', Pending: 'Enrollment pending',
+    Failed: 'Enrollment needs attention', NotStarted: 'Enrollment not started' } as Record<string, string>)[state ?? '']
+    ?? 'Setup status unavailable';
 }
 
 export function SetupSteps({ step }: { step: number }) {
