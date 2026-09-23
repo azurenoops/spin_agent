@@ -12,6 +12,12 @@
 
 **Dependencies and delivery gates**: [dependencies.md](dependencies.md)
 
+**CI regression gate**: Simulation-persona integration fixtures must explicitly
+override disabled deployment defaults after normal configuration binding.
+Protected MCP requests must carry the configured simulated identity; public
+health/discovery success alone is not evidence of authentication. Production
+simulation defaults and workspace authorization remain unchanged.
+
 ## Intent and confirmed decisions
 
 Provide two coherent experiences over the existing authentication system:

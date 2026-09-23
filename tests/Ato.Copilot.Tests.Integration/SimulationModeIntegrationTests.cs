@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text.Json;
 using Azure.Identity;
 using Azure.ResourceManager;
@@ -31,6 +32,7 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
 {
     private WebApplication _app = null!;
     private HttpClient _client = null!;
+    private ClaimsPrincipal? _requestIdentity;
     private readonly string _dbName = $"SimISSO_{Guid.NewGuid():N}";
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -52,7 +54,9 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
 
         // Configure CAC simulation mode with ISSO persona
         builder.Configuration["Deployment:Mode"] = "SingleTenant";
-        builder.Services.Configure<CacAuthOptions>(o =>
+        builder.Configuration["CacAuth:SimulationMode"] = "false";
+        // Apply the fixture persona after the shared graph binds deployment defaults.
+        builder.Services.PostConfigure<CacAuthOptions>(o =>
         {
             o.SimulationMode = true;
             o.SimulatedIdentity = new SimulatedIdentityOptions
@@ -91,6 +95,7 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
         _app.UseMiddleware<CacAuthenticationMiddleware>();
         _app.Use(async (http, next) =>
         {
+            _requestIdentity = http.User;
             using var tenantScope = IntegrationTestServiceExtensions.BindSingleTenantContext(
                 http, Guid.Parse("33333333-3333-3333-3333-333333333333"));
             await next(http);
@@ -122,7 +127,7 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task IssoPersona_ProtectedEndpoint_SucceedsWithSimulatedIdentity()
     {
-        // Invoke a Tier 1 tool via MCP — should succeed with simulated ISSO identity
+        // Arrange
         var request = new
         {
             jsonrpc = "2.0",
@@ -135,9 +140,19 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
             }
         };
 
+        // Act
         var response = await _client.PostAsJsonAsync("/mcp", request, _jsonOptions);
 
+        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var principal = _requestIdentity.Should().BeOfType<ClaimsPrincipal>().Which;
+        var identity = principal.Identity.Should().BeOfType<ClaimsIdentity>().Which;
+        identity.IsAuthenticated.Should().BeTrue();
+        identity.AuthenticationType.Should().Be("Simulated");
+        principal.FindFirstValue("tid").Should().Be("11111111-1111-1111-1111-111111111111");
+        principal.FindFirstValue("oid").Should().Be("22222222-2222-2222-2222-222222222222");
+        principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value)
+            .Should().BeEquivalentTo("ISSO", "Global Reader");
     }
 
     [Fact]
@@ -169,6 +184,7 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
 {
     private WebApplication _app = null!;
     private HttpClient _client = null!;
+    private ClaimsPrincipal? _requestIdentity;
     private readonly string _dbName = $"SimEngineer_{Guid.NewGuid():N}";
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -190,7 +206,9 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
 
         // Configure CAC simulation mode with Platform Engineer persona
         builder.Configuration["Deployment:Mode"] = "SingleTenant";
-        builder.Services.Configure<CacAuthOptions>(o =>
+        builder.Configuration["CacAuth:SimulationMode"] = "false";
+        // Apply the fixture persona after the shared graph binds deployment defaults.
+        builder.Services.PostConfigure<CacAuthOptions>(o =>
         {
             o.SimulationMode = true;
             o.SimulatedIdentity = new SimulatedIdentityOptions
@@ -228,6 +246,7 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
         _app.UseMiddleware<CacAuthenticationMiddleware>();
         _app.Use(async (http, next) =>
         {
+            _requestIdentity = http.User;
             using var tenantScope = IntegrationTestServiceExtensions.BindSingleTenantContext(
                 http, Guid.Parse("33333333-3333-3333-3333-333333333333"));
             await next(http);
@@ -259,6 +278,7 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task EngineerPersona_ProtectedEndpoint_SucceedsWithSimulatedIdentity()
     {
+        // Arrange
         var request = new
         {
             jsonrpc = "2.0",
@@ -271,9 +291,19 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
             }
         };
 
+        // Act
         var response = await _client.PostAsJsonAsync("/mcp", request, _jsonOptions);
 
+        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var principal = _requestIdentity.Should().BeOfType<ClaimsPrincipal>().Which;
+        var identity = principal.Identity.Should().BeOfType<ClaimsIdentity>().Which;
+        identity.IsAuthenticated.Should().BeTrue();
+        identity.AuthenticationType.Should().Be("Simulated");
+        principal.FindFirstValue("tid").Should().Be("11111111-1111-1111-1111-111111111111");
+        principal.FindFirstValue("oid").Should().Be("44444444-4444-4444-4444-444444444444");
+        principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value)
+            .Should().BeEquivalentTo("Platform Engineer");
     }
 
     [Fact]

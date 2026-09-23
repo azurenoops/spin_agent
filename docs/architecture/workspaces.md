@@ -48,6 +48,46 @@ part of this initial testing checkpoint. (Approved Design)
 Implementation was subsequently authorized. Release verification and publishing
 approval remain pending. This page does not describe a shipped feature.
 
+## CI simulation fixture configuration regression
+
+GitHub CI run `35795659028`, attempt 1, tested `210e8d7b` and reported
+1,286 integration passes, two failures and 20 skips. The two protected MCP
+requests in `SimulationModeIntegrationTests` expected 200 but returned 401.
+Their sequential request logs show development authentication fallback, an
+anonymous principal, and rejection by the MCP handler.
+
+Both fixtures registered their simulation `Configure<CacAuthOptions>` before the
+shared MCP service graph bound the deployment's `CacAuth` section. That later
+binding could overwrite the fixture's enablement and persona. The regression
+explicitly supplies disabled deployment simulation defaults so local Development
+configuration cannot hide this ordering defect. Fixture-specific settings now use
+`PostConfigure<CacAuthOptions>` to take precedence after normal binding.
+Production configuration, identity enforcement, and the existing successful
+protected-request expectations are unchanged.
+
+Red/green verification reproduced exactly the two CI failures before the fix;
+all six simulation integration tests then passed, including assertions for
+authenticated simulated identities, directory/object IDs and exact role sets.
+The 38 focused simulation unit tests also passed, including disabled simulation
+and non-Development safety checks. The full local Release integration run passed
+1,296 tests with zero failures and 20 skips, using the workflow's environment
+settings and `ATO_REQUIRE_DOCKER_TESTS=1`. The skipped test names match the failed
+CI artifact exactly. This full run also includes the unpushed Chat regression
+tests. Build warnings remain; local macOS success is not proof of GitHub Linux
+success. CI is not green until a subsequent published run confirms it.
+
+For a local rerun from the repository root:
+
+```bash
+dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+  -c Release --no-restore \
+  --filter 'FullyQualifiedName~SimulationModeIssoIntegrationTests|FullyQualifiedName~SimulationModeEngineerIntegrationTests'
+```
+
+Expected result: six passes. User manual acceptance remains open. Rollback is
+limited to reverting this fixture correction; there are no production,
+database, dependency, or workflow changes.
+
 ## Docker organization-library routing regression
 
 Live acceptance on 2026-09-22 found that the Dashboard nginx configuration did
