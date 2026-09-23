@@ -9,6 +9,8 @@
 ### Confirmed creation is atomic; initialAdministrator is optional (omitted means deferred).
 ### Exactly one of personId or newPerson is accepted. Contact fields never grant access.
 ### Changed intent with the same key is rejected. Existing pre-extension create replays remain valid.
+### Limits: displayName 200; legalEntityName 300; primaryPocName 200; primaryPocEmail 254.
+### newPerson displayName/email: 256/320. Explicit directory/object IDs must be nonempty GUIDs.
 POST {{baseUrl}}/api/csp/dashboard/tenants
 Authorization: Bearer {{token}}
 X-Workspace-Kind: csp
@@ -33,6 +35,7 @@ Content-Type: application/json
 
 ### Read-only lost-response recovery. Same create data shape; missing key is
 ### 404 ORGANIZATION_CREATION_NOT_FOUND. Never infer a missing record from permission/network errors.
+### Persisted operation with a missing organization is 409, not a new-creation opportunity.
 GET {{baseUrl}}/api/csp/organization-creations/{{key}}
 Authorization: Bearer {{token}}
 X-Workspace-Kind: csp
@@ -48,6 +51,9 @@ X-Workspace-Kind: csp
 X-Workspace-Mode: ordinary
 
 ### Resume with persisted administrator intent, or correct an unbound intent.
+### Resend data.initialAdministrator unchanged, including after refresh or partial failure.
+### In newPerson mode its personId remains null even after the generated Person is saved.
+### The generated binding is internal; do not add a personId alongside newPerson.
 ### Legacy {directoryTenantId,objectId,personId} remains valid for a target-local Person.
 ### Execution: optional local Person -> membership -> Organization Administrator.
 ### No email-to-identity inference, directory promotion, system grants, subscriptions or ATO writes.

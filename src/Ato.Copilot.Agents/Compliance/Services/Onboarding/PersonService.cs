@@ -76,6 +76,20 @@ public class PersonService : IPersonService
         Guid correlationId,
         CancellationToken ct = default)
     {
+        await using var db = await _contextFactory.CreateDbContextAsync(ct);
+        return await CreateLocalCoreAsync(db, tenantId, displayName, email, phoneNumber,
+            actorUserId, correlationId, false, ct);
+    }
+
+    /// <inheritdoc />
+    public Task<Person> StageLocalAsync(AtoCopilotContext db, Guid tenantId,
+        string displayName, string email, Guid actorUserId, Guid correlationId, CancellationToken ct = default)
+        => CreateLocalCoreAsync(db, tenantId, displayName, email, null, actorUserId, correlationId, true, ct);
+
+    private async Task<Person> CreateLocalCoreAsync(AtoCopilotContext db, Guid tenantId,
+        string displayName, string email, string? phoneNumber, Guid actorUserId, Guid correlationId,
+        bool stage, CancellationToken ct)
+    {
         if (string.IsNullOrWhiteSpace(displayName))
         {
             throw new ArgumentException("Display name is required.", nameof(displayName));
@@ -85,7 +99,6 @@ public class PersonService : IPersonService
             throw new ArgumentException("Email is required.", nameof(email));
         }
 
-        await using var db = await _contextFactory.CreateDbContextAsync(ct);
         var trimmedEmail = email.Trim();
         var existing = await db.Persons
             .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Email == trimmedEmail, ct);
@@ -111,6 +124,17 @@ public class PersonService : IPersonService
             UpdatedBy = actorUserId,
         };
         db.Persons.Add(person);
+        if (stage)
+        {
+            _audit.Stage(db, new WizardAuditEntry
+            {
+                TenantId = tenantId, ActorUserId = actorUserId,
+                Action = WizardAuditAction.PersonCreated, ResourceType = nameof(Person),
+                ResourceId = person.Id, AfterJson = JsonSerializer.Serialize(Project(person)),
+                CorrelationId = correlationId
+            });
+            return person;
+        }
         await db.SaveChangesAsync(ct);
 
         await _audit.RecordAsync(

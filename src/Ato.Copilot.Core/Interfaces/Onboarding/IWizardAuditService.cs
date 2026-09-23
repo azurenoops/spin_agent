@@ -9,6 +9,9 @@ namespace Ato.Copilot.Core.Interfaces.Onboarding;
 /// </summary>
 public interface IWizardAuditService
 {
+    /// <summary>Stage an audit alongside its mutation; the caller must commit the context.</summary>
+    void Stage(Ato.Copilot.Core.Data.Context.AtoCopilotContext db, WizardAuditEntry entry);
+
     /// <summary>
     /// Append a wizard audit entry. The implementation writes both:
     /// <list type="bullet">

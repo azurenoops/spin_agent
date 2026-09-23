@@ -304,14 +304,14 @@ public static class CspDashboardEndpoints
         var sw = Stopwatch.StartNew();
         if (ShouldShortCircuitSingleTenant(deployment, out var shortCircuit))
             return shortCircuit;
-        if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
+        if (!tenantCtx.IsCspAdmin || tenantCtx.ImpersonatedTenantId.HasValue) return ForbiddenNotCspAdmin(sw);
 
         if (body is null)
             return ValidationError(sw, "Request body is required.");
         if (string.IsNullOrWhiteSpace(body.DisplayName))
             return ValidationError(sw, "displayName is required.");
-        if (body.DisplayName.Trim().Length > 256)
-            return ValidationError(sw, "displayName must be 256 characters or fewer.");
+        if (body.DisplayName.Trim().Length > 200)
+            return ValidationError(sw, "displayName must be 200 characters or fewer.");
         if (!string.IsNullOrWhiteSpace(body.PrimaryPocEmail) && !body.PrimaryPocEmail.Contains('@'))
             return ValidationError(sw, "primaryPocEmail must be a valid email address.");
 
@@ -319,8 +319,9 @@ public static class CspDashboardEndpoints
         try
         {
             var tenant = await service.CreateOrganizationAsync(
-                new(body.DisplayName, body.LegalEntityName, body.PrimaryPocName, body.PrimaryPocEmail),
+                new(body.DisplayName, body.LegalEntityName, body.PrimaryPocName, body.PrimaryPocEmail, body.InitialAdministrator),
                 idempotencyKey, actor, ct);
+            if (!tenant.Existing) http.Response.Headers.Location = $"/api/csp/organizations/{tenant.TenantId}";
             return Results.Json(new
             {
                 status = "success",
@@ -353,6 +354,10 @@ public static class CspDashboardEndpoints
         {
             return ValidationError(sw, ex.Message);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Error(StatusCodes.Status403Forbidden, "ORGANIZATION_INACTIVE", ex.Message);
+        }
     }
 
     /// <summary>
@@ -362,7 +367,8 @@ public static class CspDashboardEndpoints
         string DisplayName,
         string? LegalEntityName,
         string? PrimaryPocName,
-        string? PrimaryPocEmail);
+        string? PrimaryPocEmail,
+        Ato.Copilot.Core.Interfaces.Workspaces.UpdateProvisioningRequest? InitialAdministrator = null);
 
     private static string ResolveActor(HttpContext http)
     {

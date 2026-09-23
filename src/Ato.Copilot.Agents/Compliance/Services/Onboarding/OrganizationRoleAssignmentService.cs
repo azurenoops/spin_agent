@@ -61,7 +61,17 @@ public class OrganizationRoleAssignmentService : IOrganizationRoleAssignmentServ
         CancellationToken ct = default)
     {
         await using var db = await _contextFactory.CreateDbContextAsync(ct);
+        return await AddCoreAsync(db, tenantId, role, personId, actorUserId, correlationId, false, ct);
+    }
 
+    /// <inheritdoc />
+    public Task<RoleAssignmentResult> StageAdministratorAsync(AtoCopilotContext db, Guid tenantId,
+        Guid personId, Guid actorUserId, Guid correlationId, CancellationToken ct = default)
+        => AddCoreAsync(db, tenantId, OrganizationRole.Administrator, personId, actorUserId, correlationId, true, ct);
+
+    private async Task<RoleAssignmentResult> AddCoreAsync(AtoCopilotContext db, Guid tenantId,
+        OrganizationRole role, Guid personId, Guid actorUserId, Guid correlationId, bool stage, CancellationToken ct)
+    {
         var person = await db.Persons
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == personId && p.TenantId == tenantId, ct)
@@ -118,6 +128,18 @@ public class OrganizationRoleAssignmentService : IOrganizationRoleAssignmentServ
             UpdatedBy = actorUserId,
         };
         db.OrganizationRoleAssignments.Add(assignment);
+        if (stage)
+        {
+            _audit.Stage(db, new WizardAuditEntry
+            {
+                TenantId = tenantId, ActorUserId = actorUserId,
+                Action = WizardAuditAction.RoleAssigned, ResourceType = nameof(OrganizationRoleAssignment),
+                ResourceId = assignment.Id, AfterJson = JsonSerializer.Serialize(Project(assignment, person)),
+                EffectsJson = warnings.Count == 0 ? null : JsonSerializer.Serialize(new { warnings }),
+                CorrelationId = correlationId
+            });
+            return new(assignment, warnings);
+        }
         await db.SaveChangesAsync(ct);
 
         await _audit.RecordAsync(

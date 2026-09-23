@@ -52,18 +52,25 @@ public sealed class OrganizationMembershipService(
         await AuthorizeAdministrationAsync(http.User, tenantId, ct);
         using var scope = accessor.Push(new TenantContext(tenantId));
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        if (!await db.Persons.AnyAsync(p => p.Id == personId && p.TenantId == tenantId, ct)
-            || !await db.OrganizationMemberships.AnyAsync(m => m.TenantId == tenantId && m.PersonId == personId && m.RevokedAt == null, ct))
-            throw new WorkspaceException(400, "ACTIVE_MEMBERSHIP_REQUIRED", "Grant this organization-local Person an explicit active membership first.");
-        var existing = await db.OrganizationRoleAssignments.AsNoTracking().SingleOrDefaultAsync(r =>
-            r.TenantId == tenantId && r.Role == OrganizationRole.Administrator && r.RemovedAt == null, ct);
-        if (existing?.PersonId == personId)
-            return new(existing.Id, tenantId, personId, nameof(OrganizationRole.Administrator));
-        if (existing is not null)
-            throw new WorkspaceException(409, "ADMINISTRATOR_ALREADY_ENROLLED", "Use the existing organization Administrator role-management workflow.");
-        var result = await roleAssignments.AddAsync(tenantId, OrganizationRole.Administrator, personId,
-            WorkspaceService.Identity(http.User).ObjectId, Guid.NewGuid(), ct);
-        return new(result.Assignment.Id, tenantId, personId, nameof(OrganizationRole.Administrator));
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+            if (!await db.Persons.AnyAsync(p => p.Id == personId && p.TenantId == tenantId, ct)
+                || !await db.OrganizationMemberships.AnyAsync(m => m.TenantId == tenantId && m.PersonId == personId && m.RevokedAt == null, ct))
+                throw new WorkspaceException(400, "ACTIVE_MEMBERSHIP_REQUIRED", "Grant this organization-local Person an explicit active membership first.");
+            var existing = await db.OrganizationRoleAssignments.AsNoTracking().SingleOrDefaultAsync(r =>
+                r.TenantId == tenantId && r.Role == OrganizationRole.Administrator && r.RemovedAt == null, ct);
+            if (existing?.PersonId == personId)
+                return new OrganizationAdministratorResponse(existing.Id, tenantId, personId, nameof(OrganizationRole.Administrator));
+            if (existing is not null)
+                throw new WorkspaceException(409, "ADMINISTRATOR_ALREADY_ENROLLED", "Use the existing organization Administrator role-management workflow.");
+            var result = await roleAssignments.StageAdministratorAsync(db, tenantId, personId,
+                WorkspaceService.Identity(http.User).ObjectId, Guid.NewGuid(), ct);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return new OrganizationAdministratorResponse(result.Assignment.Id, tenantId, personId, nameof(OrganizationRole.Administrator));
+        });
     }
 
     public async Task AuthorizeAdministrationAsync(ClaimsPrincipal actor, Guid tenantId, CancellationToken ct)

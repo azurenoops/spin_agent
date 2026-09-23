@@ -10,7 +10,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Core.Services.Workspaces;
 
-public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopilotContext> factory)
+public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopilotContext> factory,
+    Ato.Copilot.Core.Interfaces.Onboarding.IPersonService? persons = null)
     : IWorkspaceOperationsService
 {
     private static readonly TimeSpan SetupExecutionLease = TimeSpan.FromSeconds(30);
@@ -495,10 +496,12 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
                 Pending = x.Any(i => i.CustomerReviewState != "Accepted" || i.NarrativeState != "Accepted")
             })
             .ToDictionaryAsync(x => x.TenantId, x => x.Pending ? "Pending" : "Completed", ct);
+        var setup = await OrganizationSetupAsync(db, ids, ct);
         var items = page.Select(x => new OrganizationCatalogItem(
             x.Id, x.DisplayName, x.Status.ToString(), x.OnboardingState.ToString(),
             impactStates.GetValueOrDefault(x.Id, "NotRequired"),
-            systems.GetValueOrDefault(x.Id), adoption.GetValueOrDefault(x.Id))).ToArray();
+            systems.GetValueOrDefault(x.Id), adoption.GetValueOrDefault(x.Id),
+            setup[x.Id].SetupState, setup[x.Id].MemberCount)).ToArray();
         return new(items, query.Page, query.PageSize, total, "Available");
     }
 
@@ -513,19 +516,19 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         var systems = await db.RegisteredSystems.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenantId)
             .OrderBy(x => x.Name).Select(x => new OrganizationSystemItem(x.Id, x.Name, x.CurrentRmfStep.ToString(), x.IsActive))
             .ToListAsync(ct);
-        var subscriptionRows = await db.CapabilitySubscriptions.IgnoreQueryFilters().AsNoTracking()
-            .Where(x => x.RoutingTenantId == tenantId).OrderByDescending(x => x.SubscribedAt)
+        var subscriptionRows = (await db.CapabilitySubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.RoutingTenantId == tenantId)
             .Select(x => new
             {
-                x.Id, x.RegisteredSystemId, x.CspInheritedCapabilityId, x.IsActive
-            }).ToListAsync(ct);
+                x.Id, x.RegisteredSystemId, x.CspInheritedCapabilityId, x.IsActive, x.SubscribedAt
+            }).ToListAsync(ct)).OrderByDescending(x => x.SubscribedAt).ToList();
         var subscriptionIds = subscriptionRows.Select(x => x.Id).ToArray();
         var confirmedRevisions = (await db.Set<CapabilityResponsibilityConfirmation>()
                 .IgnoreQueryFilters().AsNoTracking()
                 .Where(x => x.TenantId == tenantId && x.IsCurrent
                     && subscriptionIds.Contains(x.SubscriptionId))
-                .OrderByDescending(x => x.ConfirmedAt)
-                .Select(x => new { x.SubscriptionId, x.SourceRevision }).ToListAsync(ct))
+                .Select(x => new { x.SubscriptionId, x.SourceRevision, x.ConfirmedAt }).ToListAsync(ct))
+            .OrderByDescending(x => x.ConfirmedAt)
             .GroupBy(x => x.SubscriptionId)
             .ToDictionary(x => x.Key, x => x.First().SourceRevision);
         var subscriptions = subscriptionRows.Select(x => new OrganizationSubscriptionItem(
@@ -535,8 +538,10 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             .OrderByDescending(x => x.Timestamp).Take(50)
             .Select(x => new OrganizationActivityItem(x.Action,
                 new DateTimeOffset(DateTime.SpecifyKind(x.Timestamp, DateTimeKind.Utc)), x.Outcome.ToString())).ToListAsync(ct);
+        var setup = (await OrganizationSetupAsync(db, [tenantId], ct))[tenantId];
         return new(tenant.Id, tenant.DisplayName, tenant.Status.ToString(), tenant.OnboardingState.ToString(),
-            systems, subscriptions, activity);
+            systems, subscriptions, activity, setup.SetupState, setup.MemberCount,
+            tenant.LegalEntityName, tenant.PrimaryPocName, tenant.PrimaryPocEmail);
     }
 
     public async Task<OrganizationProvisioningResult> GetOrCreateProvisioningAsync(
@@ -545,23 +550,31 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         if (idempotencyKey.Length > 100) throw new ArgumentException("Idempotency key is limited to 100 characters.");
         await using var db = await factory.CreateDbContextAsync(ct);
-        if (!await db.Tenants.AnyAsync(x => x.Id == tenantId, ct)) throw new KeyNotFoundException("Organization was not found.");
-        var row = await db.OrganizationProvisioningOperations
-            .SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, ct);
-        if (row is null)
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            row = new OrganizationProvisioningOperation { TenantId = tenantId, IdempotencyKey = idempotencyKey };
-            db.OrganizationProvisioningOperations.Add(row);
-            try { await db.SaveChangesAsync(ct); }
-            catch (DbUpdateException)
+            db.ChangeTracker.Clear();
+            await using var transaction = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            await RequireActiveProvisioningTenantAsync(db, tenantId, ct);
+            var row = await db.OrganizationProvisioningOperations
+                .SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, ct);
+            if (row is not null && row.TenantId != tenantId)
+                throw new InvalidOperationException("Idempotency key belongs to another organization.");
+            if (row is null)
             {
-                db.ChangeTracker.Clear();
-                row = await db.OrganizationProvisioningOperations.SingleAsync(x => x.IdempotencyKey == idempotencyKey, ct);
+                var prior = await db.OrganizationProvisioningOperations.Where(x => x.TenantId == tenantId).ToListAsync(ct);
+                row = prior.OrderByDescending(x => x.CreationIntentHash is not null)
+                    .ThenBy(x => x.CreatedAt).ThenBy(x => x.Id).FirstOrDefault();
             }
-        }
-        if (row.TenantId != tenantId) throw new InvalidOperationException("Idempotency key belongs to another organization.");
-        return new(row.Id, row.TenantId, row.TenantState, row.AdministratorState,
-            row.MembershipState, row.LastError, row.IdempotencyKey);
+            if (row is null)
+            {
+                row = new OrganizationProvisioningOperation { TenantId = tenantId, IdempotencyKey = idempotencyKey };
+                db.OrganizationProvisioningOperations.Add(row);
+                await db.SaveChangesAsync(ct);
+            }
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            return await ProjectProvisioningAsync(db, row, ct);
+        });
     }
 
     public async Task<CreateWorkspaceOrganizationResult> CreateOrganizationAsync(
@@ -572,18 +585,26 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         if (idempotencyKey.Length > 100)
             throw new ArgumentException("Idempotency key is limited to 100 characters.");
         var displayName = request.DisplayName?.Trim() ?? string.Empty;
-        if (displayName.Length is < 1 or > 256)
-            throw new ArgumentException("Display name is required and limited to 256 characters.");
+        if (displayName.Length is < 1 or > 200)
+            throw new ArgumentException("Display name is required and limited to 200 characters.");
         var normalized = request with
         {
             DisplayName = displayName,
             LegalEntityName = NormalizeOptional(request.LegalEntityName),
             PrimaryPocName = NormalizeOptional(request.PrimaryPocName),
-            PrimaryPocEmail = NormalizeOptional(request.PrimaryPocEmail)?.ToLowerInvariant()
+            PrimaryPocEmail = NormalizeOptional(request.PrimaryPocEmail)?.ToLowerInvariant(),
+            InitialAdministrator = request.InitialAdministrator is null ? null : NormalizeAdministrator(request.InitialAdministrator)
         };
         if (normalized.PrimaryPocEmail is { } email && !email.Contains('@'))
             throw new ArgumentException("Primary POC email must be valid.");
-        var intentHash = Hash(JsonSerializer.Serialize(normalized));
+        if (normalized.LegalEntityName?.Length > 300 || normalized.PrimaryPocName?.Length > 200
+            || normalized.PrimaryPocEmail?.Length > 254)
+            throw new ArgumentException("Organization profile exceeds its supported field lengths.");
+        // Legacy requests hashed exactly these four properties, without a null administrator property.
+        var intentHash = Hash(normalized.InitialAdministrator is null
+            ? JsonSerializer.Serialize(new { normalized.DisplayName, normalized.LegalEntityName,
+                normalized.PrimaryPocName, normalized.PrimaryPocEmail })
+            : JsonSerializer.Serialize(normalized));
         var normalizedDisplayName = OrganizationNameNormalizer.Normalize(displayName);
         await using var db = await factory.CreateDbContextAsync(ct);
         var existing = await db.OrganizationProvisioningOperations.AsNoTracking()
@@ -608,6 +629,8 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         {
             TenantId = tenant.Id, IdempotencyKey = idempotencyKey,
             CreationIntentHash = intentHash, TenantState = "Completed",
+            InitialAdministratorJson = normalized.InitialAdministrator is null
+                ? null : JsonSerializer.Serialize(normalized.InitialAdministrator),
             CreatedAt = now, UpdatedAt = now
         };
         db.Tenants.Add(tenant);
@@ -642,16 +665,17 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         await using var db = await factory.CreateDbContextAsync(ct);
+        await RequireActiveProvisioningTenantAsync(db, tenantId, ct);
         var row = await db.OrganizationProvisioningOperations.AsNoTracking()
             .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.IdempotencyKey == idempotencyKey, ct);
-        return row is null ? null : new(row.Id, row.TenantId, row.TenantState,
-            row.AdministratorState, row.MembershipState, row.LastError, row.IdempotencyKey);
+        return row is null ? null : await ProjectProvisioningAsync(db, row, ct);
     }
 
     public async Task<OrganizationProvisioningResult?> GetCurrentProvisioningAsync(
         Guid tenantId, CancellationToken ct)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
+        await RequireActiveProvisioningTenantAsync(db, tenantId, ct);
         var rows = await db.OrganizationProvisioningOperations.AsNoTracking()
             .Where(x => x.TenantId == tenantId)
             .ToListAsync(ct);
@@ -659,8 +683,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             .ThenByDescending(x => x.CreatedAt)
             .ThenByDescending(x => x.Id)
             .FirstOrDefault();
-        return row is null ? null : new(row.Id, row.TenantId, row.TenantState,
-            row.AdministratorState, row.MembershipState, row.LastError, row.IdempotencyKey);
+        return row is null ? null : await ProjectProvisioningAsync(db, row, ct);
     }
 
     private static async Task<CreateWorkspaceOrganizationResult> ProjectOrganizationCreationReplayAsync(
@@ -672,63 +695,75 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
                 "Idempotency key was already used for a different organization creation intent.");
         var tenant = await db.Tenants.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operation.TenantId, ct)
             ?? throw new InvalidOperationException("Persisted organization creation is incomplete.");
+        await RequireActiveProvisioningTenantAsync(db, tenant.Id, ct);
         return new(tenant.Id, operation.Id, tenant.DisplayName, tenant.Status.ToString(),
             tenant.OnboardingState.ToString(), true);
     }
 
     public async Task<OrganizationProvisioningResult> UpdateProvisioningAsync(
-        Guid tenantId, Guid operationId, UpdateProvisioningRequest request, CancellationToken ct)
+        Guid tenantId, Guid operationId, UpdateProvisioningRequest request, CancellationToken ct,
+        Guid actorUserId = default)
     {
-        if (request.DirectoryTenantId == Guid.Empty || request.ObjectId == Guid.Empty || request.PersonId == Guid.Empty)
-            throw new ArgumentException("Directory tenant, object, and organization person IDs are required.");
+        request = NormalizeAdministrator(request);
         await using var db = await factory.CreateDbContextAsync(ct);
-        var row = await db.OrganizationProvisioningOperations
-            .SingleOrDefaultAsync(x => x.Id == operationId && x.TenantId == tenantId, ct)
-            ?? throw new KeyNotFoundException("Provisioning operation was not found.");
-        EnsureProvisioningIdentity(row, request);
-        if (!row.PersonId.HasValue)
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
+            db.ChangeTracker.Clear();
+            await using var transaction = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            await RequireActiveProvisioningTenantAsync(db, tenantId, ct);
+            var operations = await db.OrganizationProvisioningOperations.Where(x => x.TenantId == tenantId).ToListAsync(ct);
+            var row = operations.SingleOrDefault(x => x.Id == operationId)
+                ?? throw new KeyNotFoundException("Provisioning operation was not found.");
+            var state = await ProjectProvisioningAsync(db, row, ct);
+            var bound = !state.CanEditAdministrator;
+            if (bound && state.InitialAdministrator != request)
+                throw new InvalidOperationException("Provisioning operation was already bound to a different administrator identity.");
+            var personId = bound ? row.PersonId : request.PersonId;
+            var other = operations.FirstOrDefault(x => x.Id != row.Id && x.AdministratorBoundAt.HasValue);
+            if (other is not null)
+            {
+                if (ReadAdministrator(other) != request)
+                    throw new InvalidOperationException("Organization provisioning was already bound to a different administrator identity.");
+                personId = other.PersonId;
+            }
+            if (personId.HasValue && !await db.Persons.IgnoreQueryFilters().AnyAsync(x =>
+                    x.Id == personId && x.TenantId == tenantId, ct))
+                throw new KeyNotFoundException("A local Person was not found in this organization.");
+            if (await db.OrganizationMemberships.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenantId
+                    && x.RevokedAt == null && ((x.DirectoryTenantId == request.DirectoryTenantId && x.ObjectId == request.ObjectId
+                        && (!personId.HasValue || x.PersonId != personId))
+                    || (personId.HasValue && x.PersonId == personId
+                        && (x.DirectoryTenantId != request.DirectoryTenantId || x.ObjectId != request.ObjectId))), ct))
+                throw new InvalidOperationException("The Person or identity already has a different active membership.");
+            if (await db.OrganizationRoleAssignments.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenantId
+                && x.Role == Models.Onboarding.OrganizationRole.Administrator && x.RemovedAt == null
+                && (!personId.HasValue || x.PersonId != personId), ct))
+                throw new InvalidOperationException("An organization Administrator is already enrolled.");
+            if (!personId.HasValue)
+            {
+                if (request.NewPerson is null || persons is null || actorUserId == Guid.Empty)
+                    throw new InvalidOperationException("Authorized local Person creation is unavailable.");
+                var person = await persons.StageLocalAsync(db, tenantId, request.NewPerson.DisplayName,
+                    request.NewPerson.Email, actorUserId, row.Id, ct);
+                personId = person.Id;
+            }
+            row.InitialAdministratorJson = JsonSerializer.Serialize(request);
             row.DirectoryTenantId = request.DirectoryTenantId;
             row.ObjectId = request.ObjectId;
-            row.PersonId = request.PersonId;
+            row.PersonId = personId;
+            row.AdministratorBoundAt ??= DateTimeOffset.UtcNow;
+            row.LastError = null;
             row.Revision++;
             row.UpdatedAt = DateTimeOffset.UtcNow;
-            try
-            {
-                await db.SaveChangesAsync(ct);
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                db.ChangeTracker.Clear();
-                row = await db.OrganizationProvisioningOperations
-                    .SingleOrDefaultAsync(x => x.Id == operationId && x.TenantId == tenantId, ct)
-                    ?? throw new KeyNotFoundException("Provisioning operation was not found.");
-                EnsureProvisioningIdentity(row, request);
-            }
-        }
-        row.MembershipState = await db.OrganizationMemberships.IgnoreQueryFilters().AnyAsync(x =>
-            x.TenantId == tenantId && x.PersonId == request.PersonId
-            && x.DirectoryTenantId == request.DirectoryTenantId && x.ObjectId == request.ObjectId
-            && x.RevokedAt == null, ct) ? "Completed" : "Pending";
-        row.AdministratorState = await db.OrganizationRoleAssignments.IgnoreQueryFilters().AnyAsync(x =>
-            x.TenantId == tenantId && x.PersonId == request.PersonId
-            && x.Role == Models.Onboarding.OrganizationRole.Administrator && x.RemovedAt == null, ct)
-            ? "Completed" : "Pending";
-        row.LastError = null;
-        row.UpdatedAt = DateTimeOffset.UtcNow;
-        row.Revision++;
-        await db.SaveChangesAsync(ct);
-        return new(row.Id, row.TenantId, row.TenantState, row.AdministratorState,
-            row.MembershipState, row.LastError, row.IdempotencyKey);
-    }
-
-    private static void EnsureProvisioningIdentity(
-        OrganizationProvisioningOperation row, UpdateProvisioningRequest request)
-    {
-        if (row.PersonId.HasValue && (row.PersonId != request.PersonId
-            || row.DirectoryTenantId != request.DirectoryTenantId || row.ObjectId != request.ObjectId))
-            throw new InvalidOperationException(
-                "Provisioning operation was already bound to a different administrator identity.");
+            await db.SaveChangesAsync(ct);
+            var result = await ProjectProvisioningAsync(db, row, ct);
+            row.MembershipState = result.MembershipState;
+            row.AdministratorState = result.AdministratorState;
+            await db.SaveChangesAsync(ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            return result;
+        });
     }
 
     public async Task<OrganizationProvisioningResult> RecordProvisioningFailureAsync(
@@ -742,8 +777,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         row.LastError = error.Length > 200 ? error[..200] : error;
         row.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
-        return new(row.Id, row.TenantId, row.TenantState, row.AdministratorState,
-            row.MembershipState, row.LastError, row.IdempotencyKey);
+        return await ProjectProvisioningAsync(db, row, ct);
     }
 
     public async Task<PagedResult<OrganizationCapabilityItem>> ListOrganizationCapabilitiesAsync(

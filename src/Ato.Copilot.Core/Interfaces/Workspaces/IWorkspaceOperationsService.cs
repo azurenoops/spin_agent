@@ -19,12 +19,14 @@ public interface IWorkspaceOperationsService
     Task<OrganizationDetail?> GetOrganizationAsync(Guid tenantId, CancellationToken ct);
     Task<CreateWorkspaceOrganizationResult> CreateOrganizationAsync(
         CreateWorkspaceOrganizationRequest request, string idempotencyKey, string actor, CancellationToken ct);
+    Task<CreateWorkspaceOrganizationResult?> RecoverOrganizationCreationAsync(string idempotencyKey, CancellationToken ct);
     Task<OrganizationProvisioningResult> GetOrCreateProvisioningAsync(Guid tenantId, string idempotencyKey, CancellationToken ct);
     Task<OrganizationProvisioningResult?> GetProvisioningAsync(
         Guid tenantId, string idempotencyKey, CancellationToken ct);
     Task<OrganizationProvisioningResult?> GetCurrentProvisioningAsync(
         Guid tenantId, CancellationToken ct);
-    Task<OrganizationProvisioningResult> UpdateProvisioningAsync(Guid tenantId, Guid operationId, UpdateProvisioningRequest request, CancellationToken ct);
+    Task<OrganizationProvisioningResult> UpdateProvisioningAsync(Guid tenantId, Guid operationId,
+        UpdateProvisioningRequest request, CancellationToken ct, Guid actorUserId = default);
     Task<PagedResult<OrganizationCapabilityItem>> ListOrganizationCapabilitiesAsync(Guid tenantId, WorkspaceCatalogQuery query,
         string? source, string? systemId, IReadOnlyCollection<string> authorizedSystemIds, CancellationToken ct);
     Task<OrganizationCapabilityDetail?> GetOrganizationCapabilityAsync(Guid tenantId, string source, string recordId,
@@ -81,13 +83,14 @@ public sealed record PublishResult(
     Guid ReleaseId, Guid CapabilityId, long Revision, string SnapshotHash,
     DateTimeOffset PublishedAt, int ImpactCount, bool Existing);
 public sealed record CreateWorkspaceOrganizationRequest(
-    string DisplayName, string? LegalEntityName, string? PrimaryPocName, string? PrimaryPocEmail);
+    string DisplayName, string? LegalEntityName, string? PrimaryPocName, string? PrimaryPocEmail,
+    UpdateProvisioningRequest? InitialAdministrator = null);
 public sealed record CreateWorkspaceOrganizationResult(
     Guid TenantId, Guid OperationId, string DisplayName, string Lifecycle,
     string Onboarding, bool Existing);
 public sealed record OrganizationCatalogItem(
     Guid Id, string DisplayName, string Lifecycle, string Onboarding, string ReviewState,
-    int SystemCount, int? DistinctAdoptionCount);
+    int SystemCount, int? DistinctAdoptionCount, string SetupState = "NotStarted", int MemberCount = 0);
 public sealed record OrganizationSystemItem(string Id, string Name, string RmfPhase, bool IsActive);
 public sealed record OrganizationSubscriptionItem(string Id, string SystemId, string CapabilityId, string? SourceRevision, bool IsActive);
 public sealed record OrganizationActivityItem(string Action, DateTimeOffset OccurredAt, string Outcome);
@@ -95,16 +98,26 @@ public sealed record OrganizationDetail(
     Guid Id, string DisplayName, string Lifecycle, string Onboarding,
     IReadOnlyList<OrganizationSystemItem> Systems,
     IReadOnlyList<OrganizationSubscriptionItem> Subscriptions,
-    IReadOnlyList<OrganizationActivityItem> Activity);
+    IReadOnlyList<OrganizationActivityItem> Activity,
+    string SetupState = "NotStarted", int MemberCount = 0,
+    string? LegalEntityName = null, string? PrimaryPocName = null, string? PrimaryPocEmail = null);
+/// <summary>Durable organization setup stages and recoverable, explicitly authored administrator intent.</summary>
 public sealed record OrganizationProvisioningResult(
     Guid OperationId, Guid TenantId, string TenantState, string AdministratorState,
-    string MembershipState, string? LastError, string IdempotencyKey = "")
+    string MembershipState, string? LastError, string IdempotencyKey = "",
+    UpdateProvisioningRequest? InitialAdministrator = null, string PersonState = "NotRequested",
+    bool CanEditAdministrator = true,
+    [property: System.Text.Json.Serialization.JsonIgnore] Guid? BoundPersonId = null)
 {
     public string OverallState => TenantState == "Completed" && AdministratorState == "Completed"
-        && MembershipState == "Completed" ? "Completed" : LastError is null ? "InProgress" : "Failed";
+        && MembershipState == "Completed" && PersonState != "Pending"
+        ? "Completed" : LastError is null ? "InProgress" : "Failed";
 }
+/// <summary>Explicit directory identity with exactly one existing Person or local Person creation request.</summary>
 public sealed record UpdateProvisioningRequest(
-    Guid DirectoryTenantId, Guid ObjectId, Guid PersonId);
+    Guid DirectoryTenantId, Guid ObjectId, Guid? PersonId = null, NewAdministratorPersonRequest? NewPerson = null);
+/// <summary>Contact fields for a new local Person; these do not infer a directory identity.</summary>
+public sealed record NewAdministratorPersonRequest(string DisplayName, string Email);
 public sealed record OrganizationCapabilityItem(
     string Source, string RecordId, string Name, string Description, string Category,
     string Availability, bool IsSubscribed, int SystemCount, string MutationAuthority,

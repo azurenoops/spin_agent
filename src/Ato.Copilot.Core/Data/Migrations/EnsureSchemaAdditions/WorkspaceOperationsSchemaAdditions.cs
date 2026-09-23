@@ -250,7 +250,9 @@ public static class WorkspaceOperationsSchemaAdditions
             ("ObjectId", "TEXT NULL"),
             ("PersonId", "TEXT NULL"),
             ("Revision", "INTEGER NOT NULL DEFAULT 0"),
-            ("CreationIntentHash", "TEXT NULL")
+            ("CreationIntentHash", "TEXT NULL"),
+            ("InitialAdministratorJson", "TEXT NULL"),
+            ("AdministratorBoundAt", "TEXT NULL")
         ], ct);
         await AddSqliteColumnsAsync(db, "ProviderCapabilityWorkingRevisions",
         [
@@ -345,6 +347,7 @@ public static class WorkspaceOperationsSchemaAdditions
             TenantState TEXT NOT NULL, AdministratorState TEXT NOT NULL, MembershipState TEXT NOT NULL,
             DirectoryTenantId TEXT NULL, ObjectId TEXT NULL, PersonId TEXT NULL,
             Revision INTEGER NOT NULL DEFAULT 0, CreationIntentHash TEXT NULL,
+            InitialAdministratorJson TEXT NULL, AdministratorBoundAt TEXT NULL,
             LastError TEXT NULL, CreatedAt TEXT NOT NULL, UpdatedAt TEXT NOT NULL);
         CREATE UNIQUE INDEX IF NOT EXISTS UX_OrganizationProvisioning_Idempotency
             ON OrganizationProvisioningOperations(IdempotencyKey);
@@ -478,6 +481,7 @@ public static class WorkspaceOperationsSchemaAdditions
             DirectoryTenantId UNIQUEIDENTIFIER NULL, ObjectId UNIQUEIDENTIFIER NULL, PersonId UNIQUEIDENTIFIER NULL,
             Revision BIGINT NOT NULL CONSTRAINT DF_OrganizationProvisioningOperations_Revision DEFAULT 0,
             CreationIntentHash NVARCHAR(64) NULL,
+            InitialAdministratorJson NVARCHAR(MAX) NULL, AdministratorBoundAt DATETIMEOFFSET NULL,
             LastError NVARCHAR(200) NULL, CreatedAt DATETIMEOFFSET NOT NULL, UpdatedAt DATETIMEOFFSET NOT NULL);
         IF COL_LENGTH(N'dbo.OrganizationProvisioningOperations', N'DirectoryTenantId') IS NULL
             ALTER TABLE dbo.OrganizationProvisioningOperations ADD DirectoryTenantId UNIQUEIDENTIFIER NULL;
@@ -490,6 +494,10 @@ public static class WorkspaceOperationsSchemaAdditions
                 CONSTRAINT DF_OrganizationProvisioningOperations_Revision_Add DEFAULT 0;
         IF COL_LENGTH(N'dbo.OrganizationProvisioningOperations', N'CreationIntentHash') IS NULL
             ALTER TABLE dbo.OrganizationProvisioningOperations ADD CreationIntentHash NVARCHAR(64) NULL;
+        IF COL_LENGTH(N'dbo.OrganizationProvisioningOperations', N'InitialAdministratorJson') IS NULL
+            ALTER TABLE dbo.OrganizationProvisioningOperations ADD InitialAdministratorJson NVARCHAR(MAX) NULL;
+        IF COL_LENGTH(N'dbo.OrganizationProvisioningOperations', N'AdministratorBoundAt') IS NULL
+            ALTER TABLE dbo.OrganizationProvisioningOperations ADD AdministratorBoundAt DATETIMEOFFSET NULL;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'UX_OrganizationProvisioning_Idempotency'
             AND object_id=OBJECT_ID(N'dbo.OrganizationProvisioningOperations'))
         CREATE UNIQUE INDEX UX_OrganizationProvisioning_Idempotency

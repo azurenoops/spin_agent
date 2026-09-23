@@ -33,6 +33,10 @@ public static class WorkspaceOperationsEndpoints
         csp.MapPost("/catalog/capabilities/{capabilityId:guid}/working-revision/approve", ApproveWorkingRevisionAsync);
         csp.MapPost("/catalog/capabilities/{capabilityId:guid}/publish", PublishAsync);
         csp.MapGet("/organizations", ListOrganizationsAsync);
+        csp.MapGet("/organization-creations/{idempotencyKey}", RecoverOrganizationCreationAsync)
+            .WithSummary("Recover a confirmed organization creation without writing or replaying its stages")
+            .Produces(StatusCodes.Status200OK).Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden);
         csp.MapGet("/organizations/{tenantId:guid}", GetOrganizationAsync);
         csp.MapPost("/organizations/{tenantId:guid}/provisioning", ProvisionOrganizationAsync);
         csp.MapGet("/organizations/{tenantId:guid}/provisioning", GetProvisionOrganizationAsync);
@@ -180,7 +184,7 @@ public static class WorkspaceOperationsEndpoints
         [FromQuery] string? lifecycle = null, [FromQuery] string? onboarding = null,
         [FromQuery] string? review = null)
     {
-        if (!tenant.IsCspAdmin) return Forbidden();
+        if (!tenant.IsCspAdmin || tenant.ImpersonatedTenantId.HasValue) return Forbidden();
         return Results.Ok(new { data = await service.ListOrganizationsAsync(
             new(page, pageSize, search, lifecycle, onboarding, review), ct) });
     }
@@ -188,7 +192,7 @@ public static class WorkspaceOperationsEndpoints
     private static async Task<IResult> GetOrganizationAsync(
         Guid tenantId, ITenantContext tenant, IWorkspaceOperationsService service, CancellationToken ct)
     {
-        if (!tenant.IsCspAdmin) return Forbidden();
+        if (!tenant.IsCspAdmin || tenant.ImpersonatedTenantId.HasValue) return Forbidden();
         var result = await service.GetOrganizationAsync(tenantId, ct);
         return result is null ? Results.NotFound(Error("ORGANIZATION_NOT_FOUND", "Organization was not found."))
             : Results.Ok(new { data = result });
@@ -198,7 +202,7 @@ public static class WorkspaceOperationsEndpoints
         Guid tenantId, ITenantContext tenant, IWorkspaceOperationsService service,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey, CancellationToken ct)
     {
-        if (!tenant.IsCspAdmin) return Forbidden();
+        if (!tenant.IsCspAdmin || tenant.ImpersonatedTenantId.HasValue) return Forbidden();
         try
         {
             return Results.Ok(new { data = await service.GetOrCreateProvisioningAsync(tenantId, idempotencyKey, ct) });
@@ -210,7 +214,7 @@ public static class WorkspaceOperationsEndpoints
         Guid tenantId, ITenantContext tenant, IWorkspaceOperationsService service,
         CancellationToken ct, [FromQuery] string idempotencyKey)
     {
-        if (!tenant.IsCspAdmin) return Forbidden();
+        if (!tenant.IsCspAdmin || tenant.ImpersonatedTenantId.HasValue) return Forbidden();
         try
         {
             var result = await service.GetProvisioningAsync(tenantId, idempotencyKey, ct);
@@ -224,25 +228,31 @@ public static class WorkspaceOperationsEndpoints
     private static async Task<IResult> UpdateProvisionOrganizationAsync(
         HttpContext http, Guid tenantId, Guid operationId, ITenantContext tenant,
         IWorkspaceOperationsService service, IOrganizationMembershipService memberships,
+        ITenantContextAccessor accessor,
         [FromBody] UpdateProvisioningRequest body, CancellationToken ct)
     {
-        if (!tenant.IsCspAdmin) return Forbidden();
+        if (!tenant.IsCspAdmin || tenant.ImpersonatedTenantId.HasValue) return Forbidden();
         var executionStarted = false;
         try
         {
-            var state = await service.UpdateProvisioningAsync(tenantId, operationId, body, ct);
+            await memberships.AuthorizeAdministrationAsync(http.User, tenantId, ct);
+            var actor = WorkspaceService.Identity(http.User).ObjectId;
+            using var scope = accessor.Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(tenantId));
+            var state = await service.UpdateProvisioningAsync(tenantId, operationId, body, ct, actor);
             executionStarted = true;
+            var personId = state.BoundPersonId
+                ?? throw new InvalidOperationException("Provisioning did not persist the Person binding.");
             if (state.MembershipState != "Completed")
             {
                 await memberships.GrantAsync(http, tenantId,
-                    new(body.DirectoryTenantId, body.ObjectId, body.PersonId), ct);
-                state = await service.UpdateProvisioningAsync(tenantId, operationId, body, ct);
+                    new(body.DirectoryTenantId, body.ObjectId, personId), ct);
+                state = await service.UpdateProvisioningAsync(tenantId, operationId, body, ct, actor);
             }
 
             if (state.AdministratorState != "Completed")
             {
-                await memberships.EnrollAdministratorAsync(http, tenantId, body.PersonId, ct);
-                state = await service.UpdateProvisioningAsync(tenantId, operationId, body, ct);
+                await memberships.EnrollAdministratorAsync(http, tenantId, personId, ct);
+                state = await service.UpdateProvisioningAsync(tenantId, operationId, body, ct, actor);
             }
             return Results.Ok(new { data = state });
         }
@@ -258,11 +268,30 @@ public static class WorkspaceOperationsEndpoints
         Guid tenantId, ITenantContext tenant, IWorkspaceOperationsService service,
         CancellationToken ct)
     {
-        if (!tenant.IsCspAdmin) return Forbidden();
-        var result = await service.GetCurrentProvisioningAsync(tenantId, ct);
-        return result is null
-            ? Results.NotFound(Error("PROVISIONING_NOT_FOUND", "Provisioning operation was not found."))
-            : Results.Ok(new { data = result });
+        if (!tenant.IsCspAdmin || tenant.ImpersonatedTenantId.HasValue) return Forbidden();
+        try
+        {
+            var result = await service.GetCurrentProvisioningAsync(tenantId, ct);
+            return result is null
+                ? Results.NotFound(Error("PROVISIONING_NOT_FOUND", "Provisioning operation was not found."))
+                : Results.Ok(new { data = result });
+        }
+        catch (Exception ex) { return MapMutationError(ex); }
+    }
+
+    private static async Task<IResult> RecoverOrganizationCreationAsync(
+        string idempotencyKey, ITenantContext tenant, IWorkspaceOperationsService service, CancellationToken ct)
+    {
+        if (!tenant.IsCspAdmin || tenant.ImpersonatedTenantId.HasValue) return Forbidden();
+        try
+        {
+            var result = await service.RecoverOrganizationCreationAsync(idempotencyKey, ct);
+            return result is null
+                ? Results.NotFound(Error("ORGANIZATION_CREATION_NOT_FOUND", "Organization creation was not found."))
+                : Results.Ok(new { data = new { result.TenantId, result.OperationId, result.DisplayName,
+                    status = result.Lifecycle, onboardingState = result.Onboarding, result.Existing } });
+        }
+        catch (Exception ex) { return MapMutationError(ex); }
     }
 
     private static async Task<IResult> ListOrganizationCapabilitiesAsync(

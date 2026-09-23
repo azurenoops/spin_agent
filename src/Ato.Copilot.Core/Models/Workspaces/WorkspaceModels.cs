@@ -116,6 +116,8 @@ public sealed class OrganizationProvisioningOperation
     public Guid? PersonId { get; set; }
     public long Revision { get; set; }
     [MaxLength(64)] public string? CreationIntentHash { get; set; }
+    public string? InitialAdministratorJson { get; set; }
+    public DateTimeOffset? AdministratorBoundAt { get; set; }
     [MaxLength(200)] public string? LastError { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

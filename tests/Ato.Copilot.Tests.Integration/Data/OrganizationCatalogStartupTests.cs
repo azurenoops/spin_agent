@@ -80,8 +80,17 @@ public sealed class OrganizationCatalogStartupTests(BoundarySchemaSqlServerFixtu
     private static async Task CreatePreCatalogDatabaseAsync(AtoCopilotContext db, bool missingWorkspaceTables)
     {
         await db.Database.EnsureCreatedAsync();
-        db.Tenants.Add(new Tenant { Id = Guid.NewGuid(), DisplayName = "Preserve legacy organization" });
+        var tenant = new Tenant { Id = Guid.NewGuid(), DisplayName = "Preserve legacy organization" };
+        db.Tenants.Add(tenant);
+        db.OrganizationProvisioningOperations.Add(new Ato.Copilot.Core.Models.Workspaces.OrganizationProvisioningOperation
+        {
+            TenantId = tenant.Id, IdempotencyKey = "preserve-legacy-provisioning"
+        });
         await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE OrganizationProvisioningOperations DROP COLUMN InitialAdministratorJson;
+            ALTER TABLE OrganizationProvisioningOperations DROP COLUMN AdministratorBoundAt;
+            """);
         await db.Database.ExecuteSqlRawAsync("""
             DROP TABLE OrganizationCatalogAdditions;
             DROP TABLE OrganizationCatalogEntries;
@@ -98,6 +107,10 @@ public sealed class OrganizationCatalogStartupTests(BoundarySchemaSqlServerFixtu
         (await db.OrganizationCatalogAdditions.IgnoreQueryFilters().CountAsync()).Should().Be(0);
         (await db.OrganizationCatalogEntries.IgnoreQueryFilters().CountAsync()).Should().Be(0);
         (await db.Tenants.CountAsync(x => x.DisplayName == "Preserve legacy organization")).Should().Be(1);
+        var operation = await db.OrganizationProvisioningOperations.AsNoTracking()
+            .SingleAsync(x => x.IdempotencyKey == "preserve-legacy-provisioning");
+        operation.InitialAdministratorJson.Should().BeNull();
+        operation.AdministratorBoundAt.Should().BeNull();
     }
 
     private static void AssertCleanUpgrade(StartupTrace trace)

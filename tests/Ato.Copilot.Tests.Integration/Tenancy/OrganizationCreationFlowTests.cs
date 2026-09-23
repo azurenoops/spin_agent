@@ -12,7 +12,7 @@ using Xunit;
 namespace Ato.Copilot.Tests.Integration.Tenancy;
 
 [Collection("Tenancy")]
-public sealed class OrganizationCreationFlowTests(WorkspaceMembershipFactory factory)
+public sealed partial class OrganizationCreationFlowTests(WorkspaceMembershipFactory factory)
     : IClassFixture<WorkspaceMembershipFactory>
 {
     private static readonly Guid DirectoryId = Guid.Parse("cccccccc-0000-0000-0000-000000000101");
@@ -29,6 +29,7 @@ public sealed class OrganizationCreationFlowTests(WorkspaceMembershipFactory fac
         // Act
         var created = await CreateAsync(client, key, body);
         created.StatusCode.Should().Be(HttpStatusCode.Created);
+        created.Headers.Location.Should().NotBeNull();
         var data = await DataAsync(created);
         var tenantId = data.GetProperty("tenantId").GetGuid();
         var recovered = await client.GetAsync($"/api/csp/organization-creations/{key}");
@@ -57,9 +58,14 @@ public sealed class OrganizationCreationFlowTests(WorkspaceMembershipFactory fac
         {
             (await db.Persons.IgnoreQueryFilters().CountAsync(x => x.TenantId == tenantId)).Should().Be(0);
             (await db.OrganizationMemberships.IgnoreQueryFilters().CountAsync(x => x.TenantId == tenantId)).Should().Be(0);
+            var operation = await db.OrganizationProvisioningOperations.SingleAsync(x => x.TenantId == tenantId);
+            operation.Revision.Should().Be(0, "recovery and detail reads must not advance provisioning");
+            operation.InitialAdministratorJson.Should().BeNull();
         });
-        (await client.GetAsync($"/api/csp/organization-creations/{Guid.NewGuid():N}")).StatusCode
-            .Should().Be(HttpStatusCode.NotFound);
+        var missing = await client.GetAsync($"/api/csp/organization-creations/{Guid.NewGuid():N}");
+        missing.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await missing.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetProperty("code")
+            .GetString().Should().Be("ORGANIZATION_CREATION_NOT_FOUND");
         await AssertNoSystemWritesAsync(tenantId);
     }
 
@@ -78,10 +84,17 @@ public sealed class OrganizationCreationFlowTests(WorkspaceMembershipFactory fac
 
         // Act
         var before = await DataAsync(await client.GetAsync($"/api/csp/organizations/{tenantId}/provisioning/current"));
-        before.GetProperty("initialAdministrator").GetProperty("newPerson").GetProperty("email")
+        var persistedBefore = before.GetProperty("initialAdministrator");
+        persistedBefore.GetProperty("newPerson").GetProperty("email")
             .GetString().Should().Be("administrator@example.invalid");
-        var first = await client.PatchAsJsonAsync(route, identity);
-        var retry = await client.PatchAsJsonAsync(route, identity);
+        persistedBefore.GetProperty("personId").ValueKind.Should().Be(JsonValueKind.Null);
+        var first = await client.PatchAsJsonAsync(route, persistedBefore);
+        var refreshed = await DataAsync(await client.GetAsync($"/api/csp/organizations/{tenantId}/provisioning/current"));
+        var persistedAfter = refreshed.GetProperty("initialAdministrator");
+        persistedAfter.GetRawText().Should().Be(persistedBefore.GetRawText());
+        persistedAfter.GetProperty("personId").ValueKind.Should().Be(JsonValueKind.Null);
+        refreshed.TryGetProperty("boundPersonId", out _).Should().BeFalse();
+        var retry = await client.PatchAsJsonAsync(route, persistedAfter);
         var replay = await CreateAsync(client, key, body);
 
         // Assert
@@ -209,9 +222,9 @@ public sealed class OrganizationCreationFlowTests(WorkspaceMembershipFactory fac
         });
     }
 
-    private HttpClient Client()
+    private HttpClient Client(HttpClient? existing = null)
     {
-        var client = factory.CreateClient();
+        var client = existing ?? factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Test-Tid", DirectoryId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Oid", ActorId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Roles", "CSP.Admin");
@@ -260,6 +273,6 @@ public sealed class OrganizationCreationFlowTests(WorkspaceMembershipFactory fac
         (await db.RegisteredSystems.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenantId)).Should().BeFalse();
         (await db.SystemRoleAssignments.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenantId)).Should().BeFalse();
         (await db.CapabilitySubscriptions.IgnoreQueryFilters().AnyAsync(x => x.RoutingTenantId == tenantId)).Should().BeFalse();
-        (await db.CapabilityResponsibilityConfirmations.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenantId)).Should().BeFalse();
+        (await db.SystemCapabilityLinks.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenantId)).Should().BeFalse();
     });
 }

@@ -687,6 +687,14 @@ public sealed class WorkspaceOperationsServiceTests
         var personId = Guid.NewGuid();
         var request = new Ato.Copilot.Core.Interfaces.Workspaces.UpdateProvisioningRequest(
             Guid.NewGuid(), Guid.NewGuid(), personId);
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            db.Persons.Add(new Ato.Copilot.Core.Models.Onboarding.Person
+            {
+                Id = personId, TenantId = tenant.Id, DisplayName = "Administrator", Email = "admin@example.invalid"
+            });
+            await db.SaveChangesAsync();
+        }
 
         // Act
         var resumed = await sut.UpdateProvisioningAsync(tenant.Id, created.OperationId, request, default);
@@ -1037,6 +1045,15 @@ public sealed class WorkspaceOperationsServiceTests
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         var secondIdentity = new Ato.Copilot.Core.Interfaces.Workspaces.UpdateProvisioningRequest(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            db.Persons.AddRange(new[] { firstIdentity.PersonId!.Value, secondIdentity.PersonId!.Value }
+                .Select(id => new Ato.Copilot.Core.Models.Onboarding.Person
+                {
+                    Id = id, TenantId = tenantId, DisplayName = "Administrator", Email = $"{id:N}@example.invalid"
+                }));
+            await db.SaveChangesAsync();
+        }
         var first = new WorkspaceOperationsService(factory);
         var second = new WorkspaceOperationsService(factory);
 
@@ -1047,7 +1064,7 @@ public sealed class WorkspaceOperationsServiceTests
 
         // Assert
         attempts.Count(x => x is null).Should().Be(1);
-        attempts.Count(x => x is InvalidOperationException).Should().Be(1);
+        attempts.Count(x => x is InvalidOperationException or DbUpdateConcurrencyException).Should().Be(1);
         await using var verify = await factory.CreateDbContextAsync();
         var winner = await verify.OrganizationProvisioningOperations.SingleAsync();
         new[] { firstIdentity.PersonId, secondIdentity.PersonId }.Should().Contain(winner.PersonId!.Value);

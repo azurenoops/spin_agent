@@ -25,6 +25,19 @@ public class WizardAuditService : IWizardAuditService
     }
 
     /// <inheritdoc />
+    public void Stage(AtoCopilotContext db, WizardAuditEntry entry)
+    {
+        db.WizardAuditEntries.Add(entry);
+        using var scope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["WizardAudit"] = true, ["TenantId"] = entry.TenantId,
+            ["ActorUserId"] = entry.ActorUserId, ["TransactionState"] = "Staged"
+        });
+        _logger.LogInformation("wizard.audit.staged {Action} on {ResourceType} {ResourceId} correlation {CorrelationId}",
+            entry.Action, entry.ResourceType, entry.ResourceId, entry.CorrelationId);
+    }
+
+    /// <inheritdoc />
     public async Task RecordAsync(
         Guid tenantId,
         Guid actorUserId,
