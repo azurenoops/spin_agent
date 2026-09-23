@@ -14,6 +14,126 @@
 
 ## Summary
 
+### Complete CSP Add Organization flow (September 23, 13:17)
+
+Trace: the current AddOrganization immediately POSTs organization fields.
+Creation atomically saves an Active/Pending Tenant, name reservation and
+OrganizationProvisioningOperation with intent hash. Existing provisioning GETs
+recover only when tenant identity is known and omit persisted administrator IDs.
+PATCH binds IDs, grants membership, then enrolls Administrator through
+OrganizationMembershipService, deriving outcome states from persisted records.
+Grant requires an organization-local Person; existing membership-person APIs
+already use IPersonService to create that contact under authorized tenant scope.
+The current UI cannot recover a lost create response after refresh, supplies no
+review/defer workflow, and loses identity fields when returning to enrollment.
+
+Additive contract, to implement and test before UI integration:
+
+- Creation accepts optional `initialAdministrator`: directoryTenantId, objectId,
+  and either personId or `newPerson: { displayName, email }`. Omission defers
+  enrollment. Persist confirmed intent with the existing operation; bind the
+  creation hash to that intent. No writes before final confirmation.
+- Authorized `GET /api/csp/organization-creations/{idempotencyKey}` recovers the
+  created organization/operation without requiring form resubmission. Missing
+  keys are explicit 404s, not permission failures or success-shaped fallbacks.
+- Provisioning projections expose persisted initialAdministrator, personState
+  and whether identity remains editable. Resume accepts the same additive
+  newPerson option while retaining existing identifier-only requests. Person
+  creation must be resumable/idempotent, not guessed by email. Reuse existing
+  Person/membership/Administrator service rules and audit semantics. Do not
+  replace a completed Person/identity binding during recovery.
+- Organization list/detail project setup state and active membership count;
+  detail includes saved legal/contact fields. Preserve onboarding as a separate
+  concern. Reads, begin and resume recheck ordinary CSP authority, target status
+  and operation scope; enforce duplicate/concurrent-write safety server-side.
+
+Extract the wizard and setup-status components from WorkspaceOperationsPage.
+Use the existing PageLayout/PageHero, workspace navigation, shared field/status
+styles and controlled support component. Keep pre-confirmation input in memory
+only; the URL stores a recovery key, not PII or an alleged saved draft. Freeze
+confirmed intent across ambiguous creation outcomes and resolve by key before
+allowing another submission. Recovery/status uses persisted server state and
+explicit retries; refresh never invents completed work.
+
+TDD covers validation/correction, no pre-confirmation writes, deferred enrollment,
+new and existing Person modes, partial failure, lost create/resume responses,
+refresh, stale requests, repeated clicks, duplicate races, scope denial and
+completed-work preservation. Verify narrow/desktop screens and keyboard focus;
+build/type/test the changed projects and record full-solution results separately.
+Keep live administrator acceptance distinct from synthetic browser coverage.
+
+### CSP mock alignment correction (September 23, 12:32)
+
+Retain the existing provider working-revision, approval and publication handlers
+and error/concurrency behavior. Replace their presentation with capability-first
+catalog rows, offering/source metadata, implementation/readiness/evidence cards,
+and two-column publication review. Add provider-authorized overview and direct
+capability detail reads instead of scanning the first 200 catalog records;
+enrich server-side catalog relationships and distinct adoption counts. These
+read changes introduce no schema or MCP-envelope change. Reuse the existing
+provider capability creation endpoint with review required.
+
+`ProviderPresentation` owns shared provider source/version/evidence/picker
+rendering and `ProviderAddCapabilityDialog` owns staged input and safe creation
+failure behavior. Publication review retains the exact saved snapshot/hash and
+explicit review acknowledgements, preserves approved customer content, and
+refreshes provider metadata after success. The release summary is read-only and
+derived from the canonical preview, not an unpersisted editable release note.
+No provider component categories, narrative text or authorization records are
+fabricated to match illustrative data. Test source paging, direct detail,
+creation, mutation gates and both organization/system regressions; inspect
+desktop/mobile screenshots before Docker deployment.
+
+First-save contract verification found that a valid newly created capability
+returns `404 / WORKING_REVISION_NOT_FOUND`, not an empty saved revision. Bootstrap
+an unsaved form only for that exact response after direct capability lookup
+succeeds. Classification and service category remain required authored fields;
+contributors and duties start empty. The verified first-save token is
+`expectedRevision: 1`; later saves use the returned revision. Preserve both
+`error.code` and legacy `error.errorCode` in the transport. Other failures must
+remain visible and block saving. A first-save conflict preserves the user's
+draft until explicit reconciliation, just like an existing-revision conflict.
+
+### Organization catalog dialog correction (September 23)
+
+Implement organization Add as a separate catalog dialog and API, not an adapter
+over system setup. Existing local capability/component models remain reusable;
+provider adoption, organization-owned contribution/owner and idempotency require
+tenant-scoped durable storage where no suitable existing association exists.
+Use the current EF/schema-addition pattern for both SQLite and SQL Server.
+
+The dialog supports local creation/reuse, published CSP capability/component
+adoption, optional organization-wide supporting components and standalone
+components. It stages all writes until review/save; cancellation creates nothing.
+Save is atomic and idempotent. Organization access and visibility cannot require
+any systems. System setup remains separately permission-gated on system routes.
+Organization contribution is authored summary/owner metadata, not a system
+inheritance rollup. Per-control approval/evidence authoring is outside this dialog
+correction; do not invent approval or responsibility confirmations.
+
+Validation: failing frontend and backend regressions first, no-system organization
+create/adopt/read round trips, cross-tenant/source/permission denial, retry and
+duplicate-write protection, unchanged system setup, desktop/mobile modal checks,
+Dashboard type/build, relational backend/schema checks and Docker health/browser
+verification. User manual acceptance remains a distinct final gate.
+
+The subsequent organization Add mock is implemented as a presentation-only
+follow-up: source cards, record-type segments, connected progress, component chips,
+and a split contribution/review panel. `OrganizationDialogPresentation` contains
+the visual building blocks; `OrganizationCatalogChoices` retains paged API-backed
+selection and staged component creation. `SetupDialog` accepts organization
+context and expanded review sizing while system setup remains a separate flow.
+The screenshot's system-use stage is explicitly excluded per the user's choice.
+An inline component must be staged/discarded before closing its picker or leaving
+the step. No new API, storage, permission, owner-directory or provider-version
+contract is introduced by this visual follow-up.
+
+The component-navigation regression follow-up preserves record type in library
+links and detail requests, supports legacy untyped component URLs, and reuses
+the paged organization collection with a component filter for child navigation.
+It retains the existing authorization gates and capability-specific review
+contract; no new storage, MCP envelope or permission is introduced.
+
 Retain existing authentication, domain services and scope-resolving pages.
 Introduce one authenticated workspace context for routing, identity display,
 scoped permissions and request/cache coordination. Consume prerequisite login,
@@ -811,6 +931,73 @@ unguarded duplicate and base the remaining badge on the server-authoritative
 read-only state. Do not weaken test selectors to choose an arbitrary duplicate.
 This is frontend integration repair, not a change to backend profile authority.
 
+## Issues #1025-#1035 implementation design
+
+The implementation branch is `feature/1002-workspace-ui-1025-1035`, based on
+`8a5cdaa0`. The three interactive files under
+`docs/design/workspace-ui-mocks/` were exercised before this plan update.
+
+### Shared routes and presentation
+
+- Keep `PageLayout`, `PageHero`, `WorkspaceHeader`, workspace route parsing and
+  scoped transport as the shell. Add Organizations and Security Capabilities
+  destinations from server permissions; do not create a second shell.
+- Canonical library state is encoded in query parameters: grouping, search,
+  source, system, lifecycle/review filters, page, sort and selected tab.
+- Existing component/capability URLs resolve to the canonical workspace route
+  while preserving tenant, system and record identity.
+
+### Read projections
+
+- Replace provider catalog client fan-out with bounded provider catalog queries
+  over existing global provider component/capability records. Row and total
+  queries share filters and expose unavailable aggregates explicitly.
+- Add provider-authorized organization list/detail/system/subscription/activity
+  projections. Queries validate the target before materialization and never
+  fetch all tenants for browser-side filtering.
+- Add one organization capability projection keyed by source kind and record ID.
+  Local and provider rows share display contracts but retain separate mutation
+  endpoints and permission checks.
+
+### Provider authoring and publication
+
+- Introduce explicit working-revision and immutable-release persistence rather
+  than reconstructing releases from audit history. Store canonical snapshot
+  payloads with stable hashes/revision IDs and retain source references.
+- Contributor links, coverage/duties and review approval bind to a working
+  revision concurrency token. Editing reviewed content invalidates approval.
+- Publication is one transaction for release identity and durable outbox/impact
+  records. Idempotency binds preview, approval and publication to the exact
+  revision. Delivery processing is retryable and cannot imply customer review.
+- Existing published records migrate to an initial immutable release without
+  rewriting customer-confirmed source references.
+
+### Organization provisioning, support and setup
+
+- Organization creation remains Active/Pending and grants nothing. The UI
+  records creation, administrator assignment and identity membership as
+  separate resumable outcomes against the persisted tenant ID.
+- Extend the existing support session start contract with a required trimmed
+  reason, optional reference and acknowledgement. Enforce documented maximum
+  lengths in API and persistence. Commit the start audit/session purpose before
+  issuing a usable token or cookie; failure returns an explicit error.
+- Use a durable tenant-bound capability setup operation. Its idempotency key and
+  per-step outcomes make create/link/subscribe retries safe. Shared components
+  are never deleted as compensation. The final action is labeled
+  "Complete setup" unless a real resumable draft has been persisted.
+
+### Test order
+
+1. Red contract/model tests for release immutability, support purpose and setup
+   idempotency.
+2. Red service/API tests for paging, authorization, tenant isolation, stale
+   revisions, concurrent publication and partial setup.
+3. Implement backend contracts and run focused .NET suites.
+4. Red Vitest tests for route/query state and every loading, empty, validation,
+   failure, stale and conflict state.
+5. Implement mock-aligned screens, then run Dashboard type checking/tests/build.
+6. Run solution build/tests and live local browser scenarios with synthetic data.
+
 ## Constitution check
 
 References: [constitution](../../.specify/memory/constitution.md),
@@ -840,6 +1027,8 @@ test, manual acceptance and release gates remain open.
 |---|---|---|
 | Explicit scoped routes/request context and coordinated caches | User-confirmed independent tabs/deep links and #950 stale-scope behavior | A global selected-tenant cookie or page reload changes scope across tabs and cannot satisfy the requirement |
 | Shared effective-context/permission projection | Multiple resolvers and local persona gates must agree with server policy | Per-page endpoint probes or copied role conditionals diverge and cannot establish authorization |
+| Immutable provider release plus editable working revision | #1028 requires released customer source to remain stable while new changes are reviewed | Reconstructing state from audit events cannot guarantee a complete immutable release |
+| Durable resumable capability setup operation | #1035 spans several existing services and requires truthful partial outcomes and idempotent retry | Sequential browser calls can leave ambiguous success and duplicate later writes |
 
 No new framework, query library, parallel membership store or generic policy
 engine is proposed. Any schema/API expansion must be justified in its owning
