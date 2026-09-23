@@ -44,6 +44,7 @@ import KnowledgeBaseManagementPage from './pages/KnowledgeBaseManagementPage';
 import RequireAuth from './features/auth/RequireAuth';
 import SystemAliasRedirect from './features/workspaces/SystemAliasRedirect';
 import WorkspaceMembershipRoute from './features/workspaces/WorkspaceMembershipRoute';
+import WorkspaceOperationsPage from './features/workspace-operations/WorkspaceOperationsPage';
 
 export default function ApplicationRoutes() {
   return (
@@ -106,6 +107,7 @@ export default function ApplicationRoutes() {
             {/* Epic #121 / Task #147 — Roles management page */}
             <Route path="roles" element={<RolesManagementPage />} />
           </Route>
+          <Route path="systems/:id/security-capabilities/*" element={<RequireAuth><WorkspaceOperationsPage /></RequireAuth>} />
           <Route path="capabilities" element={<RequireAuth><CapabilitiesRoute /></RequireAuth>} />
           <Route path="components" element={<RequireAuth><ComponentsRoute /></RequireAuth>} />
           <Route path="onboarding" element={<RequireAuth><OnboardingShell /></RequireAuth>} />
@@ -138,6 +140,9 @@ export default function ApplicationRoutes() {
           <Route path="controls/overrides" element={<RequireAuth><OverrideReviewPage /></RequireAuth>} />
           <Route path="settings/memberships" element={<WorkspaceMembershipRoute />} />
           <Route path="organizations/:organizationId/memberships" element={<WorkspaceMembershipRoute />} />
+          <Route path="security-capabilities/*" element={<RequireAuth><WorkspaceOperationsPage /></RequireAuth>} />
+          <Route path="organizations" element={<RequireAuth><WorkspaceOperationsPage /></RequireAuth>} />
+          <Route path="organizations/:organizationId/*" element={<RequireAuth><WorkspaceOperationsPage /></RequireAuth>} />
           <Route path="*" element={<main className="p-6"><h1>Page not found</h1></main>} />
         </Routes>
   );
