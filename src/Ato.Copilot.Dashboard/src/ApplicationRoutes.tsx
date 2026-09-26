@@ -13,11 +13,11 @@ import BoundaryManagement from './pages/BoundaryManagement';
 import Documents from './pages/Documents';
 import ConMon from './pages/ConMon';
 import Assessments from './pages/Assessments';
+import AssessmentEnvironment from './pages/AssessmentEnvironment';
 import Remediation from './pages/Remediation';
 import NarrativeWorkspace from './pages/NarrativeWorkspace';
 import StandaloneNarrativeLibrary from './pages/StandaloneNarrativeLibrary';
 import DeviationsPage from './pages/DeviationsPage';
-import CapabilityCoverage from './pages/CapabilityCoverage';
 import EvidenceRepository from './pages/EvidenceRepository';
 import LegalRegulatory from './pages/LegalRegulatory';
 import ComponentInventory from './pages/ComponentInventory';
@@ -45,6 +45,9 @@ import RequireAuth from './features/auth/RequireAuth';
 import SystemAliasRedirect from './features/workspaces/SystemAliasRedirect';
 import WorkspaceMembershipRoute from './features/workspaces/WorkspaceMembershipRoute';
 import WorkspaceOperationsPage from './features/workspace-operations/WorkspaceOperationsPage';
+import { AuthorizationsPage } from './features/provider-authorizations/AuthorizationsPage';
+import MissionAssociationWizard from './features/provider-relationships/MissionAssociationWizard';
+import SystemSecurityCapabilitiesPage from './features/workspace-operations/system-capabilities/SystemSecurityCapabilitiesPage';
 
 export default function ApplicationRoutes() {
   return (
@@ -58,8 +61,12 @@ export default function ApplicationRoutes() {
               Router does not match it as id="new". SystemsNewRoute redirects to
               /systems with state.openWizard=true, which opens the intake wizard. */}
           <Route path="systems/new" element={<RequireAuth><SystemsNewRoute /></RequireAuth>} />
+          <Route path="provider-relationships/setup" element={<RequireAuth><MissionAssociationWizard /></RequireAuth>} />
           <Route path="systems/:id" element={<RequireAuth><SystemLayout /></RequireAuth>}>
             <Route index element={<SystemDetail />} />
+            <Route path="provider-relationships" element={<MissionAssociationWizard />} />
+            <Route path="provider-relationships/setup" element={<MissionAssociationWizard />} />
+            <Route path="profile/EnvironmentAndDeployment/hosting" element={<MissionAssociationWizard environmentEntry />} />
             <Route path="boundaries" element={<BoundaryManagement />} />
             <Route path="legal" element={<LegalRegulatory />} />
             <Route path="documents" element={<Documents />} />
@@ -68,11 +75,14 @@ export default function ApplicationRoutes() {
             <Route path="narratives/*" element={<NarrativeWorkspace />} />
             <Route path="deviations" element={<DeviationsPage />} />
             <Route path="assessments" element={<Assessments />} />
+            <Route path="assessments/environment" element={<AssessmentEnvironment />} />
             <Route path="remediation" element={<Remediation />} />
             <Route path="evidence" element={<EvidenceRepository />} />
-            <Route path="components" element={<ComponentInventory />} />
+            <Route path="security-capabilities/inventory" element={<ComponentInventory />} />
+            <Route path="security-capabilities/*" element={<SystemSecurityCapabilitiesPage />} />
+            <Route path="components/*" element={<SystemAliasRedirect />} />
             <Route path="poam" element={<PoamManagement />} />
-            <Route path="capability-coverage" element={<CapabilityCoverage />} />
+            <Route path="capability-coverage/*" element={<SystemAliasRedirect />} />
             <Route path="inheritance" element={<ControlInheritance />} />
             <Route path="inheritance/subscriptions" element={<CapabilityResponsibilityReview />} />
             {/* Alias: Oracle E2E tests and direct links use /control-inheritance → redirect to /inheritance */}
@@ -85,8 +95,7 @@ export default function ApplicationRoutes() {
                 routes use shorter/different names. Redirect to the real route.
                 Uses SystemAliasRedirect (not Navigate with ../…) so absolute paths
                 work correctly in React Router v7 on direct URL load (#464,#467,#462,#460). */}
-            {/* Sidebar nav: capability-coverage, but direct links use /capabilities */}
-            <Route path="capabilities" element={<SystemAliasRedirect />} />
+            <Route path="capabilities/*" element={<SystemAliasRedirect />} />
             {/* Sidebar nav: profile/MissionAndPurpose, but direct links use /mission-purpose */}
             <Route path="mission-purpose" element={<SystemAliasRedirect />} />
             {/* Sidebar nav: profile/UsersAndAccess, but direct links use /users-access */}
@@ -107,9 +116,9 @@ export default function ApplicationRoutes() {
             {/* Epic #121 / Task #147 — Roles management page */}
             <Route path="roles" element={<RolesManagementPage />} />
           </Route>
-          <Route path="systems/:id/security-capabilities/*" element={<RequireAuth><WorkspaceOperationsPage /></RequireAuth>} />
           <Route path="capabilities" element={<RequireAuth><CapabilitiesRoute /></RequireAuth>} />
           <Route path="components" element={<RequireAuth><ComponentsRoute /></RequireAuth>} />
+          <Route path="authorizations/*" element={<RequireAuth><AuthorizationsPage /></RequireAuth>} />
           <Route path="onboarding" element={<RequireAuth><OnboardingShell /></RequireAuth>} />
           <Route path="onboarding/tenant" element={<RequireAuth><TenantWizard /></RequireAuth>} />
           <Route path="onboarding/csp" element={<RequireAuth><CspWizard /></RequireAuth>} />
