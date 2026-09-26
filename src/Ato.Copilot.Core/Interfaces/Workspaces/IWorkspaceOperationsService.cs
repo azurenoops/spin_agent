@@ -4,6 +4,28 @@ namespace Ato.Copilot.Core.Interfaces.Workspaces;
 
 public interface IWorkspaceOperationsService
 {
+    Task<SystemComponentPlacementOptions> GetSystemComponentPlacementsAsync(Guid tenantId, string systemId,
+        string source, string recordId, SystemSecurityCapabilityAccess access, CancellationToken ct);
+    Task<SystemComponentPlacementResult> AssignSystemComponentPlacementAsync(Guid tenantId, string systemId,
+        string source, string recordId, AssignSystemComponentPlacementRequest request,
+        SystemSecurityCapabilityAccess access, string actor, CancellationToken ct);
+    Task<SystemComponentPlacementResult> UnassignSystemComponentPlacementAsync(Guid tenantId, string systemId,
+        string source, string recordId, string placementId, UnassignSystemComponentPlacementRequest request,
+        SystemSecurityCapabilityAccess access, string actor, CancellationToken ct);
+    Task<SystemSecurityCapabilityPage> ListSystemSecurityCapabilitiesAsync(Guid tenantId, string systemId,
+        SystemSecurityCapabilityQuery query, SystemSecurityCapabilityAccess access, CancellationToken ct);
+    Task<SystemSecurityCapabilityDetail?> GetSystemSecurityCapabilityAsync(Guid tenantId, string systemId,
+        string source, string recordType, string recordId, SystemSecurityCapabilityAccess access, CancellationToken ct);
+    Task<PreparedSystemCapabilityOperation> PrepareSystemCapabilitySetupAsync(Guid tenantId, string systemId,
+        PrepareSystemCapabilitySetupRequest request, SystemSecurityCapabilityAccess access, CancellationToken ct);
+    Task<PreparedSystemCapabilityOperation> PrepareSystemCapabilityRemovalAsync(Guid tenantId, string systemId,
+        string source, string recordId, PrepareSystemCapabilityRemovalRequest request,
+        SystemSecurityCapabilityAccess access, CancellationToken ct);
+    Task<SystemCapabilityOperation?> GetSystemCapabilityOperationAsync(Guid tenantId, string systemId,
+        Guid operationId, SystemSecurityCapabilityAccess access, CancellationToken ct);
+    Task<SystemCapabilityOperation> CompleteSystemCapabilitySetupAsync(Guid tenantId, string systemId,
+        Guid operationId, CompleteSystemCapabilitySetupRequest request, SystemSecurityCapabilityAccess access,
+        string actor, CancellationToken ct);
     Task<PagedResult<ProviderCatalogItem>> ListProviderCatalogAsync(WorkspaceCatalogQuery query, CancellationToken ct);
     Task<ProviderCatalogOverview> GetProviderCatalogOverviewAsync(int page, int pageSize, CancellationToken ct);
     Task<ProviderCapabilityDetail?> GetProviderCapabilityAsync(Guid capabilityId, CancellationToken ct);
@@ -12,6 +34,8 @@ public interface IWorkspaceOperationsService
     Task<WorkingRevisionResult?> GetWorkingRevisionAsync(Guid capabilityId, CancellationToken ct);
     Task<WorkingRevisionResult> SaveWorkingRevisionAsync(Guid capabilityId, SaveWorkingRevisionRequest request, string actor, CancellationToken ct);
     Task<PublicationPreviewResult> GeneratePublicationPreviewAsync(Guid capabilityId, long revision, CancellationToken ct);
+    Task<PublicationPreviewResult> GeneratePublicationPreviewAsync(Guid capabilityId, long revision,
+        IReadOnlyList<Guid>? impactReviewIds, CancellationToken ct);
     Task<WorkingRevisionResult> ApproveWorkingRevisionAsync(
         Guid capabilityId, ApproveWorkingRevisionRequest request, string actor, CancellationToken ct);
     Task<PublishResult> PublishAsync(Guid capabilityId, PublishWorkingRevisionRequest request, string actor, CancellationToken ct);
@@ -75,7 +99,8 @@ public sealed record PublicationPreviewResult(
     IReadOnlyList<Guid> AffectedOrganizations,
     IReadOnlyList<PublicationAffectedSystem> AffectedSystems,
     PublicationDeliveryProjection Delivery,
-    PublicationNotificationProjection Notifications);
+    PublicationNotificationProjection Notifications,
+    IReadOnlyList<Guid>? ImpactReviewIds = null, string? ContextSnapshotHash = null);
 public sealed record ProviderSubscriberSummary(
     Guid OrganizationId, string OrganizationName, string SystemId, string SystemName,
     string SubscriptionId, string? SourceRevision, string ReviewState);

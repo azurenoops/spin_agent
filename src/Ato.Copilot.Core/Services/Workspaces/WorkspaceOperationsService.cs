@@ -6,12 +6,18 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Workspaces;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Workspaces;
+using Ato.Copilot.Core.Models.ProviderAuthorizations;
+using Ato.Copilot.Core.Services.ProviderAuthorizations;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Core.Services.Workspaces;
 
 public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopilotContext> factory,
-    Ato.Copilot.Core.Interfaces.Onboarding.IPersonService? persons = null)
+    Ato.Copilot.Core.Interfaces.Onboarding.IPersonService? persons = null,
+    Ato.Copilot.Core.Interfaces.Compliance.ICapabilityResponsibilityService? responsibilityService = null,
+    Ato.Copilot.Core.Interfaces.Compliance.INarrativeChangeImpactService? narrativeChanges = null,
+    Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext? systemTenant = null,
+    Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService? systemAccess = null)
     : IWorkspaceOperationsService
 {
     private static readonly TimeSpan SetupExecutionLease = TimeSpan.FromSeconds(30);
@@ -173,6 +179,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         var duties = request.ControlDuties.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x => x.Key.Trim(), x => x.Value, StringComparer.OrdinalIgnoreCase);
         await using var db = await factory.CreateDbContextAsync(ct);
+        ProviderPublicationGuard.AuthorizeContext(db);
         if (!await db.CspInheritedCapabilities.AnyAsync(x => x.Id == capabilityId, ct))
             throw new KeyNotFoundException("Provider capability was not found.");
         var row = await db.ProviderCapabilityWorkingRevisions.SingleOrDefaultAsync(x => x.CapabilityId == capabilityId, ct);
@@ -227,6 +234,14 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             new ProviderCapabilityContributor { WorkingRevisionId = row.Id, ContributorId = x }));
         db.ProviderCapabilityDuties.AddRange(duties.Select(x =>
             new ProviderCapabilityDuty { WorkingRevisionId = row.Id, ControlId = x.Key, Duty = x.Value }));
+        if (!await db.Set<ProviderCatalogContextSnapshot>().AnyAsync(x => x.CapabilityId == capabilityId
+            && x.ReleaseId == null && x.PackageApprovalId != null, ct))
+        {
+            var providerId = await db.CspInheritedCapabilities.Where(x => x.Id == capabilityId)
+                .Select(x => x.CspInheritedComponent.CspProfileId).SingleAsync(ct);
+            await ProviderPublicationGuard.InvalidatePrivateChangesAsync(db, providerId,
+                contributors.Where(x => Guid.TryParse(x, out _)).Select(Guid.Parse).Append(capabilityId), actor, ct);
+        }
         try
         {
             await db.SaveChangesAsync(ct);
@@ -251,8 +266,12 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         return row is null ? null : Project(row);
     }
 
+    public Task<PublicationPreviewResult> GeneratePublicationPreviewAsync(
+        Guid capabilityId, long revision, CancellationToken ct) =>
+        GeneratePublicationPreviewAsync(capabilityId, revision, null, ct);
+
     public async Task<PublicationPreviewResult> GeneratePublicationPreviewAsync(
-        Guid capabilityId, long revision, CancellationToken ct)
+        Guid capabilityId, long revision, IReadOnlyList<Guid>? impactReviewIds, CancellationToken ct)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
         var working = await db.ProviderCapabilityWorkingRevisions.AsNoTracking()
@@ -262,7 +281,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             throw new DbUpdateConcurrencyException("The working revision is stale.");
         var generatedAt = DateTimeOffset.UtcNow;
         var expiresAt = generatedAt.AddMinutes(30);
-        var material = await BuildPublicationPreviewAsync(db, working, expiresAt, ct);
+        var material = await BuildPublicationPreviewAsync(db, working, expiresAt, ct, impactReviewIds);
         var row = new ProviderPublicationPreview
         {
             CapabilityId = capabilityId, Revision = revision,
@@ -275,13 +294,25 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         return new(row.Id, capabilityId, revision, working.SnapshotHash, row.PreviewHash,
             generatedAt, expiresAt, false, material.ContributorChanges, material.DutyChanges,
             material.ReferenceChanges, material.AffectedOrganizations, material.AffectedSystems,
-            material.Delivery, material.Notifications);
+            material.Delivery, material.Notifications, material.Binding.Reviews.Select(x => x.Id).ToArray(), material.Binding.ContextHash);
     }
 
     public async Task<WorkingRevisionResult> ApproveWorkingRevisionAsync(
         Guid capabilityId, ApproveWorkingRevisionRequest request, string actor, CancellationToken ct)
     {
+        await using var strategyDb = await factory.CreateDbContextAsync(ct);
+        return await strategyDb.Database.CreateExecutionStrategy()
+            .ExecuteAsync(() => ApproveWorkingRevisionAttemptAsync(capabilityId, request, actor, ct));
+    }
+
+    private async Task<WorkingRevisionResult> ApproveWorkingRevisionAttemptAsync(
+        Guid capabilityId, ApproveWorkingRevisionRequest request, string actor, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
         await using var db = await factory.CreateDbContextAsync(ct);
+        ProviderPublicationGuard.AuthorizeContext(db);
+        await using var transaction = db.Database.IsRelational() && db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         var row = await db.ProviderCapabilityWorkingRevisions.SingleOrDefaultAsync(x => x.CapabilityId == capabilityId, ct)
             ?? throw new KeyNotFoundException("Working revision was not found.");
         var preview = await db.ProviderPublicationPreviews.AsNoTracking()
@@ -292,6 +323,9 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             || !FixedEquals(row.SnapshotHash, preview.WorkingSnapshotHash)
             || !FixedEquals(preview.PreviewHash, request.PreviewHash))
             throw new DbUpdateConcurrencyException("The preview is stale.");
+        var current = await BuildPublicationPreviewAsync(db, row, preview.ExpiresAt, ct, ImpactIds(preview.PayloadJson));
+        if (!FixedEquals(current.PreviewHash, preview.PreviewHash))
+            throw new DbUpdateConcurrencyException("AUTHORIZATION_CONTEXT_STALE: Publication or offering context changed. Generate a new preview.");
         row.ApprovedRevision = request.Revision;
         row.ApprovedSnapshotHash = row.SnapshotHash;
         row.ApprovedPreviewId = preview.Id;
@@ -299,6 +333,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         row.ApprovedAt = DateTimeOffset.UtcNow;
         row.ApprovedBy = actor;
         await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
         return Project(row);
     }
 
@@ -316,6 +351,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         Guid capabilityId, PublishWorkingRevisionRequest request, string actor, CancellationToken ct)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
+        ProviderPublicationGuard.AuthorizeContext(db);
         var existing = await db.ProviderCapabilityReleases.AsNoTracking()
             .SingleOrDefaultAsync(x => x.CapabilityId == capabilityId && x.IdempotencyKey == request.IdempotencyKey, ct);
         if (existing is not null)
@@ -323,7 +359,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             EnsurePublicationReplayMatches(existing, request, true);
             return await ProjectPublishAsync(db, existing, true, ct);
         }
-        await using var transaction = db.Database.IsRelational()
+        await using var transaction = db.Database.IsRelational() && db.Database.CurrentTransaction is null
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
             : null;
         var revision = await db.ProviderCapabilityWorkingRevisions
@@ -341,7 +377,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             || !FixedEquals(revision.ApprovedPreviewHash, preview.PreviewHash)
             || !FixedEquals(preview.PreviewHash, request.PreviewHash))
             throw new DbUpdateConcurrencyException("Publication requires the exact approved preview.");
-        var currentPreview = await BuildPublicationPreviewAsync(db, revision, preview.ExpiresAt, ct);
+        var currentPreview = await BuildPublicationPreviewAsync(db, revision, preview.ExpiresAt, ct, ImpactIds(preview.PayloadJson));
         if (!FixedEquals(currentPreview.PreviewHash, preview.PreviewHash))
             throw new DbUpdateConcurrencyException(
                 "The approved publication preview inputs changed and the preview is stale.");
@@ -366,6 +402,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             IdempotencyKey = request.IdempotencyKey, PublishedBy = actor
         };
         db.ProviderCapabilityReleases.Add(release);
+        await ProviderPublicationGuard.AttachReleaseAsync(db, currentPreview.Binding, release, actor, ct);
         var currentDuties = JsonSerializer.Deserialize<Dictionary<string, string>>(revision.DutiesJson)
             ?? new Dictionary<string, string>();
         var capability = await db.CspInheritedCapabilities
@@ -1992,8 +2029,10 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         AtoCopilotContext db,
         ProviderCapabilityWorkingRevision working,
         DateTimeOffset expiresAt,
-        CancellationToken ct)
+        CancellationToken ct,
+        IReadOnlyList<Guid>? impactReviewIds = null)
     {
+        var binding = await ProviderPublicationGuard.WorkingAsync(db, working, impactReviewIds, ct);
         var capability = await db.CspInheritedCapabilities.AsNoTracking()
             .Include(x => x.CspInheritedComponent)
             .SingleOrDefaultAsync(x => x.Id == working.CapabilityId, ct)
@@ -2049,7 +2088,9 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             notifications,
             affectedOrganizations,
             affectedSystems,
-            expiresAt
+            expiresAt,
+            impactReviewIds = binding.Reviews.Select(x => x.Id).ToArray(),
+            contextSnapshotHash = binding.ContextHash
         });
         return new(
             Hash(canonicalPayload),
@@ -2060,7 +2101,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             affectedOrganizations,
             affectedSystems,
             delivery,
-            notifications);
+            notifications, binding);
     }
 
     private sealed record PublicationPreviewMaterial(
@@ -2072,7 +2113,15 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         IReadOnlyList<Guid> AffectedOrganizations,
         IReadOnlyList<PublicationAffectedSystem> AffectedSystems,
         PublicationDeliveryProjection Delivery,
-        PublicationNotificationProjection Notifications);
+        PublicationNotificationProjection Notifications,
+        ProviderPublicationGuard.Binding Binding);
+
+    private static Guid[] ImpactIds(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.TryGetProperty("impactReviewIds", out var ids)
+            ? ids.EnumerateArray().Select(x => x.GetGuid()).ToArray() : [];
+    }
 
     private static string[] ReadStringArray(string? snapshot, string property)
     {
