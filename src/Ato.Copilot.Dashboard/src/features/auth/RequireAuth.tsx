@@ -6,6 +6,7 @@ import { DEFAULT_API_SCOPES } from './msalInstance';
 import { useOptionalMe, type UseMeResult } from './useMe';
 import { WorkspaceStatus } from '../workspaces/WorkspaceBoundary';
 import { workspaceErrorMessage } from '../workspaces/api';
+import { isStaleSimulationSession } from './authErrors';
 
 /**
  * Feature 051 T051 [US1] — gate component for protected routes.
@@ -44,16 +45,21 @@ function SharedAuthentication({ identity, scoped, children }: {
   const { instance } = useMsal();
   const navigate = useNavigate();
   const status = (identity.error as { response?: { status?: number } } | null)?.response?.status;
+  const staleSimulation = isStaleSimulationSession(identity.error);
   useEffect(() => {
     if (status === 401) {
-      void instance.loginRedirect({
-        scopes: DEFAULT_API_SCOPES,
-        state: window.location.pathname + window.location.search + window.location.hash,
-      });
+      if (staleSimulation) {
+        navigate('/login?reason=simulation_identity_changed', { replace: true });
+      } else {
+        void instance.loginRedirect({
+          scopes: DEFAULT_API_SCOPES,
+          state: window.location.pathname + window.location.search + window.location.hash,
+        });
+      }
     } else if (status === 403 && !scoped) {
       navigate('/login/error?errorClass=NoTenantAssignment', { replace: true });
     }
-  }, [status, scoped, instance, navigate]);
+  }, [status, scoped, staleSimulation, instance, navigate]);
   if (identity.isLoading) return <WorkspaceStatus loading message="Checking authentication..." />;
   if (status === 401 || (status === 403 && !scoped)) return null;
   if (identity.error) return <WorkspaceStatus message={workspaceErrorMessage(identity.error)} onRetry={identity.refetch} />;
@@ -85,6 +91,11 @@ function LegacyRequireAuth({ children }: { children: ReactNode }) {
             : undefined;
 
         if (status === 401) {
+          if (isStaleSimulationSession(err)) {
+            setState('redirecting');
+            navigate('/login?reason=simulation_identity_changed', { replace: true });
+            return;
+          }
           // Not authenticated. Punt to Entra via MSAL with the deep-link
           // state preserved so the post-login callback returns the user
           // to the page they requested.

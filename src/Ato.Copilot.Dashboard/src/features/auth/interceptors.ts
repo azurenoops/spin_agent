@@ -2,6 +2,7 @@ import { CanceledError, type AxiosInstance, type InternalAxiosRequestConfig, typ
 import type { IPublicClientApplication } from '@azure/msal-browser';
 import { msalAccountKey, selectMsalAccount } from './accountSelection';
 import { assertWorkspaceRequestCurrent, captureWorkspaceRequest } from '../workspaces/workspaceTransport';
+import { isStaleSimulationSession } from './authErrors';
 
 /**
  * Internal flag we hang off the axios config to mark requests that are
@@ -103,6 +104,10 @@ export function attachAuthInterceptor(
       const status = error.response?.status;
       const msal = resolveMsal();
       assertRequestAccount(cfg, msal);
+
+      if (status === 401 && isStaleSimulationSession(error)) {
+        return Promise.reject(error);
+      }
 
       if (status === 401 && cfg && cfg[SILENT_RENEWAL] !== true && msal) {
         // First 401 — try a single silent-renewal retry.

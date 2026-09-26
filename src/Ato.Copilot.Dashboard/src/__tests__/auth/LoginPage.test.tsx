@@ -53,9 +53,9 @@ function makeConfig(overrides: Partial<LoginConfig> = {}): LoginConfig {
   };
 }
 
-function renderPage() {
+function renderPage(path = '/login') {
   return render(
-    <MemoryRouter initialEntries={['/login']}>
+    <MemoryRouter initialEntries={[path]}>
       <LoginPage />
     </MemoryRouter>,
   );
@@ -68,6 +68,30 @@ beforeEach(() => {
 // ─── Tests ──────────────────────────────────────────────────────────────
 
 describe('LoginPage', () => {
+  it('explains stale development-session recovery without starting another login', () => {
+    // Arrange
+    currentConfig = makeConfig({ simulation: { identities: [] } });
+
+    // Act
+    renderPage('/login?reason=simulation_identity_changed');
+
+    // Assert
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Your previous development sign-in is no longer available.');
+    expect(loginRedirect).not.toHaveBeenCalled();
+  });
+
+  it('does not show development-session recovery when simulation is unavailable', () => {
+    // Arrange
+    currentConfig = makeConfig({ simulation: null });
+
+    // Act
+    renderPage('/login?reason=simulation_identity_changed');
+
+    // Assert
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   it('renders the configured deployment name as a heading', () => {
     currentConfig = makeConfig();
 

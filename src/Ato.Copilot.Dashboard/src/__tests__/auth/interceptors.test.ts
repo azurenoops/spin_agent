@@ -85,6 +85,31 @@ describe('attachAuthInterceptor', () => {
     window.history.replaceState({}, '', '/dashboard/systems?id=123');
   });
 
+  it.each([true, false])('preserves stale simulation errors without bearer renewal (account: %s)', async hasAccount => {
+    // Arrange
+    const ax = buildAxios([{
+      status: 401,
+      data: { status: 'error', data: { errorCode: 'SIMULATED_IDENTITY_NOT_FOUND' } },
+    }]);
+    const originalAdapter = ax.defaults.adapter;
+    if (typeof originalAdapter !== 'function') throw new Error('Expected the synthetic request adapter');
+    const adapter = vi.fn(originalAdapter);
+    ax.defaults.adapter = adapter;
+    const msal = buildMsalMock({ hasAccount });
+    attachAuthInterceptor(ax, Object.assign({}, stubbedPublicClientApplication, msal), []);
+
+    // Act
+    const request = ax.get('/api/auth/me');
+
+    // Assert
+    await expect(request).rejects.toMatchObject({
+      response: { status: 401, data: { data: { errorCode: 'SIMULATED_IDENTITY_NOT_FOUND' } } },
+    });
+    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(msal.acquireTokenSilent).toHaveBeenCalledTimes(hasAccount ? 1 : 0);
+    expect(msal.loginRedirect).not.toHaveBeenCalled();
+  });
+
   it('acquires for the active account rather than the first cached account', async () => {
     // Arrange
     const ax = buildAxios([{ status: 200 }]);
