@@ -1,7 +1,8 @@
-import { useId, type ReactNode } from 'react';
-import { Check, Info } from 'lucide-react';
+import { useState, useId, type ReactNode } from 'react';
+import { Check, Info, UserRound, ShieldCheck } from 'lucide-react';
 import type { InitialAdministrator, OrganizationCreationRequest, ProvisioningResult } from './types';
-import { inputClass } from './workspaceUi';
+import { inputClass, secondaryButtonClass } from './workspaceUi';
+import { EntraUserPicker } from './EntraUserPicker';
 
 export const setupCard = 'min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900';
 export const emptyOrganization = { displayName: '', legalEntityName: '', primaryPocName: '', primaryPocEmail: '' };
@@ -84,11 +85,31 @@ export function AdministratorInputs({ fields, newPerson, onNewPerson, onChange, 
   onChange: (key: keyof AdministratorFields, value: string) => void; errors: FieldErrors;
 }) {
   const group = useId();
-  return <div className="space-y-4">
+  const [mode, setMode] = useState<'directory' | 'manual'>(() => fields.objectId ? 'manual' : 'directory');
+  const [selected, setSelected] = useState(false);
+  return <div className="space-y-5">
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Administrator identity source">
+      <button type="button" aria-pressed={mode === 'directory'} className={`${secondaryButtonClass} ${mode === 'directory' ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-300 dark:bg-indigo-950' : ''}`} onClick={() => setMode('directory')}>Find in Entra</button>
+      <button type="button" aria-pressed={mode === 'manual'} className={secondaryButtonClass} onClick={() => { setMode('manual'); setSelected(false); }}>Enter manually</button>
+    </div>
+    {mode === 'directory' && !selected && Object.keys(errors).length > 0 && <p role="alert" className="text-sm text-red-700 dark:text-red-300">Select a person from Entra, enter their details manually, or complete enrollment later.</p>}
+    {mode === 'directory' && !selected && <EntraUserPicker onSelect={user => {
+      onChange('directoryTenantId', user.directoryTenantId); onChange('objectId', user.objectId);
+      onChange('displayName', user.displayName); onChange('email', user.email);
+      onNewPerson(true); setSelected(true);
+    }} />}
+    {mode === 'directory' && selected && <div className="space-y-4 rounded-xl border border-indigo-200 bg-indigo-50/50 p-5 dark:border-indigo-800 dark:bg-indigo-950/40">
+      <div className="flex items-start gap-3"><span className="rounded-full bg-indigo-100 p-3 text-indigo-700"><UserRound size={24} /></span><div className="min-w-0 flex-1"><p className="text-xs font-medium uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Selected administrator</p><h3 className="mt-1 break-words text-lg font-semibold">{fields.displayName}</h3><p className="break-all text-sm text-slate-600 dark:text-slate-300">{fields.email}</p></div></div>
+      <p className="flex gap-2 text-sm"><ShieldCheck size={18} className="shrink-0 text-indigo-600" />Organization Administrator · assigned after confirmation</p>
+      <button type="button" className={secondaryButtonClass} onClick={() => { setSelected(false); for (const key of ['directoryTenantId', 'objectId', 'displayName', 'email'] as const) onChange(key, ''); }}>Choose another person</button>
+    </div>}
+    {(mode === 'manual' || selected) && <div className="space-y-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+    {mode === 'manual' && <p className="text-xs text-slate-500">Manual identity details are not checked against Entra.</p>}
     <fieldset className="space-y-2 text-sm"><legend className="mb-2 font-semibold">Organization-local Person</legend>
       <label className="flex gap-2"><input type="radio" name={group} checked={newPerson} onChange={() => onNewPerson(true)} />Create a Person record for this administrator</label>
       <label className="flex gap-2"><input type="radio" name={group} checked={!newPerson} onChange={() => onNewPerson(false)} />Use an existing Person record</label>
     </fieldset>
+    <details open={mode === 'manual' || Object.keys(errors).length > 0} className="space-y-3"><summary className="cursor-pointer text-sm font-medium">Identity details</summary>
     <SetupField label="Directory tenant ID" value={fields.directoryTenantId} onChange={value => onChange('directoryTenantId', value)} error={errors.directoryTenantId} />
     <SetupField label="User object ID" value={fields.objectId} onChange={value => onChange('objectId', value)} error={errors.objectId} />
     {newPerson ? <>
@@ -99,7 +120,9 @@ export function AdministratorInputs({ fields, newPerson, onNewPerson, onChange, 
       <SetupField label="Person record ID" value={fields.personId} onChange={value => onChange('personId', value)} error={errors.personId} />
       <p className="text-xs text-slate-500">The Person must belong to this organization. For a new organization, create a Person record instead.</p>
     </>}
-    <p className="text-xs text-slate-500">Directory identifiers are entered manually and are not verified here. No invitation is sent.</p>
+    </details>
+    <p className="text-xs text-slate-500">Confirm the identity details before continuing. No invitation is sent.</p>
+    </div>}
   </div>;
 }
 

@@ -8,6 +8,7 @@ import { emptyOrganization, validateOrganization } from '../../features/workspac
 
 vi.mock('../../features/workspace-operations/api', async importOriginal => ({
   ...(await importOriginal<typeof api>()),
+  getDirectoryConnections: vi.fn(),
   createOrganization: vi.fn(), getOrganizationCreation: vi.fn(),
   getOrganization: vi.fn(), getOrganizationProvisioning: vi.fn(),
   getCurrentOrganizationProvisioning: vi.fn(), beginOrganizationProvisioning: vi.fn(),
@@ -51,6 +52,7 @@ function defer() {
   fireEvent.click(screen.getByRole('button', { name: 'Review setup' }));
 }
 function identity() {
+  fireEvent.click(screen.getByRole('button', { name: 'Enter manually' }));
   fireEvent.change(screen.getByLabelText('Directory tenant ID'), { target: { value: directory } });
   fireEvent.change(screen.getByLabelText('User object ID'), { target: { value: object } });
   fireEvent.change(screen.getByLabelText('Administrator name'), { target: { value: 'Separate administrator' } });
@@ -58,6 +60,7 @@ function identity() {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(api.getDirectoryConnections).mockResolvedValue([]);
   permissions.canAccessCsp = true;
   vi.mocked(api.createOrganization).mockResolvedValue(created);
   vi.mocked(api.getOrganizationCreation).mockResolvedValue(null);
@@ -138,6 +141,7 @@ describe('CSP Add Organization approved flow', () => {
   it('retains existing Person identifiers without accepting invalid GUIDs', () => {
     // Arrange
     page(); details();
+    fireEvent.click(screen.getByRole('button', { name: 'Enter manually' }));
     fireEvent.click(screen.getByLabelText('Use an existing Person record'));
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Review setup' }));
@@ -167,6 +171,7 @@ describe('CSP Add Organization approved flow', () => {
     // Act
     const now = screen.getByLabelText('Enroll administrator now');
     const later = screen.getByLabelText('Complete enrollment later');
+    fireEvent.click(screen.getByRole('button', { name: 'Enter manually' }));
     const create = screen.getByLabelText('Create a Person record for this administrator');
     const existing = screen.getByLabelText('Use an existing Person record');
     // Assert

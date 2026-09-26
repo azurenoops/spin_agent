@@ -22,6 +22,7 @@ async function capture(page: Page, info: TestInfo, name: string) {
 
 async function fixture(context: BrowserContext, baseURL: string, failFirst = false) {
   await installWorkspaceFixture(context, baseURL, { providerOnly: true });
+  await context.route('**/api/csp/directory/connections', route => route.fulfill({ json: { data: [] } }));
   let saved: ProvisioningResult = { ...initial };
   let creates = 0;
   let resumes = 0;
@@ -91,6 +92,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('Enter an organization name.')).toHaveCount(0);
     await capture(page, info, 'organization-details');
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('button', { name: 'Enter manually' }).click();
     await page.getByLabel('Directory tenant ID', { exact: true }).fill(directory);
     await page.getByLabel('User object ID', { exact: true }).fill(object);
     await page.getByLabel('Administrator name', { exact: true }).fill('Jordan Lee');

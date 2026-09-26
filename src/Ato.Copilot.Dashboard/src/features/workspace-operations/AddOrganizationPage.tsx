@@ -129,7 +129,7 @@ export default function AddOrganizationPage() {
         event.preventDefault();
         if (step < 3) advance(); else void create(request);
       }} className="space-y-5">
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.8fr)_minmax(260px,1fr)]">
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-4">
             <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold">{step === 1 ? 'Organization details' : step === 2 ? 'Initial administrator' : 'Review organization setup'}</h2>
             {step === 1 && <section className={`${setupCard} space-y-4`}>
@@ -146,9 +146,9 @@ export default function AddOrganizationPage() {
             </section>}
             {step === 2 && <section className={`${setupCard} space-y-5`}>
               <p className="rounded bg-indigo-50 p-3 text-sm text-indigo-950 dark:bg-indigo-950 dark:text-indigo-100">Organization: {organization.displayName}</p>
-              <fieldset className="space-y-3 text-sm"><legend className="mb-2 font-semibold">Administrator enrollment</legend>
-                <label className="flex gap-2"><input type="radio" name="administrator-enrollment" checked={enroll} onChange={() => { setEnroll(true); setErrors({}); }} />Enroll administrator now</label>
-                <label className="flex gap-2"><input type="radio" name="administrator-enrollment" checked={!enroll} onChange={() => { setEnroll(false); setErrors({}); }} />Complete enrollment later</label>
+              <fieldset className="grid gap-3 text-sm sm:grid-cols-2"><legend className="mb-3 font-semibold">Administrator enrollment</legend>
+                <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:border-slate-700 dark:has-[:checked]:bg-indigo-950"><input type="radio" name="administrator-enrollment" checked={enroll} onChange={() => { setEnroll(true); setErrors({}); }} />Enroll administrator now</label>
+                <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:border-slate-700 dark:has-[:checked]:bg-indigo-950"><input type="radio" name="administrator-enrollment" checked={!enroll} onChange={() => { setEnroll(false); setErrors({}); }} />Complete enrollment later</label>
               </fieldset>
               {enroll && <AdministratorInputs fields={administrator} newPerson={newPerson} onNewPerson={value => { setNewPerson(value); setErrors({}); }}
                 errors={errors} onChange={(field, value) => {
@@ -174,8 +174,8 @@ export default function AddOrganizationPage() {
           </div>
           <aside className="space-y-4">
             <SetupInfo><strong>Create the organization once.</strong><p className="mt-2">Nothing is saved before you confirm. After creation, saved setup work can be resumed from Organizations.</p></SetupInfo>
-            <SetupInfo><strong>Organization Administration manages membership.</strong><p className="mt-2">System and RMF roles are assigned separately. No systems, capability subscriptions, support sessions or ATO decisions are created here.</p></SetupInfo>
-            <SetupInfo><strong>No automatic identity lookup.</strong><p className="mt-2">Use identifiers supplied through your authorized identity process. The primary contact is not automatically selected as administrator.</p></SetupInfo>
+            <SetupInfo><strong>Organization Administrator</strong><p className="mt-2">Manages this organization’s membership. System and RMF responsibilities are assigned separately.</p></SetupInfo>
+            <SetupInfo><strong>Choose the right person.</strong><p className="mt-2">Find a user in your connected Entra directory. Review their identity before granting access; your primary contact is not selected automatically.</p></SetupInfo>
           </aside>
         </div>
         {Object.keys(errors).length > 0 && <p role="alert" className={errorClass}>Correct the highlighted fields before continuing.</p>}
