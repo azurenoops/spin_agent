@@ -20,6 +20,22 @@ public sealed partial class CapabilityResponsibilityService(
     private const string DesignationSource = "CspSubscription";
     private Guid TenantId => tenant.EffectiveTenantId;
 
+    public async Task<CapabilityResponsibilityResponse> ReconcileSetupAsync(
+        AtoCopilotContext context, string systemId, string actor, CancellationToken ct = default)
+    {
+        var result = await access.GetAccessAsync(TenantId, tenant.PersonId, systemId, tenant.IsCspAdmin, ct);
+        if (!result.Permissions.CanRead || !await context.RegisteredSystems.AnyAsync(
+                s => s.Id == systemId && s.TenantId == TenantId && s.IsActive, ct))
+            throw new KeyNotFoundException("System not found.");
+        if (!result.Permissions.CanManageSystem)
+            throw new UnauthorizedAccessException("Current selected-system management permission is required.");
+        var service = new CapabilityResponsibilityService(context, tenant, access, logger);
+        var state = await service.LoadAsync(systemId, ct);
+        await service.ApplyAsync(state, actor, "SystemApplicabilityChanged", ct);
+        return await service.ResponseAsync(state, !tenant.IsCspAdmin
+            && result.Roles.Any(r => r is nameof(RmfRole.Isso) or nameof(RmfRole.Issm)), ct);
+    }
+
     public async Task<bool> AuthorizeAsync(string systemId, bool write, CancellationToken ct = default)
     {
         var result = await access.GetAccessAsync(TenantId, tenant.PersonId, systemId, tenant.IsCspAdmin, ct);
@@ -166,7 +182,8 @@ public sealed partial class CapabilityResponsibilityService(
                     SourceRevision = source.Revision, SourceSnapshotJson = source.Snapshot,
                     InheritanceType = Enum.Parse<InheritanceType>(allocation.InheritanceType),
                     Provider = allocation.Provider, CustomerResponsibility = allocation.CustomerResponsibility,
-                    ConfirmedBy = actor
+                    ConfirmedBy = actor, ProviderCoverageVerified = request.ProviderCoverageVerified,
+                    CustomerDutiesReviewed = request.CustomerDutiesReviewed, ReviewNotes = request.ReviewNotes?.Trim()
                 });
             await db.SaveChangesAsync(ct);
             state = await LoadAsync(systemId, ct);
@@ -179,10 +196,11 @@ public sealed partial class CapabilityResponsibilityService(
         ArgumentException.ThrowIfNullOrWhiteSpace(actor);
         if (actor.Length > 200) throw new ArgumentException("Actor is too long.");
         await AuthorizeAsync(systemId, true, ct);
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        await using var transaction = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         var result = await mutation();
         await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
         logger.LogInformation("Reconciled subscription responsibilities for system {SystemId} in tenant {TenantId}", systemId, TenantId);
         return result;
     }
@@ -223,6 +241,7 @@ public sealed partial class CapabilityResponsibilityService(
 
     private static void ValidateConfirmation(State state, Source source, ConfirmCapabilityResponsibilitiesRequest request)
     {
+        request.ValidateReviewEvidence();
         if (state.Baseline is null || request.BaselineId != state.Baseline.Id)
             throw new ResponsibilityReviewConflictException("The baseline changed or is missing. Refresh before confirming.");
         if (request.SourceRevision != source.Revision || source.Capability is null || !Available(source.Capability))
@@ -252,7 +271,11 @@ public sealed partial class CapabilityResponsibilityService(
     }
 
     private void AddActivity(string systemId, string subscriptionId, string actor, string type, string summary) =>
-        db.DashboardActivities.Add(new()
+        AddSubscriptionActivity(db, systemId, subscriptionId, actor, type, summary);
+
+    internal static void AddSubscriptionActivity(AtoCopilotContext context, string systemId,
+        string subscriptionId, string actor, string type, string summary) =>
+        context.DashboardActivities.Add(new()
         {
             RegisteredSystemId = systemId, Actor = actor, EventType = type,
             Summary = summary, RelatedEntityType = "CapabilitySubscription", RelatedEntityId = subscriptionId

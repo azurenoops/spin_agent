@@ -21,6 +21,9 @@ public sealed class CapabilityResponsibilityConfirmation
     [MaxLength(200)] public string ConfirmedBy { get; set; } = string.Empty;
     public DateTimeOffset ConfirmedAt { get; set; } = DateTimeOffset.UtcNow;
     public bool IsCurrent { get; set; } = true;
+    public bool? ProviderCoverageVerified { get; set; }
+    public bool? CustomerDutiesReviewed { get; set; }
+    [MaxLength(2000)] public string? ReviewNotes { get; set; }
 }
 
 /// <summary>Ownership and compare-before-write token for a subscription-derived designation.</summary>

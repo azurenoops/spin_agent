@@ -10,7 +10,18 @@ public sealed record CapabilityResponsibilityAllocation(
 /// <summary>Confirmation pins the baseline, provider content, and previously displayed review state.</summary>
 public sealed record ConfirmCapabilityResponsibilitiesRequest(
     string BaselineId, string SourceRevision, string ReviewRevision,
-    IReadOnlyList<CapabilityResponsibilityAllocation> Allocations);
+    IReadOnlyList<CapabilityResponsibilityAllocation> Allocations,
+    bool? ProviderCoverageVerified = null, bool? CustomerDutiesReviewed = null, string? ReviewNotes = null)
+{
+    public void ValidateReviewEvidence(bool required = false)
+    {
+        if (!required && ProviderCoverageVerified is null && CustomerDutiesReviewed is null && ReviewNotes is null)
+            return;
+        if (ProviderCoverageVerified != true || CustomerDutiesReviewed != true
+            || string.IsNullOrWhiteSpace(ReviewNotes) || ReviewNotes.Trim().Length > 2000)
+            throw new ArgumentException("Verify provider coverage, review customer duties, and supply review notes of 1-2000 characters.");
+    }
+}
 
 /// <summary>One source contribution and its persisted/effective responsibility state.</summary>
 public sealed record CapabilityResponsibilityItem(
@@ -18,7 +29,8 @@ public sealed record CapabilityResponsibilityItem(
     string ControlId, string SourceRevision, string ReviewRevision, string State,
     string? ReviewedSourceRevision, string? ConfirmedBy, DateTimeOffset? ConfirmedAt,
     CapabilityResponsibilityAllocation? Allocation, string? EffectiveInheritanceType, string? DesignationSource,
-    bool SourceAvailable, string? SourceSnapshotJson, string? ReviewedSourceSnapshotJson);
+    bool SourceAvailable, string? SourceSnapshotJson, string? ReviewedSourceSnapshotJson,
+    bool? ProviderCoverageVerified = null, bool? CustomerDutiesReviewed = null, string? ReviewNotes = null);
 
 /// <summary>Durable pending change impact, independent of narrative generation or approval.</summary>
 public sealed record CapabilityResponsibilityImpactResponse(
@@ -38,6 +50,9 @@ public sealed record CapabilitySubscriptionChangeResponse(
 /// <summary>Scoped system authorization and transactional subscription responsibility reconciliation.</summary>
 public interface ICapabilityResponsibilityService
 {
+    /// <summary>Reconciles an authorized setup mutation in its existing transaction; does not confirm customer allocations.</summary>
+    Task<CapabilityResponsibilityResponse> ReconcileSetupAsync(
+        Ato.Copilot.Core.Data.Context.AtoCopilotContext context, string systemId, string actor, CancellationToken ct = default);
     Task<bool> AuthorizeAsync(string systemId, bool write, CancellationToken ct = default);
     Task<CapabilityResponsibilityResponse> PreviewAsync(string systemId, CancellationToken ct = default);
     Task<CapabilityResponsibilityResponse> ReconcileAsync(string systemId, string actor, CancellationToken ct = default);
