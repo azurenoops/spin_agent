@@ -1,5 +1,5 @@
 import { CanceledError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
-import { buildWorkspaceUrl, parseWorkspaceUrl } from './workspaceRoutes';
+import { buildWorkspaceUrl, parseWorkspaceUrl, type WorkspaceTarget } from './workspaceRoutes';
 
 type WorkspaceRequestConfig = InternalAxiosRequestConfig & {
   _workspaceRequestKey?: string;
@@ -7,8 +7,10 @@ type WorkspaceRequestConfig = InternalAxiosRequestConfig & {
 
 const WORKSPACE_HEADERS = ['X-Workspace-Kind', 'X-Workspace-Tenant-Id', 'X-Workspace-Mode'];
 
-function activeWorkspace() {
-  return parseWorkspaceUrl(window.location.pathname)?.workspace ?? null;
+function activeWorkspace(): WorkspaceTarget | null {
+  const path = window.location.pathname;
+  if (path === '/onboarding/csp' || path === '/onboarding/csp/') return { kind: 'csp' };
+  return parseWorkspaceUrl(path)?.workspace ?? null;
 }
 
 export function captureWorkspaceSnapshot(): { key: string; headers: Record<string, string> } {
