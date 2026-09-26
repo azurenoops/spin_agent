@@ -82,6 +82,9 @@ public class AzureAiOptions
     /// <summary>Whether to use DefaultAzureCredential instead of API key.</summary>
     public bool UseManagedIdentity { get; set; } = true;
 
+    /// <summary>Opt in to max_completion_tokens for deployments that reject legacy max_tokens.</summary>
+    public bool UseMaxCompletionTokens { get; set; }
+
     /// <summary>Azure cloud environment: AzurePublicCloud or AzureGovernment.</summary>
     public string CloudEnvironment { get; set; } = "AzurePublicCloud";
 
