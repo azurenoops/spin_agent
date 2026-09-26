@@ -1,76 +1,835 @@
 {
-  "fixture": "TEST-ATO-HARBOR-001",
+  "fixture": "SYN-FS-IL5-001",
   "synthetic": true,
   "expectationsType": "target-workflow acceptance criteria, not a recorded application result",
-  "components": [
+  "uniqueComponentCount": 12,
+  "uniqueCapabilityCount": 24,
+  "notes": [
+    "PDF, workbook and JSON repeat the same identities; do not multiply records.",
+    "Forty control narratives are a representative subset, not a complete IL5 baseline.",
+    "Four fictional evidence samples are included; twelve requested artifacts are absent.",
+    "No authorization is effective. Proposed draft dates are not issued-decision dates.",
+    "Findings and POAMs are not capabilities, and imported plans do not close findings.",
+    "All generated inventory remains unpublished pending human review and exact approval.",
+    "Semantic extraction and application review may be partial; structural checks are not acceptance."
+  ],
+  "attentionEntries": [
     {
-      "fixtureId": "CMP-001",
-      "name": "Harbor Identity Service",
-      "sourcePage": 3,
-      "capabilities": [
-        {
-          "fixtureId": "CAP-001",
-          "name": "Multi factor authentication",
-          "control": "IA-2"
-        },
-        {
-          "fixtureId": "CAP-002",
-          "name": "Account lifecycle management",
-          "control": "AC-2"
-        }
-      ]
+      "path": "07-encrypted-appendix.pdf",
+      "expected": "Unreadable",
+      "reason": "Actually encrypted with a public fixture password; do not silently skip."
     },
     {
-      "fixtureId": "CMP-002",
-      "name": "Harbor Key Vault",
-      "sourcePage": 4,
-      "capabilities": [
-        {
-          "fixtureId": "CAP-003",
-          "name": "Cryptographic key management",
-          "control": "SC-12"
-        }
-      ]
+      "path": "08-malformed-source.json",
+      "expected": "Failed",
+      "reason": "Intentionally invalid JSON syntax; not a valid source with zero candidates."
     },
     {
-      "fixtureId": "CMP-003",
-      "name": "Harbor Backup Service",
-      "sourcePage": 5,
-      "capabilities": [
-        {
-          "fixtureId": "CAP-004",
-          "name": "Backup and recovery",
-          "control": "CP-9"
-        }
-      ]
-    },
-    {
-      "fixtureId": "CMP-004",
-      "name": "Harbor Security Monitoring",
-      "sourcePage": 6,
-      "capabilities": [
-        {
-          "fixtureId": "CAP-005",
-          "name": "Security event monitoring",
-          "control": "AU-6"
-        },
-        {
-          "fixtureId": "CAP-006",
-          "name": "Incident escalation",
-          "control": "IR-4"
-        }
-      ]
+      "path": "09-unsupported-appendix.synthetic",
+      "expected": "Unsupported",
+      "reason": "Deliberately unsupported extension; retain and account for the entry."
     }
   ],
-  "uniqueComponentCount": 4,
-  "uniqueCapabilityCount": 6,
-  "notes": [
-    "JSON repeats the same four PDF components; reconcile identities rather than create eight.",
-    "Current PDF extraction may produce a system-level candidate instead of all four components.",
-    "Capability mapping is AI-dependent; exact candidate counts are target semantic expectations, not guaranteed current outputs.",
-    "Assessment findings and POAM items are not capabilities.",
-    "No records publish during upload or onboarding completion.",
-    "All extracted components and capabilities await portal review, approval and explicit publication.",
-    "Authorization reference stays unconfirmed until reviewed."
+  "components": [
+    {
+      "fixtureId": "FS-CMP-001",
+      "name": "Tenant identity and federation",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 10,
+        "section": "FS-CMP-001"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-002",
+      "name": "Privileged administration",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 11,
+        "section": "FS-CMP-002"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-003",
+      "name": "Exchange Online DoD messaging",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 12,
+        "section": "FS-CMP-003"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-004",
+      "name": "SharePoint Online DoD collaboration",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 13,
+        "section": "FS-CMP-004"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-005",
+      "name": "OneDrive DoD individual workspaces",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 14,
+        "section": "FS-CMP-005"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-006",
+      "name": "Teams DoD collaboration and meetings",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 15,
+        "section": "FS-CMP-006"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-007",
+      "name": "Tenant device and access-compliance interface",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 16,
+        "section": "FS-CMP-007"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-008",
+      "name": "Tenant audit and monitoring",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 17,
+        "section": "FS-CMP-008"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-009",
+      "name": "Information protection and sharing policies",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 18,
+        "section": "FS-CMP-009"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-010",
+      "name": "Records retention and legal hold",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 19,
+        "section": "FS-CMP-010"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-011",
+      "name": "Configuration and change governance",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 20,
+        "section": "FS-CMP-011"
+      }
+    },
+    {
+      "fixtureId": "FS-CMP-012",
+      "name": "Continuity and recovery coordination",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 21,
+        "section": "FS-CMP-012"
+      }
+    }
+  ],
+  "capabilities": [
+    {
+      "fixtureId": "FS-CAP-001",
+      "name": "Workforce identity lifecycle coordination",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 10,
+        "section": "FS-CAP-001"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-002",
+      "name": "Federated authentication policy assurance",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 10,
+        "section": "FS-CAP-002"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-003",
+      "name": "Least-privilege assignment review",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 11,
+        "section": "FS-CAP-003"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-004",
+      "name": "Emergency administrative access accountability",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 11,
+        "section": "FS-CAP-004"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-005",
+      "name": "Controlled mail routing",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 12,
+        "section": "FS-CAP-005"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-006",
+      "name": "Mailbox delegation accountability",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 12,
+        "section": "FS-CAP-006"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-007",
+      "name": "Site permission and owner governance",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 13,
+        "section": "FS-CAP-007"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-008",
+      "name": "Named-recipient site sharing",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 13,
+        "section": "FS-CAP-008"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-009",
+      "name": "Individual-workspace sharing restrictions",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 14,
+        "section": "FS-CAP-009"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-010",
+      "name": "Departing-user content handoff",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 14,
+        "section": "FS-CAP-010"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-011",
+      "name": "Workspace membership and federation governance",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 15,
+        "section": "FS-CAP-011"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-012",
+      "name": "Meeting admission and collaboration policy",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 15,
+        "section": "FS-CAP-012"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-013",
+      "name": "Posture-aware tenant access decisions",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 16,
+        "section": "FS-CAP-013"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-014",
+      "name": "Access-interface assurance handoff",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 16,
+        "section": "FS-CAP-014"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-015",
+      "name": "Audit source and retention reconciliation",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 17,
+        "section": "FS-CAP-015"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-016",
+      "name": "Security event triage and escalation",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 17,
+        "section": "FS-CAP-016"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-017",
+      "name": "Content classification and handling governance",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 18,
+        "section": "FS-CAP-017"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-018",
+      "name": "Sharing exception lifecycle",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 18,
+        "section": "FS-CAP-018"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-019",
+      "name": "Records schedule and disposition coordination",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 19,
+        "section": "FS-CAP-019"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-020",
+      "name": "Legal-hold preservation coordination",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 19,
+        "section": "FS-CAP-020"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-021",
+      "name": "Tenant baseline and component inventory",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 20,
+        "section": "FS-CAP-021"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-022",
+      "name": "Policy change and drift governance",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 20,
+        "section": "FS-CAP-022"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-023",
+      "name": "Outage communication and continuity coordination",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 21,
+        "section": "FS-CAP-023"
+      }
+    },
+    {
+      "fixtureId": "FS-CAP-024",
+      "name": "Workload recovery rehearsal and reconciliation",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 21,
+        "section": "FS-CAP-024"
+      }
+    }
+  ],
+  "controls": [
+    {
+      "fixtureId": "AC-2",
+      "name": "Account Management",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 27,
+        "section": "AC-2"
+      }
+    },
+    {
+      "fixtureId": "AC-3",
+      "name": "Access Enforcement",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 28,
+        "section": "AC-3"
+      }
+    },
+    {
+      "fixtureId": "AC-4",
+      "name": "Information Flow Enforcement",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 29,
+        "section": "AC-4"
+      }
+    },
+    {
+      "fixtureId": "AC-6",
+      "name": "Least Privilege",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 30,
+        "section": "AC-6"
+      }
+    },
+    {
+      "fixtureId": "AC-17",
+      "name": "Remote Access",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 31,
+        "section": "AC-17"
+      }
+    },
+    {
+      "fixtureId": "AC-20",
+      "name": "Use of External Systems",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 32,
+        "section": "AC-20"
+      }
+    },
+    {
+      "fixtureId": "AT-2",
+      "name": "Literacy Training and Awareness",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 33,
+        "section": "AT-2"
+      }
+    },
+    {
+      "fixtureId": "AU-2",
+      "name": "Event Logging",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 34,
+        "section": "AU-2"
+      }
+    },
+    {
+      "fixtureId": "AU-3",
+      "name": "Content of Audit Records",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 35,
+        "section": "AU-3"
+      }
+    },
+    {
+      "fixtureId": "AU-6",
+      "name": "Audit Record Review, Analysis, and Reporting",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 36,
+        "section": "AU-6"
+      }
+    },
+    {
+      "fixtureId": "AU-9",
+      "name": "Protection of Audit Information",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 37,
+        "section": "AU-9"
+      }
+    },
+    {
+      "fixtureId": "AU-11",
+      "name": "Audit Record Retention",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 38,
+        "section": "AU-11"
+      }
+    },
+    {
+      "fixtureId": "CA-2",
+      "name": "Control Assessments",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 39,
+        "section": "CA-2"
+      }
+    },
+    {
+      "fixtureId": "CA-3",
+      "name": "Information Exchange",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 40,
+        "section": "CA-3"
+      }
+    },
+    {
+      "fixtureId": "CA-7",
+      "name": "Continuous Monitoring",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 41,
+        "section": "CA-7"
+      }
+    },
+    {
+      "fixtureId": "CM-2",
+      "name": "Baseline Configuration",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 42,
+        "section": "CM-2"
+      }
+    },
+    {
+      "fixtureId": "CM-3",
+      "name": "Configuration Change Control",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 43,
+        "section": "CM-3"
+      }
+    },
+    {
+      "fixtureId": "CM-6",
+      "name": "Configuration Settings",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 44,
+        "section": "CM-6"
+      }
+    },
+    {
+      "fixtureId": "CM-8",
+      "name": "System Component Inventory",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 45,
+        "section": "CM-8"
+      }
+    },
+    {
+      "fixtureId": "CP-2",
+      "name": "Contingency Plan",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 46,
+        "section": "CP-2"
+      }
+    },
+    {
+      "fixtureId": "CP-4",
+      "name": "Contingency Plan Testing",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 47,
+        "section": "CP-4"
+      }
+    },
+    {
+      "fixtureId": "CP-9",
+      "name": "System Backup",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 48,
+        "section": "CP-9"
+      }
+    },
+    {
+      "fixtureId": "CP-10",
+      "name": "System Recovery and Reconstitution",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 49,
+        "section": "CP-10"
+      }
+    },
+    {
+      "fixtureId": "IA-2",
+      "name": "Identification and Authentication (Organizational Users)",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 50,
+        "section": "IA-2"
+      }
+    },
+    {
+      "fixtureId": "IA-5",
+      "name": "Authenticator Management",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 51,
+        "section": "IA-5"
+      }
+    },
+    {
+      "fixtureId": "IR-4",
+      "name": "Incident Handling",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 52,
+        "section": "IR-4"
+      }
+    },
+    {
+      "fixtureId": "IR-6",
+      "name": "Incident Reporting",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 53,
+        "section": "IR-6"
+      }
+    },
+    {
+      "fixtureId": "MA-2",
+      "name": "Controlled Maintenance",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 54,
+        "section": "MA-2"
+      }
+    },
+    {
+      "fixtureId": "MP-6",
+      "name": "Media Sanitization",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 55,
+        "section": "MP-6"
+      }
+    },
+    {
+      "fixtureId": "PE-3",
+      "name": "Physical Access Control",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 56,
+        "section": "PE-3"
+      }
+    },
+    {
+      "fixtureId": "PL-2",
+      "name": "System Security and Privacy Plans",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 57,
+        "section": "PL-2"
+      }
+    },
+    {
+      "fixtureId": "PS-4",
+      "name": "Personnel Termination",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 58,
+        "section": "PS-4"
+      }
+    },
+    {
+      "fixtureId": "PT-2",
+      "name": "Authority to Process Personally Identifiable Information",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 59,
+        "section": "PT-2"
+      }
+    },
+    {
+      "fixtureId": "RA-5",
+      "name": "Vulnerability Monitoring and Scanning",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 60,
+        "section": "RA-5"
+      }
+    },
+    {
+      "fixtureId": "SA-9",
+      "name": "External System Services",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 61,
+        "section": "SA-9"
+      }
+    },
+    {
+      "fixtureId": "SC-7",
+      "name": "Boundary Protection",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 62,
+        "section": "SC-7"
+      }
+    },
+    {
+      "fixtureId": "SC-8",
+      "name": "Transmission Confidentiality and Integrity",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 63,
+        "section": "SC-8"
+      }
+    },
+    {
+      "fixtureId": "SC-13",
+      "name": "Cryptographic Protection",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 64,
+        "section": "SC-13"
+      }
+    },
+    {
+      "fixtureId": "SC-28",
+      "name": "Protection of Information at Rest",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 65,
+        "section": "SC-28"
+      }
+    },
+    {
+      "fixtureId": "SI-2",
+      "name": "Flaw Remediation",
+      "source": {
+        "artifact": "01-flankspeed-il5-ssp.pdf",
+        "page": 66,
+        "section": "SI-2"
+      }
+    }
+  ],
+  "findings": [
+    {
+      "fixtureId": "FS-FIND-001",
+      "name": "Synthetic gap: two privileged assignments lack current independent review",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 4,
+        "section": "FS-FIND-001"
+      }
+    },
+    {
+      "fixtureId": "FS-FIND-002",
+      "name": "Synthetic gap: guest-sharing exception lacks expiry and complete exchange approval",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 5,
+        "section": "FS-FIND-002"
+      }
+    },
+    {
+      "fixtureId": "FS-FIND-003",
+      "name": "Synthetic gap: Teams policy events absent from audit-source coverage",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 6,
+        "section": "FS-FIND-003"
+      }
+    },
+    {
+      "fixtureId": "FS-FIND-004",
+      "name": "Synthetic gap: recovery rehearsal does not cover all workloads or permissions",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 7,
+        "section": "FS-FIND-004"
+      }
+    },
+    {
+      "fixtureId": "FS-FIND-005",
+      "name": "Synthetic gap: provider inheritance and cryptographic applicability evidence not supplied",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 8,
+        "section": "FS-FIND-005"
+      }
+    },
+    {
+      "fixtureId": "FS-FIND-006",
+      "name": "Synthetic gap: blocked retention proposal lacks resolved legal-hold precedence",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 9,
+        "section": "FS-FIND-006"
+      }
+    }
+  ],
+  "poams": [
+    {
+      "fixtureId": "FS-POAM-001",
+      "name": "FS-POAM-001",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 10,
+        "section": "FS-POAM-001"
+      }
+    },
+    {
+      "fixtureId": "FS-POAM-002",
+      "name": "FS-POAM-002",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 11,
+        "section": "FS-POAM-002"
+      }
+    },
+    {
+      "fixtureId": "FS-POAM-003",
+      "name": "FS-POAM-003",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 12,
+        "section": "FS-POAM-003"
+      }
+    },
+    {
+      "fixtureId": "FS-POAM-004",
+      "name": "FS-POAM-004",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 13,
+        "section": "FS-POAM-004"
+      }
+    },
+    {
+      "fixtureId": "FS-POAM-005",
+      "name": "FS-POAM-005",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 14,
+        "section": "FS-POAM-005"
+      }
+    },
+    {
+      "fixtureId": "FS-POAM-006",
+      "name": "FS-POAM-006",
+      "source": {
+        "artifact": "02-flankspeed-il5-assessment.pdf",
+        "page": 15,
+        "section": "FS-POAM-006"
+      }
+    }
   ]
 }
