@@ -6,6 +6,23 @@ namespace Ato.Copilot.Tests.Unit.Deployment;
 
 public class DockerPackageSourceContractTests
 {
+    [Fact]
+    public void Mcp_compose_forwards_optional_entra_credentials_without_embedding_them()
+    {
+        // Arrange
+        var compose = File.ReadAllText(Path.Combine(FindRepoRoot(), "docker-compose.mcp.yml"));
+
+        // Act
+        var service = Regex.Match(compose, @"(?ms)^  ato-copilot:\r?\n(?<service>.*?)(?=^  [a-z]|\z)");
+
+        // Assert
+        service.Success.Should().BeTrue();
+        foreach (var name in new[] { "AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET" })
+            service.Groups["service"].Value.Should().Contain($"{name}=${{{name}:-}}");
+        service.Groups["service"].Value.Should().Contain(
+            "ATO_AZUREAI__USEMAXCOMPLETIONTOKENS=${ATO_AZUREAI__USEMAXCOMPLETIONTOKENS:-false}");
+    }
+
     [Theory]
     [InlineData("Dockerfile", "Ato.Copilot.Mcp")]
     [InlineData("src/Ato.Copilot.Chat/Dockerfile", "Ato.Copilot.Chat")]
