@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Configuration;
+using Ato.Copilot.Mcp.Endpoints.Auth;
 using Ato.Copilot.Mcp.Services.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -96,6 +97,7 @@ public sealed class TenantResolutionMiddleware
     private static readonly string[] CspOnboardingAllowedPrefixes =
     {
         "/api/csp/onboarding",
+        "/api/csp/package-imports",
         "/api/auth",
         "/api/deployment",
         "/health",
@@ -125,7 +127,7 @@ public sealed class TenantResolutionMiddleware
         ICspProfileService cspProfileService)
     {
         if (ShouldBypass(context.Request.Path)
-            || context.Request.Path.Equals("/api/auth/login-config", StringComparison.OrdinalIgnoreCase))
+            || AuthEndpoints.IsPreAuthenticationRequest(context.Request))
         {
             await _next(context);
             return;
@@ -144,7 +146,8 @@ public sealed class TenantResolutionMiddleware
         // either pre-seed an Active `CspProfile` (the default) or call
         // `ResetCspProfileAsync()` to exercise the gate.
         if (deploymentOptions.Value.Mode == DeploymentMode.MultiTenant
-            && !IsCspOnboardingAllowed(context.Request.Path))
+            && !IsCspOnboardingAllowed(context.Request.Path)
+            && context.GetEndpoint()?.Metadata.GetMetadata<Ato.Copilot.Mcp.Endpoints.Csp.ProviderOnboardingPreparation>() is null)
         {
             var cspProfile = await cspProfileService.GetAsync(context.RequestAborted);
             if (cspProfile?.OnboardingState != OnboardingState.Active)
@@ -504,10 +507,9 @@ public sealed class TenantResolutionMiddleware
     private static bool IsCspOnboardingAllowed(PathString path)
     {
         if (!path.HasValue) return false;
-        var s = path.Value!;
         foreach (var prefix in CspOnboardingAllowedPrefixes)
         {
-            if (s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
+            if (path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase)) return true;
         }
         return false;
     }
