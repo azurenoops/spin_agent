@@ -139,6 +139,8 @@ public sealed class CapabilitySetupOperation
     public string ComponentIdsJson { get; set; } = "[]";
     public string OutcomesJson { get; set; } = "[]";
     public string? LocalCapabilityJson { get; set; }
+    public string? SystemIntentJson { get; set; }
+    public string? SystemPlanJson { get; set; }
     public Guid? ExecutionClaimId { get; set; }
     public DateTimeOffset? ClaimedAt { get; set; }
     public long Revision { get; set; }

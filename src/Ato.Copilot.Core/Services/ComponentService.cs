@@ -599,9 +599,18 @@ public class ComponentService
     {
         await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
-        var boundaryExists = await _db.AuthorizationBoundaryDefinitions
-            .AnyAsync(b => b.Id == boundaryId && b.RegisteredSystemId == systemId, cancellationToken);
-        if (!boundaryExists)
+        return await AssignBoundaryInContextAsync(_db, systemId, boundaryId, componentId, source,
+            isInScope, exclusionRationale, inheritanceProvider, createdBy, cancellationToken);
+    }
+
+    internal static async Task<(BoundaryComponentDto? Dto, string? Error)> AssignBoundaryInContextAsync(
+        AtoCopilotContext _db, string systemId, string boundaryId, string componentId, string? source,
+        bool isInScope, string? exclusionRationale, string? inheritanceProvider, string createdBy,
+        CancellationToken cancellationToken, string? assignmentId = null)
+    {
+        var boundary = await _db.AuthorizationBoundaryDefinitions
+            .SingleOrDefaultAsync(b => b.Id == boundaryId && b.RegisteredSystemId == systemId, cancellationToken);
+        if (boundary is null)
             return (null, "BOUNDARY_NOT_FOUND");
         if (!isInScope && string.IsNullOrWhiteSpace(exclusionRationale))
             return (null, "RATIONALE_REQUIRED");
@@ -632,6 +641,7 @@ public class ComponentService
 
             var cspAssignment = new BoundaryComponentAssignment
             {
+                TenantId = boundary.TenantId,
                 CspInheritedComponentId = cspComponentId,
                 AuthorizationBoundaryDefinitionId = boundaryId,
                 IsInScope = isInScope,
@@ -639,6 +649,7 @@ public class ComponentService
                 InheritanceProvider = inheritanceProvider,
                 CreatedBy = createdBy,
             };
+            if (assignmentId is not null) cspAssignment.Id = assignmentId;
             _db.BoundaryComponentAssignments.Add(cspAssignment);
             await _db.SaveChangesAsync(cancellationToken);
 
@@ -665,9 +676,9 @@ public class ComponentService
         if (component.ComponentType == ComponentType.Person)
             return (null, "INVALID_COMPONENT_TYPE");
 
-        return await AssignComponentToBoundaryAsync(
-            boundaryId, componentId, isInScope, exclusionRationale,
-            inheritanceProvider, createdBy, cancellationToken);
+        return await AssignLocalBoundaryInContextAsync(
+            _db, boundaryId, componentId, isInScope, exclusionRationale,
+            inheritanceProvider, createdBy, cancellationToken, assignmentId);
     }
 
     /// <summary>
@@ -790,10 +801,18 @@ public class ComponentService
         string createdBy,
         CancellationToken cancellationToken = default)
     {
+        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await AssignLocalBoundaryInContextAsync(_db, boundaryId, componentId, isInScope,
+            exclusionRationale, inheritanceProvider, createdBy, cancellationToken);
+    }
+
+    private static async Task<(BoundaryComponentDto? Dto, string? Error)> AssignLocalBoundaryInContextAsync(
+        AtoCopilotContext _db, string boundaryId, string componentId, bool isInScope,
+        string? exclusionRationale, string? inheritanceProvider, string createdBy, CancellationToken cancellationToken,
+        string? assignmentId = null)
+    {
         if (!isInScope && string.IsNullOrWhiteSpace(exclusionRationale))
             return (null, "RATIONALE_REQUIRED");
-
-        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var exists = await _db.BoundaryComponentAssignments
             .AnyAsync(a => a.SystemComponentId == componentId && a.AuthorizationBoundaryDefinitionId == boundaryId, cancellationToken);
@@ -808,6 +827,7 @@ public class ComponentService
 
         var assignment = new BoundaryComponentAssignment
         {
+            TenantId = component.TenantId,
             SystemComponentId = componentId,
             AuthorizationBoundaryDefinitionId = boundaryId,
             IsInScope = isInScope,
@@ -815,7 +835,7 @@ public class ComponentService
             InheritanceProvider = inheritanceProvider,
             CreatedBy = createdBy,
         };
-
+        if (assignmentId is not null) assignment.Id = assignmentId;
         _db.BoundaryComponentAssignments.Add(assignment);
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -959,7 +979,12 @@ public class ComponentService
         CancellationToken cancellationToken = default)
     {
         await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        return await RemoveBoundaryInContextAsync(_db, assignmentId, cancellationToken);
+    }
 
+    internal static async Task<bool> RemoveBoundaryInContextAsync(
+        AtoCopilotContext _db, string assignmentId, CancellationToken cancellationToken)
+    {
         var assignment = await _db.BoundaryComponentAssignments
             .FirstOrDefaultAsync(a => a.Id == assignmentId, cancellationToken);
         if (assignment == null) return false;
