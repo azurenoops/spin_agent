@@ -1,0 +1,65 @@
+{
+  "EPIC": {
+    "number": 1038,
+    "url": "https://github.com/azurenoops/spin_agent/issues/1038",
+    "title": "[Epic] Align system workflows with eMASS ATO submission and continuous monitoring",
+    "linked": false,
+    "id": 5594573041
+  },
+  "F1": {
+    "number": 1039,
+    "url": "https://github.com/azurenoops/spin_agent/issues/1039",
+    "title": "[System audit] Support initial ATO submission packages without a pre-existing authorization decision",
+    "linked": true,
+    "id": 5594573208
+  },
+  "F2": {
+    "number": 1040,
+    "url": "https://github.com/azurenoops/spin_agent/issues/1040",
+    "title": "[System audit] Export source-backed leveraged authorization metadata in OSCAL SSP",
+    "linked": true,
+    "id": 5594573422
+  },
+  "F3": {
+    "number": 1041,
+    "url": "https://github.com/azurenoops/spin_agent/issues/1041",
+    "title": "[System audit] Trace approved system profile data into generated SSP and package artifacts",
+    "linked": true,
+    "id": 5594573589
+  },
+  "F4": {
+    "number": 1042,
+    "url": "https://github.com/azurenoops/spin_agent/issues/1042",
+    "title": "[System audit] Unify purpose-specific submission readiness across system overview, package and eMASS screens",
+    "linked": true,
+    "id": 5594573758
+  },
+  "F5": {
+    "number": 1043,
+    "url": "https://github.com/azurenoops/spin_agent/issues/1043",
+    "title": "[System audit] Expose unknown validation and failed loads instead of passing or empty states",
+    "linked": true,
+    "id": 5594574129
+  },
+  "F6": {
+    "number": 1044,
+    "url": "https://github.com/azurenoops/spin_agent/issues/1044",
+    "title": "[System audit] Implement executable ConMon rules with reviewed change impact and reauthorization recommendations",
+    "linked": true,
+    "id": 5594574297
+  },
+  "F7": {
+    "number": 1045,
+    "url": "https://github.com/azurenoops/spin_agent/issues/1045",
+    "title": "[System audit] Attribute Azure monitoring changes to reviewed system scope and expose coverage health",
+    "linked": true,
+    "id": 5594574451
+  },
+  "F9": {
+    "number": 1046,
+    "url": "https://github.com/azurenoops/spin_agent/issues/1046",
+    "title": "[System audit] Organize system screens around ATO submission and ongoing monitoring tasks",
+    "linked": true,
+    "id": 5594574623
+  }
+}
