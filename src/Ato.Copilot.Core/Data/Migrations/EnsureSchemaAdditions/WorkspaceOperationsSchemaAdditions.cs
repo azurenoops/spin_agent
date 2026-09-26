@@ -146,10 +146,15 @@ public static class WorkspaceOperationsSchemaAdditions
             .Select(x => new
             {
                 x.Id, x.Name, x.Description, x.MappedNistControlIds,
-                ComponentId = x.CspInheritedComponentId
+                ComponentId = x.CspInheritedComponentId,
+                ProviderId = x.CspInheritedComponent.CspProfileId
             }).ToListAsync(ct);
+        var hasOfferingSchema = await TableExistsAsync(db, "ProviderOfferings", ct);
         foreach (var capability in published)
         {
+            if (hasOfferingSchema && await Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderPublicationGuard
+                .IsLinkedAsync(db, capability.ProviderId, [capability.Id, capability.ComponentId], ct))
+                continue;
             var duties = capability.MappedNistControlIds.Distinct(StringComparer.OrdinalIgnoreCase)
                 .Order().ToDictionary(x => x, _ => "Provider");
             var snapshot = JsonSerializer.Serialize(new
@@ -267,10 +272,15 @@ public static class WorkspaceOperationsSchemaAdditions
         await AddSqliteColumnsAsync(db, "CapabilitySetupOperations",
         [
             ("LocalCapabilityJson", "TEXT NULL"),
+            ("SystemIntentJson", "TEXT NULL"),
+            ("SystemPlanJson", "TEXT NULL"),
             ("ExecutionClaimId", "TEXT NULL"),
             ("ClaimedAt", "TEXT NULL"),
             ("Revision", "INTEGER NOT NULL DEFAULT 0")
         ], ct);
+        if (await TableExistsAsync(db, "SystemCapabilityLinks", ct))
+            await AddSqliteColumnsAsync(db, "SystemCapabilityLinks",
+                [("SupportingProviderCapabilityIdsJson", "TEXT NOT NULL DEFAULT '[]'")], ct);
     }
 
     private static async Task AddSqliteColumnsAsync(
@@ -531,6 +541,14 @@ public static class WorkspaceOperationsSchemaAdditions
         END;
         IF COL_LENGTH(N'dbo.CapabilitySetupOperations', N'LocalCapabilityJson') IS NULL
             ALTER TABLE dbo.CapabilitySetupOperations ADD LocalCapabilityJson NVARCHAR(MAX) NULL;
+        IF COL_LENGTH(N'dbo.CapabilitySetupOperations', N'SystemIntentJson') IS NULL
+            ALTER TABLE dbo.CapabilitySetupOperations ADD SystemIntentJson NVARCHAR(MAX) NULL;
+        IF COL_LENGTH(N'dbo.CapabilitySetupOperations', N'SystemPlanJson') IS NULL
+            ALTER TABLE dbo.CapabilitySetupOperations ADD SystemPlanJson NVARCHAR(MAX) NULL;
+        IF OBJECT_ID(N'dbo.SystemCapabilityLinks', N'U') IS NOT NULL
+            AND COL_LENGTH(N'dbo.SystemCapabilityLinks', N'SupportingProviderCapabilityIdsJson') IS NULL
+            ALTER TABLE dbo.SystemCapabilityLinks ADD SupportingProviderCapabilityIdsJson NVARCHAR(MAX) NOT NULL
+                CONSTRAINT DF_SystemCapabilityLinks_SupportingProviderCapabilityIdsJson DEFAULT N'[]';
         IF COL_LENGTH(N'dbo.CapabilitySetupOperations', N'ExecutionClaimId') IS NULL
             ALTER TABLE dbo.CapabilitySetupOperations ADD ExecutionClaimId UNIQUEIDENTIFIER NULL;
         IF COL_LENGTH(N'dbo.CapabilitySetupOperations', N'ClaimedAt') IS NULL
