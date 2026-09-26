@@ -1,18 +1,20 @@
 openapi: 3.0.3
 info:
   title: Security Posture Intelligence Navigator — CSP-Inherited Components API (US9)
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Endpoints that ingest a CSP's existing ATO artifacts (PDF SSP, DOCX, OSCAL JSON,
     FedRAMP / eMASS XLSX, eMASS ZIP), extract candidate components, attempt to
-    auto-map them to NIST 800-53 capabilities, and expose the resulting
-    CSP-inherited components read-only to every hosted tenant.
+    propose NIST 800-53 capabilities, and retain all generated records privately
+    until explicit human review, approval and publication. Only published
+    provider content is exposed read-only to hosted tenants.
 
     Two surfaces are defined:
       * `/api/csp/onboarding/atos/*` — wizard step (FR-099..FR-103, MultiTenant only)
       * `/api/csp/inherited-components/*` — post-onboarding management (FR-104..FR-106)
 
-    All write endpoints require role `CSP.Admin`. All endpoints require a valid
+    All package reads and writes require ordinary, non-impersonated `CSP.Admin`
+    authority and current provider ownership. All endpoints require a valid
     Entra-issued bearer token. In `SingleTenant` mode the entire surface returns
     `404` (`SINGLE_TENANT_MODE`).
 servers:
@@ -29,18 +31,28 @@ paths:
       tags: [csp-onboarding-atos]
       summary: Upload one or more ATO documents during the CSP wizard
       description: |
-        Multipart upload, one or more files. Each file is parsed using the parser
-        appropriate for its content type, candidate components are extracted as
-        `CspInheritedComponent` rows (`Status = Draft`), and the AI capability
-        mapping pipeline is invoked per component to produce `CspInheritedCapability`
-        rows.
+        Multipart upload, one or more files. Originals and a manifest are
+        persisted before receipt. Send Prefer: respond-async to receive a 202
+        package operation for polling in the portal. Without negotiation, the
+        legacy aggregate response is retained after durable processing, but
+        never publishes records or bypasses administrator review.
 
-        * Max file size: 50 MB per file (`413 ATO_DOCUMENT_TOO_LARGE` if exceeded).
-        * Supported content types: `application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/json` (OSCAL SSP), `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `application/zip` (eMASS package).
+        * Max aggregate upload size: 50 MiB (`413 ATO_DOCUMENT_TOO_LARGE` if exceeded).
+        * Supported content types include PDF, DOCX, JSON, XLSX, ZIP, XML, CSV
+          and plain text. Embedded unsupported content remains visible in coverage.
         * Unknown content types: `400 UNSUPPORTED_ATO_DOCUMENT`.
-        * Parser failures: `400 PARSE_FAILED` with the failing parser name.
-        * If the AI mapping service is unreachable, components are still persisted but `aiMappingAvailable = false` in the response and **zero** capabilities are auto-created (operator can re-run via `/csp/inherited-components/{componentId}/remap`).
+        * Parsing/analysis exceptions after receipt are recorded per entry and
+          exposed in package coverage; partial analysis is not complete.
+        * Confidence is informational only. Every generated component and
+          capability remains private until explicitly reviewed and approved.
+        * Repeating the same idempotency key/content recovers the existing
+          package; a changed request with the same key is 409.
+        * See ../../078-role-aware-workspaces/contracts/package-imports.md
+          for resource limits, coverage states and review/publication APIs.
       operationId: cspOnboardingUploadAtos
+      parameters:
+        - $ref: '#/components/parameters/PreferAsync'
+        - $ref: '#/components/parameters/UploadIdempotencyKey'
       security:
         - bearerAuth: []
       requestBody:
@@ -59,11 +71,19 @@ paths:
                   description: One or more ATO documents (max 50 MB each).
       responses:
         '200':
-          description: Upload + parsing + (best-effort) AI mapping completed.
+          description: Legacy aggregate analysis result; candidates remain unpublished.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AtoUploadResponse'
+        '202':
+          description: Durable receipt; processing and portal review remain separate.
+          headers:
+            Location:
+              schema: { type: string }
+              description: Authorized package status resource.
+        '409':
+          description: Idempotency key conflicts with different source content.
         '400':
           description: Unsupported content type or parse failure.
           content:
@@ -148,10 +168,14 @@ paths:
       tags: [csp-inherited-components]
       summary: Import additional ATO documents after CSP onboarding has completed
       description: |
-        Same MIME types, size limits, and parsing pipeline as the wizard upload
-        endpoint. Response shape is identical (`AtoUploadResponse`). Available to
-        CSP-Admins only and only when `CspProfile.OnboardingState = Active`.
+        Same durable ingestion, review gate, negotiation and idempotency contract
+        as the wizard upload endpoint. Available to ordinary CSP administrators
+        only and only when `CspProfile.OnboardingState = Active`. Neither this
+        operation nor onboarding completion publishes any provider Draft.
       operationId: cspInheritedComponentsImport
+      parameters:
+        - $ref: '#/components/parameters/PreferAsync'
+        - $ref: '#/components/parameters/UploadIdempotencyKey'
       security:
         - bearerAuth: []
       requestBody:
@@ -169,11 +193,18 @@ paths:
                     format: binary
       responses:
         '200':
-          description: Import completed.
+          description: Legacy aggregate analysis result; candidates remain unpublished.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AtoUploadResponse'
+        '202':
+          description: Durable receipt; use Location for processing/review status.
+          headers:
+            Location:
+              schema: { type: string }
+        '409':
+          description: Idempotency key conflicts with different source content.
         '400': { description: Unsupported / parse failure., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '403': { description: Not CSP-Admin., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '404': { description: SingleTenant mode., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
@@ -351,6 +382,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
 components:
+  parameters:
+    PreferAsync:
+      in: header
+      name: Prefer
+      required: false
+      schema: { type: string, enum: [respond-async] }
+      description: Return durable receipt without waiting for analysis.
+    UploadIdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: false
+      schema: { type: string, minLength: 1, maxLength: 100 }
+      description: Stable retry key; legacy clients use a provider/content-derived key.
   securitySchemes:
     bearerAuth:
       type: http
@@ -365,7 +409,7 @@ components:
       enum: [Mapped, NeedsReview]
     SourceFormat:
       type: string
-      enum: [Pdf, Docx, OscalJson, Xlsx, EmassZip, Manual]
+      enum: [Pdf, Docx, OscalJson, Xlsx, EmassZip, Manual, Package]
     CspInheritedComponent:
       type: object
       required: [id, cspProfileId, name, componentType, status, importedAt]

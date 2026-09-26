@@ -5,6 +5,15 @@
 
 ## Summary
 
+Authorization-led follow-up: retain optional durable onboarding receipt and
+processing status, with post-setup handoff to Feature 078 Authorizations.
+Offering/decision/boundary and package-version associations require explicit
+provider ownership and must not derive authority from the singleton profile,
+Azure subscription assignment or package extraction. Keep legacy ingress
+contracts compatible and restrict pre-activation access to the ordinary CSP
+administrator's onboarding/authorization setup paths. No automatic publication,
+mission coverage, customer narrative approval or live Azure mutation is added.
+
 Introduce a first-class `Tenant` (root authorization boundary) → `Organization` (sub-grouping) → System hierarchy across the full Security Posture Intelligence Navigator stack, retrofit `TenantId` (and where applicable `OrganizationId`) onto every tenant-scoped row in `AtoCopilotContext` (~115 DbSets, ~60 of them currently un-scoped), and enforce isolation in three layers of defense:
 
 1. **Application** — a request-scoped `ITenantContext` resolved from CAC/Entra claims, an attribute-driven (`[TenantScoped]` / `[GlobalReference]`) `HasQueryFilter` registration in `OnModelCreating`, and a `TenantStampingSaveChangesInterceptor` that stamps `TenantId` on inserts and rejects cross-tenant FK references.
@@ -237,3 +246,12 @@ docs/
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|--------------------------------------|
 | _none_ | _n/a_ | _n/a_ |
+# September 23 package-ingestion implementation amendment
+
+Apply [Feature 078's package contract](../078-role-aware-workspaces/contracts/package-imports.md)
+to both US9 upload routes. Additive provider package/entry/candidate/approval
+storage and durable polling replace request-lifetime extraction for async callers.
+Retain legacy response negotiation, but never legacy automatic publication.
+Reuse file storage and existing capability release infrastructure. Schema upgrades
+must preserve existing data and work for SQLite and SQL Server. No deployment
+or GitHub mutation is authorized by this local implementation request.

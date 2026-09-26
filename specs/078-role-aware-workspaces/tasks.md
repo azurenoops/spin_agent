@@ -7,6 +7,415 @@
 Tasks are dependency ordered. Tests marked `RED` must fail for the intended
 reason before their production task begins. Every test follows Arrange/Act/Assert.
 
+## System-level Security Capabilities (#1037)
+
+- [x] ENVUX001 Reorganize Environment around hosting model, description and actual
+  associations; retain advanced/legacy profile fields, explicit scope-prefill review.
+- [x] ENVUX002 Extend the Environment association entry to provider/scope/capability
+  selection and canonical responsibility confirmation; preserve older routes.
+- [x] ENVUX003 Relocate Azure configuration to Assessments; compatible old URLs
+  and actionable permission-denied state; no authorization bypass.
+- [x] ENVUX004 Keep overall completeness on overview and collapse the right panel
+  by default for system pages.
+- [x] ENVUX005 Run targeted regressions/types/build, desktop/mobile browser checks,
+  Dashboard-only deployment and update manual acceptance steps.
+- [ ] ENVUX006 Obtain local user acceptance of the corrected Environment layout
+  and populated association workflow. Do not close the issue before acceptance.
+
+Corrected Environment verification (September 26): **199 tests / 12 files passed**;
+Dashboard strict type-check and production build passed. Scoped coverage for
+EnvironmentAssociations, MissionAssociationWizard and its API adapter is **100%
+lines/statements, 95.08% branches, 86.79% functions** (not whole-Dashboard coverage).
+**Nine Chromium scenarios passed**, including first-form layout, preserved hidden
+fields, reviewed prefill dialog, 403 access explanation without Retry, legacy
+assessment redirect, combined association and same-key partial retry, stale
+sources, denied subscription authority and both viewport sizes.
+
+Actual Docker checks passed at 1440px/light and 390px/dark with no system-data
+writes. Environment issued no assessment-configuration/readiness requests.
+The known assessment-configuration 403 remains unchanged and is explained only
+on the Assessments configuration page. The live demo has no allocated hosting or
+capabilities; populated writes were verified with synthetic API fixtures.
+Dashboard image `environment-redesign-20260926` is healthy
+(`sha256:f0fab52951a4f60c6ee528d8aab521ed281ec3336fb6e8cb7c72d4847c36565a`),
+serving bundle `index-D49lRYan.js`. Backend/data container identities, images and
+restart counts are unchanged. The former `hosting-navigation-20260926` image
+remains available for rollback. Existing build warnings and broader SYSCAP009
+failures remain documented; no backend changes, push or issue closure.
+
+- [x] HOSTNAV001 Remove Provider relationships from the sidebar; expose optional
+  hosting under Environment, reusing association-only behavior without capability
+  reads/writes; preserve legacy routes and records.
+- [x] HOSTNAV002 Verify failing-first navigation, Environment and hosting-only
+  tests plus legacy flow regressions, strict types/build, responsive browser and
+  Dashboard-only local deployment. Leave user acceptance open.
+
+Initial hosting navigation verification, before the correction above (September 26): **138 tests across eight files
+passed**, including scoped routing, existing profile behavior, denied contexts,
+existing association retention, and same-key hosting retry. Dashboard strict
+types and production build passed; existing build warnings remain. Four-file
+coverage is 90.90% lines/statements, 93.71% branches and 77.77% functions
+(includes unmodified profile governance handlers). All new Hosting-section
+lines and the association wizard are covered.
+**Nine synthetic Chromium flows passed**, including desktop/mobile hosting-only
+confirmation, retry, accessibility and legacy combined-flow compatibility.
+Real Docker checks passed at 1440px/light and 390px/dark for Environment entry,
+hosting, selected-system context, refresh, capability-add link and legacy
+bookmarks, with no business writes. The demo has no hosting allocations.
+The separate assessment-environment and assessment-readiness requests returned
+403 with empty bodies for `dev-issm`; identical responses were reproduced through
+the previous Dashboard image. These existing authorization failures remain
+visible and are not represented as a successful assessment setup.
+Dashboard image `hosting-navigation-20260926` was deployed and healthy; the prior
+image is retained as `pre-hosting-navigation-20260926`. MCP, SQL, Chat and Redis
+container IDs, images and restart counts were unchanged. The temporary baseline
+Dashboard was removed. No backend/API/schema changes, pushes or issue closures.
+Manual acceptance and the broader SYSCAP009 limitations below remain open.
+
+- [x] SYSCAP001 Read issue, all four boards and interpretation rules; verify
+  current UI routes/catalog/setup and document requirements before implementation.
+- [x] SYSCAP002 Audit canonical backend services and publish exact additive
+  applied/available, placement, detail, setup and removal contracts.
+- [x] SYSCAP003 RED system shell/sidebar/legacy-route, applied-only scope and
+  request-isolation tests; integrate one system destination without losing inventory.
+- [x] SYSCAP004 RED server scope/permission/query tests; implement applied
+  capabilities, distinct/direct components, filters/counts and actual placements.
+- [x] SYSCAP005 Implement both system list views and component drawer with
+  permitted placement actions, loading/empty/error states and URL persistence.
+- [x] SYSCAP006 RED detail/review/provenance tests; implement all three tabs,
+  source comparison, required revision-bound responsibility checks/notes,
+  protected evidence and independent approved/proposed narrative state.
+- [x] SYSCAP007 RED multi-selection/partial/concurrent-retry tests; extend the
+  existing durable setup engine and implement all three steps and recovery.
+- [x] SYSCAP008 RED stale-safe removal/retention tests; implement exact impact
+  preview and local unlink/provider unsubscribe without deleting shared records.
+- [ ] SYSCAP009 Run backend build/tests, Dashboard types/tests and relevant
+  responsive/light/dark/keyboard browser flows; distinguish baseline failures.
+  Runs completed; full regression sign-off remains blocked by the integration
+  failures below, whose complete baseline classification is not established.
+- [x] SYSCAP010 Provide local URL and manual acceptance steps for all views,
+  local/provider application, recovery, review and removal. User acceptance
+  remains open; do not close azurenoops/spin_agent#1037 or push.
+- [ ] SYSCAP011 Obtain local user acceptance using the
+  [manual guide](../../docs/guides/system-security-capabilities.md), including
+  authorized populated write scenarios; do not infer acceptance from fixtures.
+
+### System capability validation checkpoint (September 26; not acceptance)
+
+- Backend solution incremental build: pass, zero warnings/errors in that
+  invocation. Clean/container builds still emit existing warnings.
+- Full backend unit suite: **7,229 passed, zero failed/skipped**.
+- Focused integrated backend tests: **119 unit and 74 integration passed**.
+  The separate required-Docker workspace SQL Server run passed **3 tests**,
+  including repeat upgrade preserving legacy setup/link/review history.
+- Full backend integration suite: **1,390 passed, 58 failed, 20 skipped**.
+  Of the failures, 25 stopped at SQL testcontainer readiness and 20 at SQL RLS
+  fixture initialization/pre-login. The other 13 are package-profile response
+  equality, legacy tenant/profile/narrative HTTP permissions or identifiers,
+  and impersonation identity failures. They have **not** been established as
+  the pre-change baseline; full backend regression clearance is not claimed.
+- The relational-only follow-up passed **17**, failed **30**, skipped **0**;
+  SQL readiness/execution remained unreliable. Do not repeatedly rerun broad
+  container suites on the shared Docker instance. Its observed memory budget
+  was 8,319,238,144 bytes and the suites launched multiple SQL Server fixtures.
+  Further relational clearance requires bounded fixture scheduling or an
+  isolated appropriately provisioned runner, not skipped Docker checks.
+- During these broader runs, the retained SQL and MCP containers each showed
+  two restarts. Docker recorded MCP exit 137 and then exit 1; the latter's
+  sequential startup log shows `EnsureCreatedAsync` attempting to create the
+  already-existing database (SQL error 1801). The cause of the abrupt exits is
+  not established; OOM flags were false. No manual restart, reset, volume
+  deletion or memory-setting change was used as a fix. All five application
+  containers were subsequently healthy; selected-system live checks and
+  retained-data comparison passed again.
+- Focused Dashboard tests: **142 passed across 16 files**. Selected new/changed
+  system modules and dialog coverage: **97.85% lines/statements, 83.97% branches,
+  85.13% functions**; these are scoped metrics, not whole-repository coverage.
+- Dashboard `npx tsc --noEmit` and `npm run build`: pass. Build emits CSS syntax,
+  mixed static/dynamic import and bundle-size warnings; warning-free validation
+  is not claimed.
+- Full Dashboard: **1,904 passed, 25 failed, five uncaught errors**. Exact
+  failure-name comparison with the saved pre-change baseline found no added or
+  removed failures. The same eight files fail on SubtleCrypto realm/type or
+  missing Axios/directory-connection mock exports. The full suite is not green.
+- Chromium synthetic-API suite: **15 passed**. Covers applied views, drawer,
+  all detail tabs, locked-system selection across pages, provider-free local
+  setup, persisted partial recovery, stale removal, protected download,
+  independent narrative permission and real placement request contracts.
+  Desktop/mobile light/dark layout, keyboard focus and scoped WCAG checks pass
+  after the contrast/overflow corrections. The two organization-only cases
+  also passed after removing provider records from that fixture's catalog.
+- MCP and Dashboard images tagged `system-capabilities-20260926` are built and
+  deployed locally. Only those two services were deliberately recreated; old
+  images were retained as `pre-system-capabilities-20260926`. SQL, Redis, Chat
+  and volumes were not recreated. Unmodified exact-version offline NuGet
+  archives and the previously approved npm feed were used after TLS/default
+  dependency-layer failures; integrity and TLS checks were not disabled.
+- Real deployed APIs and Chromium checks passed on desktop (1440px) and mobile
+  (390px), including both lists, empty library, refresh and selected-system
+  context. No capability-domain writes occurred. The demo catalog is empty;
+  richer fixture results do not claim populated runtime acceptance.
+- The offering/package/entry/candidate snapshot matches the new pre-deployment
+  revision-18 baseline, including after the broad test runs. The older
+  revision-16 audit snapshot differed **before** this deployment; the earlier
+  change's cause was not established and is not attributed to this feature.
+- The [manual guide](../../docs/guides/system-security-capabilities.md) contains
+  the live URL, all acceptance scenarios, safe fixture command and permission/
+  data prerequisites. The isolated Vite test server was stopped; Docker remains
+  available for the user. No push, external write or issue closure was performed.
+
+## Provider package ingestion and portal approval
+
+- [x] PKG001 Trace existing ingestion, parser, storage, jobs, visibility/release
+  and UI; document revised contracts under existing #1026/#1027/#1028.
+- [x] PKG002 Failing-first bounded whole-content/manifest analysis and synthetic
+  mixed/nested fixtures with citation validation.
+- [x] PKG003 Durable receipt, schema additions, restart-safe worker and retry.
+- [x] PKG004 Remove both automatic-publication paths and preserve negotiated
+  caller compatibility; reject impersonated provider mutations.
+- [x] PKG005 Private candidate editing/rejection/duplicates/dependencies and
+  exact-revision preview/approval/publication through existing releases.
+- [x] PKG006 Receipt-only onboarding and portal review/source offering UI.
+  The wizard navigation must label ATO documents as optional, matching the
+  upload body; neither the step description nor completion may imply inheritance.
+- [x] PKG007 Run backend/frontend/build/browser checks and document actual
+  results, migration/rollback and manual acceptance.
+- [ ] PKG008 User authorized local acceptance; external issue checklist sync
+  requires separately approved exact previews. No deployment or push.
+- [x] PKG009 Add failing-first tests and an Azure-specific example fixture;
+  verify citations, proposed mappings, contributor relationships and repeat
+  analysis using the real analyzer without a model.
+- [x] PKG010 Import the Azure example through the local authorized workflow;
+  verify all generated records remain NeedsReview/Unpublished, receipt replay
+  is idempotent and existing published content is preserved. Leave user
+  acceptance and all approval/publication actions open.
+
+The Azure example imported as `42490ad7-d4b9-48a6-b8b2-c8803abb3548`.
+All 16 records remained NeedsReview/Unpublished; UI re-upload returned the same
+202 receipt without changing candidates or prior package decisions.
+The 166 analyzer tests passed (the two new fixture tests failed first).
+
+## Authorization-led offering workflow (supersedes package-only ownership)
+
+- [x] AUTH001 Trace existing authorization, hosting, package, release and UI
+  contracts; document additive schema/API decisions and approval semantics.
+- [x] AUTH002 Update the authorization/source-package/onboarding designs and
+  Features 048/078 architecture/contract ownership before application changes.
+- [ ] AUTH003 Failing-first offering, external decision, boundary, package
+  version, authorization-impact and mission hosting relationship tests.
+- [ ] AUTH004 Persist multiple provider offerings and recorded external
+  decisions; retain immutable history and explicit reviewed scope.
+- [ ] AUTH005 Reuse durable source analysis for unconfirmed decision/boundary,
+  inventory, responsibility, finding and POA&M proposals with citations.
+- [x] AUTH005a Add output/timeout-aware batch splitting, saved batch sizes,
+  bounded automatic continuation and receipt progress using existing checkpoints
+  and leases; verify restart, no-progress, budget, review and exclusion handling.
+- [x] AUTH005b Correct literal model-response properties and use batch-local
+  aliases while preserving stable evidence/candidate identity and strict
+  validation; reproduce the contract defects before implementation.
+- [ ] AUTH005c Complete retained Flank Speed full-document analysis and user
+  manual acceptance; connected AI and visible progress alone are not acceptance.
+- [ ] AUTH005d Verify/deploy strict model response shapes, exact server-owned
+  citation/binding assembly, alias duplicate rejection, and immutable PDF layout
+  views. All 362 package tests pass, including the approved bounded correction;
+  changes are deployed to Docker. The retained receipt reached 415/428 segments
+  at 64/64 calls with original evidence/citations/reviews preserved. The Roles
+  worksheet still fails strict validation after its one corrective attempt.
+  The budget is exhausted; full ingestion and manual acceptance remain open.
+- [ ] AUTH006 Integrate existing exact-set release services and bidirectional
+  impact review without changing customer decisions or approved narratives.
+- [ ] AUTH007 Build Authorizations import/review and mission hosting journey;
+  link reusable Security Capabilities and receipt-only onboarding.
+- [x] AUTH007a Fix existing-offering upload discoverability with card/header
+  actions retaining offering identity; verify exact receipt, denial and generic
+  import compatibility using failing-first Dashboard tests, type check and build.
+- [ ] AUTH007b User manually verifies existing-offering upload and retained
+  review handoff; no automatic authorization-field updates or publication.
+- [x] AUTH007c Replace the revision-led boundary page with five scope/workflow
+  sections, exact-current Edit boundary, collapsed immutable history and
+  provider-scoped linked capability/mission read models; verify UI/API isolation,
+  paging, retained versions and responsive behavior.
+- [ ] AUTH007d User manually verifies the scope-first boundary workflow and
+  links to package review, canonical capabilities and mission hosting.
+- [x] AUTH007e Replace the combined hosting form with five explained tasks,
+  exact-current configuration, filtered Microsoft references and explicit
+  unavailable states; repair the verified hosting API 404s.
+- [x] AUTH007f Deliver the separate existing-allocation-only Mission Owner
+  association and capability-selection wizard with two explicit confirmations.
+- [x] AUTH007g Verify focused regressions, type/build checks, desktop/mobile
+  browser flows and read-only Docker behavior without changing retained data;
+  leave user manual acceptance open.
+- [x] AUTH007h Replace authorization-impact internals with a purpose-led Change
+  impact tracker, named exact context selection, verified affected capabilities
+  and mission systems, source-led entry points and actionable review outcomes.
+- [x] AUTH007i Verify impact freshness/publication guards, bounded source-safe
+  reads, responsive browser flows, retained data and local manual-test readiness.
+  Evidence: 140 selected Dashboard tests, 128 backend/policy tests, 10 Chromium
+  tests; strict type-check, production and both Docker builds. Impact UI coverage
+  99.06% lines / 90.57% branches. Live protected reads returned 200 with no domain
+  writes; retained offering/package/entries/boundaries/reviews unchanged. Only
+  MCP and Dashboard recreated; all five services healthy. Six broader
+  upload/provisioning test failures remain, so this is not full regression
+  clearance. User-approved empty-authority assessment is supported; existing
+  offering-linked publication gates remain unchanged despite the earlier
+  documented no-authority publication decision. Manual acceptance remains open.
+- [x] AUTH007j Move Boundary editing and Hosting and responsibilities task CTAs
+  into the shared modal dialog. Verify focus/dismissal, pending and uncertain
+  write guards, retained conflict drafts, visible read failures, paging,
+  desktop/mobile behavior, build and read-only Docker behavior. Leave manual
+  acceptance open.
+  Verification: 142 focused unit/regression tests and 10 desktop/mobile Chromium
+  tests passed; strict TypeScript, production build and Dashboard Docker build
+  passed. Fourteen live dialog checks passed without domain writes or browser
+  errors; retained offering/package/boundary/hosting/reference/review data stayed
+  unchanged. Dashboard alone was recreated; MCP, Chat, SQL and Redis retained
+  their container IDs/start times and all five services are healthy.
+  Rollback image retained as `pre-offering-dialogs-20260925-2345`; deployed image
+  tagged `offering-dialogs-20260925-2345`. Full repository tests were not rerun,
+  and previously documented unrelated failures remain open.
+- [x] AUTH007k Replace the offering root decision ledger with a package-first
+  Offering overview, complete provider-scoped summary reads, extracted-source
+  review links and secondary manual-recording dialogs. Distinguish missing
+  records from missing ATOs and allocations from associated systems. Preserve
+  existing review/publication gates; verify focused regressions and read-only
+  Docker behavior. User manual acceptance remains open.
+  Automated verification: 175 backend tests, 250 focused Dashboard tests and
+  12 Chromium tests passed; strict TypeScript and production/Dashboard image
+  builds passed. New overview UI coverage is 100% lines/functions and 96.25%
+  branches. A broader 259-test run retained five intake/onboarding failures;
+  two whole test files were excluded from the focused run. An impact-refresh
+  timing failure occurred under concurrent load and passed in the serial rerun.
+  MCP and Dashboard images tagged `offering-overview-20260926` are deployed
+  locally; rollback images are retained as `pre-offering-overview-20260926`.
+  All five containers are healthy. Chat, SQL and Redis retained their container
+  identities/start times; MCP runtime configuration is unchanged.
+  Ten real-data desktop/mobile checks passed, including manual-recording and
+  hosting task dialogs, source filtering and opening a retained authorization
+  claim. No CSP writes or browser errors occurred; the protected before/after
+  domain snapshots match exactly (415/428 segments, 64/64 model calls retained).
+  Initial five-second browser probes timed out. Instrumented source navigation
+  showed sequential package reads; the final live harness uses a bounded
+  30-second assertion timeout and measured 19-20 seconds to open the claim.
+  This latency remains a known limitation, not a performance fix.
+  User manual acceptance remains open under AUTH009.
+- [ ] AUTH008 Verify local end-to-end workflow with synthetic inputs, focused
+  regression/build/type/browser checks and actual failure reporting.
+- [ ] AUTH009 User manual acceptance; external issue sync remains separately
+  previewed/approved. No push or live Azure mutations. Authorized local Docker
+  deployment does not complete user acceptance.
+
+AUTH007e verification (September 25): 139 combined hosting/boundary Dashboard
+tests passed, followed by a passing additional responsibility-refresh failure
+test. Three production-SPA browser cases passed at desktop/mobile widths,
+including stale reference-draft retention and explicit unavailable states.
+Task-page coverage reached 100% lines and 83.63% branches before the additional
+failure guard. Strict TypeScript checking and the production build passed.
+Backend hosting/mission/boundary validation reported 94 passing synthetic tests.
+The MCP image was built and deployed without recreating data services.
+Live SQL-backed hosting history, assignment and filtered Microsoft-reference
+reads returned 200 with genuine zero totals; offering revision 3, package
+revision 16, all 27 entries and boundary history were byte-for-byte equivalent
+at the JSON snapshot level. No live domain writes or analysis retries occurred.
+The final Dashboard deployment and verification are recorded below; user manual
+acceptance remains pending.
+
+The final combined UI run initially passed 192/193 tests. The boundary stale-save
+test clicked Cancel before the mutation form's pending-state effect released the
+parent button. The regression must await the enabled action before clicking;
+the production pending-write guard remains unchanged.
+After the guided-entry CTA was added, a second asynchronous assertion surfaced
+in the decision lifecycle test: the POST invocation preceded the saved snapshot
+render. Await the restored lifecycle action before checking its disabled state;
+do not weaken the lifecycle or pending-write guards.
+
+AUTH007f/g final verification (September 25): all 195 focused Dashboard tests
+and 12 production-SPA Chromium cases passed, including the discoverable
+System Profile -> Provider relationships -> Start guided association entry.
+The explicit second-confirmation regression asserts zero adoption requests
+after the association confirmation until refreshed duties are reviewed and
+subscriptions are separately confirmed. MissionOwner-only users receive truthful
+association success and a read-only ISSM/ISSO handoff. Existing relationships,
+partial retries, stale contexts and desktop/mobile layouts are covered.
+Strict TypeScript checking, production build and the Dashboard Docker build
+passed. Existing build warnings remain; warning-free builds are not claimed.
+
+Only the Dashboard was recreated for the final release; MCP, SQL, Redis and
+Chat retained their container identities and are healthy. Live desktop/mobile
+CSP checks passed with all inspected CSP reads returning 200 and no domain
+mutations. Offering revision 3, package revision 16, 27 entries and boundary
+history still match the pre-deployment JSON snapshots. Both IPv4 and IPv6
+localhost checks returned 200. No analysis retry or budget reset occurred.
+
+The real Mission Owner could select SPIN Demo System and read existing
+allocations (200, zero results). The task correctly explains that the hosting
+administrator must allocate scope and disables capability selection. No live
+association/subscription was created: two-confirmation writes were verified
+with synthetic backend/UI tests, not retained customer data. Shared shell
+onboarding lookups returned 403 for this persona; those separate requests are
+not cleared by the successful mission allocation read. The broader five
+upload/onboarding test failures noted below also remain open.
+
+The initial post-deployment localhost probe timed out over IPv6, while IPv4 and
+direct MCP requests worked. Process inspection identified a newly paused Jarvis
+dev server (PID 8418) listening on `[::1]:5173`, not a failed hosting endpoint.
+The user explicitly approved stopping that exact process. Docker then became
+the sole listener; IPv4 and IPv6 returned 200 and the unmodified localhost API
+verification passed. No Docker restart was used to hide this conflict.
+
+AUTH007c verification (September 25): 43 focused Dashboard tests and 44 backend
+overview/validation tests passed. The boundary component reached 100% line and
+90.52% branch coverage; the new backend read-model file reached 98.2% coverage.
+Type checking and production builds passed. Two persistent synthetic Chromium
+tests verify desktop/mobile layouts, exact-current prefill, version creation and
+retained history. Visual inspection caught a misleading root-overflow-only
+mobile assertion: the card was only 85.94px wide. A failing card-width assertion
+preceded the offering-section selector fix; both browser tests then passed.
+
+The broader authorization suite reports 167 passed / 5 failed in upload and
+onboarding receipt tests. Full regression clearance is not claimed. A separate
+runtime probe reproduced the existing native Node WebCrypto rejection of a
+JSDOM FileReader buffer used by the upload test fixture; that unrelated helper
+was not changed as part of this boundary redesign.
+
+Following the user's ongoing local Docker deployment request, rebuilt and
+recreated only MCP and Dashboard, preserving rollback images and data services.
+Authenticated live API/browser checks passed with all five requested sections,
+86 linked capability proposals awaiting review, zero published capabilities and
+zero hosting assignments. The exact current editor was inspected and cancelled,
+not saved. Version hashes remained hidden until history was expanded. The
+offering (revision 3), retained package (revision 16), all 27 source entries and
+boundary history matched the pre-deployment snapshot; no analysis or domain
+mutation was requested. All five containers were healthy, both IPv4 and IPv6
+localhost returned 200, and the browser reported no page errors or failed CSP
+requests. AUTH007d remains open for the user's manual acceptance.
+
+AUTH007a verification (September 24): five route/action assertions failed before
+the UI change; 150 focused Dashboard tests passed afterward, including coverage
+execution after correcting an asynchronous test assertion. The changed page
+measured 84.61% line and 85.93% branch coverage. `tsc --noEmit`, production build
+and development-simulation Docker build passed. Builds reported Browserslist,
+SignalR annotation, CSS syntax, mixed-import and bundle-size warnings; they were
+not warning-free. With separate user approval, only the local Dashboard container
+was replaced; its healthy new image and served upload/simulation bundle were
+verified. Other container identities stayed unchanged. No backend/schema change,
+full .NET rerun, live-package acceptance or new extraction claim is implied.
+AUTH007b and the broader AUTH007 workflow remain open.
+
+AUTH005 analyzer subtask is implemented: 214 analyzer tests passed after RED,
+then six selected fixture/regression tests passed for the additive
+`azure-authorization-example.json`, existing Azure example and Harbor sources.
+The new structured fixture has 23 proposals, complete profile-2 family coverage
+and 12 resolved typed relationships without a model. Backend persistence,
+cross-layer review/release and the complete local journey remain unchecked.
+
+Verification details and qualifications are in
+[`docs/dev/csp-package-ingestion.md`](../../docs/dev/csp-package-ingestion.md).
+The real local browser flow recovered a retained failed package after additive
+SQLite startup repair, persisted approval across refresh, and published only
+the selected component/capability revisions. Full-suite integration failures
+remain qualified even though all failing classes passed in isolation. User
+acceptance is not implied by checked implementation/test-execution tasks.
+
 ## Phase 1 - Paper trail and contract baseline
 
 - [x] T001 Exercise all three interactive prototypes and every indexed screen.
@@ -368,3 +777,66 @@ fixtures; live provider-admin acceptance remains CSPMOCK005.
 - [x] Align CSP and organization portfolio presentation with the workspace visual system.
 - [x] Verify Dashboard types/tests and provide local desktop/mobile review instructions.
 - [ ] User acceptance: inspect both portfolio pages with their assigned accounts, including mobile/Light theme.
+
+### Authorizations landing refresh — September 24, 2026
+
+- [x] Document visual scope and data constraints before implementation.
+- [x] Add failing behavior tests for setup links and no-match recovery, then implement the list presentation.
+- [x] Verify targeted tests, Dashboard type checking and isolated browser rendering at desktop/mobile sizes.
+- [ ] User manual review of the Authorizations landing in the running application.
+- [ ] Resolve or separately baseline the five observed existing intake/workflow upload test failures; no green-suite claim.
+
+Screenshot alignment follow-up:
+- [x] Record the latest screenshot contract and pre-change targeted baseline.
+- [x] Add failing-first checks for inline creation and the import-only landing hero.
+- [x] Match page background, stacked cards and responsive workflow guide without shared-layout/API changes.
+- [x] Verify targeted regressions, Dashboard build/typecheck and desktop/mobile/dark browser layouts.
+- [ ] User manually accepts the screenshot-aligned landing page.
+
+Screenshot follow-up results: 25 focused unit checks passed; the single existing
+scoped-upload receipt-link failure is unchanged from the 18-pass/1-fail baseline.
+Seven browser checks passed, including explicit light/dark colors and responsive
+layout; Dashboard type checking and production build passed with the documented
+warnings. No green full-suite or live mutation acceptance is claimed.
+
+Header CTA placement follow-up:
+- [x] Document the user's instruction to move creation beside import and remove the inline form.
+- [x] Verify failing-first header placement and no-inline-form tests, then wire the existing create route.
+- [x] Verify focused tests, Dashboard typecheck/build and desktop/mobile keyboard navigation (26 unit passes, unchanged receipt-link failure; 7 browser passes).
+- [x] Refresh only the Docker Dashboard and verify live CTA navigation without business-data writes.
+- [ ] User manually accepts the updated header CTA placement.
+
+### File-first authorization import — September 24, 2026
+
+- [x] Document the distinct file-first import and manual creation paths before implementation.
+- [x] Add import, processing, explicit scope confirmation, and manual fallback regressions.
+- [x] Route unassociated receipts through analysis and scope confirmation; reuse revision-checked association.
+- [x] Verify Dashboard type checking and desktop/mobile browser upload, receipt reload, suggested name and explicit environment selection.
+- [ ] Manual provider-admin acceptance with a real package and backend processing.
+- [x] Supersede the scoped upload receipt-link test with the unified file-first receipt and explicit-association workflow below; historical focused result was 22 passed / 1 failed.
+
+### Unified authorization import CTAs - September 24, 2026
+
+- [x] Document shared file-first intake and durable offering context before implementation.
+- [x] Add failing-first scoped/global CTA, receipt reload and explicit association tests.
+- [x] Reuse file-first intake at both entry points without changing versioned successor intake.
+- [x] Validate 45 provider-authorization tests plus the catalog CTA test, type checking/build, and 11 desktop/mobile Chromium scenarios. Existing workspace mock failures remain separately documented.
+- [ ] User manually accepts the unified import actions.
+
+### Entra administrator lookup and setup refresh — September 24, 2026
+
+- [x] Document read-only directory scope, explicit selection, cloud routing and deployment setup.
+- [x] Add failing service and picker tests before implementation.
+- [x] Implement server-owned connections, CSP authorization, bounded Graph search and explicit failures.
+- [x] Refresh administrator enrollment, search and selected-person presentation; preserve manual/deferred enrollment.
+- [x] Complete focused checks: 9 directory service tests, 3 HTTP authorization tests, 29 Dashboard tests, typecheck and 8 desktop/mobile browser checks passed.
+- [ ] User manual acceptance with a consented live Entra directory; deployment configuration required.
+- [ ] Sync feature issue tracking after external-write approval.
+
+### Package review presentation — September 25, 2026
+
+- [x] Document the simplified summary, record/source views and progressive disclosure before implementation.
+- [x] Add summary and view-switch selection preservation tests; retain existing publication and recovery checks.
+- [x] Verify Dashboard type checking and desktop/mobile browser review → preview → approval → publication, including uncertain-response recovery.
+- [x] Focused unit result: 29 passed, one upload test fails on jsdom/Node ArrayBuffer hashing interoperability; no full-suite pass claimed.
+- [ ] User manual acceptance of a real package with analysis exceptions and excluded sources.

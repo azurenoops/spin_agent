@@ -47,6 +47,302 @@ simulation defaults and workspace authorization remain unchanged.
 
 ## Intent and confirmed decisions
 
+### System-level Security Capabilities (issue #1037, September 25)
+
+September 26 initial navigation clarification (superseded by the Environment
+redesign below): remove the separate **Provider
+relationships** system-sidebar entry. **Environment > Hosting** is the optional
+task for inspecting existing provider hosting allocations and associating one
+with the selected system. It must not select or subscribe to capabilities.
+**Security Capabilities > Add from library** remains the primary application
+flow, and **Coverage & duties** remains the responsibility-review surface.
+Retain existing hosting records, authorization rules and legacy bookmarked
+association routes. Organization-only systems do not require provider setup.
+
+September 26 user correction: Environment & Deployment must answer **Where does
+this system run, and which provider services does it use?** Show hosting model
+(CSP-hosted, organization-managed cloud, on-premises or hybrid), a short
+environment description, and actual associated hosting/capabilities first.
+For CSP-hosted systems, provide **Associate hosting & capabilities**, guiding
+provider selection, allocated hosting scope selection, applicable capability
+selection and separate revision-bound responsibility confirmation. Reuse the
+existing association/subscription/review services; never treat application or
+an overview checkbox as acceptance of duties.
+
+Move Azure assessment configuration to Assessments with a link from Environment.
+Keep legacy assessment-configuration deep links compatible. A permission denial
+must explain required access, not suggest Retry as a solution. Move overall
+Profile Completeness to the system overview; collapse the system right panel by
+default. Hide—not delete—network/deployment, recovery, availability, maintenance
+and operating-system details in relevant expandable groups. Preserve legacy
+hosting values and unknown stored profile keys. Offer explicit review of
+available hosting-scope prefills before applying them to the editable draft;
+do not infer recovery targets or save changes automatically.
+
+Implement [azurenoops/spin_agent#1037](https://github.com/azurenoops/spin_agent/issues/1037)
+using all eight views and accompanying drawers/dialogs in the
+[system mock guide](../../docs/design/system-security-capability-mocks/README.md).
+The existing organization library, system assignments, provider subscriptions,
+responsibility allocations, narrative proposals and durable setup operations
+remain authoritative; this is not another catalog or setup engine.
+
+- One **Security Capabilities** system-sidebar destination replaces Capabilities
+  and Components. Keep organization/system/roles, breadcrumbs, SystemLayout and
+  its context panel. Preserve legacy routes, selected records and query state;
+  keep inventory creation/import/discovery available through a component action.
+- **By capability** shows only records actually applied to the route system.
+  **By component** includes direct assignments with no capability and deduplicates
+  contributors from applied provider and supporting organization capabilities.
+  Search, source/type/boundary filters, sort, pagination and totals are server
+  scoped. Library availability is separate from system application.
+- Component drawers show ownership, type/subtype, delivered capabilities and
+  actual component assignment placements. Provider records stay read-only;
+  authorized placement changes affect system relationships, not source authorship.
+- Detail tabs are **Implementation**, **Coverage & duties**, and **Evidence &
+  narratives**. Show independent per-control allocations, source comparisons,
+  confirmed/available revisions, unresolved states, protected evidence and
+  independent policy/technical freshness. Required checks and notes gate
+  revision-bound confirmation; approved narratives survive until authorized
+  proposal acceptance.
+- **Add from library** has selection, applicability and final exact-write review.
+  Preserve source-qualified multi-selection across pages; lock the route system.
+  Choose authorized component/boundary placements and existing organization
+  support without rewriting provider contributors. Persist request-bound plans
+  and per-write outcomes in the existing setup model. Refresh and concurrent
+  retries resume only unfinished writes; cancel never removes saved records.
+- **Remove from this system** previews exact authorized impact, distinguishes
+  local unlink from provider unsubscribe, and rejects stale source/relationship
+  state. Retain shared library records, other systems, unrelated placements and
+  approved historical narratives. Removal is not an AO authorization change.
+
+System management, responsibility confirmation and narrative review permissions
+remain distinct and are enforced on every server request. Ordinary membership,
+MissionOwner or CSP Admin/support alone does not grant customer review authority.
+Organization-only systems must work without a CSP. Route/query state and pending
+reads are isolated across systems, organizations and tabs.
+
+Acceptance covers all mock views, loading/empty/error/denied/stale states, partial
+failure and refresh recovery, two systems sharing one provider capability,
+multiple contributors/boundaries, unauthorized evidence/proposals and retained
+records after removal. Use synthetic fixtures rather than altering retained
+customer packages. Record actual build/test/browser results and leave local user
+acceptance and issue closure open.
+
+### Authorization-led provider offerings (September 23, 22:54)
+
+Boundary usability follow-up (September 25): lead with the current
+**Authorization boundary**, not a revision ledger. Clearly label the provider
+offering name, recorded cloud environment and boundary/service name as separate
+facts; do not rename or equate Azure hosting and Microsoft 365 tenant scope.
+Present five scannable sections: Authorization boundary; Included services and
+resources; Security capabilities; Shared responsibilities; Mission systems.
+Preserve source wording while displaying scope and responsibility statements as
+readable lists. Show explicitly recorded tenants/subscriptions/resource scopes
+and exclusions, never infer resource coverage from a service name.
+
+Use one primary **Edit boundary** action, prefilled from the exact current
+boundary. Explain that saving creates a new immutable version, preserves prior
+versions and requires review of affected authorization/capability context.
+Previous versions, revision metadata and snapshot hashes belong in collapsed
+**Version history**; they must not displace scope and next steps. Distinct
+failures remain actionable rather than being hidden by empty-state defaults.
+
+Link the current offering to real source capability proposals/published catalog
+records and mission hosting assignments/associations. Scope these reads
+server-side to the authenticated provider and selected offering, preserve paging
+and distinguish hosting allocation, mission association and actual capability
+adoption. Unpublished proposals are not published capabilities; a hosting
+assignment is not inherited coverage or system authorization. No new inventory,
+automatic publication, customer association, authorization or data rewrite.
+
+Explain the workflow: review the package, confirm the boundary, review and
+publish capabilities, then let Mission Owners associate their systems and
+applicable capabilities. Offer working links into the existing workflows rather
+than a second publication or relationship implementation.
+
+Offering overview follow-up (September 25, 19:57): replace the empty decision
+ledger at the offering's root route with an overview of authorization, package
+analysis, security capabilities, hosting and mission systems. Distinguish source
+documents from the authorization decision they describe and from reusable
+published protections. No recorded decision does not establish that no package
+or ATO exists. Show decision issuer, source-stated dates, scope, conditions and
+supporting evidence, with unconfirmed records explicitly distinguished.
+
+Prefer **Review extracted authorization details** when retained source details
+are available; **Record authorization manually** is a secondary dialog action
+for documenting an existing external decision, never issuing a new ATO. Provide
+one context-sensitive next action and recognizable links into current package,
+capability, hosting and decision workflows. Summary counts must cover all
+offering-scoped records, not just one displayed page; unpublished proposals and
+published capabilities must not be double-counted. Separate hosting allocations
+from associated mission systems. Missing or failed reads must remain explicit.
+No analysis reruns, automatic review, new authorization policy or live domain
+mutation is part of this overview correction.
+
+Dialog usability follow-up (September 25, 19:01): the Boundary edit action and
+Hosting and responsibilities task CTAs open modal dialogs, not inline forms.
+Keep the overview visible behind the dialog, with one active task at a time.
+Support keyboard focus containment, focus return to the initiating CTA, Escape,
+close and backdrop dismissal unless a write is pending or its result uncertain.
+Retain drafts and visible error/retry guidance inside the dialog during conflicts
+and refreshes. Opening or closing a dialog must not save, publish or accept duties.
+Use the same dialog behavior for capability, association and responsibility
+reviews and provider allocation administration. Existing endpoints, permissions,
+immutable revision and publication checks remain unchanged.
+
+Change-impact usability follow-up (September 25, 17:08): rename the offering's
+Authorization impact page to **Change impact**, preserving existing links.
+Explain its purpose: identify security capabilities and mission systems that
+may be affected by a proposed package, boundary, hosting or capability change
+before publication. Reviews lead with Proposed change, Affected capabilities,
+Affected mission systems, Required action and Review outcome. Use verified
+record names, meaningful status explanations and explicit missing/unavailable
+states; the screenshots are not evidence that affected-system analysis works.
+Technical identifiers and hashes belong in collapsed Details, never manual
+input fields. Retain immutable historical context and reviewer/time/decision.
+
+Use **Review changes** to open a review and **Changes detected since this
+review** with **Update impact review** instead of an unexplained stale status.
+Named, server-resolved version selections must carry exact revisions and hashes.
+Start the task from a revised package or capability change and preserve that
+source selection through impact assessment and the existing exact publication
+workflow. Do not equate impact acceptance with publication, automatically approve
+a change, manufacture a coverage delta or infer system authorization. Verify
+the actual dependency/association reads and source privacy before displaying
+affected-system claims. Reuse canonical context hashing, freshness, idempotency,
+tenant/provider checks and publication guards; no analysis retries, AI calls,
+live domain writes or permission expansion are part of this UX follow-up.
+
+Clarified during implementation: the user approved assessing a saved change
+without an external authorization record. An empty authorization selection must
+remain explicit and state that authorization coverage is not established.
+Assessment is not acceptance or publication; preserve the separate publication
+eligibility checks and do not synthesize an authorization record. The previous
+impact-preview requirement for at least one authorization revision must no longer
+prevent this assessment-only task.
+
+Exact revisions must also survive the browser transport without numeric rounding.
+Some canonical component revisions use 64-bit UTC ticks, beyond JavaScript's safe
+integer range. Carry these as decimal strings in additive presentation responses
+and accept exact decimal strings at the existing input boundary while preserving
+legacy numeric input and canonical server-side numeric hashing. Do not hide
+otherwise reviewable changes merely because their revisions cannot be represented
+as JavaScript numbers.
+
+Hosting usability follow-up (September 25, 15:28): replace the long inherited
+coverage form with five clearly explained tasks: **Azure hosting** (Configure
+hosting), **Microsoft authorization references** (Add reference), **Security
+capabilities** (Review capabilities), **Mission systems** (View associations),
+and **Shared responsibilities** (Review responsibilities). Show a short,
+data-derived setup checklist and one primary next action. Open forms only on
+request. Names and service descriptions lead; identifiers, versions and hashes
+belong under Details. Explain which externally issued Microsoft authorization
+documents can be referenced and distinguish them from the provider's decision.
+
+The live hosting-history and hosting-assignment requests returned empty-body
+404s while offering, boundary and authorization-record reads succeeded. Trace
+and repair the missing implementation rather than interpreting failures as no
+data. Until a required read succeeds, show its specific unavailable state and
+disable the dependent action; never render a ready-to-submit form next to a
+failed prerequisite. Avoid duplicate reference lists and repeated warning
+banners. Recording hosting does not create Azure resources or grant authority.
+
+Mission Owner association is a separate guided task: select system, choose CSP
+hosting scope, select applicable published security capabilities, review
+responsibilities, then explicitly confirm associations. The user confirmed
+**existing system allocations only**: no new allocation requests, no widening
+of scope, and no new approval workflow. Preserve server-side tenant/system
+access, exact assignment/release context, idempotency and explicit responsibility
+review. Normal association does not establish covered-workload status or a
+mission ATO; the existing Authorizing Official review remains separate.
+
+Confirmed permission/workflow decision (September 25): preserve the existing
+ISSM/ISSO-only subscription authority. Use **two explicit confirmations**:
+first save the existing hosting allocation's mission association; then refresh
+applicable capabilities and responsibilities and, for authorized users, review
+and confirm subscriptions. Association changes the applicability preview hash,
+so the second review must use the fresh server context. MissionOwner-only users
+receive a truthful association-success state, read-only capability/responsibility
+information and an ISSM/ISSO handoff, not a fabricated pending request. This
+refines the originally requested single-confirmation sequence without widening
+permissions or accepting duties automatically.
+
+The superseding request moves package ownership to **Authorizations**. Preserve
+the durable ingestion, citations, candidate review and exact-set publication
+gates below, but do not treat a source package as the provider authorization.
+Support multiple offerings and external authorization records. Keep provider
+offering, external decision, recorded boundary, component, reusable capability,
+Azure hosting assignment and mission-system authorization distinct.
+
+Authorizations owns offering/decision/boundary/Azure scope, existing-package
+import and history, inherited Microsoft references, extraction and authorization
+impact review, findings/POA&M/evidence/deadlines. Security Capabilities owns the
+shared catalog, authoring, contributors, published/working revisions, duties,
+customer adoption and release impact. Link both; never duplicate inventories
+or release services. Optional onboarding import records receipt and processing
+only and hands detailed review to Authorizations.
+
+Existing offerings must expose **Upload package** from their Authorizations
+card and detail header. The action retains the selected offering, requires an
+explicit boundary revision, and reuses the current receipt/analysis/review flow.
+It must not create a duplicate offering, populate authorization fields
+automatically, or approve/publish records. The general import picker remains
+available when no offering is selected.
+
+Mission owners may review published capabilities suggested from their assigned
+provider offering, cloud environment and resource scope. Assignment alone never
+confirms inherited controls, duties or authorization. Relationships distinguish
+separate mission boundary, externally evidenced covered workload, and
+undetermined/review-required. Covered scope must identify supporting authority
+and evidence and is never an unguarded self-service toggle.
+
+Package/decision changes identify affected components, capabilities, scopes and
+mission systems. Proposed catalog or hosting-scope changes create authorization
+impact review; newly discovered resources remain outside recorded coverage.
+Supersession/withdrawal retains historical decisions and cannot silently amend
+customer authorization, approve narratives or publish working revisions.
+Extracted findings and POA&M items are not capabilities; evidence submission
+does not close a finding. Source-derived decision metadata is unconfirmed until
+explicit review and records an external authority's decision, never one made
+by extraction, onboarding or publication in SPIN.
+
+Local implementation/testing only. Existing dirty work, original sources,
+published records and unrelated drafts must survive. No live Azure mutations,
+GitHub writes, pushes or deployment are authorized.
+
+### Provider ATO ingestion and portal approval (September 23, 17:02)
+
+Local implementation is authorized; deployment and GitHub writes are not.
+Extend existing #1026/#1027/#1028 under #1002 and Feature 048 US9 using
+[the package contract](contracts/package-imports.md). Optional onboarding uploads
+are durably received and processed independently of browser lifetime. Onboarding
+shows processing and exceptions only; inventory review occurs in the portal.
+Every generated component/capability requires explicit human review, exact-set
+revision-bound approval and separate publication, including high-confidence
+results and post-onboarding imports. No blanket draft publication is permitted.
+Account for all package entries and supported content units; partial/unsupported
+analysis remains visible. Citations, duplicates, dependencies, exclusion
+rationales and recovery are persisted. Existing published content remains intact.
+
+Source-entry exclusion explanations appear once as neutral information, not
+duplicate analysis warnings. Excluded entries remain visible and downloadable;
+a reason-only excluded response must still explain the exclusion. Distinct
+processing failures and unavailable semantic-family coverage remain warnings.
+This presentation change never marks excluded content analyzed or changes
+approval, publication, retry or budget behavior.
+
+#### Azure example package (local demo follow-up)
+
+Provide an explicitly illustrative Azure package covering Microsoft Entra ID,
+Azure Monitor, Azure Key Vault and Azure Firewall, with source-linked service
+descriptions, proposed NIST mappings and shared-responsibility statements.
+This is not an official Microsoft ATO package, a verified authorization, or
+evidence that a deployed environment satisfies a control. Import through the
+ordinary authorized package workflow; leave every generated candidate awaiting
+human review. Preserve existing demo packages, published releases and identity
+permissions. No cloud resource creation, approval, publication or deployment is
+authorized by this example-content request.
+
 ### CSP Add Organization completion (September 23, 13:17)
 
 Under #1031 and #1030, implement the approved
@@ -624,3 +920,74 @@ implicitly enter support. Organization rollups must include all returned cursor 
 Loading/failure states must not masquerade as empty portfolios or zero coverage.
 Preserve the system risk drill-through and add visible recovery actions. No permission,
 backend schema, authorization-decision or publication workflow changes are in scope.
+
+### Authorizations landing-page visual refresh — September 24, 2026
+
+Refine the existing offering-list screen requested in the user's screenshot. Use a compact search/action area, readable cloud labels, offering lifecycle badges, separate boundary/hosting indicators, and scoped next-step links. Do not invent authorization status or aggregate counts from paginated items. Distinguish an empty catalog from no search results and retain error/retry behavior. Preserve existing creation, import, access checks and workspace navigation; no API or domain contract changes.
+
+Latest user-directed placement: the landing hero has Create offering beside
+Import existing authorization package. Remove the inline creation form below
+search and use the existing dedicated creation page. Cards
+remain vertically stacked beside the desktop workflow guide on a pale background,
+with the guide below the list on mobile. Preserve the dedicated create URL,
+scoped upload links, dynamic data, keyboard access and dark mode.
+
+### File-first authorization import — September 24, 2026
+
+The header import action must accept source files before requiring an offering or boundary. Use durable unassociated receipt, processing status, and explicit confirmation of extracted boundary claims before associating the retained package. Keep Create offering as manual authoring and existing per-offering uploads scoped to their selected offering. Never infer verified authorization or publish from receipt/association. Show a manual fallback when extraction has no usable scope; expose errors and preserve receipt URLs for reload/recovery.
+
+Scope-review correction: candidate reads must accept all declared candidate kinds
+and return typed, cited claim fields. Saved receipts created before that
+projection was added must remain usable through their own retained checkpoint,
+without re-upload, overwritten human edits or altered coverage/publication state.
+Show the stated boundary relationship. Excluded or undetermined statements must
+not prefill included scope; retain them for review and allow explicit manual entry.
+
+Unified entry points: label the global action **Import authorization package**
+and the offering shortcut **Add package to this offering**. Both start with files
+and analysis before boundary confirmation. The scoped receipt URL must retain
+the chosen offering across reload, scope selection and manual fallback. Explicit
+revision-checked association is still required; mismatched existing associations
+must not silently retarget the flow. Preserve exact-version successor intake.
+Both import routes must remain usable on narrow screens without a fixed-width
+offering sidebar squeezing the form. Keep a Back to offering action in scoped
+intake; other offering sections retain their navigation.
+
+Local semantic-provider connection: use only the approved existing model and a
+resource-scoped development identity. An opt-in completion-token setting must
+preserve legacy deployment behavior and bounded output. Successful model
+connectivity is not successful package analysis: partial model output, invalid
+citations and time-budget failures remain explicit, without changing human
+reviews or automatically associating, approving or publishing the receipt.
+
+User-approved long-import behavior: automatically continue in smaller bounded
+background passes, displaying saved source-segment progress and the cumulative
+model-call budget. Output-truncated batches must be split without accepting
+partial output. Resume only unfinished work after a pass timeout. Do not reset
+budgets, repeatedly resubmit invalid responses, or require users
+to keep the browser open. Exhausted limits and irreducible errors remain explicit.
+Excluded sources do not count as analyzed progress. Model responses use an
+unambiguous three-field JSON root and literal citation properties. Short,
+batch-local source aliases must resolve only to supplied segments; persisted
+citations and candidate identities retain original stable source keys. Unknown
+aliases, non-verbatim quotes and unsupported fields remain rejected.
+Use a strict kind-specific model response schema, with claims required for
+claim kinds and explicit inventory/family classification. A source-key-only
+citation uses the server's exact retained segment text. Omitted claim field
+bindings may be assembled mechanically only from exact cited support; explicit
+bindings remain validated, never silently replaced. PDF reading-order problems
+must remain visible rather than accepting reconstructed, unsupported sentences.
+Layout recovery retains original text/citations and appends separately keyed
+views only for unfinished selected PDF pages. Progress counts active views once.
+One user-approved corrective response may follow a completely received invalid
+batch, with bounded validator feedback, unchanged source/schema obligations and
+existing cumulative budgets. A second rejection remains incomplete; malformed
+streaming protocol, tool output and transport failures do not enter this path.
+
+### Entra administrator lookup and setup refresh — September 24, 2026
+
+The initial administrator step defaults to a directory user search. CSP administrators can search only server-configured Entra connections assigned to their authenticated directory, explicitly select a result, and review populated identity details before organization creation. Search must never grant access or select the primary contact automatically. Enrollment can be deferred; the existing manual identity path remains available with an unverified label. Empty, disconnected, denied, throttled and failed searches remain distinguishable. Government and DoD Graph endpoints must not fall back to the public cloud. Search results are bounded and require a minimum query length; no full directory enumeration or raw Graph continuation URL is exposed.
+
+### Package review presentation — September 25, 2026
+
+Package detail presents one concise status summary and contextual next action. Analysis exceptions and excluded content stay visible without repeating processing totals. Users switch between extracted records and source-file review; processing diagnostics and enrichment controls are disclosed on demand. Publication retains explicit preview, approval and publish gates. Selections and review editors survive switching views. No status is inferred from candidate counts or hidden diagnostics.
