@@ -1,4 +1,5 @@
-import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios';
+import { WorkspaceOperationError, workspaceRequest as request } from './workspaceRequest';
+export { WorkspaceOperationError } from './workspaceRequest';
 import type {
   CatalogQuery, OrganizationCapability, OrganizationCapabilityDetail, OrganizationCatalogItem,
   OrganizationDetail, PagedResult, ProviderCatalogItem, ProviderSubscriber, ProvisioningResult,
@@ -32,42 +33,6 @@ export async function getSetupComponents(systemId: string, params: Parameters<ty
 export async function createSetupComponent(systemId: string, body: Parameters<typeof createComponent>[1], signal?: AbortSignal) {
   const component = await createComponent(systemId, body, signal);
   return { id: component.id, name: component.name };
-}
-
-export class WorkspaceOperationError extends Error {
-  constructor(message: string, public readonly status?: number, public readonly code?: string) {
-    super(message);
-  }
-}
-
-function unwrap<T>(response: AxiosResponse<unknown>): T {
-  const body = response.data as {
-    status?: string;
-    data?: T;
-    error?: { code?: string; errorCode?: string; message?: string };
-  };
-  if (body?.data !== undefined && body.status !== 'error') return body.data;
-  throw new WorkspaceOperationError(
-    body?.error?.message ?? 'Unexpected workspace operation response.',
-    response.status,
-    body?.error?.code ?? body?.error?.errorCode,
-  );
-}
-
-async function request<T>(config: AxiosRequestConfig): Promise<T> {
-  try {
-    return unwrap<T>(await axios.request(config));
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const detail = error.response?.data as { error?: { message?: string; code?: string; errorCode?: string } } | undefined;
-      throw new WorkspaceOperationError(
-        detail?.error?.message ?? error.message,
-        error.response?.status,
-        detail?.error?.code ?? detail?.error?.errorCode,
-      );
-    }
-    throw error;
-  }
 }
 
 function providerCapabilityPath(capabilityId: string) {
@@ -132,10 +97,10 @@ export function saveWorkingRevision(capabilityId: string, body: {
   });
 }
 
-export function generatePublicationPreview(capabilityId: string, revision: number, signal?: AbortSignal) {
+export function generatePublicationPreview(capabilityId: string, revision: number, signal?: AbortSignal, impactReviewIds?: string[]) {
   return request<PublicationPreview>({
     method: 'POST', url: `${providerCapabilityPath(capabilityId)}/publication-previews`,
-    data: { revision }, signal,
+    data: { revision, ...(impactReviewIds?.length ? { impactReviewIds } : {}) }, signal,
   });
 }
 
@@ -282,3 +247,9 @@ export function reviewNarrativeProposal(
     data: body,
   });
 }
+
+export interface DirectoryConnection { id: string; name: string; directoryTenantId: string; cloud: string; configured: boolean }
+export interface DirectoryUser { directoryTenantId: string; objectId: string; displayName: string; email: string; userPrincipalName: string }
+export const getDirectoryConnections = (signal?: AbortSignal) => request<DirectoryConnection[]>({ url: '/api/csp/directory/connections', signal });
+export const searchDirectoryUsers = (connectionId: string, query: string, signal?: AbortSignal) =>
+  request<{ users: DirectoryUser[]; hasMore: boolean }>({ url: '/api/csp/directory/users', params: { connectionId, query }, signal });

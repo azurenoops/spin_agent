@@ -97,6 +97,8 @@ export interface PublicationPreview {
   affectedSystems: { organizationId: string; systemId: string }[];
   delivery: { impactWrites: number; distinctOrganizations: number; distinctSystems: number };
   notifications: { recipientCount: number; distinctOrganizations: number };
+  impactReviewIds?: string[] | null;
+  contextSnapshotHash?: string | null;
 }
 
 export interface ProviderSubscriber {
