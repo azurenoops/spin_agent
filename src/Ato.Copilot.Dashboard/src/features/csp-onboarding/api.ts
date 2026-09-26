@@ -10,6 +10,8 @@
 import axios, { type AxiosError } from 'axios';
 import { attachAuthInterceptor } from '../auth/interceptors';
 import { getMsalInstance, DEFAULT_API_SCOPES } from '../auth/msalInstance';
+import { receivePackage } from '../package-imports/api';
+import type { PackageStatus } from '../package-imports/types';
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -243,19 +245,14 @@ export interface AtoStepState {
 /**
  * Uploads one or more ATO source documents (PDF SSP, DOCX, OSCAL JSON, XLSX,
  * eMASS ZIP) during the CSP-onboarding wizard's ATO Documents step.
- * Multipart, max 50 MB per file (enforced both client-side and server-side).
+ * Negotiates durable asynchronous receipt; processing, review and publication
+ * remain separate. The caller retains its idempotency key on uncertain failures.
  */
 export async function postCspOnboardingAtosUpload(
   files: File[],
-): Promise<AtoUploadResponse> {
-  const form = new FormData();
-  for (const f of files) form.append('files', f, f.name);
-  const { data } = await cspClient.post<Envelope<AtoUploadResponse>>(
-    '/csp/onboarding/atos/upload',
-    form,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
-  );
-  return unwrap(data);
+  idempotencyKey: string,
+): Promise<PackageStatus> {
+  return receivePackage(files, idempotencyKey, true);
 }
 
 /**
