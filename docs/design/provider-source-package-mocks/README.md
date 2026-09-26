@@ -2,6 +2,22 @@
 
 Open `index.html` directly in a browser. All data is synthetic; there are no API calls or persistent writes.
 
+## Superseding ownership
+
+The authorization-led request places offering, decision, boundary, package
+versions and source review under **Authorizations**. The Security Capabilities
+card is a linked summary, not an independent decision editor or import workflow.
+Use [the authorization mock](../provider-authorization-mocks/index.html) for
+the primary entry. The source-preview and candidate-review interaction patterns
+remain reusable; sample data and prior simulated saves are not application
+contracts.
+
+Optional onboarding now offers **Import an existing authorization package** and
+hands detailed review to Authorizations after receipt. Onboarding still never
+shows inventory review or implies approval/publication. Microsoft references,
+provider decisions and mission decisions stay distinct. Hosted subscriptions
+and technical telemetry do not establish authorized workload coverage.
+
 Use the scenario selector to review populated, empty, missing authorization, independent lookup failures, and edit-conflict states. Expand/collapse the card, open a sample document, edit or record a reference, cancel/save, and recover from a conflict. Reload resets preview data.
 
 Screenshots:

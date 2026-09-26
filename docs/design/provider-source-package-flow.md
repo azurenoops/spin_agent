@@ -1,8 +1,95 @@
 # Provider offering / source package — UI and API flow
 
+## Superseding direction: authorization-led provider offerings
+
+The September 23 22:54 implementation request supersedes earlier navigation and
+ownership proposals in this document. **Authorizations** is the primary entry:
+import an existing authorization package, select/create an offering, record its
+boundary, durably upload sources, review unconfirmed extracted claims, then
+approve and explicitly publish eligible component/capability revisions using
+the existing release pipeline. Detailed package review no longer belongs to
+Security Capabilities; that catalog links back to Authorizations.
+
+Authorizations owns offerings, externally issued decisions and their history,
+recorded scope, Azure hosting scope, packages, inherited Microsoft references,
+source review, authorization impacts, findings, POA&M, evidence and deadlines.
+Security Capabilities owns reusable functions, component relationships, authored
+coverage/duties, working/published versions, adoption and release impact.
+Onboarding may offer **Import an existing authorization package** but shows only
+receipt, processing and exceptions and continues without inventory review.
+
+The Flankspeed/Azure operating example does not establish actual coverage:
+subscription assignment does not place a workload inside an authorization.
+Mission relationships require review and distinguish separate boundary,
+evidenced covered workload and undetermined. Covered scope requires recorded
+external authority and supporting evidence; technical telemetry is not a
+decision. Package changes and proposed catalog/scope changes generate explicit
+impact review without rewriting historical decisions, customer-approved
+narratives or prior releases. Evidence submission never closes findings.
+
+The [provider authorization mock](provider-authorization-mocks/index.html) and
+its [interpretation rules](provider-authorization-mocks/README.md) establish the
+light visual direction. Sample decisions and simulated outcomes are not data
+contracts. The sections below retain historical trace evidence; statements
+about blanket publication describe the earlier source, not current behavior.
+
 Status: proposed completion for user approval. Source audit: 2026-09-23, current working checkout (including uncommitted work). This is a design document, not an implemented feature or a deployed verification result.
 
+Implementation was authorized locally on 2026-09-23. The earlier source audit
+below is historical. The revised scope remains authoritative; implementation
+contracts and acceptance tracking are in
+[Feature 078](../../specs/078-role-aware-workspaces/contracts/package-imports.md)
+and the [local acceptance guide](../dev/csp-package-ingestion.md). No deployment
+or completed verification is implied by that authorization.
+
 Scope: the highlighted offering card on Provider workspace → Security Capabilities.
+
+## September 25 package regression repair
+
+The sequential local regression log `remaining-contract-final-regressions.log`
+records three failures: missing profile schema columns, missing candidate
+`AnalysisProfileVersion` projection, and the missing Harbor attention ZIP test
+fixture. This repair does not change analyzer semantics or publication behavior.
+
+- Add profile, coverage, operation-history and typed-claim schema columns on both
+  fresh creation and additive SQLite/SQL Server upgrades. Legacy rows retain
+  profile 1, empty coverage/operation history, and absent claims/target profile;
+  upgrades must not reset existing receipts, reviews, approvals or audit history.
+- Retained analysis checkpoints remain the existing worker's persisted source of
+  profile provenance. Expose a candidate profile only after matching its retained
+  identity, kind and exact source citations, including the cited entries' profile
+  versions. A legacy candidate must not become profile 2 merely because its
+  package later underwent profile-2 analysis. Reads do not rewrite review state.
+  Dedicated schema columns alone do not establish that their writers are wired.
+- Restore the original synthetic Harbor ZIP in the unit-test fixture directory,
+  not in the actively replaced `output/pdf/csp-ato-test-package` directory.
+  Git blob `2a43c103b44007b8692e88e54f03d4d439597401` and the tracked manifest
+  identify SHA-256
+  `00fc8376fe3462ae911303b9169eb7826e45a303fdabec56483d338e5c543838`.
+  It contains the original PDF/JSON, encrypted appendix, text note and malformed
+  JSON; the archive plus five children must remain visible to the analyzer.
+
+Local manual verification remains available by running the focused
+`CspPackageProfile2Tests`, `CspPackageSchemaTests`, `CspPackageServiceTests` and
+`Claims_HarborAttentionArchiveAccountsForEveryEntryAndException` tests. No
+deployment, live database migration or SQL Server execution is implied.
+
+```bash
+/usr/local/share/dotnet/dotnet test \
+  tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj \
+  --artifacts-path tests/Ato.Copilot.Tests.Unit/bin/profile-regression-artifacts \
+  --no-restore --framework net9.0 \
+  --filter 'FullyQualifiedName~CspPackageProfile2Tests|FullyQualifiedName~CspPackageSchemaTests|FullyQualifiedName~CspPackageServiceTests|FullyQualifiedName~Claims_HarborAttentionArchiveAccountsForEveryEntryAndException'
+```
+
+If that isolated artifact directory has no assets yet, run `dotnet restore` with
+the same project and `--artifacts-path` first. September 25 local result: **69
+passed, 0 failed, 0 skipped** on SDK 9.0.318 / VSTest 17.14.1. This includes seeded
+SQLite history preservation, repeat-upgrade data preservation, conservative
+legacy/profile projection and the original Harbor exception-coverage test.
+SQL Server verification is script structure only, not execution. Candidate
+projection's covered lines are 28/28; schema-helper covered lines are 145/146
+(the unchanged unsupported-provider rejection was not exercised).
 
 ## What exists today
 
