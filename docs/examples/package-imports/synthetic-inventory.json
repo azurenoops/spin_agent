@@ -1,0 +1,20 @@
+{
+  "components": [
+    {
+      "id": "synthetic-component",
+      "type": "service",
+      "name": "Synthetic audit service",
+      "description": "Synthetic provider records administrative events."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "synthetic-capability",
+      "name": "Synthetic event logging",
+      "description": "Synthetic provider records administrative events.",
+      "componentIds": ["synthetic-component"],
+      "controlId": "AU-2",
+      "responsibility": "Provider"
+    }
+  ]
+}

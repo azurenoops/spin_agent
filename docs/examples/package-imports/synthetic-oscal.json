@@ -1,0 +1,48 @@
+{
+  "system-security-plan": {
+    "uuid": "bbbbbbbb-1000-4000-8000-000000000001",
+    "metadata": {
+      "title": "Synthetic provider package - no operational or authorization data",
+      "version": "1.0",
+      "oscal-version": "1.1.2"
+    },
+    "system-implementation": {
+      "components": [
+        {
+          "uuid": "bbbbbbbb-1000-4000-8000-000000000002",
+          "type": "service",
+          "title": "Synthetic audit service",
+          "description": "The synthetic audit service records administrative events. This is test data, not an operational security assertion.",
+          "status": { "state": "operational" }
+        },
+        {
+          "uuid": "bbbbbbbb-1000-4000-8000-000000000003",
+          "type": "software",
+          "title": "Synthetic backup scheduler",
+          "description": "The synthetic backup scheduler starts daily backup jobs. This is test data, not an operational security assertion.",
+          "status": { "state": "operational" }
+        }
+      ]
+    },
+    "control-implementation": {
+      "description": "Synthetic proposed coverage for human review only.",
+      "implemented-requirements": [
+        {
+          "uuid": "bbbbbbbb-1000-4000-8000-000000000004",
+          "control-id": "au-2",
+          "description": "Synthetic event logging",
+          "by-components": [
+            {
+              "uuid": "bbbbbbbb-1000-4000-8000-000000000005",
+              "component-uuid": "bbbbbbbb-1000-4000-8000-000000000002",
+              "description": "The synthetic provider records administrative events; the customer chooses retention settings.",
+              "props": [
+                { "name": "responsibility", "value": "Shared" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

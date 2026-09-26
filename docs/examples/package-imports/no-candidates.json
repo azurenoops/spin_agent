@@ -1,0 +1,5 @@
+{
+  "fixture": "Synthetic structured document with no component or capability declarations",
+  "purpose": "A successfully traversed document with zero candidates is not a parser failure.",
+  "items": []
+}

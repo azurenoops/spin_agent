@@ -1,5 +1,367 @@
 # CSP and Organization Workspaces (Approved Design)
 
+## Authorization-led offering amendment
+
+The September 23 22:54 request supersedes package-only ownership:
+**Authorizations** owns offering/externally issued decision/boundary/Azure scope,
+package history and ingestion review, Microsoft references, impacts, findings,
+POA&M, evidence and deadlines. **Security Capabilities** remains the shared
+reusable catalog and release/adoption surface. Durable source storage/analysis,
+private candidates and canonical exact-set publication are retained, not forked.
+
+Provider decisions, source references, hosting assignments and mission-system
+decisions remain distinct. A hosting assignment proposes applicability, never
+grants coverage or accepts inheritance. Covered-workload assertions require
+authority and source evidence under the mission system's Authorizing Official's
+existing authorization permissions (confirmed user decision). Provider and
+ordinary mission administrators cannot self-confirm covered status. Scope/decision changes
+retain history and trigger impact work; publication neither extends an external
+decision nor rewrites customer-approved narratives. Source extraction cannot
+confirm a decision or close a finding. Multiple offerings and authorization
+records are required; no singleton Azure ATO is inferred from the provider.
+
+The additive [implementation contract](../../specs/078-role-aware-workspaces/contracts/provider-authorizations.md)
+is now defined following backend, frontend and analyzer discovery. Implementation
+is in progress; this amendment is not a verified completion claim.
+Local implementation/testing only; no live cloud mutations or deployment are
+authorized.
+
+The recorded authorization boundary, permitted technical hosting scope and
+released capability applicability are three independent versioned snapshots.
+Offering package versions reference the existing durable receipts and originals.
+Exact publication context binds offering, source, decision/boundary/hosting
+versions and impact review into the existing canonical release transaction.
+Legacy unassociated receipts/releases keep their identity and are not
+retroactively labeled authorized coverage.
+
+Existing offerings expose **Upload package** on their Authorizations card and
+detail header. The offering-scoped `import` route reuses `OfferingIntake` with a
+fixed offering identity and explicit boundary selection. It uses the existing
+durable package-version endpoint and protected review handoff, not a new
+authorization or release model. General import remains available for choosing
+an offering; no schema migration or automatic field updates are introduced.
+
+The Boundary page presents authorization scope, included services/resources,
+linked security capabilities, shared responsibilities and mission hosting
+assignments before version mechanics. Offering identity, recorded cloud
+environment and the boundary/service name have separate labels. **Edit
+boundary** loads the exact current snapshot; saving creates an immutable new
+version. **Version history** lazily loads previous versions and their hashes.
+Desktop section navigation remains a sidebar; small screens use a section
+selector so the sidebar cannot compress the boundary into an unreadable column.
+
+The protected boundary-overview read model uses existing provider-scoped
+records, with independently paginated capability and mission sections.
+Source proposals do not count as published catalog capabilities. Hosting
+assignments, recorded mission associations and capability adoption remain
+different facts; missing identifiers or names are not invented. This read model
+is separate from the protected hosting/mission mutation services and does
+not approve, publish or establish authorization. The workflow is: review source
+packages, confirm the boundary, explicitly review/publish capabilities, then
+have Mission Owners associate systems and applicable capabilities.
+
+**System Security Capabilities (#1037, implemented; acceptance open)** consolidates
+the system's Capabilities/Components navigation without changing the reusable
+organization library. Applied system records, direct component assignments and
+provider subscriptions remain distinct from available library records. Detail
+views use canonical per-control responsibility and narrative review services;
+provider source authorship is never transferred by local support or placement.
+Environment & Deployment starts with the hosting model and environment
+description, then actual saved hosting associations and applied capabilities.
+Network/location and recovery/operating fields are expandable, not deleted.
+Legacy hosting values and other stored JSON keys are retained. Scope-based
+prefilling is explicitly reviewed in a dialog and remains unsaved until Save
+Draft. No SLA, recovery target or cloud entitlement is inferred.
+
+For CSP-hosted or hybrid systems, **Associate hosting & capabilities** reuses
+existing allocations and subscription APIs. Provider labels filter the scope
+choices; writes remain bound to exact assignment IDs and revisions (labels are
+not provider identities). Duty confirmation is the final follow-up through each
+capability's canonical Coverage & duties tab, not the association checkbox.
+Organization-only capabilities remain usable without a CSP. Legacy association
+bookmarks and the earlier hosting-only component mode remain compatible.
+
+Azure assessment configuration lives under **Assessments**, independently of
+profile editing and hosting permissions. Old profile/hash configuration URLs
+redirect to `/systems/:id/assessments/environment`. Access denials explain the
+required account/system permissions without offering Retry; transient failures
+remain retryable. Overall profile completeness is on the system overview; the
+system right-hand panel defaults collapsed and can be reopened.
+The system route retains SystemLayout, role context and existing inventory
+actions. See the [system contract](../../specs/078-role-aware-workspaces/contracts/system-security-capabilities.md)
+for exact additive projections, durable setup recovery and stale-safe removal.
+The selected-system endpoints extend the existing workspace service and durable
+setup store; responsibility confirmation, protected evidence and narrative review
+retain their canonical services and independent permissions. Additive columns
+store multi-selection intent/plans, system support links and revision-bound
+review checks/notes without inventing historical review evidence.
+
+The MCP and Dashboard implementation is deployed locally. The
+[manual acceptance guide](../guides/system-security-capabilities.md) covers all
+eight mock views, drawers/dialogs, local/provider setup, recovery and removal.
+The existing demo system has no applied or available capabilities: live
+desktop/mobile checks verify the real empty state, while populated scenarios
+use synthetic browser fixtures and backend tests. Do not publish retained package
+proposals just to manufacture live test data.
+
+The [validation checkpoint](../../specs/078-role-aware-workspaces/tasks.md)
+records successful unit/focused integration/UI/browser checks and explicit
+full-suite limitations. The full Dashboard has the same 25 baseline failures;
+the full backend integration run is not green and its non-environment failures
+are not yet fully classified against a pre-change baseline. Broad relational
+tests also encountered SQL availability failures and runtime container restarts
+on the shared Docker instance. After those runs, live selected-system checks and
+the retained pre-deployment data comparison passed again. Regression sign-off
+and local user acceptance remain open; deployment is not acceptance.
+
+The system context panel adds capability follow-up without replacing the existing
+To do/System Details tabs; smaller screens retain the same context in-page.
+Native dialogs and drawers are portaled outside page-spacing containers. Initial
+Chromium validation reproduced a 20-pixel drawer overflow caused by the parent's
+`space-y-5` margin selector overriding dialog margins; positioning must remain
+independent of page layout, with focus restoration and pending-write guards
+unchanged. Legacy single-record setup operation URLs continue to recover through
+the existing wizard; new multi-selection operations use the new Add from library
+route and the same durable backend operation store.
+Applied tables scroll within a positioned container on narrow screens, including
+their screen-reader action labels; those labels must not create document-wide
+horizontal scrolling outside the table's clipping boundary.
+
+**Offering overview** replaces the root decision ledger
+with authorization, package analysis, capability and hosting/mission summaries.
+An absent authorization record does not establish an absent ATO or uploaded
+package. A provider-scoped read model supplies complete counts across pages.
+Retained extracted authorization details lead to the existing package review;
+manual recording documents an existing external decision in a dialog, never
+issues a new ATO. Existing recording and publication gates remain unchanged.
+The next action finishes an unconfirmed manual record first; otherwise it
+prefers retained extracted authorization details, then uses package progress,
+capability review and hosting readiness to suggest the next task. Extracted
+claims can describe provider or inherited platform authority; reviewing them
+does not automatically materialize a provider decision. The source link carries
+the selected offering/package and the supported candidate-type filter.
+
+The summary read uses independent ten-item authorization and package pages.
+Provider decisions are filtered before counting/paging; Microsoft references
+remain a separate workflow. Capability metrics distinguish unpublished
+proposals, their reviewed/awaiting-approval subset, published canonical releases
+and archived releases. Mission totals count distinct tenant/system identities
+with an association to the current assignment revision, not allocations or
+approved workload coverage. IDs and snapshot hashes remain under Details.
+Read failures show an unavailable state instead of empty records or zero counts.
+Manual recording and record/history management reuse the guarded decision
+editor in a native modal; hosting, capability and association links open the
+corresponding existing task dialogs.
+
+Automated overview verification: 175 focused backend tests; 250 focused
+Dashboard tests in a serial run; 12 desktop/mobile Chromium checks; TypeScript,
+production build and versioned Dashboard image build passed. The overview UI
+measured 100% executable-line/function coverage and 96.25% branch coverage.
+The broader 259-test run had five failures in existing intake/onboarding tests.
+Those two files were excluded from the focused run (not all their tests failed).
+A concurrent rerun also exposed an intermittent existing impact-refresh test
+failure; the serial run passed without changing that test or implementation.
+This is not full-repository regression clearance.
+
+The MCP and Dashboard images tagged `offering-overview-20260926` are deployed
+to local Docker; both previous images have rollback tags. All five services are
+healthy, with Chat/SQL/Redis container identities and start times unchanged.
+The MCP runtime configuration is unchanged. Ten real-data desktop/mobile
+checks verified the overview, native task dialogs, retained source filter and
+authorization claim review without CSP writes or browser errors. Exact
+before/after domain snapshots match: one package, 86 proposed capabilities,
+415/428 analyzed segments and the exhausted 64/64 model-call budget remain
+unchanged. No decision was recorded and no analysis was restarted.
+
+Initial five-second live browser probes timed out. Instrumented navigation
+showed sequential package reads; final checks used a bounded 30-second
+assertion timeout and measured 19-20 seconds to open a retained source claim.
+That load time remains a known limitation; this change does not claim to fix
+source-review performance. Implementation/deployment is tracked in AUTH007k;
+user manual acceptance remains open under AUTH009.
+
+**Hosting and responsibilities** keeps the existing `inherited-coverage` URL
+but presents a short setup checklist and five explicit tasks: Azure hosting,
+Microsoft authorization references, security capabilities, mission systems and
+shared responsibilities. Forms mount only after their named action. The hosting
+editor starts from the exact current snapshot, while reference totals are
+server-filtered to Microsoft references. Names and workflow status lead;
+technical identifiers and hashes sit under Details. Failed reads show a
+task-specific unavailable state and disable dependent work, never a false
+"no records" result. Concurrency refresh retains an open reference draft, and
+pending or uncertain mutations prevent closing their task.
+
+**Edit boundary** and all Hosting and responsibilities task actions open the
+shared modal dialog rather than inserting an editor into the overview. This
+includes the suggested next action, hosting configuration, reference creation
+and review, capability review, mission associations and responsibility review.
+Provider allocation administration also stays in a dialog. Only one task is
+open at a time. Dialogs constrain keyboard focus and scroll long content within
+the viewport; dismissal returns focus to the initiating action. Escape, backdrop,
+close and cancel are disabled while a write is pending or uncertain. Conflict
+inputs and service error/retry guidance remain inside the open dialog.
+Opening or closing a task performs no domain write.
+
+Dialog verification (September 25): 142 focused Dashboard regressions and 10
+desktop/mobile browser tests passed, including native modal behavior, keyboard
+focus return, conflict drafts and uncertain-write dismissal protection. Fourteen
+read-only checks on the Docker site confirmed the real task dialogs at 1440px
+and 390px without changing retained records. Dashboard alone was redeployed;
+backend services and database containers were unchanged. Manual acceptance:
+refresh the offering, open each named action, then use Escape or Close to return
+without saving. Inspect long forms on mobile using the dialog's internal scroll.
+
+The Mission Owner journey is separate from CSP allocation administration.
+The approved scope is existing authorized allocations only; association cannot
+request new allocations, grant Azure access, accept duties implicitly or assert
+covered-workload status. The user approved two explicit confirmations: association
+first, followed by fresh capability/responsibility review and subscription
+confirmation. Subscriptions retain canonical ISSM/ISSO authority. MissionOwner-only
+users can associate and inspect capabilities but see an explicit ISSM/ISSO
+handoff. The refreshed preview is required because association changes its
+relationship identity/version; the publication context hash is not invented or
+weakened. User manual acceptance remains required after local verification.
+
+For local acceptance, open the offering's **Hosting and responsibilities**
+section. Verify the suggested next step and the five task cards before opening
+**Configure hosting** or **Add reference**; neither editor should be visible
+initially. Close without saving when only inspecting the retained offering.
+Use **Review capabilities**, **View associations** and **Review responsibilities**
+to inspect the remaining tasks. Check the same workflow at a narrow/mobile width.
+For a mission system, use **System Profile -> Provider relationships -> Start
+guided association**. A system with no existing allocations must show that
+specific empty state rather than offer to create an allocation. With an existing
+allocation, confirm association first, then separately review refreshed duties
+and confirm subscriptions using an authorized ISSM/ISSO identity.
+
+### Change impact
+
+The existing offering `/impact` route is now **Change impact**. It answers which
+recorded security capabilities and mission systems could be affected by a
+proposed change. Active reviews and previous outcomes lead with a description,
+not database identifiers. **Review changes** opens five sections: Proposed
+change, Affected capabilities, Affected mission systems, Required action and
+Review outcome. Exact identifiers, hashes and historical context are under
+Details.
+
+Named, paginated version selections replace manually entered hashes and IDs.
+Package-version rows and linked package publication carry the recorded package
+version and boundary; a saved capability enters through its chosen offering.
+The server resolves and checks those sources rather than inventing an offering
+association. Boundary changes have a direct entry as well. Raw package claims
+remain source context, not independently proven coverage changes.
+
+Affected membership is the retained dependency, hosting and subscription
+membership, not semantic analysis of every possible coverage consequence.
+Names are currently resolvable, permission-filtered labels; unavailable names
+stay explicitly unavailable. An empty recorded relationship list is not proof
+of no impact. A failed detail service displays **Impact analysis unavailable**,
+never zero affected systems.
+
+Changed or expired reviews require **Update impact review**. The prior source
+selection is carried forward for an explicit new assessment, not silently
+approved against current data. **Refresh selected versions** preserves the
+selected source identities after concurrency conflicts. Unknown write outcomes
+freeze editing and retry the same request. A saved decision releases that guard
+and does not publish anything.
+
+The user approved assessment without an external authorization selection.
+The page states that coverage is not established and leaves existing publication
+eligibility checks authoritative. Browser transport preserves exact 64-bit
+component revisions as decimal strings; legacy numeric inputs and canonical
+server-side numeric hashing remain compatible.
+
+Local verification on September 25: 140 selected Dashboard tests, 128 focused
+backend/policy tests and 10 production-SPA Chromium tests passed. The four impact
+UI files measured 99.06% lines / 90.57% branches, with each file above 80% on both
+metrics. Strict TypeScript, production build and both Docker builds passed with
+existing warnings. Broader upload/provisioning validation still has six failing
+tests; eight tests were excluded from the selected publication run, including
+those six failures. This is not full-suite regression clearance.
+
+Only MCP and Dashboard were recreated. Chat, SQL Server and Redis retained their
+container IDs and start times; all five services are healthy. Protected live
+options and both retained impact-detail reads returned 200. Live desktop/mobile
+inspection made no domain mutations and preserved the full recorded offering,
+package receipt, 27 entries, boundary/package versions, references, hosting,
+assignments and both impact reviews. The old reviews have no restorable exact
+context and no recorded affected members; synthetic tests, not these empty
+historical records, verify populated affected-capability/system behavior.
+Local image tags are `change-impact-20260925-223146`; pre-change rollback images
+are retained under `pre-change-impact-20260925-223146`. Manual acceptance remains
+open.
+
+For local manual acceptance, open an offering's **Change impact** section.
+Inspect a saved review, including its named affected records and collapsed
+Details. Use a disposable synthetic offering for writes: select saved changes,
+confirm the displayed versions, assess, then explicitly choose a decision and
+provide rationale. Verify that acceptance alone creates no release. Test a
+stale review, failed service and uncertain retry. From a package version or saved
+capability, use **Review changes** and check the carried selection. Repeat at a
+narrow/mobile width. Do not assess, accept, publish or re-run package analysis
+on retained user data merely to test this page.
+
+Provider findings and POA&M are **offering-owned** (confirmed user decision),
+reusing protected file storage and audit/review conventions without a fabricated
+mission system. Source-stated statuses remain separate from workflow status.
+Evidence receipt leaves findings open; explicit evidence review controls closure.
+Mission consumers receive approved safe source summaries, not automatic
+cross-tenant document grants.
+
+Profile-2 analysis adds typed unconfirmed decision/boundary/finding/POA&M claims,
+field citations, typed relationships and per-family coverage. Older completed
+checkpoints cannot certify new claim families. Explicit enrichment reuses
+retained segments and budgets, preserves human-reviewed revisions and published
+history, and invalidates affected pending approval rather than reprocessing
+silently on startup.
+
+The user explicitly permits publication of reviewed offering capabilities when
+no current external authorization is recorded. Canonical exact-set approval and
+impact review remain mandatory; authority-dependent coverage and covered-workload
+assertions remain separately blocked. The UI must show authorization as not
+established rather than infer it from catalog publication or fictional sources.
+
+Verified implementation discrepancy: the pre-existing offering-linked impact
+and publication services still require a provider authorization decision and an
+accepted, fresh, unblocked impact review. They do not yet implement the preceding
+no-authority publication decision. The Change impact clarification permits
+assessment without authority but explicitly leaves those publication gates
+unchanged. Legacy unlinked capabilities remain publishable without authority.
+Resolving the offering-linked publication discrepancy is a separate acceptance
+item; no policy gate was silently removed in this UI change.
+
+## Durable provider ATO ingestion amendment
+
+Local implementation authorized September 23 at 17:02; no deployment/GitHub
+writes. The revised design in `../design/provider-source-package-flow.md`
+supersedes import deferral and automatic onboarding publication. See
+[the cross-feature contract](../../specs/078-role-aware-workspaces/contracts/package-imports.md)
+for persistent source manifests, restart-safe processing, bounded content
+analysis, private candidates and revision-bound human approval. Feature 048 owns
+onboarding compatibility; Feature 078 owns portal review/release orchestration.
+Onboarding receipt is not extraction completion, extraction is not approval,
+and provider publication or authorization references never grant a system ATO.
+The additive package ledger and protected originals are initialized on both
+supported relational providers. SQLite also initializes missing legacy CSP
+catalog prerequisites before workspace initialization; it does not reset
+existing data or publish drafts. The database worker's fenced leases and
+persisted checkpoints separate resumable analysis from human-edited candidates.
+Approval binds selected revisions/dependencies and a saved preview; publication
+uses the existing canonical release services rather than a parallel catalog.
+
+Local implementation and real browser receipt/retry/review/approval/publication
+verification have run, including approval and publication recovery on refresh.
+See [the manual guide](../dev/csp-package-ingestion.md) for actual test results,
+analysis limitations and a runnable synthetic demo. Full-suite integration is
+not clean, user acceptance remains open, and Docker has not been updated.
+
+The local login recovery correction keeps public bootstrap and development-only
+identity selection ahead of both credential parsing and tenant resolution.
+Only those exact method/path pairs are pre-session; protected workspace APIs
+retain their checks. A removed simulation identity returns 401 on protected
+requests and the Dashboard offers explicit re-selection, without silently
+switching identities or attempting MSAL renewal for that specific error.
+
 ## Workspace backend hardening contract
 
 ### CSP Add Organization: confirmed implementation contract
@@ -904,7 +1266,7 @@ simulation POSTs return 404. Re-enable for further local testing.
 
 ### Docker Desktop testing snapshot
 
-The local Compose stack uses SQL Server and Redis with the production Dashboard
+The local Compose stack uses SQL Server and Redis with the Dashboard
 Dockerfile (nginx on container port 8080). The Azure build workflow uses the same
 MCP, Dashboard and Chat Dockerfiles and targets `linux/amd64`; use
 `DOCKER_DEFAULT_PLATFORM=linux/amd64` for matching local image architecture.
@@ -912,20 +1274,41 @@ This is image/build parity, not a claim of Azure identity, network or hosting
 parity. Existing local volumes are retained.
 
 The production Dashboard bundle deliberately excludes the simulation picker.
+The Dockerfile defaults `DASHBOARD_BUILD_ENV` to `production`; the local-only
+Compose stack explicitly defaults it to `development`, matching its Development
+backend. This selects the existing Vite development branch at build time, not a
+runtime production bypass. Build dependencies are installed before applying
+`NODE_ENV` to the build command. Set `DASHBOARD_BUILD_ENV=production` when
+checking the production bundle; rebuilding is required to change the selection.
+
 For an isolated local demo, leave the backend in Development and set
 `ATO_CACAUTH__SIMULATIONMODE=true`. Compose forwards this existing startup switch.
-From the browser console on the local Dashboard origin, use:
+Open `http://localhost:5173/login`, then choose a configured identity under
+**Developer simulation**. Return to `/login` to select another identity, or use
+the account menu to sign out first. Selection is an audited server session;
+normal workspace memberships and system-role checks still apply.
 
-```javascript
-const response = await fetch('/api/auth/simulate?identityId=dev-cspadmin', {
-  method: 'POST',
-});
-if (response.status !== 204) throw new Error(`Simulation failed: ${response.status}`);
-location.assign('/');
+```bash
+# With the documented package-source environment, rebuild the local picker.
+DASHBOARD_BUILD_ENV=development docker compose -f docker-compose.mcp.yml \
+  build ato-dashboard
+docker compose -f docker-compose.mcp.yml up -d --no-build --no-deps ato-dashboard
 ```
 
-Use another configured identity key to switch personas. Never enable this mode
-on a production deployment. AI is disabled for the local workspace-only checks.
+Never deploy the development image to production. Disabling backend simulation
+still hides the picker and rejects selection even when the development bundle
+is present. AI is disabled for the local workspace-only checks.
+
+Local Docker picker verification (2026-09-24): two new build-contract tests
+failed before the correction; 29 focused .NET tests and 20 login UI tests passed
+afterward, as did Dashboard type checking. Both image variants built, and the
+default production JavaScript excluded the existing CI simulation identifiers.
+The development login page displayed all nine configured identities. Browser
+selection returned HTTP 200 from `/api/auth/me` with distinct CSP Admin and
+Organization Admin object IDs; the respective workspace banners showed
+`CSP.Admin` and `Administrator`. No memberships or role assignments were changed.
+Other dashboard background requests still returned 403, so this check does not
+establish full-workflow acceptance.
 
 Known switch acceptance gap: the endpoint tests return bare 404 when disabled,
 but a live unauthenticated Development request returned 401. The live descriptor

@@ -1,0 +1,260 @@
+{
+  "components": [
+    {
+      "id": "synthetic-azure-entra",
+      "type": "Identity",
+      "name": "Synthetic Microsoft Entra ID component",
+      "description": "Synthetic test data only; not a valid ATO or official Microsoft authorization. Illustrative identity platform for a fictional provider. No tenant, identity policy or deployment has been assessed."
+    },
+    {
+      "id": "synthetic-azure-monitor",
+      "type": "Service",
+      "name": "Synthetic Azure Monitor component",
+      "description": "Synthetic test data only; not a valid ATO or official Microsoft authorization. Illustrative monitoring platform for a fictional provider. No deployed log source, retention configuration or review process is asserted."
+    },
+    {
+      "id": "synthetic-azure-key-vault",
+      "type": "Service",
+      "name": "Synthetic Azure Key Vault component",
+      "description": "Synthetic test data only; not a valid ATO or official Microsoft authorization. Illustrative key-management platform for a fictional provider. No deployed vault, cryptographic configuration or recovery evidence is asserted."
+    },
+    {
+      "id": "synthetic-azure-firewall",
+      "type": "Network",
+      "name": "Synthetic Azure Firewall component",
+      "description": "Synthetic test data only; not a valid ATO or official Microsoft authorization. Illustrative firewall platform for a fictional provider. No deployed rules, routes or tested enforcement behavior is asserted."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "synthetic-azure-identity",
+      "name": "Synthetic identity and access capability",
+      "type": "Service",
+      "description": "Synthetic test data only; not a valid ATO or official Microsoft authorization. Illustrative IA-2 mapping, not verified control satisfaction. The fictional provider operates the example identity platform; customers define identities, authentication policies and access reviews.",
+      "componentIds": ["synthetic-azure-entra"],
+      "controlIds": ["IA-2"],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "synthetic-azure-audit",
+      "name": "Synthetic audit review capability",
+      "type": "Service",
+      "description": "Synthetic test data only; not a valid ATO or official Microsoft authorization. Illustrative AU-6 mapping, not verified control satisfaction. The fictional provider operates the example monitoring platform; customers connect sources, set retention and investigate alerts. Identity telemetry is an explicit proposed contribution, not evidence of enabled collection.",
+      "componentIds": ["synthetic-azure-monitor", "synthetic-azure-entra"],
+      "controlIds": ["AU-6"],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "synthetic-azure-key-management",
+      "name": "Synthetic key-management capability",
+      "type": "Service",
+      "description": "Synthetic test data only; not a valid ATO or official Microsoft authorization. Illustrative SC-12 mapping, not verified control satisfaction. The fictional provider operates the example key platform; customers define authorized use, ownership, lifecycle and recovery procedures.",
+      "componentIds": ["synthetic-azure-key-vault"],
+      "controlIds": ["SC-12"],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "synthetic-azure-network",
+      "name": "Synthetic network boundary capability",
+      "type": "Service",
+      "description": "Synthetic test data only; not a valid ATO or official Microsoft authorization. Illustrative SC-7 mapping, not verified control satisfaction. The fictional provider operates the example firewall platform; customers define application boundaries, approved paths and least-privilege rules.",
+      "componentIds": ["synthetic-azure-firewall"],
+      "controlIds": ["SC-7"],
+      "responsibility": "Shared"
+    }
+  ],
+  "authorizationDecisionClaims": [
+    {
+      "kind": "AuthorizationDecisionClaim",
+      "id": "SYN-AZ-DECISION-001",
+      "name": "Fictional Azure provider decision - not valid ATO",
+      "claim": {
+        "authorizationDecision": {
+          "subjectKind": "Provider",
+          "subject": "Fictional Azure Example Provider",
+          "reference": "SYN-AZ-DECISION-001",
+          "authority": "Fictional Local Test Authorizing Official",
+          "decisionType": "Synthetic conditional provider decision",
+          "statusAsStated": "Fictional test decision; not effective",
+          "decisionDate": "2026-09-01",
+          "expirationDate": "2027-08-31",
+          "scope": "Only the four explicitly listed synthetic provider components and their illustrative capabilities are in this demonstration scope.",
+          "conditions": [
+            "Demonstration requires human review of the two open synthetic findings and their separate POAM plans.",
+            "Review or publication of this fixture does not authorize a real provider, cloud service or customer system."
+          ],
+          "exclusions": [
+            "Customer mission-system authorization is excluded.",
+            "Customer application code, endpoints, mission databases and user eligibility are outside the synthetic provider boundary."
+          ]
+        },
+        "relationships": [
+          { "kind": "DecisionBoundary", "targetSourceId": "SYN-AZ-BOUNDARY-INCLUDED" },
+          { "kind": "DecisionBoundary", "targetSourceId": "SYN-AZ-BOUNDARY-EXCLUDED" }
+        ],
+        "qualifications": [
+          "Synthetic test data only; not a valid ATO or official Microsoft authorization.",
+          "No real authorizing official signed or issued this decision.",
+          "No external authorization register, signature, seal or assessor evidence was verified."
+        ]
+      }
+    }
+  ],
+  "boundaryClaims": [
+    {
+      "kind": "BoundaryClaim",
+      "id": "SYN-AZ-BOUNDARY-INCLUDED",
+      "name": "Included synthetic provider scope",
+      "claim": {
+        "boundary": {
+          "subject": "Fictional Azure Example Provider",
+          "relationship": "Included",
+          "scope": "Included: the synthetic identity, monitoring, key-management and firewall components listed in this fixture.",
+          "environment": "Fictional local demonstration; no deployed Azure subscription",
+          "responsibilities": [
+            "The fictional provider operates the illustrative service platforms.",
+            "Customers retain configuration, access-review and mission-system responsibilities."
+          ],
+          "decisionReference": "SYN-AZ-DECISION-001"
+        },
+        "relationships": [
+          { "kind": "BoundaryComponent", "targetSourceId": "synthetic-azure-entra" },
+          { "kind": "BoundaryComponent", "targetSourceId": "synthetic-azure-monitor" },
+          { "kind": "BoundaryComponent", "targetSourceId": "synthetic-azure-key-vault" },
+          { "kind": "BoundaryComponent", "targetSourceId": "synthetic-azure-firewall" }
+        ],
+        "qualifications": [
+          "Synthetic test data only; not a valid ATO or official Microsoft authorization.",
+          "This boundary is an explicit fixture assertion, not discovered cloud inventory."
+        ]
+      }
+    },
+    {
+      "kind": "BoundaryClaim",
+      "id": "SYN-AZ-BOUNDARY-EXCLUDED",
+      "name": "Excluded customer mission-system scope",
+      "claim": {
+        "boundary": {
+          "subject": "Customer-managed mission workloads",
+          "relationship": "Excluded",
+          "scope": "Excluded: customer application code, endpoints, mission databases and user eligibility.",
+          "responsibilities": [
+            "Customers must obtain their own mission-system authorization.",
+            "Customers must assess their application code, endpoints, data handling and permitted users."
+          ],
+          "decisionReference": "SYN-AZ-DECISION-001"
+        },
+        "qualifications": [
+          "Synthetic test data only; not a valid ATO or official Microsoft authorization.",
+          "Excluded customer scope cannot become a provider capability through this import."
+        ]
+      }
+    }
+  ],
+  "assessmentFindings": [
+    {
+      "kind": "AssessmentFinding",
+      "name": "SYN-AZ-FIND-001",
+      "claim": {
+        "assessmentFinding": {
+          "sourceFindingId": "SYN-AZ-FIND-001",
+          "observation": "The fictional provider package lacks a recorded review of the illustrative audit alerts.",
+          "severityAsStated": "Moderate",
+          "statusAsStated": "Open",
+          "assessor": "Fictional Local Test Assessor",
+          "assessmentDate": "2026-09-10",
+          "controlIds": ["AU-6"]
+        },
+        "relationships": [
+          { "kind": "FindingComponent", "targetSourceId": "synthetic-azure-monitor" },
+          { "kind": "FindingCapability", "targetSourceId": "synthetic-azure-audit" }
+        ],
+        "qualifications": [
+          "Synthetic test data only; not a valid ATO or official Microsoft authorization.",
+          "This finding describes a fictional evidence gap; no real Azure service was assessed."
+        ]
+      }
+    },
+    {
+      "kind": "AssessmentFinding",
+      "name": "SYN-AZ-FIND-002",
+      "claim": {
+        "assessmentFinding": {
+          "sourceFindingId": "SYN-AZ-FIND-002",
+          "observation": "The fictional provider package lacks an approved rehearsal record for the illustrative key-recovery procedure.",
+          "severityAsStated": "Low",
+          "statusAsStated": "Open",
+          "assessor": "Fictional Local Test Assessor",
+          "assessmentDate": "2026-09-10",
+          "controlIds": ["SC-12"]
+        },
+        "relationships": [
+          { "kind": "FindingComponent", "targetSourceId": "synthetic-azure-key-vault" },
+          { "kind": "FindingCapability", "targetSourceId": "synthetic-azure-key-management" }
+        ],
+        "qualifications": [
+          "Synthetic test data only; not a valid ATO or official Microsoft authorization.",
+          "This finding describes a fictional evidence gap; no real Azure service was assessed."
+        ]
+      }
+    }
+  ],
+  "poamItems": [
+    {
+      "kind": "PoamItem",
+      "name": "SYN-AZ-POAM-001",
+      "claim": {
+        "poamItem": {
+          "sourcePoamId": "SYN-AZ-POAM-001",
+          "correctiveAction": "Document a simulated audit-alert review and submit its outcome for separate human validation.",
+          "ownerAsStated": "Fictional Provider Monitoring Team",
+          "statusAsStated": "Planned",
+          "milestones": [
+            { "description": "Prepare a synthetic review record", "dueDate": "2026-10-01" },
+            { "description": "Request human validation of the simulated outcome", "dueDate": "2026-10-15" }
+          ],
+          "requiredClosureEvidence": [
+            "A clearly marked synthetic audit-review record",
+            "A separate human validation decision for the demonstration finding"
+          ],
+          "submittedEvidenceReferences": []
+        },
+        "relationships": [
+          { "kind": "PoamFinding", "targetSourceId": "SYN-AZ-FIND-001" }
+        ],
+        "qualifications": [
+          "Synthetic test data only; not a valid ATO or official Microsoft authorization.",
+          "No closure evidence has been submitted; importing this plan does not close a finding."
+        ]
+      }
+    },
+    {
+      "kind": "PoamItem",
+      "name": "SYN-AZ-POAM-002",
+      "claim": {
+        "poamItem": {
+          "sourcePoamId": "SYN-AZ-POAM-002",
+          "correctiveAction": "Record a simulated key-recovery rehearsal and submit its outcome for separate human validation.",
+          "ownerAsStated": "Fictional Provider Key Management Team",
+          "statusAsStated": "Planned",
+          "milestones": [
+            { "description": "Draft the synthetic rehearsal record", "dueDate": "2026-10-08" },
+            { "description": "Request human validation of the simulated outcome", "dueDate": "2026-10-22" }
+          ],
+          "requiredClosureEvidence": [
+            "A clearly marked synthetic key-recovery rehearsal record",
+            "A separate human validation decision for the demonstration finding"
+          ],
+          "submittedEvidenceReferences": []
+        },
+        "relationships": [
+          { "kind": "PoamFinding", "targetSourceId": "SYN-AZ-FIND-002" }
+        ],
+        "qualifications": [
+          "Synthetic test data only; not a valid ATO or official Microsoft authorization.",
+          "No closure evidence has been submitted; importing this plan does not close a finding."
+        ]
+      }
+    }
+  ]
+}

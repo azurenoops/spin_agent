@@ -1,0 +1,11 @@
+{
+  "notice": "Synthetic test fixture only. This is not an authorization or an ATO decision.",
+  "authorizationReferences": [
+    {
+      "reference": "Synthetic test-only authorization letter",
+      "issuer": "Synthetic test authority",
+      "issuedAt": "2026-01-01T00:00:00Z",
+      "expiresAt": "2027-01-01T00:00:00Z"
+    }
+  ]
+}

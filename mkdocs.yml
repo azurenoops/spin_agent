@@ -78,6 +78,7 @@ nav:
   - Guides:
     - End-to-End Demo: guides/end-to-end-demo.md
     - Compliance Dashboard: guides/compliance-dashboard.md
+    - System Security Capabilities: guides/system-security-capabilities.md
     - Compliance Watch: guides/compliance-watch.md
     - Remediation Kanban: guides/remediation-kanban.md
     - POA&M Management: guides/poam-management.md
@@ -105,6 +106,8 @@ nav:
     - Code Style: dev/code-style.md
     - Contributing: dev/contributing.md
     - Testing: dev/testing.md
+    - Provider Package Acceptance: dev/csp-package-ingestion.md
+    - CSP Manual Acceptance: dev/csp-manual-acceptance.md
     - Release: dev/release.md
   - Architecture:
     - Overview: architecture/overview.md
