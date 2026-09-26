@@ -10,6 +10,10 @@ using Ato.Copilot.Mcp;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.TestHost;
+using Ato.Copilot.Core.Interfaces.Compliance;
+using Moq;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Tenancy;
@@ -792,5 +796,357 @@ public sealed class WorkspaceOperationsAuthorizationTests(
         else
             existing.Role = role;
         await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task SystemSecurityCapabilities_ComponentPlacementUsesCurrentManagementAndReviewedTokens()
+    {
+        // Arrange
+        var tenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
+        var personId = Guid.NewGuid();
+        var systemId = Guid.NewGuid().ToString();
+        var componentId = Guid.NewGuid().ToString();
+        var boundaryId = Guid.NewGuid().ToString();
+        var context = factory.GetActiveContext();
+        context.TenantId = tenantId;
+        context.PersonId = personId;
+        context.IsCspAdmin = false;
+        context.ImpersonatedTenantId = null;
+        context.IsWorkspaceRequest = true;
+        context.Status = TenantStatus.Active;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.Persons.Add(new Person { Id = personId, TenantId = tenantId, DisplayName = "Placement manager", Email = $"{personId}@example.invalid" });
+            db.RegisteredSystems.Add(new RegisteredSystem { Id = systemId, TenantId = tenantId, Name = "Placement system" });
+            db.SystemComponents.Add(new SystemComponent
+            {
+                Id = componentId, TenantId = tenantId, RegisteredSystemId = systemId,
+                Name = "Direct component", ComponentType = ComponentType.Thing
+            });
+            db.AuthorizationBoundaryDefinitions.Add(new AuthorizationBoundaryDefinition
+            {
+                Id = boundaryId, TenantId = tenantId, RegisteredSystemId = systemId, Name = "Placement boundary"
+            });
+            db.OrganizationMemberships.Add(new OrganizationMembership
+            {
+                TenantId = tenantId, PersonId = personId, DirectoryTenantId = Guid.NewGuid(), ObjectId = Guid.NewGuid(), GrantedBy = "test"
+            });
+            await db.SaveChangesAsync();
+        }
+        await SetSystemRoleAsync(personId, systemId, OrganizationRole.Isso);
+        using var client = factory.CreateClient();
+        var root = $"/api/workspaces/organizations/{tenantId}/systems/{systemId}/security-capabilities/local/component/{componentId}/placements";
+        var read = await client.GetAsync(root);
+        read.StatusCode.Should().Be(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        var envelope = await read.Content.ReadFromJsonAsync<JsonElement>();
+        var options = envelope.GetProperty("data").Deserialize<SystemComponentPlacementOptions>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        var request = new AssignSystemComponentPlacementRequest(boundaryId, options.SourceRevision, options.RelationshipRevision);
+
+        // Act
+        var denied = await client.PostAsJsonAsync($"{root}/assign", request);
+        await SetSystemRoleAsync(personId, systemId, OrganizationRole.Issm);
+        var assigned = await client.PostAsJsonAsync($"{root}/assign", request);
+        assigned.StatusCode.Should().Be(HttpStatusCode.OK, await assigned.Content.ReadAsStringAsync());
+        var stale = await client.PostAsJsonAsync($"{root}/assign", request);
+        var currentJson = await client.GetFromJsonAsync<JsonElement>(root);
+        var current = currentJson.GetProperty("data").Deserialize<SystemComponentPlacementOptions>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        var placement = current.Placements.Single(x => x.CanUnassign);
+        var removal = new UnassignSystemComponentPlacementRequest(current.SourceRevision, current.RelationshipRevision, placement.Revision);
+        var stalePlacement = await client.PostAsJsonAsync($"{root}/{placement.Id}/unassign", removal with { PlacementRevision = "old" });
+        await SetSystemRoleAsync(personId, systemId, OrganizationRole.Isso);
+        var removeDenied = await client.PostAsJsonAsync($"{root}/{placement.Id}/unassign", removal);
+        await SetSystemRoleAsync(personId, systemId, OrganizationRole.Issm);
+        var removed = await client.PostAsJsonAsync($"{root}/{placement.Id}/unassign", removal);
+        var crossTenant = await client.GetAsync(root.Replace(tenantId.ToString(), MultiTenantWebApplicationFactory<McpProgram>.TenantBId.ToString()));
+
+        // Assert
+        options.CanAssignBoundary.Should().BeFalse();
+        denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await stale.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetProperty("code").GetString().Should().Be("STALE_RELATIONSHIP");
+        stalePlacement.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await stalePlacement.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetProperty("code").GetString().Should().Be("STALE_PLACEMENT");
+        removeDenied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        removed.StatusCode.Should().Be(HttpStatusCode.OK);
+        crossTenant.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        await using var verify = factory.Services.CreateAsyncScope();
+        var after = verify.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await after.SystemComponents.AnyAsync(x => x.Id == componentId)).Should().BeTrue();
+        (await after.BoundaryComponentAssignments.AnyAsync(x => x.SystemComponentId == componentId)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SystemSecurityCapabilities_RequireExactSystemManagement_NotBlanketIssoOrCspIdentity()
+    {
+        // Arrange
+        var tenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
+        var personId = Guid.NewGuid();
+        var systemId = Guid.NewGuid().ToString();
+        var capabilityId = Guid.NewGuid().ToString();
+        var context = factory.GetActiveContext();
+        context.TenantId = tenantId;
+        context.PersonId = personId;
+        context.IsCspAdmin = false;
+        context.ImpersonatedTenantId = null;
+        context.IsWorkspaceRequest = true;
+        context.Status = TenantStatus.Active;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.Persons.Add(new Person { Id = personId, TenantId = tenantId, DisplayName = "Manager", Email = $"{personId}@example.invalid" });
+            db.RegisteredSystems.Add(new RegisteredSystem { Id = systemId, TenantId = tenantId, Name = "Selected system" });
+            db.SecurityCapabilities.Add(new SecurityCapability { Id = capabilityId, TenantId = tenantId, Name = "Selected capability", Category = "AC" });
+            db.OrganizationMemberships.Add(new OrganizationMembership
+            {
+                TenantId = tenantId, PersonId = personId, DirectoryTenantId = Guid.NewGuid(), ObjectId = Guid.NewGuid(), GrantedBy = "test"
+            });
+            await db.SaveChangesAsync();
+        }
+        await SetSystemRoleAsync(personId, systemId, OrganizationRole.Isso);
+        using var client = factory.CreateClient();
+        var root = $"/api/workspaces/organizations/{tenantId}/systems/{systemId}/security-capabilities";
+        var list = await client.GetFromJsonAsync<JsonElement>($"{root}?scope=available&source=local&search=Selected%20capability");
+        var source = list.GetProperty("data").GetProperty("items").EnumerateArray().Single(x => x.GetProperty("recordId").GetString() == capabilityId);
+        var request = new PrepareSystemCapabilitySetupRequest(Guid.NewGuid().ToString(),
+            [new("local", capabilityId, source.GetProperty("sourceRevision").GetString()!, [], [])]);
+
+        // Act
+        var denied = await client.PostAsJsonAsync($"{root}/setups/prepare", request);
+        await SetSystemRoleAsync(personId, systemId, OrganizationRole.Issm);
+        var prepared = await client.PostAsJsonAsync($"{root}/setups/prepare", request);
+        var envelope = await prepared.Content.ReadFromJsonAsync<JsonElement>();
+        var operation = envelope.GetProperty("data").GetProperty("operation");
+        var recovered = await client.GetFromJsonAsync<JsonElement>($"{root}/setups/{operation.GetProperty("operationId").GetGuid()}");
+        var complete = await client.PostAsJsonAsync($"{root}/setups/{operation.GetProperty("operationId").GetGuid()}/complete",
+            new CompleteSystemCapabilitySetupRequest(operation.GetProperty("revision").GetInt64()));
+        using var evidenceForm = new MultipartFormDataContent();
+        var evidenceContent = new StringContent("Synthetic repository evidence");
+        evidenceContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain");
+        evidenceForm.Add(evidenceContent, "file", "proof.txt");
+        evidenceForm.Add(new StringContent("PolicyDocument"), "artifactCategory");
+        evidenceForm.Add(new StringContent(capabilityId), "securityCapabilityId");
+        var upload = await client.PostAsync($"/api/dashboard/systems/{systemId}/evidence", evidenceForm);
+        upload.StatusCode.Should().Be(HttpStatusCode.OK, await upload.Content.ReadAsStringAsync());
+        var uploadedId = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var evidenceDetail = (await client.GetFromJsonAsync<JsonElement>($"{root}/local/capability/{capabilityId}")).GetProperty("data");
+        var evidence = evidenceDetail.GetProperty("evidence").EnumerateArray().Single();
+        var download = await client.GetAsync($"/api/dashboard/systems/{systemId}/evidence/{evidence.GetProperty("id").GetString()}/download");
+        var applied = await client.GetFromJsonAsync<JsonElement>($"{root}?scope=applied");
+        var crossTenant = await client.GetAsync($"/api/workspaces/organizations/{MultiTenantWebApplicationFactory<McpProgram>.TenantBId}/systems/{systemId}/security-capabilities");
+        var foreignProposal = await client.PostAsJsonAsync($"{root}/local/capability/{capabilityId}/narrative-proposals/{Guid.NewGuid()}/review",
+            new { expectedRevision = 0, decision = "Approve", note = "Not this source" });
+        var foreignControl = await client.PostAsJsonAsync($"{root}/local/capability/{capabilityId}/narrative-proposals",
+            new { controlId = "ZZ-999", narrativeType = "Policy", expectedVersion = 0, sourceRevision = source.GetProperty("sourceRevision").GetString() });
+        context.IsCspAdmin = true;
+        var cspDenied = await client.GetAsync(root);
+
+        // Assert
+        list.GetProperty("data").GetProperty("permissions").GetProperty("canManage").GetBoolean().Should().BeFalse();
+        denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        prepared.StatusCode.Should().Be(HttpStatusCode.Created);
+        var plannedWrite = operation.GetProperty("plannedWrites").EnumerateArray().Single();
+        plannedWrite.GetProperty("displayLabel").GetString().Should().Contain("Selected capability").And.NotContain(capabilityId);
+        plannedWrite.GetProperty("recordId").GetString().Should().Be(capabilityId);
+        recovered.GetProperty("data").GetProperty("plannedWrites").GetRawText().Should()
+            .Be(operation.GetProperty("plannedWrites").GetRawText());
+        complete.StatusCode.Should().Be(HttpStatusCode.OK);
+        evidence.GetProperty("id").GetString().Should().Be(uploadedId);
+        evidence.GetProperty("openUrl").GetString().Should().Be($"/api/dashboard/systems/{systemId}/evidence/{uploadedId}/download");
+        download.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await download.Content.ReadAsStringAsync()).Should().Be("Synthetic repository evidence");
+        applied.GetProperty("data").GetProperty("total").GetInt32().Should().Be(1);
+        crossTenant.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        foreignProposal.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        foreignControl.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        cspDenied.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task SystemSecurityCapabilities_ResponsibilityReviewRequiresChecksNotesAndIndependentPermission()
+    {
+        // Arrange
+        var tenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
+        var personId = Guid.NewGuid();
+        var systemId = Guid.NewGuid().ToString();
+        var capabilityId = Guid.NewGuid();
+        var componentId = Guid.NewGuid();
+        var context = factory.GetActiveContext();
+        context.TenantId = tenantId;
+        context.PersonId = personId;
+        context.IsCspAdmin = false;
+        context.ImpersonatedTenantId = null;
+        context.IsWorkspaceRequest = true;
+        context.Status = TenantStatus.Active;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var hostingProfile = await db.CspProfiles.OrderBy(x => x.Id).FirstAsync();
+            hostingProfile.OnboardingState.Should().Be(OnboardingState.Active);
+            db.Persons.Add(new() { Id = personId, TenantId = tenantId, DisplayName = "Reviewer", Email = $"{personId}@example.invalid" });
+            db.RegisteredSystems.Add(new() { Id = systemId, TenantId = tenantId, Name = "Review system" });
+            db.OrganizationMemberships.Add(new()
+            {
+                TenantId = tenantId, PersonId = personId, DirectoryTenantId = Guid.NewGuid(), ObjectId = Guid.NewGuid(), GrantedBy = "test"
+            });
+            db.CspInheritedComponents.Add(new() { Id = componentId, CspProfileId = hostingProfile.Id, Name = "Monitoring", Status = CspInheritedComponentStatus.Published });
+            db.CspInheritedCapabilities.Add(new()
+            {
+                Id = capabilityId, CspInheritedComponentId = componentId, Name = "Monitoring capability",
+                Status = CspInheritedCapabilityStatus.Mapped, MappedNistControlIds = ["AC-1"]
+            });
+            db.CapabilitySubscriptions.Add(new()
+            {
+                RegisteredSystemId = systemId, CspInheritedCapabilityId = capabilityId.ToString(),
+                RoutingCapabilityId = capabilityId.ToString(), RoutingTenantId = tenantId
+            });
+            db.ControlBaselines.Add(new()
+            {
+                TenantId = tenantId, RegisteredSystemId = systemId, BaselineLevel = "Moderate",
+                ControlIds = ["AC-1"], TotalControls = 1, CreatedBy = "test"
+            });
+            await db.SaveChangesAsync();
+        }
+        await SetSystemRoleAsync(personId, systemId, OrganizationRole.Isso);
+        using var client = factory.CreateClient();
+        var root = $"/api/workspaces/organizations/{tenantId}/systems/{systemId}/security-capabilities/provider/capability/{capabilityId}";
+        var detailResponse = await client.GetAsync(root);
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK, await detailResponse.Content.ReadAsStringAsync());
+        var detail = (await detailResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        var control = detail.GetProperty("controls")[0];
+        var legacy = new ConfirmCapabilityResponsibilitiesRequest(detail.GetProperty("baselineId").GetString()!,
+            control.GetProperty("availableSourceRevision").GetString()!, control.GetProperty("reviewRevision").GetString()!,
+            [new("AC-1", "Shared", "Provider", "Review customer alerts")]);
+        var reviewed = legacy with { ProviderCoverageVerified = true, CustomerDutiesReviewed = true, ReviewNotes = "Reviewed current coverage." };
+
+        // Act
+        var missing = await client.PostAsJsonAsync($"{root}/responsibilities/confirm", legacy);
+        var confirmed = await client.PostAsJsonAsync($"{root}/responsibilities/confirm", reviewed);
+        var stale = await client.PostAsJsonAsync($"{root}/responsibilities/confirm", reviewed);
+        var after = (await client.GetFromJsonAsync<JsonElement>(root)).GetProperty("data");
+        await SetSystemRoleAsync(personId, systemId, OrganizationRole.SystemOwner);
+        var denied = await client.PostAsJsonAsync($"{root}/responsibilities/confirm", reviewed);
+
+        // Assert
+        missing.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        confirmed.StatusCode.Should().Be(HttpStatusCode.OK, await confirmed.Content.ReadAsStringAsync());
+        stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await stale.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetProperty("code")
+            .GetString().Should().Be("STALE_RESPONSIBILITY_REVIEW");
+        after.GetProperty("controls")[0].GetProperty("reviewNotes").GetString().Should().Be("Reviewed current coverage.");
+        after.GetProperty("controls")[0].GetProperty("providerCoverageVerified").GetBoolean().Should().BeTrue();
+        after.GetProperty("controls")[0].GetProperty("customerDutiesReviewed").GetBoolean().Should().BeTrue();
+        denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        await using var verify = factory.Services.CreateAsyncScope();
+        var persisted = await verify.ServiceProvider.GetRequiredService<AtoCopilotContext>()
+            .Set<CapabilityResponsibilityConfirmation>().SingleAsync(x => x.RegisteredSystemId == systemId);
+        persisted.ReviewNotes.Should().Be(reviewed.ReviewNotes);
+        persisted.ProviderCoverageVerified.Should().BeTrue();
+        persisted.CustomerDutiesReviewed.Should().BeTrue();
+        persisted.SourceRevision.Should().Be(reviewed.SourceRevision);
+        persisted.ReviewedBaselineId.Should().Be(reviewed.BaselineId);
+    }
+
+    [Fact]
+    public async Task SystemSecurityCapabilities_GenerationOriginReviewAndRemoval_PreserveApprovedHistory()
+    {
+        // Arrange
+        var generator = new Mock<IControlNarrativeService>(MockBehavior.Strict);
+        generator.Setup(x => x.GenerateGroundedDraftAsync("Policy", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GroundedNarrativeDraft("Synthetic policy draft", [], []));
+        using var owner = new MultiTenantWebApplicationFactory<McpProgram>();
+        using var isolated = owner.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IControlNarrativeService>();
+            services.AddSingleton(generator.Object);
+        }));
+        var tenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
+        var authorId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var systemId = Guid.NewGuid().ToString();
+        var capabilityId = Guid.NewGuid().ToString();
+        var implementationId = Guid.NewGuid().ToString();
+        var context = owner.GetActiveContext();
+        context.TenantId = tenantId;
+        context.PersonId = authorId;
+        context.IsWorkspaceRequest = true;
+        context.Status = TenantStatus.Active;
+        await using (var scope = isolated.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.RegisteredSystems.Add(new() { Id = systemId, TenantId = tenantId, Name = "Narrative test" });
+            db.SecurityCapabilities.Add(new() { Id = capabilityId, TenantId = tenantId, Name = "Source", Category = "AC" });
+            db.CapabilityControlMappings.Add(new() { TenantId = tenantId, SecurityCapabilityId = capabilityId, ControlId = "AC-1" });
+            db.SystemCapabilityLinks.Add(new() { TenantId = tenantId, RegisteredSystemId = systemId, SecurityCapabilityId = capabilityId });
+            var approvedImplementation = new ControlImplementation
+            {
+                Id = implementationId, TenantId = tenantId, RegisteredSystemId = systemId, ControlId = "AC-1",
+                CurrentVersion = 1, PolicyNarrative = "Prior policy", TechnicalNarrative = "Independent technical",
+                ApprovalStatus = SspSectionStatus.Approved
+            };
+            db.ControlImplementations.Add(approvedImplementation);
+            var approvedVersionId = Guid.NewGuid().ToString();
+            db.NarrativeVersions.Add(new()
+            {
+                Id = approvedVersionId, TenantId = tenantId, ControlImplementationId = implementationId,
+                VersionNumber = 1, Status = SspSectionStatus.Approved, Content = "Independent technical",
+                SnapshotJson = NarrativeContentSnapshot.Capture(approvedImplementation)
+            });
+            foreach (var person in new[] { authorId, reviewerId })
+            {
+                db.Persons.Add(new() { Id = person, TenantId = tenantId, DisplayName = "Synthetic reviewer", Email = $"{person}@example.invalid" });
+                db.OrganizationMemberships.Add(new() { TenantId = tenantId, PersonId = person, DirectoryTenantId = Guid.NewGuid(), ObjectId = Guid.NewGuid(), GrantedBy = "test" });
+                db.SystemRoleAssignments.Add(new() { TenantId = tenantId, PersonId = person, RegisteredSystemId = systemId, Role = OrganizationRole.Issm });
+            }
+            await db.SaveChangesAsync();
+            approvedImplementation.ApprovedVersionId = approvedVersionId;
+            await db.SaveChangesAsync();
+        }
+        using var client = isolated.CreateClient();
+        var root = $"/api/workspaces/organizations/{tenantId}/systems/{systemId}/security-capabilities";
+        var detail = await client.GetFromJsonAsync<JsonElement>($"{root}/local/capability/{capabilityId}");
+        var revision = detail.GetProperty("data").GetProperty("item").GetProperty("sourceRevision").GetString();
+
+        // Act
+        var generatedResponse = await client.PostAsJsonAsync($"{root}/local/capability/{capabilityId}/narrative-proposals",
+            new { controlId = "AC-1", narrativeType = "Policy", expectedVersion = 1, sourceRevision = revision });
+        generatedResponse.StatusCode.Should().Be(HttpStatusCode.OK, await generatedResponse.Content.ReadAsStringAsync());
+        var generated = (await generatedResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        var proposalId = generated.GetProperty("id").GetGuid();
+        var selfReview = await client.PostAsJsonAsync($"{root}/local/capability/{capabilityId}/narrative-proposals/{proposalId}/review",
+            new { expectedRevision = generated.GetProperty("revision").GetInt32(), decision = "Approve" });
+        context.PersonId = reviewerId;
+        var beforeReview = await client.GetFromJsonAsync<JsonElement>($"{root}/local/capability/{capabilityId}");
+        var reviewed = await client.PostAsJsonAsync($"{root}/local/capability/{capabilityId}/narrative-proposals/{proposalId}/review",
+            new { expectedRevision = generated.GetProperty("revision").GetInt32(), decision = "Approve" });
+        reviewed.StatusCode.Should().Be(HttpStatusCode.OK, await reviewed.Content.ReadAsStringAsync());
+        detail = await client.GetFromJsonAsync<JsonElement>($"{root}/local/capability/{capabilityId}");
+        var request = new PrepareSystemCapabilityRemovalRequest(Guid.NewGuid().ToString(),
+            revision!, detail.GetProperty("data").GetProperty("relationshipRevision").GetString()!);
+        var preparation = await client.PostAsJsonAsync($"{root}/local/capability/{capabilityId}/removals/prepare", request);
+        preparation.StatusCode.Should().Be(HttpStatusCode.Created, await preparation.Content.ReadAsStringAsync());
+        var operation = (await preparation.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data").GetProperty("operation");
+        var replay = await client.PostAsJsonAsync($"{root}/local/capability/{capabilityId}/removals/prepare", request);
+        var operationId = operation.GetProperty("operationId").GetGuid();
+        var recovery = await client.GetAsync($"{root}/setups/{operationId}");
+        var removed = await client.PostAsJsonAsync($"{root}/setups/{operationId}/complete",
+            new CompleteSystemCapabilitySetupRequest(operation.GetProperty("revision").GetInt64()));
+
+        // Assert
+        selfReview.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        beforeReview.GetProperty("data").GetProperty("narratives").EnumerateArray().Single(x => x.GetProperty("narrativeType").GetString() == "Policy")
+            .GetProperty("proposals").EnumerateArray().Single().GetProperty("canReview").GetBoolean().Should().BeTrue();
+        replay.StatusCode.Should().Be(HttpStatusCode.OK);
+        recovery.StatusCode.Should().Be(HttpStatusCode.OK);
+        removed.StatusCode.Should().Be(HttpStatusCode.OK, await removed.Content.ReadAsStringAsync());
+        await using var verifyScope = isolated.Services.CreateAsyncScope();
+        var verify = verifyScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var implementation = await verify.ControlImplementations.SingleAsync(x => x.Id == implementationId);
+        implementation.PolicyNarrative.Should().Be("Synthetic policy draft");
+        implementation.TechnicalNarrative.Should().Be("Independent technical");
+        implementation.ApprovedVersionId.Should().NotBeNull();
+        (await verify.NarrativeVersions.CountAsync(x => x.ControlImplementationId == implementationId)).Should().BeGreaterThan(0);
+        (await verify.SystemCapabilityLinks.CountAsync(x => x.RegisteredSystemId == systemId)).Should().Be(0);
+        generator.Verify(x => x.GenerateGroundedDraftAsync("Policy", It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

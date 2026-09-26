@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Mcp.Endpoints.Workspaces;
 
-public static class WorkspaceOperationsEndpoints
+public static partial class WorkspaceOperationsEndpoints
 {
     public static IEndpointRouteBuilder MapWorkspaceOperationsEndpoints(this IEndpointRouteBuilder app)
     {
@@ -63,6 +63,7 @@ public static class WorkspaceOperationsEndpoints
         organizations.MapPost("/capability-setups/prepare", PrepareCapabilitySetupAsync);
         organizations.MapPost("/capability-setups", CompleteCapabilitySetupAsync);
         organizations.MapGet("/capability-setups/{operationId:guid}", GetCapabilitySetupAsync);
+        MapSystemSecurityCapabilityEndpoints(organizations);
         return app;
     }
 
@@ -132,7 +133,7 @@ public static class WorkspaceOperationsEndpoints
         {
             return Results.Ok(new
             {
-                data = await service.GeneratePublicationPreviewAsync(capabilityId, body.Revision, ct)
+                data = await service.GeneratePublicationPreviewAsync(capabilityId, body.Revision, body.ImpactReviewIds, ct)
             });
         }
         catch (Exception ex) { return MapMutationError(ex); }
@@ -533,6 +534,13 @@ public static class WorkspaceOperationsEndpoints
 
     private static IResult MapMutationError(Exception exception) => exception switch
     {
+        SystemCapabilityConflictException conflict => Results.Conflict(Error(conflict.Code, conflict.Message)),
+        SystemCapabilityWriteException write => Results.Json(new
+        {
+            error = new { code = "SETUP_WRITE_FAILED", message = write.Message, operationId = write.OperationId }
+        }, statusCode: StatusCodes.Status503ServiceUnavailable),
+        Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderPublicationConflictException conflict =>
+            Results.Conflict(Error(conflict.ErrorCode, conflict.Message)),
         ArgumentException => Results.BadRequest(Error("INVALID_REQUEST", exception.Message)),
         KeyNotFoundException => Results.NotFound(Error("NOT_FOUND", exception.Message)),
         DbUpdateConcurrencyException => Results.Conflict(Error("STALE_REVISION", exception.Message)),
@@ -550,7 +558,7 @@ public static class WorkspaceOperationsEndpoints
 
     private static object Error(string code, string message) => new { error = new { code, message } };
 
-    public sealed record GeneratePublicationPreviewRequest(long Revision);
+    public sealed record GeneratePublicationPreviewRequest(long Revision, IReadOnlyList<Guid>? ImpactReviewIds = null);
     public sealed record ApproveWorkingRevisionBody(long Revision, Guid PreviewId, string PreviewHash);
     public sealed record ReviewCapabilityNarrativeRequest(
         string SystemId, int ExpectedRevision, string Decision, string? Note);
