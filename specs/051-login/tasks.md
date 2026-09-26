@@ -20,6 +20,24 @@ quickstart.md.
 
 ## Format: `- [ ] T### [P?] [Story?] Description with file path`
 
+### Bootstrap recovery follow-up (US1/US7, existing Feature #68)
+
+- [X] LOGIN-RECOVERY-1 Reproduce stale-cookie public bootstrap 401; add failing
+  tests for exact public routes, protected rejection and both Dashboard guards.
+- [X] LOGIN-RECOVERY-2 Restore public bootstrap and gated identity replacement
+  without granting access for a stale cookie or changing production simulation.
+- [X] LOGIN-RECOVERY-3 Verify targeted auth/API/UI tests, local stale-cookie
+  browser recovery and explicit identity selection; leave user acceptance open.
+
+Verification: 51 targeted CAC/tenant middleware tests, 19 login/package HTTP
+tests, and 333 Dashboard auth/package/workspace tests passed. Dashboard
+type-checking and production build passed with build warnings retained.
+Real Chromium on `localhost:5174` retained a synthetic stale HttpOnly cookie:
+bootstrap returned 200, protected imports returned 401, the login selector
+replaced the cookie only after an explicit selection (204), and the retained
+published package loaded. This used the real MultiTenant pipeline without a
+tenant test bypass. No deployment or GitHub writes; user acceptance remains open.
+
 - **[P]**: Parallelizable (different files, no dependencies on incomplete tasks)
 - **[Story]**: `[US1]`–`[US10]`. Setup / Foundational / Polish phases carry NO story label.
 - File paths are workspace-relative.
@@ -421,6 +439,8 @@ non-Development.
 - [X] T126 [TDD-Test] [P] [US7] [src/Ato.Copilot.Dashboard/src/__tests__/auth/SimulationPanel.test.tsx](src/Ato.Copilot.Dashboard/src/__tests__/auth/SimulationPanel.test.tsx) — when `useLoginConfig().simulation` is null, component returns `null` even if a `force` prop is passed (route guard); when non-null, lists identities + click POSTs to `/api/auth/simulate`. RED.
 - [X] T127 [US7] Create [src/Ato.Copilot.Dashboard/src/features/auth/SimulationPanel.tsx](src/Ato.Copilot.Dashboard/src/features/auth/SimulationPanel.tsx). GREEN T126.
 - [X] T128 [US7] Mount `<SimulationPanel />` on `LoginPage` below the Sign In buttons; guard with `useLoginConfig().simulation != null`
+- [X] T128a [US7] Add failing-first Docker build contract coverage and a Dashboard build-environment argument; keep standalone builds production-safe and select development only in local Compose.
+- [X] T128b [US7] Verify production simulation-code exclusion, local simulation-panel visibility, identity switching and unchanged server-side gates; retain explicit membership requirements. Verified 29 focused .NET tests, 20 login UI tests, TypeScript checking, both Docker build variants and browser switching between CSP Admin and Organization Admin. T129 manual acceptance remains open.
 
 ### 10.6 Manual sign-off
 

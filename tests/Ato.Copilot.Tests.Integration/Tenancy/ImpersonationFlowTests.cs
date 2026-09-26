@@ -50,7 +50,7 @@ public class ImpersonationFlowTests
     {
         var resp = await _client.PostAsync(
             $"/api/tenants/{MultiTenantWebApplicationFactory<McpProgram>.TenantBId}/impersonate",
-            content: null);
+            JsonContent.Create(new { reason = "Investigate organization support request", acknowledged = true }));
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         resp.Headers.Should().Contain(h => h.Key == "Set-Cookie" &&
@@ -68,11 +68,40 @@ public class ImpersonationFlowTests
     }
 
     [Fact]
+    public async Task StartImpersonation_WithoutPurpose_Returns400_AndDoesNotIssueCookie()
+    {
+        // Arrange
+        var target = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
+
+        // Act
+        var response = await _client.PostAsync($"/api/tenants/{target}/impersonate", content: null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Headers.Should().NotContain(x => x.Key == "Set-Cookie");
+    }
+
+    [Fact]
+    public async Task StartImpersonation_WithoutAcknowledgement_Returns400_AndDoesNotIssueCookie()
+    {
+        // Arrange
+        var target = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
+
+        // Act
+        var response = await _client.PostAsJsonAsync($"/api/tenants/{target}/impersonate",
+            new { reason = "Investigate organization support request", acknowledged = false });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Headers.Should().NotContain(x => x.Key == "Set-Cookie");
+    }
+
+    [Fact]
     public async Task StartImpersonation_ResponseBody_CarriesTenantIdAndExpiresAt()
     {
         var resp = await _client.PostAsync(
             $"/api/tenants/{MultiTenantWebApplicationFactory<McpProgram>.TenantBId}/impersonate",
-            content: null);
+            JsonContent.Create(new { reason = "Investigate organization support request", acknowledged = true }));
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
@@ -93,7 +122,7 @@ public class ImpersonationFlowTests
         // Begin impersonation of Tenant B.
         var startResp = await _client.PostAsync(
             $"/api/tenants/{MultiTenantWebApplicationFactory<McpProgram>.TenantBId}/impersonate",
-            content: null);
+            JsonContent.Create(new { reason = "Investigate organization support request", acknowledged = true }));
         startResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Now hit a tenant-scoped read endpoint and verify the scope flipped.
@@ -113,7 +142,7 @@ public class ImpersonationFlowTests
         // Start impersonation first.
         await _client.PostAsync(
             $"/api/tenants/{MultiTenantWebApplicationFactory<McpProgram>.TenantBId}/impersonate",
-            content: null);
+            JsonContent.Create(new { reason = "Investigate organization support request", acknowledged = true }));
 
         var endResp = await _client.DeleteAsync("/api/tenants/impersonation");
         endResp.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -133,7 +162,8 @@ public class ImpersonationFlowTests
         // here verifies the not-found path. Per contract: bogus id → 404.
         var bogus = Guid.NewGuid();
 
-        var resp = await _client.PostAsync($"/api/tenants/{bogus}/impersonate", content: null);
+        var resp = await _client.PostAsync($"/api/tenants/{bogus}/impersonate",
+            JsonContent.Create(new { reason = "Investigate organization support request", acknowledged = true }));
 
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

@@ -13,6 +13,9 @@ public static class TenantSupportSessionModelConfiguration
             entity.ToTable("TenantSupportSessions");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.RevocationReason).HasMaxLength(64);
+            entity.Property(e => e.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Reference).HasMaxLength(100);
+            entity.Property(e => e.CorrelationId).HasMaxLength(64).IsRequired();
             entity.HasIndex(e => new { e.DirectoryTenantId, e.ObjectId, e.ExpiresAt });
             entity.HasOne<Tenant>().WithMany().HasForeignKey(e => e.TargetTenantId).OnDelete(DeleteBehavior.Cascade);
         });

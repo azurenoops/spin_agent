@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 2,
+  "fixture": "SYN-FS-IL5-001",
+  "synthetic": true,
+  "sourceSha256": "247d81637fff756867c47890f6ea6a193d9de97d1276d4794913d2983312de34",
+  "artifacts": {
+    "01-flankspeed-il5-ssp.pdf": {
+      "sha256": "dab96428d6ead08b798ed24be203a693c9b164e77066e0b942521b61574fcc3b",
+      "bytes": 173943,
+      "pages": 68
+    },
+    "02-flankspeed-il5-assessment.pdf": {
+      "sha256": "93294b318b6e9d3ee4e49e51b08e54af6fe0142f6f7707b125e6c458ea2bea88",
+      "bytes": 42959,
+      "pages": 17
+    },
+    "03-flankspeed-il5-operations.pdf": {
+      "sha256": "8cdc2dc9fb9372c7fd2df0650871dccc5089ac3ba14e2c4d53d59218d58713cd",
+      "bytes": 49835,
+      "pages": 20
+    },
+    "04-flankspeed-il5-unsigned-decision.pdf": {
+      "sha256": "db67b27a8b7b066a4b2f221917d2cf3a5043faffca24643213e92bc69f8ea438",
+      "bytes": 8444,
+      "pages": 3
+    },
+    "05-flankspeed-il5-components.json": {
+      "sha256": "7e9b74d8309ed03e99cae9a2196232ff08c30922cb0910b11d37f61b37af887b",
+      "bytes": 67603
+    },
+    "06-flankspeed-il5-registers.xlsx": {
+      "sha256": "8843e626ddae3bcf0e4a6bcc403cf2b543042d0c2aa9edc8034b1510719ecac0",
+      "bytes": 77791
+    }
+  },
+  "archives": {
+    "flankspeed-il5-ato-clean.zip": {
+      "sha256": "bba2e1d1fc6d765d0d61c5eb4e935fea73c3cccda1bbe4fcb24469e0a08bd8e0",
+      "bytes": 276798,
+      "entries": [
+        "01-flankspeed-il5-ssp.pdf",
+        "02-flankspeed-il5-assessment.pdf",
+        "03-flankspeed-il5-operations.pdf",
+        "04-flankspeed-il5-unsigned-decision.pdf",
+        "05-flankspeed-il5-components.json",
+        "06-flankspeed-il5-registers.xlsx"
+      ]
+    },
+    "flankspeed-il5-ato-needs-attention.zip": {
+      "sha256": "5ce4e1e25f164725baeec2e74d2f6b9c47b22b89f602ffe445e84d9e3fd9df56",
+      "bytes": 279035,
+      "entries": [
+        "01-flankspeed-il5-ssp.pdf",
+        "02-flankspeed-il5-assessment.pdf",
+        "03-flankspeed-il5-operations.pdf",
+        "04-flankspeed-il5-unsigned-decision.pdf",
+        "05-flankspeed-il5-components.json",
+        "06-flankspeed-il5-registers.xlsx",
+        "07-encrypted-appendix.pdf",
+        "08-malformed-source.json",
+        "09-unsupported-appendix.synthetic"
+      ]
+    }
+  }
+}

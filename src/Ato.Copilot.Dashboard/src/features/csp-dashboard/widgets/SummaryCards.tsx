@@ -1,28 +1,7 @@
 import type { ReactElement } from 'react';
 import type { SummaryResponse } from '../api';
 
-/**
- * Feature 048 / US8 (Phase 3 re-scope) — Org-portfolio KPI cards for the
- * CSP Portfolio page.
- *
- * In this codebase a `Tenant` IS the unit of "org / mission owner" (every
- * compliance row carries `TenantId` only, never `OrganizationId`). The
- * cards therefore present `tenantCounts.*` to the user as *org* counts,
- * which matches the navigation contract used by `OrgsTable` (row click =
- * impersonate that org = impersonate that tenant).
- *
- * Six tiles, in order:
- *   1. Total orgs           — tenantCounts.total (excl. system tenant)
- *   2. Active orgs          — tenantCounts.active
- *   3. Total systems        — summary.systemCount
- *   4. Total ATO decisions  — sum of atoStatusCounts.* (with breakdown caption)
- *   5. Open findings        — sum of openFindingsBySeverity.* (with breakdown)
- *   6. Open POA&Ms          — summary.openPoamCount
- *
- * Suspended and Disabled tenant counts are intentionally dropped from
- * KPI prominence (still surfaced as the per-row Status badge in the
- * `OrgsTable`); they are tenant-lifecycle signals, not portfolio KPIs.
- */
+/** Existing server rollups, presented as organization rather than subgroup metrics. */
 export interface SummaryCardsProps {
   summary: SummaryResponse;
 }
@@ -34,16 +13,6 @@ interface CardSpec {
   accent: 'emerald' | 'amber' | 'slate' | 'indigo' | 'sky' | 'violet' | 'rose';
   testId: string;
 }
-
-const ACCENT_CLASSES: Record<CardSpec['accent'], string> = {
-  emerald: 'border-emerald-200 bg-emerald-50',
-  amber: 'border-amber-200 bg-amber-50',
-  slate: 'border-slate-200 bg-slate-50',
-  indigo: 'border-indigo-200 bg-indigo-50',
-  sky: 'border-sky-200 bg-sky-50',
-  violet: 'border-violet-200 bg-violet-50',
-  rose: 'border-rose-200 bg-rose-50',
-};
 
 const VALUE_ACCENT_CLASSES: Record<CardSpec['accent'], string> = {
   emerald: 'text-emerald-700',
@@ -72,7 +41,7 @@ export default function SummaryCards({ summary }: SummaryCardsProps): ReactEleme
     {
       label: 'Active orgs',
       value: summary.tenantCounts.active,
-      caption: 'Eligible for entry from the orgs table below.',
+      caption: 'Lifecycle status; access is checked separately.',
       accent: 'emerald',
       testId: 'kpi-active-orgs',
     },
@@ -113,19 +82,19 @@ export default function SummaryCards({ summary }: SummaryCardsProps): ReactEleme
       {cards.map((c) => (
         <div
           key={c.testId}
-          className={`rounded-lg border p-4 shadow-sm ${ACCENT_CLASSES[c.accent]}`}
+          className={`rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900`}
           data-testid={c.testId}
         >
-          <div className="text-xs font-medium uppercase tracking-wide text-gray-600">
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-400">
             {c.label}
           </div>
           <div
-            className={`mt-1 text-3xl font-semibold ${VALUE_ACCENT_CLASSES[c.accent]}`}
+            className={`mt-1 text-3xl font-semibold dark:text-gray-100 ${VALUE_ACCENT_CLASSES[c.accent]}`}
           >
             {c.value.toLocaleString()}
           </div>
           {c.caption && (
-            <div className="mt-2 text-xs text-gray-500">{c.caption}</div>
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{c.caption}</div>
           )}
         </div>
       ))}

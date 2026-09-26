@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Interfaces.Tenancy;
@@ -8,6 +10,7 @@ using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Mcp.Hubs;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Services.Tenancy;
+using Ato.Copilot.Core.Services.Workspaces;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -292,6 +295,7 @@ public static class TenantsEndpoints
         IDbContextFactory<AtoCopilotContext> dbFactory,
         ILoginAuditService audit,
         LoginAuditContextAccessor auditCtxAccessor,
+        [FromBody] StartSupportAccessRequest? body,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
@@ -299,19 +303,29 @@ public static class TenantsEndpoints
         {
             return ForbiddenNotCspAdmin(sw);
         }
+        if (body is null)
+            return Error(sw, StatusCodes.Status400BadRequest, "INVALID_SUPPORT_PURPOSE",
+                "A support reason and acknowledgement are required.");
+        var purposeErrors = WorkspaceContractValidator.Validate(body);
+        if (purposeErrors.Count != 0)
+            return Error(sw, StatusCodes.Status400BadRequest, "INVALID_SUPPORT_PURPOSE",
+                string.Join("; ", purposeErrors));
 
         var target = await service.GetByIdAsync(tenantId, ct);
         if (target is null) return NotFound(sw);
+        if (target.Status != TenantStatus.Active)
+            return Error(sw, 409, "TENANT_NOT_ACTIVE", "Support entry requires an active organization.");
 
         if (tenant.IsWorkspaceRequest)
         {
-            if (target.Status != TenantStatus.Active)
-                return Error(sw, 409, "TENANT_NOT_ACTIVE", "Support entry requires an active organization.");
             var identity = WorkspaceService.Identity(http.User);
+            var request = auditCtxAccessor.FromHttpContext(http);
             (string value, DateTimeOffset expiresAt) session;
             try
             {
-                session = await impersonation.IssueWorkspaceTokenAsync(identity.ObjectId.ToString(), identity.DirectoryId, target.Id, ct);
+                session = await impersonation.IssueWorkspaceTokenAsync(
+                    identity.ObjectId.ToString(), identity.DirectoryId, target.Id,
+                    body.Reason, body.Reference, request.CorrelationId, ct);
             }
             catch (WorkspaceException ex)
             {
@@ -319,13 +333,20 @@ public static class TenantsEndpoints
             }
             using var scope = http.RequestServices.GetRequiredService<ITenantContextAccessor>()
                 .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(target.Id));
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var request = auditCtxAccessor.FromHttpContext(http);
-            await audit.AppendAsync(db, new(LoginAuditEventType.ImpersonationStart, identity.ObjectId.ToString(),
-                identity.DirectoryId.ToString(), target.Id, request.CorrelationId, request.SourceIp,
-                request.UserAgent, LoginSurface.Dashboard,
-                MetadataJson: System.Text.Json.JsonSerializer.Serialize(new { impersonatedTenantId = target.Id, expectedEndAt = session.expiresAt })), ct);
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await using var db = await dbFactory.CreateDbContextAsync(ct);
+                await audit.AppendAsync(db, new(LoginAuditEventType.ImpersonationStart, identity.ObjectId.ToString(),
+                    identity.DirectoryId.ToString(), target.Id, request.CorrelationId, request.SourceIp,
+                    request.UserAgent, LoginSurface.Dashboard,
+                    MetadataJson: System.Text.Json.JsonSerializer.Serialize(new { impersonatedTenantId = target.Id, expectedEndAt = session.expiresAt })), ct);
+                await db.SaveChangesAsync(ct);
+            }
+            catch (Exception)
+            {
+                return Error(sw, StatusCodes.Status503ServiceUnavailable, "SUPPORT_AUDIT_UNAVAILABLE",
+                    "Support access was not issued because its audit record could not be persisted.");
+            }
             http.Response.Cookies.Append(impersonation.CookieName, session.value, new CookieOptions
             {
                 HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Expires = session.expiresAt, Path = "/"
@@ -334,50 +355,38 @@ public static class TenantsEndpoints
         }
 
         var actor = GetActor(http);
-        var (cookieValue, expiresAt) = impersonation.IssueToken(actor, tenant.TenantId, target.Id);
-
-        http.Response.Cookies.Append(impersonation.CookieName, cookieValue, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
-            Expires = expiresAt,
-            Path = "/",
-        });
-
-        // Feature 051 T131 [US8] — ImpersonationStart audit row, stamped
-        // on the IMPERSONATED tenant. The row commits in its own DbContext
-        // because the cookie was already written to the response above;
-        // failing the audit write after the cookie is in flight would be
-        // confusing. We log + swallow the failure so the response stays
-        // 200 (the SignalR fan-out below has the same best-effort posture).
         var auditCtx = auditCtxAccessor.FromHttpContext(http);
+        var actorId = Guid.TryParse(actor, out var parsedActor) ? parsedActor : StableGuid(actor);
+        var directoryId = Guid.TryParse(http.User.FindFirstValue("tid"), out var parsedDirectory)
+            ? parsedDirectory : tenant.TenantId;
+        (string cookieValue, DateTimeOffset expiresAt) legacySession;
         try
         {
+            legacySession = await impersonation.IssueWorkspaceTokenAsync(
+                actorId.ToString(), directoryId, target.Id, body.Reason, body.Reference,
+                auditCtx.CorrelationId, ct);
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var metadata = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                impersonatedTenantId = target.Id.ToString(),
-                expectedEndAt = expiresAt.ToString("o"),
-            });
             await audit.AppendAsync(db, new LoginAuditEventDraft(
-                EventType: LoginAuditEventType.ImpersonationStart,
-                Oid: string.IsNullOrEmpty(actor) || actor == "anonymous" ? null : actor,
-                Tid: http.User.FindFirstValue("tid"),
-                EffectiveTenantId: target.Id,
-                CorrelationId: auditCtx.CorrelationId,
-                SourceIp: auditCtx.SourceIp,
-                UserAgent: auditCtx.UserAgent,
-                Surface: LoginSurface.Dashboard,
-                MetadataJson: metadata), ct);
+                LoginAuditEventType.ImpersonationStart, actor, directoryId.ToString(), target.Id,
+                auditCtx.CorrelationId, auditCtx.SourceIp, auditCtx.UserAgent, LoginSurface.Dashboard,
+                MetadataJson: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    impersonatedTenantId = target.Id,
+                    expectedEndAt = legacySession.expiresAt
+                })), ct);
             await db.SaveChangesAsync(ct);
         }
         catch (Exception)
         {
-            // Cookie has already been issued; do not collapse the success
-            // response into an error just because the audit-store write
-            // failed. The SignalR fan-out below follows the same pattern.
+            return Error(sw, StatusCodes.Status503ServiceUnavailable, "SUPPORT_AUDIT_UNAVAILABLE",
+                "Support access was not issued because its audit record could not be persisted.");
         }
+        var (cookieValue, expiresAt) = legacySession;
+        http.Response.Cookies.Append(impersonation.CookieName, cookieValue, new CookieOptions
+        {
+            HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict,
+            Expires = expiresAt, Path = "/"
+        });
 
         // Feature 048 (T149, SC-005): broadcast the impersonation start so any
         // other dashboard tabs / clients owned by this CSP-Admin update without
@@ -461,9 +470,13 @@ public static class TenantsEndpoints
         {
             if (payload.DirectoryTenantId.HasValue)
             {
-                if (!Guid.TryParse(http.User.FindFirstValue("tid"), out var directory)
-                    || !Guid.TryParse(GetActor(http), out var objectId))
-                    return Error(Stopwatch.StartNew(), 403, "SUPPORT_SESSION_INVALID", "An authenticated directory identity is required.");
+                var directory = Guid.TryParse(http.User.FindFirstValue("tid"), out var parsedDirectory)
+                    ? parsedDirectory : payload.DirectoryTenantId.Value;
+                var actor = GetActor(http);
+                var objectId = Guid.TryParse(actor, out var parsedActor) ? parsedActor : StableGuid(actor);
+                if (payload.ImpersonatorOid != objectId.ToString())
+                    return Error(Stopwatch.StartNew(), 403, "SUPPORT_SESSION_INVALID",
+                        "The support session does not belong to this identity.");
                 try { await impersonation.RevokeWorkspaceTokenAsync(cookieValue, directory, objectId, "manual", ct); }
                 catch (WorkspaceException ex) { return Error(Stopwatch.StartNew(), ex.StatusCode, ex.Code, ex.Message); }
             }
@@ -578,6 +591,12 @@ public static class TenantsEndpoints
             timestamp = DateTimeOffset.UtcNow,
         },
     };
+
+    private static Guid StableGuid(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return new Guid(bytes.AsSpan(0, 16));
+    }
 
     /// <summary>POST /api/tenants body shape.</summary>
     public sealed record CreateTenantRequest(Guid? EntraTenantId, string DisplayName);

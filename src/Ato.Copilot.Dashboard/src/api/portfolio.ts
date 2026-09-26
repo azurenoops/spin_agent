@@ -43,10 +43,11 @@ export async function getPortfolio(
 
 export async function getPortfolioLegacy(
   params: PortfolioParams = {},
+  signal?: AbortSignal,
 ): Promise<PaginatedResponse<PortfolioSystemSummary>> {
   const { data } = await apiClient.get<PaginatedResponse<PortfolioSystemSummary>>(
     '/systems',
-    { params },
+    { params, signal },
   );
   return data;
 }

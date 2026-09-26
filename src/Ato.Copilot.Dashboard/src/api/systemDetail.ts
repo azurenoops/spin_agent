@@ -5,8 +5,8 @@ import type {
   HeatmapControlsResponse,
 } from '../types/dashboard';
 
-export async function getSystemDetail(systemId: string): Promise<SystemDetailResponse> {
-  const { data } = await apiClient.get<SystemDetailResponse>(`/systems/${systemId}`);
+export async function getSystemDetail(systemId: string, signal?: AbortSignal): Promise<SystemDetailResponse> {
+  const { data } = await apiClient.get<SystemDetailResponse>(`/systems/${systemId}`, { signal });
   return data;
 }
 

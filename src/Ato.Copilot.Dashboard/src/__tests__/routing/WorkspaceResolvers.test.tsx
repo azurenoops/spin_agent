@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 import type { WorkspaceTarget } from '../../features/workspaces/workspaceRoutes';
 import PortfolioRoute from '../../pages/PortfolioRoute';
@@ -28,6 +29,11 @@ const routes = [
   [CapabilitiesRoute, 'capabilities'],
 ] as const;
 
+function CurrentLocation() {
+  const location = useLocation();
+  return <output aria-label="Current location">{location.pathname}{location.search}{location.hash}</output>;
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe('server-validated workspace route resolution', () => {
@@ -39,10 +45,19 @@ describe('server-validated workspace route resolution', () => {
       legacy.impersonating.mockReturnValue(kind === 'csp');
 
       // Act
-      render(<WorkspaceNavigationProvider workspace={workspace}><Page /></WorkspaceNavigationProvider>);
+      const prefix = kind === 'csp' ? '/workspaces/csp' : '/workspaces/organizations/org-alpha';
+      render(<MemoryRouter initialEntries={[`${prefix}/${label}?search=threat#source`]}>
+        <WorkspaceNavigationProvider workspace={workspace}><Page /><CurrentLocation /></WorkspaceNavigationProvider>
+      </MemoryRouter>);
 
       // Assert
-      expect(screen.getByText(`${kind === 'csp' ? 'Provider' : 'Organization'} ${label}`)).toBeInTheDocument();
+      if (label === 'components' || label === 'capabilities') {
+        expect(screen.getByLabelText('Current location')).toHaveTextContent(
+          `${prefix}/security-capabilities?search=threat&grouping=${label === 'components' ? 'component' : 'capability'}#source`,
+        );
+      } else {
+        expect(screen.getByText(`${kind === 'csp' ? 'Provider' : 'Organization'} ${label}`)).toBeInTheDocument();
+      }
       expect(legacy.csp).toHaveBeenCalledWith(false);
     });
   }
@@ -54,7 +69,10 @@ describe('server-validated workspace route resolution', () => {
     legacy.impersonating.mockReturnValue(kind === 'csp');
 
     // Act
-    render(<WorkspaceNavigationProvider workspace={workspace}><ControlsRoute /></WorkspaceNavigationProvider>);
+    const prefix = kind === 'csp' ? '/workspaces/csp' : '/workspaces/organizations/org-alpha';
+    render(<MemoryRouter initialEntries={[`${prefix}/controls`]}>
+      <WorkspaceNavigationProvider workspace={workspace}><ControlsRoute /></WorkspaceNavigationProvider>
+    </MemoryRouter>);
 
     // Assert
     expect(screen.getByText(`Controls ${kind === 'csp' ? 'csp' : 'org'}`)).toBeInTheDocument();

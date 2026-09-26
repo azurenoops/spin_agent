@@ -8,8 +8,8 @@ export default function ChatToggle({ isOpen, onClick }: ChatToggleProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 transition-colors ${
-        isOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'
+      className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-100 ${
+        isOpen ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-200' : 'text-gray-500 dark:text-gray-300'
       }`}
       aria-label="Chat (Ctrl+Shift+C)"
       title="Chat (Ctrl+Shift+C)"

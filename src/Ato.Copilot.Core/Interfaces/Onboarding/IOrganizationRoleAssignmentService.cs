@@ -8,6 +8,11 @@ namespace Ato.Copilot.Core.Interfaces.Onboarding;
 /// </summary>
 public interface IOrganizationRoleAssignmentService
 {
+    /// <summary>Stage initial Administrator and audit in an authorized, serialized enrollment transaction.</summary>
+    Task<RoleAssignmentResult> StageAdministratorAsync(
+        Ato.Copilot.Core.Data.Context.AtoCopilotContext db, Guid tenantId, Guid personId,
+        Guid actorUserId, Guid correlationId, CancellationToken ct = default);
+
     /// <summary>List all non-removed role assignments for a tenant.</summary>
     Task<IReadOnlyList<OrganizationRoleAssignment>> ListAsync(
         Guid tenantId, CancellationToken ct = default);

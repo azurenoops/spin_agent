@@ -38,6 +38,15 @@ namespace Ato.Copilot.Mcp.Endpoints.Auth;
 /// </remarks>
 public static class AuthEndpoints
 {
+    internal static bool IsPreAuthenticationRequest(HttpRequest request)
+    {
+        var path = request.Path.Value?.TrimEnd('/');
+        return (HttpMethods.IsGet(request.Method)
+                && string.Equals(path, "/api/auth/login-config", StringComparison.OrdinalIgnoreCase))
+            || (HttpMethods.IsPost(request.Method)
+                && string.Equals(path, "/api/auth/simulate", StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
     /// Registers every <c>/api/auth/*</c> route onto <paramref name="app"/>.
     /// </summary>

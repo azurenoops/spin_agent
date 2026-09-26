@@ -2,9 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
-  type ChangeEvent,
   type FormEvent,
   type ReactElement,
 } from 'react';
@@ -15,7 +13,6 @@ import { useCspDashboardAvailable } from '../../components/layout/useCspDashboar
 import {
   archiveCspInheritedComponent,
   createCspInheritedComponent,
-  importCspInheritedComponents,
   isUnavailable,
   listCspInheritedCapabilities,
   listCspInheritedComponents,
@@ -27,8 +24,6 @@ import {
   type ListComponentsParams,
 } from './api';
 import ComponentDetailDrawer from './ComponentDetailDrawer';
-import ComponentExtractionPreview from '../csp-onboarding/steps/ComponentExtractionPreview';
-import type { AtoUploadResponse } from '../csp-onboarding/api';
 
 const COMPONENT_TYPE_OPTIONS: CspComponentType[] = [
   'Infrastructure',
@@ -48,8 +43,6 @@ const STATUS_OPTIONS: { value: CspInheritedComponentStatus | ''; label: string }
 ];
 
 const PAGE_SIZE = 200; // Pull catalogues in one shot; CSP catalogs are small (10s of components).
-const MAX_FILE_BYTES = 50 * 1024 * 1024;
-const ACCEPT = '.pdf,.docx,.json,.xlsx,.zip';
 
 type LoadState =
   | { kind: 'loading' }
@@ -91,10 +84,7 @@ export default function CspInheritedComponentsPage(): ReactElement {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [importResult, setImportResult] = useState<AtoUploadResponse | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importing, setImporting] = useState(false);
-  const importInputRef = useRef<HTMLInputElement>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
   // Debounce the search box so we don't hammer the API on every keystroke.
@@ -158,33 +148,6 @@ export default function CspInheritedComponentsPage(): ReactElement {
     return reload();
   }, [reload]);
 
-  const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (importInputRef.current) importInputRef.current.value = '';
-    if (files.length === 0) return;
-    const oversized = files.find((f) => f.size > MAX_FILE_BYTES);
-    if (oversized) {
-      setImportError(`${oversized.name} exceeds the 50 MB per-file limit.`);
-      return;
-    }
-    setImporting(true);
-    setImportError(null);
-    try {
-      const result = await importCspInheritedComponents(files);
-      setImportResult(result);
-      reload();
-    } catch (err) {
-      const ex = err as { errorCode?: string; message?: string };
-      setImportError(
-        ex?.errorCode === 'CSP_ONBOARDING_INCOMPLETE'
-          ? 'Complete CSP onboarding before importing additional ATO documents.'
-          : (ex?.message ?? 'Import failed.'),
-      );
-    } finally {
-      setImporting(false);
-    }
-  };
-
   if (state.kind === 'unavailable') {
     return (
       <PageLayout title="CSP Inherited">
@@ -215,40 +178,7 @@ export default function CspInheritedComponentsPage(): ReactElement {
           showOrgName={false}
         />
 
-        {/* Hidden file input — kept here so toolbar `Import` button can trigger it. */}
-        <input
-          ref={importInputRef}
-          type="file"
-          multiple
-          accept={ACCEPT}
-          className="hidden"
-          onChange={handleImport}
-          aria-label="Import ATO documents"
-        />
-
-        {/* Import error banner */}
-        {importError && (
-          <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {importError}
-          </div>
-        )}
-
-        {/* Import result preview */}
-        {importResult && (
-          <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3">
-            <h2 className="text-sm font-semibold text-emerald-900">Import complete</h2>
-            <div className="mt-2">
-              <ComponentExtractionPreview result={importResult} />
-            </div>
-            <button
-              type="button"
-              onClick={() => setImportResult(null)}
-              className="mt-2 text-xs font-medium text-emerald-800 hover:underline"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
+        {actionError && <p role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{actionError}</p>}
 
         {/* Toolbar — visual parity with org `ComponentLibrary`: search + status
             filter on the left, count text, primary actions right-aligned. */}
@@ -290,12 +220,11 @@ export default function CspInheritedComponentsPage(): ReactElement {
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => importInputRef.current?.click()}
-                disabled={importing}
+                onClick={() => navigate('/workspaces/csp/security-capabilities/imports')}
                 className="inline-flex items-center rounded-md border border-indigo-600 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
                 data-testid="csp-inherited-components-import-button"
               >
-                {importing ? 'Importing…' : 'Import ATO documents'}
+                Import ATO documents
               </button>
               <button
                 type="button"
@@ -340,12 +269,13 @@ export default function CspInheritedComponentsPage(): ReactElement {
                   ) {
                     return;
                   }
+                  setActionError(null);
                   try {
                     await archiveCspInheritedComponent(c.id);
                     reload();
                   } catch (err) {
                     const ex = err as { message?: string };
-                    setImportError(ex?.message ?? 'Archive failed.');
+                    setActionError(ex?.message ?? 'Archive failed.');
                   }
                 }}
               />

@@ -139,7 +139,8 @@ public sealed partial class CapabilityResponsibilityService
                 confirmation?.SourceRevision, confirmation?.ConfirmedBy, confirmation?.ConfirmedAt,
                 confirmation is null ? null : Allocation(confirmation), existing?.InheritanceType.ToString(), existing?.DesignationSource,
                 sourceAvailable, sourceAvailable ? CspResponsibilitySourceTracker.RedactSnapshot(source.Snapshot) : null,
-                confirmation is null ? null : CspResponsibilitySourceTracker.RedactSnapshot(confirmation.SourceSnapshotJson));
+                confirmation is null ? null : CspResponsibilitySourceTracker.RedactSnapshot(confirmation.SourceSnapshotJson),
+                confirmation?.ProviderCoverageVerified, confirmation?.CustomerDutiesReviewed, confirmation?.ReviewNotes);
         })).OrderBy(i => i.ControlId).ThenBy(i => i.SubscriptionId).ToArray();
         var impacts = await db.Set<CapabilityResponsibilityImpact>()
             .Where(i => i.TenantId == state.TenantId && i.RegisteredSystemId == state.SystemId && i.AcknowledgedAt == null)

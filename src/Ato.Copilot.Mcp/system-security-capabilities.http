@@ -1,0 +1,177 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_AUTHENTICATED_TOKEN
+@tenantId = REPLACE_WITH_ORGANIZATION_ID
+@systemId = REPLACE_WITH_ASSIGNED_SYSTEM_ID
+@source = local
+@recordId = REPLACE_WITH_SOURCE_RECORD_ID
+@sourceRevision = COPY_FROM_LATEST_ITEM
+@relationshipRevision = COPY_FROM_DETAIL
+@operationId = COPY_FROM_PREPARE_RESPONSE
+@operationRevision = 0
+@proposalId = COPY_FROM_DETAIL
+@proposalRevision = 0
+@controlId = AC-1
+@narrativeVersion = 0
+@baselineId = COPY_FROM_DETAIL
+@responsibilitySourceRevision = COPY_FROM_CONTROL_AVAILABLE_SOURCE_REVISION
+@responsibilityReviewRevision = COPY_FROM_CONTROL_REVIEW_REVISION
+@root = {{baseUrl}}/api/workspaces/organizations/{{tenantId}}/systems/{{systemId}}/security-capabilities
+@componentId = COPY_FROM_SOURCE_QUALIFIED_COMPONENT
+@boundaryId = COPY_FROM_PLACEMENT_OPTIONS
+@placementId = COPY_FROM_PLACEMENT_OPTIONS
+@placementRevision = COPY_FROM_PLACEMENT_OPTIONS
+
+### Placement permissions are separate from provider authorship. Refresh tokens before either mutation.
+GET {{root}}/{{source}}/component/{{componentId}}/placements
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### MUTATION: adds only a real selected-system boundary placement; does not auto-subscribe a capability.
+POST {{root}}/{{source}}/component/{{componentId}}/placements/assign
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"boundaryId":"{{boundaryId}}","sourceRevision":"{{sourceRevision}}","relationshipRevision":"{{relationshipRevision}}"}
+
+### MUTATION: refresh options after assign; canUnassign must be true for this exact placement.
+### This retains other placements/systems, capabilities, source metadata and approved narratives.
+POST {{root}}/{{source}}/component/{{componentId}}/placements/{{placementId}}/unassign
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"sourceRevision":"{{sourceRevision}}","relationshipRevision":"{{relationshipRevision}}","placementRevision":"{{placementRevision}}"}
+
+### Manual only: use a disposable local system. No cloud/domain data is written by the test suite.
+### Applied capabilities; changing grouping to component includes directly assigned orphan components.
+GET {{root}}?scope=applied&grouping=capability&page=1&pageSize=25&sort=name&direction=asc
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Available library is distinct from current applicability; applied entries are explicitly marked.
+GET {{root}}?scope=available&grouping=component&componentType=Person&boundaryId=unassigned
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Source-qualified detail: safe evidence URLs, independent Policy/Technical, actual control allocations.
+GET {{root}}/{{source}}/capability/{{recordId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Prepare persists a draft ONLY. Add selections/placements/supports before sending.
+### Provider placements require a real selected-system boundary. Never paste a source from another tenant.
+POST {{root}}/setups/prepare
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "idempotencyKey": "local-system-capability-manual-1",
+  "selections": [{
+    "source": "{{source}}",
+    "recordId": "{{recordId}}",
+    "sourceRevision": "{{sourceRevision}}",
+    "placements": [],
+    "supportingCapabilities": []
+  }]
+}
+
+### Recover immutable plan/outcomes; exact selected-system CanManageSystem is required.
+GET {{root}}/setups/{{operationId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### MUTATION: inspect plannedWrites first; copy revision from prepare/recovery.
+### Repeating after completion returns persisted outcomes. Partial retries execute incomplete writes only.
+POST {{root}}/setups/{{operationId}}/complete
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"expectedRevision": {{operationRevision}}}
+
+### Removal PREVIEW only. Reuse recover/complete above to execute after reviewing.
+### Other systems, shared source records, component placements and approved narratives must remain.
+POST {{root}}/{{source}}/capability/{{recordId}}/removals/prepare
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "idempotencyKey": "local-system-capability-removal-1",
+  "sourceRevision": "{{sourceRevision}}",
+  "relationshipRevision": "{{relationshipRevision}}"
+}
+
+### OPTIONAL AI MUTATION: explicit source-bound generation; never updates approved content.
+POST {{root}}/{{source}}/capability/{{recordId}}/narrative-proposals
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "controlId": "{{controlId}}",
+  "narrativeType": "Policy",
+  "expectedVersion": {{narrativeVersion}},
+  "sourceRevision": "{{sourceRevision}}"
+}
+
+### OPTIONAL review MUTATION: separate authorized reviewer, exact source origin and current proposal revision.
+POST {{root}}/{{source}}/capability/{{recordId}}/narrative-proposals/{{proposalId}}/review
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{"expectedRevision": {{proposalRevision}}, "decision": "RequestRevision", "note": "Manual local review: clarify supporting evidence."}
+
+### OPTIONAL responsibility MUTATION: assigned ISSM/ISSO only; both checks and notes are required.
+### Use a provider capability and its per-control responsibility tokens, NOT the inventory sourceRevision.
+POST {{root}}/provider/capability/{{recordId}}/responsibilities/confirm
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "baselineId": "{{baselineId}}",
+  "sourceRevision": "{{responsibilitySourceRevision}}",
+  "reviewRevision": "{{responsibilityReviewRevision}}",
+  "providerCoverageVerified": true,
+  "customerDutiesReviewed": true,
+  "reviewNotes": "Manual local review: verified coverage and customer duties against the displayed source.",
+  "allocations": [{
+    "controlId": "{{controlId}}",
+    "inheritanceType": "Shared",
+    "provider": "REPLACE_WITH_VERIFIED_PROVIDER",
+    "customerResponsibility": "REPLACE_WITH_REVIEWED_CUSTOMER_DUTY"
+  }]
+}
+
+### Negative checks: change tenant/system, remove management role, alter sourceRevision or expectedRevision.
+### Expect explicit 404/403/409, no success-shaped defaults, and no cross-system writes.

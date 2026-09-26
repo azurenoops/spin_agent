@@ -14,6 +14,10 @@ public sealed class TenantSupportSessionStore(IDbContextFactory<AtoCopilotContex
         if (session.Id == Guid.Empty || session.DirectoryTenantId == Guid.Empty || session.ObjectId == Guid.Empty
             || session.TargetTenantId == Guid.Empty || session.ExpiresAt <= session.IssuedAt || session.RevokedAt.HasValue)
             throw new ArgumentException("A new support session requires a complete identity, target and valid lifetime.", nameof(session));
+        if (session.Reason.Trim().Length is < 3 or > 500 || session.Reference?.Trim().Length > 100
+            || !session.Acknowledged || string.IsNullOrWhiteSpace(session.CorrelationId)
+            || session.CorrelationId.Length > 64)
+            throw new ArgumentException("A support session requires a bounded purpose, acknowledgement, and correlation ID.", nameof(session));
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         db.Set<TenantSupportSession>().Add(session);
         await db.SaveChangesAsync(cancellationToken);

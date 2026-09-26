@@ -73,6 +73,14 @@ public class CacAuthenticationMiddleware
         ILoginAuditService? loginAudit = null,
         LoginAuditContextAccessor? auditContextAccessor = null)
     {
+        // Bootstrap and identity selection must survive obsolete credentials.
+        // The simulation endpoint still enforces its own environment/config gate.
+        if (AuthEndpoints.IsPreAuthenticationRequest(context.Request))
+        {
+            await _next(context);
+            return;
+        }
+
         // Skip auth for health checks and SignalR hub endpoints (#439)
         if (context.Request.Path.StartsWithSegments("/health") ||
             context.Request.Path.StartsWithSegments("/hubs"))

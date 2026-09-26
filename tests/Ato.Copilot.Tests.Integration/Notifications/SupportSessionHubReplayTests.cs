@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Tenancy;
@@ -44,7 +45,8 @@ public sealed class SupportSessionHubReplayTests(WorkspaceMembershipFactory fact
 
     private async Task<string> EnterSupportAsync(HttpClient administrator)
     {
-        using var response = await administrator.PostAsync($"/api/tenants/{_tenant}/impersonate", null);
+        using var response = await administrator.PostAsJsonAsync($"/api/tenants/{_tenant}/impersonate",
+            new { reason = "Investigate organization support request", acknowledged = true });
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         return response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("ato-impersonate=", StringComparison.Ordinal)).Split(';')[0];
     }

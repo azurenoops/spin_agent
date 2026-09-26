@@ -20,7 +20,8 @@ RUN rm -rf dist tsconfig.tsbuildinfo
 
 # API calls use relative /api path — nginx proxies to MCP server
 ENV VITE_API_BASE_URL=/api/dashboard
-RUN npm run build
+ARG DASHBOARD_BUILD_ENV=production
+RUN NODE_ENV="$DASHBOARD_BUILD_ENV" npm run build
 
 # ─── Stage 2: Serve with nginx ──────────────────────────────────
 FROM nginx:stable-alpine AS runtime

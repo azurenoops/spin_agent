@@ -23,4 +23,7 @@ public enum SourceFormat
 
     /// <summary>Created manually by a CSP-Admin via the dashboard.</summary>
     Manual = 5,
+
+    /// <summary>Reviewed durable package; exact source media types and citations live in its private manifest.</summary>
+    Package = 6,
 }

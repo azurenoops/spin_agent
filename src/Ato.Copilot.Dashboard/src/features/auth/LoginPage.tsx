@@ -75,6 +75,13 @@ export default function LoginPage() {
           Sign in to continue
         </p>
 
+        {SimulationPanel !== null && login.simulation
+          && searchParams.get('reason') === 'simulation_identity_changed' && (
+          <p role="status" className="mb-6 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Your previous development sign-in is no longer available. Choose a configured identity below.
+          </p>
+        )}
+
         <div className="space-y-3">
           {login.enabledMethods.map((m) => {
             const isPrimary = m.id === login.defaultMethod;

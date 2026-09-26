@@ -11,6 +11,16 @@
 
 ## Format: `[ID] [P?] [Story?] Description`
 
+### Authorization-led onboarding follow-up (Feature 078)
+
+- [ ] AUTH048-1 Preserve optional durable receipt and pre-activation CSP-only
+  access while supporting explicit offering/package association.
+- [ ] AUTH048-2 Change onboarding copy and completion handoff to Authorizations;
+  do not require extracted inventory review or confirm/publish records.
+- [ ] AUTH048-3 Verify receipt replay, preserved unassociated legacy packages,
+  ordinary provider scope and impersonation rejection without resetting data.
+- [ ] AUTH048-4 Verify local setup-to-portal journey and leave user acceptance open.
+
 - **[P]**: Can run in parallel (different files, no dependencies on incomplete tasks)
 - **[Story]**: User story owner — `[US1]`..`[US10]` for user-story phase tasks; omitted for Setup, Foundational, cross-cutting, and Polish phases
 - All paths are repository-relative
@@ -663,3 +673,15 @@ When the four streams converge, run Phases 8/10/11 with 1–2 developers and Pha
 - Commit after every task or every logical [P] group.
 - Stop at the end of each Phase 3+ for an independent demo.
 - Avoid: hard-coded `00000000-...-001` GUIDs (FR-072 forbids); raw `db.Set<T>().IgnoreQueryFilters()` calls outside the migration utility; reading `HttpContext.User.FindFirst("tid")` outside `TenantResolutionMiddleware`.
+# September 23 package review follow-up
+
+- [x] PKG048-01 Test and remove submit/import blanket Draft publication.
+- [x] PKG048-02 Persist original upload/manifest and support negotiated durable
+  receipt, recovery and complete entry accounting.
+- [x] PKG048-03 Update onboarding contracts and receipt-only UI; all candidate
+  review/approval occurs in the provider portal under Feature 078.
+- [ ] PKG048-04 Verify synthetic auth/retry/no-autopublish regressions, schema
+  compatibility and manual acceptance without deployment.
+  Automated and real local-browser checks have run; user manual acceptance
+  remains open. See the qualified results in
+  [`docs/dev/csp-package-ingestion.md`](../../docs/dev/csp-package-ingestion.md).

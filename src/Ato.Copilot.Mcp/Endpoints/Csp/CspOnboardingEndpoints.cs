@@ -47,7 +47,7 @@ public static class CspOnboardingEndpoints
         // 50 MB per-file cap (FR-099 / FR-103); CSP-Admin only;
         // SingleTenant-mode 404 short-circuit; profile is auto-created on
         // first upload (mirrors the identity step's EnsureCreatedAsync).
-        group.MapPost("/atos/upload", PostAtosUploadAsync)
+        group.MapPost("/atos/upload", CspPackageImportEndpoints.UploadOnboardingAsync)
             .WithName("PostCspOnboardingAtosUpload")
             .DisableAntiforgery()
             .WithMetadata(new RequestSizeLimitAttribute(50L * 1024L * 1024L));
@@ -68,7 +68,7 @@ public static class CspOnboardingEndpoints
         var sw = Stopwatch.StartNew();
         if (ShouldShortCircuitSingleTenant(deployment, out var singleTenantResult))
             return singleTenantResult;
-        if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
+        if (!tenantCtx.IsCspAdmin || tenantCtx.ImpersonatedTenantId is not null) return ForbiddenNotCspAdmin(sw);
 
         var profile = await service.GetAsync(ct);
         var step = service.ComputeCurrentStep(profile);
@@ -86,7 +86,7 @@ public static class CspOnboardingEndpoints
         var sw = Stopwatch.StartNew();
         if (ShouldShortCircuitSingleTenant(deployment, out var singleTenantResult))
             return singleTenantResult;
-        if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
+        if (!tenantCtx.IsCspAdmin || tenantCtx.ImpersonatedTenantId is not null) return ForbiddenNotCspAdmin(sw);
 
         try
         {
@@ -121,7 +121,7 @@ public static class CspOnboardingEndpoints
         var sw = Stopwatch.StartNew();
         if (ShouldShortCircuitSingleTenant(deployment, out var singleTenantResult))
             return singleTenantResult;
-        if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
+        if (!tenantCtx.IsCspAdmin || tenantCtx.ImpersonatedTenantId is not null) return ForbiddenNotCspAdmin(sw);
 
         try
         {
@@ -155,7 +155,7 @@ public static class CspOnboardingEndpoints
         var sw = Stopwatch.StartNew();
         if (ShouldShortCircuitSingleTenant(deployment, out var singleTenantResult))
             return singleTenantResult;
-        if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
+        if (!tenantCtx.IsCspAdmin || tenantCtx.ImpersonatedTenantId is not null) return ForbiddenNotCspAdmin(sw);
 
         try
         {
@@ -184,47 +184,18 @@ public static class CspOnboardingEndpoints
         HttpContext http,
         ITenantContext tenantCtx,
         ICspProfileService service,
-        IDbContextFactory<AtoCopilotContext> contextFactory,
         IOptions<DeploymentOptions> deployment,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
         if (ShouldShortCircuitSingleTenant(deployment, out var singleTenantResult))
             return singleTenantResult;
-        if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
+        if (!tenantCtx.IsCspAdmin || tenantCtx.ImpersonatedTenantId is not null) return ForbiddenNotCspAdmin(sw);
 
         try
         {
             var actor = ResolveActor(http);
             var profile = await service.SubmitAsync(actor, ct);
-
-            // T209 [US9 / FR-103 / FR-104]: any CspInheritedComponent rows
-            // still in Status = Draft for THIS profile transition to
-            // Published in the same logical transaction as the profile
-            // flipping to OnboardingState = Active. We use a load + save
-            // pattern (matching CspInheritedComponentService.PublishAsync)
-            // rather than ExecuteUpdateAsync because (a) the scoped
-            // SaveChangesInterceptor still needs to attach RowVersion /
-            // UpdatedBy / UpdatedAt audit fields, and (b) the existing
-            // value-converter on CspInheritedCapability.MappedNistControlIds
-            // makes ExecuteUpdate translation brittle on SQLite.
-            await using var db = await contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
-            var draftComponents = await db.CspInheritedComponents
-                .Where(c => c.CspProfileId == profile.Id
-                    && c.Status == CspInheritedComponentStatus.Draft)
-                .ToListAsync(ct)
-                .ConfigureAwait(false);
-            if (draftComponents.Count > 0)
-            {
-                var now = DateTimeOffset.UtcNow;
-                foreach (var component in draftComponents)
-                {
-                    component.Status = CspInheritedComponentStatus.Published;
-                    component.UpdatedAt = now;
-                    component.UpdatedBy = actor;
-                }
-                await db.SaveChangesAsync(ct).ConfigureAwait(false);
-            }
 
             var step = service.ComputeCurrentStep(profile);
             return Success(sw, BuildStateDto(profile, step));
@@ -367,132 +338,6 @@ public static class CspOnboardingEndpoints
 
     // ─── T207 [US9]: ATO Documents step (FR-099, FR-100, FR-101, FR-103) ─
 
-    /// <summary>Allow-list per FR-100. Anything else returns 400 UNSUPPORTED_ATO_DOCUMENT.</summary>
-    private static readonly HashSet<string> SupportedContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/json",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/zip",
-    };
-
-    private static async Task<IResult> PostAtosUploadAsync(
-        HttpContext http,
-        ITenantContext tenantCtx,
-        ICspProfileService profileService,
-        ICspAtoDocumentParser parser,
-        ICspComponentExtractionService extractionService,
-        ICspCapabilityMappingService mappingService,
-        IDbContextFactory<AtoCopilotContext> contextFactory,
-        IOptions<CspInheritedOptions> options,
-        IOptions<DeploymentOptions> deployment,
-        ILoggerFactory loggerFactory,
-        CancellationToken ct)
-    {
-        var sw = Stopwatch.StartNew();
-        if (ShouldShortCircuitSingleTenant(deployment, out var singleTenantResult))
-            return singleTenantResult;
-        if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
-
-        // ── Multipart pre-flight ────────────────────────────────────────
-        if (!http.Request.HasFormContentType)
-        {
-            return ValidationError(sw, "Request must be multipart/form-data with a 'files' part.");
-        }
-
-        IFormFileCollection formFiles;
-        try
-        {
-            var form = await http.Request.ReadFormAsync(ct).ConfigureAwait(false);
-            formFiles = form.Files;
-        }
-        catch (Microsoft.AspNetCore.Http.BadHttpRequestException badReq)
-            when (badReq.StatusCode == StatusCodes.Status413PayloadTooLarge)
-        {
-            return Error(StatusCodes.Status413PayloadTooLarge, "ATO_DOCUMENT_TOO_LARGE",
-                "File exceeds the 50 MB per-file upload limit.");
-        }
-
-        if (formFiles.Count == 0)
-        {
-            return ValidationError(sw, "At least one file must be supplied in the 'files' part.");
-        }
-
-        // ── Per-file validation ─────────────────────────────────────────
-        foreach (var f in formFiles)
-        {
-            if (f.Length > options.Value.MaxFileSizeBytes)
-            {
-                return Error(StatusCodes.Status413PayloadTooLarge, "ATO_DOCUMENT_TOO_LARGE",
-                    $"File '{f.FileName}' is {f.Length} bytes; max is {options.Value.MaxFileSizeBytes}.");
-            }
-            if (string.IsNullOrWhiteSpace(f.ContentType)
-                || !SupportedContentTypes.Contains(NormalizeContentType(f.ContentType)))
-            {
-                return Error(StatusCodes.Status400BadRequest, "UNSUPPORTED_ATO_DOCUMENT",
-                    $"Content type '{f.ContentType}' is not in the ATO-document allow-list.");
-            }
-        }
-
-        // ── EnsureCreatedAsync to obtain a CspProfileId ─────────────────
-        var actor = ResolveActor(http);
-        CspProfile profile;
-        try
-        {
-            profile = await profileService.EnsureCreatedAsync(actor, ct).ConfigureAwait(false);
-        }
-        catch (CspAlreadyOnboardedException)
-        {
-            // Already-onboarded profiles upload via /api/csp/inherited-components/import,
-            // not the wizard endpoint. Surface the same 409 the other wizard
-            // mutations use so the client can route the user.
-            return AlreadyOnboarded(sw);
-        }
-
-        // ── Orchestrate parse → extract → map → persist ─────────────────
-        var uploadFiles = new List<CspAtoUploadHelpers.UploadFile>(formFiles.Count);
-        foreach (var f in formFiles)
-        {
-            uploadFiles.Add(new CspAtoUploadHelpers.UploadFile(
-                Content: f.OpenReadStream(),
-                ContentType: NormalizeContentType(f.ContentType ?? string.Empty),
-                FileName: f.FileName));
-        }
-
-        try
-        {
-            var result = await CspAtoUploadHelpers.OrchestrateAsync(
-                files: uploadFiles,
-                cspProfileId: profile.Id,
-                actor: actor,
-                parser: parser,
-                extractionService: extractionService,
-                mappingService: mappingService,
-                options: options,
-                persistCapabilities: async (caps, token) =>
-                {
-                    await using var db = await contextFactory.CreateDbContextAsync(token).ConfigureAwait(false);
-                    db.CspInheritedCapabilities.AddRange(caps);
-                    await db.SaveChangesAsync(token).ConfigureAwait(false);
-                },
-                ct: ct).ConfigureAwait(false);
-
-            return Success(sw, BuildUploadDto(result));
-        }
-        catch (CspAtoUploadHelpers.UploadException ex)
-        {
-            return Error(ex.StatusCode, ex.ErrorCode, ex.Message);
-        }
-        finally
-        {
-            foreach (var f in uploadFiles)
-            {
-                try { f.Content.Dispose(); } catch { /* best-effort */ }
-            }
-        }
-    }
-
     private static async Task<IResult> GetAtosStateAsync(
         HttpContext http,
         ITenantContext tenantCtx,
@@ -504,7 +349,7 @@ public static class CspOnboardingEndpoints
         var sw = Stopwatch.StartNew();
         if (ShouldShortCircuitSingleTenant(deployment, out var singleTenantResult))
             return singleTenantResult;
-        if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
+        if (!tenantCtx.IsCspAdmin || tenantCtx.ImpersonatedTenantId is not null) return ForbiddenNotCspAdmin(sw);
 
         var profile = await profileService.GetAsync(ct).ConfigureAwait(false);
         if (profile is null)
@@ -524,7 +369,8 @@ public static class CspOnboardingEndpoints
 
         await using var db = await contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
         var components = await db.CspInheritedComponents
-            .Where(c => c.CspProfileId == profile.Id)
+            .Where(c => c.CspProfileId == profile.Id && (c.SourceArtifactReference == null
+                || !c.SourceArtifactReference.StartsWith("package:")))
             .Select(c => new
             {
                 c.Id,
@@ -551,42 +397,22 @@ public static class CspOnboardingEndpoints
             })
             .ToList();
 
+        var packages = db.CspPackages.Where(x => x.ProviderId == profile.Id).Select(x => x.Id);
+        var uploaded = await db.CspPackageEntries.CountAsync(x => packages.Contains(x.PackageId) && x.IsOriginal, ct);
+        var stagedComponents = await db.CspPackageCandidates.CountAsync(x => packages.Contains(x.PackageId) && x.Type == "Component", ct);
+        var stagedCapabilities = await db.CspPackageCandidates.CountAsync(x => packages.Contains(x.PackageId) && x.Type == "Capability", ct);
+
         return Success(sw, new
         {
             cspProfileId = (Guid?)profile.Id,
-            documentsUploaded = fileGroups.Count,
-            componentsExtracted = components.Count,
+            documentsUploaded = fileGroups.Count + uploaded,
+            componentsExtracted = components.Count + stagedComponents,
             capabilitiesMapped = components.Sum(c => c.Mapped),
-            capabilitiesNeedsReview = components.Sum(c => c.NeedsReview),
-            aiMappingAvailable = true,
+            capabilitiesNeedsReview = components.Sum(c => c.NeedsReview) + stagedCapabilities,
+            aiMappingAvailable = false,
             files = fileGroups,
         });
     }
-
-    /// <summary>Strip parameters (e.g. <c>; charset=utf-8</c>) and lowercase.</summary>
-    private static string NormalizeContentType(string contentType)
-    {
-        var idx = contentType.IndexOf(';');
-        var head = idx >= 0 ? contentType[..idx] : contentType;
-        return head.Trim().ToLowerInvariant();
-    }
-
-    private static object BuildUploadDto(CspAtoUploadHelpers.UploadResult result) => new
-    {
-        documentsAccepted = result.DocumentsAccepted,
-        componentsExtracted = result.ComponentsExtracted,
-        capabilitiesMapped = result.CapabilitiesMapped,
-        capabilitiesNeedsReview = result.CapabilitiesNeedsReview,
-        aiMappingAvailable = result.AiMappingAvailable,
-        files = result.Files.Select(f => new
-        {
-            fileName = f.FileName,
-            sourceFormat = f.SourceFormat,
-            componentsExtracted = f.ComponentsExtracted,
-            capabilitiesMapped = f.CapabilitiesMapped,
-            capabilitiesNeedsReview = f.CapabilitiesNeedsReview,
-        }).ToArray(),
-    };
 
     // ─── request DTOs ──────────────────────────────────────────────────────
 

@@ -49,6 +49,29 @@ No query parameters. No request body.
    optional simulation panel descriptor.
 4. Return 200 with the config.
 
+### 1.3a Stale development-session recovery
+
+The public configuration read must remain reachable when a browser sends a
+removed simulation identity or an expired/invalid bearer token. Cookies are
+shared across ports on the same hostname, so a local demo with a different
+identity list can encounter a cookie issued by another local deployment.
+Only the exact GET login-config route (including its canonical trailing slash)
+and POST simulate route bypass credential parsing; simulate retains its
+existing Development/configuration/identity gate and audit.
+
+An invalid simulation cookie still returns `SIMULATED_IDENTITY_NOT_FOUND` and
+401 on protected reads and mutations. Dashboard route guards send that specific
+error to the login selector rather than initiating an Entra redirect. Selecting
+a valid configured identity replaces the stale cookie. No fallback identity,
+permission grant, production simulation, or automatic login is introduced.
+The shared auth response interceptor preserves this specific 401 instead of
+attempting bearer renewal or masking it with an MSAL error; the route guard
+owns the explicit return to login.
+Tenant resolution uses the same exact pre-authentication route classification:
+neither public bootstrap nor gated simulation selection can require a tenant
+identity before the user has signed in. Authenticated `/me`, signout, tenant
+selection and provider data endpoints retain their existing checks.
+
 ### 1.4 Response — 200 OK
 
 ```jsonc

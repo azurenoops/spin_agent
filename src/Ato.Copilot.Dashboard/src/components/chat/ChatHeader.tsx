@@ -19,12 +19,12 @@ export default function ChatHeader({ title, onClose, onNewConversation, conversa
   const label = contextLabel(context);
 
   return (
-    <div className="border-b border-gray-200 bg-white px-4 py-3">
+    <div className="border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-gray-800">{title}</h2>
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
           {conversationCount > 0 && (
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-300">
               {conversationCount}
             </span>
           )}
@@ -33,7 +33,7 @@ export default function ChatHeader({ title, onClose, onNewConversation, conversa
           <button
             type="button"
             onClick={onNewConversation}
-            className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
             aria-label="New conversation"
             title="New conversation"
           >
@@ -44,7 +44,7 @@ export default function ChatHeader({ title, onClose, onNewConversation, conversa
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
             aria-label="Close chat panel"
             title="Close"
           >
@@ -55,7 +55,7 @@ export default function ChatHeader({ title, onClose, onNewConversation, conversa
         </div>
       </div>
       {label && (
-        <p className="mt-1 text-xs text-gray-400">{label}</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{label}</p>
       )}
     </div>
   );

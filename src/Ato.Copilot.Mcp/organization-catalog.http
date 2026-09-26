@@ -1,0 +1,130 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_AUTHENTICATED_BEARER_TOKEN
+@tenantId = REPLACE_WITH_INTERNAL_ORGANIZATION_ID
+@providerCapabilityId = REPLACE_WITH_PUBLISHED_PROVIDER_CAPABILITY_ID
+@providerComponentId = REPLACE_WITH_PUBLISHED_PROVIDER_COMPONENT_ID
+@localComponentId = REPLACE_WITH_ORGANIZATION_COMPONENT_ID
+
+### Active membership permits organization reads without any systems.
+### Organization Administrator permits writes; system roles do not.
+GET {{baseUrl}}/api/workspaces/organizations/{{tenantId}}/catalog-access
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+X-Workspace-Mode: ordinary
+
+### Create reusable capability: 201 + detail Location. Repeat unchanged: 200.
+### Reusing this key with changed intent: 409. No system-side writes.
+POST {{baseUrl}}/api/workspaces/organizations/{{tenantId}}/catalog-additions
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "idempotencyKey": "manual-local-capability-1",
+  "source": "local",
+  "recordType": "capability",
+  "capability": {
+    "name": "Organization account management",
+    "provider": "Organization",
+    "category": "AC",
+    "description": "Reusable account administration capability",
+    "implementationStatus": "Planned",
+    "owner": "Identity team"
+  },
+  "components": [],
+  "newComponents": [],
+  "organizationContribution": "Maintain the organization account administration service.",
+  "owner": "Identity service owner"
+}
+
+### Standalone reusable component: no capability or system required.
+POST {{baseUrl}}/api/workspaces/organizations/{{tenantId}}/catalog-additions
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "idempotencyKey": "manual-local-component-1",
+  "source": "local",
+  "recordType": "component",
+  "component": {
+    "name": "Organization access policy",
+    "componentType": "Policy",
+    "description": "Reusable account administration policy",
+    "owner": "Policy team"
+  },
+  "components": [],
+  "newComponents": [],
+  "organizationContribution": "Maintain and distribute the organization policy.",
+  "owner": "Policy owner"
+}
+
+### Adopt published provider capability, retaining its original provider component.
+### Supplemental reusable local/new components remain organization scoped.
+POST {{baseUrl}}/api/workspaces/organizations/{{tenantId}}/catalog-additions
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "idempotencyKey": "manual-provider-adoption-1",
+  "source": "provider",
+  "recordType": "capability",
+  "recordId": "{{providerCapabilityId}}",
+  "components": [{"source": "local", "recordId": "{{localComponentId}}"}],
+  "newComponents": [{
+    "name": "Provider liaison",
+    "componentType": "Person",
+    "description": "Organization role coordinating provider services",
+    "owner": "Operations"
+  }],
+  "organizationContribution": "Coordinate organization implementation of the provider service.",
+  "owner": "Operations owner"
+}
+
+### Adopt provider component without mutating the provider source.
+POST {{baseUrl}}/api/workspaces/organizations/{{tenantId}}/catalog-additions
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "idempotencyKey": "manual-provider-component-1",
+  "source": "provider",
+  "recordType": "component",
+  "recordId": "{{providerComponentId}}",
+  "components": [],
+  "newComponents": [],
+  "organizationContribution": "Maintain organization coordination with the provider component.",
+  "owner": "Operations owner"
+}
+
+### Organization-only mixed catalog and detail, not system confirmation rollups.
+GET {{baseUrl}}/api/workspaces/organizations/{{tenantId}}/capabilities?grouping=capability&page=1&pageSize=25
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+
+### Strict body rejection: systemId is rejected with 400 even when null.
+POST {{baseUrl}}/api/workspaces/organizations/{{tenantId}}/catalog-additions
+Authorization: Bearer {{token}}
+X-Workspace-Kind: organization
+X-Workspace-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "idempotencyKey": "manual-rejected-system-scope-1",
+  "source": "provider",
+  "recordType": "component",
+  "recordId": "{{providerComponentId}}",
+  "components": [],
+  "newComponents": [],
+  "organizationContribution": "This request must not persist.",
+  "owner": "Operations",
+  "systemId": null
+}

@@ -35,6 +35,7 @@ export type CspSourceFormat =
   | 'OscalJson'
   | 'Xlsx'
   | 'EmassZip'
+  | 'Package'
   | 'Manual';
 export type CspComponentType =
   | 'Infrastructure'

@@ -32,7 +32,7 @@ import ReviewStep from './steps/ReviewStep';
  *
  * Self-hides in `SingleTenant` deployments (the API returns 404) and for
  * non-CSP-Admin callers (401/403). After successful submission the user
- * is redirected to `/` (portfolio home) — by that point the
+ * is redirected to Authorizations — by that point the
  * `503 CSP_ONBOARDING_INCOMPLETE` gate has lifted.
  */
 type WizardStep =
@@ -47,6 +47,7 @@ interface StepDef {
   number: number;
   title: string;
   description: string;
+  optional?: boolean;
   icon: ReactNode;
 }
 
@@ -94,8 +95,9 @@ const ORDERED_STEPS: StepDef[] = [
   {
     name: 'AtoDocuments',
     number: 4,
-    title: 'ATO documents',
-    description: 'Upload the deployment-level ATO artifacts you inherit from.',
+    title: 'Import an existing authorization package',
+    description: 'Choose an offering and boundary, save source receipt, and review later in Authorizations.',
+    optional: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
         <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM14 2v6h6M9 13h6M9 17h6" />
@@ -171,7 +173,7 @@ export default function CspWizard(): ReactElement {
   const navigate = useNavigate();
   // `?reentry=admin` is set by Settings → Administration → "Open CSP onboarding
   // wizard" so a CSP-Admin can revisit an already-Active wizard for review or
-  // edits. Without this flag the wizard auto-redirects to `/` when the CSP
+  // edits. Without this flag the wizard auto-redirects to Authorizations when the CSP
   // profile is Active (its original "first-run only" contract). When reentry
   // is true we keep the user on the wizard; per-step save handlers still call
   // the same `/api/csp/onboarding/*` endpoints, which will surface a server-side
@@ -183,6 +185,7 @@ export default function CspWizard(): ReactElement {
   const [unavailable, setUnavailable] = useState<string | null>(null);
   const [step, setStep] = useState<WizardStep>('Identity');
   const [saving, setSaving] = useState(false);
+  const [sourcePending, setSourcePending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -198,12 +201,12 @@ export default function CspWizard(): ReactElement {
       // Honor server-side currentStep so the wizard resumes where the user
       // left off (FR-091 reentrancy contract).
       setStep(toWizardStep(next.currentStep));
-      // If the CSP is already onboarded, kick the user back to home — this
+      // If the CSP is already onboarded, open Authorizations — this
       // route normally exists only for the unfinished singleton. The admin
       // re-entry path (`?reentry=…`) opts out of this redirect so a CSP-Admin
       // can review/edit the finalized profile from Settings.
       if (next.onboardingState === 'Active' && !reentry) {
-        navigate('/', { replace: true });
+        navigate('/workspaces/csp/authorizations', { replace: true });
       }
     })();
     return () => {
@@ -277,7 +280,7 @@ export default function CspWizard(): ReactElement {
       // away from the wizard.
       const refreshed = await getCspOnboardingState();
       if (!isUnavailable(refreshed)) setState(refreshed);
-      navigate('/', { replace: true });
+      navigate('/workspaces/csp/authorizations', { replace: true });
     } catch (err) {
       setErrorMessage(describeError(err));
     } finally {
@@ -376,6 +379,7 @@ export default function CspWizard(): ReactElement {
                   <button
                     type="button"
                     onClick={() => setStep(s.name)}
+                    disabled={saving || sourcePending}
                     className={[
                       'group flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-all',
                       isActiveStep
@@ -411,8 +415,10 @@ export default function CspWizard(): ReactElement {
                         >
                           Step {s.number}
                         </span>
-                        <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700">
-                          Required
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                          s.optional ? 'bg-slate-100 text-slate-600' : 'bg-rose-100 text-rose-700'
+                        }`}>
+                          {s.optional ? 'Optional' : 'Required'}
                         </span>
                       </div>
                       <div className={`mt-0.5 text-sm ${isActiveStep ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
@@ -486,6 +492,7 @@ export default function CspWizard(): ReactElement {
                   )}
                   {step === 'AtoDocuments' && (
                     <AtoDocumentsStep
+                      onPendingChange={setSourcePending}
                       saving={saving}
                       errorMessage={errorMessage}
                       onContinue={() => setStep(nextWizardStep(step))}

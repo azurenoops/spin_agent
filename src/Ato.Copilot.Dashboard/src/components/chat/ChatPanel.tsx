@@ -135,7 +135,7 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
   return (
     <div
       ref={panelRef}
-      className={`fixed right-0 top-14 bottom-0 z-40 flex flex-col border-l border-gray-200 bg-gray-50 shadow-xl transition-transform duration-300 ease-in-out ${
+      className={`fixed right-0 top-14 bottom-0 z-40 flex flex-col border-l border-gray-200 bg-gray-50 shadow-xl transition-transform duration-300 ease-in-out dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 ${
         isOpen ? 'translate-x-0' : 'translate-x-full'
       }`}
       style={{ width: panelWidth }}

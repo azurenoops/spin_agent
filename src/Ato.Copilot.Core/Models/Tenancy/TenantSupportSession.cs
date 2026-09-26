@@ -14,4 +14,8 @@ public sealed class TenantSupportSession
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? RevokedAt { get; set; }
     public string? RevocationReason { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public string? Reference { get; set; }
+    public bool Acknowledged { get; set; }
+    public string CorrelationId { get; set; } = string.Empty;
 }

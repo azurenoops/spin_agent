@@ -1,0 +1,62 @@
+{
+  "components": [
+    {
+      "id": "azure-example-entra",
+      "type": "Identity",
+      "name": "Microsoft Entra ID (example)",
+      "description": "Example only; not an official Microsoft ATO package or verified authorization. Microsoft Entra ID is a cloud identity and access management service. This illustrative component supports authentication and access policy for an example Azure environment; no directory, users or deployed configuration have been assessed. Service reference: https://learn.microsoft.com/en-us/entra/fundamentals/what-is-entra"
+    },
+    {
+      "id": "azure-example-monitor",
+      "type": "Service",
+      "name": "Azure Monitor (example)",
+      "description": "Example only; not an official Microsoft ATO package or verified authorization. Azure Monitor collects and analyzes telemetry including logs and metrics. This illustrative component receives selected operational and identity logs in an example Azure environment; no actual collection, retention or alert configuration is asserted. Service reference: https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/overview"
+    },
+    {
+      "id": "azure-example-key-vault",
+      "type": "Service",
+      "name": "Azure Key Vault (example)",
+      "description": "Example only; not an official Microsoft ATO package or verified authorization. Azure Key Vault supports management of secrets, cryptographic keys and certificates. This illustrative component represents key management in an example Azure environment; it does not assert a deployed vault, selected tier, hardware protection or assessed cryptographic configuration. Service reference: https://learn.microsoft.com/en-us/azure/key-vault/general/overview"
+    },
+    {
+      "id": "azure-example-firewall",
+      "type": "Network",
+      "name": "Azure Firewall (example)",
+      "description": "Example only; not an official Microsoft ATO package or verified authorization. Azure Firewall is a stateful network firewall service for Azure workloads. This illustrative component represents network traffic filtering in an example Azure environment; no deployed rules, routing, SKU-specific features or tested boundary protection are asserted. Service reference: https://learn.microsoft.com/en-us/azure/firewall/overview"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "azure-example-identity",
+      "name": "Azure identity and access management (example)",
+      "description": "Example only; not an official Microsoft ATO package or verified authorization. Proposed IA-2 mapping for the example identity service, not a finding that IA-2 is satisfied. Illustrative shared responsibility: the service provider operates the identity platform; the customer defines permitted identities, authentication policies, enrollment and access reviews, and must supply configuration and assessment evidence. Service reference: https://learn.microsoft.com/en-us/entra/fundamentals/what-is-entra",
+      "componentIds": ["azure-example-entra"],
+      "controlIds": ["IA-2"],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "azure-example-audit",
+      "name": "Azure audit review and monitoring (example)",
+      "description": "Example only; not an official Microsoft ATO package or verified authorization. Proposed AU-6 mapping for review of operational and identity audit information, not a finding that AU-6 is satisfied. Illustrative shared responsibility: the service provider operates the monitoring platform; the customer connects relevant sources, configures retention and alerts, assigns reviewers and investigates findings. Entra ID contributes identity telemetry to this proposed scenario; collection is not assumed to be enabled. Service reference: https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/overview",
+      "componentIds": ["azure-example-monitor", "azure-example-entra"],
+      "controlIds": ["AU-6"],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "azure-example-key-management",
+      "name": "Azure cryptographic key management (example)",
+      "description": "Example only; not an official Microsoft ATO package or verified authorization. Proposed SC-12 mapping for the example key-management service, not a finding that SC-12 is satisfied. Illustrative shared responsibility: the service provider operates Key Vault; the customer defines key ownership, authorized use, lifecycle and recovery procedures, chooses the appropriate service tier and supplies implementation evidence. Service reference: https://learn.microsoft.com/en-us/azure/key-vault/general/overview",
+      "componentIds": ["azure-example-key-vault"],
+      "controlIds": ["SC-12"],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "azure-example-boundary",
+      "name": "Azure network boundary protection (example)",
+      "description": "Example only; not an official Microsoft ATO package or verified authorization. Proposed SC-7 mapping for the example firewall service, not a finding that SC-7 is satisfied. Illustrative shared responsibility: the service provider operates the firewall platform; the customer defines the system boundary, routes traffic through approved enforcement points, maintains least-privilege rules and tests allowed and denied paths. Service reference: https://learn.microsoft.com/en-us/azure/firewall/overview",
+      "componentIds": ["azure-example-firewall"],
+      "controlIds": ["SC-7"],
+      "responsibility": "Shared"
+    }
+  ]
+}

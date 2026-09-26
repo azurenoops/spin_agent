@@ -16,7 +16,7 @@
  *
  * Each test proves that navigating to an alias path (e.g.
  * /systems/test-id/capabilities) ends up at the canonical path (e.g.
- * /systems/test-id/capability-coverage), confirming the redirect fires.
+ * /systems/test-id/security-capabilities), confirming the redirect fires.
  */
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
@@ -86,10 +86,10 @@ describe('SystemRedirect — Wave 9 alias routes (#523 / #516 regression)', () =
     expect(pathname).toBe(`/systems/${SYSTEM_ID}/baseline`);
   });
 
-  // ── 3. capabilities → capability-coverage ────────────────────────────────
-  it('capabilities redirects to capability-coverage', () => {
-    const pathname = renderAliasRoute('capabilities', 'capability-coverage', SYSTEM_ID);
-    expect(pathname).toBe(`/systems/${SYSTEM_ID}/capability-coverage`);
+  // ── 3. capabilities → security-capabilities ─────────────────────────────
+  it('capabilities redirects to security-capabilities', () => {
+    const pathname = renderAliasRoute('capabilities', 'security-capabilities', SYSTEM_ID);
+    expect(pathname).toBe(`/systems/${SYSTEM_ID}/security-capabilities`);
   });
 
   // ── 4. mission-purpose → profile/MissionAndPurpose ───────────────────────
@@ -146,8 +146,8 @@ describe('SystemRedirect — Wave 9 alias routes (#523 / #516 regression)', () =
   it('preserves system id in the redirected URL', () => {
     // Use a uuid-style id to ensure it is passed through verbatim
     const specialId = '00000000-dead-beef-cafe-000000000001';
-    const pathname = renderAliasRoute('capabilities', 'capability-coverage', specialId);
-    expect(pathname).toBe(`/systems/${specialId}/capability-coverage`);
+    const pathname = renderAliasRoute('capabilities', 'security-capabilities', specialId);
+    expect(pathname).toBe(`/systems/${specialId}/security-capabilities`);
   });
 
   // ── Contract: navigate to alias does NOT stay at alias URL ────────────────

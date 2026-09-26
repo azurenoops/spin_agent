@@ -51,7 +51,7 @@ export default function WorkspacePicker() {
         : <ul className="space-y-3">{choices.map(option => (
           <li key={`${option.kind}:${option.tenantId ?? ''}`}>
             <button type="button" disabled={option.status === 'Disabled'} onClick={() => select(option)}
-              className="w-full rounded border p-4 text-left hover:bg-indigo-50 disabled:opacity-50">
+              className="w-full rounded border p-4 text-left hover:bg-indigo-50 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-indigo-950">
               <strong>{option.displayName}</strong>
               <span className="block text-sm">{option.kind === 'csp' ? 'Provider workspace' : 'Organization workspace'} · {option.status}</span>
             </button>

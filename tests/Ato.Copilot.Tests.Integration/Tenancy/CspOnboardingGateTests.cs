@@ -44,6 +44,7 @@ public class CspOnboardingGateTests
 
     [Theory]
     [InlineData("/api/csp/onboarding/state")]
+    [InlineData("/api/csp/package-imports")]
     [InlineData("/health")]
     public async Task AllowedPath_ReachableEvenWithoutCspProfile(string path)
     {
@@ -63,6 +64,7 @@ public class CspOnboardingGateTests
     [InlineData("/api/tenants")]
     [InlineData("/api/dashboard/systems")]
     [InlineData("/api/onboarding/tenant/state")]
+    [InlineData("/api/csp/package-imports-not-onboarding")]
     public async Task BlockedPath_AsCspAdmin_Returns503_CspOnboardingIncomplete(string path)
     {
         // Arrange — fresh fixture, IsCspAdmin = true, no CspProfile.

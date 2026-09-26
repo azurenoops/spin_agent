@@ -1,77 +1,68 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Link, useNavigate } from '../features/workspaces/workspaceNavigation';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { Link } from '../features/workspaces/workspaceNavigation';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
+import PortfolioWorkspaceLinks from '../components/layout/PortfolioWorkspaceLinks';
+import PortfolioSummaryChart from '../components/charts/PortfolioSummaryChart';
 import { usePolling } from '../hooks/usePolling';
 import { getPortfolio } from '../api/portfolio';
 import { getCoverage } from '../api/capabilities';
-import type { PortfolioSystemSummary, AtoSeverity } from '../types/dashboard';
-
-// ─── Helpers ────────────────────────────────────────────────────────────────────
-
-function severityColor(severity: AtoSeverity) {
-  switch (severity) {
-    case 'green': return 'bg-green-100 text-green-700';
-    case 'yellow': return 'bg-amber-100 text-amber-700';
-    case 'red': return 'bg-red-100 text-red-700';
-    case 'expired': return 'bg-red-200 text-red-900';
-    default: return 'bg-gray-100 text-gray-500';
-  }
-}
-
-function complianceColor(score: number) {
-  if (score >= 90) return 'bg-green-500';
-  if (score >= 70) return 'bg-amber-500';
-  return 'bg-red-500';
-}
-
-function complianceBadge(score: number) {
-  if (score >= 90) return 'bg-green-100 text-green-700';
-  if (score >= 70) return 'bg-amber-100 text-amber-700';
-  return 'bg-red-100 text-red-700';
-}
-
-// ─── Component ──────────────────────────────────────────────────────────────────
+import type { PortfolioSystemSummary } from '../types/dashboard';
 
 export default function PortfolioRiskProfile() {
-  const navigate = useNavigate();
   const [systems, setSystems] = useState<PortfolioSystemSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [coveragePct, setCoveragePct] = useState<number>(0);
-  // fix(#520): track whether the coverage API failed so we can distinguish
-  // "API error → 0%" from "genuinely 0% coverage" and render a muted color.
+  const [coveragePct, setCoveragePct] = useState<number | null>(null);
   const [coverageFailed, setCoverageFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [coverageRevision, setCoverageRevision] = useState(0);
+  const active = useRef(true);
+  const pending = useRef(false);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
 
   const fetchData = useCallback(async () => {
+    if (pending.current) return;
+    pending.current = true;
     try {
-      const result = await getPortfolio({ sortBy: 'complianceScore', sortDir: 'asc' });
-      setSystems(result.items);
+      const all: PortfolioSystemSummary[] = [];
+      const seen = new Set<string>();
+      let cursor: string | undefined;
+      do {
+        const result = await getPortfolio({ sortBy: 'complianceScore', sortDir: 'asc', pageSize: 100, ...(cursor ? { cursor } : {}) });
+        if (!active.current) return;
+        all.push(...result.items);
+        cursor = result.nextCursor ?? undefined;
+        if (cursor && seen.has(cursor)) throw new Error('Portfolio pagination could not complete. Please retry.');
+        if (cursor) seen.add(cursor);
+      } while (cursor);
+      setSystems(all);
+      setError(null);
+      setUpdatedAt(new Date().toLocaleTimeString());
+    } catch (reason) {
+      if (active.current) setError(reason instanceof Error ? reason.message : 'Unable to load portfolio.');
     } finally {
-      setLoading(false);
+      pending.current = false;
+      if (active.current) setLoading(false);
     }
   }, []);
 
   usePolling(fetchData);
 
   useEffect(() => {
-    // fix(#520): catch() sets coveragePct=0 (never null) so Coverage % always
-    // shows '0.0%' rather than 'N/A'. coverageFailed=true signals a gray color
-    // to distinguish an API error from a genuine 0% posture.
-    getCoverage(false, false)
-      .then(res => {
-        setCoveragePct(res.orgWide.coveragePercent ?? 0);
-        setCoverageFailed(false);
-      })
-      .catch(() => {
-        setCoveragePct(0);
-        setCoverageFailed(true);
-      });
-  }, []);
+    let cancelled = false;
+    setCoveragePct(null);
+    setCoverageFailed(false);
+    getCoverage(false, false).then(res => {
+      if (!cancelled) setCoveragePct(res.orgWide.coveragePercent ?? null);
+    }).catch(() => {
+      if (!cancelled) setCoverageFailed(true);
+    });
+    return () => { cancelled = true; };
+  }, [coverageRevision]);
 
-  // ─── Aggregations ───────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     if (systems.length === 0) return null;
-
     const totalSystems = systems.length;
     const avgCompliance = Math.round(systems.reduce((sum, s) => sum + s.complianceScore, 0) / totalSystems * 10) / 10;
     const totalPoams = systems.reduce((sum, s) => sum + s.openPoamCount, 0);
@@ -80,224 +71,81 @@ export default function PortfolioRiskProfile() {
     const totalCatII = systems.reduce((sum, s) => sum + s.catIICounts, 0);
     const totalCatIII = systems.reduce((sum, s) => sum + s.catIIICounts, 0);
     const expiredOrExpiring = systems.filter(s => s.atoSeverity === 'expired' || s.atoSeverity === 'red').length;
-
-    return { totalSystems, avgCompliance, totalPoams, totalOverdue, totalCatI, totalCatII, totalCatIII, expiredOrExpiring };
+    const atoCounts = new Map<string, number>([['Active', 0], ['Expired', 0], ['Not recorded', 0]]);
+    for (const system of systems) {
+      const recordedStatus = system.atoStatus?.trim();
+      const label = !recordedStatus || recordedStatus === 'None' ? 'Not recorded' : recordedStatus;
+      atoCounts.set(label, (atoCounts.get(label) ?? 0) + 1);
+    }
+    const atoSeries = [...atoCounts].map(([label, count]) => ({
+      label, count,
+      color: label === 'Active' ? '#10b981' : label === 'Expired' ? '#ef4444' : label === 'Not recorded' ? '#94a3b8' : '#6366f1',
+    }));
+    return { totalSystems, avgCompliance, totalPoams, totalOverdue, totalCatI, totalCatII, totalCatIII, expiredOrExpiring, atoSeries };
   }, [systems]);
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
-  return (
-    <PageLayout title="Portfolio Risk Profile">
-      <PageHero
-        eyebrow="Portfolio"
-        title="Portfolio Risk Profile"
-        description="Aggregate risk posture across all registered systems."
-      />
-
-      {loading && <p className="text-slate-500">Loading portfolio data...</p>}
-
-      {!loading && stats && (
-        <div className="space-y-6">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
-            <KpiCard label="Total Systems" value={stats.totalSystems} />
-            {/* fix(#520): avgCompliance=0 when no assessments have been run — add a tooltip
-                so the user understands 0% is expected and not a data error. */}
-            <KpiCard
-              label="Avg Compliance"
-              value={`${stats.avgCompliance}%`}
-              valueColor={stats.avgCompliance >= 90 ? 'text-green-600' : stats.avgCompliance >= 70 ? 'text-amber-600' : 'text-red-600'}
-              title={stats.avgCompliance === 0 ? 'No compliance assessments have been run yet' : undefined}
-            />
-            <KpiCard label="Open POA&Ms" value={stats.totalPoams} />
-            <KpiCard label="Overdue" value={stats.totalOverdue} valueColor={stats.totalOverdue > 0 ? 'text-red-600' : undefined} />
-            <KpiCard label="CAT I Findings" value={stats.totalCatI} valueColor={stats.totalCatI > 0 ? 'text-red-600' : undefined} />
-            <KpiCard label="CAT II Findings" value={stats.totalCatII} valueColor={stats.totalCatII > 0 ? 'text-amber-600' : undefined} />
-            <KpiCard label="ATO At Risk" value={stats.expiredOrExpiring} valueColor={stats.expiredOrExpiring > 0 ? 'text-red-600' : undefined} />
-            {/* fix(#520): coveragePct is now always a number (never null) because the useEffect
-                catch sets 0. coverageFailed=true → gray to distinguish API error from real 0%.
-                title tooltip explains the state to the user when coverage is unavailable. */}
-            <KpiCard
-              label="Coverage %"
-              value={`${coveragePct.toFixed(1)}%`}
-              valueColor={coverageFailed ? 'text-gray-400' : coveragePct >= 80 ? 'text-green-600' : coveragePct > 0 ? 'text-amber-600' : 'text-gray-400'}
-              title={coverageFailed ? 'No capabilities or baselines configured' : coveragePct === 0 ? 'No security capabilities configured yet' : undefined}
-            />
-          </div>
-
-          {/* Compliance by System */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Compliance by System</h2>
-              <div className="space-y-3">
-                {[...systems].sort((a, b) => a.complianceScore - b.complianceScore).map(s => (
-                  <Link key={s.systemId} to={`/systems/${s.systemId}`} className="flex items-center gap-3">
-                    <span className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
-                      {s.acronym || s.name}
-                    </span>
-                    <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={`h-5 rounded-full ${complianceColor(s.complianceScore)} flex items-center justify-end pr-2`} style={{ width: `${Math.max(s.complianceScore, 5)}%` }}>
-                        <span className="text-[11px] font-semibold text-white">{s.complianceScore}%</span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            {/* Findings by Severity */}
-            <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Findings by Severity</h2>
-              <div className="space-y-3">
-                {systems.filter(s => s.catICounts + s.catIICounts + s.catIIICounts > 0).sort((a, b) => (b.catICounts * 100 + b.catIICounts * 10 + b.catIIICounts) - (a.catICounts * 100 + a.catIICounts * 10 + a.catIIICounts)).map(s => {
-                  const total = s.catICounts + s.catIICounts + s.catIIICounts;
-                  return (
-                    <Link key={s.systemId} to={`/systems/${s.systemId}`} className="flex items-center gap-3">
-                      <span className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
-                        {s.acronym || s.name}
-                      </span>
-                      <div className="flex-1 flex gap-0.5 h-5 rounded-full overflow-hidden">
-                        {s.catICounts > 0 && <div className="bg-red-500 h-5 flex items-center justify-center" style={{ width: `${s.catICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catICounts}</span></div>}
-                        {s.catIICounts > 0 && <div className="bg-amber-500 h-5 flex items-center justify-center" style={{ width: `${s.catIICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catIICounts}</span></div>}
-                        {s.catIIICounts > 0 && <div className="bg-indigo-400 h-5 flex items-center justify-center" style={{ width: `${s.catIIICounts / total * 100}%`, minWidth: '24px' }}><span className="text-[10px] font-bold text-white">{s.catIIICounts}</span></div>}
-                      </div>
-                      <span className="text-xs text-gray-500 w-8 text-right">{total}</span>
-                    </Link>
-                  );
-                })}
-                {systems.every(s => s.catICounts + s.catIICounts + s.catIIICounts === 0) && (
-                  <p className="text-sm text-gray-400 text-center py-4">No open findings</p>
-                )}
-                <div className="flex gap-4 pt-2 text-xs text-gray-500 border-t border-gray-100 mt-2">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500" /> CAT I</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-500" /> CAT II</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-indigo-400" /> CAT III</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* POA&M Summary + ATO Status */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {/* POA&M by System */}
-            <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Open POA&Ms by System</h2>
-              <div className="space-y-3">
-                {[...systems].filter(s => s.openPoamCount > 0).sort((a, b) => b.openPoamCount - a.openPoamCount).map(s => (
-                  <div key={s.systemId} className="flex items-center gap-3">
-                    <Link to={`/systems/${s.systemId}/remediation`} className="w-32 text-sm text-indigo-600 hover:underline truncate" title={s.name}>
-                      {s.acronym || s.name}
-                    </Link>
-                    <div className="flex-1 flex items-center gap-2">
-                      <span className="text-sm font-semibold text-gray-900 w-8">{s.openPoamCount}</span>
-                      {s.overduePoamCount > 0 && (
-                        <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs font-medium">{s.overduePoamCount} overdue</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {systems.every(s => s.openPoamCount === 0) && (
-                  <p className="text-sm text-gray-400 text-center py-4">No open POA&Ms</p>
-                )}
-              </div>
-            </div>
-
-            {/* ATO Status */}
-            <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">ATO Status</h2>
-              <div className="space-y-2">
-                {systems.map(s => (
-                  <Link key={s.systemId} to={`/systems/${s.systemId}`} className="flex items-center justify-between py-1.5">
-                    <span className="text-sm text-indigo-600 hover:underline truncate max-w-[200px]" title={s.name}>
-                      {s.acronym || s.name}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${severityColor(s.atoSeverity)}`}>
-                        {s.atoStatus || 'Not Set'}
-                      </span>
-                      {s.atoDaysRemaining !== null && (
-                        <span className="text-xs text-gray-500 w-20 text-right">
-                          {s.atoDaysRemaining > 0 ? `${s.atoDaysRemaining}d remaining` : 'Expired'}
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* System Risk Table */}
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-semibold text-gray-900">System Risk Summary</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    <th className="px-5 py-3">System</th>
-                    <th className="px-5 py-3">Impact</th>
-                    <th className="px-5 py-3">RMF Phase</th>
-                    <th className="px-5 py-3">Compliance</th>
-                    <th className="px-5 py-3">POA&Ms</th>
-                    <th className="px-5 py-3">CAT I</th>
-                    <th className="px-5 py-3">CAT II</th>
-                    <th className="px-5 py-3">CAT III</th>
-                    <th className="px-5 py-3">ATO</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {systems.map(s => (
-                    <tr
-                      key={s.systemId}
-                      className="cursor-pointer hover:bg-gray-50"
-                      onClick={() => navigate(`/systems/${s.systemId}`)}
-                    >
-                      <td className="px-5 py-3">
-                        <Link to={`/systems/${s.systemId}`} className="font-medium text-indigo-600 hover:underline">{s.name}</Link>
-                        {s.acronym && <span className="ml-1 text-xs text-gray-400">({s.acronym})</span>}
-                      </td>
-                      <td className="px-5 py-3 text-gray-700">{s.impactLevel || '—'}</td>
-                      <td className="px-5 py-3 text-gray-700">{s.currentRmfPhase}</td>
-                      <td className="px-5 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${complianceBadge(s.complianceScore)}`}>{s.complianceScore}%</span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="text-gray-900">{s.openPoamCount}</span>
-                        {s.overduePoamCount > 0 && <span className="ml-1 text-xs text-red-600">({s.overduePoamCount} overdue)</span>}
-                      </td>
-                      <td className="px-5 py-3"><span className={s.catICounts > 0 ? 'font-semibold text-red-600' : 'text-gray-400'}>{s.catICounts}</span></td>
-                      <td className="px-5 py-3"><span className={s.catIICounts > 0 ? 'font-semibold text-amber-600' : 'text-gray-400'}>{s.catIICounts}</span></td>
-                      <td className="px-5 py-3"><span className={s.catIIICounts > 0 ? 'font-medium text-indigo-500' : 'text-gray-400'}>{s.catIIICounts}</span></td>
-                      <td className="px-5 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${severityColor(s.atoSeverity)}`}>{s.atoStatus || '—'}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+  return <PageLayout title="Organization portfolio">
+    <PageHero eyebrow="Organization overview" title="Organization portfolio"
+      description="Your systems, security posture and the work that needs attention."
+      actions={<button type="button" onClick={() => { void fetchData(); setCoverageRevision(v => v + 1); }}
+        className="rounded-lg border border-white/30 bg-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/25">Refresh portfolio</button>} />
+    <PortfolioWorkspaceLinks />
+    {error && <div role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+      <p className="font-semibold">Portfolio could not be refreshed</p><p>{error}</p>
+      {updatedAt && <p>Showing the last successful update at {updatedAt}.</p>}
+      <button type="button" onClick={() => void fetchData()} className="mt-2 font-semibold underline">Retry portfolio</button>
+    </div>}
+    {loading && <p className="text-slate-500">Loading portfolio data...</p>}
+    {!loading && stats && <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <KpiCard label="Total Systems" value={stats.totalSystems} />
+        <KpiCard label="Avg Compliance" value={`${stats.avgCompliance}%`}
+          valueColor={stats.avgCompliance >= 90 ? 'text-green-600' : stats.avgCompliance >= 70 ? 'text-amber-600' : 'text-red-600'}
+          title="Average recorded compliance across accessible systems; this score alone does not establish assessment history." />
+        <KpiCard label="Open POA&Ms" value={stats.totalPoams} />
+        <KpiCard label="Overdue" value={stats.totalOverdue} valueColor={stats.totalOverdue > 0 ? 'text-red-600' : undefined} />
+        <KpiCard label="CAT I Findings" value={stats.totalCatI} valueColor={stats.totalCatI > 0 ? 'text-red-600' : undefined} />
+        <KpiCard label="CAT II Findings" value={stats.totalCatII} valueColor={stats.totalCatII > 0 ? 'text-amber-600' : undefined} />
+        <KpiCard label="ATO At Risk" value={stats.expiredOrExpiring} valueColor={stats.expiredOrExpiring > 0 ? 'text-red-600' : undefined} />
+        <KpiCard label="Capability coverage" value={coverageFailed ? 'Unavailable' : coveragePct === null ? 'Not available' : `${coveragePct.toFixed(1)}%`}
+          title="Organization-wide capability coverage, separate from system compliance and ATO decisions." />
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <PortfolioSummaryChart title="ATO status across systems" category="Systems" series={stats.atoSeries}
+          emptyMessage="No system authorization data" testId="org-dashboard-ato-status-chart" />
+        <PortfolioSummaryChart title="Open findings by severity" category="Open findings" stacked
+          summary={`${(stats.totalCatI + stats.totalCatII + stats.totalCatIII).toLocaleString()} findings · ${stats.totalPoams.toLocaleString()} open POA&Ms`}
+          emptyMessage="No open findings" testId="org-dashboard-findings-by-severity-chart"
+          series={[
+            { label: 'CAT I', count: stats.totalCatI, color: '#ef4444' },
+            { label: 'CAT II', count: stats.totalCatII, color: '#f59e0b' },
+            { label: 'CAT III', count: stats.totalCatIII, color: '#818cf8' },
+          ]} />
+      </div>
+      <section aria-labelledby="portfolio-attention" className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-5 dark:border-indigo-900 dark:bg-indigo-950/30">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="portfolio-attention" className="font-semibold text-gray-900 dark:text-gray-100">Needs attention</h2>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{updatedAt ? `Updated ${updatedAt}` : 'Recorded system data'}</span>
         </div>
-      )}
-
-      {!loading && systems.length === 0 && (
-        <div className="text-center py-16">
-          <p className="text-slate-500">No systems registered yet.</p>
-          <Link to="/systems" className="text-sm text-indigo-600 hover:underline mt-2 inline-block">Go to Systems to add one</Link>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <div><p className="text-2xl font-semibold text-indigo-700 dark:text-indigo-300">{systems.filter(s => !s.isSetupComplete).length}</p><p className="text-sm text-gray-600 dark:text-gray-300">Systems with setup remaining</p></div>
+          <div><p className="text-2xl font-semibold text-indigo-700 dark:text-indigo-300">{stats.totalOverdue}</p><p className="text-sm text-gray-600 dark:text-gray-300">Overdue POA&Ms</p></div>
+          <div><p className="text-2xl font-semibold text-indigo-700 dark:text-indigo-300">{stats.expiredOrExpiring}</p><p className="text-sm text-gray-600 dark:text-gray-300">Expired or at-risk authorizations</p></div>
         </div>
-      )}
-    </PageLayout>
-  );
+        <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">Use Systems to review system details and next steps. Catalog coverage does not establish an ATO.</p>
+        {coverageFailed && <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">Capability coverage could not be loaded. <button type="button" className="font-semibold underline" onClick={() => setCoverageRevision(v => v + 1)}>Retry coverage</button></p>}
+      </section>
+    </div>}
+    {!loading && !error && systems.length === 0 && <div className="py-16 text-center">
+      <p className="text-slate-500">No systems available in this workspace.</p>
+      <Link to="/systems" className="mt-2 inline-block text-sm text-indigo-600 hover:underline">Open Systems</Link>
+    </div>}
+  </PageLayout>;
 }
 
-// ─── Sub-components ─────────────────────────────────────────────────────────────
-
 function KpiCard({ label, value, valueColor, title }: { label: string; value: string | number; valueColor?: string; title?: string }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3" title={title}>
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${valueColor || 'text-gray-900'}`}>{value}</p>
-    </div>
-  );
+  return <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900" title={title}>
+    <p className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
+    <p className={`mt-1 text-2xl font-bold ${valueColor || 'text-gray-900 dark:text-gray-100'}`}>{value}</p>
+  </div>;
 }

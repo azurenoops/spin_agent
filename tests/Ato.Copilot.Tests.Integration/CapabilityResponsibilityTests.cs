@@ -1,4 +1,5 @@
 using System.Net;
+using System.Data;
 using System.Data.Common;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -250,6 +251,61 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
         response.StatusCode.Should().Be(expected);
         await using var verify = new AtoCopilotContext(_options);
         (await verify.CapabilitySubscriptions.CountAsync()).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Subscribe_CallerTransactionRetainsOwnershipAndAtomicity(bool commit)
+    {
+        // Arrange
+        await AddBaselineAsync();
+        await using var scope = _app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var service = scope.ServiceProvider.GetRequiredService<ICapabilityResponsibilityService>();
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+        // Act
+        await service.SubscribeAsync(_system, _capability, "fixture-reviewer");
+        db.Database.CurrentTransaction.Should().BeSameAs(transaction);
+        (await db.RegisteredSystems.SingleAsync(s => s.Id == _system)).Name = "Caller transaction marker";
+        await db.SaveChangesAsync();
+        if (commit) await transaction.CommitAsync();
+        else await transaction.RollbackAsync();
+
+        // Assert
+        await using var verify = new AtoCopilotContext(_options);
+        (await verify.CapabilitySubscriptions.CountAsync()).Should().Be(commit ? 1 : 0);
+        (await verify.Set<CapabilityResponsibilityProjection>().CountAsync()).Should().Be(commit ? 2 : 0);
+        (await verify.Set<CapabilityResponsibilityImpact>().CountAsync()).Should().Be(commit ? 2 : 0);
+        (await verify.RegisteredSystems.SingleAsync(s => s.Id == _system)).Name
+            .Should().Be(commit ? "Caller transaction marker" : "Synthetic system");
+    }
+
+    [Fact]
+    public async Task Subscribe_CallerCommitFailureLeavesRollbackWithCaller()
+    {
+        // Arrange
+        await AddBaselineAsync();
+        await using var scope = _app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var service = scope.ServiceProvider.GetRequiredService<ICapabilityResponsibilityService>();
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        _commitFailure.FailNext = true;
+
+        // Act
+        await service.SubscribeAsync(_system, _capability, "fixture-reviewer");
+        Func<Task> commit = () => transaction.CommitAsync();
+
+        // Assert
+        _commitFailure.FailNext.Should().BeTrue("the service must not commit a caller-owned transaction");
+        await commit.Should().ThrowAsync<InvalidOperationException>().WithMessage("Synthetic commit failure");
+        db.Database.CurrentTransaction.Should().BeSameAs(transaction);
+        await transaction.RollbackAsync();
+        await using var verify = new AtoCopilotContext(_options);
+        (await verify.CapabilitySubscriptions.CountAsync()).Should().Be(0);
+        (await verify.Set<CapabilityResponsibilityProjection>().CountAsync()).Should().Be(0);
+        (await verify.Set<CapabilityResponsibilityImpact>().CountAsync()).Should().Be(0);
     }
 
     private async Task AddBaselineAsync()

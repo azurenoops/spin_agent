@@ -13,6 +13,12 @@ namespace Ato.Copilot.Core.Interfaces.Onboarding;
 /// </summary>
 public interface IPersonService
 {
+    /// <summary>Stage a local Person and audit in the caller's atomic unit of work.</summary>
+    Task<Person> StageLocalAsync(
+        Ato.Copilot.Core.Data.Context.AtoCopilotContext db, Guid tenantId,
+        string displayName, string email, Guid actorUserId, Guid correlationId,
+        CancellationToken ct = default);
+
     /// <summary>List all non-removed Person rows for a tenant (paged-friendly — caller may take/skip).</summary>
     Task<IReadOnlyList<Person>> ListAsync(Guid tenantId, CancellationToken ct = default);
 

@@ -15,6 +15,9 @@ using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Models.Roadmap;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy.Attributes;
+using Ato.Copilot.Core.Models.Workspaces;
+using Ato.Copilot.Core.Models.PackageImports;
+using Ato.Copilot.Core.Models.ProviderAuthorizations;
 
 namespace Ato.Copilot.Core.Data.Context;
 
@@ -24,6 +27,11 @@ namespace Ato.Copilot.Core.Data.Context;
 /// </summary>
 public class AtoCopilotContext : DbContext
 {
+    public DbSet<CspPackage> CspPackages => Set<CspPackage>();
+    public DbSet<CspPackageEntry> CspPackageEntries => Set<CspPackageEntry>();
+    public DbSet<CspPackageCandidate> CspPackageCandidates => Set<CspPackageCandidate>();
+    public DbSet<CspPackageApproval> CspPackageApprovals => Set<CspPackageApproval>();
+    public DbSet<CspPackageAudit> CspPackageAudits => Set<CspPackageAudit>();
     /// <summary>
     /// Optional ambient tenant accessor used to apply tenant query filters at
     /// runtime (Feature 048 T042). Null when the context is constructed without
@@ -564,6 +572,17 @@ public class AtoCopilotContext : DbContext
     /// (UF-CSP-01/02/03 — spec-070).
     /// </summary>
     public DbSet<CapabilitySubscription> CapabilitySubscriptions => Set<CapabilitySubscription>();
+    public DbSet<ProviderCapabilityWorkingRevision> ProviderCapabilityWorkingRevisions => Set<ProviderCapabilityWorkingRevision>();
+    public DbSet<ProviderCapabilityContributor> ProviderCapabilityContributors => Set<ProviderCapabilityContributor>();
+    public DbSet<ProviderCapabilityDuty> ProviderCapabilityDuties => Set<ProviderCapabilityDuty>();
+    public DbSet<ProviderCapabilityRelease> ProviderCapabilityReleases => Set<ProviderCapabilityRelease>();
+    public DbSet<ProviderPublicationPreview> ProviderPublicationPreviews => Set<ProviderPublicationPreview>();
+    public DbSet<ProviderReleaseImpact> ProviderReleaseImpacts => Set<ProviderReleaseImpact>();
+    public DbSet<OrganizationProvisioningOperation> OrganizationProvisioningOperations => Set<OrganizationProvisioningOperation>();
+    public DbSet<OrganizationNameReservation> OrganizationNameReservations => Set<OrganizationNameReservation>();
+    public DbSet<CapabilitySetupOperation> CapabilitySetupOperations => Set<CapabilitySetupOperation>();
+    public DbSet<OrganizationCatalogEntry> OrganizationCatalogEntries => Set<OrganizationCatalogEntry>();
+    public DbSet<OrganizationCatalogAddition> OrganizationCatalogAdditions => Set<OrganizationCatalogAddition>();
 
     // ─── OSCAL Feature 076 (T009 / T012) ─────────────────────────────────────
 
@@ -2452,7 +2471,8 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
             entity.Property(e => e.ModifiedBy).HasMaxLength(200);
 
-            entity.HasIndex(e => e.Name).IsUnique().HasDatabaseName("IX_SecurityCapability_Name");
+            entity.HasIndex(e => new { e.TenantId, e.Name }).IsUnique()
+                .HasDatabaseName("IX_SecurityCapability_Tenant_Name");
             entity.HasIndex(e => e.Category).HasDatabaseName("IX_SecurityCapability_Category");
             entity.HasIndex(e => e.ImplementationStatus).HasDatabaseName("IX_SecurityCapability_Status");
         });
@@ -3369,6 +3389,21 @@ public class AtoCopilotContext : DbContext
             .ConfigureTenantSupportSessions(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.CapabilityResponsibilityModelConfiguration
             .ConfigureCapabilityResponsibilities(modelBuilder);
+        ConfigureWorkspaceOperations(modelBuilder);
+        modelBuilder.Entity<CspPackage>().HasIndex(x => new { x.ProviderId, x.IdempotencyKey }).IsUnique();
+        modelBuilder.Entity<CspPackage>().HasIndex(x => new { x.ProcessingState, x.LeaseExpiresTicks });
+        modelBuilder.Entity<CspPackageEntry>().HasIndex(x => new { x.PackageId, x.StableKey }).IsUnique();
+        modelBuilder.Entity<CspPackageCandidate>().HasIndex(x => new { x.PackageId, x.StableKey }).IsUnique();
+        modelBuilder.Entity<CspPackageEntry>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
+        modelBuilder.Entity<CspPackageCandidate>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
+        modelBuilder.Entity<CspPackageApproval>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
+        modelBuilder.Entity<CspPackageAudit>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
+        modelBuilder.Entity<CspPackage>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
+        modelBuilder.Entity<CspPackageEntry>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
+        modelBuilder.Entity<CspPackageCandidate>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
+        modelBuilder.Entity<CspPackageApproval>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
+        modelBuilder.Entity<CspPackageAudit>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
+        Ato.Copilot.Core.Data.Configurations.ProviderAuthorizationModelConfiguration.Configure(modelBuilder);
 
         // ─── Tenant query filters (Feature 048 T042) ─────────────────────────────
         // Applied last so all entity types are present in the model. Walks the
@@ -3376,6 +3411,88 @@ public class AtoCopilotContext : DbContext
         // [TenantScoped]. The filter resolves the active tenant via the
         // ambient accessor captured into the closure.
         ApplyTenantQueryFilters(modelBuilder);
+    }
+
+    private static void ConfigureWorkspaceOperations(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<OrganizationNameReservation>(entity =>
+        {
+            entity.HasKey(x => x.NormalizedName);
+            entity.Property(x => x.NormalizedName).HasMaxLength(256);
+            entity.HasIndex(x => x.TenantId);
+        });
+        modelBuilder.Entity<ProviderCapabilityWorkingRevision>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.CapabilityId).IsUnique();
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+            entity.Property(x => x.Classification).HasMaxLength(64);
+            entity.Property(x => x.ServiceCategory).HasMaxLength(120);
+            entity.Property(x => x.SnapshotHash).HasMaxLength(64);
+            entity.Property(x => x.ApprovedSnapshotHash).HasMaxLength(64);
+            entity.Property(x => x.ApprovedPreviewHash).HasMaxLength(64);
+        });
+        modelBuilder.Entity<ProviderCapabilityRelease>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.CapabilityId, x.Revision }).IsUnique();
+            entity.HasIndex(x => new { x.CapabilityId, x.IdempotencyKey }).IsUnique();
+            entity.Property(x => x.PreviewHash).HasMaxLength(64);
+        });
+        modelBuilder.Entity<ProviderPublicationPreview>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.CapabilityId, x.Revision });
+            entity.Property(x => x.WorkingSnapshotHash).HasMaxLength(64);
+            entity.Property(x => x.PreviewHash).HasMaxLength(64);
+        });
+        modelBuilder.Entity<ProviderCapabilityContributor>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.WorkingRevisionId, x.ContributorId }).IsUnique();
+            entity.HasOne<ProviderCapabilityWorkingRevision>().WithMany()
+                .HasForeignKey(x => x.WorkingRevisionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProviderCapabilityDuty>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.WorkingRevisionId, x.ControlId }).IsUnique();
+            entity.HasOne<ProviderCapabilityWorkingRevision>().WithMany()
+                .HasForeignKey(x => x.WorkingRevisionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProviderReleaseImpact>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.ReleaseId, x.TenantId, x.RegisteredSystemId, x.ControlId }).IsUnique();
+            entity.HasIndex(x => x.SourceEventId);
+        });
+        modelBuilder.Entity<OrganizationProvisioningOperation>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.IdempotencyKey).IsUnique();
+            entity.HasIndex(x => x.TenantId);
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+        });
+        modelBuilder.Entity<CapabilitySetupOperation>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique();
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+            entity.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<OrganizationCatalogEntry>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.TenantId, x.Source, x.RecordType, x.RecordId }).IsUnique();
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+            entity.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<OrganizationCatalogAddition>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique();
+            entity.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     /// <summary>
@@ -3407,6 +3524,17 @@ public class AtoCopilotContext : DbContext
 
             if (entityType.IsOwned())
             {
+                continue;
+            }
+
+            if (clrType.GetCustomAttributes(typeof(ProviderScopedAttribute), inherit: false).Length > 0)
+            {
+                var parameter = Expression.Parameter(clrType, "e");
+                var context = Expression.Constant(this);
+                var privateAccess = Expression.OrElse(
+                    Expression.Property(context, nameof(TenantFilterDisabled)),
+                    Expression.Property(context, nameof(TenantFilterCspAdminAll)));
+                modelBuilder.Entity(clrType).HasQueryFilter(Expression.Lambda(privateAccess, parameter));
                 continue;
             }
 
@@ -3482,13 +3610,15 @@ public class AtoCopilotContext : DbContext
         // Authorization-source rows must not recurse through RegisteredSystem's role filter.
         // Resource rows with a direct system owner inherit its read predicate, including on
         // artifact-only URLs which have no systemId route value.
+        var systemIdProperty = clrType == typeof(MissionProviderRelationshipReview)
+            || clrType == typeof(CapabilityAdoptionSnapshot) ? "SystemId" : "RegisteredSystemId";
         if (clrType != typeof(RegisteredSystem) && clrType != typeof(SystemRoleAssignment)
             && clrType != typeof(RmfRoleAssignment)
-            && clrType.GetProperty("RegisteredSystemId")?.PropertyType == typeof(string))
+            && clrType.GetProperty(systemIdProperty)?.PropertyType == typeof(string))
         {
             var system = Expression.Parameter(typeof(RegisteredSystem), "system");
             var owns = Expression.Equal(Expression.Property(system, nameof(RegisteredSystem.Id)),
-                Expression.Property(parameter, "RegisteredSystemId"));
+                Expression.Property(parameter, systemIdProperty));
             Expression visible = Expression.Call(typeof(Queryable), nameof(Queryable.Any), [typeof(RegisteredSystem)],
                 Expression.Property(thisExpr, nameof(RegisteredSystems)),
                 Expression.Lambda<Func<RegisteredSystem, bool>>(owns, system));
@@ -3853,7 +3983,7 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>
     /// Tracked exemptions for entity types that genuinely should NOT carry
-    /// either <see cref="TenantScopedAttribute"/> or
+    /// <see cref="ProviderScopedAttribute"/>, <see cref="TenantScopedAttribute"/> or
     /// <see cref="GlobalReferenceAttribute"/>. Currently empty — every entity
     /// must declare its scope. New exemptions REQUIRE security review.
     /// See feature 048 spec FR-003 and data-model.md §2.3.
@@ -3867,6 +3997,8 @@ public class AtoCopilotContext : DbContext
     ///   <item><see cref="TenantScopedAttribute"/> AND a
     ///   <c>Guid TenantId { get; set; }</c> property.</item>
     ///   <item><see cref="GlobalReferenceAttribute"/>.</item>
+    ///   <item><see cref="ProviderScopedAttribute"/> AND a
+    ///   <c>Guid ProviderId { get; set; }</c> property and private query filter.</item>
     ///   <item>An entry in <see cref="TenantScopingExceptions"/>.</item>
     /// </list>
     /// Throws <see cref="InvalidOperationException"/> on the first offender,
@@ -3902,10 +4034,19 @@ public class AtoCopilotContext : DbContext
 
             var hasTenantScoped = clrType.GetCustomAttributes(typeof(TenantScopedAttribute), inherit: false).Length > 0;
             var hasGlobalRef = clrType.GetCustomAttributes(typeof(GlobalReferenceAttribute), inherit: false).Length > 0;
+            var hasProviderScoped = clrType.GetCustomAttributes(typeof(ProviderScopedAttribute), inherit: false).Length > 0;
 
-            if (hasTenantScoped && hasGlobalRef)
+            if ((hasTenantScoped ? 1 : 0) + (hasGlobalRef ? 1 : 0) + (hasProviderScoped ? 1 : 0) > 1)
             {
-                offenders.Add($"{clrType.FullName}: declares both [TenantScoped] and [GlobalReference] (mutually exclusive).");
+                offenders.Add($"{clrType.FullName}: declares multiple scope attributes [TenantScoped], [ProviderScoped], or [GlobalReference] (mutually exclusive).");
+                continue;
+            }
+
+            if (hasProviderScoped)
+            {
+                var prop = clrType.GetProperty("ProviderId");
+                if (prop is null || prop.PropertyType != typeof(Guid) || entityType.GetQueryFilter() is null)
+                    offenders.Add($"{clrType.FullName}: marked [ProviderScoped] but lacks a 'Guid ProviderId {{ get; set; }}' property or private query filter.");
                 continue;
             }
 
@@ -3924,14 +4065,14 @@ public class AtoCopilotContext : DbContext
                 continue;
             }
 
-            offenders.Add($"{clrType.FullName}: missing [TenantScoped] or [GlobalReference]. See data-model.md §2.3.");
+            offenders.Add($"{clrType.FullName}: missing [TenantScoped], [ProviderScoped], or [GlobalReference]. See data-model.md §2.3.");
         }
 
         if (offenders.Count > 0)
         {
             throw new InvalidOperationException(
                 "Feature 048 tenant-scoping self-check failed. The following entity types must declare " +
-                "[TenantScoped] or [GlobalReference] (or be added to TenantScopingExceptions with security review):\n  " +
+                "[TenantScoped], [ProviderScoped], or [GlobalReference] (or be added to TenantScopingExceptions with security review):\n  " +
                 string.Join("\n  ", offenders));
         }
     }

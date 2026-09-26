@@ -4,6 +4,7 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services.ProviderAuthorizations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -320,6 +321,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
             .ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"CspInheritedComponent '{componentId}' not found.");
 
+        await ProviderPublicationGuard.RequireLegacyMutationAsync(db, component.CspProfileId, [componentId], ct);
         switch (component.Status)
         {
             case CspInheritedComponentStatus.Draft:
@@ -360,6 +362,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
             .ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"CspInheritedComponent '{componentId}' not found.");
 
+        await ProviderPublicationGuard.RequireLegacyMutationAsync(db, component.CspProfileId, [componentId], ct);
         if (component.Status == CspInheritedComponentStatus.Archived)
         {
             return component;
@@ -392,6 +395,7 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
             ?? throw new KeyNotFoundException($"CspInheritedComponent '{componentId}' not found.");
 
         var threshold = _options.Value.MappingConfidenceThreshold;
+        await ProviderPublicationGuard.RequireLegacyMutationAsync(db, component.CspProfileId, [componentId], ct);
         var result = await _mappingService.MapAsync(component, threshold, ct).ConfigureAwait(false);
 
         // Feature 050 / US3 (R11) — generate one correlator GUID per run so
@@ -757,6 +761,8 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
                 + $"CspInheritedComponent '{componentId}'.");
         }
 
+        var providerId = await db.CspInheritedComponents.Where(x => x.Id == componentId).Select(x => x.CspProfileId).SingleAsync(ct);
+        await ProviderPublicationGuard.RequireLegacyMutationAsync(db, providerId, [capabilityId], ct);
         // Idempotent — already Archived rows return unchanged so the
         // archive button stays safe to re-click after a stale reload.
         if (capability.Status == CspInheritedCapabilityStatus.Archived)
@@ -914,6 +920,30 @@ public sealed class CspInheritedComponentService : ICspInheritedComponentService
 
     private static async Task SaveProviderChangesAsync(AtoCopilotContext db, string actor, CancellationToken ct)
     {
+        ProviderPublicationGuard.AuthorizeContext(db);
+        db.ChangeTracker.DetectChanges();
+        var componentIds = db.ChangeTracker.Entries<CspInheritedComponent>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Select(x => x.Entity.Id).ToHashSet();
+        var capabilityIds = new HashSet<Guid>();
+        foreach (var entry in db.ChangeTracker.Entries<CspInheritedCapability>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+        {
+            capabilityIds.Add(entry.Entity.Id);
+            if (entry.State == EntityState.Added)
+                componentIds.Add(entry.Entity.CspInheritedComponentId);
+            else if (entry.OriginalValues.GetValue<Guid>(nameof(CspInheritedCapability.CspInheritedComponentId)) != entry.Entity.CspInheritedComponentId)
+            {
+                componentIds.Add(entry.Entity.CspInheritedComponentId);
+                componentIds.Add(entry.OriginalValues.GetValue<Guid>(nameof(CspInheritedCapability.CspInheritedComponentId)));
+            }
+        }
+        var providers = await db.CspInheritedComponents.Where(x => componentIds.Contains(x.Id))
+            .Select(x => x.CspProfileId).Distinct().ToListAsync(ct);
+        providers.AddRange(await db.CspInheritedCapabilities.Where(x => capabilityIds.Contains(x.Id))
+            .Select(x => x.CspInheritedComponent.CspProfileId).Distinct().ToListAsync(ct));
+        foreach (var provider in providers.Distinct())
+            await ProviderPublicationGuard.RequireLegacyMutationAsync(db, provider, componentIds.Concat(capabilityIds), ct);
         await CspResponsibilitySourceTracker.StageAsync(db, actor, ct).ConfigureAwait(false);
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
     }

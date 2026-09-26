@@ -19,18 +19,19 @@ interface ComponentInventoryResponse {
 
 // ─── System-Scoped (existing) ────────────────────────────────────────────
 
-export async function getComponents(systemId: string, params?: ComponentParams) {
+export async function getComponents(systemId: string, params?: ComponentParams, signal?: AbortSignal) {
   const { data } = await apiClient.get<ComponentInventoryResponse>(
     `/systems/${systemId}/components`,
-    { params },
+    { params, signal },
   );
   return data;
 }
 
-export async function createComponent(systemId: string, request: CreateComponentRequest) {
+export async function createComponent(systemId: string, request: CreateComponentRequest, signal?: AbortSignal) {
   const { data } = await apiClient.post<SystemComponentDto>(
     `/systems/${systemId}/components`,
     request,
+    { signal },
   );
   return data;
 }

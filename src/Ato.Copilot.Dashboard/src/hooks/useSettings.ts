@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useCallback, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 
 // ─── Settings Types ─────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ export interface DashboardSettings {
   alertDaysBefore: number; // days before expiration to alert
 
   // Dashboard Preferences
+  theme: 'light' | 'dark' | 'system';
   defaultLandingPage: '/' | '/assessments' | '/remediation' | '/capabilities';
   defaultRemediationView: 'table' | 'kanban';
   tableDensity: 'compact' | 'comfortable';
@@ -66,6 +67,7 @@ export const DEFAULT_SETTINGS: DashboardSettings = {
   alertDaysBefore: 30,
 
   // Dashboard Preferences
+  theme: 'light',
   defaultLandingPage: '/',
   defaultRemediationView: 'table',
   tableDensity: 'comfortable',
@@ -117,11 +119,25 @@ export { SettingsContext };
 export type { ReactNode };
 
 export function useSettingsProvider(): SettingsContextValue {
-  const [settings, setSettings] = useLocalStorage<DashboardSettings>('ato-dashboard-settings', DEFAULT_SETTINGS);
+  const [storedSettings, setSettings] = useLocalStorage<DashboardSettings>('ato-dashboard-settings', DEFAULT_SETTINGS);
+  const settings = useMemo(() => ({ ...DEFAULT_SETTINGS, ...storedSettings }), [storedSettings]);
+
+  useLayoutEffect(() => {
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      const dark = settings.theme === 'dark' || (settings.theme === 'system' && media?.matches === true);
+      document.documentElement.classList.toggle('dark', dark);
+      document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    };
+    applyTheme();
+    if (settings.theme !== 'system') return;
+    media?.addEventListener('change', applyTheme);
+    return () => media?.removeEventListener('change', applyTheme);
+  }, [settings.theme]);
 
   const updateSettings = useCallback(
     (partial: Partial<DashboardSettings>) => {
-      setSettings((prev) => ({ ...prev, ...partial }));
+      setSettings((prev) => ({ ...DEFAULT_SETTINGS, ...prev, ...partial }));
     },
     [setSettings],
   );

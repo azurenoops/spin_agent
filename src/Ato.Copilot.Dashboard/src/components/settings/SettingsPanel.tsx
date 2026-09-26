@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from '../../features/workspaces/workspaceNavigation';
-import { useSettings, type DashboardSettings } from '../../hooks/useSettings';
+import { DEFAULT_SETTINGS, useSettings, type DashboardSettings } from '../../hooks/useSettings';
 import { useCspDashboardAvailable } from '../layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../../hooks/useImpersonationActive';
 import apiClient from '../../api/client';
@@ -30,13 +30,13 @@ const sections: { id: SectionId; label: string; icon: string }[] = [
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <label className="flex items-center justify-between py-2">
-      <span className="text-sm text-gray-700">{label}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-200'}`}
+        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors ${checked ? 'bg-indigo-600 dark:bg-indigo-500' : 'bg-gray-200 dark:bg-gray-600'}`}
       >
         <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform mt-0.5 ${checked ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'}`} />
       </button>
@@ -47,7 +47,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 function SelectField<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: { label: string; value: T }[]; onChange: (v: T) => void }) {
   return (
     <label className="flex items-center justify-between py-2">
-      <span className="text-sm text-gray-700">{label}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
       <select
         value={String(value)}
         onChange={(e) => {
@@ -56,7 +56,7 @@ function SelectField<T extends string | number>({ label, value, options, onChang
           const parsed = typeof value === 'number' ? (Number(raw) as unknown as T) : (raw as unknown as T);
           onChange(parsed);
         }}
-        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
       >
         {options.map((o) => (
           <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
@@ -69,13 +69,13 @@ function SelectField<T extends string | number>({ label, value, options, onChang
 function TextField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
     <label className="flex flex-col gap-1 py-2">
-      <span className="text-sm text-gray-700">{label}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
       />
     </label>
   );
@@ -84,7 +84,7 @@ function TextField({ label, value, onChange, placeholder }: { label: string; val
 function NumberField({ label, value, onChange, min, max, suffix }: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; suffix?: string }) {
   return (
     <label className="flex items-center justify-between py-2">
-      <span className="text-sm text-gray-700">{label}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
       <div className="flex items-center gap-1.5">
         <input
           type="number"
@@ -92,16 +92,16 @@ function NumberField({ label, value, onChange, min, max, suffix }: { label: stri
           onChange={(e) => onChange(Number(e.target.value))}
           min={min}
           max={max}
-          className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 text-right focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 text-right focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         />
-        {suffix && <span className="text-xs text-gray-500">{suffix}</span>}
+        {suffix && <span className="text-xs text-gray-500 dark:text-gray-400">{suffix}</span>}
       </div>
     </label>
   );
 }
 
 function SectionDivider({ title }: { title: string }) {
-  return <div className="pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-400">{title}</div>;
+  return <div className="pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{title}</div>;
 }
 
 // ─── Section Renderers ──────────────────────────────────────────────────────
@@ -112,12 +112,12 @@ function ProfileSection({ settings, update }: { settings: DashboardSettings; upd
     return (
       <div className="space-y-3">
         <SectionDivider title="Authenticated identity" />
-        <dl className="space-y-2 text-sm text-gray-700">
+        <dl className="space-y-2 text-sm text-gray-700 dark:text-gray-200">
           <div><dt className="font-medium">Display Name</dt><dd>{session.identity.displayName}</dd></div>
           <div><dt className="font-medium">Workspace</dt><dd>{session.workspace.displayName}</dd></div>
           <div><dt className="font-medium">Effective roles</dt><dd>{session.roles.join(', ') || 'No RMF role assigned'}</dd></div>
         </dl>
-        <p className="text-xs text-gray-500">Identity and permissions come from the server. Browser preferences do not grant roles.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">Identity and permissions come from the server. Browser preferences do not grant roles.</p>
       </div>
     );
   }
@@ -189,6 +189,12 @@ function NotificationsSection({ settings, update }: { settings: DashboardSetting
 function DashboardSection({ settings, update }: { settings: DashboardSettings; update: (p: Partial<DashboardSettings>) => void }) {
   return (
     <div className="space-y-1">
+      <SectionDivider title="Appearance" />
+      <SelectField label="Theme" value={settings.theme ?? DEFAULT_SETTINGS.theme} onChange={(theme) => update({ theme })} options={[
+        { label: 'Light', value: 'light' },
+        { label: 'Dark', value: 'dark' },
+        { label: 'System', value: 'system' },
+      ]} />
       <SectionDivider title="Layout" />
       <SelectField label="Landing Page" value={settings.defaultLandingPage} onChange={(v) => update({ defaultLandingPage: v })} options={[
         { label: 'Portfolio', value: '/' },
@@ -370,26 +376,26 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
       {/* Panel */}
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg shadow-xl">
-        <div className="flex w-full flex-col bg-white">
+        <div className="flex w-full flex-col bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
+          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Settings</h2>
             <div className="flex items-center gap-2">
               {showResetConfirm ? (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-500">Reset all?</span>
-                  <button type="button" onClick={() => { resetSettings(); setShowResetConfirm(false); }} className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Yes</button>
-                  <button type="button" onClick={() => setShowResetConfirm(false)} className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100">No</button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Reset all?</span>
+                  <button type="button" onClick={() => { resetSettings(); setShowResetConfirm(false); }} className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950">Yes</button>
+                  <button type="button" onClick={() => setShowResetConfirm(false)} className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">No</button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setShowResetConfirm(true)} className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700" title="Reset to defaults">
+                <button type="button" onClick={() => setShowResetConfirm(true)} className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100" title="Reset to defaults">
                   Reset
                 </button>
               )}
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
                 aria-label="Close settings"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -402,7 +408,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           {/* Body: sidebar + content */}
           <div className="flex flex-1 overflow-hidden">
             {/* Sidebar nav */}
-            <nav className="w-44 flex-shrink-0 overflow-y-auto border-r border-gray-100 bg-gray-50 py-2">
+            <nav className="w-44 flex-shrink-0 overflow-y-auto border-r border-gray-100 bg-gray-50 py-2 dark:border-gray-700 dark:bg-gray-950">
               {visibleSections.map((s) => (
                 <button
                   key={s.id}
@@ -410,8 +416,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
                   onClick={() => setActiveSection(s.id)}
                   className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
                     activeSection === s.id
-                      ? 'bg-indigo-50 text-indigo-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      ? 'bg-indigo-50 text-indigo-700 font-medium dark:bg-indigo-950 dark:text-indigo-200'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100'
                   }`}
                 >
                   <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -424,7 +430,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
-              <h3 className="mb-3 text-sm font-semibold text-gray-900">
+              <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
                 {sections.find((s) => s.id === activeSection)?.label}
               </h3>
               {renderSection()}
@@ -432,8 +438,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-gray-200 px-5 py-3">
-            <p className="text-xs text-gray-400">Changes are saved automatically. Notification preferences sync to your account.</p>
+          <div className="border-t border-gray-200 px-5 py-3 dark:border-gray-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Changes are saved automatically. Notification preferences sync to your account.</p>
           </div>
         </div>
       </div>

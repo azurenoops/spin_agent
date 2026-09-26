@@ -1,0 +1,80 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_ORDINARY_CSP_ADMIN_TOKEN
+@key = REPLACE_WITH_STABLE_CREATION_KEY
+@tenantId = REPLACE_WITH_CREATED_TENANT_ID
+@operationId = REPLACE_WITH_CREATED_OPERATION_ID
+@directoryTenantId = REPLACE_WITH_EXPLICIT_DIRECTORY_TENANT_ID
+@objectId = REPLACE_WITH_EXPLICIT_USER_OBJECT_ID
+
+### Confirmed creation is atomic; initialAdministrator is optional (omitted means deferred).
+### Exactly one of personId or newPerson is accepted. Contact fields never grant access.
+### Changed intent with the same key is rejected. Existing pre-extension create replays remain valid.
+### Limits: displayName 200; legalEntityName 300; primaryPocName 200; primaryPocEmail 254.
+### newPerson displayName/email: 256/320. Explicit directory/object IDs must be nonempty GUIDs.
+POST {{baseUrl}}/api/csp/dashboard/tenants
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Idempotency-Key: {{key}}
+Content-Type: application/json
+
+{
+  "displayName": "Mission organization",
+  "legalEntityName": "Mission legal entity",
+  "primaryPocName": "Organization contact",
+  "primaryPocEmail": "contact@example.invalid",
+  "initialAdministrator": {
+    "directoryTenantId": "{{directoryTenantId}}",
+    "objectId": "{{objectId}}",
+    "newPerson": {
+      "displayName": "Initial administrator",
+      "email": "administrator@example.invalid"
+    }
+  }
+}
+
+### Read-only lost-response recovery. Same create data shape; missing key is
+### 404 ORGANIZATION_CREATION_NOT_FOUND. Never infer a missing record from permission/network errors.
+### Persisted operation with a missing organization is 409, not a new-creation opportunity.
+GET {{baseUrl}}/api/csp/organization-creations/{{key}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Existing provisioning fields plus initialAdministrator, personState, canEditAdministrator.
+### Intent is editable before binding only. New Person and binding/audit commit atomically.
+### personState: NotRequested for deferred/existing Person, Pending/Completed for new Person.
+### overallState remains InProgress/Failed/Completed. Deferred setup is not complete.
+GET {{baseUrl}}/api/csp/organizations/{{tenantId}}/provisioning/current
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+
+### Resume with persisted administrator intent, or correct an unbound intent.
+### Resend data.initialAdministrator unchanged, including after refresh or partial failure.
+### In newPerson mode its personId remains null even after the generated Person is saved.
+### The generated binding is internal; do not add a personId alongside newPerson.
+### Legacy {directoryTenantId,objectId,personId} remains valid for a target-local Person.
+### Execution: optional local Person -> membership -> Organization Administrator.
+### No email-to-identity inference, directory promotion, system grants, subscriptions or ATO writes.
+PATCH {{baseUrl}}/api/csp/organizations/{{tenantId}}/provisioning/{{operationId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary
+Content-Type: application/json
+
+{
+  "directoryTenantId": "{{directoryTenantId}}",
+  "objectId": "{{objectId}}",
+  "newPerson": {
+    "displayName": "Initial administrator",
+    "email": "administrator@example.invalid"
+  }
+}
+
+### List/detail: setupState Pending/Completed/Failed/NotStarted and active memberCount.
+### Detail also includes persisted legalEntityName, primaryPocName, primaryPocEmail.
+GET {{baseUrl}}/api/csp/organizations/{{tenantId}}
+Authorization: Bearer {{token}}
+X-Workspace-Kind: csp
+X-Workspace-Mode: ordinary

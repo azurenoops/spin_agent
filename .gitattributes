@@ -1,0 +1,2 @@
+# Preserve PDF byte offsets and hashes; these are artifacts, not text patches.
+*.pdf binary

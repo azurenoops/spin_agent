@@ -1,9 +1,4 @@
-import { useEffect, useState } from 'react';
-import {
-  getCspOnboardingAtosState,
-  type AtoStepState,
-  type CspOnboardingStateDto,
-} from '../api';
+import type { CspOnboardingStateDto } from '../api';
 
 interface ReviewStepProps {
   state: CspOnboardingStateDto;
@@ -21,10 +16,7 @@ interface ReviewStepProps {
  * `503 CSP_ONBOARDING_INCOMPLETE` middleware gate lifts, and tenant
  * pre-provisioning becomes available.
  *
- * Feature 048 / US9 / T213: Surfaces the running ATO upload tally
- * (`componentsExtracted`, `capabilitiesMapped`, `capabilitiesNeedsReview`)
- * and an FR-102 banner when the AI capability mapper was unavailable
- * during upload.
+ * Package record review and publication remain separate portal operations.
  */
 export default function ReviewStep({
   state,
@@ -37,24 +29,6 @@ export default function ReviewStep({
   const sup = state.supportContact ?? {};
   const cls = state.classification ?? {};
 
-  const [atoState, setAtoState] = useState<AtoStepState | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const next = await getCspOnboardingAtosState();
-        if (!cancelled) setAtoState(next);
-      } catch {
-        // Best-effort — Review still renders without the tally row.
-        if (!cancelled) setAtoState(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
     <div className="space-y-4">
       <div>
@@ -65,6 +39,13 @@ export default function ReviewStep({
           changes — this is your last chance before the audit log is written.
         </p>
       </div>
+
+      <p className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
+        Finalizing onboarding activates your provider profile. It does not approve or publish
+        package imports. Analysis can continue in the background; review the resulting records
+        later in Authorizations. Source documents and recorded
+        authorization references do not grant a mission system an ATO.
+      </p>
 
       <dl className="divide-y divide-gray-200 rounded-md border border-gray-200 bg-white text-sm">
         <div className="grid grid-cols-3 gap-4 px-4 py-3">
@@ -97,47 +78,7 @@ export default function ReviewStep({
           <dt className="font-medium text-gray-700">Classification floor</dt>
           <dd className="col-span-2 text-gray-900">{cls.defaultClassificationFloor ?? <em className="text-gray-400">(missing)</em>}</dd>
         </div>
-        {atoState !== null && (
-          <div className="grid grid-cols-3 gap-4 px-4 py-3" data-testid="review-ato-tally">
-            <dt className="font-medium text-gray-700">ATO documents</dt>
-            <dd className="col-span-2 text-gray-900">
-              {atoState.documentsUploaded === 0 ? (
-                <em className="text-gray-400">No ATO documents uploaded (optional).</em>
-              ) : (
-                <>
-                  {atoState.documentsUploaded} document
-                  {atoState.documentsUploaded === 1 ? '' : 's'} →{' '}
-                  {atoState.componentsExtracted} component
-                  {atoState.componentsExtracted === 1 ? '' : 's'} extracted,{' '}
-                  {atoState.capabilitiesMapped} capabilit
-                  {atoState.capabilitiesMapped === 1 ? 'y' : 'ies'} auto-mapped
-                  {atoState.capabilitiesNeedsReview > 0 && (
-                    <>, {atoState.capabilitiesNeedsReview} need
-                    {atoState.capabilitiesNeedsReview === 1 ? 's' : ''} review</>
-                  )}
-                  .
-                </>
-              )}
-            </dd>
-          </div>
-        )}
       </dl>
-
-      {atoState && !atoState.aiMappingAvailable && atoState.documentsUploaded > 0 && (
-        <div
-          role="alert"
-          className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800"
-          data-testid="review-ai-mapping-unavailable-banner"
-        >
-          <p className="font-medium">AI capability mapping was unavailable during upload.</p>
-          <p className="mt-1">
-            Components were imported but capabilities were not auto-mapped
-            {atoState.aiMappingFailureReason ? ` (${atoState.aiMappingFailureReason})` : ''}.
-            You can re-run mapping after onboarding from the{' '}
-            <em>Inherited Components</em> page.
-          </p>
-        </div>
-      )}
 
       {errorMessage && (
         <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

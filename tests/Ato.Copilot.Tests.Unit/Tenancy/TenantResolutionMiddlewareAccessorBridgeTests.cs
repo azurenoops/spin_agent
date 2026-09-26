@@ -198,6 +198,54 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
         seenInsideNext[0].Acronym.Should().Be("SYS-A");
     }
 
+    [Theory]
+    [InlineData("GET", "/api/auth/login-config", true)]
+    [InlineData("GET", "/api/auth/login-config/", true)]
+    [InlineData("POST", "/api/auth/simulate", true)]
+    [InlineData("POST", "/api/auth/simulate/", true)]
+    [InlineData("GET", "/api/auth/me", false)]
+    [InlineData("GET", "/api/auth/simulate", false)]
+    [InlineData("POST", "/api/auth/simulate/private", false)]
+    [InlineData("GET", "/api/csp/package-imports", false)]
+    public async Task PreAuthenticationRoutes_DoNotRequireAnExistingTenant(
+        string method, string path, bool permitted)
+    {
+        // Arrange
+        var called = false;
+        var middleware = new TenantResolutionMiddleware(
+            _ => { called = true; return Task.CompletedTask; },
+            NullLogger<TenantResolutionMiddleware>.Instance);
+        var (http, scope) = BuildHttpContextForTenant(EntraTidA);
+        http.User = new ClaimsPrincipal(new ClaimsIdentity());
+        http.Request.Method = method;
+        http.Request.Path = path;
+
+        try
+        {
+            // Act
+            await middleware.InvokeAsync(
+                http,
+                http.RequestServices.GetRequiredService<ITenantContext>(),
+                _sp.GetRequiredService<ITenantContextAccessor>(),
+                BuildImpersonationStub(),
+                Options.Create(new DeploymentOptions { Mode = DeploymentMode.MultiTenant }),
+                Options.Create(new RoleClaimMappingsOptions()),
+                http.RequestServices.GetRequiredService<IMemoryCache>(),
+                http.RequestServices.GetRequiredService<AtoCopilotContext>(),
+                BuildConfiguration(),
+                BuildCspProfileStub());
+
+            // Assert
+            called.Should().Be(permitted);
+            http.Response.StatusCode.Should().Be(permitted ? 200 : 401);
+            (http.User.Identity?.IsAuthenticated ?? false).Should().BeFalse();
+        }
+        finally
+        {
+            await scope.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task Middleware_CspAdmin_WithoutImpersonation_SeesAllTenants()
     {

@@ -1,0 +1,64 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_PROVIDER_TOKEN
+@offeringId = REPLACE_WITH_OFFERING_ID
+@kind = Boundary
+@optionId = REPLACE_WITH_EXACT_REVISION_OR_RECORD_ID
+@reviewId = REPLACE_WITH_RETAINED_REVIEW_ID
+@offeringRevision = 1
+@boundaryRevisionId = REPLACE_WITH_BOUNDARY_REVISION_ID
+@componentId = REPLACE_WITH_COMPONENT_OPTION_ID
+@componentRevision = REPLACE_WITH_EXACT_DECIMAL_STRING_FROM_OPTION_CHANGE
+@componentSnapshotHash = REPLACE_WITH_SNAPSHOT_HASH_FROM_OPTION_CHANGE
+@idempotencyKey = REPLACE_WITH_UNIQUE_LOCAL_ASSESSMENT_KEY
+
+### Tracker cards include retained change-kind title, summary, creation date and target counts
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/impact-reviews?page=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Optional local synthetic assessment ONLY; creates retained review state, never an authorization
+# Do not run against live data. Copy exact revision/hash from the Component option.
+# Include the current hostingScopeRevisionId when the offering has one.
+# Empty authorization selection is allowed, but returns PROVIDER_DECISION_REQUIRED.
+# Acceptance/publication remain blocked; do not infer control-coverage deltas.
+POST {{baseUrl}}/api/csp/offerings/{{offeringId}}/impact-previews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: {{idempotencyKey}}
+
+{
+  "expectedOfferingRevision": {{offeringRevision}},
+  "changes": [{
+    "kind": "Component",
+    "recordId": "{{componentId}}",
+    "expectedRevision": "{{componentRevision}}",
+    "proposedSnapshotHash": "{{componentSnapshotHash}}"
+  }],
+  "authorizationRevisionIds": [],
+  "boundaryRevisionId": "{{boundaryRevisionId}}",
+  "hostingScopeRevisionId": null,
+  "packageVersionIds": []
+}
+
+### Exact review includes the same additive card fields; named changes remain in details
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/impact-reviews/{{reviewId}}
+Authorization: Bearer {{token}}
+
+### Read named exact context options; kind also supports HostingScope/Authorization/Package/Component/Capability
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/impact-options?kind={{kind}}&page=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Resolve an exact selection, never substitute the latest revision
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/impact-options/{{kind}}/{{optionId}}
+Authorization: Bearer {{token}}
+
+### Inspect retained inputs, rationale, actual blockers and independently paged historical membership
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/impact-reviews/{{reviewId}}/details?capabilityPage=1&systemPage=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Invalid kind: explicit 400 error envelope, not an empty successful list
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/impact-options?kind=Coverage&page=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Missing exact review: 404 under the same ownership check
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/impact-reviews/00000000-0000-0000-0000-000000000001/details
+Authorization: Bearer {{token}}

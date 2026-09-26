@@ -22,7 +22,7 @@ import { useCspBranding } from './useCspBranding';
 import spinLogo from '../../assets/2026-04-22_15-58-30.png';
 import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 
-const navItems = [
+const legacyNavItems = [
   { to: '/', label: 'Portfolio' },
   { to: '/systems', label: 'Systems' },
   { to: '/components', label: 'Components' },
@@ -39,11 +39,32 @@ interface PageLayoutProps {
   children: ReactNode;
   sidePanel?: ReactNode;
   leftPanel?: ReactNode;
+  defaultSidePanelOpen?: boolean;
 }
 
-export default function PageLayout({ title, children, sidePanel, leftPanel }: PageLayoutProps) {
+export default function PageLayout({ title, children, sidePanel, leftPanel, defaultSidePanelOpen = true }: PageLayoutProps) {
   const workspace = useWorkspaceSession();
-  const [sidePanelOpen, setSidePanelOpen] = useState(true);
+  const navItems = workspace?.target.kind === 'csp'
+    ? [
+        { to: '/', label: 'Overview' },
+        { to: '/organizations', label: 'Organizations' },
+        { to: '/authorizations', label: 'Authorizations' },
+        { to: '/security-capabilities', label: 'Security Capabilities' },
+        { to: '/controls', label: 'Controls' },
+        { to: '/audit', label: 'Audit Log' },
+        { to: '/admin/knowledge-base', label: '📚 Knowledge Base' },
+      ]
+    : workspace?.target.kind === 'organization'
+      ? [
+          { to: '/', label: 'Portfolio' },
+          { to: '/systems', label: 'Systems' },
+          { to: '/security-capabilities', label: 'Security Capabilities' },
+          { to: '/controls', label: 'Controls' },
+          { to: '/audit', label: 'Audit Log' },
+          { to: '/admin/knowledge-base', label: '📚 Knowledge Base' },
+        ]
+      : legacyNavItems;
+  const [sidePanelOpen, setSidePanelOpen] = useState(defaultSidePanelOpen);
   const [helpPanelOpen, setHelpPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -76,8 +97,8 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
   return (
     <div className={`flex ${workspace ? 'h-full' : 'h-screen'} flex-col overflow-hidden`}>
       {/* Top header */}
-      <header className="relative flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
-        <div className="flex items-center gap-6">
+      <header className="relative flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3 sm:px-6 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+        <div className="flex min-w-0 items-center gap-2 lg:gap-6">
           <NavLink
             to="/"
             className="flex items-center gap-3"
@@ -100,16 +121,16 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
               <img
                 src={spinLogo}
                 alt="Security Posture Intelligence Navigator"
-                className="block h-12 w-auto object-contain"
+                className="block h-10 w-auto object-contain sm:h-12"
               />
             )}
             {cspBranding.displayName && (
-              <span className="text-base font-semibold text-gray-800">
+              <span className="hidden text-base font-semibold text-gray-800 sm:inline dark:text-gray-100">
                 {cspBranding.displayName}
               </span>
             )}
           </NavLink>
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav className="hidden items-center gap-1 xl:flex">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -118,8 +139,8 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
                 className={({ isActive }) =>
                   `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
                   }`
                 }
               >
@@ -134,6 +155,20 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
                 and `/csp/inherited-components` top-nav links have been
                 retired in favor of the scope-aware resolvers. */}
           </nav>
+          <details className="relative xl:hidden">
+            <summary className="cursor-pointer rounded-md border px-3 py-2 text-sm font-medium text-gray-700 dark:border-gray-600 dark:text-gray-200">
+              Navigation
+            </summary>
+            <nav aria-label="Mobile navigation"
+              className="absolute left-0 top-full z-50 mt-2 grid min-w-56 gap-1 rounded-md border bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+              {navItems.map(item => (
+                <NavLink key={item.to} to={item.to} end={item.to === '/'}
+                  className={({ isActive }) => `rounded px-3 py-2 text-sm ${isActive ? 'bg-indigo-50 font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-200'}`}>
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          </details>
           <span className="hidden text-sm text-gray-400 lg:block">|</span>
           <h1 className="hidden text-sm font-medium text-gray-700 lg:block">{title}</h1>
         </div>
@@ -145,7 +180,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
                 "DEV ISSM" pre-login persona override) removed — real
                 identity now flows from /api/auth/me via AccountMenu. */}
              <div ref={notifRef} className="md:relative">
-              <button type="button" onClick={() => setNotificationsOpen(!notificationsOpen)} className={`relative rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 ${notificationsOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'}`} aria-label="Notifications" title="Notifications" aria-expanded={notificationsOpen}>
+              <button type="button" onClick={() => setNotificationsOpen(!notificationsOpen)} className={`relative rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-100 ${notificationsOpen ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-200' : 'text-gray-500 dark:text-gray-300'}`} aria-label="Notifications" title="Notifications" aria-expanded={notificationsOpen}>
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
                 </svg>
@@ -157,13 +192,13 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
               </button>
               {notificationsOpen && <NotificationPanel onClose={() => setNotificationsOpen(false)} />}
             </div>
-            <button type="button" onClick={() => setHelpPanelOpen(!helpPanelOpen)} className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 ${helpPanelOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'}`} aria-label="Help" title="Help" aria-expanded={helpPanelOpen}>
+            <button type="button" onClick={() => setHelpPanelOpen(!helpPanelOpen)} className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-100 ${helpPanelOpen ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-200' : 'text-gray-500 dark:text-gray-300'}`} aria-label="Help" title="Help" aria-expanded={helpPanelOpen}>
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
               </svg>
             </button>
             <ChatToggle isOpen={panelState.isOpen} onClick={togglePanel} />
-            <button type="button" onClick={() => setSettingsOpen(!settingsOpen)} className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 ${settingsOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'}`} aria-label="Settings" title="Settings" aria-expanded={settingsOpen}>
+            <button type="button" onClick={() => setSettingsOpen(!settingsOpen)} className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-100 ${settingsOpen ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-200' : 'text-gray-500 dark:text-gray-300'}`} aria-label="Settings" title="Settings" aria-expanded={settingsOpen}>
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -181,7 +216,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
       {/* Content area */}
       <div className="flex flex-1 overflow-hidden">
         {leftPanel}
-        <main className="flex-1 min-w-0 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 min-w-0 overflow-y-auto bg-white p-6 text-gray-900 dark:bg-gray-950 dark:text-gray-100">{children}</main>
         {(sidePanel || helpPanelOpen) && (
           <div className="hidden xl:flex flex-shrink-0">
             {/* Toggle tab on the edge */}
@@ -189,9 +224,10 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
               <button
                 type="button"
                 onClick={() => setSidePanelOpen(!sidePanelOpen)}
-                className="flex h-8 w-5 items-center justify-center self-start mt-4 -mr-px rounded-l border border-r-0 border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                className="flex h-8 w-5 items-center justify-center self-start mt-4 -mr-px rounded-l border border-r-0 border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
                 title={sidePanelOpen ? 'Collapse panel' : 'Expand panel'}
                 aria-label={sidePanelOpen ? 'Collapse panel' : 'Expand panel'}
+                aria-expanded={sidePanelOpen}
               >
                 <svg className={`h-3 w-3 transition-transform ${sidePanelOpen ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -199,12 +235,12 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
               </button>
             )}
             {helpPanelOpen ? (
-              <aside className="w-80 overflow-y-auto border-l border-gray-200 bg-white">
+              <aside className="w-80 overflow-y-auto border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 <HelpPanel onClose={() => setHelpPanelOpen(false)} />
               </aside>
             ) : (
               sidePanelOpen && sidePanel && (
-                <aside className="w-80 flex flex-col border-l border-gray-200 bg-white">
+                <aside className="w-80 flex flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                   {sidePanel}
                 </aside>
               )

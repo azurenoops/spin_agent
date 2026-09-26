@@ -1,0 +1,1158 @@
+{
+  "components": [
+    {
+      "id": "FS-CMP-001",
+      "type": "Logical tenant identity-policy component",
+      "name": "Tenant identity and federation",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic tenant identity configuration for workforce sign-in and lifecycle coordination. External federation infrastructure and authenticator issuance remain outside the boundary. This inventory entry is not a discovered tenant or proof of deployed authentication. Source: 01-flankspeed-il5-ssp.pdf, page 10, FS-CMP-001."
+    },
+    {
+      "id": "FS-CMP-002",
+      "type": "Logical administrative-access governance component",
+      "name": "Privileged administration",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic administrative-role governance over twelve invented assignments. Separate administrative identities, dual review, and emergency access are design targets, not implemented protections. Privileged-management products are not presumed licensed or available. Source: 01-flankspeed-il5-ssp.pdf, page 11, FS-CMP-002."
+    },
+    {
+      "id": "FS-CMP-003",
+      "type": "Logical collaboration workload",
+      "name": "Exchange Online DoD messaging",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic Exchange Online DoD mailbox and mail-flow policy scope. Mailbox populations, transport restrictions, and delegation settings are planning values only. No live mailbox, transport test, service attestation, or tenant authorization is represented. Source: 01-flankspeed-il5-ssp.pdf, page 12, FS-CMP-003."
+    },
+    {
+      "id": "FS-CMP-004",
+      "type": "Logical collaboration workload",
+      "name": "SharePoint Online DoD collaboration",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic inventory of sixty collaboration sites, site-owner responsibilities, and named-recipient sharing targets. This describes proposed tenant governance, not actual Navy sites, deployed policies, or verified content-access enforcement. Source: 01-flankspeed-il5-ssp.pdf, page 13, FS-CMP-004."
+    },
+    {
+      "id": "FS-CMP-005",
+      "type": "Logical collaboration workload",
+      "name": "OneDrive DoD individual workspaces",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic individual document-workspace policies for the invented workforce. Sharing and departure recovery are coordinated with mission and records owners. No actual personal files, account exports, or service recovery guarantees are supplied. Source: 01-flankspeed-il5-ssp.pdf, page 14, FS-CMP-005."
+    },
+    {
+      "id": "FS-CMP-006",
+      "type": "Logical collaboration workload",
+      "name": "Teams DoD collaboration and meetings",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic configuration scope for 120 Teams workspaces, membership, meeting admission, and linked content. Voice interconnects, third-party apps, AI/Copilot services, and external network operations are excluded. Source: 01-flankspeed-il5-ssp.pdf, page 15, FS-CMP-006."
+    },
+    {
+      "id": "FS-CMP-007",
+      "type": "Logical tenant policy interface",
+      "name": "Tenant device and access-compliance interface",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic tenant-side access decisions consuming external identity and device-posture signals. The endpoint-management platform, endpoint agents, patching, disks, and customer networks are expressly outside this component. Source: 01-flankspeed-il5-ssp.pdf, page 16, FS-CMP-007."
+    },
+    {
+      "id": "FS-CMP-008",
+      "type": "Logical audit-governance component",
+      "name": "Tenant audit and monitoring",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic tenant event-source inventory, audit review, and investigation interface. Optional advanced audit, Defender, external SIEM, or other security products are not presumed present; only verified accessible events may be used. Source: 01-flankspeed-il5-ssp.pdf, page 17, FS-CMP-008."
+    },
+    {
+      "id": "FS-CMP-009",
+      "type": "Logical information-governance component",
+      "name": "Information protection and sharing policies",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic classification, recipient approval, and sharing restrictions across collaboration workloads. Sensitivity labels, DLP, Purview, and other optional enforcement functions are conditional on cloud/SKU verification and are not asserted to exist. Source: 01-flankspeed-il5-ssp.pdf, page 18, FS-CMP-009."
+    },
+    {
+      "id": "FS-CMP-010",
+      "type": "Logical records-governance component",
+      "name": "Records retention and legal hold",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic records scheduling, disposition suspension, and legal-hold coordination. Any retention/eDiscovery/Purview mechanism requires verified DoD cloud/SKU support. Neither retention nor hold is characterized as a complete backup or recovery solution. Source: 01-flankspeed-il5-ssp.pdf, page 19, FS-CMP-010."
+    },
+    {
+      "id": "FS-CMP-011",
+      "type": "Logical tenant operational-governance component",
+      "name": "Configuration and change governance",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic tenant baseline, inventory, and change-review process. The component inventories logical Microsoft 365 policies and responsibilities, not virtual machines, appliances, Azure subscriptions, or real discovered assets. Source: 01-flankspeed-il5-ssp.pdf, page 20, FS-CMP-011."
+    },
+    {
+      "id": "FS-CMP-012",
+      "type": "Logical continuity-governance component",
+      "name": "Continuity and recovery coordination",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional, synthetic outage communication and workload-specific restoration coordination. Provider availability, tenant content recovery, and external customer continuity are separate responsibilities. No third-party backup system or guaranteed SaaS recovery is included. Source: 01-flankspeed-il5-ssp.pdf, page 21, FS-CMP-012."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "FS-CAP-001",
+      "name": "Workforce identity lifecycle coordination",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional onboarding, sponsor recertification, dormant-account review, and termination handoff for tenant identities. Provider: Candidate service-side identity and account-state mechanisms only; current implementation and authorization evidence are not supplied. Customer: Obtain authoritative personnel notices, approve access, reconcile monthly, and verify disablement within the notional four-hour target. Source: 01-flankspeed-il5-ssp.pdf, page 10, FS-CAP-001.",
+      "componentIds": [
+        "FS-CMP-001"
+      ],
+      "controlIds": [
+        "AC-2",
+        "IA-2",
+        "PS-4"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-002",
+      "name": "Federated authentication policy assurance",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional validation of authentication context, federation trust, and rejected sign-in paths. Provider: Supported service-side authentication interfaces are candidate inherited mechanisms; exact methods, cloud support, and cryptographic evidence require verification. Customer: Approve external federation authority, strong authentication, trust changes, and nonproduction positive/negative sign-in tests. Source: 01-flankspeed-il5-ssp.pdf, page 10, FS-CAP-002.",
+      "componentIds": [
+        "FS-CMP-001"
+      ],
+      "controlIds": [
+        "IA-2",
+        "IA-5",
+        "AC-17"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-003",
+      "name": "Least-privilege assignment review",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional monthly independent review of twelve administrative assignments and their mission justification. Provider: Service role-enforcement primitives are candidate provider duties; no automated privileged-access product is assumed available. Customer: Use separate administrator identities, review all assignments, remove unjustified privileges, and resolve the two synthetic overdue reviews. Source: 01-flankspeed-il5-ssp.pdf, page 11, FS-CAP-003.",
+      "componentIds": [
+        "FS-CMP-002"
+      ],
+      "controlIds": [
+        "AC-2",
+        "AC-3",
+        "AC-6"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-004",
+      "name": "Emergency administrative access accountability",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional dual-controlled emergency access with immediate notification and next-business-day independent review. Provider: Supported administrative sign-in and role-audit behavior require verification; optional activation tooling needs cloud/SKU confirmation. Customer: Assign two custodians, secure authenticators, rehearse quarterly, and revoke emergency privileges after use without logging credentials. Source: 01-flankspeed-il5-ssp.pdf, page 11, FS-CAP-004.",
+      "componentIds": [
+        "FS-CMP-002"
+      ],
+      "controlIds": [
+        "AC-6",
+        "IA-5",
+        "AU-6",
+        "IR-4"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-005",
+      "name": "Controlled mail routing",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional restriction and review of external forwarding, transport rules, and approved recipient paths. Provider: Messaging transport and supported mail-flow policy enforcement are candidate provider mechanisms; actual encryption paths remain unverified. Customer: Default-deny automatic external forwarding, approve exceptions, and test five representative rules without operational content. Source: 01-flankspeed-il5-ssp.pdf, page 12, FS-CAP-005.",
+      "componentIds": [
+        "FS-CMP-003"
+      ],
+      "controlIds": [
+        "AC-4",
+        "CA-3",
+        "SC-8"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-006",
+      "name": "Mailbox delegation accountability",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional control of shared-mailbox delegates, owner approval, and departure revocation. Provider: Mailbox authorization primitives are candidate service responsibilities, not evidence of correct customer delegation. Customer: Reconcile ten mailbox samples monthly against mission-approved delegates and revoke departed-user access before records disposition. Source: 01-flankspeed-il5-ssp.pdf, page 12, FS-CAP-006.",
+      "componentIds": [
+        "FS-CMP-003"
+      ],
+      "controlIds": [
+        "AC-2",
+        "AC-3",
+        "PS-4"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-007",
+      "name": "Site permission and owner governance",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional owner assignment, group-based access, and permission-inheritance review for sixty sites. Provider: SharePoint permission evaluation is a candidate service mechanism; configuration and inheritance correctness remain customer duties. Customer: Maintain two owners per site, recertify quarterly, and test ten sites for unauthorized or inherited access. Source: 01-flankspeed-il5-ssp.pdf, page 13, FS-CAP-007.",
+      "componentIds": [
+        "FS-CMP-004"
+      ],
+      "controlIds": [
+        "AC-3",
+        "AC-6",
+        "CM-8"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-008",
+      "name": "Named-recipient site sharing",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional restriction of document sharing to approved recipients and expiring exceptions. Provider: Supported recipient/link controls require verification for the DoD offering and actual tenant configuration. Customer: Prohibit anonymous links, record sponsors and expiry, and retest expired links against denied-access expectations. Source: 01-flankspeed-il5-ssp.pdf, page 13, FS-CAP-008.",
+      "componentIds": [
+        "FS-CMP-004"
+      ],
+      "controlIds": [
+        "AC-4",
+        "AC-20",
+        "CA-3"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-009",
+      "name": "Individual-workspace sharing restrictions",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional recipient-limited OneDrive collaboration governed by mission approval and expiry. Provider: Workspace sharing controls are candidate service capabilities; exact feature availability and enforcement are unverified. Customer: Review ten workspaces monthly, default-deny external sharing, and use only approved named-recipient exceptions. Source: 01-flankspeed-il5-ssp.pdf, page 14, FS-CAP-009.",
+      "componentIds": [
+        "FS-CMP-005"
+      ],
+      "controlIds": [
+        "AC-3",
+        "AC-4",
+        "AC-20"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-010",
+      "name": "Departing-user content handoff",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional separation of immediate access revocation from authorized content preservation and ownership transfer. Provider: Supported lifecycle, preservation, and deletion behavior requires service-specific evidence; no recovery guarantee is implied. Customer: Notify data and records owners, preserve held content through a verified mechanism, assign a successor, and record authorized disposition. Source: 01-flankspeed-il5-ssp.pdf, page 14, FS-CAP-010.",
+      "componentIds": [
+        "FS-CMP-005"
+      ],
+      "controlIds": [
+        "PS-4",
+        "CP-9",
+        "MP-6"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-011",
+      "name": "Workspace membership and federation governance",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional Teams owner, member, guest, and external relationship review across 120 workspaces. Provider: Supported Teams membership and federation interfaces are candidate provider responsibilities; no commercial-cloud feature parity is assumed. Customer: Maintain accountable owners, reconcile membership quarterly, and approve external relationships before enabling access. Source: 01-flankspeed-il5-ssp.pdf, page 15, FS-CAP-011.",
+      "componentIds": [
+        "FS-CMP-006"
+      ],
+      "controlIds": [
+        "AC-2",
+        "AC-20",
+        "CA-3"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-012",
+      "name": "Meeting admission and collaboration policy",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional meeting admission restrictions and linked-content permission verification. Provider: Meeting-policy enforcement and available event generation require DoD service/SKU verification; unavailable events must be documented as gaps. Customer: Deny unapproved anonymous admission, validate attendee permissions, and reconcile meeting-policy events with the audit source matrix. Source: 01-flankspeed-il5-ssp.pdf, page 15, FS-CAP-012.",
+      "componentIds": [
+        "FS-CMP-006"
+      ],
+      "controlIds": [
+        "AC-3",
+        "AC-4",
+        "AU-2"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-013",
+      "name": "Posture-aware tenant access decisions",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional tenant enforcement using externally asserted device compliance and authentication context. Provider: A supported access-policy engine is a candidate service mechanism only after cloud/SKU and integration verification. Customer: Approve posture conditions, deny unknown/stale assertions, test four device states, and hand endpoint defects to the external computing authority. Source: 01-flankspeed-il5-ssp.pdf, page 16, FS-CAP-013.",
+      "componentIds": [
+        "FS-CMP-007"
+      ],
+      "controlIds": [
+        "AC-17",
+        "AC-20",
+        "SC-7"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-014",
+      "name": "Access-interface assurance handoff",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional reconciliation of tenant denials, external posture defects, and separately owned remediation. Provider: Provider documents policy evaluation behavior and service defects; customer endpoint vulnerability management is not inherited. Customer: Track stale-signal defects, assign an external liaison, preserve tenant-side denial evidence, and retest after customer remediation. Source: 01-flankspeed-il5-ssp.pdf, page 16, FS-CAP-014.",
+      "componentIds": [
+        "FS-CMP-007"
+      ],
+      "controlIds": [
+        "CA-3",
+        "RA-5",
+        "SI-2"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-015",
+      "name": "Audit source and retention reconciliation",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional source presence, required field completeness, searchable retention, and export coverage checks. Provider: Only documented tenant-visible event categories and licensed retention features may support inheritance; advanced audit availability requires verification. Customer: Reconcile eight source categories daily, identify unavailable sources, and demonstrate retrieval at the approved retention boundary. Source: 01-flankspeed-il5-ssp.pdf, page 17, FS-CAP-015.",
+      "componentIds": [
+        "FS-CMP-008"
+      ],
+      "controlIds": [
+        "AU-2",
+        "AU-3",
+        "AU-9",
+        "AU-11"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-016",
+      "name": "Security event triage and escalation",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional review of administrative changes, denied access, sharing activity, and incident indicators. Provider: Service telemetry and provider incident communications are candidate inputs; optional Defender/SIEM integration requires independent verification. Customer: Triage high-priority events within thirty minutes of ingestion, document dispositions, and route incidents to mission and external system owners. Source: 01-flankspeed-il5-ssp.pdf, page 17, FS-CAP-016.",
+      "componentIds": [
+        "FS-CMP-008"
+      ],
+      "controlIds": [
+        "AU-6",
+        "IR-4",
+        "IR-6",
+        "CA-7"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-017",
+      "name": "Content classification and handling governance",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional data-owner classification and handling instructions using only invented exercise content. Provider: Optional label/DLP/Purview functions are conditional on verified cloud, SKU, enforcement coverage, and authorized boundary. Customer: Determine lawful purpose and data categories, train users, approve recipients, and test any actual enforcement rather than equating labels with protection. Source: 01-flankspeed-il5-ssp.pdf, page 18, FS-CAP-017.",
+      "componentIds": [
+        "FS-CMP-009"
+      ],
+      "controlIds": [
+        "AC-4",
+        "AT-2",
+        "PT-2",
+        "SC-28"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-018",
+      "name": "Sharing exception lifecycle",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional sponsorship, expiry, recertification, and revocation of approved external collaboration exceptions. Provider: Available sharing restrictions and revocation behavior must be documented; no particular automated exception workflow is assumed. Customer: Review all twenty invented exceptions weekly, set at most thirty-day expiry, and verify denial after expiration or sponsor withdrawal. Source: 01-flankspeed-il5-ssp.pdf, page 18, FS-CAP-018.",
+      "componentIds": [
+        "FS-CMP-009"
+      ],
+      "controlIds": [
+        "AC-20",
+        "CA-3",
+        "AC-4"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-019",
+      "name": "Records schedule and disposition coordination",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional translation of authorized records schedules into verified workload retention and disposition rules. Provider: Supported retention/deletion mechanisms and media handling require provider evidence; optional records features require cloud/SKU verification. Customer: Obtain schedule authority, distinguish audit from business-content retention, detect conflicting rules, and retain disposition approvals. Source: 01-flankspeed-il5-ssp.pdf, page 19, FS-CAP-019.",
+      "componentIds": [
+        "FS-CMP-010"
+      ],
+      "controlIds": [
+        "AU-11",
+        "MP-6",
+        "CM-3"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-020",
+      "name": "Legal-hold preservation coordination",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional authorization, scoping, testing, and release of preservation instructions across affected workloads. Provider: Hold/eDiscovery preservation behavior is conditional on verified DoD availability and licensing and is not a general backup guarantee. Customer: Obtain authorized hold instructions, suspend conflicting disposition, verify preservation, and require counsel/records release before deletion. Source: 01-flankspeed-il5-ssp.pdf, page 19, FS-CAP-020.",
+      "componentIds": [
+        "FS-CMP-010"
+      ],
+      "controlIds": [
+        "MP-6",
+        "PT-2",
+        "CP-9"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-021",
+      "name": "Tenant baseline and component inventory",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional versioned policy settings, logical service inventory, dependencies, and shared-duty register. Provider: Provider documents supported service settings and boundary changes; its internal asset inventory is not customer tenant inventory. Customer: Maintain twelve logical entries with owners, twenty-four capabilities, approved settings, interface dependencies, and unresolved evidence status. Source: 01-flankspeed-il5-ssp.pdf, page 20, FS-CAP-021.",
+      "componentIds": [
+        "FS-CMP-011"
+      ],
+      "controlIds": [
+        "CM-2",
+        "CM-6",
+        "CM-8",
+        "PL-2"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-022",
+      "name": "Policy change and drift governance",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional impact analysis, independent approval, controlled rollout, rollback, and drift follow-up. Provider: Provider manages underlying service changes and advisories; the tenant board controls only customer-configurable settings. Customer: Review security/privacy and records impacts, record before/after settings, verify rollback, and triage unauthorized drift within two business days. Source: 01-flankspeed-il5-ssp.pdf, page 20, FS-CAP-022.",
+      "componentIds": [
+        "FS-CMP-011"
+      ],
+      "controlIds": [
+        "CM-3",
+        "CM-6",
+        "CA-7",
+        "SI-2"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-023",
+      "name": "Outage communication and continuity coordination",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional mission-priority communication, external continuity handoffs, and sanitized provider escalation. Provider: Provider service recovery and notifications are candidate contracted duties; support remains outside the service accreditation boundary. Customer: Notify mission owners within thirty minutes, activate separately approved alternatives, and send only reviewed minimized support details. Source: 01-flankspeed-il5-ssp.pdf, page 21, FS-CAP-023.",
+      "componentIds": [
+        "FS-CMP-012"
+      ],
+      "controlIds": [
+        "CP-2",
+        "CP-4",
+        "IR-6",
+        "SA-9"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "FS-CAP-024",
+      "name": "Workload recovery rehearsal and reconciliation",
+      "type": "Service",
+      "description": "SYNTHETIC TEST DATA - NOT A VALID ATO. Notional testing of content, permissions, ownership, and cross-workload references against mission recovery targets. Provider: Only verified service recovery mechanisms and limits may be relied upon; retention/version history is not blanket backup. Customer: Exercise four workload classes quarterly using inert artifacts, record unsupported states, and obtain independent data-owner reconciliation before closure. Source: 01-flankspeed-il5-ssp.pdf, page 21, FS-CAP-024.",
+      "componentIds": [
+        "FS-CMP-012"
+      ],
+      "controlIds": [
+        "CP-4",
+        "CP-9",
+        "CP-10"
+      ],
+      "responsibility": "Shared"
+    }
+  ],
+  "authorizationDecisionClaims": [
+    {
+      "kind": "AuthorizationDecisionClaim",
+      "id": "SYN-FS-DECISION-001",
+      "name": "Flank Speed IL5 - unsigned synthetic decision draft",
+      "claim": {
+        "authorizationDecision": {
+          "subjectKind": "Provider",
+          "subject": "Flank Speed IL5 - Microsoft 365 DoD Tenant (Synthetic)",
+          "reference": "SYN-FS-DECISION-001",
+          "authority": "Unassigned synthetic AO role",
+          "decisionType": "Unsigned illustrative conditional ATO draft",
+          "statusAsStated": "Draft - unsigned - not effective",
+          "scope": "Illustrative decision worksheet for SYN-FS-IL5-001, limited to the twelve notional tenant service/operational components and their qualified candidate provider dependencies. It does not authorize a real tenant, Navy mission, external endpoint/network, support service, AI/Copilot service, or unapproved integration. Proposed dates are placeholders and do not imply permission to operate.",
+          "conditions": [
+            "Before any real decision, designate a legitimate authorizing official, approve mission categorization and the full applicable baseline, and obtain an actual independent assessment.",
+            "Resolve or explicitly disposition FS-FIND-001 and FS-FIND-005 with applicable evidence and real authority; an invented high-severity POAM schedule is not risk acceptance.",
+            "Keep the unbounded guest-sharing proposal restricted until FS-FIND-002 is independently reviewed and authorized exchange conditions are met.",
+            "Demonstrate audit source/retention coverage for FS-FIND-003 and supported four-workload recovery for FS-FIND-004, or obtain explicit documented risk treatment from a real authority.",
+            "Keep the conflicting retention proposal blocked until FS-FIND-006 has authoritative records/hold resolution, verified technical behavior, and independent change review.",
+            "Maintain all six POAMs as Open with empty closureEvidence arrays as of 2026-09-24; future milestones and anticipated artifacts are not submitted or accepted closure.",
+            "Require verified service/cloud/SKU availability and authorized-boundary applicability for every optional information-protection, audit, recovery, or privileged-management feature before crediting it.",
+            "Apply the monitoring and incident handoff plan only after actual customer authority, contacts, tools, and evidence paths are established; no fixture contact is operational."
+          ],
+          "exclusions": [
+            "Real Navy Flank Speed configuration, actual DoD operational data, CUI, classified information, and real identities or credentials.",
+            "Customer devices, endpoint-management services, EDR platforms, identity-federation infrastructure outside the tenant, customer networks, and their accreditation boundaries.",
+            "Azure subscriptions, virtual machines, IaaS firewalls, Azure Key Vault, and other arbitrary Azure resources; none is represented as a native Microsoft 365 component.",
+            "Third-party SaaS, third-party backup, external SIEM platforms, and external recipient systems; only documented tenant-side interfaces are modeled.",
+            "Microsoft support service and support-channel data handling, which the public service description places outside the service accreditation boundary.",
+            "AI assistants, Microsoft Copilot, AI processing, custom agents, unapproved applications, and application/service-principal integrations.",
+            "An issued authorization, real inherited-control attestation, real assessment result, or claim that a notional target is implemented or effective."
+          ]
+        },
+        "relationships": [
+          {
+            "kind": "DecisionBoundary",
+            "targetSourceId": "FS-BOUNDARY-INCLUDED"
+          },
+          {
+            "kind": "DecisionBoundary",
+            "targetSourceId": "FS-BOUNDARY-EXCLUDED"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted.",
+          "This draft is unsigned, ineffective, and not an ATO, authorization recommendation, interim approval, operating permission, or acceptance of risk.",
+          "No real Navy, Microsoft, DISA, or government official participated in, approved, or signed this synthetic scenario.",
+          "The proposed start date precedes several future remediation milestones solely to exercise conditional-decision review logic; it does not permit operation while conditions are unmet.",
+          "The forty-control subset cannot establish complete IL5/FedRAMP/CNSSI baseline coverage, and the working categorization is not approved.",
+          "No provider authorization package, cryptographic attestation, tenant configuration export, actual assessment, or independent closure evidence is supplied.",
+          "Public Office 365 DoD/IL5 documentation establishes context only; it is not tenant authorization, assurance of every optional feature, or proof of control effectiveness."
+        ]
+      }
+    }
+  ],
+  "boundaryClaims": [
+    {
+      "kind": "BoundaryClaim",
+      "id": "FS-BOUNDARY-INCLUDED",
+      "name": "Included Flank Speed IL5 notional scope",
+      "claim": {
+        "boundary": {
+          "subject": "Flank Speed IL5 - Microsoft 365 DoD Tenant (Synthetic)",
+          "relationship": "Included",
+          "scope": "Tenant identity and federation configuration, account lifecycle interfaces, and customer-operated authentication policy.; Tenant privileged role assignment, separation of administrative identities, and privilege-review procedures.; Notional customer configuration of Exchange Online DoD messaging and mailbox access.; Notional customer configuration of SharePoint Online DoD sites and document permissions.; Notional customer configuration of OneDrive DoD individual workspaces and departure handoffs.; Notional customer configuration of Teams DoD membership, collaboration, and meeting policy.; Tenant access-policy decisions that consume external device posture assertions; not endpoint platform operation.; Tenant-accessible audit collection, source reconciliation, and investigation handoffs, subject to verified log availability.; Customer information-protection, sharing, records-retention, and legal-hold governance, with product-dependent functions conditional.; Tenant configuration/change governance and workload-specific continuity/recovery coordination.",
+          "environment": "Flank Speed-inspired Microsoft 365 DoD collaboration tenant, using the Office 365 DoD service environment as public context rather than GCC High. Exchange Online, SharePoint Online, OneDrive, and Teams are candidate in-scope service workloads; their actual tenant provisioning and authorized service boundaries have not been verified. The modeled boundary is tenant configuration and operation plus explicitly qualified candidate inherited service protections.",
+          "responsibilities": [
+            "Tenant operator controls the fictional configuration boundary.",
+            "Microsoft common controls are candidate inheritance, not verified evidence.",
+            "Customers retain mission authorization, endpoints, networks and data ownership."
+          ],
+          "decisionReference": "SYN-FS-DECISION-001"
+        },
+        "relationships": [
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-001"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-002"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-003"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-004"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-005"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-006"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-007"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-008"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-009"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-010"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-011"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "FS-CMP-012"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "BoundaryClaim",
+      "id": "FS-BOUNDARY-EXCLUDED",
+      "name": "Excluded Flank Speed IL5 notional scope",
+      "claim": {
+        "boundary": {
+          "subject": "Flank Speed IL5 - Microsoft 365 DoD Tenant (Synthetic)",
+          "relationship": "Excluded",
+          "scope": "Real Navy Flank Speed configuration, actual DoD operational data, CUI, classified information, and real identities or credentials.; Customer devices, endpoint-management services, EDR platforms, identity-federation infrastructure outside the tenant, customer networks, and their accreditation boundaries.; Azure subscriptions, virtual machines, IaaS firewalls, Azure Key Vault, and other arbitrary Azure resources; none is represented as a native Microsoft 365 component.; Third-party SaaS, third-party backup, external SIEM platforms, and external recipient systems; only documented tenant-side interfaces are modeled.; Microsoft support service and support-channel data handling, which the public service description places outside the service accreditation boundary.; AI assistants, Microsoft Copilot, AI processing, custom agents, unapproved applications, and application/service-principal integrations.; An issued authorization, real inherited-control attestation, real assessment result, or claim that a notional target is implemented or effective.",
+          "environment": "Flank Speed-inspired Microsoft 365 DoD collaboration tenant, using the Office 365 DoD service environment as public context rather than GCC High. Exchange Online, SharePoint Online, OneDrive, and Teams are candidate in-scope service workloads; their actual tenant provisioning and authorized service boundaries have not been verified. The modeled boundary is tenant configuration and operation plus explicitly qualified candidate inherited service protections.",
+          "responsibilities": [
+            "Tenant operator controls the fictional configuration boundary.",
+            "Microsoft common controls are candidate inheritance, not verified evidence.",
+            "Customers retain mission authorization, endpoints, networks and data ownership."
+          ],
+          "decisionReference": "SYN-FS-DECISION-001"
+        },
+        "relationships": [],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    }
+  ],
+  "assessmentFindings": [
+    {
+      "kind": "AssessmentFinding",
+      "id": "FS-FIND-001",
+      "name": "FS-FIND-001 | Synthetic gap: two privileged assignments lack current independent review",
+      "claim": {
+        "assessmentFinding": {
+          "sourceFindingId": "FS-FIND-001",
+          "observation": "SYNTHETIC TEST DATA - NOT A VALID ATO. In the invented worksheet as of 2026-09-24, two of twelve privileged assignments lack current independent review: exercise-admin-11 last reviewed 2026-07-31 and exercise-admin-12 last reviewed 2026-08-15. Ten other entries are fictional current-review examples, not accepted approvals. The authoritative roster is not supplied. This is a scenario finding only, not an observation about a Navy tenant or Microsoft service.",
+          "severityAsStated": "High",
+          "statusAsStated": "Open",
+          "assessor": "Synthetic independent assessor role",
+          "assessmentDate": "2026-09-24",
+          "controlIds": [
+            "AC-2",
+            "AC-6",
+            "IA-2"
+          ]
+        },
+        "relationships": [
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-001"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-002"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "AssessmentFinding",
+      "id": "FS-FIND-002",
+      "name": "FS-FIND-002 | Synthetic gap: guest-sharing exception lacks expiry and complete exchange approval",
+      "claim": {
+        "assessmentFinding": {
+          "sourceFindingId": "FS-FIND-002",
+          "observation": "SYNTHETIC TEST DATA - NOT A VALID ATO. One of twenty invented exception records, the exercise-site-blue proposal in the change worksheet, has no expiry and only a draft approval field. No live link was created and the complete recipient/exchange register is not supplied. The scenario extends review to OneDrive and Teams because those paths share the intended exception governance, not because actual cross-workload exposure was observed.",
+          "severityAsStated": "Moderate",
+          "statusAsStated": "Open",
+          "assessor": "Synthetic independent assessor role",
+          "assessmentDate": "2026-09-24",
+          "controlIds": [
+            "AC-3",
+            "AC-4",
+            "AC-20",
+            "CA-3",
+            "PT-2"
+          ]
+        },
+        "relationships": [
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-004"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-005"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-006"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-009"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "AssessmentFinding",
+      "id": "FS-FIND-003",
+      "name": "FS-FIND-003 | Synthetic gap: Teams policy events absent from audit-source coverage",
+      "claim": {
+        "assessmentFinding": {
+          "sourceFindingId": "FS-FIND-003",
+          "observation": "SYNTHETIC TEST DATA - NOT A VALID ATO. The invented audit worksheet represents seven of eight required source categories and omits Teams policy events. No real collection run, event availability verification, schema mapping, or retention retrieval was performed. The missing source is a fictional evidence/coverage condition, not a claim that Microsoft does not supply such events.",
+          "severityAsStated": "Moderate",
+          "statusAsStated": "Open",
+          "assessor": "Synthetic independent assessor role",
+          "assessmentDate": "2026-09-24",
+          "controlIds": [
+            "AU-2",
+            "AU-3",
+            "AU-6",
+            "AU-11"
+          ]
+        },
+        "relationships": [
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-006"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-008"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "AssessmentFinding",
+      "id": "FS-FIND-004",
+      "name": "FS-FIND-004 | Synthetic gap: recovery rehearsal does not cover all workloads or permissions",
+      "claim": {
+        "assessmentFinding": {
+          "sourceFindingId": "FS-FIND-004",
+          "observation": "SYNTHETIC TEST DATA - NOT A VALID ATO. The fictional recovery worksheet scripts one mailbox item and a partial SharePoint comparison, leaves permissions pending, and does not rehearse OneDrive or Teams. It does not satisfy the planned twelve-object/four-workload scope. There are no actual restore logs, supported recovery-source inventory, or data-owner reconciliation records.",
+          "severityAsStated": "Moderate",
+          "statusAsStated": "Open",
+          "assessor": "Synthetic independent assessor role",
+          "assessmentDate": "2026-09-24",
+          "controlIds": [
+            "CP-2",
+            "CP-4",
+            "CP-9",
+            "CP-10"
+          ]
+        },
+        "relationships": [
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-003"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-004"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-005"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-006"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-012"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "AssessmentFinding",
+      "id": "FS-FIND-005",
+      "name": "FS-FIND-005 | Synthetic gap: provider inheritance and cryptographic applicability evidence not supplied",
+      "claim": {
+        "assessmentFinding": {
+          "sourceFindingId": "FS-FIND-005",
+          "observation": "SYNTHETIC TEST DATA - NOT A VALID ATO. The fixture contains public-context references but no current authorized provider package, tenant-applicable service boundary, responsibility matrix, cryptographic mechanism/module applicability, or provider assessment evidence. The gap is absence of evidence in this synthetic package, not a finding that Microsoft lacks controls or that a real Navy authorization is invalid.",
+          "severityAsStated": "High",
+          "statusAsStated": "Open",
+          "assessor": "Synthetic independent assessor role",
+          "assessmentDate": "2026-09-24",
+          "controlIds": [
+            "MA-2",
+            "PE-3",
+            "RA-5",
+            "SA-9",
+            "SC-7",
+            "SC-8",
+            "SC-13",
+            "SC-28",
+            "SI-2"
+          ]
+        },
+        "relationships": [
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-001"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-003"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-004"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-005"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-006"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-007"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-008"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-012"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "AssessmentFinding",
+      "id": "FS-FIND-006",
+      "name": "FS-FIND-006 | Synthetic gap: blocked retention proposal lacks resolved legal-hold precedence",
+      "claim": {
+        "assessmentFinding": {
+          "sourceFindingId": "FS-FIND-006",
+          "observation": "SYNTHETIC TEST DATA - NOT A VALID ATO. The invented exercise-site-green change proposes a two-year disposition rule while a preservation instruction is also listed; the conflict review is missing. The proposal is explicitly blocked and no policy promotion or deletion occurred, supporting the Low scenario rating. Actual records authority, hold scope, and service feature behavior are not supplied.",
+          "severityAsStated": "Low",
+          "statusAsStated": "Open",
+          "assessor": "Synthetic independent assessor role",
+          "assessmentDate": "2026-09-24",
+          "controlIds": [
+            "AU-11",
+            "CM-3",
+            "MP-6"
+          ]
+        },
+        "relationships": [
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-003"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-004"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-005"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-006"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-010"
+          },
+          {
+            "kind": "FindingComponent",
+            "targetSourceId": "FS-CMP-011"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    }
+  ],
+  "poamItems": [
+    {
+      "kind": "PoamItem",
+      "id": "FS-POAM-001",
+      "name": "FS-POAM-001",
+      "claim": {
+        "poamItem": {
+          "sourcePoamId": "FS-POAM-001",
+          "correctiveAction": "Reconcile the full privileged roster, independently review both overdue scenario assignments, remove unjustified access, and establish measurable monthly recertification. Future evidence must replace invented worksheet entries rather than relabel them accepted.",
+          "ownerAsStated": "FS-ROLE-003",
+          "statusAsStated": "Open",
+          "milestones": [
+            {
+              "description": "Obtain authoritative roster and reconcile all twelve assignments; preserve unresolved state for missing approvals.",
+              "dueDate": "2026-09-30"
+            },
+            {
+              "description": "Complete independent approve/remove decisions and verify denied access for removals in an authorized test.",
+              "dueDate": "2026-10-09"
+            },
+            {
+              "description": "Submit proposed evidence for independent retest and monthly-review readiness assessment; closure remains contingent on acceptance.",
+              "dueDate": "2026-10-23"
+            }
+          ],
+          "requiredClosureEvidence": [
+            "Required future evidence, not submitted: a post-correction privileged-assignment export covering all 12 assignments in FS-CMP-001 and FS-CMP-002, with exact tenant/test-boundary identification, UTC collection time, baseline/configuration revision, export integrity digest, role scope, sponsor, and eligibility source; target review date 2026-10-23.",
+            "Required future evidence, not submitted: independent approve-or-remove records for all 12 assignments, explicitly resolving exercise-admin-11 and exercise-admin-12, with decision dates, assignment and roster revisions, business justification, approver accountability, and removal timestamps where applicable.",
+            "Required future evidence, not submitted: authorized post-removal negative-access and least-privilege retest records identifying tested identities, role/action scope, configuration revision, actual UTC execution times, expected versus observed results, and monthly-review escalation verification; no credentials or synthetic worksheet results may substitute for executed tests.",
+            "Required future evidence, not submitted: a dated independent reviewer acceptance record for FS-FIND-001 identifying the exact export, decision-record, and retest revisions reviewed, confirming 12-of-12 current review coverage and resolution of both overdue assignments; the POAM remains Open until actual acceptance."
+          ],
+          "submittedEvidenceReferences": []
+        },
+        "relationships": [
+          {
+            "kind": "PoamFinding",
+            "targetSourceId": "FS-FIND-001"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "PoamItem",
+      "id": "FS-POAM-002",
+      "name": "FS-POAM-002",
+      "claim": {
+        "poamItem": {
+          "sourcePoamId": "FS-POAM-002",
+          "correctiveAction": "Keep the unbounded exchange restricted, complete sponsor/recipient/processing approvals, set expiry, reconcile all twenty exceptions, and test revocation across SharePoint, OneDrive, and Teams as applicable.",
+          "ownerAsStated": "FS-ROLE-004",
+          "statusAsStated": "Open",
+          "milestones": [
+            {
+              "description": "Inventory all twenty exceptions and flag absent sponsor, recipient conditions, approval, or expiry.",
+              "dueDate": "2026-10-02"
+            },
+            {
+              "description": "Obtain missing decisions and configure only supported approved restrictions in the authorized test scope.",
+              "dueDate": "2026-10-16"
+            },
+            {
+              "description": "Demonstrate expired/unapproved recipient denial and submit the complete register for independent closure review.",
+              "dueDate": "2026-10-30"
+            }
+          ],
+          "requiredClosureEvidence": [
+            "Required future evidence, not submitted: a versioned register covering all 20 guest-sharing exceptions, including the exercise-site-blue proposal, with exact SharePoint, OneDrive, and Teams path scope, sponsor, recipient eligibility, purpose/privacy and exchange approvals, start/expiry dates, approval dates, and register revision; target review date 2026-10-30.",
+            "Required future evidence, not submitted: post-correction sharing-policy, link, and membership exports for affected FS-CMP-004, FS-CMP-005, FS-CMP-006, and FS-CMP-009 scope, recording UTC collection times, exact baseline/configuration revisions, supported DoD cloud/SKU mechanisms, and expiry no longer than 30 days.",
+            "Required future evidence, not submitted: authorized positive and negative access tests for approved, unapproved, expired, and revoked recipients on every affected workload path, identifying exact inert objects, policy revisions, UTC test times, expected/observed outcomes, and verified denial after expiry or revocation.",
+            "Required future evidence, not submitted: dated independent reviewer acceptance for FS-FIND-002 citing exact register, export, approval, and test revisions, confirming complete 20-of-20 governance coverage and tested denial on affected paths; an edited expiry field alone is insufficient for closure."
+          ],
+          "submittedEvidenceReferences": []
+        },
+        "relationships": [
+          {
+            "kind": "PoamFinding",
+            "targetSourceId": "FS-FIND-002"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "PoamItem",
+      "id": "FS-POAM-003",
+      "name": "FS-POAM-003",
+      "claim": {
+        "poamItem": {
+          "sourcePoamId": "FS-POAM-003",
+          "correctiveAction": "Verify Teams DoD event availability and licensing, complete the eight-source matrix, collect approved safe test events, and demonstrate field completeness, collection delay, retention support, and analyst routing. Document unavailable event classes without manufacturing substitute logs.",
+          "ownerAsStated": "FS-ROLE-005",
+          "statusAsStated": "Open",
+          "milestones": [
+            {
+              "description": "Confirm source availability and gaps against the actual approved service/SKU documentation.",
+              "dueDate": "2026-10-07"
+            },
+            {
+              "description": "Complete supported collection configuration and eight-source test-event/field reconciliation.",
+              "dueDate": "2026-10-23"
+            },
+            {
+              "description": "Submit timing, routing, and available historical-retention evidence; explicitly retain any age-boundary or unsupported-source gap.",
+              "dueDate": "2026-11-13"
+            }
+          ],
+          "requiredClosureEvidence": [
+            "Required future evidence, not submitted: an eight-source availability and collection matrix explicitly covering Teams policy events in FS-CMP-006 and FS-CMP-008, with exact event categories, DoD cloud/SKU verification, collection configuration revision, verification date, accountable owner, and supported retention limits; target review date 2026-11-13.",
+            "Required future evidence, not submitted: dated collection exports and 40 raw-to-normalized event comparisons, five per required source, identifying exact configuration/schema revisions, actual UTC event and ingestion times, required-field mappings, provenance, integrity digests, and safe test-event retrieval results.",
+            "Required future evidence, not submitted: executed analyst-routing and retention-retrieval tests recording exact source/query scope, configuration revision, UTC execution times, ingestion-to-triage timing, and genuine available age-boundary evidence against the approved 90-day searchable and 365-day protected targets; insufficient elapsed history or unavailable sources must remain unresolved, not simulated as passing.",
+            "Required future evidence, not submitted: dated independent reviewer acceptance for FS-FIND-003 citing exact matrix, export, mapping, and test revisions and confirming eight-of-eight coverage, required fields, approved collection delays, routing, and retention support; any unresolved source or age-boundary requirement prevents routine closure."
+          ],
+          "submittedEvidenceReferences": []
+        },
+        "relationships": [
+          {
+            "kind": "PoamFinding",
+            "targetSourceId": "FS-FIND-003"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "PoamItem",
+      "id": "FS-POAM-004",
+      "name": "FS-POAM-004",
+      "claim": {
+        "poamItem": {
+          "sourcePoamId": "FS-POAM-004",
+          "correctiveAction": "Establish a verified workload recovery-source inventory and execute the full four-workload/twelve-object rehearsal with permission, ownership, linked-content, audit, timing, and data-owner checks. Unrecoverable object classes require explicit treatment rather than assumed backup coverage.",
+          "ownerAsStated": "FS-ROLE-010",
+          "statusAsStated": "Open",
+          "milestones": [
+            {
+              "description": "Verify supported recovery mechanisms, object types, prerequisite permissions, and actual recovery-source ages.",
+              "dueDate": "2026-10-09"
+            },
+            {
+              "description": "Approve inert exercise objects and execute mailbox, SharePoint, OneDrive, and Teams-linked recovery cases.",
+              "dueDate": "2026-11-06"
+            },
+            {
+              "description": "Reconcile outcomes and unsupported cases with data owners and submit independent retest material for review.",
+              "dueDate": "2026-11-20"
+            }
+          ],
+          "requiredClosureEvidence": [
+            "Required future evidence, not submitted: a dated and versioned recovery-source inventory and approved exercise plan for Exchange, SharePoint, OneDrive, and Teams-linked recovery across FS-CMP-003 through FS-CMP-006 and FS-CMP-012, specifying exact object classes, supported DoD cloud/SKU mechanisms, source ages, prerequisites, limits, and recovery baseline revision; target review date 2026-11-20.",
+            "Required future evidence, not submitted: before/after manifests and executed restore records for at least 12 inert objects, three per workload, identifying exact objects and configuration revisions, actual UTC start/end times, source age, content integrity comparisons, ownership, permissions, linked references, and every unsupported or failed case.",
+            "Required future evidence, not submitted: dated data-owner reconciliation and post-recovery tests proving required permissions, revoked-user denial, linked-content access, and audit visibility for the exact restored scope, with approved objective comparisons and explicit treatment of deviations; retention or version-history descriptions alone are insufficient.",
+            "Required future evidence, not submitted: dated independent observer/reviewer acceptance for FS-FIND-004 citing exact plan, inventory, manifest, execution, and reconciliation revisions, confirming four-workload/twelve-object coverage and disposition of recovery gaps; the fictional partial worksheet cannot establish closure."
+          ],
+          "submittedEvidenceReferences": []
+        },
+        "relationships": [
+          {
+            "kind": "PoamFinding",
+            "targetSourceId": "FS-FIND-004"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "PoamItem",
+      "id": "FS-POAM-005",
+      "name": "FS-POAM-005",
+      "claim": {
+        "poamItem": {
+          "sourcePoamId": "FS-POAM-005",
+          "correctiveAction": "Obtain applicable authorized provider evidence through approved channels and map service boundaries, cryptographic requirements, platform duties, and retained customer responsibilities. Keep all inheritance claims unresolved until independent review; a public URL is not closure evidence.",
+          "ownerAsStated": "FS-ROLE-009",
+          "statusAsStated": "Open",
+          "milestones": [
+            {
+              "description": "Document exact requested evidence and authorized access path without sending sensitive content or assuming entitlement.",
+              "dueDate": "2026-10-02"
+            },
+            {
+              "description": "Review received evidence if legitimately available; record any missing scope, module applicability, or retained duty without substituting public descriptions.",
+              "dueDate": "2026-10-30"
+            },
+            {
+              "description": "Submit service-specific inheritance matrix and unresolved limitations for independent assessment and real authority consideration; extend POAM if evidence remains absent.",
+              "dueDate": "2026-11-30"
+            }
+          ],
+          "requiredClosureEvidence": [
+            "Required future evidence, not submitted: legitimately obtained authorized provider assurance material applicable to the exact Office 365 DoD service boundary and affected identity, collaboration, access-interface, audit, and continuity dependencies in FS-FIND-005, recording document identifiers/revisions, issue and validity dates, authorized handling conditions, and customer access provenance; target review date 2026-11-30.",
+            "Required future evidence, not submitted: a dated service-specific inheritance and cryptographic applicability matrix mapping MA-2, PE-3, RA-5, SA-9, SC-7, SC-8, SC-13, SC-28, and SI-2 to exact provider document revisions, service/mechanism/module scope, applicable customer requirements, retained duties, and excluded support/external systems.",
+            "Required future evidence, not submitted: a documented applicability examination and safe tenant-setting verification where relevant, with exact assessment date, service/configuration revision, evidence citations, expected versus observed mappings, and resolution of missing or contradictory claims; no unauthorized provider scanning, public-page substitution, or invented cryptographic attestation.",
+            "Required future evidence, not submitted: dated independent assessor acceptance for FS-FIND-005 identifying every reviewed package and matrix revision and confirming current applicable support for all proposed inherited claims; any residual uncertainty requires explicit real-authority disposition and cannot be represented as evidence that the missing protection was verified."
+          ],
+          "submittedEvidenceReferences": []
+        },
+        "relationships": [
+          {
+            "kind": "PoamFinding",
+            "targetSourceId": "FS-FIND-005"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    },
+    {
+      "kind": "PoamItem",
+      "id": "FS-POAM-006",
+      "name": "FS-POAM-006",
+      "claim": {
+        "poamItem": {
+          "sourcePoamId": "FS-POAM-006",
+          "correctiveAction": "Maintain the retention proposal's blocked state, obtain authoritative schedule and preservation instructions, resolve precedence and scope, verify actual feature support, and demonstrate held-object protection before any approved policy promotion.",
+          "ownerAsStated": "FS-ROLE-006",
+          "statusAsStated": "Open",
+          "milestones": [
+            {
+              "description": "Identify every affected workload and reconcile proposed schedules with preservation scope and custodians.",
+              "dueDate": "2026-10-02"
+            },
+            {
+              "description": "Obtain authorized conflict resolution and verify retention/hold feature behavior for the actual DoD service/SKU.",
+              "dueDate": "2026-10-23"
+            },
+            {
+              "description": "Test five held and five eligible inert objects, document independent change review, and submit results for possible closure.",
+              "dueDate": "2026-11-06"
+            }
+          ],
+          "requiredClosureEvidence": [
+            "Required future evidence, not submitted: authorized records/counsel conflict-resolution instructions for the exercise-site-green proposal and every affected Exchange, SharePoint, OneDrive, and Teams content path, with exact schedule/hold scope, custodians, authority dates, instruction revisions, preservation precedence, and release conditions; target review date 2026-11-06.",
+            "Required future evidence, not submitted: dated post-resolution retention/hold configuration exports and a revised change record for FS-CMP-010 and FS-CMP-011, identifying exact workload scopes, DoD cloud/SKU support, baseline and policy revisions, UTC collection times, independent approval, and continued promotion blocking until prerequisites are met.",
+            "Required future evidence, not submitted: authorized test records for five held and five eligible inert objects with exact identifiers, workload mapping, policy revisions, actual UTC execution times, expected/observed preservation and disposition behavior, and release checks; held objects must not be disposed without authorized release.",
+            "Required future evidence, not submitted: dated independent reviewer acceptance for FS-FIND-006 citing exact authority, instruction, export, change, and test revisions and confirming resolved precedence plus ten-object coverage; records/counsel and change-board decisions must be evidenced before any permitted promotion or proposed closure."
+          ],
+          "submittedEvidenceReferences": []
+        },
+        "relationships": [
+          {
+            "kind": "PoamFinding",
+            "targetSourceId": "FS-FIND-006"
+          }
+        ],
+        "qualifications": [
+          "SYNTHETIC TEST DATA - NOT A VALID ATO",
+          "Original fictional scenario; no actual Navy/Microsoft service assessed.",
+          "Human review is required. No authorization, closure or publication is granted."
+        ]
+      }
+    }
+  ]
+}

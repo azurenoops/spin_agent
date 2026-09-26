@@ -29,6 +29,27 @@ by the system tenant.
 
 ## Technical Context
 
+### Local Docker simulation build
+
+Add a Dashboard-only build environment argument, defaulting to `production` in
+the Dockerfile. The local Development Compose stack explicitly selects
+`development`, with an environment override for production-bundle checks.
+Set `NODE_ENV` only for the build command, after installing build dependencies.
+Reuse the existing Vite exclusion, identity picker and server simulation gates.
+Verify the Dockerfile contract failing-first, both bundle variants, existing
+simulation tests and browser switching without changing persisted assignments.
+
+### Bootstrap recovery follow-up
+
+Keep the existing public login-config and gated simulate handlers authoritative.
+Share exact method/path handling between CAC credential parsing and tenant
+resolution, with negative tests for protected/lookalike routes and a real
+MultiTenant path without the test-only tenant bypass. Preserve simulation gate/audit and ordinary
+JWT behavior. Handle only `SIMULATED_IDENTITY_NOT_FOUND` in both Dashboard auth
+guard paths, reusing the existing login selector. No schema or identity-contract
+change. Verify failing-first tests, actual stale-cookie HTTP/browser recovery,
+and successful package workspace access after explicit identity selection.
+
 **Language/Version**: C# 13 / .NET 9.0 (backend); TypeScript 5.7 / React 19 (Dashboard); TypeScript 5 / Node 20 LTS (VS Code + M365 extensions)
 - C# 13 / .NET 9.0 (backend — `Ato.Copilot.Core`, `Ato.Copilot.Mcp`,
   `Ato.Copilot.Chat`)

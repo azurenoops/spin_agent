@@ -39,6 +39,9 @@ public class SystemCapabilityLink
     [MaxLength(200)]
     public string LinkedBy { get; set; } = string.Empty;
 
+    /// <summary>Provider capability IDs this local capability supports in this system, not provider authorship.</summary>
+    public string SupportingProviderCapabilityIdsJson { get; set; } = "[]";
+
     // ─── Navigation ──────────────────────────────────────────────────────────
 
     /// <summary>Parent system.</summary>

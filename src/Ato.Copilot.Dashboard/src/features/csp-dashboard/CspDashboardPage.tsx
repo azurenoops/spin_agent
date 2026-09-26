@@ -12,29 +12,9 @@ import {
 import SummaryCards from './widgets/SummaryCards';
 import AtoStatusChart from './widgets/AtoStatusChart';
 import FindingsBySeverityChart from './widgets/FindingsBySeverityChart';
-import OrgsTable from './OrgsTable';
+import PortfolioWorkspaceLinks from '../../components/layout/PortfolioWorkspaceLinks';
 
-/**
- * Feature 048 / US8 (Phase 3 re-scope) — CSP Portfolio page.
- *
- * Rendered at `/` by `PortfolioRoute` for CSP-Admins who are not
- * currently impersonating an org. The page presents an org-portfolio
- * view: KPIs roll up across every org (mission owner) in the CSP, and
- * the table lists each org for drill-through-via-impersonation.
- *
- * Architectural note: in this codebase a `Tenant` IS the unit of "org /
- * mission owner" — every compliance row carries `TenantId` only, never
- * `OrganizationId`. The legacy `Organization` entity is a sub-grouping
- * stub that no compliance row references. The page therefore reads
- * `tenantCounts.*` from `GET /api/csp/dashboard/summary` and surfaces
- * them as org counts, and `OrgsTable` reads `GET /api/csp/dashboard/tenants`
- * (whose row contract is already org-shaped) and labels rows as orgs.
- *
- * Self-hides defensively when the deployment is `SingleTenant`, the
- * caller is not `CSP.Admin`, or CSP onboarding (US7) is not yet `Active`.
- * The page-level App route + sidebar gating already prevent direct
- * navigation in those cases; this is defense-in-depth.
- */
+/** Provider oversight landing; management and support live in dedicated workspaces. */
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'ready'; summary: SummaryResponse }
@@ -50,6 +30,7 @@ export default function CspDashboardPage(): ReactElement {
   const cspBranding = useCspBranding();
   const cspName = cspBranding.displayName ?? 'CSP';
   const portfolioTitle = `${cspName} portfolio`;
+  const [revision, setRevision] = useState(0);
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
   useEffect(() => {
@@ -72,7 +53,7 @@ export default function CspDashboardPage(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [revision]);
 
   if (state.kind === 'loading') {
     return (
@@ -87,7 +68,7 @@ export default function CspDashboardPage(): ReactElement {
   if (state.kind === 'unavailable') {
     return (
       <PageLayout title={portfolioTitle}>
-        <UnavailableSurface state={state.state} onHome={() => navigate('/')} />
+        <UnavailableSurface state={state.state} onHome={() => navigate('/')} onRetry={() => setRevision(v => v + 1)} />
       </PageLayout>
     );
   }
@@ -102,6 +83,7 @@ export default function CspDashboardPage(): ReactElement {
         >
           <div className="font-semibold">{cspName} portfolio unavailable</div>
           <div className="mt-1">{state.message}</div>
+          <button type="button" onClick={() => setRevision(v => v + 1)} className="mt-3 underline">Retry portfolio</button>
         </div>
       </PageLayout>
     );
@@ -113,23 +95,24 @@ export default function CspDashboardPage(): ReactElement {
     <PageLayout title={portfolioTitle}>
       <div data-testid="csp-dashboard-page">
         <PageHero
-          eyebrow="Portfolio"
+          eyebrow="Provider overview"
           title={portfolioTitle}
           // CSP portfolio spans every org — there is no "active org" to
           // chip next to the title. Suppress the auto-rendered org name
           // (which would otherwise echo the caller's home-tenant org).
           showOrgName={false}
-          description={`All-up KPIs and an entry table for every org (mission owner) in the ${cspName} portfolio. Click an org to drop into its workspace.`}
+          description="A view across your hosted organizations, system authorizations and open risk. Provider publication and system ATO decisions remain separate."
           actions={
-            <span
+            <><button type="button" onClick={() => setRevision(v => v + 1)} className="rounded-lg border border-white/30 bg-white/15 px-4 py-2 text-sm font-semibold hover:bg-white/25">Refresh portfolio</button><span
               className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white ring-1 ring-white/30 backdrop-blur"
               data-testid="csp-dashboard-generated-at"
             >
               Generated {new Date(summary.generatedAt).toLocaleString()}
-            </span>
+            </span></>
           }
         />
 
+        <PortfolioWorkspaceLinks provider />
         <SummaryCards summary={summary} />
 
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -141,9 +124,15 @@ export default function CspDashboardPage(): ReactElement {
           />
         </div>
 
-        <div className="mt-6">
-          <OrgsTable />
-        </div>
+        <section className="mt-6 rounded-xl border border-indigo-200 bg-indigo-50/50 p-5 dark:border-indigo-900 dark:bg-indigo-950/30" aria-labelledby="provider-next-steps">
+          <h2 id="provider-next-steps" className="font-semibold text-gray-900 dark:text-gray-100">Portfolio follow-up</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div><p className="text-2xl font-semibold text-indigo-700 dark:text-indigo-300">{summary.tenantCounts.suspended}</p><p className="text-sm text-gray-600 dark:text-gray-300">Suspended organizations</p></div>
+            <div><p className="text-2xl font-semibold text-indigo-700 dark:text-indigo-300">{summary.openFindingsBySeverity.critical + summary.openFindingsBySeverity.high}</p><p className="text-sm text-gray-600 dark:text-gray-300">Critical and high findings</p></div>
+            <div><p className="text-2xl font-semibold text-indigo-700 dark:text-indigo-300">{summary.openDeviationCount}</p><p className="text-sm text-gray-600 dark:text-gray-300">Open deviations</p></div>
+          </div>
+          <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">Use Organizations for onboarding, subscriptions and explicit support access. Review system findings in Systems.</p>
+        </section>
       </div>
     </PageLayout>
   );
@@ -152,11 +141,13 @@ export default function CspDashboardPage(): ReactElement {
 interface UnavailableSurfaceProps {
   state: UnavailableState;
   onHome: () => void;
+  onRetry: () => void;
 }
 
 function UnavailableSurface({
   state,
   onHome,
+  onRetry,
 }: UnavailableSurfaceProps): ReactElement {
   const message =
     state.reason === 'SINGLE_TENANT_MODE'
@@ -174,6 +165,7 @@ function UnavailableSurface({
     >
       <div className="font-semibold">CSP portfolio unavailable</div>
       <div className="mt-1">{message}</div>
+      <button type="button" onClick={onRetry} className="mt-3 mr-4 underline">Retry portfolio</button>
       <button
         type="button"
         onClick={onHome}

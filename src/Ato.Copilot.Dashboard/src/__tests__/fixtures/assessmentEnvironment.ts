@@ -8,7 +8,7 @@ export const governmentSubscriptionId = '44444444-4444-4444-8444-444444444444';
 export const legacySubscriptionId = '55555555-5555-4555-8555-555555555555';
 
 export const configurationUrl = (id = systemId) =>
-  `/systems/${id}/profile/EnvironmentAndDeployment#azure-assessment-environment`;
+  `/systems/${id}/assessments/environment#azure-assessment-environment`;
 export const readinessPath = (id = systemId) => `/systems/${id}/assessment-readiness`;
 export const environmentPath = (id = systemId) => `/systems/${id}/assessment-environment`;
 

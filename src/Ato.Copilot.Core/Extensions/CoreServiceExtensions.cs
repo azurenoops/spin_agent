@@ -215,7 +215,9 @@ public static class CoreServiceExtensions
                     endpoint, chatDeploymentName);
             }
 
-            return azureClient.AsChatClient(chatDeploymentName);
+            return configuration.GetValue<bool>("AzureAi:UseMaxCompletionTokens")
+                ? new AzureCompletionTokenChatClient(azureClient, chatDeploymentName, new Uri(endpoint)).AsIChatClient()
+                : azureClient.AsChatClient(chatDeploymentName);
         });
     }
 

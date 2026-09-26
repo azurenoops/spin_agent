@@ -7,6 +7,20 @@
 
 ## Background
 
+### Superseding provider authorization ownership
+
+The September 23 22:54 request places provider offering, external authorization
+record, boundary/Azure scope, package versions and detailed extraction review
+under Authorizations (Feature 078). The CSP wizard may initiate **Import an
+existing authorization package**, showing only durable receipt and processing
+status before continuing setup. Optional upload and the existing negotiated
+ingress contracts remain compatible. Neither profile activation nor later
+imports publish provider drafts. Each extracted decision remains unconfirmed
+until reviewed; published capability coverage does not issue or extend any
+mission-system authorization. The hosting CSP profile is not a singleton
+authorized offering; multiple offerings/decisions must be separately represented.
+The historical description below predates these corrections.
+
 Security Posture Intelligence Navigator today has a partial multi-tenant model: ~13 onboarding entities carry a `TenantId Guid` column, but the **other 60+ DbSets** in `AtoCopilotContext` — including `RegisteredSystem`, `ComplianceFinding`, `EvidenceArtifact`, `Deviation`, `PoamItem`, `RemediationTask`, `SspExport`, every assessment table, every Azure-discovered component, etc. — have **no tenant or organization column at all**. There are **zero `HasQueryFilter` calls** in the codebase, so any user with a valid CAC/Entra token can in principle query any data row. The CAC middleware reads the Entra `tid`/`oid` claims but does not surface them to a typed tenant context that services can consume.
 
 This feature must close that gap so a single deployment can safely host:
@@ -367,3 +381,12 @@ A Coastal Watch mission owner is authoring an SSP for a system hosted on Flanksp
 - **SC-010**: A read-only access test signs in as a non-CSP-Admin Mission Owner in a freshly onboarded tenant, confirms they can `GET /api/csp/inherited-components` (200 OK) and reference any component by `Id` when authoring an inheritance default, and confirms every mutation (`PATCH`, `DELETE`, `POST .../publish`, `POST .../remap`, `PATCH .../capabilities/{capabilityId}/review`) returns `403 FORBIDDEN_NOT_CSP_ADMIN`.
 - **SC-011**: An automated test consumes a `Status = Published` `CspInheritedCapability` mapped to two controls in Tenant A by creating an `OrgInheritanceDefault` referencing it; the test confirms (a) exactly two `EvidenceArtifact` rows of `Type = CspInheritedReference` are persisted in Tenant A with the source-CSP fields populated and `IsImmutableSource = true`; (b) the resulting control narrative for each control contains both the CSP `DisplayName` and the source filename; (c) `IControlNarrativeService` was invoked exactly once per control via the existing Feature 008 / Feature 024 path (no new service registration, asserted via DI smoke test); (d) when the AI service is forced offline, a deterministic stub narrative is persisted with `Status = NeedsReview`, the evidence link still exists, and the regenerate endpoint produces an AI narrative on a subsequent call.
 - **SC-012**: A startup-time `IHostedService` health check confirms exactly one DI registration each for `ICapabilityMappingService`, `IControlNarrativeService`, `IEvidenceArtifactService`, `IEvidenceStorageService`, `IOrgInheritanceDefaultService`, and `ICspAtoDocumentParser`; duplicate registration produces a fatal startup error. A unit test (`CspInheritanceReuseAuditTests`) asserts the same property in CI and additionally enforces that no class under `src/Ato.Copilot.Core/Services/Tenancy/Csp*` re-implements an interface owned by Features 008 / 024 / 038 / 043 / 044 / 045 / 047 (reflection-based check with an explicit allow-list of permitted extension points: `CspProfileService`, `CspAtoDocumentParser` dispatcher, `CspCapabilityMappingService` wrapper, `CspComponentExtractionService`, `CspInheritedComponentService`, `CspCapabilityConsumptionHandler`).
+# September 23 amendment: provider package review
+
+The locally authorized package-ingestion revision supersedes US9's automatic
+Draft-to-Published behavior on CSP onboarding submission and later imports.
+Optional upload receipt, processing, candidate review and publication are separate.
+Onboarding completion activates only the profile; all generated records remain
+private until reviewed, revision-approved and explicitly published in the portal.
+See [Feature 078 package contract](../078-role-aware-workspaces/contracts/package-imports.md)
+for negotiated async responses, persistence, scope checks and acceptance tests.

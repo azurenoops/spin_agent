@@ -48,7 +48,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
   );
 
   return (
-    <div className="border-t border-gray-200 bg-white p-3">
+    <div className="border-t border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
       {showAttach && (
         <div className="mb-2">
           <FileAttachmentComponent
@@ -64,7 +64,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
           type="button"
           onClick={() => setShowAttach(!showAttach)}
           className={`flex-shrink-0 rounded-lg p-2 transition-colors ${
-            showAttach ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+            showAttach ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-200' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100'
           }`}
           aria-label="Attach file"
           title="Attach file"
@@ -82,7 +82,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
           placeholder="Ask Security Posture Intelligence Navigator..."
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400"
+          className="flex-1 resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:disabled:bg-gray-900 dark:disabled:text-gray-500"
           aria-label="Chat message input"
         />
         {isProcessing ? (
@@ -102,7 +102,7 @@ export default function ChatInput({ onSend, onCancel, isProcessing, disabled }: 
             type="button"
             onClick={handleSend}
             disabled={!value.trim() || disabled}
-            className="flex-shrink-0 rounded-lg bg-indigo-600 p-2 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="flex-shrink-0 rounded-lg bg-indigo-600 p-2 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors dark:disabled:bg-gray-700"
             aria-label="Send message"
             title="Send"
           >

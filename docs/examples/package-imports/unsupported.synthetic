@@ -1,0 +1,5 @@
+SYNTHETIC TEST DATA ONLY
+
+This deliberately unsupported file belongs in the package coverage manifest.
+It must never silently disappear or be reported as fully analyzed.
+It contains no operational security or authorization information.

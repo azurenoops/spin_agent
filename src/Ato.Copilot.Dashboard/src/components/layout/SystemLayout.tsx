@@ -1,4 +1,4 @@
-import { useState, useCallback, createContext, useContext } from 'react';
+import { useState, useCallback, createContext, useContext, type ReactNode } from 'react';
 import { useParams, Link, Outlet, useLocation } from '../../features/workspaces/workspaceNavigation';
 import PageLayout from './PageLayout';
 import TodoPanel from '../cards/TodoPanel';
@@ -17,6 +17,7 @@ import AsyncErrorState from '../AsyncErrorState';
 interface SystemContextValue {
   detail: SystemDetailResponse;
   refetch: () => void;
+  setPageContext?: (content: ReactNode | null) => void;
 }
 
 const SystemContext = createContext<SystemContextValue | null>(null);
@@ -49,8 +50,7 @@ export const SYSTEM_NAV_GROUPS: NavGroup[] = [
     primaryFor: ['ISSM', 'ISSO', 'MissionOwner', 'Engineer', 'SCA', 'AO'],
     items: [
       { path: '', label: 'Overview', end: true, d: 'M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25' },
-      { path: 'capability-coverage', label: 'Capabilities', d: 'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z' },
-      { path: 'components', label: 'Components', d: 'M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z' },
+      { path: 'security-capabilities', label: 'Security Capabilities', d: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
       { path: 'roles', label: 'Roles & Permissions', d: 'M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198v.001c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.205-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z' },
       { path: 'boundaries', label: 'Boundaries', d: 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z' },
       ],
@@ -108,15 +108,14 @@ export default function SystemLayout() {
   const { settings } = useSettings();
   const workspace = useWorkspaceSession();
   const effectiveRoles = displayWorkspaceRoles(workspace?.roles, settings.role);
-  const canEditProfile = workspace
-    ? workspace.systemAccess?.permissions.canEditProfile === true : settings.role === 'MissionOwner';
   const [detail, setDetail] = useState<SystemDetailResponse | null>(null);
   const [profileCompleteness, setProfileCompleteness] = useState<ProfileCompletenessResponse | null>(null);
   const [todoCount, setTodoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [navCollapsed, setNavCollapsed] = useState(false);
-  const [sidePanelTab, setSidePanelTab] = useState<'todo' | 'details'>('todo');
+  const [sidePanelTab, setSidePanelTab] = useState<'todo' | 'details' | 'page' | null>(null);
+  const [pageContext, setPageContext] = useState<ReactNode | null>(null);
 
   const withTimeout = useCallback(<T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
     return Promise.race([
@@ -195,23 +194,27 @@ export default function SystemLayout() {
     : 0;
 
   const sidePanelTabs = [
+    ...(pageContext ? [{ key: 'page' as const, label: 'Capabilities', badge: 0 }] : []),
     { key: 'todo' as const, label: 'To do', badge: todoCount },
     { key: 'details' as const, label: 'System Details', badge: profileActionCount },
   ];
+  const activeSidePanelTab = sidePanelTab === 'page' && !pageContext
+    ? 'todo' : sidePanelTab ?? (pageContext ? 'page' : 'todo');
 
   const sidePanel = (
     <div className="flex flex-col h-full">
       {/* Tab bar */}
-      <div className="flex border-b border-gray-200 bg-white px-2 pt-2">
+      <div className="flex border-b border-gray-200 bg-white px-2 pt-2 dark:border-gray-700 dark:bg-gray-900">
         {sidePanelTabs.map((tab) => (
           <button
             key={tab.key}
             type="button"
             onClick={() => setSidePanelTab(tab.key)}
+            aria-pressed={activeSidePanelTab === tab.key}
             className={`flex-1 px-3 py-2 text-sm font-medium transition-colors border-b-2 ${
-              sidePanelTab === tab.key
-                ? 'border-indigo-600 text-indigo-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              activeSidePanelTab === tab.key
+                ? 'border-indigo-600 text-indigo-700 dark:border-indigo-400 dark:text-indigo-300'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-300 dark:hover:text-white'
             }`}
           >
             {tab.label}
@@ -226,40 +229,14 @@ export default function SystemLayout() {
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {sidePanelTab === 'todo' && (
+        {activeSidePanelTab === 'page' && pageContext}
+        {activeSidePanelTab === 'todo' && (
           <TodoPanel systemId={detail.systemId} />
         )}
 
-        {sidePanelTab === 'details' && (
+        {activeSidePanelTab === 'details' && (
           <>
-            {/* Profile Summary Card */}
-            {profileCompleteness && (
-              <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-700">Profile Completeness</h3>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-indigo-600 h-2 rounded-full transition-all"
-                    style={{ width: `${profileCompleteness.approvedPercentage}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500">
-                  {profileCompleteness.statusCounts['Approved'] ?? 0} / {profileCompleteness.totalSections} mandatory approved
-                </p>
-                {profileCompleteness.missionOwnerName && (
-                  <p className="text-xs text-gray-500">
-                    Mission Owner: <span className="font-medium text-gray-700">{profileCompleteness.missionOwnerName}</span>
-                  </p>
-                )}
-                {canEditProfile && profileCompleteness.incompleteSections.length > 0 && profileCompleteness.incompleteSections[0] && (
-                  <Link
-                    to={`${basePath}/profile/${profileCompleteness.incompleteSections[0].sectionType}`}
-                    className="inline-block text-xs text-indigo-600 hover:underline"
-                  >
-                    Continue editing profile →
-                  </Link>
-                )}
-              </div>
-            )}
+            <Link to={basePath} className="text-sm underline">View profile completeness on the system overview</Link>
 
             {/* System Summary */}
             <div className="rounded-xl border border-gray-200 bg-white">
@@ -324,18 +301,18 @@ export default function SystemLayout() {
 
   const leftPanel = (
     <aside
-      className={`hidden md:flex flex-col flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto transition-all duration-200 ${
+      className={`hidden md:flex flex-col flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto transition-all duration-200 dark:border-gray-700 dark:bg-gray-900 ${
         navCollapsed ? 'w-14' : 'w-56'
       }`}
     >
-      <div className={`flex items-center ${navCollapsed ? 'justify-center' : 'justify-between'} px-3 py-3 border-b border-gray-100`}>
+      <div className={`flex items-center ${navCollapsed ? 'justify-center' : 'justify-between'} px-3 py-3 border-b border-gray-100 dark:border-gray-700`}>
         {!navCollapsed && (
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Navigation</span>
         )}
         <button
           type="button"
           onClick={() => setNavCollapsed(!navCollapsed)}
-          className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+          className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-100"
           title={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
           aria-label={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
         >
@@ -375,10 +352,11 @@ export default function SystemLayout() {
                     key={item.path}
                     to={to}
                     data-testid={`nav-${item.path || 'overview'}`}
+                    aria-current={isActive ? 'page' : undefined}
                     className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                       isActive
-                        ? 'bg-indigo-50 text-indigo-700 font-medium'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        ? 'bg-indigo-50 text-indigo-700 font-medium dark:bg-indigo-950 dark:text-indigo-200'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
                     } ${navCollapsed ? 'justify-center' : ''}`}
                     title={navCollapsed ? item.label : undefined}
                   >
@@ -398,22 +376,34 @@ export default function SystemLayout() {
   );
 
   return (
-    <SystemContext.Provider value={{ detail, refetch: fetchData }}>
+    <SystemContext.Provider value={{ detail, refetch: fetchData, setPageContext }}>
       <PageLayout
         title={detail.name}
         sidePanel={sidePanel}
+        defaultSidePanelOpen={false}
         leftPanel={leftPanel}
       >
         {/* Breadcrumb */}
         <div className="mb-4 text-sm">
-          <Link to="/" className="text-indigo-600 hover:underline">
+          <Link to="/" className="text-indigo-600 hover:underline dark:text-indigo-300">
             Portfolio
           </Link>
           <span className="mx-2 text-gray-400">/</span>
-          <Link to={basePath} className="text-indigo-600 hover:underline">
+          <Link to={basePath} className="text-indigo-600 hover:underline dark:text-indigo-300">
             {detail.name}
           </Link>
         </div>
+        <details className="mb-4 rounded border border-gray-200 p-3 text-sm dark:border-gray-700 md:hidden">
+          <summary className="cursor-pointer font-medium">System navigation</summary>
+          <nav aria-label="Mobile system navigation" className="mt-2 grid grid-cols-2 gap-2">
+            {SYSTEM_NAV_GROUPS.flatMap(group => group.items).map(item => (
+              <Link key={item.path} to={`${basePath}${item.path ? `/${item.path}` : ''}`}
+                className="rounded p-2 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-gray-800">
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </details>
 
         <Outlet />
       </PageLayout>

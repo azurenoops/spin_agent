@@ -3,6 +3,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import apiClient from '../../api/client';
 import Assessments from '../../pages/Assessments';
+import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
+import { workspaceSession } from '../helpers/domainPermissions';
 import {
   configurationUrl, deferred, historicalAssessment, otherSystemId, readiness,
   readinessPath, systemDetail, systemId,
@@ -13,6 +15,7 @@ vi.mock('../../components/layout/SystemLayout', () => ({
   useSystemContext: () => ({ detail: { ...systemDetail, systemId: context.systemId }, refetch: vi.fn() }),
 }));
 vi.mock('../../api/client', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
 vi.mock('../../api/sap', () => ({
   getLatestSap: vi.fn().mockResolvedValue(null), generateSap: vi.fn(), finalizeSap: vi.fn(),
 }));
@@ -30,6 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(apiClient.post).mockReset();
   context.systemId = systemId;
+  vi.mocked(useWorkspaceSession).mockReturnValue(null);
   responses.clear();
   responses.set('/assessments', () => [historicalAssessment]);
   responses.set(readinessPath(), () => readiness());
@@ -158,6 +162,7 @@ describe('Assessments Azure admission (#981)', () => {
     expect(runButton()).toBeDisabled();
     expect(screen.getByText(error.suggestion)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl());
+    expect(screen.queryByRole('button', { name: /retry readiness/i })).not.toBeInTheDocument();
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
@@ -184,6 +189,34 @@ describe('Assessments Azure admission (#981)', () => {
 
     // Assert
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+  });
+
+  it.each([401, 403])('shows access guidance, not Retry, for empty-body HTTP %s readiness errors', async status => {
+    // Arrange
+    responses.set(readinessPath(), () => {
+      throw Object.assign(new Error(`Request failed with status code ${status}`), {
+        isAxiosError: true, response: { status, data: '' },
+      });
+    });
+    renderPage();
+    // Act
+    await screen.findByText('Azure assessment access required');
+    // Assert
+    expect(runButton()).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /retry readiness/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl());
+  });
+
+  it('avoids readiness reads when canonical system permissions deny assessment execution', async () => {
+    // Arrange
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession(systemId));
+    render(<MemoryRouter initialEntries={[`/workspaces/organizations/tenant-a/systems/${systemId}/assessments`]}><Assessments /></MemoryRouter>);
+    // Act
+    await screen.findByText('Azure assessment access required');
+    // Assert
+    expect(apiClient.get).not.toHaveBeenCalledWith(readinessPath());
+    expect(runButton()).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /retry readiness/i })).not.toBeInTheDocument();
   });
 
   it('keeps a normalized POST prerequisite rejection actionable after previously being ready', async () => {
@@ -214,8 +247,10 @@ describe('Assessments Azure admission (#981)', () => {
     fireEvent.click(runButton());
 
     // Act
-    context.systemId = otherSystemId;
-    page.rerender(<MemoryRouter><Assessments /></MemoryRouter>);
+    await act(async () => {
+      context.systemId = otherSystemId;
+      page.rerender(<MemoryRouter><Assessments /></MemoryRouter>);
+    });
 
     // Assert
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();

@@ -1,0 +1,146 @@
+@baseUrl = http://localhost:3001
+@providerToken = REPLACE_WITH_LOCAL_PROVIDER_TOKEN
+@missionToken = REPLACE_WITH_LOCAL_MISSION_TOKEN
+@offeringId = 00000000-0000-0000-0000-000000000001
+@scopeRevisionId = 00000000-0000-0000-0000-000000000002
+@assignmentId = 00000000-0000-0000-0000-000000000003
+@tenantId = 00000000-0000-0000-0000-000000000004
+@systemId = 00000000-0000-0000-0000-000000000005
+@directoryId = 00000000-0000-0000-0000-000000000006
+@subscriptionId = 00000000-0000-0000-0000-000000000007
+@relationshipId = 00000000-0000-0000-0000-000000000008
+@capabilityId = 00000000-0000-0000-0000-000000000009
+@releaseId = 00000000-0000-0000-0000-000000000010
+
+# Manual local examples only. Replace placeholders from exact authorized GETs.
+# POSTs persist metadata. Do not run a file-wide send or use production tokens.
+# Provider token never substitutes for mission membership or an assigned RMF role.
+
+### Read-only: full count and a page of immutable hosting scopes
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/hosting-scope-revisions?page=1&pageSize=25
+Authorization: Bearer {{providerToken}}
+
+### Read-only: exact retained revision, including historical revisions
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/hosting-scope-revisions/{{scopeRevisionId}}
+Authorization: Bearer {{providerToken}}
+
+### Explicit local mutation: first technical scope (not authorization coverage)
+POST {{baseUrl}}/api/csp/offerings/{{offeringId}}/hosting-scope-revisions
+Authorization: Bearer {{providerToken}}
+Idempotency-Key: local-hosting-scope-001
+Content-Type: application/json
+
+{
+  "expectedOfferingRevision": 1,
+  "predecessorRevisionId": null,
+  "name": "Synthetic mission hosting",
+  "permittedScopes": [
+    {
+      "cloud": "AzureCloud",
+      "directoryTenantId": "{{directoryId}}",
+      "subscriptionId": "{{subscriptionId}}",
+      "resourceId": "/subscriptions/{{subscriptionId}}/resourceGroups/mission"
+    }
+  ],
+  "exclusions": [],
+  "citations": []
+}
+
+### Read-only: existing allocations; total counts assignment records, not systems
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/hosting-assignments?page=1&pageSize=25
+Authorization: Bearer {{providerToken}}
+
+### Read-only: exact allocation (also the create response Location)
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/hosting-assignments/{{assignmentId}}
+Authorization: Bearer {{providerToken}}
+
+### Explicit local provider mutation: technical metadata for an EXISTING system
+POST {{baseUrl}}/api/csp/offerings/{{offeringId}}/hosting-assignments
+Authorization: Bearer {{providerToken}}
+Idempotency-Key: local-hosting-allocation-001
+Content-Type: application/json
+
+{
+  "targetTenantId": "{{tenantId}}",
+  "systemId": "{{systemId}}",
+  "hostingScopeRevisionId": "{{scopeRevisionId}}",
+  "assignedScopes": [
+    {
+      "cloud": "AzureCloud",
+      "directoryTenantId": "{{directoryId}}",
+      "subscriptionId": "{{subscriptionId}}",
+      "resourceId": "/subscriptions/{{subscriptionId}}/resourceGroups/mission"
+    }
+  ],
+  "references": []
+}
+
+### Read-only: Microsoft references, filtered before total and paging
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/authorization-records?recordKind=InheritedMicrosoftReference&page=1&pageSize=25
+Authorization: Bearer {{providerToken}}
+
+### Read-only: selected mission's existing allocations and persisted associations
+GET {{baseUrl}}/api/dashboard/systems/{{systemId}}/provider-relationships?page=1&pageSize=25
+Authorization: Bearer {{missionToken}}
+
+### Explicit local mission mutation: association ONLY; no request/grant/adoption/coverage
+POST {{baseUrl}}/api/dashboard/systems/{{systemId}}/provider-relationships
+Authorization: Bearer {{missionToken}}
+Idempotency-Key: local-association-001
+Content-Type: application/json
+
+{
+  "assignmentId": "{{assignmentId}}",
+  "expectedAssignmentRevision": 1
+}
+
+### Optional explicit relationship preview; NOT required for technical association
+POST {{baseUrl}}/api/dashboard/systems/{{systemId}}/provider-relationships/{{relationshipId}}/previews
+Authorization: Bearer {{missionToken}}
+Content-Type: application/json
+
+{
+  "expectedRevision": 1,
+  "expectedAssignmentRevision": 1,
+  "relationshipState": "SeparateBoundaryConsumer",
+  "authorizationRevisionId": null,
+  "boundaryRevisionId": null,
+  "evidence": [],
+  "rationale": "Explicitly retain separate mission authorization."
+}
+
+### Optional review: copy exact preview ID/hash/revision; covered review additionally requires AO
+POST {{baseUrl}}/api/dashboard/systems/{{systemId}}/provider-relationships/{{relationshipId}}/review
+Authorization: Bearer {{missionToken}}
+Content-Type: application/json
+
+{
+  "expectedRevision": 2,
+  "previewId": "00000000-0000-0000-0000-000000000011",
+  "previewHash": "COPY_EXACT_PREVIEW_HASH",
+  "rationale": "Confirm the displayed separate-boundary relationship, not an ATO."
+}
+
+### Read-only: exact published offering contexts for the selected existing allocation
+GET {{baseUrl}}/api/dashboard/systems/{{systemId}}/applicable-provider-capabilities?assignmentId={{assignmentId}}&offeringId={{offeringId}}&environment=AzureCloud&page=1&pageSize=25
+Authorization: Bearer {{missionToken}}
+
+### Explicit ISSM/ISSO-only local mutation: canonical subscription plus exact pins
+# Pure MissionOwner gets 403. This does not confirm responsibilities or issue authorization.
+POST {{baseUrl}}/api/dashboard/systems/{{systemId}}/provider-capability-adoptions
+Authorization: Bearer {{missionToken}}
+Idempotency-Key: local-adoption-001
+Content-Type: application/json
+
+{
+  "assignmentId": "{{assignmentId}}",
+  "expectedAssignmentRevision": 1,
+  "capabilityId": "{{capabilityId}}",
+  "releaseId": "{{releaseId}}",
+  "contextSnapshotHash": "COPY_EXACT_APPLICABILITY_SNAPSHOT_HASH",
+  "applicabilityPreviewHash": "COPY_EXACT_APPLICABILITY_PREVIEW_HASH"
+}
+
+### Read-only invalid paging: 400 error envelope, not truncated success
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/hosting-assignments?page=1&pageSize=101
+Authorization: Bearer {{providerToken}}

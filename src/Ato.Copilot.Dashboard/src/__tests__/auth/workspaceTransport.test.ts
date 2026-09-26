@@ -22,6 +22,8 @@ describe('workspace transport through the shared auth client', () => {
   it.each([
     ['/workspaces/organizations/org-alpha/systems/a', 'organization', 'org-alpha'],
     ['/workspaces/csp/capabilities', 'csp', undefined],
+    ['/onboarding/csp', 'csp', undefined],
+    ['/onboarding/csp/', 'csp', undefined],
   ])('uses server-verifiable selectors from %s', async (path, kind, tenantId) => {
     // Arrange
     location(path);
@@ -39,6 +41,60 @@ describe('workspace transport through the shared auth client', () => {
     expect(captured?.headers.get('X-Workspace-Kind')).toBe(kind);
     expect(captured?.headers.get('X-Workspace-Tenant-Id')).toBe(tenantId);
     expect(captured?.headers.get('X-Workspace-Mode')).toBe('ordinary');
+  });
+
+  it.each([
+    '/api/csp/onboarding/atos/upload',
+    '/api/csp/package-imports',
+    '/api/csp/package-imports/package-a/artifacts/artifact-a/content',
+  ])('keeps onboarding package operation %s in ordinary provider scope', async url => {
+    // Arrange
+    location('/onboarding/csp');
+    const client = authenticatedClient();
+    client.defaults.adapter = async config => response(config);
+
+    // Act
+    const result = await client.request({ url, method: url.endsWith('/upload') ? 'post' : 'get', headers: {
+      'X-Workspace-Kind': 'organization',
+      'X-Workspace-Tenant-Id': 'old-org',
+      'X-Workspace-Mode': 'support',
+    } });
+
+    // Assert
+    expect(result.config.headers.get('X-Workspace-Kind')).toBe('csp');
+    expect(result.config.headers.get('X-Workspace-Mode')).toBe('ordinary');
+    expect(result.config.headers.has('X-Workspace-Tenant-Id')).toBe(false);
+  });
+
+  it.each(['/onboarding/csp-other', '/onboarding/csp/unknown', '/onboarding/organization'])(
+    'does not infer provider scope for lookalike onboarding route %s', async path => {
+      // Arrange
+      location(path);
+      const client = authenticatedClient();
+      client.defaults.adapter = async config => response(config);
+
+      // Act
+      const result = await client.get('/api/csp/package-imports');
+
+      // Assert
+      expect(result.config.headers.has('X-Workspace-Kind')).toBe(false);
+    },
+  );
+
+  it('cancels onboarding responses when the administrator changes to an organization', async () => {
+    // Arrange
+    location('/onboarding/csp');
+    const client = authenticatedClient();
+    client.defaults.adapter = async config => {
+      location('/workspaces/organizations/org-alpha');
+      return response(config);
+    };
+
+    // Act
+    const request = client.get('/api/csp/package-imports');
+
+    // Assert
+    await expect(request).rejects.toMatchObject({ code: 'ERR_CANCELED' });
   });
 
   it('removes stale selectors from legacy requests instead of assuming membership', async () => {

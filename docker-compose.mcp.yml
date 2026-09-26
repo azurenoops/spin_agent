@@ -86,6 +86,7 @@ services:
       - ATO_AZUREAI__DEPLOYMENTNAME=${ATO_AZUREAI__DEPLOYMENTNAME:-gpt-4o}
       - ATO_AZUREAI__APIKEY=${ATO_AZUREAI__APIKEY}
       - ATO_AZUREAI__USEMANAGEDIDENTITY=${ATO_AZUREAI__USEMANAGEDIDENTITY:-true}
+      - ATO_AZUREAI__USEMAXCOMPLETIONTOKENS=${ATO_AZUREAI__USEMAXCOMPLETIONTOKENS:-false}
       - ATO_AZUREAI__CLOUDENVIRONMENT=${ATO_AZUREAI__CLOUDENVIRONMENT:-AzurePublicCloud}
       - ATO_AZUREAI__MAXTOOLITERATIONS=${ATO_AZUREAI__MAXTOOLITERATIONS:-10}
       - ATO_AZUREAI__TEMPERATURE=${ATO_AZUREAI__TEMPERATURE:-0.3}
@@ -94,6 +95,9 @@ services:
 
       # ── Managed Identity (Azure Gov authority) ────────────
       - AZURE_AUTHORITY_HOST=${AZURE_AUTHORITY_HOST:-https://login.microsoftonline.us}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}
 
       # ── Database (SQL Server) ─────────────────────────────
       - ATO_DATABASE__PROVIDER=SqlServer
@@ -145,6 +149,7 @@ services:
       - ATO_FEATURES__ENTRAIDDISCOVERYENABLED=${ATO_FEATURES__ENTRAIDDISCOVERYENABLED:-true}
     volumes:
       - ato-logs:/app/logs
+      - ato-data:/data
       # Mount Azure CLI creds for DefaultAzureCredential in local Docker
       - ${HOME}/.azure:/home/atocopilot/.azure
     healthcheck:
@@ -203,6 +208,7 @@ services:
       dockerfile: src/Ato.Copilot.Dashboard/Dockerfile
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        DASHBOARD_BUILD_ENV: ${DASHBOARD_BUILD_ENV:-development}
     container_name: ato-copilot-dashboard
     restart: unless-stopped
     depends_on:
@@ -246,6 +252,8 @@ volumes:
   sql-data:
     driver: local
   ato-logs:
+    driver: local
+  ato-data:
     driver: local
   chat-logs:
     driver: local

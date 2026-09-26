@@ -37,6 +37,19 @@
      <Content Include="TestData\**\*.*" CopyToOutputDirectory="PreserveNewest" />
    </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\examples\package-imports\azure-example-package.json"
+                      LogicalName="PackageImports.Fixtures.azure-example-package.json" />
+    <EmbeddedResource Include="..\..\docs\examples\package-imports\synthetic-oscal.json"
+                      LogicalName="PackageImports.Fixtures.synthetic-oscal.json" />
+    <EmbeddedResource Include="..\..\docs\examples\package-imports\no-candidates.json"
+                      LogicalName="PackageImports.Fixtures.no-candidates.json" />
+    <EmbeddedResource Include="..\..\docs\examples\package-imports\unsupported.synthetic"
+                      LogicalName="PackageImports.Fixtures.unsupported.synthetic" />
+    <EmbeddedResource Include="..\..\docs\examples\package-imports\synthetic-authorization-reference.json"
+                      LogicalName="PackageImports.Fixtures.synthetic-authorization-reference.json" />
+  </ItemGroup>
+
   <!-- #640/#791 security branch: exclude untracked stub test files that reference
        undefined types not yet in Core. These are pre-existing untracked stubs
        (not load-bearing — no production callers), excluded here so the security

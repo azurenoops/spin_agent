@@ -2,10 +2,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import apiClient from '../../api/client';
-import SystemProfile from '../../pages/SystemProfile';
+import AssessmentEnvironment from '../../pages/AssessmentEnvironment';
+import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
+import { workspaceSession } from '../helpers/domainPermissions';
+import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 import {
   configurationUrl, deferred, environment, environmentPath, governmentSubscriptionId,
-  legacySubscriptionId, otherSystemId, profileCompleteness, profileSection, readiness,
+  legacySubscriptionId, otherSystemId, readiness,
   readinessPath, subscriptionId, systemDetail, systemId, unavailableSubscriptionId,
 } from '../fixtures/assessmentEnvironment';
 
@@ -13,19 +16,14 @@ const context = vi.hoisted(() => ({ systemId: 'assessment-system-a' }));
 vi.mock('../../components/layout/SystemLayout', () => ({
   useSystemContext: () => ({ detail: { ...systemDetail, systemId: context.systemId }, refetch: vi.fn() }),
 }));
-vi.mock('../../hooks/useSettings', () => ({ useSettings: () => ({ settings: { role: 'ISSM' } }) }));
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
 vi.mock('../../api/client', () => ({ default: { get: vi.fn(), put: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
-vi.mock('../../components/forms/ProfileSectionForm', () => ({
-  default: ({ isReadOnly }: { isReadOnly: boolean }) => (
-    <fieldset disabled={isReadOnly}><legend>Descriptive Mission Profile</legend><input aria-label="Profile description" /></fieldset>
-  ),
-}));
 
 const responses = new Map<string, () => unknown>();
 const panel = () => screen.findByRole('region', { name: /Azure assessment environment/i });
-const pageElement = (section = 'EnvironmentAndDeployment') => (
-  <MemoryRouter initialEntries={[`/systems/${context.systemId}/profile/${section}`]}>
-    <Routes><Route path="/systems/:id/profile/:sectionType" element={<SystemProfile />} /></Routes>
+const pageElement = (prefix = '') => (
+  <MemoryRouter initialEntries={[`${prefix}/systems/${context.systemId}/assessments/environment`]}>
+    <Routes><Route path={`${prefix}/systems/:id/assessments/environment`} element={<AssessmentEnvironment />} /></Routes>
   </MemoryRouter>
 );
 
@@ -34,11 +32,9 @@ beforeEach(() => {
   vi.mocked(apiClient.put).mockReset();
   vi.mocked(apiClient.delete).mockReset();
   context.systemId = systemId;
+  vi.mocked(useWorkspaceSession).mockReturnValue(null);
   responses.clear();
   for (const id of [systemId, otherSystemId]) {
-    responses.set(`/systems/${id}/profile/EnvironmentAndDeployment`, () => ({ ...profileSection, systemId: id }));
-    responses.set(`/systems/${id}/profile/MissionAndPurpose`, () => ({ ...profileSection, systemId: id, sectionType: 'MissionAndPurpose' }));
-    responses.set(`/systems/${id}/profile/completeness`, () => ({ ...profileCompleteness, systemId: id }));
     responses.set(environmentPath(id), () => environment(id));
     responses.set(readinessPath(id), () => readiness(false, id));
   }
@@ -54,9 +50,20 @@ beforeEach(() => {
   vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); localStorage.removeItem('ato-dashboard-settings'); });
 
-describe('Environment page Azure attachment (#981)', () => {
+describe('Assessments Azure environment configuration (#981)', () => {
+  it('provides selected-system links back to Assessments and Environment without hosting controls', async () => {
+    // Arrange
+    render(pageElement());
+    // Act
+    await panel();
+    // Assert
+    expect(screen.getByRole('link', { name: 'Back to Assessments' })).toHaveAttribute('href', `/systems/${systemId}/assessments`);
+    expect(screen.getByRole('link', { name: 'Environment' })).toHaveAttribute('href', `/systems/${systemId}/profile/EnvironmentAndDeployment`);
+    expect(screen.queryByRole('region', { name: 'Hosting' })).not.toBeInTheDocument();
+  });
+
   it('provides the Configure Environment anchor independently of descriptive governance', async () => {
     // Arrange
     render(pageElement());
@@ -67,34 +74,37 @@ describe('Environment page Azure attachment (#981)', () => {
     // Assert
     expect(attachment).toHaveAttribute('id', 'azure-assessment-environment');
     expect(configurationUrl()).toContain(`#${attachment.id}`);
-    expect(screen.getByRole('textbox', { name: 'Profile description' })).toBeDisabled();
+    expect(screen.queryByRole('textbox', { name: 'Profile description' })).not.toBeInTheDocument();
     expect(within(attachment).getByRole('checkbox', { name: /Synthetic Commercial Alpha/i })).toBeEnabled();
     expect(within(attachment).queryByLabelText(/password|client secret|access key|credential/i)).not.toBeInTheDocument();
   });
 
-  it('does not mount attachment configuration on other profile sections', async () => {
+  it('does not fetch descriptive profile sections or completeness', async () => {
     // Arrange
-    render(pageElement('MissionAndPurpose'));
-
-    // Act
-    await screen.findByRole('textbox', { name: 'Profile description' });
-
-    // Assert
-    expect(screen.queryByRole('region', { name: /Azure assessment environment/i })).not.toBeInTheDocument();
-    expect(apiClient.get).not.toHaveBeenCalledWith(environmentPath());
-  });
-
-  it('keeps attachment repair available when descriptive profile loading fails', async () => {
-    // Arrange
-    responses.set(`/systems/${systemId}/profile/EnvironmentAndDeployment`, () => { throw new Error('Profile unavailable'); });
     render(pageElement());
 
     // Act
-    const attachment = await panel();
+    await within(await panel()).findByRole('checkbox', { name: /Synthetic Commercial Alpha/i });
 
     // Assert
-    expect(within(attachment).getByRole('checkbox', { name: /Synthetic Commercial Alpha/i })).toBeEnabled();
-    expect(screen.getByText('Unable to load profile section.')).toBeInTheDocument();
+    expect(vi.mocked(apiClient.get).mock.calls.every(([url]) => url === environmentPath() || url === readinessPath())).toBe(true);
+  });
+
+  it('waits for configuration authorization before checking readiness', async () => {
+    // Arrange
+    const pending = deferred<ReturnType<typeof environment>>();
+    responses.set(environmentPath(), () => pending.promise);
+    render(pageElement());
+
+    // Act
+    await panel();
+
+    // Assert
+    expect(apiClient.get).not.toHaveBeenCalledWith(readinessPath());
+    // Act
+    await act(async () => pending.resolve(environment()));
+    // Assert
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith(readinessPath()));
   });
 
   it('does not auto-select registrations and disables unavailable or mismatched subscriptions', async () => {
@@ -253,6 +263,8 @@ describe('Environment page Azure attachment (#981)', () => {
     expect(await within(attachment).findByText(error.error)).toBeInTheDocument();
     expect(within(attachment).getByText(error.suggestion)).toBeInTheDocument();
     expect(within(attachment).queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(within(attachment).queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalledWith(readinessPath());
     for (const button of within(attachment).queryAllByRole('button', { name: /save environment|detach environment/i })) expect(button).toBeDisabled();
     expect(apiClient.put).not.toHaveBeenCalled();
   });
@@ -270,6 +282,105 @@ describe('Environment page Azure attachment (#981)', () => {
 
     // Assert
     expect(await within(attachment).findByRole('checkbox', { name: /Synthetic Commercial Alpha/i })).toBeEnabled();
+  });
+
+  it.each([401, 403])('explains bodyless HTTP %s without Retry or redundant readiness reads', async status => {
+    // Arrange
+    responses.set(environmentPath(), () => {
+      throw Object.assign(new Error(`Request failed with status code ${status}`), {
+        isAxiosError: true, response: { status, data: '' },
+      });
+    });
+    render(pageElement());
+    // Act
+    const attachment = await panel();
+    // Assert
+    expect(await within(attachment).findByText('Azure assessment access required')).toBeInTheDocument();
+    expect(within(attachment).getByText(/authorized compliance writer|sign in/i)).toBeInTheDocument();
+    expect(within(attachment).queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    expect(within(attachment).queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalledWith(readinessPath());
+  });
+
+  it('honors canonical server denial rather than a browser ISSM persona', async () => {
+    // Arrange
+    localStorage.setItem('ato-dashboard-settings', JSON.stringify({ role: 'ISSM' }));
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession(systemId));
+    render(pageElement('/workspaces/organizations/tenant-a'));
+    // Act
+    const attachment = await panel();
+    // Assert
+    expect(within(attachment).getByText('Azure assessment access required')).toBeInTheDocument();
+    expect(within(attachment).queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it('preserves workspace and selected-system context in configuration page navigation', async () => {
+    // Arrange
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession(systemId, { canRunAssessments: true }));
+    render(
+      <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'tenant-a' }}>
+        {pageElement('/workspaces/organizations/tenant-a')}
+      </WorkspaceNavigationProvider>,
+    );
+    // Act
+    const attachment = await panel();
+    // Assert
+    expect(await within(attachment).findByRole('checkbox', { name: /Synthetic Commercial Alpha/i })).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'Back to Assessments' })).toHaveAttribute('href', `/workspaces/organizations/tenant-a/systems/${systemId}/assessments`);
+    expect(screen.getByRole('link', { name: 'Environment' })).toHaveAttribute('href', `/workspaces/organizations/tenant-a/systems/${systemId}/profile/EnvironmentAndDeployment`);
+  });
+
+  it('discards pending save completion after canonical permission revocation and can load after regrant', async () => {
+    // Arrange
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession(systemId, { canRunAssessments: true }));
+    const pending = deferred<{ data: ReturnType<typeof environment> }>();
+    vi.mocked(apiClient.put).mockReturnValue(pending.promise);
+    const page = render(pageElement('/workspaces/organizations/tenant-a'));
+    const attachment = await panel();
+    fireEvent.click(await within(attachment).findByRole('checkbox', { name: /Synthetic Commercial Alpha/i }));
+    fireEvent.click(within(attachment).getByRole('button', { name: /save environment/i }));
+    // Act
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession(systemId));
+    page.rerender(pageElement('/workspaces/organizations/tenant-a'));
+    await act(async () => pending.resolve({ data: environment() }));
+    // Assert
+    expect(within(attachment).getByText('Azure assessment access required')).toBeInTheDocument();
+    expect(within(attachment).queryByText(/attachment saved/i)).not.toBeInTheDocument();
+    // Act
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession(systemId, { canRunAssessments: true }));
+    page.rerender(pageElement('/workspaces/organizations/tenant-a'));
+    // Assert
+    expect(await within(attachment).findByRole('checkbox', { name: /Synthetic Commercial Alpha/i })).toBeEnabled();
+  });
+
+  it.each(['put', 'delete'] as const)('shows access-required without retry when %s is denied', async method => {
+    // Arrange
+    responses.set(environmentPath(), () => ({ ...environment(), cloudEnvironment: 'Commercial', subscriptionIds: [subscriptionId] }));
+    vi.mocked(apiClient[method]).mockRejectedValue({
+      error: 'Assessment configuration access was revoked.', errorCode: 'FORBIDDEN',
+    });
+    render(pageElement());
+    const attachment = await panel();
+    // Act
+    fireEvent.click(await within(attachment).findByRole('button', { name: method === 'put' ? /save environment/i : /detach environment/i }));
+    // Assert
+    expect(await within(attachment).findByText('Azure assessment access required')).toBeInTheDocument();
+    expect(within(attachment).queryByRole('button', { name: /retry|save|detach/i })).not.toBeInTheDocument();
+    expect(within(attachment).queryByText(/attachment saved|environment detached/i)).not.toBeInTheDocument();
+  });
+
+  it('removes readiness retry and editing when readiness itself denies access', async () => {
+    // Arrange
+    responses.set(readinessPath(), () => {
+      throw { error: 'Assessment access denied.', errorCode: 'ASSESSMENT_PERMISSION_REQUIRED' };
+    });
+    render(pageElement());
+    // Act
+    const attachment = await panel();
+    // Assert
+    expect(await within(attachment).findByText('Assessment access denied.')).toBeInTheDocument();
+    expect(within(attachment).queryByRole('button', { name: /retry|save|detach/i })).not.toBeInTheDocument();
   });
 
   it('blocks configuration when the CSP administrator has not explicitly selected the system organization', async () => {

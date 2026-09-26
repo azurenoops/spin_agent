@@ -5,6 +5,7 @@ import RouteResolverFallback from '../components/layout/RouteResolverFallback';
 import { useCspDashboardAvailable } from '../components/layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../hooks/useImpersonationActive';
 import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
+import { Navigate, useLocation } from '../features/workspaces/workspaceNavigation';
 
 /**
  * Scope-aware resolver mounted at `/capabilities`. Mirrors `ComponentsRoute`.
@@ -24,11 +25,19 @@ import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
  */
 export default function CapabilitiesRoute(): ReactElement {
   const workspace = useWorkspaceTarget();
+  const location = useLocation();
   const impersonating = useImpersonationActive();
   const cspAdminAvailable = useCspDashboardAvailable(!workspace);
 
-  if (workspace?.kind === 'csp') return <CspCapabilitiesPage />;
-  if (workspace?.kind === 'organization') return <CapabilityLibrary />;
+  if (workspace) {
+    const search = new URLSearchParams(location.search);
+    if (!search.has('grouping')) search.set('grouping', 'capability');
+    return <Navigate replace to={{
+      pathname: '/security-capabilities',
+      search: search.toString() ? `?${search}` : '',
+      hash: location.hash,
+    }} />;
+  }
 
   if (impersonating) {
     return <CapabilityLibrary />;

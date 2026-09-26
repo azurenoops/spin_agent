@@ -43,6 +43,16 @@ public static class CapabilityResponsibilitySchemaAdditions
                 await db.Database.ExecuteSqlRawAsync("ALTER TABLE CapabilitySubscriptions ADD COLUMN RoutingTenantId TEXT NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'", ct);
             if (!subscriptions.Contains("RoutingCapabilityId"))
                 await db.Database.ExecuteSqlRawAsync("ALTER TABLE CapabilitySubscriptions ADD COLUMN RoutingCapabilityId TEXT NOT NULL DEFAULT ''", ct);
+            var reviews = await SqliteColumnsAsync(connection, "PRAGMA table_info(\"CapabilityResponsibilityConfirmations\")", ct);
+            if (reviews.Count > 0)
+            {
+                if (!reviews.Contains("ProviderCoverageVerified"))
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE CapabilityResponsibilityConfirmations ADD COLUMN ProviderCoverageVerified INTEGER NULL", ct);
+                if (!reviews.Contains("CustomerDutiesReviewed"))
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE CapabilityResponsibilityConfirmations ADD COLUMN CustomerDutiesReviewed INTEGER NULL", ct);
+                if (!reviews.Contains("ReviewNotes"))
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE CapabilityResponsibilityConfirmations ADD COLUMN ReviewNotes TEXT NULL", ct);
+            }
             var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             await using (var command = connection.CreateCommand())
             {
@@ -159,6 +169,7 @@ public static class CapabilityResponsibilitySchemaAdditions
           SourceRevision TEXT NOT NULL, SourceSnapshotJson TEXT NOT NULL, InheritanceType TEXT NOT NULL,
           Provider TEXT NULL, CustomerResponsibility TEXT NULL, ConfirmedBy TEXT NOT NULL,
           ConfirmedAt TEXT NOT NULL, IsCurrent INTEGER NOT NULL,
+          ProviderCoverageVerified INTEGER NULL, CustomerDutiesReviewed INTEGER NULL, ReviewNotes TEXT NULL,
           FOREIGN KEY(RegisteredSystemId) REFERENCES RegisteredSystems(Id));
         CREATE UNIQUE INDEX IF NOT EXISTS IX_CapabilityResponsibilityConfirmations_TenantId_RegisteredSystemId_SubscriptionId_ControlId
           ON CapabilityResponsibilityConfirmations(TenantId,RegisteredSystemId,SubscriptionId,ControlId) WHERE IsCurrent = 1;
@@ -278,6 +289,12 @@ public static class CapabilityResponsibilitySchemaAdditions
           CREATE UNIQUE INDEX IX_CapabilityResponsibilityConfirmations_TenantId_RegisteredSystemId_SubscriptionId_ControlId
             ON dbo.CapabilityResponsibilityConfirmations(TenantId,RegisteredSystemId,SubscriptionId,ControlId) WHERE IsCurrent = 1;
         END;
+        IF COL_LENGTH(N'dbo.CapabilityResponsibilityConfirmations', N'ProviderCoverageVerified') IS NULL
+          ALTER TABLE dbo.CapabilityResponsibilityConfirmations ADD ProviderCoverageVerified BIT NULL;
+        IF COL_LENGTH(N'dbo.CapabilityResponsibilityConfirmations', N'CustomerDutiesReviewed') IS NULL
+          ALTER TABLE dbo.CapabilityResponsibilityConfirmations ADD CustomerDutiesReviewed BIT NULL;
+        IF COL_LENGTH(N'dbo.CapabilityResponsibilityConfirmations', N'ReviewNotes') IS NULL
+          ALTER TABLE dbo.CapabilityResponsibilityConfirmations ADD ReviewNotes NVARCHAR(2000) NULL;
         IF OBJECT_ID(N'dbo.CapabilityResponsibilityProjections', N'U') IS NULL
         BEGIN
           CREATE TABLE dbo.CapabilityResponsibilityProjections (

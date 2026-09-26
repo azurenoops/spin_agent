@@ -1,0 +1,30 @@
+import { test, expect } from '@playwright/test';
+import { installWorkspaceFixture } from '../fixtures/workspace-shell';
+const tenant = '11111111-1111-1111-1111-111111111111';
+const object = '22222222-2222-2222-2222-222222222222';
+for (const width of [1440, 390]) test(`Entra administrator selection at ${width}px`, async ({ page, context, baseURL }) => {
+  await page.setViewportSize({ width, height: 1100 });
+  await installWorkspaceFixture(context, baseURL!, { providerOnly: true });
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await context.route('**/api/csp/directory/connections', route => route.fulfill({ json: { data: [{ id: 'provider', name: 'Flankspeed directory', cloud: 'DoD', directoryTenantId: tenant, configured: true }] } }));
+  await context.route('**/api/csp/directory/users?*', route => {
+    expect(new URL(route.request().url()).searchParams.get('query')).toBe('Jordan');
+    expect(route.request().headers()['x-workspace-kind']).toBe('csp');
+    return route.fulfill({ json: { data: { users: [{ directoryTenantId: tenant, objectId: object, displayName: 'Jordan Lee', email: 'jordan.lee@example.mil', userPrincipalName: 'jordan.lee@example.mil' }], hasMore: false } } });
+  });
+  await page.goto('/workspaces/csp/organizations/new');
+  await page.getByLabel('Organization name', { exact: true }).fill('PEO-790');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByLabel('Find a person').fill('Jordan');
+  await page.getByRole('button', { name: 'Search Entra' }).click();
+  await expect(page.getByRole('button', { name: /Select Jordan Lee/ })).toBeVisible();
+  await page.screenshot({ path: `../../docs/design/entra-administrator-search-${width}.png`, fullPage: true });
+  await page.getByRole('button', { name: /Select Jordan Lee/ }).click();
+  await expect(page.getByRole('heading', { name: 'Jordan Lee' })).toBeVisible();
+  await page.screenshot({ path: `../../docs/design/entra-administrator-selected-${width}.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Review setup' }).click();
+  await expect(page.getByText(object, { exact: true })).toBeVisible();
+  await expect(page.getByText('jordan.lee@example.mil', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(errors).toEqual([]);
+});

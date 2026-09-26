@@ -51,7 +51,7 @@ export default function PortfolioRoute(): ReactElement {
   const cspAdminAvailable = useCspDashboardAvailable(!workspace);
 
   if (workspace?.kind === 'csp') return <CspDashboardPage />;
-  if (workspace?.kind === 'organization') return <PortfolioRiskProfile />;
+  if (workspace?.kind === 'organization') return <PortfolioRiskProfile key={`${workspace.tenantId}:${workspace.mode ?? 'ordinary'}`} />;
 
   if (impersonating) {
     return <PortfolioRiskProfile />;

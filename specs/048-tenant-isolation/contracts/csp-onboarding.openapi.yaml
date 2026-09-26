@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Security Posture Intelligence Navigator — CSP Onboarding API (US7)
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Singleton onboarding wizard for the hosting Cloud Service Provider (CSP)
     itself, NOT for per-customer tenants. Captures the CSP's own legal entity,
@@ -13,6 +13,16 @@ info:
     All endpoints require the caller to hold the `CSP.Admin` role. While
     `CspProfile.OnboardingState != Active`, every other tenant-scoped endpoint
     returns `503 CSP_ONBOARDING_INCOMPLETE`.
+
+    Optional ATO package receipt is separate from onboarding activation,
+    processing, administrator review and publication. The negotiated async
+    upload contract is defined in csp-inherited-components.openapi.yaml and
+    ../../078-role-aware-workspaces/contracts/package-imports.md.
+    The authorization-led workflow labels this optional step "Import an
+    existing authorization package". Detailed offering, decision, boundary
+    and extraction review belongs in Authorizations after setup. Upload,
+    processing and profile activation cannot confirm external decision
+    metadata, publish coverage or authorize a mission workload.
 
 servers:
   - url: https://copilot.ato.example.us/api
@@ -226,6 +236,9 @@ paths:
         per-tenant pre-provisioning (`POST /api/tenants`) and the per-tenant
         onboarding wizard (`/api/onboarding/tenant/*`) become available, and
         all `503 CSP_ONBOARDING_INCOMPLETE` gates lift.
+        Does not publish any component or capability, approve imports, or wait
+        for optional package processing. Imported records stay unpublished
+        until explicit review, exact-revision approval and portal publication.
       operationId: postCspOnboardingSubmit
       responses:
         "200":

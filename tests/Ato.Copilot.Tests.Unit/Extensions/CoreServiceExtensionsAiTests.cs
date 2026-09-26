@@ -14,6 +14,34 @@ namespace Ato.Copilot.Tests.Unit.Extensions;
 /// </summary>
 public class CoreServiceExtensionsAiTests
 {
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("false", false)]
+    [InlineData("true", true)]
+    public void AddAtoCopilotCore_CompletionTokenAdapterRequiresExplicitOptIn(string? setting, bool expected)
+    {
+        // Arrange
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AzureAi:Endpoint"] = "https://test.openai.azure.com/",
+            ["AzureAi:ApiKey"] = "unit-test-only",
+            ["AzureAi:DeploymentName"] = "production-reasoning",
+            ["AzureAi:UseMaxCompletionTokens"] = setting
+        }).Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAtoCopilotCore(config);
+        using var provider = services.BuildServiceProvider();
+
+        // Act
+        var client = provider.GetRequiredService<IChatClient>();
+
+        // Assert
+        (client.GetService<OpenAI.Chat.ChatClient>() is Ato.Copilot.Core.Services.AzureCompletionTokenChatClient)
+            .Should().Be(expected);
+        client.GetService<ChatClientMetadata>()!.DefaultModelId.Should().Be("production-reasoning");
+    }
+
     [Fact]
     public void AddAtoCopilotCore_WhenEndpointConfigured_RegistersIChatClient()
     {

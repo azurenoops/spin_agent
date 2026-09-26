@@ -5,6 +5,7 @@ import RouteResolverFallback from '../components/layout/RouteResolverFallback';
 import { useCspDashboardAvailable } from '../components/layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../hooks/useImpersonationActive';
 import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
+import { Navigate, useLocation } from '../features/workspaces/workspaceNavigation';
 
 /**
  * Scope-aware resolver mounted at `/components`. Mirrors `SystemsRoute` /
@@ -30,11 +31,19 @@ import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
  */
 export default function ComponentsRoute(): ReactElement {
   const workspace = useWorkspaceTarget();
+  const location = useLocation();
   const impersonating = useImpersonationActive();
   const cspAdminAvailable = useCspDashboardAvailable(!workspace);
 
-  if (workspace?.kind === 'csp') return <CspInheritedComponentsPage />;
-  if (workspace?.kind === 'organization') return <ComponentLibrary />;
+  if (workspace) {
+    const search = new URLSearchParams(location.search);
+    if (!search.has('grouping')) search.set('grouping', 'component');
+    return <Navigate replace to={{
+      pathname: '/security-capabilities',
+      search: search.toString() ? `?${search}` : '',
+      hash: location.hash,
+    }} />;
+  }
 
   if (impersonating) {
     return <ComponentLibrary />;

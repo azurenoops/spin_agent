@@ -234,18 +234,18 @@ export default function AccountMenu({ oid: oidProp, displayName: displayNameProp
           role="menu"
           aria-label="Account"
           onKeyDown={handleMenuKeyDown}
-          className="absolute right-0 z-40 mt-2 w-72 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute right-0 z-40 mt-2 w-72 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
         >
           {/* Identity header — informational; not a menuitem. */}
-          <div className="px-4 py-3 text-sm text-gray-700">
-            <div className="font-semibold text-gray-900 truncate">{displayName}</div>
+          <div className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">
+            <div className="font-semibold text-gray-900 truncate dark:text-gray-100">{displayName}</div>
             {persona && (
-              <div className="mt-0.5 text-xs text-gray-500">{persona}</div>
+              <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{persona}</div>
             )}
             {homeTenantName && (
-              <div className="mt-1 text-xs text-gray-500">
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 <span className="text-gray-400">Home tenant: </span>
-                <span className="text-gray-700">{homeTenantName}</span>
+                <span className="text-gray-700 dark:text-gray-200">{homeTenantName}</span>
               </div>
             )}
             {oid && (
@@ -260,7 +260,7 @@ export default function AccountMenu({ oid: oidProp, displayName: displayNameProp
 
           {activeRoles.length > 0 && (
             <>
-              <div className="my-1 border-t border-gray-100" role="separator" />
+              <div className="my-1 border-t border-gray-100 dark:border-gray-700" role="separator" />
               <div className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                 Active PIM roles
               </div>
@@ -278,10 +278,10 @@ export default function AccountMenu({ oid: oidProp, displayName: displayNameProp
                       key={r.name}
                       role="menuitem"
                       tabIndex={0}
-                      className="flex items-center justify-between rounded px-2 py-1 text-xs text-gray-700 focus:bg-gray-50 focus:outline-none"
+                      className="flex items-center justify-between rounded px-2 py-1 text-xs text-gray-700 focus:bg-gray-50 focus:outline-none dark:text-gray-200 dark:focus:bg-gray-800"
                     >
                       <span className="truncate">{r.name}</span>
-                      <span className="ml-2 flex-shrink-0 text-gray-500">
+                      <span className="ml-2 flex-shrink-0 text-gray-500 dark:text-gray-400">
                         {formatCountdown(ms)}
                       </span>
                     </div>
@@ -291,7 +291,7 @@ export default function AccountMenu({ oid: oidProp, displayName: displayNameProp
             </>
           )}
 
-          <div className="my-1 border-t border-gray-100" role="separator" />
+          <div className="my-1 border-t border-gray-100 dark:border-gray-700" role="separator" />
           <button
             type="button"
             role="menuitem"
@@ -299,7 +299,7 @@ export default function AccountMenu({ oid: oidProp, displayName: displayNameProp
             onClick={() => {
               void handleSignOut();
             }}
-            className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
+            className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
           >
             Sign Out
           </button>

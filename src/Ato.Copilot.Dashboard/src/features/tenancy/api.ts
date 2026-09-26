@@ -226,7 +226,11 @@ export async function listTenants(params?: ListTenantsParams): Promise<ListTenan
 export async function startImpersonation(
   tenantId: string,
   displayName: string,
+  purpose?: { reason: string; reference?: string; acknowledged: boolean },
 ): Promise<ImpersonationResponse> {
+  if (!purpose?.reason.trim() || !purpose.acknowledged) {
+    throw new Error('A support reason and acknowledgement are required.');
+  }
   // Capture the pre-impersonation URL synchronously, BEFORE any network
   // I/O. Use dynamic import so this module remains side-effect-free for
   // consumers that do not need the helper at module load time, and so
@@ -245,6 +249,7 @@ export async function startImpersonation(
 
   const { data } = await tenancyClient.post<Envelope<ImpersonationResponse>>(
     `/tenants/${encodeURIComponent(tenantId)}/impersonate`,
+    purpose,
   );
   const result = unwrap(data);
   writeImpersonation({

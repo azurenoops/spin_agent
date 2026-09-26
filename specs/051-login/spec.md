@@ -20,6 +20,24 @@ across all four surfaces."
 
 ## Pre-Spec Clarifications (resolved 2026-05-08 in the source issue)
 
+### Local Docker simulation exposure (2026-09-24)
+
+US7 must expose the existing configured identity picker in the local Development
+Compose stack. Standalone production Dashboard builds must continue to exclude
+simulation code. Selecting a persona uses the existing audited simulation
+endpoint; labels do not grant memberships, system roles or customer access.
+No new identity, permission, API or persistence contract is introduced.
+
+### Local bootstrap recovery correction (2026-09-23)
+
+The package-demo acceptance exposed HTTP 401 on public login configuration when
+a browser retained a simulation identity removed from the current deployment.
+US1/US7 require login bootstrap and explicit identity selection to remain
+available in this state. Protected APIs must still reject the obsolete identity;
+recovery must not silently authenticate a replacement or enable production
+simulation. The Dashboard must offer login selection rather than automatic
+Entra redirection for this specific development-session failure.
+
 The following decisions were locked in the source issue before this spec was
 written. They are repeated here verbatim so a reader does not have to cross-
 reference the issue:

@@ -66,6 +66,76 @@ public class CacAuthSimulationTests
     // ────────────────────────────────────────────────────────────────
 
     [Theory]
+    [InlineData("GET", "/api/auth/login-config", true)]
+    [InlineData("GET", "/api/auth/login-config/", true)]
+    [InlineData("GET", "/API/AUTH/LOGIN-CONFIG", true)]
+    [InlineData("POST", "/api/auth/simulate", true)]
+    [InlineData("POST", "/api/auth/simulate/", true)]
+    [InlineData("POST", "/api/auth/login-config", false)]
+    [InlineData("GET", "/api/auth/simulate", false)]
+    [InlineData("GET", "/api/auth/login-config/private", false)]
+    [InlineData("POST", "/api/auth/simulate/private", false)]
+    [InlineData("GET", "/api/auth/me", false)]
+    [InlineData("GET", "/api/csp/package-imports", false)]
+    public async Task StaleSimulationCookie_OnlyPublicBootstrapAndSelectionReachHandlers(
+        string method, string path, bool permitted)
+    {
+        // Arrange
+        var called = false;
+        var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; },
+            CreateSimulationOptions());
+        var context = new DefaultHttpContext();
+        context.Request.Method = method;
+        context.Request.Path = path;
+        context.Request.Headers.Cookie = "ato-simulation=removed-development-identity";
+        var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+
+        // Act
+        try { await middleware.InvokeAsync(context); }
+        finally { Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", previous); }
+
+        // Assert
+        called.Should().Be(permitted);
+        context.Response.StatusCode.Should().Be(permitted ? 200 : 401);
+        (context.User.Identity?.IsAuthenticated ?? false).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task LoginConfig_InvalidBearer_DoesNotRequireAuthenticationInProduction()
+    {
+        // Arrange
+        var validator = new Mock<IEntraJwtTokenValidator>();
+        validator.Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Microsoft.IdentityModel.Tokens.SecurityTokenException("Synthetic invalid token"));
+        var host = new Mock<IHostEnvironment>();
+        host.SetupGet(h => h.EnvironmentName).Returns("Production");
+        var called = false;
+        var middleware = new CacAuthenticationMiddleware(
+            _ => { called = true; return Task.CompletedTask; },
+            Options.Create(new AzureAdOptions { RequireCac = true }),
+            Options.Create(new CacAuthOptions()),
+            Options.Create(new RoleClaimMappingsOptions()),
+            host.Object, validator.Object, _logger.Object);
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = "/api/auth/login-config";
+        context.Request.Headers.Authorization = "Bearer synthetic-invalid-token";
+        var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
+
+        // Act
+        try { await middleware.InvokeAsync(context); }
+        finally { Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", previous); }
+
+        // Assert
+        called.Should().BeTrue();
+        context.Response.StatusCode.Should().Be(200);
+        (context.User.Identity?.IsAuthenticated ?? false).Should().BeFalse();
+        validator.Verify(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
     [InlineData("dev-admin", true)]
     [InlineData("unknown", false)]
     public async Task SelectedCookie_UsesOnlyTheConfiguredIdentity(string selection, bool valid)

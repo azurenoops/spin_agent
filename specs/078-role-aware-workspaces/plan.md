@@ -1,6 +1,6 @@
 # Implementation Plan: CSP and Organization Workspaces
 
-**Branch**: `feature/1002-role-aware-workspaces`
+**Branch**: `feature/1002-workspace-ui-1025-1035`
 
 **Date**: 2026-09-21
 
@@ -13,6 +13,433 @@
 **Status**: Implementation authorized on 2026-09-21; dependency and release gates remain open.
 
 ## Summary
+
+### System Security Capabilities integration (#1037)
+
+Environment redesign after user review (September 26):
+- Replace the stacked Hosting/assessment/profile surface with the profile first,
+  grouped environment fields and actual system-scoped association summaries.
+- Keep the existing profile JSON keys. Add the requested hosting choices without
+  coercing legacy values; retain advanced/unknown data on save and model changes.
+  Review hosting-source suggestions in a dialog before inserting into the draft.
+- Reuse paged provider relationship/allocation reads and the applied capability
+  query; never treat allocated-but-unassociated scope as an association.
+- Extend the existing mission association presentation for the Environment entry
+  with provider selection; keep legacy routes and hosting-only recovery compatible.
+  Final duty confirmation uses canonical per-control/revision review rather than
+  a new acceptance store or blanket approval.
+- Move assessment configuration into an Assessments child route. Redirect the
+  existing backend-returned profile/hash URL to that route without changing APIs.
+- Keep completeness on the system overview and add a system-only default-closed
+  right-panel option, retaining other layouts' defaults.
+- TDD on field preservation/conditions/prefill, profile/routing, association and
+  access-denied assessment behavior; strict types/build and focused browser checks.
+  No new database schema, provider authorship changes or authorization relaxation.
+
+Initial September 26 hosting navigation follow-up (superseded by the redesign
+above): remove only the provider-relationship
+sidebar item. Add a Hosting section to Environment with a scoped link to
+`/systems/:id/profile/EnvironmentAndDeployment/hosting`. Reuse the existing
+mission association wizard in explicit hosting-only mode (locked system,
+existing allocation, exact association confirmation), skipping all capability
+selection, subscription and responsibility steps. Existing legacy routes retain
+their prior behavior. No API, schema, source ownership or permissions change.
+Write navigation/profile/hosting-only tests first; rerun legacy association and
+system-shell tests, Dashboard types/build and desktop/mobile browser checks.
+Deploy only the Dashboard for local acceptance; do not rerun SQL-heavy suites.
+
+Initial delivery, before user correction: hosting-only navigation and legacy compatibility
+pass 138 targeted tests and nine Chromium scenarios. Strict types/build pass.
+Only Dashboard was recreated; backend/data containers are unchanged. Live checks
+pass in desktop light/mobile dark layouts. Assessment attachment/readiness 403s
+for the development ISSM identity were reproduced in the prior image and remain
+an independent limitation. User acceptance remains open.
+
+Corrected Environment delivery: 199 targeted tests, strict Dashboard types,
+production build and nine synthetic Chromium flows passed. Live Docker checks
+passed on desktop/light and mobile/dark with no business-data writes. Dashboard
+image `environment-redesign-20260926` is healthy; backend/data container IDs,
+images and restart counts are unchanged. Assessment denial is now explained
+under Assessments, not displayed alongside the environment form. The demo has
+no scopes/capabilities; populated writes remain synthetic. This does not clear
+the earlier broad-suite failures or constitute user acceptance.
+
+The September 25 pre-implementation audit found the system security-capability route
+outside `SystemLayout`, dispatching to organization-library/detail views
+that create their own PageLayout. Move it inside the system route and extract
+focused system views without duplicating the organization catalog. Keep legacy
+component inventory as an explicit inventory destination; canonicalize old
+Capabilities/Components links to the corresponding unified view.
+
+Extend existing workspace catalog/setup contracts additively for explicit
+applied-versus-available selection, source-qualified identities, real contributor
+placements, permission projections and multi-selection exact-write plans.
+Backend implementation owns the detailed
+[system contract](contracts/system-security-capabilities.md), including its
+durable setup extension decision and any schema/index compatibility additions,
+before production changes. Reuse canonical responsibility, protected evidence
+and narrative proposal services and existing unsubscribe reconciliation.
+
+Frontend modules under `workspace-operations/system-capabilities/` render only
+content inside the existing system shell: route/list, component drawer and
+placement editor, three-tab capability detail, and three-step library setup.
+Shared typed API adapters preserve structured errors and cancellation. Native
+dialogs reuse SetupDialog focus/pending guards. URL state holds view/filter/tab
+and durable operation identity; any draft recovery is actor/tenant/system scoped
+and never treated as saved domain state.
+
+Constitution gate: no agent/tool or cloud changes; existing tenant/system/action
+authorization is mandatory. Write failing AAA tests before production changes,
+verify modified paths and strict Dashboard types, and preserve unrelated dirty
+files. Backend/UI work can proceed independently after agreeing the documented
+contract; only one owner edits each shared contract/API file. No GitHub writes,
+push or issue closure without the repository approval process and local user
+acceptance.
+
+Validation: run backend build/full tests plus focused authorization/setup cases;
+Dashboard types/full tests plus targeted UI cases; browser fixtures for all eight
+views in light/dark desktop/mobile, legacy URLs, keyboard dialogs, partial retry,
+scope switching and exact removal. Record baseline failures separately; do not
+label a failing full suite green. Local live checks must not modify retained
+provider package analysis or approve domain records.
+
+September 26 delivery status: the system shell, applied views/drawer, placement
+actions, three-tab detail, multi-selection setup/recovery and removal are
+implemented on this branch. The additive SQL Server upgrade has been exercised
+against existing history and applied twice. MCP and Dashboard images are deployed
+locally; SQL Server, Redis, Chat and retained data were not recreated. Live
+desktop/mobile checks passed for the existing empty demo system without
+capability-domain writes. See the [validation checkpoint](tasks.md) for actual
+suite results and the [manual acceptance guide](../../docs/guides/system-security-capabilities.md)
+for populated local acceptance. Implementation/deployment is not user acceptance;
+no issue closure, external write or push is implied.
+The full unit suite passed, but the full integration run did not: SQL fixture
+initialization failures and 13 other failures leave regression sign-off open.
+The broad relational follow-up also failed and runtime services restarted during
+these runs; do not repeat unbounded concurrent SQL fixtures against the shared
+Docker instance. Retained-data and live UI checks passed afterwards. No runtime
+restart or reduced assertion was used to claim a fix.
+
+Approved bounded semantic correction: a fully received invalid batch may receive
+one additional attempt with compact validator feedback and the same retained
+sources/schema. Both attempts consume existing cumulative calls and time/output
+budgets; no rejected proposals or partial family acknowledgements survive.
+Protocol/tool/transport failures remain explicit without this correction path.
+This is a bounded extension of the existing analyzer, not a second model client,
+unlimited retry, permissive fallback, or publication path.
+
+### Authorization-led ownership amendment
+
+September 25 change-impact follow-up: replace technical impact input forms with
+a purpose-led review tracker and named version selection. Extend the protected
+impact service with bounded named options and persisted review presentation over
+the existing canonical context/target data. Trace and test actual affected
+capability/system membership rather than inventing results in the Dashboard.
+Carry source identifiers from package/capability entry actions, resolve hashes
+server-side, and preserve the existing separate preview, human disposition and
+publication gates. Historical review details remain immutable; refresh prepares
+a new explicitly reviewed context rather than silently accepting changed data.
+Use additive contracts and existing pagination; no new tables or parallel
+publication engine. Verify red/green UI/API tests, stale/denied/missing-source
+states, desktop/mobile flows and retained-state-safe local deployment.
+The user-approved assessment-only path permits zero external authorization
+selections while retaining existing acceptance/publication eligibility. Explicitly
+report unestablished coverage; no authority record is invented. Additive read DTOs
+carry unsafe 64-bit revisions as decimal strings; the input boundary accepts
+exact strings alongside legacy numbers, without changing internal numeric hashing
+or historical context.
+
+September 25 hosting follow-up: replace the combined inherited-reference and
+hosting forms with a five-task setup page, exact-current hosting read, filtered
+Microsoft-reference totals, contextual service-unavailable states and lazy
+editors. Reuse the existing immutable mutation forms and receipt validation;
+keep stale draft inputs mounted during concurrency refresh, and prevent closing
+pending or uncertain writes. The separate Mission Owner wizard must use only
+existing authorized allocations, published applicable capabilities and canonical
+association/adoption operations. It must not request new allocations or expand
+access. Repair the verified hosting-route 404s with real protected service
+adapters, not empty success responses. Validate desktop/mobile task behavior,
+failure/retry paths and preserved authority boundaries before Docker deployment.
+The user subsequently approved two explicit confirmations to respect the
+canonical contract: persist association, refresh the relationship-bound
+applicability preview, then explicitly confirm subscription as ISSM/ISSO.
+MissionOwner-only access stays read-only for capabilities with a clear handoff.
+
+September 25 offering overview follow-up: preserve the offering root URL and
+reuse existing read authorization, exact decision mutations and package claim
+review. Add a provider-scoped overview read model with independently paged
+current provider decision records and associated package receipts, global
+summary counts, a retained authorization-source review target, and named hosting
+context. Compute counts server-side from canonical offering provenance and
+mission relationships; do not fan out through every package in the browser.
+Reuse `SetupDialog` and `DecisionPanel` for manual entry and record management.
+Source review links carry the offering and package identity and supported
+candidate-type filter. Keep all authority/publication gates unchanged. Validate
+empty records with retained packages, cross-provider isolation, complete counts,
+source links, read failures, immutable review and pending/uncertain dialogs with
+failing-first service and UI tests before local Docker acceptance.
+
+September 25 dialog follow-up: reuse the existing native `SetupDialog` for
+Boundary editing and all Hosting and responsibilities tasks. Mount the selected
+task outside the overview cards; retain the existing editors and pending/uncertain
+write callbacks. Keep loading, errors and retry actions within an open dialog
+during pagination or refresh, and preserve reference drafts. No API, database or
+authority changes. Verify dialogs, dismissal guards, exact save payloads, focus,
+mobile scrolling and unchanged review links with focused unit/browser tests.
+Browser checks exposed focus loss when an initiating button was disabled before
+the dialog captured it, and native Tab traversal reaching browser chrome. Keep
+invokers enabled behind the modal's inert backdrop and cycle focus explicitly in
+the shared dialog. Hosting concurrency tests must wait for enabled confirmation
+and save controls after asynchronous scope refresh, not only the revision label.
+
+September 25 boundary usability correction: replace the revision-led screen
+with a scope-first boundary component. Read the exact current boundary ID rather
+than selecting a history-page item; lazy-load paginated immutable history only
+when expanded. Reuse the existing `BoundaryEditor` and revision/idempotency
+guards, adding pending-state notification so cancellation cannot discard an
+uncertain mutation. No new boundary mutation path or schema.
+
+Expose a provider-authorized, offering-scoped read model over existing package,
+catalog, hosting, relationship and adoption records for linked capabilities and
+mission assignments. Keep source proposals, published catalog records, hosting
+assignments, mission association and capability adoption distinct. The Dashboard
+uses independent bounded pagination and links back to the canonical review,
+publication and hosting workflows. Five content sections and an explicit
+four-step workflow replace technical history as the page's primary structure.
+Test source wording, exact-current editing, paging, loading/error/empty states,
+history, responsive layout and read isolation before local deployment.
+
+The September 23 22:54 request supersedes package-only navigation. Trace the
+current authorization/hosting models before selecting additive persistence.
+Reuse the package ledger, protected storage, durable worker and canonical
+release services. Do not reset existing receipts or manufacture an authorized
+offering from the singleton provider profile. Multiple offerings and external
+decisions require separately scoped identities, reviewed boundary history and
+package-version linkage. Source-extracted claims remain unconfirmed.
+
+Define schema additions, provider/mission permissions, version invalidation,
+scope matching, retry behavior, change-impact review and legacy-link compatibility
+in [provider-authorizations.md](contracts/provider-authorizations.md) before
+wiring UI behavior. The confirmed user decision reserves covered-workload
+confirmation to the mission system's Authorizing Official using existing
+authorization permissions and supporting authority/evidence. Authorizations becomes the primary
+import/review area; Security Capabilities remains the canonical reusable catalog.
+Local tests must prove that hosting assignment is not an authorization grant,
+that historical decisions/releases survive changes, and that only applicable
+published versions become customer suggestions. No connector or cloud mutation
+is necessary for local acceptance.
+
+Implementation ownership: backend adds offering/immutable scope and decision
+history, package association, technical assignments, AO-reviewed mission
+relationships, exact publication context and offering-owned remediation.
+Analyzer extends the existing pipeline with profile-2 typed claims, citations,
+family coverage and explicit compatible enrichment. Dashboard reuses package
+review and canonical release actions within the six-section Authorizations
+layout and system association view. Parent integration verifies those contracts
+and actual local behavior; passing mock checks is not application acceptance.
+
+Existing-offering upload correction (AUTH007): add card/header links to
+`/workspaces/csp/authorizations/offerings/:offeringId/import` and mount the
+existing `OfferingIntake` with that fixed offering ID after its authorized read.
+Keep generic import, package history/successors, boundary selection and retry
+semantics unchanged. No new API, schema migration, analyzer or publication path.
+Validate the entry points and exact upload/receipt with failing-first route
+tests, then run related Dashboard tests, type checking and build.
+
+Complexity justification: these separate immutable snapshots and workflow
+ledgers are necessary to keep external authority, technical allocation,
+published service coverage and customer authorization independent. Reusing a
+mission authorization row would either fabricate a mission system or issue a
+decision SPIN has no authority to issue. Reusing mutable catalog rows alone
+would invalidate historical approval and expose unreviewed changes. No second
+capability inventory, publishing pipeline, live connector or new model client is
+introduced.
+
+The user selected directly offering-owned provider findings/POA&M. Safe reviewed
+reference summaries are available to authorized mission consumers; this delivery
+does not add implicit cross-tenant source-download grants. Standard response
+envelopes, bounded lists, idempotent writes, fresh authorization, expected
+revisions and additive SQLite/SQL Server migration tests are required.
+
+### Durable provider package review
+
+Historical pre-change source trace: both Feature 048 ingress paths called
+`CspAtoUploadHelpers`, persisted incrementally and published every provider Draft
+on onboarding submit/post-onboarding import. The legacy parser skipped ZIP
+content and reduced PDF to a system-name candidate; it could not represent
+complete package coverage. Those publication paths were removed by the package
+implementation. The durable ledger/analyzer now replaces the request-lifetime
+flow; the authorization-led follow-up must preserve those corrections.
+
+Implement [package-imports.md](contracts/package-imports.md) before connecting
+the UI: source/manifest receipt, bounded content analyzer, isolated private
+candidate staging, lease/checkpoint worker, provider review and exact-set
+approval coordinating existing capability release services. Reuse file storage,
+EF retry/schema infrastructure and workspace components. These extra ledger
+entities are necessary for restart safety, provenance and isolation; rejected
+simpler alternatives are the existing synchronous parser and globally visible
+Draft rows, which cannot meet those requirements.
+
+Constitution check: documented scope and contracts precede code; failing-first
+synthetic tests required; no new agents/tools or cloud resources; server-side
+provider isolation, bounded reads and input budgets mandatory. Local traceability
+uses existing #1026/#1027/#1028 and Feature 048 US9; remote checklist updates
+remain pending explicit approval and will be previewed, not sent automatically.
+No blanket regression/coverage or deployment success may be claimed.
+
+Azure example follow-up: add an additive, structured JSON fixture under
+`docs/examples/package-imports/` using only the existing inventory contract.
+Keep example/authorization disclaimers and first-party service links inside
+source descriptions so citations retain them. Test exact record counts,
+dependency resolution, source provenance and repeat analysis before importing
+with a stable local upload key. Verify persisted NeedsReview/Unpublished state,
+repeat receipt identity and preservation of existing releases. No application,
+schema or API changes are needed; local traceability remains #1026/#1027/#1028.
+
+### Complete CSP Add Organization flow (September 23, 13:17)
+
+Pre-change trace: AddOrganization immediately POSTed organization fields.
+Creation atomically saves an Active/Pending Tenant, name reservation and
+OrganizationProvisioningOperation with intent hash. Existing provisioning GETs
+recover only when tenant identity is known and omit persisted administrator IDs.
+PATCH binds IDs, grants membership, then enrolls Administrator through
+OrganizationMembershipService, deriving outcome states from persisted records.
+Grant requires an organization-local Person; existing membership-person APIs
+already use IPersonService to create that contact under authorized tenant scope.
+The current UI cannot recover a lost create response after refresh, supplies no
+review/defer workflow, and loses identity fields when returning to enrollment.
+
+Additive contract, implemented and tested before UI integration:
+
+- Creation accepts optional `initialAdministrator`: directoryTenantId, objectId,
+  and either personId or `newPerson: { displayName, email }`. Omission defers
+  enrollment. Persist confirmed intent with the existing operation; bind the
+  creation hash to that intent. No writes before final confirmation.
+- Authorized `GET /api/csp/organization-creations/{idempotencyKey}` recovers the
+  created organization/operation without requiring form resubmission. Missing
+  keys are explicit 404s, not permission failures or success-shaped fallbacks.
+- Provisioning projections expose persisted initialAdministrator, personState
+  and whether identity remains editable. Resume accepts the same additive
+  newPerson option while retaining existing identifier-only requests. Person
+  creation must be resumable/idempotent, not guessed by email. Reuse existing
+  Person/membership/Administrator service rules and audit semantics. Do not
+  replace a completed Person/identity binding during recovery.
+- Organization list/detail project setup state and active membership count;
+  detail includes saved legal/contact fields. Preserve onboarding as a separate
+  concern. Reads, begin and resume recheck ordinary CSP authority, target status
+  and operation scope; enforce duplicate/concurrent-write safety server-side.
+
+Extract the wizard and setup-status components from WorkspaceOperationsPage.
+Use the existing PageLayout/PageHero, workspace navigation, shared field/status
+styles and controlled support component. Keep pre-confirmation input in memory
+only; the URL stores a recovery key, not PII or an alleged saved draft. Freeze
+confirmed intent across ambiguous creation outcomes and resolve by key before
+allowing another submission. Recovery/status uses persisted server state and
+explicit retries; refresh never invents completed work.
+
+TDD covers validation/correction, no pre-confirmation writes, deferred enrollment,
+new and existing Person modes, partial failure, lost create/resume responses,
+refresh, stale requests, repeated clicks, duplicate races, scope denial and
+completed-work preservation. Verify narrow/desktop screens and keyboard focus;
+build/type/test the changed projects and record full-solution results separately.
+Keep live administrator acceptance distinct from synthetic browser coverage.
+
+Verified backend contract: organization field limits follow persisted storage
+(name 200, legal entity 300, contact name 200, contact email 254); local Person
+name/email remain 256/320. Required/optional rules are unchanged. In new-Person
+mode the public replay intent retains `newPerson` and a null `personId` even
+after binding; it can be resent unchanged. The generated binding stays internal.
+The UI must report saved Person state without claiming an unavailable record ID.
+Schema additions are two nullable operation columns; no new tables. Recovery
+distinguishes missing creation/operation from inactive or missing organizations.
+
+The production dispatcher now uses the extracted wizard/status components;
+organization detail and list routes expose saved setup state and resume actions.
+The integrated flow passes 125 focused frontend tests with 98.13% line and
+90.87% branch coverage across the four new presentation/flow components.
+Twenty-five browser checks pass against the production preview, including the
+six new desktop/mobile organization scenarios and existing workspace regressions.
+These browser writes use synthetic authorized API fixtures, not live enrollment.
+TypeScript, production Dashboard build and solution build pass. Full-suite
+results are recorded separately in the architecture document; focused success
+does not imply a clean full regression run or completed user acceptance.
+Both local Docker services were rebuilt and deployed September 23 at 15:31 EDT;
+the same 25 browser checks pass against the deployed Dashboard. MCP/Dashboard
+are healthy with zero restarts, and SQL/Redis were not recreated. The shared
+browser's current identity is denied provider access, so live authorized
+enrollment remains manual acceptance rather than a simulated success claim.
+
+### CSP mock alignment correction (September 23, 12:32)
+
+Retain the existing provider working-revision, approval and publication handlers
+and error/concurrency behavior. Replace their presentation with capability-first
+catalog rows, offering/source metadata, implementation/readiness/evidence cards,
+and two-column publication review. Add provider-authorized overview and direct
+capability detail reads instead of scanning the first 200 catalog records;
+enrich server-side catalog relationships and distinct adoption counts. These
+read changes introduce no schema or MCP-envelope change. Reuse the existing
+provider capability creation endpoint with review required.
+
+`ProviderPresentation` owns shared provider source/version/evidence/picker
+rendering and `ProviderAddCapabilityDialog` owns staged input and safe creation
+failure behavior. Publication review retains the exact saved snapshot/hash and
+explicit review acknowledgements, preserves approved customer content, and
+refreshes provider metadata after success. The release summary is read-only and
+derived from the canonical preview, not an unpersisted editable release note.
+No provider component categories, narrative text or authorization records are
+fabricated to match illustrative data. Test source paging, direct detail,
+creation, mutation gates and both organization/system regressions; inspect
+desktop/mobile screenshots before Docker deployment.
+
+First-save contract verification found that a valid newly created capability
+returns `404 / WORKING_REVISION_NOT_FOUND`, not an empty saved revision. Bootstrap
+an unsaved form only for that exact response after direct capability lookup
+succeeds. Classification and service category remain required authored fields;
+contributors and duties start empty. The verified first-save token is
+`expectedRevision: 1`; later saves use the returned revision. Preserve both
+`error.code` and legacy `error.errorCode` in the transport. Other failures must
+remain visible and block saving. A first-save conflict preserves the user's
+draft until explicit reconciliation, just like an existing-revision conflict.
+
+### Organization catalog dialog correction (September 23)
+
+Implement organization Add as a separate catalog dialog and API, not an adapter
+over system setup. Existing local capability/component models remain reusable;
+provider adoption, organization-owned contribution/owner and idempotency require
+tenant-scoped durable storage where no suitable existing association exists.
+Use the current EF/schema-addition pattern for both SQLite and SQL Server.
+
+The dialog supports local creation/reuse, published CSP capability/component
+adoption, optional organization-wide supporting components and standalone
+components. It stages all writes until review/save; cancellation creates nothing.
+Save is atomic and idempotent. Organization access and visibility cannot require
+any systems. System setup remains separately permission-gated on system routes.
+Organization contribution is authored summary/owner metadata, not a system
+inheritance rollup. Per-control approval/evidence authoring is outside this dialog
+correction; do not invent approval or responsibility confirmations.
+
+Validation: failing frontend and backend regressions first, no-system organization
+create/adopt/read round trips, cross-tenant/source/permission denial, retry and
+duplicate-write protection, unchanged system setup, desktop/mobile modal checks,
+Dashboard type/build, relational backend/schema checks and Docker health/browser
+verification. User manual acceptance remains a distinct final gate.
+
+The subsequent organization Add mock is implemented as a presentation-only
+follow-up: source cards, record-type segments, connected progress, component chips,
+and a split contribution/review panel. `OrganizationDialogPresentation` contains
+the visual building blocks; `OrganizationCatalogChoices` retains paged API-backed
+selection and staged component creation. `SetupDialog` accepts organization
+context and expanded review sizing while system setup remains a separate flow.
+The screenshot's system-use stage is explicitly excluded per the user's choice.
+An inline component must be staged/discarded before closing its picker or leaving
+the step. No new API, storage, permission, owner-directory or provider-version
+contract is introduced by this visual follow-up.
+
+The component-navigation regression follow-up preserves record type in library
+links and detail requests, supports legacy untyped component URLs, and reuses
+the paged organization collection with a component filter for child navigation.
+It retains the existing authorization gates and capability-specific review
+contract; no new storage, MCP envelope or permission is introduced.
 
 Retain existing authentication, domain services and scope-resolving pages.
 Introduce one authenticated workspace context for routing, identity display,
@@ -811,6 +1238,73 @@ unguarded duplicate and base the remaining badge on the server-authoritative
 read-only state. Do not weaken test selectors to choose an arbitrary duplicate.
 This is frontend integration repair, not a change to backend profile authority.
 
+## Issues #1025-#1035 implementation design
+
+The implementation branch is `feature/1002-workspace-ui-1025-1035`, based on
+`8a5cdaa0`. The three interactive files under
+`docs/design/workspace-ui-mocks/` were exercised before this plan update.
+
+### Shared routes and presentation
+
+- Keep `PageLayout`, `PageHero`, `WorkspaceHeader`, workspace route parsing and
+  scoped transport as the shell. Add Organizations and Security Capabilities
+  destinations from server permissions; do not create a second shell.
+- Canonical library state is encoded in query parameters: grouping, search,
+  source, system, lifecycle/review filters, page, sort and selected tab.
+- Existing component/capability URLs resolve to the canonical workspace route
+  while preserving tenant, system and record identity.
+
+### Read projections
+
+- Replace provider catalog client fan-out with bounded provider catalog queries
+  over existing global provider component/capability records. Row and total
+  queries share filters and expose unavailable aggregates explicitly.
+- Add provider-authorized organization list/detail/system/subscription/activity
+  projections. Queries validate the target before materialization and never
+  fetch all tenants for browser-side filtering.
+- Add one organization capability projection keyed by source kind and record ID.
+  Local and provider rows share display contracts but retain separate mutation
+  endpoints and permission checks.
+
+### Provider authoring and publication
+
+- Introduce explicit working-revision and immutable-release persistence rather
+  than reconstructing releases from audit history. Store canonical snapshot
+  payloads with stable hashes/revision IDs and retain source references.
+- Contributor links, coverage/duties and review approval bind to a working
+  revision concurrency token. Editing reviewed content invalidates approval.
+- Publication is one transaction for release identity and durable outbox/impact
+  records. Idempotency binds preview, approval and publication to the exact
+  revision. Delivery processing is retryable and cannot imply customer review.
+- Existing published records migrate to an initial immutable release without
+  rewriting customer-confirmed source references.
+
+### Organization provisioning, support and setup
+
+- Organization creation remains Active/Pending and grants nothing. The UI
+  records creation, administrator assignment and identity membership as
+  separate resumable outcomes against the persisted tenant ID.
+- Extend the existing support session start contract with a required trimmed
+  reason, optional reference and acknowledgement. Enforce documented maximum
+  lengths in API and persistence. Commit the start audit/session purpose before
+  issuing a usable token or cookie; failure returns an explicit error.
+- Use a durable tenant-bound capability setup operation. Its idempotency key and
+  per-step outcomes make create/link/subscribe retries safe. Shared components
+  are never deleted as compensation. The final action is labeled
+  "Complete setup" unless a real resumable draft has been persisted.
+
+### Test order
+
+1. Red contract/model tests for release immutability, support purpose and setup
+   idempotency.
+2. Red service/API tests for paging, authorization, tenant isolation, stale
+   revisions, concurrent publication and partial setup.
+3. Implement backend contracts and run focused .NET suites.
+4. Red Vitest tests for route/query state and every loading, empty, validation,
+   failure, stale and conflict state.
+5. Implement mock-aligned screens, then run Dashboard type checking/tests/build.
+6. Run solution build/tests and live local browser scenarios with synthetic data.
+
 ## Constitution check
 
 References: [constitution](../../.specify/memory/constitution.md),
@@ -840,6 +1334,8 @@ test, manual acceptance and release gates remain open.
 |---|---|---|
 | Explicit scoped routes/request context and coordinated caches | User-confirmed independent tabs/deep links and #950 stale-scope behavior | A global selected-tenant cookie or page reload changes scope across tabs and cannot satisfy the requirement |
 | Shared effective-context/permission projection | Multiple resolvers and local persona gates must agree with server policy | Per-page endpoint probes or copied role conditionals diverge and cannot establish authorization |
+| Immutable provider release plus editable working revision | #1028 requires released customer source to remain stable while new changes are reviewed | Reconstructing state from audit events cannot guarantee a complete immutable release |
+| Durable resumable capability setup operation | #1035 spans several existing services and requires truthful partial outcomes and idempotent retry | Sequential browser calls can leave ambiguous success and duplicate later writes |
 
 No new framework, query library, parallel membership store or generic policy
 engine is proposed. Any schema/API expansion must be justified in its owning
@@ -857,3 +1353,71 @@ dependency contract before implementation.
 - Roll back to a compatible prior dashboard/API pair using the existing immutable
   image process; do not revert membership audit history or approved narratives.
 - This planning-only diff requires no runtime or database rollback.
+
+### Authorizations landing refresh — September 24, 2026
+
+Presentation-only follow-up: extract OfferingList from AuthorizationsPage, retain the existing paged API and create form, and show friendly environment labels and next setup links from persisted scope references. Reuse lucide icons and existing Tailwind/theme tokens. No domain/API/migration changes. Detailed rationale and validation: docs/design/authorizations-landing-refresh.md.
+
+Latest placement delta: remove OfferingCreate from OfferingList and expose the
+existing create route as a hero CTA beside import. Reuse its form and navigation
+to the persisted result. Limit hero/action and pale-background adjustments to
+the authorization landing route; leave PageLayout/PageHero and API contracts
+unchanged. Keep cards single-column at every width and show the guide alongside
+them from desktop widths. Verify failing-first route/form tests, responsive
+browser layout, Dashboard type checking/build and existing scoped actions.
+
+### File-first import implementation
+
+Reuse receivePackage (asynchronous legacy import route now backed by CspPackageImportEndpoints), associated-package reads, paginated BoundaryClaim candidates and associatePackage. Route successful receipt to `/authorizations/import?packageId=...`; poll while processing, then display source-backed candidate choices. Selected claims prefill editable offering name and boundary scope/citations only, not Azure resource assignments or cloud environment guesses. Explicit existing creation/boundary/association mutations remain required. No new backend schema or publication path.
+
+Unified CTA follow-up: reuse FileFirstImport for scoped and global routes. Pass
+the already-authorized offering into the uploader; retain its route when adding
+the receipt query parameter. Thread the offering ID through PackagePreparation
+to OfferingIntake, keyed by receipt/revision/offering to reset transient choices
+on navigation. Preserve association lookup failures and reject a receipt already
+associated to another offering. Rename the global CTA consistently, including
+the catalog handoff. Keep successor-series uploads and onboarding unchanged.
+Omit the offering sidebar only on the import route and expose a Back to offering
+link, keeping both upload and confirmation full-width. Validate their actual
+bounding boxes at mobile widths, not only document-wide overflow.
+Constitution check: no new abstraction/API/schema/tool; failing-first tests,
+Dashboard type checking, browser checks, and manual acceptance are required.
+
+Local AI connection follow-up: forward optional Entra environment credentials to
+MCP and add disabled-by-default `AzureAi:UseMaxCompletionTokens`. A thin SDK chat
+adapter invokes Azure's supported completion-token extension for all four chat
+call shapes. Clone options through the SDK serializer to initialize its
+extension storage and avoid mutating caller options. Preserve SDK authentication,
+deployment metadata, tools and limits; no package upgrade, custom request-body
+rewriting, new API/schema/tool, or model-name heuristic. Real transport and DI
+tests cover opt-in and legacy behavior. Runtime verification on the retained
+synthetic receipt exposed incomplete model output and the existing two-minute
+analysis limit; end-to-end ingestion acceptance remains open.
+
+Bounded continuation: persist learned per-entry semantic batch sizes and
+automatic retry keys in the existing analysis-checkpoint JSON. Reuse the durable
+Received/Processing queue and lease fencing between passes. Project an optional
+receipt analysis-progress record and display it in shared receipt UI. Enqueue
+only total-timeout work when a pass consumed calls and the cumulative ceiling
+has not been reached. Single-segment failures and invalid/schema/citation output
+remain blocking; successful proposals still require explicit human review.
+Complexity justification: durable checkpoint metadata is necessary to avoid
+repeating oversized batches, losing progress on restart, or retrying permanent
+failures indefinitely; no new worker service, schema migration or API endpoint.
+The model-wire contract uses short per-batch segment aliases to avoid copying
+long hashes, while the validator resolves them to immutable source records before
+creating citations or stable candidate keys. The prompt names all three required
+root properties and canonical citation fields explicitly, with JSON shape
+examples. Existing exact quote, field support and claim validation are unchanged.
+Use `ChatResponseFormat.ForJsonSchema` for bounded, kind-specific response
+shapes. A provider that cannot honor this format fails explicitly; no fallback
+to looser acceptance. Source-only citations are expanded from the supplied
+alias map, not model-written quotes. Derive omitted field bindings using the
+same exact-support helper as deterministic claims; validate supplied bindings
+unchanged. Persisted API/citation shapes and checkpoint identities are unchanged.
+Do not replace retained PDF text under existing keys to repair reading order:
+existing citations and human decisions must retain their original provenance.
+
+### Entra administrator lookup implementation
+
+Add a read-only MCP HTTP directory service with configured connections scoped to the authenticated CSP administrator directory and selected provider workspace. Use Azure Identity client credentials server-side with explicit authority, tenant and Graph cloud endpoints; no browser secret or arbitrary destination. Return limited name/email/object identity fields, bounded results and a refinement indicator. Escape OData literals and encode query values. Preserve existing explicit creation/enrollment contracts; a directory match is lookup assistance, not persisted identity attestation. Refresh administrator selection using a directory search card, selected-person summary, optional identity details and a manual fallback. No database migration or MCP tool registration is needed. Tests cover authorization before network calls, cloud routing, escaping, failures, selection and stale result handling. Existing role-aware-workspace feature scope; issue sync/external writes remain pending user approval. Constitution: scoped authorization, no new tool/agent, tests before implementation, Dashboard type check, local manual acceptance required.
