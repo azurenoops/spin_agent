@@ -1,7 +1,9 @@
 # Tasks: Mock-Aligned CSP and Organization Workspaces
 
-**Feature**: #1002  
-**Delivery issues**: #1025-#1035  
+**Feature**: #1002
+
+**Delivery issues**: #1025-#1035
+
 **Branch**: `feature/1002-workspace-ui-1025-1035`
 
 Tasks are dependency ordered. Tests marked `RED` must fail for the intended
