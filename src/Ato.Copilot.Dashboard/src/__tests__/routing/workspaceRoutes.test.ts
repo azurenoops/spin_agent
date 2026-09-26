@@ -234,7 +234,8 @@ describe('system aliases', () => {
   it.each([
     ['control-inheritance', 'inheritance'],
     ['categorization', 'baseline'],
-    ['capabilities', 'capability-coverage'],
+    ['capabilities', 'security-capabilities'],
+    ['capability-coverage', 'security-capabilities'],
     ['mission-purpose', 'profile/MissionAndPurpose'],
     ['users-access', 'profile/UsersAndAccess'],
     ['environment', 'profile/EnvironmentAndDeployment'],

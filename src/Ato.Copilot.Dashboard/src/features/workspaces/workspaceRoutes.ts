@@ -21,7 +21,8 @@ export class WorkspaceUrlError extends Error {
 const SYSTEM_ALIASES: Readonly<Record<string, string>> = {
   'control-inheritance': 'inheritance',
   categorization: 'baseline',
-  capabilities: 'capability-coverage',
+  capabilities: 'security-capabilities',
+  'capability-coverage': 'security-capabilities',
   'mission-purpose': 'profile/MissionAndPurpose',
   'users-access': 'profile/UsersAndAccess',
   environment: 'profile/EnvironmentAndDeployment',
@@ -103,9 +104,30 @@ export function buildWorkspaceUrl(workspace: WorkspaceTarget, route = '/'): stri
 
 export function canonicalizeSystemRoute(route: string): string {
   const { pathname, suffix } = splitLocalUrl(route);
-  const match = /^\/systems\/([^/]+)\/([^/]+)\/?$/i.exec(pathname);
+  const match = /^\/systems\/([^/]+)\/([^/]+)(?:\/([^/]+))?\/?$/i.exec(pathname);
   if (!match || decodeSegment(match[1]!).toLowerCase() === 'new') return route;
   const alias = decodeSegment(match[2]!).toLowerCase();
+  if (['components', 'capabilities', 'capability-coverage'].includes(alias)) {
+    const base = `/systems/${match[1]}/security-capabilities`;
+    if (alias === 'components' && match[3] === 'inventory') return `${base}/inventory${suffix}`;
+    const [search = '', fragment] = suffix.split('#');
+    const params = new URLSearchParams(search);
+    const source = params.get('source') === 'provider' ? 'provider' : 'local';
+    if (alias !== 'components') {
+      const recordId = match[3] ? decodeSegment(match[3]) : params.get('capabilityId');
+      if (recordId) validateSegment(recordId);
+      return `${base}${recordId ? `/${source}/${encodeURIComponent(recordId)}` : ''}${suffix}`;
+    }
+    params.set('view', 'component');
+    const componentId = match[3] ? decodeSegment(match[3]) : params.get('componentId');
+    if (componentId) {
+      validateSegment(componentId);
+      params.set('componentId', componentId);
+      params.set('componentSource', source);
+    }
+    return `${base}?${params}${fragment === undefined ? '' : `#${fragment}`}`;
+  }
+  if (match[3]) return route;
   const target = Object.hasOwn(SYSTEM_ALIASES, alias) ? SYSTEM_ALIASES[alias] : undefined;
   return target ? `/systems/${match[1]}/${target}${suffix}` : route;
 }

@@ -39,14 +39,16 @@ interface PageLayoutProps {
   children: ReactNode;
   sidePanel?: ReactNode;
   leftPanel?: ReactNode;
+  defaultSidePanelOpen?: boolean;
 }
 
-export default function PageLayout({ title, children, sidePanel, leftPanel }: PageLayoutProps) {
+export default function PageLayout({ title, children, sidePanel, leftPanel, defaultSidePanelOpen = true }: PageLayoutProps) {
   const workspace = useWorkspaceSession();
   const navItems = workspace?.target.kind === 'csp'
     ? [
         { to: '/', label: 'Overview' },
         { to: '/organizations', label: 'Organizations' },
+        { to: '/authorizations', label: 'Authorizations' },
         { to: '/security-capabilities', label: 'Security Capabilities' },
         { to: '/controls', label: 'Controls' },
         { to: '/audit', label: 'Audit Log' },
@@ -62,7 +64,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
           { to: '/admin/knowledge-base', label: '📚 Knowledge Base' },
         ]
       : legacyNavItems;
-  const [sidePanelOpen, setSidePanelOpen] = useState(true);
+  const [sidePanelOpen, setSidePanelOpen] = useState(defaultSidePanelOpen);
   const [helpPanelOpen, setHelpPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -225,6 +227,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel }: Pa
                 className="flex h-8 w-5 items-center justify-center self-start mt-4 -mr-px rounded-l border border-r-0 border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
                 title={sidePanelOpen ? 'Collapse panel' : 'Expand panel'}
                 aria-label={sidePanelOpen ? 'Collapse panel' : 'Expand panel'}
+                aria-expanded={sidePanelOpen}
               >
                 <svg className={`h-3 w-3 transition-transform ${sidePanelOpen ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
