@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate } from '../workspaces/workspaceNavigation';
+import { Link, Navigate, useLocation, useNavigate } from '../workspaces/workspaceNavigation';
 import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
 import PageLayout from '../../components/layout/PageLayout';
 import PageHero from '../../components/layout/PageHero';
@@ -16,6 +16,8 @@ import { CapabilityChoices, SetupComponentChoices, SetupSystemPicker } from './S
 import SetupDialog from './SetupDialog';
 import OrganizationCatalogDialog from './OrganizationCatalogDialog';
 import ProviderAddCapabilityDialog from './ProviderAddCapabilityDialog';
+import { ImpactReviewSelection, impactReviewIds, impactSelectionError } from '../provider-authorizations/ImpactReviewSelection';
+import { AuthorizationContextSummary } from '../provider-authorizations/AuthorizationContextSummary';
 import { ProviderComponentPicker, ProviderArtifacts, ProviderOfferingSummary, ProviderVersions, PublishedVersion, WorkingVersion } from './ProviderPresentation';
 import * as api from './api';
 import type {
@@ -108,7 +110,10 @@ function ProviderCatalog() {
   }, [source]);
   return <PageLayout title="Security Capabilities"><PageHero eyebrow="Provider catalog · Provider offering" title="Capabilities you provide"
     description="Define once. Publish reviewed coverage. Keep mission owners informed."
-    actions={canWrite && <button type="button" className={heroAction} onClick={() => setAdding(true)}><Plus size={16} aria-hidden="true" />Add capability</button>} />
+    actions={canWrite && <div className="flex flex-wrap gap-2">
+      <Link className={heroAction} to="/authorizations/import"><FileCheck2 size={16} aria-hidden="true" />Import authorization package</Link>
+      <button type="button" className={heroAction} onClick={() => setAdding(true)}><Plus size={16} aria-hidden="true" />Add capability</button>
+    </div>} />
     <div className="space-y-5">
       <ProviderOfferingSummary />
       <CatalogFilters provider />
@@ -194,6 +199,7 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
   const [serviceCategory, setServiceCategory] = useState('');
   const [contributors, setContributors] = useState('');
   const [duties, setDuties] = useState('');
+  const [authorizationImpactIds, setAuthorizationImpactIds] = useState('');
   const [hydratedCapabilityId, setHydratedCapabilityId] = useState<string | null>(null);
   const [saved, setSaved] = useState<WorkingRevision | null>(null);
   const [approved, setApproved] = useState<WorkingRevision | null>(null);
@@ -219,6 +225,7 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
     setServiceCategory('');
     setContributors('');
     setDuties('');
+    setAuthorizationImpactIds('');
     setSaved(null);
     setApproved(null);
     setPreview(null);
@@ -323,12 +330,15 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
 
   const generatePreview = async () => {
     if (!saved || hasUnsavedChanges) return;
+    const invalidSelection = impactSelectionError(authorizationImpactIds);
+    if (invalidSelection) { setError(invalidSelection); return; }
     const request = beginMutation();
     setBusy(true); setError(null); setResult(null);
     try {
-      const next = await api.generatePublicationPreview(
-        capabilityId, saved.revision, request.controller.signal,
-      );
+      const ids = impactReviewIds(authorizationImpactIds);
+      const next = ids.length
+        ? await api.generatePublicationPreview(capabilityId, saved.revision, request.controller.signal, ids)
+        : await api.generatePublicationPreview(capabilityId, saved.revision, request.controller.signal);
       if (!mutationIsCurrent(request)) return;
       setPreview(next);
       if (next.isStale || new Date(next.expiresAt).getTime() <= Date.now()) {
@@ -518,6 +528,8 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
         </div>
         <aside className="min-w-0 space-y-5">
         <section className={workspaceCard}><h2 className="mb-5 text-lg font-semibold">Publication gate</h2>
+        <div className="mb-5"><ImpactReviewSelection capabilityId={capabilityId} value={authorizationImpactIds} disabled={busy || !canWrite || hasUnsavedChanges}
+          onChange={value => { setAuthorizationImpactIds(value); setPreview(null); setApproved(null); setEvidenceReviewed(false); setDutiesReviewed(false); }} /></div>
         <div className="mb-4 space-y-3 text-sm">
           <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 accent-indigo-600" checked={evidenceReviewed} disabled={!previewCurrent || busy || hasUnsavedChanges}
             onChange={event => setEvidenceReviewed(event.target.checked)} />Source evidence and coverage reviewed</label>
@@ -562,6 +574,7 @@ function PublicationImpact({ preview, current, subscribers, components, title, a
     <header className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">{title}</h2>
       <StateBadge tone={approved ? 'green' : 'amber'}>{approved ? 'Approved' : 'Awaiting approval'}</StateBadge></header>
     {!current && <p role="alert" className="text-red-700 dark:text-red-300">This preview is stale or expired and cannot be approved.</p>}
+    <AuthorizationContextSummary contextSnapshotHash={preview.contextSnapshotHash} impactReviewIds={preview.impactReviewIds} />
     <section className="border-l-4 border-indigo-300 pl-3"><h3 className="font-semibold">Updated customer duties</h3>
       {preview.dutyChanges.length
         ? <ul className="mt-1 text-slate-600 dark:text-gray-300">{preview.dutyChanges.map(change => <li key={change.key}>{change.key}: {change.before ?? 'None'} → {change.after ?? 'None'}</li>)}</ul>
@@ -834,7 +847,7 @@ function ComponentCapabilities({ tenantId, component, routeSystemId, systemId }:
   </section>;
 }
 
-function SetupWizard({ tenantId, routeSystemId }: { tenantId: string; routeSystemId?: string }) {
+export function SetupWizard({ tenantId, routeSystemId }: { tenantId: string; routeSystemId?: string }) {
   const { params } = useQueryState();
   const operationId = params.get('operation') ?? 'fresh';
   const identity = `${tenantId}:${routeSystemId ?? 'organization'}:${operationId}`;
@@ -1188,6 +1201,12 @@ export default function WorkspaceOperationsPage() {
   if (!session) return <main className="bg-white p-6 text-gray-900 dark:bg-gray-950 dark:text-gray-100"><p role="alert" className={errorClass}>An authorized workspace is required.</p></main>;
   const segments = location.pathname.split('/').filter(Boolean);
   if (session.target.kind === 'csp') {
+    if (segments[0] === 'security-capabilities' && segments[1] === 'imports') {
+      if (!session.workspace.permissions.canAccessCsp) return <main className="bg-white p-6 text-gray-900 dark:bg-gray-950 dark:text-gray-100"><p role="alert" className={errorClass}>Provider access is required.</p></main>;
+      const query = new URLSearchParams(location.search);
+      if (segments[2]) query.set('packageId', segments[2]);
+      return <Navigate replace to={`/authorizations${segments[2] ? '/import' : ''}${query.size ? `?${query}` : ''}${location.hash}`} />;
+    }
     if (segments[0] === 'organizations') {
       if (!session.workspace.permissions.canAccessCsp) return <main className="bg-white p-6 text-gray-900 dark:bg-gray-950 dark:text-gray-100"><p role="alert" className={errorClass}>Provider access is required.</p></main>;
       const tenantId = segments[1];

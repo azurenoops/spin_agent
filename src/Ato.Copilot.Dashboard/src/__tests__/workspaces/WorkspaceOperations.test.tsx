@@ -6,6 +6,19 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import WorkspaceOperationsPage from '../../features/workspace-operations/WorkspaceOperationsPage';
 import * as api from '../../features/workspace-operations/api';
+import * as authorizationApi from '../../features/provider-authorizations/api';
+import { acceptedImpact, emptyImpactPage } from '../provider-authorizations/impactFixtures';
+import { offering } from '../provider-authorizations/testData';
+
+vi.mock('../../features/provider-authorizations/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../features/provider-authorizations/api')>(),
+  listOfferings: vi.fn(), listImpactReviews: vi.fn(),
+}));
+
+vi.mock('../../features/package-imports/api', () => ({
+  listPackages: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 25 })),
+  packageImportHref: () => '/workspaces/csp/security-capabilities/imports',
+}));
 
 vi.mock('../../features/workspace-operations/api', async importOriginal => ({
   WorkspaceOperationError: (await importOriginal<typeof api>()).WorkspaceOperationError,
@@ -105,6 +118,8 @@ function page(route: string, entries = [route]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(authorizationApi.listOfferings).mockResolvedValue({ ...emptyImpactPage, total: 1, items: [offering] });
+  vi.mocked(authorizationApi.listImpactReviews).mockResolvedValue({ ...emptyImpactPage, total: 1, items: [acceptedImpact] });
   session.target = { kind: 'csp' };
   session.systemAccess = null;
   vi.mocked(api.getOrganizationCatalogAccess).mockResolvedValue({ canManageCatalog: true });
@@ -271,6 +286,7 @@ describe('workspace operations dashboard T050-T059', () => {
     // Assert
     expect(screen.getByRole('button', { name: 'By capability' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Add capability' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Import authorization package' })).toHaveAttribute('href', '/authorizations/import');
     expect(screen.getByRole('columnheader', { name: 'Published version' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Working revision' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Threat monitoring' })).toHaveAttribute('href', '/security-capabilities/capability-1');
@@ -316,8 +332,10 @@ describe('workspace operations dashboard T050-T059', () => {
     // Act
     fireEvent.click(await screen.findByRole('button', { name: 'View source package' }));
     // Assert
+    expect(await screen.findByText('No source packages have been received. Upload is optional.')).toBeInTheDocument();
     expect(screen.getByText('Provider SSP')).toBeInTheDocument();
-    expect(screen.getByText('Not recorded · separate from publication')).toBeInTheDocument();
+    expect(screen.queryByText('Not recorded · separate from publication')).not.toBeInTheDocument();
+    expect(screen.getByText('Source references do not verify a provider authorization or grant a mission-system ATO.')).toBeInTheDocument();
   });
 
   it('labels source package provenance separately from verified source evidence', async () => {
@@ -346,7 +364,7 @@ describe('workspace operations dashboard T050-T059', () => {
     // Assert
     expect(await offering.findByText('Source 2')).toBeInTheDocument();
     expect(api.getProviderCatalogOverview).toHaveBeenLastCalledWith(2, expect.any(AbortSignal));
-    expect(offering.getByText('26 source artifacts')).toBeInTheDocument();
+    expect(offering.getByText('26 component source references')).toBeInTheDocument();
   });
 
   it('stages provider component selection, saves the original concurrency token and blocks publishing unsaved changes', async () => {
@@ -541,6 +559,7 @@ describe('workspace operations dashboard T050-T059', () => {
       delivery: { impactWrites: 1, distinctOrganizations: 1, distinctSystems: 1 },
       notifications: { recipientCount: 2, distinctOrganizations: 1 },
     });
+
     vi.mocked(api.approveWorkingRevision).mockResolvedValue({
       ...(await api.getWorkingRevision('capability-1')),
       approvedRevision: 4, approvalState: 'Approved', approvedPreviewId: 'preview-1',
@@ -576,6 +595,45 @@ describe('workspace operations dashboard T050-T059', () => {
         revision: 4, approvedRevision: 4, previewId: 'preview-1', previewHash: 'preview-hash',
       }), expect.any(AbortSignal),
     ));
+  });
+
+  it('adds exact authorization impact review IDs without replacing the canonical catalog preview contract', async () => {
+    // Arrange
+    vi.mocked(api.getWorkingRevision).mockResolvedValue({
+      capabilityId: 'capability-1', revision: 4, snapshotHash: 'working-hash',
+      approvedRevision: null, updatedAt: '2026-09-20T00:00:00Z',
+      contributors: [], controlDuties: {}, classification: 'IL5', serviceCategory: 'Monitoring',
+      approvalState: 'NotApproved', approvedPreviewId: null, approvedPreviewHash: null,
+      approvedAt: null, approvedBy: null,
+    });
+    vi.mocked(api.generatePublicationPreview).mockResolvedValue({
+      previewId: 'preview-linked', capabilityId: 'capability-1', revision: 4,
+      impactReviewIds: ['server-confirmed-impact-1'], contextSnapshotHash: 'server-authorization-context',
+      workingSnapshotHash: 'working-hash', previewHash: 'preview-hash',
+      generatedAt: '2026-09-20T00:00:00Z', expiresAt: '2099-09-20T01:00:00Z', isStale: false,
+      contributorChanges: [], dutyChanges: [], referenceChanges: [], affectedOrganizations: [],
+      affectedSystems: [], delivery: { impactWrites: 0, distinctOrganizations: 0, distinctSystems: 0 },
+      notifications: { recipientCount: 0, distinctOrganizations: 0 },
+    });
+    page('/security-capabilities/capability-1?tab=review');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Generate publication preview' })).toBeEnabled());
+    // Act
+    await screen.findByRole('option', { name: 'Synthetic service' });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Offering' }), { target: { value: offering.offeringId } });
+    fireEvent.click(await screen.findByRole('checkbox', { name: /^Logging coverage change/ }));
+    expect(screen.getByRole('link', { name: 'Review changes' })).toHaveAttribute('href',
+      '/workspaces/csp/authorizations/offerings/offering-1/impact?capabilityId=capability-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Generate publication preview' }));
+    // Assert
+    await waitFor(() => expect(api.generatePublicationPreview).toHaveBeenCalledWith('capability-1', 4, expect.any(AbortSignal), ['impact-1']));
+    const contextDetails = (await screen.findByText('server-authorization-context')).closest('details');
+    expect(contextDetails).not.toHaveAttribute('open');
+    if (!contextDetails) throw new Error('Publication context Details missing.');
+    fireEvent.click(within(contextDetails).getByText('Details'));
+    expect(within(contextDetails).getByText('server-confirmed-impact-1')).toBeVisible();
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Logging coverage change/ }));
+    expect(screen.getByRole('button', { name: 'Approve exact preview' })).toBeDisabled();
+    expect(api.publishWorkingRevision).not.toHaveBeenCalled();
   });
 
   it('T053 rejects stale or expired previews and regenerates before approval', async () => {

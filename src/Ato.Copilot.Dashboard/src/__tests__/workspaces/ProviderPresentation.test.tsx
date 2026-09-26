@@ -1,7 +1,19 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { ProviderVersions } from '../../features/workspace-operations/ProviderPresentation';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { ProviderOfferingSummary, ProviderVersions } from '../../features/workspace-operations/ProviderPresentation';
 import type { ProviderCatalogItem } from '../../features/workspace-operations/types';
+
+vi.mock('../../features/workspace-operations/api', () => ({
+  getProviderCatalogOverview: vi.fn(async () => ({
+    providerName: 'Synthetic provider',
+    sourceArtifacts: { items: [], total: 2, page: 1, pageSize: 25 },
+  })),
+}));
+vi.mock('../../features/package-imports/api', () => ({
+  listPackages: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 25 })),
+  packageImportHref: () => '/workspaces/csp/security-capabilities/imports',
+}));
 
 const item: ProviderCatalogItem = {
   source: 'provider', componentId: 'component-a', capabilityId: 'capability-a', name: 'Monitoring',
@@ -11,6 +23,18 @@ const item: ProviderCatalogItem = {
 };
 
 describe('provider publication version presentation', () => {
+  it('labels component reference counts accurately without inventing an authorization lookup result', async () => {
+    // Arrange
+    render(<MemoryRouter><ProviderOfferingSummary /></MemoryRouter>);
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'View source package' }));
+    // Assert
+    expect(screen.getByText('2 component source references')).toBeInTheDocument();
+    expect(screen.queryByText('Not recorded · separate from publication')).not.toBeInTheDocument();
+    expect(screen.getByText('Source references do not verify a provider authorization or grant a mission-system ATO.')).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Saved source packages' })).toBeInTheDocument();
+  });
+
   it('does not portray the already released revision as pending work', () => {
     // Arrange
     const current = { ...item };

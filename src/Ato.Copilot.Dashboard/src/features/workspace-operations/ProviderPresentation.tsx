@@ -5,6 +5,7 @@ import { secondaryButtonClass, Status, useRemote, Pager } from './workspaceUi';
 import * as api from './api';
 import type { ProviderCatalogItem, ProviderSourceArtifact, WorkingRevision } from './types';
 import { useState } from 'react';
+import { PackageSourcesPanel } from '../package-imports/PackageSourcesPanel';
 
 export function ProviderVersions({ item, working }: { item?: ProviderCatalogItem | null; working?: WorkingRevision | null }) {
   return <dl className="space-y-4 text-sm">
@@ -43,13 +44,16 @@ export function ProviderOfferingSummary() {
         <div className="min-w-0 flex-1"><h2 className="text-lg font-semibold">{state.data.providerName ?? 'Provider'} offering</h2>
           <p className="mt-1 text-xs text-slate-500">Provider-owned source content</p></div>
         <dl className="flex flex-wrap gap-6 text-xs">
-          <div><dt className="text-slate-500">Source package</dt><dd className="mt-1 font-medium">{state.data.sourceArtifacts.total ? `${state.data.sourceArtifacts.total} source artifacts` : 'Not recorded'}</dd></div>
-          <div><dt className="text-slate-500">Authorization record</dt><dd className="mt-1 font-medium">Not recorded · separate from publication</dd></div>
+          <div><dt className="text-slate-500">Existing source references</dt><dd className="mt-1 font-medium">{state.data.sourceArtifacts.total ? `${state.data.sourceArtifacts.total} component source references` : 'No component references recorded'}</dd></div>
         </dl>
         <button type="button" className={secondaryButtonClass} onClick={() => setOpen(value => !value)} aria-expanded={open}>View source package</button>
       </div>
       {open && <div className="mt-5 border-t border-slate-200 pt-4 dark:border-gray-700">
-        <p className="mb-3 text-xs text-slate-500">Source-package provenance; these references do not establish verified evidence or authorization.</p>
+        <p className="mb-3 text-xs text-slate-500">Source references do not verify a provider authorization or grant a mission-system ATO.</p>
+        <p className="mb-4 text-sm">Offerings, external decisions and their exact boundaries are managed separately.
+          {' '}<Link className="font-semibold text-indigo-700 underline" to="/authorizations">Open Authorizations</Link></p>
+        <PackageSourcesPanel />
+        <h3 className="mt-5 text-sm font-semibold">Existing component references</h3>
         <ProviderArtifacts items={state.data.sourceArtifacts.items} />
         {state.data.sourceArtifacts.total > state.data.sourceArtifacts.pageSize && <Pager {...state.data.sourceArtifacts} onPage={setPage} />}
       </div>}
