@@ -1,4 +1,5 @@
 import { act,fireEvent,render,screen,waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach,describe,expect,it,vi } from 'vitest';
 import SystemProfile,{ computeIsReadOnly } from '../../pages/SystemProfile';
 import type { ProfileSectionDetail,ProfileSectionType } from '../../types/dashboard';
@@ -10,7 +11,11 @@ const api=vi.hoisted(() => ({
   getProfileSection: vi.fn(),getProfileCompleteness: vi.fn(),saveProfileSection: vi.fn(),
   submitSections: vi.fn(),withdrawSections: vi.fn(),reviewSection: vi.fn(),
 }));
-vi.mock('react-router-dom',() => ({ useParams: () => ({ sectionType: state.sectionType }) }));
+vi.mock('react-router-dom',() => ({
+  useParams: () => ({ sectionType: state.sectionType }),
+  useLocation: () => ({ pathname: `/systems/${state.systemId}/profile/${state.sectionType}`, hash: '' }),
+  Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
+}));
 vi.mock('../../components/layout/SystemLayout',() => ({ useSystemContext: () => ({ detail: { systemId: state.systemId } }) }));
 vi.mock('../../hooks/useSettings',() => ({ useSettings: () => ({ settings: { role: state.role } }) }));
 vi.mock('../../api/systemProfile',() => api);
@@ -55,7 +60,7 @@ describe('server-authoritative profile editing (#968)',() => {
 
     // Act
     render(<SystemProfile />);
-    await screen.findByText('Profile Completeness');
+    await screen.findByRole('button', { name: 'Save Draft' });
 
     // Assert
     expect(screen.getAllByPlaceholderText("Describe the system's mission...")).toHaveLength(1);

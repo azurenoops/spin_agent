@@ -14,7 +14,7 @@ export default function ProfileReadinessCard({ completeness }: ProfileReadinessC
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-center">
-        <p className="text-sm font-medium text-gray-500">Profile Readiness</p>
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-300">Profile Completeness</p>
         <HelpTooltip helpKey="profile-readiness" />
       </div>
       <div className="mt-1 flex items-baseline gap-2">

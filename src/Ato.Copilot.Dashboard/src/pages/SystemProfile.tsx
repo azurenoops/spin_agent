@@ -1,20 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useParams } from '../features/workspaces/workspaceNavigation';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { useSettings } from '../hooks/useSettings';
 import { useWorkspaceSession } from '../features/workspaces/WorkspaceBoundary';
 import { displayWorkspaceRoles } from '../features/workspaces/workspaceRoles';
 import ProfileSectionForm from '../components/forms/ProfileSectionForm';
 import { getProfileSection, saveProfileSection, submitSections, withdrawSections, reviewSection } from '../api/systemProfile';
-import { getProfileCompleteness } from '../api/systemProfile';
 import { formatProfileSectionLabel } from '../utils/profileSections';
 import AsyncErrorState from '../components/AsyncErrorState';
-import AssessmentEnvironmentPanel from '../components/AssessmentEnvironmentPanel';
 import type {
   ProfileSectionDetail,
   ProfileSectionType,
   GovernanceStatus,
-  ProfileCompletenessResponse,
 } from '../types/dashboard';
 
 // ─── Governance badge color mapping ─────────────────────────────────────────
@@ -39,6 +36,10 @@ export function computeIsReadOnly(governanceStatus: string | undefined, canEditP
 export default function SystemProfile() {
   const { sectionType } = useParams<{ sectionType: string }>();
   const { detail } = useSystemContext();
+  const location = useLocation();
+  if (sectionType === 'EnvironmentAndDeployment' && location.hash === '#azure-assessment-environment') {
+    return <Navigate replace to={`/systems/${encodeURIComponent(detail.systemId)}/assessments/environment#azure-assessment-environment`} />;
+  }
   return <SystemProfileSection key={`${detail.systemId}/${sectionType}`} />;
 }
 
@@ -49,7 +50,6 @@ function SystemProfileSection() {
   const workspace = useWorkspaceSession();
 
   const [section, setSection] = useState<ProfileSectionDetail | null>(null);
-  const [completeness, setCompleteness] = useState<ProfileCompletenessResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,13 +64,9 @@ function SystemProfileSection() {
     const version = ++requestVersion.current;
     setLoading(true);
     try {
-      const [sec, comp] = await Promise.all([
-        getProfileSection(systemId, sectionType),
-        getProfileCompleteness(systemId),
-      ]);
+      const sec = await getProfileSection(systemId, sectionType);
       if (version !== requestVersion.current) return;
       setSection(sec);
-      setCompleteness(comp);
       setError(null);
     } catch {
       if (version !== requestVersion.current) return;
@@ -185,7 +181,6 @@ function SystemProfileSection() {
 
   return (
     <div className="space-y-6">
-      {sectionType === 'EnvironmentAndDeployment' && <AssessmentEnvironmentPanel systemId={systemId} />}
       {loading ? (
         <p className="text-gray-500 py-8 text-center">Loading section...</p>
       ) : error && !section ? (
@@ -198,32 +193,9 @@ function SystemProfileSection() {
         />
       ) : (
         <div className="space-y-6">
-          {/* Completeness Header */}
-          {completeness && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-gray-900">Profile Completeness</h2>
-                {completeness.isProfileComplete && (
-                  <span className="rounded-full bg-green-100 text-green-700 px-3 py-0.5 text-xs font-medium">
-                    Profile Complete
-                  </span>
-                )}
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div
-                  className="bg-indigo-600 h-2.5 rounded-full transition-all"
-                  style={{ width: `${completeness.approvedPercentage}%` }}
-                />
-              </div>
-              <p className="text-sm text-gray-500 mt-1">
-                {completeness.statusCounts['Approved'] ?? 0} / {completeness.totalSections} mandatory sections approved
-              </p>
-            </div>
-          )}
-
           {/* Section Header */}
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-gray-900">{label}</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{label}</h1>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${approvalVariant(status)}`}>
               {status}
             </span>
@@ -233,6 +205,10 @@ function SystemProfileSection() {
               </span>
             )}
           </div>
+          {sectionType === 'EnvironmentAndDeployment' && <p className="text-sm text-gray-600 dark:text-gray-300">
+            Where does this system run, and which provider services does it use?
+            {' '}Describe the environment below. Network, recovery and operating details can be expanded when needed.
+          </p>}
 
           {/* Success message */}
           {successMsg && (
@@ -240,8 +216,9 @@ function SystemProfileSection() {
           )}
 
           {/* Section Form */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
             <ProfileSectionForm
+              systemId={systemId}
               sectionType={sectionType}
               governanceStatus={status}
               initialContent={section?.draftContent ?? null}
@@ -267,6 +244,12 @@ function SystemProfileSection() {
               onRequestRevision={handleRequestRevision}
             />
           </div>
+          {sectionType === 'EnvironmentAndDeployment' && <p className="text-sm text-gray-600 dark:text-gray-300">
+            Azure scan configuration is a separate task in{' '}
+            <Link className="underline" to={`/systems/${encodeURIComponent(systemId)}/assessments/environment`}>
+              Assessments: configure Azure assessment
+            </Link>. Track overall profile completeness on the <Link className="underline" to={`/systems/${encodeURIComponent(systemId)}`}>system overview</Link>.
+          </p>}
         </div>
       )}
 

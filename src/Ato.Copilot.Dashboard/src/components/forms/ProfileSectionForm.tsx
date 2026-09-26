@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import EnvironmentAssociations from './EnvironmentAssociations';
 import type {
   ProfileSectionType,
   GovernanceStatus,
@@ -21,6 +22,15 @@ interface FieldDef {
   rows?: number;
 }
 
+function FieldGroup({ label, children }: { label?: string; children: ReactNode }) {
+  return label
+    ? <details className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+        <summary className="cursor-pointer font-medium">{label}</summary>
+        <div className="mt-4 space-y-4">{children}</div>
+      </details>
+    : <div className="space-y-4">{children}</div>;
+}
+
 const sectionFields: Record<ProfileSectionType, FieldDef[]> = {
   MissionAndPurpose: [
     { key: 'missionStatement', label: 'Mission Statement', type: 'textarea', maxLength: 4000, required: true, rows: 4, placeholder: 'Describe the system\'s mission...' },
@@ -37,7 +47,7 @@ const sectionFields: Record<ProfileSectionType, FieldDef[]> = {
     ] },
   ],
   EnvironmentAndDeployment: [
-    { key: 'hostingModel', label: 'Hosting Model', type: 'select', required: true, options: ['Cloud (IaaS)', 'Cloud (PaaS)', 'Cloud (SaaS)', 'On-Premises', 'Hybrid', 'Government Cloud (GovCloud)', 'Private Cloud'] },
+    { key: 'hostingModel', label: 'Hosting model', type: 'select', required: true, options: ['CSP-hosted', 'Organization-managed cloud', 'On-Premises', 'Hybrid'] },
     { key: 'cloudProvider', label: 'Cloud Service Provider', type: 'multiselect', options: [
       'AWS', 'AWS GovCloud', 'Azure', 'Azure Government', 'Google Cloud', 'Oracle Cloud',
       'IBM Cloud', 'DISA milCloud', 'On-Premises / N/A',
@@ -72,7 +82,7 @@ const sectionFields: Record<ProfileSectionType, FieldDef[]> = {
       'Ubuntu 22.04 LTS', 'Ubuntu 24.04 LTS', 'Amazon Linux 2', 'CentOS Stream',
       'SUSE Linux', 'Container-Based (No Host OS)', 'Other',
     ] },
-    { key: 'additionalDetails', label: 'Additional Details', type: 'textarea', maxLength: 4000, rows: 3, placeholder: 'Any additional environment details not covered above...' },
+    { key: 'additionalDetails', label: 'Environment description', type: 'textarea', maxLength: 4000, rows: 3, placeholder: 'Briefly describe where this system runs and which services it uses.' },
   ],
   DataTypes: [
     { key: 'dataOverview', label: 'Data Overview', type: 'textarea', maxLength: 4000, rows: 4, placeholder: 'Describe data processed by the system...' },
@@ -224,6 +234,7 @@ export interface SystemContextForPrefill {
 }
 
 interface ProfileSectionFormProps {
+  systemId?: string;
   sectionType: ProfileSectionType;
   governanceStatus: GovernanceStatus;
   initialContent: string | null;
@@ -280,6 +291,7 @@ function buildPrefill(sectionType: ProfileSectionType, ctx?: SystemContextForPre
 }
 
 export default function ProfileSectionForm({
+  systemId,
   sectionType,
   governanceStatus,
   initialContent,
@@ -326,7 +338,7 @@ export default function ProfileSectionForm({
 
   // AI pre-fill: when section is NotStarted and no content exists, populate from system data
   useEffect(() => {
-    if (prefilled || initialContent || governanceStatus !== 'NotStarted' || !systemContext) return;
+    if (sectionType === 'EnvironmentAndDeployment' || prefilled || initialContent || governanceStatus !== 'NotStarted' || !systemContext) return;
     const pre = buildPrefill(sectionType, systemContext);
     if (Object.keys(pre).length > 0) {
       setValues((prev) => {
@@ -353,6 +365,11 @@ export default function ProfileSectionForm({
   const roles = effectiveRoles ?? [userRole];
   const canWithdraw = governanceStatus === 'UnderReview' && roles.includes('MissionOwner');
   const canReview = governanceStatus === 'UnderReview' && roles.includes('ISSM');
+  const groups: { label?: string; keys: string[] }[] = sectionType === 'EnvironmentAndDeployment' ? [
+    { keys: ['hostingModel', 'additionalDetails'] },
+    { label: 'Network zones & deployment locations', keys: ['cloudProvider', 'networkZones', 'geographicLocations'] },
+    { label: 'Recovery, availability & operating details', keys: ['availabilityTier', 'disasterRecoveryPosture', 'rtoRpo', 'maintenanceWindows', 'operatingSystem'] },
+  ] : [{ keys: fields.map(field => field.key) }];
 
   return (
     <div className="space-y-5">
@@ -396,22 +413,23 @@ export default function ProfileSectionForm({
       )}
 
       {/* Scalar fields */}
-      <div className="space-y-4">
-        {fields.map((field) => (
+      {groups.map(group => <FieldGroup key={group.label ?? 'primary'} label={group.label}>
+        {group.keys.flatMap(key => fields.filter(field => field.key === key)).map((field) => (
           <div key={field.key}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor={field.type === 'multiselect' ? undefined : `profile-${field.key}`} className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">
               {field.label}
-              {field.required && <span className="text-red-500 ml-0.5">*</span>}
+              {field.required && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}
             </label>
             {field.type === 'textarea' ? (
               <>
                 <textarea
+                  id={`profile-${field.key}`}
                   value={values[field.key] ?? ''}
                   onChange={(e) => handleFieldChange(field.key, e.target.value)}
                   disabled={isReadOnly}
                   rows={field.rows ?? 3}
                   maxLength={field.maxLength}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:disabled:bg-gray-900"
                   placeholder={field.placeholder}
                 />
                 {field.maxLength && (
@@ -430,18 +448,22 @@ export default function ProfileSectionForm({
               />
             ) : field.type === 'select' ? (
               <select
+                id={`profile-${field.key}`}
                 value={values[field.key] ?? ''}
                 onChange={(e) => handleFieldChange(field.key, e.target.value)}
                 disabled={isReadOnly}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:disabled:bg-gray-900"
               >
                 <option value="">— Select —</option>
+                {values[field.key] && !field.options?.includes(values[field.key]!) &&
+                  <option value={values[field.key]}>{values[field.key]} (previously recorded)</option>}
                 {field.options?.map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
             ) : (
               <input
+                id={`profile-${field.key}`}
                 type="text"
                 value={values[field.key] ?? ''}
                 onChange={(e) => handleFieldChange(field.key, e.target.value)}
@@ -453,7 +475,11 @@ export default function ProfileSectionForm({
             )}
           </div>
         ))}
-      </div>
+        {!group.label && sectionType === 'EnvironmentAndDeployment' && systemId &&
+          <EnvironmentAssociations systemId={systemId} hostingModel={values.hostingModel ?? ''}
+            description={values.additionalDetails ?? ''} readOnly={isReadOnly || isSubmitting}
+            onPrefill={suggested => setValues(current => ({ ...current, ...suggested }))} />}
+      </FieldGroup>)}
 
       {/* Child entity CRUD table */}
       {child && (
