@@ -1,0 +1,22 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_PROVIDER_ADMIN_TOKEN
+@offeringId = REPLACE_WITH_EXISTING_LOCAL_OFFERING_ID
+
+### Read linked capabilities and hosting assignments; no receipts or mutations
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/boundary-overview
+Authorization: Bearer {{token}}
+
+### Page independently; totals are across all linked records, not this page
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/boundary-overview?capabilityPage=2&missionPage=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### Invalid page size: 400 INVALID_PROVIDER_REQUEST
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/boundary-overview?pageSize=101
+Authorization: Bearer {{token}}
+
+### Unknown/foreign offering: 404 PROVIDER_RECORD_NOT_FOUND
+GET {{baseUrl}}/api/csp/offerings/ffffffff-ffff-ffff-ffff-ffffffffffff/boundary-overview
+Authorization: Bearer {{token}}
+
+### Missing authentication: 401; an ordinary tenant/support token must not grant provider access
+GET {{baseUrl}}/api/csp/offerings/{{offeringId}}/boundary-overview
