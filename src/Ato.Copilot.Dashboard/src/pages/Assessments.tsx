@@ -16,6 +16,7 @@ import type { SarResponse } from '../api/sar';
 import CreateRemediationTaskModal from '../components/remediation/CreateRemediationTaskModal';
 import AddDeviationDialog from '../components/AddDeviationDialog';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
+import { assessmentPermissionError, isAssessmentAccessError } from '../utils/assessmentErrors';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -81,7 +82,9 @@ export default function Assessments() {
   const [filter, setFilter] = useState('');
   const [showRunDialog, setShowRunDialog] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
-  const readiness = useAssessmentReadiness(systemId);
+  const readiness = useAssessmentReadiness(systemId, canRunAssessments);
+  const readinessError = canRunAssessments ? readiness.error : assessmentPermissionError;
+  const accessRequired = isAssessmentAccessError(readinessError) || isAssessmentAccessError(readiness.result);
   const runGeneration = useRef(0);
   const [detailData, setDetailData] = useState<AssessmentDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -346,17 +349,18 @@ export default function Assessments() {
 
         <div id="assessment-readiness" aria-live="polite" className="rounded-lg border border-gray-200 bg-white p-4 text-sm">
           <p className="font-medium text-gray-900">Run Assessment uses real Azure resources only.</p>
+          {accessRequired && <p className="mt-2 font-semibold text-amber-900">Azure assessment access required</p>}
           <p className="mt-1 text-gray-700">
-            {readiness.loading ? 'Checking Azure assessment readiness…' : readiness.error?.message ?? readiness.result?.message}
+            {readiness.loading ? 'Checking Azure assessment readiness…' : readinessError?.message ?? readiness.result?.message}
           </p>
-          {(readiness.error?.suggestion ?? readiness.result?.suggestion) && (
-            <p className="mt-1 text-gray-700">{readiness.error?.suggestion ?? readiness.result?.suggestion}</p>
+          {(readinessError?.suggestion ?? readiness.result?.suggestion) && (
+            <p className="mt-1 text-gray-700">{readinessError?.suggestion ?? readiness.result?.suggestion}</p>
           )}
           <div className="mt-2 flex items-center gap-4">
             <Link to={readiness.configurationUrl} className="text-indigo-700 underline">Configure Environment</Link>
-            <button type="button" disabled={readiness.loading || runLoading} onClick={() => void readiness.refresh()} className="text-indigo-700 underline disabled:opacity-50">
+            {!accessRequired && <button type="button" disabled={readiness.loading || runLoading} onClick={() => void readiness.refresh()} className="text-indigo-700 underline disabled:opacity-50">
               Retry readiness check
-            </button>
+            </button>}
           </div>
         </div>
 

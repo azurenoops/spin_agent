@@ -5,13 +5,15 @@ import {
   type AssessmentEnvironment,
 } from '../api/assessments';
 import { useAssessmentReadiness } from '../hooks/useAssessmentReadiness';
-import { assessmentError, type AssessmentError } from '../utils/assessmentErrors';
+import { assessmentError, assessmentPermissionError, isAssessmentAccessError, type AssessmentError } from '../utils/assessmentErrors';
+import { useSystemMutationPermission } from './permissions/useSystemMutationPermission';
 
 export default function AssessmentEnvironmentPanel({ systemId }: { systemId: string }) {
   return <EnvironmentAttachment key={systemId} systemId={systemId} />;
 }
 
 function EnvironmentAttachment({ systemId }: { systemId: string }) {
+  const canAssess = useSystemMutationPermission(systemId, 'canRunAssessments');
   const [configuration, setConfiguration] = useState<AssessmentEnvironment | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,9 +21,13 @@ function EnvironmentAttachment({ systemId }: { systemId: string }) {
   const [error, setError] = useState<AssessmentError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const generation = useRef(0);
-  const readiness = useAssessmentReadiness(systemId);
+  const readiness = useAssessmentReadiness(systemId, canAssess && configuration !== null && !isAssessmentAccessError(error));
+  const accessError = !canAssess ? assessmentPermissionError
+    : isAssessmentAccessError(error) ? error
+      : isAssessmentAccessError(readiness.error) ? readiness.error : null;
 
   const load = useCallback(async () => {
+    if (!canAssess) return;
     const request = ++generation.current;
     setLoading(true);
     setError(null);
@@ -38,12 +44,20 @@ function EnvironmentAttachment({ systemId }: { systemId: string }) {
     } finally {
       if (request === generation.current) setLoading(false);
     }
-  }, [systemId]);
+  }, [systemId, canAssess]);
 
   useEffect(() => {
-    void load();
+    if (canAssess) void load();
+    else {
+      setConfiguration(null);
+      setSelected([]);
+      setError(null);
+      setSaving(false);
+      setNotice(null);
+      setLoading(false);
+    }
     return () => { generation.current += 1; };
-  }, [load]);
+  }, [load, canAssess]);
 
   const supportedCloud = configuration?.deploymentCloud === 'Commercial' || configuration?.deploymentCloud === 'Government';
   const eligible = (subscriptionId: string) => configuration?.availableSubscriptions.some(
@@ -55,7 +69,7 @@ function EnvironmentAttachment({ systemId }: { systemId: string }) {
   const cloudMismatch = !!configuration?.cloudEnvironment
     && configuration.cloudEnvironment !== configuration.deploymentCloud;
   const attached = !!configuration?.cloudEnvironment || !!configuration?.subscriptionIds.length;
-  const canSave = !!configuration && supportedCloud && !cloudMismatch
+  const canSave = !accessError && !!configuration && supportedCloud && !cloudMismatch
     && selected.length > 0 && selected.every(eligible) && !saving;
 
   const save = async () => {
@@ -81,7 +95,7 @@ function EnvironmentAttachment({ systemId }: { systemId: string }) {
   };
 
   const detach = async () => {
-    if (!configuration || !attached || saving || !window.confirm('Detach this Azure assessment environment? Historical assessments will be preserved.')) return;
+    if (accessError || !configuration || !attached || saving || !window.confirm('Detach this Azure assessment environment? Historical assessments will be preserved.')) return;
     const request = ++generation.current;
     setSaving(true);
     setError(null);
@@ -112,16 +126,23 @@ function EnvironmentAttachment({ systemId }: { systemId: string }) {
         Attach real Azure subscriptions for Run Assessment. This configuration is separate from the descriptive Mission Profile and its review status.
         Saving an attachment does not verify Azure connectivity. No credentials are collected here.
       </p>
-      {loading && <p role="status">Loading Azure assessment environment…</p>}
-      {error && (
+      {accessError && (
+        <div role="status" className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <h3 className="font-semibold">Azure assessment access required</h3>
+          <p className="mt-1">{accessError.message}</p>
+          {accessError.suggestion && <p className="mt-1">{accessError.suggestion}</p>}
+        </div>
+      )}
+      {loading && !accessError && <p role="status">Loading Azure assessment environment…</p>}
+      {error && !accessError && (
         <div role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">
           <p>{error.message}</p>
           {error.suggestion && <p className="mt-1">{error.suggestion}</p>}
           {!configuration && <button type="button" onClick={() => void load()} className="mt-2 underline">Retry</button>}
         </div>
       )}
-      {notice && <p role="status" className="text-sm text-gray-700">{notice}</p>}
-      {!loading && configuration && (
+      {notice && !accessError && <p role="status" className="text-sm text-gray-700">{notice}</p>}
+      {!loading && configuration && !accessError && (
         <>
           <p className="text-sm">Deployment cloud: <strong>{configuration.deploymentCloud}</strong>. Only matching-cloud subscriptions are eligible.</p>
           {(!supportedCloud || cloudMismatch || invalidBindings.length > 0) && (
@@ -168,7 +189,7 @@ function EnvironmentAttachment({ systemId }: { systemId: string }) {
           </div>
         </>
       )}
-      <Link to="/settings/azure-subscriptions" className="inline-block text-sm text-indigo-700 underline">Manage organization subscriptions</Link>
+      {!accessError && <Link to="/settings/azure-subscriptions" className="inline-block text-sm text-indigo-700 underline">Manage organization subscriptions</Link>}
     </section>
   );
 }
