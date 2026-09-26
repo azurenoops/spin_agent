@@ -33,6 +33,8 @@ public sealed class WorkspaceOperationsSchemaTests
                     SubscriptionState TEXT NOT NULL, ComponentIdsJson TEXT NOT NULL,
                     OutcomesJson TEXT NOT NULL, LastError TEXT NULL,
                     CreatedAt TEXT NOT NULL, UpdatedAt TEXT NOT NULL);
+                CREATE TABLE SystemCapabilityLinks (Id TEXT NOT NULL PRIMARY KEY);
+                INSERT INTO SystemCapabilityLinks(Id) VALUES ('preserved-link');
                 CREATE TABLE ProviderReleaseImpacts (
                     Id TEXT NOT NULL PRIMARY KEY, ReleaseId TEXT NOT NULL, TenantId TEXT NOT NULL,
                     RegisteredSystemId TEXT NOT NULL, SubscriptionId TEXT NULL, ControlId TEXT NOT NULL,
@@ -126,6 +128,15 @@ public sealed class WorkspaceOperationsSchemaTests
         Assert.True(await TableExistsAsync(connection, "OrganizationNameReservations"));
         Assert.True(await TableExistsAsync(connection, "CapabilitySetupOperations"));
         Assert.Null(setup.LocalCapabilityJson);
+        Assert.Null(setup.SystemIntentJson);
+        Assert.Null(setup.SystemPlanJson);
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT SupportingProviderCapabilityIdsJson FROM SystemCapabilityLinks WHERE Id='preserved-link'";
+            Assert.Equal("[]", await command.ExecuteScalarAsync());
+        }
+        Assert.Contains(WorkspaceOperationsSchemaAdditions.SqlServerBatches,
+            batch => batch.Contains("SupportingProviderCapabilityIdsJson", StringComparison.Ordinal));
         Assert.Contains(WorkspaceOperationsSchemaAdditions.SqlServerBatches,
             batch => batch.Contains("ProviderPublicationPreviews", StringComparison.Ordinal));
         Assert.Contains(WorkspaceOperationsSchemaAdditions.SqlServerBatches,

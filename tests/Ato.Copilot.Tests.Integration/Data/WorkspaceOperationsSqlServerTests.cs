@@ -1,9 +1,12 @@
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Data.Migrations;
 using Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Workspaces;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -13,6 +16,40 @@ namespace Ato.Copilot.Tests.Integration.Data;
 public sealed class WorkspaceOperationsSqlServerTests(BoundarySchemaSqlServerFixture fixture)
     : IClassFixture<BoundarySchemaSqlServerFixture>
 {
+    [SkippableFact]
+    public async Task SystemCapabilityMigration_PreservesLegacyHistoryAcrossRepeatUpgrade()
+    {
+        // Arrange
+        Skip.IfNot(fixture.Available, fixture.UnavailableReason);
+        await using var db = await fixture.CreateDatabaseAsync();
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE dbo.CapabilitySetupOperations (Id INT PRIMARY KEY, LegacyValue NVARCHAR(40) NOT NULL);
+            CREATE TABLE dbo.SystemCapabilityLinks (Id INT PRIMARY KEY, LegacyValue NVARCHAR(40) NOT NULL);
+            CREATE TABLE dbo.CapabilityResponsibilityConfirmations (Id INT PRIMARY KEY, LegacyValue NVARCHAR(40) NOT NULL);
+            INSERT dbo.CapabilitySetupOperations VALUES (1, N'prepared history');
+            INSERT dbo.SystemCapabilityLinks VALUES (1, N'shared library link');
+            INSERT dbo.CapabilityResponsibilityConfirmations VALUES (1, N'approved review history');
+            """);
+        var migration = new Feature1037_SystemCapabilitySetup { ActiveProvider = db.Database.ProviderName! };
+        var commands = db.GetService<IMigrationsSqlGenerator>().Generate(migration.UpOperations, db.Model);
+
+        // Act
+        for (var startup = 0; startup < 2; startup++)
+            foreach (var command in commands)
+                await db.Database.ExecuteSqlRawAsync(command.CommandText);
+        var preserved = await db.Database.SqlQueryRaw<string>("""
+            SELECT LegacyValue AS Value FROM dbo.CapabilitySetupOperations WHERE SystemIntentJson IS NULL AND SystemPlanJson IS NULL
+            UNION ALL
+            SELECT LegacyValue FROM dbo.SystemCapabilityLinks WHERE SupportingProviderCapabilityIdsJson = N'[]'
+            UNION ALL
+            SELECT LegacyValue FROM dbo.CapabilityResponsibilityConfirmations
+              WHERE ProviderCoverageVerified IS NULL AND CustomerDutiesReviewed IS NULL AND ReviewNotes IS NULL
+            """).ToListAsync();
+
+        // Assert
+        preserved.Should().BeEquivalentTo("prepared history", "shared library link", "approved review history");
+    }
+
     [SkippableFact]
     public async Task ApplyAsync_WithSqlServerRetries_PreservesLegacyRowsAcrossRepeatStartup()
     {
