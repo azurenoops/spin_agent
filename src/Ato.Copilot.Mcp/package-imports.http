@@ -1,0 +1,153 @@
+@baseUrl = http://localhost:3001
+@token = REPLACE_WITH_LOCAL_PROVIDER_ADMIN_TOKEN
+@packageId = REPLACE_WITH_RECEIPT_PACKAGE_ID
+@candidateId = REPLACE_WITH_CANDIDATE_ID
+@artifactId = REPLACE_WITH_ARTIFACT_ID
+@previewId = REPLACE_WITH_PREVIEW_ID
+@previewHash = REPLACE_WITH_EXACT_PREVIEW_HASH
+@packageRevision = 1
+@candidateRevision = 1
+@referenceCandidateId = REPLACE_WITH_AUTHORIZATION_REFERENCE_CANDIDATE_ID
+@referenceRevision = 1
+
+### Durable onboarding receipt (before profile activation)
+POST {{baseUrl}}/api/csp/onboarding/atos/upload
+Authorization: Bearer {{token}}
+Prefer: respond-async
+Idempotency-Key: local-synthetic-package-v1
+Content-Type: multipart/form-data; boundary=package
+
+--package
+Content-Disposition: form-data; name="files"; filename="synthetic.json"
+Content-Type: application/json
+
+{"components":[{"id":"local-idp","name":"Synthetic identity provider","description":"Synthetic identity provider manages identities."}]}
+--package--
+
+### Active providers use the same multipart body at /api/csp/inherited-components/import.
+### List provider-private receipts
+GET {{baseUrl}}/api/csp/package-imports?page=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Processing and publication state
+GET {{baseUrl}}/api/csp/package-imports/{{packageId}}
+Authorization: Bearer {{token}}
+
+### Manifest coverage and exceptions
+GET {{baseUrl}}/api/csp/package-imports/{{packageId}}/entries?page=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Source-backed private candidates
+GET {{baseUrl}}/api/csp/package-imports/{{packageId}}/candidates?page=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Recover persisted approval and publication after refresh or an uncertain response
+GET {{baseUrl}}/api/csp/package-imports/{{packageId}}/review-state
+Authorization: Bearer {{token}}
+
+### Reviewed source references are not verified authorization decisions
+GET {{baseUrl}}/api/csp/package-imports/{{packageId}}/candidates?type=AuthorizationReference&reviewState=Reviewed&page=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Proposed source-reference metadata and immutable citations
+GET {{baseUrl}}/api/csp/package-imports/{{packageId}}/candidates?type=AuthorizationReference&reviewState=NeedsReview&page=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Review reference metadata, not an authorization decision (copy current candidate fields/revision)
+# Reference names allow 1-2000 characters. Component classification is inapplicable; null is accepted.
+PATCH {{baseUrl}}/api/csp/package-imports/{{packageId}}/candidates/{{referenceCandidateId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "expectedRevision": {{referenceRevision}},
+  "name": "Synthetic authorization memorandum",
+  "description": "Source-stated reference; not a verified authorization or system ATO.",
+  "componentType": null,
+  "classification": "",
+  "serviceCategory": "",
+  "controlDuties": {},
+  "contributorIds": [],
+  "reviewAction": "Reviewed",
+  "rationale": null,
+  "duplicateResolution": null,
+  "authorizationReference": {
+    "reference": "SYNTHETIC-REFERENCE-01",
+    "issuer": "Synthetic issuing office",
+    "issuedAt": "2026-01-02T00:00:00Z",
+    "expiresAt": "2027-01-02T00:00:00Z"
+  }
+}
+
+### Reject a reference with rationale (refresh referenceRevision after every successful edit)
+PATCH {{baseUrl}}/api/csp/package-imports/{{packageId}}/candidates/{{referenceCandidateId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "expectedRevision": {{referenceRevision}},
+  "name": "Synthetic authorization memorandum",
+  "description": "Source-stated reference; not a verified authorization or system ATO.",
+  "componentType": null,
+  "classification": "",
+  "serviceCategory": "",
+  "controlDuties": {},
+  "contributorIds": [],
+  "reviewAction": "Rejected",
+  "rationale": "Synthetic source reference withdrawn after review.",
+  "duplicateResolution": null,
+  "authorizationReference": null
+}
+
+### Rejected references remain retained but no longer appear in the Reviewed filter
+GET {{baseUrl}}/api/csp/package-imports/{{packageId}}/candidates?type=AuthorizationReference&reviewState=Rejected&page=1&pageSize=25
+Authorization: Bearer {{token}}
+
+### Protected attachment
+GET {{baseUrl}}/api/csp/package-imports/{{packageId}}/artifacts/{{artifactId}}/content
+Authorization: Bearer {{token}}
+
+### Explicit human review (copy the exact current candidate fields first)
+PATCH {{baseUrl}}/api/csp/package-imports/{{packageId}}/candidates/{{candidateId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"expectedRevision":{{candidateRevision}},"name":"Synthetic identity provider","description":"Synthetic identity provider manages identities.","componentType":"Identity","classification":"Unclassified","serviceCategory":"Identity","controlDuties":{},"contributorIds":[],"reviewAction":"Reviewed","rationale":null,"duplicateResolution":null}
+
+### Exclude an irrelevant or unsupported source explicitly (invalidates approvals)
+PATCH {{baseUrl}}/api/csp/package-imports/{{packageId}}/entries/{{artifactId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"expectedRevision":1,"rationale":"Synthetic non-document container is outside the selected approval set."}
+
+### Retry only failed/incomplete packages
+POST {{baseUrl}}/api/csp/package-imports/{{packageId}}/retry
+Authorization: Bearer {{token}}
+Idempotency-Key: local-retry-v1
+
+### Preview exact reviewed selection, including component dependencies
+POST {{baseUrl}}/api/csp/package-imports/{{packageId}}/approval-previews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"expectedRevision":{{packageRevision}},"candidates":[{"candidateId":"{{candidateId}}","revision":{{candidateRevision}}}]}
+
+### Explicit approval
+POST {{baseUrl}}/api/csp/package-imports/{{packageId}}/approve
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"previewId":"{{previewId}}","previewHash":"{{previewHash}}","revision":{{packageRevision}}}
+
+### Explicit publication; repeat with the identical key/body to verify replay
+POST {{baseUrl}}/api/csp/package-imports/{{packageId}}/publish
+Authorization: Bearer {{token}}
+Idempotency-Key: local-publish-v1
+Content-Type: application/json
+
+{"previewId":"{{previewId}}","previewHash":"{{previewHash}}","revision":{{packageRevision}}}
+
+### Missing source is 404, never an arbitrary file download
+GET {{baseUrl}}/api/csp/package-imports/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}

@@ -90,7 +90,7 @@ public static class CspInheritedComponentEndpoints
 
         // Post-onboarding import endpoint — same pipeline as the wizard
         // upload but gated on CspProfile.OnboardingState = Active.
-        group.MapPost("/import", ImportAsync)
+        group.MapPost("/import", CspPackageImportEndpoints.UploadActiveAsync)
             .WithName("ImportCspInheritedComponents")
             .DisableAntiforgery()
             .WithMetadata(new RequestSizeLimitAttribute(50L * 1024L * 1024L));
@@ -820,156 +820,7 @@ public static class CspInheritedComponentEndpoints
         }
     }
 
-    // ─── POST /import (CSP-Admin, Active only) ──────────────────────────
-
-    private static async Task<IResult> ImportAsync(
-        HttpContext http,
-        ITenantContext tenantCtx,
-        ICspProfileService profileService,
-        ICspAtoDocumentParser parser,
-        ICspComponentExtractionService extractionService,
-        ICspCapabilityMappingService mappingService,
-        IDbContextFactory<AtoCopilotContext> contextFactory,
-        IOptions<CspInheritedOptions> options,
-        IOptions<DeploymentOptions> deployment,
-        CancellationToken ct)
-    {
-        var sw = Stopwatch.StartNew();
-        if (ShouldShortCircuitSingleTenant(deployment, out var singleTenantResult))
-            return singleTenantResult;
-        if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
-
-        // Onboarding gate (FR-104) — only Active profiles may import.
-        var profile = await profileService.GetAsync(ct).ConfigureAwait(false);
-        if (profile is null || profile.OnboardingState != OnboardingState.Active)
-        {
-            return Error(StatusCodes.Status503ServiceUnavailable, "CSP_ONBOARDING_INCOMPLETE",
-                "CSP onboarding must be completed before importing additional ATO documents.");
-        }
-
-        if (!http.Request.HasFormContentType)
-        {
-            return ValidationError(sw, "Request must be multipart/form-data with a 'files' part.");
-        }
-
-        IFormFileCollection formFiles;
-        try
-        {
-            var form = await http.Request.ReadFormAsync(ct).ConfigureAwait(false);
-            formFiles = form.Files;
-        }
-        catch (Microsoft.AspNetCore.Http.BadHttpRequestException badReq)
-            when (badReq.StatusCode == StatusCodes.Status413PayloadTooLarge)
-        {
-            return Error(StatusCodes.Status413PayloadTooLarge, "ATO_DOCUMENT_TOO_LARGE",
-                "File exceeds the 50 MB per-file upload limit.");
-        }
-
-        if (formFiles.Count == 0)
-        {
-            return ValidationError(sw, "At least one file must be supplied in the 'files' part.");
-        }
-
-        foreach (var f in formFiles)
-        {
-            if (f.Length > options.Value.MaxFileSizeBytes)
-            {
-                return Error(StatusCodes.Status413PayloadTooLarge, "ATO_DOCUMENT_TOO_LARGE",
-                    $"File '{f.FileName}' is {f.Length} bytes; max is {options.Value.MaxFileSizeBytes}.");
-            }
-            if (string.IsNullOrWhiteSpace(f.ContentType)
-                || !SupportedContentTypes.Contains(NormalizeContentType(f.ContentType)))
-            {
-                return Error(StatusCodes.Status400BadRequest, "UNSUPPORTED_ATO_DOCUMENT",
-                    $"Content type '{f.ContentType}' is not in the ATO-document allow-list.");
-            }
-        }
-
-        var actor = ResolveActor(http);
-        var uploadFiles = new List<CspAtoUploadHelpers.UploadFile>(formFiles.Count);
-        foreach (var f in formFiles)
-        {
-            uploadFiles.Add(new CspAtoUploadHelpers.UploadFile(
-                Content: f.OpenReadStream(),
-                ContentType: NormalizeContentType(f.ContentType ?? string.Empty),
-                FileName: f.FileName));
-        }
-
-        try
-        {
-            var result = await CspAtoUploadHelpers.OrchestrateAsync(
-                files: uploadFiles,
-                cspProfileId: profile.Id,
-                actor: actor,
-                parser: parser,
-                extractionService: extractionService,
-                mappingService: mappingService,
-                options: options,
-                persistCapabilities: async (caps, token) =>
-                {
-                    await using var db = await contextFactory.CreateDbContextAsync(token).ConfigureAwait(false);
-                    db.CspInheritedCapabilities.AddRange(caps);
-                    await db.SaveChangesAsync(token).ConfigureAwait(false);
-                },
-                ct: ct).ConfigureAwait(false);
-
-            // Post-onboarding imports auto-publish (FR-104) — Draft is only
-            // a wizard-time staging state; outside the wizard new components
-            // are immediately visible across tenants. Load + save (vs.
-            // ExecuteUpdateAsync) keeps the audit interceptors and value
-            // converters in play.
-            await using (var db = await contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false))
-            {
-                var draftComponents = await db.CspInheritedComponents
-                    .Where(c => c.CspProfileId == profile.Id
-                        && c.Status == CspInheritedComponentStatus.Draft)
-                    .ToListAsync(ct)
-                    .ConfigureAwait(false);
-                if (draftComponents.Count > 0)
-                {
-                    var now = DateTimeOffset.UtcNow;
-                    foreach (var component in draftComponents)
-                    {
-                        component.Status = CspInheritedComponentStatus.Published;
-                        component.UpdatedAt = now;
-                        component.UpdatedBy = actor;
-                    }
-                    await db.SaveChangesAsync(ct).ConfigureAwait(false);
-                }
-            }
-
-            return Success(sw, BuildUploadDto(result));
-        }
-        catch (CspAtoUploadHelpers.UploadException ex)
-        {
-            return Error(ex.StatusCode, ex.ErrorCode, ex.Message);
-        }
-        finally
-        {
-            foreach (var f in uploadFiles)
-            {
-                try { f.Content.Dispose(); } catch { /* best-effort */ }
-            }
-        }
-    }
-
     // ─── helpers ────────────────────────────────────────────────────────
-
-    private static readonly HashSet<string> SupportedContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/json",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/zip",
-    };
-
-    private static string NormalizeContentType(string contentType)
-    {
-        var idx = contentType.IndexOf(';');
-        var head = idx >= 0 ? contentType[..idx] : contentType;
-        return head.Trim().ToLowerInvariant();
-    }
 
     private static bool ShouldShortCircuitSingleTenant(
         IOptions<DeploymentOptions> deployment, out IResult result)
@@ -1034,23 +885,6 @@ public static class CspInheritedComponentEndpoints
         rowVersion = cap.RowVersion is { Length: > 0 }
             ? Convert.ToBase64String(cap.RowVersion)
             : null,
-    };
-
-    private static object BuildUploadDto(CspAtoUploadHelpers.UploadResult result) => new
-    {
-        documentsAccepted = result.DocumentsAccepted,
-        componentsExtracted = result.ComponentsExtracted,
-        capabilitiesMapped = result.CapabilitiesMapped,
-        capabilitiesNeedsReview = result.CapabilitiesNeedsReview,
-        aiMappingAvailable = result.AiMappingAvailable,
-        files = result.Files.Select(f => new
-        {
-            fileName = f.FileName,
-            sourceFormat = f.SourceFormat,
-            componentsExtracted = f.ComponentsExtracted,
-            capabilitiesMapped = f.CapabilitiesMapped,
-            capabilitiesNeedsReview = f.CapabilitiesNeedsReview,
-        }).ToArray(),
     };
 
     private static IResult Success(Stopwatch sw, object data) =>

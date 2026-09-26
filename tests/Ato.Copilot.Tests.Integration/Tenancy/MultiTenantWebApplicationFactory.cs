@@ -51,6 +51,7 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     private readonly string _sqliteFile = Path.Combine(
         Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "TestResults")).FullName,
         $"ato-copilot-tests-{Guid.NewGuid():N}.db");
+    private readonly string _fileStoragePath = Path.Combine(Path.GetTempPath(), $"ato-package-sources-{Guid.NewGuid():N}");
     private readonly string? _sqlServerConn =
         Environment.GetEnvironmentVariable("ATO_TEST_SQLSERVER_CONNSTRING");
 
@@ -178,6 +179,13 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     /// </summary>
     protected virtual bool AuthenticateRequestsByDefault => true;
 
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing && Directory.Exists(_fileStoragePath))
+            Directory.Delete(_fileStoragePath, recursive: true);
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -198,6 +206,8 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
                 // (CspOnboarding + SimulateEndpoint hung on the same SQLite
                 // file in CI 33565219515 / debug 225414 H10).
                 ["Database:Provider"] = string.IsNullOrEmpty(_sqlServerConn) ? "Sqlite" : "SqlServer",
+                ["Evidence:StorageProvider"] = "Local",
+                ["Evidence:LocalStoragePath"] = _fileStoragePath,
                 ["ConnectionStrings:DefaultConnection"] = string.IsNullOrEmpty(_sqlServerConn)
                     ? $"Data Source={_sqliteFile};Mode=ReadWriteCreate"
                     : _sqlServerConn,
@@ -206,6 +216,13 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
 
         builder.ConfigureServices(services =>
         {
+            // Production captures this configuration before WAF applies its per-host settings.
+            services.RemoveAll<Ato.Copilot.Core.Interfaces.Storage.IFileStorageProvider>();
+            services.AddSingleton<Ato.Copilot.Core.Interfaces.Storage.IFileStorageProvider>(sp =>
+                new Ato.Copilot.Mcp.Services.Storage.LocalFileStorageProvider(
+                    _fileStoragePath,
+                    sp.GetRequiredService<ILogger<Ato.Copilot.Mcp.Services.Storage.LocalFileStorageProvider>>()));
+
             if (AuthenticateRequestsByDefault)
             {
                 services.AddAuthentication(TestAuthScheme)
@@ -262,6 +279,8 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
+            if (Request.Headers["X-Test-Anonymous"] == "true")
+                return Task.FromResult(AuthenticateResult.NoResult());
             var identity = new ClaimsIdentity(
                 [new Claim(ClaimTypes.NameIdentifier, "multi-tenant-test-user")],
                 TestAuthScheme);

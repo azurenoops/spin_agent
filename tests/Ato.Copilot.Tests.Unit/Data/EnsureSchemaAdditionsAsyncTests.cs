@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
+using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.PackageImports;
+using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Mcp;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -205,6 +208,92 @@ public class EnsureSchemaAdditionsAsyncTests
         {
             File.Delete(databaseFile);
         }
+    }
+
+    [Theory]
+    [InlineData("SingleTenant")]
+    [InlineData("MultiTenant")]
+    public async Task SqliteStartup_CspCatalogSchema_IsReadableAndPreservesPackageAndCatalogOnRestart(string deploymentMode)
+    {
+        // Arrange
+        var databaseFile = Path.Combine(Path.GetTempPath(), $"package-catalog-schema-{Guid.NewGuid():N}.db");
+        using var environment = SchemaEnvironment();
+        var component = new CspInheritedComponent
+        {
+            CspProfileId = Guid.NewGuid(),
+            Name = "Synthetic retained contributor",
+            Description = "Existing published metadata must remain unchanged.",
+            ComponentType = CspComponentType.Service,
+            SourceFormat = SourceFormat.Package,
+            Status = CspInheritedComponentStatus.Published
+        };
+        var capability = new CspInheritedCapability
+        {
+            CspInheritedComponent = component,
+            Name = "Synthetic retained draft capability",
+            Description = "A draft must not be published by schema initialization.",
+            MappedNistControlIds = ["AU-2"]
+        };
+        var package = new CspPackage
+        {
+            ProviderId = component.CspProfileId,
+            IdempotencyKey = "retained-schema-regression",
+            Name = "Synthetic retained private package"
+        };
+        try
+        {
+            await using (var firstBoot = new SchemaAdditionsFactory(databaseFile, deploymentMode))
+            using (firstBoot.CreateClient())
+            {
+                var factory = firstBoot.Services.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+                await using var db = await factory.CreateDbContextAsync();
+                (await db.Database.GetAppliedMigrationsAsync()).Should().NotBeEmpty();
+                (await db.CspInheritedComponents.ToListAsync()).Should().BeEmpty();
+                (await db.CspInheritedCapabilities.ToListAsync()).Should().BeEmpty();
+                await AssertPackagePublicationTablesAreReadableAndEmptyAsync(db);
+                db.AddRange(component, capability, package);
+                await db.SaveChangesAsync();
+            }
+
+            // Act
+            await using var secondBoot = new SchemaAdditionsFactory(databaseFile, deploymentMode);
+            using var client = secondBoot.CreateClient();
+            var restartedFactory = secondBoot.Services.GetRequiredService<IDbContextFactory<AtoCopilotContext>>();
+            await using var restarted = await restartedFactory.CreateDbContextAsync();
+            var retained = await restarted.CspInheritedComponents.Include(x => x.Capabilities).SingleAsync();
+
+            // Assert
+            retained.Id.Should().Be(component.Id);
+            retained.Description.Should().Be(component.Description);
+            retained.SourceFormat.Should().Be(SourceFormat.Package);
+            retained.Status.Should().Be(CspInheritedComponentStatus.Published);
+            var retainedCapability = retained.Capabilities.Should().ContainSingle().Which;
+            retainedCapability.Id.Should().Be(capability.Id);
+            retainedCapability.MappedNistControlIds.Should().Equal("AU-2");
+            retainedCapability.Status.Should().Be(CspInheritedCapabilityStatus.NeedsReview);
+            (await restarted.CspPackages.SingleAsync()).Id.Should().Be(package.Id);
+            await AssertPackagePublicationTablesAreReadableAndEmptyAsync(restarted);
+        }
+        finally
+        {
+            File.Delete(databaseFile);
+        }
+    }
+
+    private static async Task AssertPackagePublicationTablesAreReadableAndEmptyAsync(AtoCopilotContext db)
+    {
+        (await db.CspPackageEntries.ToListAsync()).Should().BeEmpty();
+        (await db.CspPackageCandidates.ToListAsync()).Should().BeEmpty();
+        (await db.CspPackageApprovals.ToListAsync()).Should().BeEmpty();
+        (await db.CspPackageAudits.ToListAsync()).Should().BeEmpty();
+        (await db.ProviderCapabilityWorkingRevisions.ToListAsync()).Should().BeEmpty();
+        (await db.ProviderCapabilityContributors.ToListAsync()).Should().BeEmpty();
+        (await db.ProviderCapabilityDuties.ToListAsync()).Should().BeEmpty();
+        (await db.ProviderPublicationPreviews.ToListAsync()).Should().BeEmpty();
+        (await db.ProviderCapabilityReleases.ToListAsync()).Should().BeEmpty();
+        (await db.ProviderReleaseImpacts.ToListAsync()).Should().BeEmpty();
+        (await db.CapabilitySubscriptions.ToListAsync()).Should().BeEmpty();
+        (await db.Set<CspResponsibilitySourceEvent>().ToListAsync()).Should().BeEmpty();
     }
 
     private sealed class SchemaAdditionsFactory(string databaseFile, string deploymentMode = "SingleTenant") : WebApplicationFactory<McpProgram>

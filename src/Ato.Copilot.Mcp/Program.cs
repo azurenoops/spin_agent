@@ -488,8 +488,33 @@ async Task RunHttpModeAsync(string[] args)
     builder.Services.AddScoped<WorkspaceService>();
     builder.Services.AddScoped<IWorkspaceService>(services => services.GetRequiredService<WorkspaceService>());
     builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
+    builder.Services.Configure<EntraDirectoryOptions>(builder.Configuration.GetSection("EntraDirectory"));
+    builder.Services.AddSingleton<Func<EntraDirectoryConnection, Azure.Core.TokenCredential>>(_ =>
+    {
+        var cache = new System.Collections.Concurrent.ConcurrentDictionary<EntraDirectoryConnection, Azure.Core.TokenCredential>();
+        return connection => cache.GetOrAdd(connection, c => new ClientSecretCredential(c.DirectoryTenantId, c.ClientId, c.ClientSecret,
+            new ClientSecretCredentialOptions { AuthorityHost = c.Cloud == "Public" ? AzureAuthorityHosts.AzurePublicCloud : AzureAuthorityHosts.AzureGovernment }));
+    });
+    builder.Services.AddHttpClient<EntraDirectoryService>(client => client.Timeout = TimeSpan.FromSeconds(20))
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.Workspaces.IWorkspaceOperationsService,
         Ato.Copilot.Core.Services.Workspaces.WorkspaceOperationsService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.PackageImports.ICspPackageService,
+        Ato.Copilot.Core.Services.PackageImports.CspPackageService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderAuthorizationStore>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderAuthorizationService,
+        Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderAuthorizationService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderHostingService,
+        Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderHostingService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderMissionService,
+        Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderMissionService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderFindingService,
+        Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderFindingService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderImpactService,
+        Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderImpactService>();
+    builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.PackageImports.ICspPackageAnalyzer,
+        Ato.Copilot.Agents.Services.PackageImports.CspPackageAnalyzer>();
+    builder.Services.AddHostedService<Ato.Copilot.Mcp.Services.CspPackageWorker>();
     // T041: SaveChanges interceptor that stamps TenantId + validates FK consistency.
     builder.Services.AddSingleton<Ato.Copilot.Core.Data.Interceptors.TenantStampingSaveChangesInterceptor>();
     // T107 [US5]: SQL Server SESSION_CONTEXT publisher — emits TenantId /
@@ -641,6 +666,7 @@ async Task RunHttpModeAsync(string[] args)
     // Feature 048 (T070): tenants administration + impersonation surface.
     app.MapTenantsEndpoints();
     app.MapOrganizationMembershipEndpoints();
+    app.MapEntraDirectoryEndpoints();
     app.MapSystemWorkspaceAccessEndpoints();
     // Feature 048 (T084): deployment-mode probe for dashboard mode-aware UI.
     app.MapDeploymentEndpoints();
@@ -651,6 +677,12 @@ async Task RunHttpModeAsync(string[] args)
     // Feature 048 (T208 [US9]): CSP-inherited components management surface
     // — read-only across tenants, write-gated to CSP-Admin (FR-104..FR-106).
     app.MapCspInheritedComponentEndpoints();
+    app.MapCspPackageImportEndpoints();
+    app.MapProviderAuthorizationEndpoints();
+    app.MapProviderHostingEndpoints();
+    app.MapProviderMissionEndpoints();
+    app.MapProviderFindingEndpoints();
+    app.MapProviderImpactEndpoints();
     app.MapWorkspaceOperationsEndpoints();
     // Feature 048 (T181 [US8]): CSP-Admin cross-tenant operational dashboard.
     app.MapCspDashboardEndpoints();
@@ -1295,6 +1327,12 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantsAndOrganizationsSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantSupportSessionSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CspInheritedCatalogSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CspPackageSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderAuthorizationSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.WorkspaceOperationsSchemaAdditions
         .ApplyAsync(db, logger, ct);
