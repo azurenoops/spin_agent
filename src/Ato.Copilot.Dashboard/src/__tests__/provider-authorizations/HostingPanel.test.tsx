@@ -457,7 +457,8 @@ describe('offering hosting scope and assignment panel', () => {
     await context.findByText('Provider operates service');
     // Assert
     expect(context.getByText('Customer secures workload')).toBeInTheDocument();
-    expect(context.getByText(/Provider owner: provider-1/)).toBeInTheDocument();
+    expect(context.getByText('Service owner: Not recorded')).toBeInTheDocument();
+    expect(context.getByText('Security contact: Not recorded')).toBeInTheDocument();
     expect(context.getByText(/boundary-1/)).toBeInTheDocument();
     expect(context.getByText(/not acceptance of customer responsibilities/)).toBeInTheDocument();
   });
@@ -481,8 +482,8 @@ describe('offering hosting scope and assignment panel', () => {
     // Arrange
     vi.mocked(api.listDecisions).mockResolvedValueOnce(page([{ ...decision, recordKind: 'ProviderDecision' }], 1, 2));
     mount();
-    const context = section('Inherited Microsoft references');
-    await context.findByText(/No inherited Microsoft references on this page/);
+    const context = section('Inherited provider references');
+    await context.findByText(/No inherited provider references on this page/);
     // Act
     fireEvent.click(context.getByRole('button', { name: 'Next' }));
     // Assert

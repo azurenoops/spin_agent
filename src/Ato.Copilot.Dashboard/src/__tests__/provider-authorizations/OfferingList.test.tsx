@@ -5,12 +5,13 @@ import { OfferingList } from '../../features/provider-authorizations/OfferingLis
 import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 import * as api from '../../features/provider-authorizations/api';
 import type { Offering } from '../../features/provider-authorizations/types';
+import { offeringOverview } from './overviewFixtures';
 
-vi.mock('../../features/provider-authorizations/api', async original => ({ ...await original<typeof api>(), listOfferings: vi.fn() }));
+vi.mock('../../features/provider-authorizations/api', async original => ({ ...await original<typeof api>(), listOfferings: vi.fn(), getOfferingOverview: vi.fn() }));
 const offering: Offering = { offeringId: 'sample', providerId: 'provider', name: 'Azure IL5', description: '', environments: ['AzureUSGovernment'], revision: 1, lifecycle: 'Draft', currentBoundaryRevisionId: null, currentHostingScopeRevisionId: null };
 const page = (items: Offering[]) => ({ items, page: 1, pageSize: 25, total: items.length });
 const mount = () => render(<MemoryRouter><WorkspaceNavigationProvider workspace={{ kind: 'csp' }}><OfferingList /></WorkspaceNavigationProvider></MemoryRouter>);
-beforeEach(() => { vi.clearAllMocks(); vi.mocked(api.listOfferings).mockResolvedValue(page([offering])); });
+beforeEach(() => { vi.clearAllMocks(); vi.mocked(api.listOfferings).mockResolvedValue(page([offering])); vi.mocked(api.getOfferingOverview).mockResolvedValue(offeringOverview()); });
 describe('offering landing presentation', () => {
   it('uses recorded scope to link the next setup step without inventing authorization status', async () => {
     // Arrange
@@ -19,7 +20,7 @@ describe('offering landing presentation', () => {
     const link = await screen.findByRole('link', { name: 'Define boundary for Azure IL5' });
     // Assert
     expect(link).toHaveAttribute('href', '/workspaces/csp/authorizations/offerings/sample/boundary');
-    expect(within(screen.getByRole('article', { name: 'Azure IL5' })).getByText('Azure Government')).toBeInTheDocument();
+    expect(within(screen.getByRole('table', { name: 'Your offerings' })).getByText('Azure Government')).toBeInTheDocument();
     expect(screen.getByText('1 offering')).toBeInTheDocument();
     expect(screen.queryByText('Authorized')).not.toBeInTheDocument();
   });
@@ -44,17 +45,17 @@ describe('offering landing presentation', () => {
     await waitFor(() => expect(screen.getByRole('searchbox')).toHaveValue(''));
     expect(await screen.findByRole('link', { name: 'Azure IL5' })).toBeInTheDocument();
   });
-  it('keeps search and offering cards without an inline creation form', async () => {
+  it('keeps search and offering table without an inline creation form', async () => {
     // Arrange
     mount();
-    const card = await screen.findByRole('article', { name: 'Azure IL5' });
+    const card = await screen.findByRole('table', { name: 'Your offerings' });
     // Act
     const search = screen.getByRole('searchbox');
     // Assert
     expect(screen.queryByText('Create an offering', { selector: 'summary' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Offering name')).not.toBeInTheDocument();
     expect(search.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole('complementary', { name: 'Authorization workflow' })).toBeInTheDocument();
+    expect(screen.getByText('One provider. Distinct services.')).toBeInTheDocument();
   });
   it('shows empty catalog guidance without restoring inline creation', async () => {
     // Arrange
@@ -73,9 +74,10 @@ describe('offering landing presentation', () => {
       environments: ['AzureCloud', 'AzureUSGovernment'], currentBoundaryRevisionId: 'boundary', currentHostingScopeRevisionId: 'hosting' }]));
     // Act
     mount();
-    const card = await screen.findByRole('article', { name: 'Azure IL5' });
+    const card = await screen.findByRole('table', { name: 'Your offerings' });
     // Assert
-    expect(within(card).getAllByText('Recorded revision')).toHaveLength(2);
+    expect(within(card).getByText('Boundary recorded')).toBeInTheDocument();
+    expect(within(card).getByText('Hosting scope recorded')).toBeInTheDocument();
     expect(within(card).getByText('Azure Commercial · Azure Government')).toBeInTheDocument();
     expect(within(card).getByText('Tenant collaboration services')).toBeInTheDocument();
     expect(within(card).queryByRole('link', { name: /Define/ })).not.toBeInTheDocument();

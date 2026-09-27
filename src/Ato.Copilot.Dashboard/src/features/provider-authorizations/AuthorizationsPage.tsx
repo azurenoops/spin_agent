@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import PageLayout from '../../components/layout/PageLayout';
-import PageHero from '../../components/layout/PageHero';
-import { Link, NavLink, Navigate, useLocation, useNavigate } from '../workspaces/workspaceNavigation';
+import WorkspacePageHeader from '../../components/layout/WorkspacePageHeader';
+import { Link, Navigate, useLocation, useNavigate } from '../workspaces/workspaceNavigation';
 import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
 import { errorClass, Pager, Status, surfaceClass, useRemote, warningClass } from '../workspace-operations/workspaceUi';
 import { PackageDetail } from '../package-imports/PackageImportsPage';
@@ -10,25 +10,65 @@ import { OfferingCreate, OfferingIntake } from './OfferingIntake';
 import { BoundaryPage } from './BoundaryPage';
 import { OfferingList } from './OfferingList';
 import { FileFirstImport, PackagePreparation } from './FileFirstImport';
-import { packageIsProcessing } from '../package-imports/PackageReceipts';
+import { packageIsProcessing, stateLabel } from '../package-imports/PackageReceipts';
 import { OfferingOverview } from './OfferingOverview';
 import { ImpactPanel } from './ImpactPanel';
 import { HostingSetupPage } from './HostingSetupPage';
+import { FindingsPage } from './FindingsPage';
+import { ProviderPanel, ProviderSupport } from './ProviderPresentation';
+import { SourceReviewRedirect } from './SourceReviewRedirect';
+import { DecisionDetailPage } from './DecisionDetailPage';
+import { ScopeProposalPage } from './ScopeProposalPage';
+import { ProviderRelationshipDetail } from './ProviderRelationshipDetail';
 import type { Offering, PackageVersion } from './types';
+import { ProviderMonitoringPanel } from './ProviderMonitoringPage';
 
-const offeringSections = [
-  ['', 'Offering overview'], ['boundary', 'Boundary'], ['inherited-coverage', 'Hosting and responsibilities'],
-  ['packages', 'Packages and claims'], ['findings', 'Findings and evidence'], ['impact', 'Change impact'],
+const offeringSections: [string, string][] = [
+  ['', 'Overview'], ['packages', 'Authorizations & sources'], ['inherited-coverage', 'Services & scope'],
+  ['inherited-coverage?task=capabilities', 'Capabilities & responsibilities'],
+  ['findings', 'Evidence & findings'], ['impact', 'Change impact'],
 ];
 
-function PackagesSection({ offering }: { offering: Offering }) {
+export function PackagesSection({ offering }: { offering: Offering }) {
   const [page, setPage] = useState(1);
+  const [sourcePage, setSourcePage] = useState(1);
+  const [authorizationPage, setAuthorizationPage] = useState(1);
   const [predecessor, setPredecessor] = useState<PackageVersion | undefined>();
+  const [importOpen, setImportOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const versions = useRemote(signal => api.listPackageVersions(offering.offeringId, page, signal), [offering.offeringId, page, offering.revision]);
-  return <section className="space-y-4"><h2 className="text-xl font-semibold">Source packages and versions</h2>
+  const summary = useRemote(signal => api.getOfferingOverview(offering.offeringId, authorizationPage, sourcePage, signal),
+    [offering.offeringId, offering.revision, authorizationPage, sourcePage]);
+  return <div className="provider-grid"><section className="space-y-4">
+    <Status loading={summary.loading} error={summary.error} retry={summary.retry} />
+    {summary.data && <>
+      <ProviderPanel title="Recorded authorization">
+        {!summary.data.authorizations.total && <p>No external decision recorded here. This does not mean no authorization exists.</p>}
+        {summary.data.authorizations.items.map(record => <article key={record.recordId} className="mb-4 space-y-2">
+          <h3 className="font-semibold">{record.reference}</h3><p className="text-sm">{record.issuingAuthority || 'Issuer not stated'} · {stateLabel(record.metadataReviewState)}</p>
+          <p className="text-xs">{record.scopeStatement}</p>
+          <Link className="provider-secondary" to={api.authorizationHref(offering.offeringId, `decisions/${encodeURIComponent(record.recordId)}`)}>Review recorded authorization</Link>
+        </article>)}
+        <p className="mt-3 text-xs">Recorded source metadata is independent of capability publication and mission authorization.</p>
+        {summary.data.authorizations.total > summary.data.authorizations.pageSize && <Pager {...summary.data.authorizations} onPage={setAuthorizationPage} />}
+      </ProviderPanel>
+      <ProviderPanel title="Source packages & documents">
+        {!summary.data.packages.total ? <p>No source packages associated with this offering.</p> : <div className="provider-table-wrap">
+          <table className="provider-table" aria-label="Source packages and documents"><thead><tr><th>Source</th><th>Analysis</th><th>Review</th><th><span className="sr-only">Actions</span></th></tr></thead>
+            <tbody>{summary.data.packages.items.map(({ package: item, version, awaitingReview }) => <tr key={item.packageId}>
+              <td>{item.name}<small>{version == null ? 'Version not recorded' : `Version ${version}`}</small></td>
+              <td>{item.coverage.processed} of {item.coverage.total} files processed<small>{stateLabel(item.processingState)} · {item.coverage.excluded} excluded</small></td>
+              <td>{awaitingReview} records awaiting review<small>Publication: {stateLabel(item.publicationState)}</small></td>
+              <td><Link to={api.authorizationHref(offering.offeringId, `packages/${encodeURIComponent(item.packageId)}`)}>Review package</Link></td>
+            </tr>)}</tbody>
+          </table></div>}
+        {summary.data.packages.total > summary.data.packages.pageSize && <Pager {...summary.data.packages} onPage={setSourcePage} />}
+      </ProviderPanel>
+    </>}
+    <details className="provider-record-details"><summary>Retained version history</summary><ProviderPanel title="Retained version history">
     <Status loading={versions.loading} error={versions.error} retry={versions.retry} />
-    {versions.data && <><ul className="space-y-3">{versions.data.items.map(item => <li key={item.packageVersionId} className={`${surfaceClass} p-4`}>
+    {versions.data && <>{!versions.data.items.length && <p>No source packages retained. Add source material to begin the review.</p>}
+      <ul className="space-y-3">{versions.data.items.map(item => <li key={item.packageVersionId} className="border-t border-slate-200 py-4">
       <Link className="font-semibold text-indigo-700 underline" to={api.authorizationHref(offering.offeringId, `packages/${item.packageId}`)}>Review package version {item.version}</Link>
       <details className="mt-2 text-xs text-slate-500"><summary className="cursor-pointer">Details</summary>
         <p className="break-all">Series {item.seriesId} · Boundary {item.boundaryRevisionId} · Manifest {item.manifestHash}</p>
@@ -38,12 +78,18 @@ function PackagesSection({ offering }: { offering: Offering }) {
         to={api.changeImpactHref(offering.offeringId, { packageVersionId: item.packageVersionId, packageId: item.packageId,
           boundaryRevisionId: item.boundaryRevisionId })}>Review changes</Link>}
       <button type="button" disabled={pending} className="mt-3 text-sm text-indigo-700 underline" onClick={() => setPredecessor(item)}>Prepare successor to version {item.version}</button>
-    </li>)}</ul><Pager {...versions.data} onPage={setPage} /></>}
-    <details className={`${surfaceClass} p-4`} open={!!predecessor}><summary className="cursor-pointer font-semibold">Import another source package</summary>
-      <div className="mt-4"><OfferingIntake key={predecessor?.packageVersionId ?? 'new-series'} initialOfferingId={offering.offeringId} previousVersion={predecessor}
-        onPendingChange={setPending} onReceived={versions.retry} /></div>
+    </li>)}</ul><Pager {...versions.data} onPage={setPage} /></>}</ProviderPanel></details>
+    <details className={`${surfaceClass} p-4`} open={importOpen || !!predecessor}
+      onToggle={event => setImportOpen(event.currentTarget.open)}><summary className="cursor-pointer font-semibold" aria-disabled={pending}
+        onClick={event => { if (pending) event.preventDefault(); }}>Import another source package</summary>
+      {(importOpen || predecessor || pending) && <div className="mt-4"><OfferingIntake key={predecessor?.packageVersionId ?? 'new-series'} initialOfferingId={offering.offeringId} previousVersion={predecessor}
+        onPendingChange={setPending} onReceived={() => { versions.retry(); summary.retry(); }} /></div>}
     </details>
-  </section>;
+  </section><ProviderSupport><ProviderPanel title="Keep the distinctions">
+    <p><strong>Authorization:</strong> a recorded external decision.</p>
+    <p className="mt-3"><strong>Source package:</strong> retained supporting documents.</p>
+    <p className="mt-3"><strong>Service release:</strong> reviewed implementations customers can use.</p>
+  </ProviderPanel><ProviderPanel title="Source privacy"><p>Source packages retain their protected content and exact version. Recording a reference or reviewing a claim does not publish a release or grant customer download access.</p></ProviderPanel></ProviderSupport></div>;
 }
 
 export function PackageAssociationRedirect({ packageId, initialOfferingId }: { packageId: string; initialOfferingId?: string }) {
@@ -65,10 +111,11 @@ export function PackageAssociationRedirect({ packageId, initialOfferingId }: { p
   </>;
 }
 
-function LinkedPackage({ offeringId, packageId }: { offeringId: string; packageId: string }) {
+function LinkedPackage({ offeringId, packageId, candidateId }: { offeringId: string; packageId: string; candidateId?: string }) {
   const remote = useRemote(signal => api.getAssociatedPackage(packageId, signal), [packageId, offeringId]);
   if (remote.loading || remote.error) return <Status loading={remote.loading} error={remote.error} retry={remote.retry} />;
   if (remote.data?.association?.offeringId !== offeringId) return <p role="alert" className={errorClass}>This package is not associated with the selected offering. Open its retained receipt from Authorizations to resolve the association.</p>;
+  if (candidateId) return <SourceReviewRedirect offeringId={offeringId} packageId={packageId} candidateId={candidateId} />;
   return <PackageDetail key={packageId} packageId={packageId} offeringId={offeringId}
     packageVersionId={remote.data.association.packageVersionId} boundaryRevisionId={remote.data.association.boundaryRevisionId} />;
 }
@@ -93,44 +140,58 @@ function AuthorizationRoutes() {
   const boundaryRevisionId = impactQuery.get('boundaryRevisionId') ?? undefined;
   const reviewId = impactQuery.get('reviewId') ?? undefined;
   const ambiguousImpact = !!(capabilityId && packageVersionId) || !!(reviewId && (capabilityId || packageVersionId || boundaryRevisionId));
-  const isLanding = !offeringId && segments[1] !== 'import' && segments[1] !== 'create';
-  const nav = offeringId && section !== 'import' && <nav aria-label="Offering sections" className="hidden space-y-2 p-4 lg:block">
-    {offeringSections.map(([path, title]) =>
-      <NavLink key={path} end={!path} className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm ${isActive ? 'bg-indigo-100 font-semibold text-indigo-800' : 'text-slate-700 hover:bg-slate-100'}`}
-        to={api.authorizationHref(offeringId, path)}>{title}</NavLink>)}
-    <Link className="block px-3 py-2 text-sm text-indigo-700 underline" to={api.authorizationHref()}>All offerings</Link>
+  const isCreating = !offeringId && segments[1] === 'create';
+  const pageTitle = section === 'import' || segments[1] === 'import' ? 'Add source material'
+    : section === 'packages' ? segments[4] ? 'Review package analysis' : 'Authorizations & sources'
+      : section === 'findings' || section === 'evidence' ? 'Evidence & findings'
+        : section === 'missions' ? 'Service relationship'
+        : section === 'decisions' ? 'Recorded authorization'
+        : section === 'inherited-coverage' ? segments[4] === 'propose' ? 'Propose a scope update' : impactQuery.get('task') === 'capabilities' ? 'Capabilities & responsibilities' : 'Services & scope'
+          : section === 'boundary' ? 'Service boundary' : section === 'impact' ? 'Review change impact'
+            : offeringId ? offering.data?.name ?? 'Service offering' : isCreating ? 'Create a service offering' : 'Service offerings';
+  const nav = offeringId && <nav aria-label="Offering sections" className="provider-tabs">
+    {offeringSections.map(([path, title]) => {
+      const active = path.includes('?') ? section === 'inherited-coverage' && impactQuery.get('task') === 'capabilities'
+        : path === 'inherited-coverage' ? (section === 'inherited-coverage' && impactQuery.get('task') !== 'capabilities') || section === 'boundary' || section === 'missions'
+          : path === 'packages' ? section === 'packages' || section === 'import' || section === 'decisions'
+            : path === 'findings' ? section === 'findings' || section === 'evidence' : section === path;
+      return <Link key={path} aria-current={active ? 'page' : undefined} to={api.authorizationHref(offeringId, path)}>{title}</Link>;
+    })}
   </nav>;
-  return <PageLayout title="Authorizations" leftPanel={nav || undefined}>
-    <div className={isLanding ? '-m-6 min-h-[calc(100%+3rem)] bg-slate-50 p-6 dark:bg-gray-950' : undefined}>
-    <PageHero eyebrow={offeringId && section === '' || section === 'boundary' || section === 'inherited-coverage' || section === 'impact' ? 'Provider workspace · Provider offering' : 'Provider workspace · External authorization records'} title={offering.data?.name ?? (segments[1] === 'create' ? 'Create offering' : segments[1] === 'import' ? 'Import authorization package' : 'Authorizations')}
-      description={section === 'boundary' ? 'Review the package, confirm the boundary, then publish capabilities for Mission Owner use.'
-        : section === 'inherited-coverage' ? 'Define what your offering provides, complete setup, and review mission-system associations.'
-          : section === 'impact' ? 'Understand the consequences of a proposed change before publishing it.'
-          : offeringId && section === '' ? 'Understand the recorded decision, source analysis, security capabilities and mission-system use of this offering.'
-          : 'Manage your offerings, authorization boundaries, and source packages.'}
-      showOrgName={false} actions={<>{!offeringId && segments[1] !== 'create' && <Link to="/authorizations/create" className="rounded-lg border border-white/50 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Create offering</Link>}{!(offeringId && section === 'import') && <Link className={section === 'boundary' || section === 'inherited-coverage' || offeringId && section === '' ? 'rounded-lg border border-white/50 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white' : 'rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-700'}
-        to={offeringId ? api.authorizationHref(offeringId, 'import') : api.importHref}>
-        {offeringId ? 'Add package to this offering' : 'Import authorization package'}
-      </Link>}</>} />
-    {nav && offeringId && <label className="mb-5 block space-y-2 text-sm font-medium lg:hidden">
-      <span>Offering section</span>
-      <select aria-label="Offering section" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
-        value={api.authorizationHref(offeringId, section)} onChange={event => navigate(event.target.value)}>
-        {offeringSections.map(([path, title]) => <option key={path} value={api.authorizationHref(offeringId, path)}>{title}</option>)}
-        <option value={api.authorizationHref()}>All offerings</option>
-      </select>
-    </label>}
+  return <PageLayout title="Service offerings">
+    <div className="provider-workspace">
+    {offeringId && <div className="mb-4 text-xs text-slate-500"><Link to={api.authorizationHref()}>Offerings</Link> / {offering.data?.name ?? 'Loading offering'} / {pageTitle}</div>}
+    {section !== 'monitoring' && <WorkspacePageHeader eyebrow="Provider workspace" title={pageTitle}
+      description={isCreating ? 'Start with the service identity. Add authorization sources and publish reviewed capabilities afterward.'
+          : section === 'import' || segments[1] === 'import' ? 'Attach documents to this offering. Proposed records require review before anything reaches customers.'
+            : section === 'packages' ? 'Review what the documents actually say before they support a published service release.'
+              : offeringId ? 'Manage the source-backed service baseline that customers can apply to their systems.'
+                : 'Keep each service, environment, and responsibility model clearly defined.'}
+      actions={<>
+        {!offeringId && !isCreating && <Link to="/authorizations/create" className="provider-primary">Create offering</Link>}
+        {!isCreating && section !== 'import' && segments[1] !== 'import' && <Link className="provider-secondary"
+          to={offeringId ? api.authorizationHref(offeringId, 'import') : api.importHref}>Add source material</Link>}
+      </>} />}
+    {nav}
     {offeringId ? <>
       <Status loading={offering.loading} error={offering.error} retry={offering.retry} />
       {offering.data && <div className="space-y-5">
         {section === 'import' && <Link className="inline-block text-sm text-indigo-700 underline dark:text-indigo-300" to={api.authorizationHref(offeringId)}>Back to offering</Link>}
         {section !== '' && section !== 'boundary' && section !== 'inherited-coverage' && section !== 'impact' && <p className="text-sm text-slate-500">{offering.data.lifecycle} offering · Revision {offering.data.revision} · {offering.data.environments.join(', ')}</p>}
-        {section === '' ? <OfferingOverview key={offeringId} offering={offering.data} />
+        {section === 'monitoring' ? <ProviderMonitoringPanel offeringId={offeringId} />
+          : section === '' ? <OfferingOverview key={offeringId} offering={offering.data} />
           : section === 'import' ? packageId
             ? <PackageAssociationRedirect packageId={packageId} initialOfferingId={offeringId} />
             : <FileFirstImport key={offeringId} offering={offering.data} />
-          : section === 'inherited-coverage' ? <HostingSetupPage key={offeringId} offering={offering.data} onChanged={offering.retry} />
+          : section === 'inherited-coverage' ? segments[4] === 'propose'
+            ? <ScopeProposalPage key={offeringId} offering={offering.data} /> : <HostingSetupPage key={offeringId} offering={offering.data} onChanged={offering.retry} />
+          : section === 'decisions' && segments[4] ? <DecisionDetailPage key={`${offeringId}:${segments[4]}`} offering={offering.data} recordId={segments[4]} />
+          : section === 'missions' && segments[4] ? <ProviderRelationshipDetail key={`${offeringId}:${segments[4]}`} offering={offering.data} assignmentId={segments[4]} />
           : section === 'boundary' ? <BoundaryPage key={offeringId} offering={offering.data} refresh={offering.retry} />
+          : section === 'findings' || section === 'evidence' ? section === 'evidence' && !impactQuery.get('findingId')
+            ? <p role="alert" className={errorClass}>Open evidence through its provider finding to retain offering ownership and access checks.</p>
+            : <FindingsPage offering={offering.data} findingId={section === 'findings' ? segments[4] : impactQuery.get('findingId') ?? undefined}
+              evidenceId={section === 'evidence' ? segments[4] : undefined} onChanged={offering.retry} />
           : section === 'impact' ? ambiguousImpact
             ? <p role="alert" className={errorClass}>This link combines different impact-review tasks. Return to the package, capability or saved review and use its Review changes action.</p>
             : <ImpactPanel key={`${offeringId}:${location.search}`} offering={offering.data} onChanged={offering.retry} initialReviewId={reviewId}
@@ -139,11 +200,13 @@ function AuthorizationRoutes() {
                   : boundaryRevisionId ? { kind: 'Boundary', id: boundaryRevisionId } : undefined}
               publicationHref={capabilityId ? `/workspaces/csp/security-capabilities/${encodeURIComponent(capabilityId)}?tab=review`
                 : packageId ? api.authorizationHref(offeringId, `packages/${encodeURIComponent(packageId)}`) : undefined} />
-          : section === 'packages' ? segments[4] ? <LinkedPackage offeringId={offeringId} packageId={segments[4]} /> : <PackagesSection offering={offering.data} />
+          : section === 'packages' ? segments[4] ? <LinkedPackage offeringId={offeringId} packageId={segments[4]} candidateId={segments[5] === 'candidates' ? segments[6] : undefined} /> : <PackagesSection offering={offering.data} />
             : <p className={warningClass}>External decisions, hosting assignments and authorization impacts must be explicitly reviewed before linked publication. No authority is inferred from this offering.</p>}
       </div>}
     </> : segments[1] === 'import' ? packageId ? <PackageAssociationRedirect packageId={packageId} /> : <FileFirstImport />
-      : segments[1] === 'create' ? <section className="mx-auto w-full max-w-2xl space-y-4"><Link className="text-sm text-indigo-700 underline dark:text-indigo-300" to={api.authorizationHref()}>Back to offerings</Link><OfferingCreate expanded onCreated={created => navigate(api.authorizationHref(created.offeringId))} /></section> : <OfferingList />}
+      : segments[1] === 'create' ? <div className="provider-grid"><ProviderPanel title="Service identity"><OfferingCreate expanded onCreated={created => navigate(api.authorizationHref(created.offeringId))} /></ProviderPanel>
+        <ProviderSupport><ProviderPanel title="Next steps"><ol className="list-decimal space-y-2 pl-4"><li>Add source material.</li><li>Review scope and responsibilities.</li><li>Publish a reviewed release.</li></ol></ProviderPanel>
+          <ProviderPanel title="Existing record?"><p>Importing more sources updates an existing offering’s review workflow. It does not require creating another offering.</p><Link className="provider-secondary mt-3" to={api.authorizationHref()}>Back to offerings</Link></ProviderPanel></ProviderSupport></div> : <OfferingList />}
     </div>
   </PageLayout>;
 }

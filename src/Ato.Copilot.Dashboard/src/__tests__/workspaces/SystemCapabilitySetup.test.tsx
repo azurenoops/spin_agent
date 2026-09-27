@@ -108,7 +108,7 @@ describe('Three-step selected-system capability setup', () => {
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent(/saved setup draft is invalid/i);
     expect(api.prepareSystemCapabilitySetup).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Continue to applicability' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Continue to applicability' })).toBeDisabled();
   });
 
   it('resumes only unfinished server work with the same operation ID after partial success', async () => {
@@ -161,6 +161,7 @@ describe('Three-step selected-system capability setup', () => {
     await screen.findByRole('heading', { name: 'Review changes before adding' });
     fireEvent.click(screen.getByRole('checkbox', { name: /reviewed.*exact.*plan/i }));
     // Act
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add to system' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Add to system' }));
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent(/Outcome refresh unavailable/);
@@ -230,6 +231,7 @@ describe('Three-step selected-system capability setup', () => {
     await screen.findByRole('heading', { name: 'Review changes before adding' });
     fireEvent.click(screen.getByRole('checkbox', { name: /reviewed.*exact.*plan/i }));
     // Act
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add to system' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Add to system' }));
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('Source changed.');

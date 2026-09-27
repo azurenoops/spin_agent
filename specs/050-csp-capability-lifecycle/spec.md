@@ -1,5 +1,11 @@
 # Feature Specification: CSP-Inherited Capability Lifecycle (Vetting + Reparent)
 
+> Coordination: [Feature 079](../079-provider-system-workflow-consolidation/spec.md)
+> reuses the newer reviewed publication/release/adoption pipeline and replaces
+> UI according to the required mocks. Historical vetting overrides below do not
+> waive current exact-revision publication gates. Preserve reparenting history
+> and distinguish organization placement from provider adoption before migration.
+
 **Feature Branch**: `050-csp-capability-lifecycle`
 **Created**: 2026-05-21
 **Status**: Draft

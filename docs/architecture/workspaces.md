@@ -1,5 +1,14 @@
 # CSP and Organization Workspaces (Approved Design)
 
+## Coordinated provider and Systems redesign
+
+[Feature 079](../../specs/079-provider-system-workflow-consolidation/spec.md)
+plans the mock-defined provider/Systems UI over this workspace foundation.
+Authentication, scope, review/publication, tenant isolation and retained history
+remain service-owned. Follow [ADR 004](adr-004-provider-mission-lineage.md) and the
+[mandatory UI targets](../design/index.md). This planning update does not
+supersede historical verification results below or authorize new application work.
+
 ## Authorization-led offering amendment
 
 The September 23 22:54 request supersedes package-only ownership:

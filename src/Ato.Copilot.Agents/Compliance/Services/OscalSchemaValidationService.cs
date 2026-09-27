@@ -95,7 +95,7 @@ public class OscalSchemaValidationService : IOscalSchemaValidationService
 
         var options = new EvaluationOptions
         {
-            OutputFormat = OutputFormat.List,
+            OutputFormat = OutputFormat.Hierarchical,
             EvaluateAs = SpecVersion.Draft7
         };
 
@@ -159,29 +159,20 @@ public class OscalSchemaValidationService : IOscalSchemaValidationService
 
     private static void CollectViolations(EvaluationResults results, List<OscalSchemaViolation> violations)
     {
-        if (results.Details is { Count: > 0 })
+        if (results.IsValid) return;
+        if (results.Errors is { Count: > 0 })
         {
-            foreach (var detail in results.Details)
+            foreach (var error in results.Errors)
             {
-                if (!detail.IsValid && detail.Errors is { Count: > 0 })
+                violations.Add(new OscalSchemaViolation
                 {
-                    foreach (var error in detail.Errors)
-                    {
-                        violations.Add(new OscalSchemaViolation
-                        {
-                            JsonPath = detail.InstanceLocation?.ToString() ?? "$",
-                            Message = error.Value
-                        });
-                    }
-                }
-
-                // Recurse into nested details
-                if (detail.Details is { Count: > 0 })
-                {
-                    CollectViolations(detail, violations);
-                }
+                    JsonPath = results.InstanceLocation?.ToString() ?? "$",
+                    Message = error.Value
+                });
             }
         }
+        if (results.Details is { Count: > 0 })
+            foreach (var detail in results.Details) CollectViolations(detail, violations);
     }
 
     private void EnsureSchemasLoaded()

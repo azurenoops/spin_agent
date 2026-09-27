@@ -6,6 +6,9 @@ using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
@@ -25,6 +28,8 @@ public class ComplianceWatchHostedService : BackgroundService
     private int _consecutiveFailures;
     private const int MaxConsecutiveFailuresBeforeMetaAlert = 3;
     private DateOnly _lastSnapshotDate;
+    private readonly IServiceScopeFactory? _scopeFactory;
+    private readonly ITenantContextAccessor? _tenantAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ComplianceWatchHostedService"/> class.
@@ -35,7 +40,9 @@ public class ComplianceWatchHostedService : BackgroundService
         IAlertManager alertManager,
         IComplianceEventSource eventSource,
         IOptions<MonitoringOptions> monitoringOptions,
-        ILogger<ComplianceWatchHostedService> logger)
+        ILogger<ComplianceWatchHostedService> logger,
+        IServiceScopeFactory? scopeFactory = null,
+        ITenantContextAccessor? tenantAccessor = null)
     {
         _dbFactory = dbFactory;
         _watchService = watchService;
@@ -43,6 +50,8 @@ public class ComplianceWatchHostedService : BackgroundService
         _eventSource = eventSource;
         _monitoringOptions = monitoringOptions;
         _logger = logger;
+        _scopeFactory = scopeFactory;
+        _tenantAccessor = tenantAccessor;
     }
 
     /// <inheritdoc />
@@ -57,11 +66,10 @@ public class ComplianceWatchHostedService : BackgroundService
         {
             try
             {
-                await RunScheduledChecksAsync(stoppingToken);
-                await RunEventDrivenChecksAsync(stoppingToken);
-                await CaptureSnapshotsIfDueAsync(stoppingToken);
+                await RunTenantChecksAsync(stoppingToken);
                 _consecutiveFailures = 0;
             }
+
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
@@ -95,6 +103,60 @@ public class ComplianceWatchHostedService : BackgroundService
         _logger.LogInformation("ComplianceWatchHostedService stopped");
     }
 
+    internal async Task RunTenantChecksAsync(CancellationToken ct)
+    {
+        if (_scopeFactory == null || _tenantAccessor == null)
+            throw new InvalidOperationException("Monitoring requires an explicit tenant scope factory and accessor.");
+        await using var routing = await _dbFactory.CreateDbContextAsync(ct);
+        // Internal routing-only query, never used by an HTTP request.
+        var tenants = await routing.MonitoringConfigurations.IgnoreQueryFilters().Where(x => x.IsEnabled)
+            .Select(x => x.TenantId).Union(routing.AlertRules.IgnoreQueryFilters()
+                .Where(x => x.IsEnabled && x.RegisteredSystemId != null).Select(x => x.TenantId))
+            .Union(routing.ComplianceAlerts.IgnoreQueryFilters().Select(x => x.TenantId))
+            .Distinct().ToListAsync(ct);
+        var failures = new List<Exception>();
+        foreach (var tenantId in tenants.Where(x => x != Guid.Empty))
+        {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var tenant = scope.ServiceProvider.GetRequiredService<ITenantContext>() as TenantContext
+                ?? throw new InvalidOperationException("Monitoring requires the production TenantContext.");
+            tenant.TenantId = tenantId;
+            using var pushed = _tenantAccessor.Push(tenant);
+            try
+            {
+                await RunScheduledChecksAsync(ct);
+                await RunEventDrivenChecksAsync(ct);
+                await scope.ServiceProvider.GetRequiredService<ScopedMonitoringService>().EvaluateDueAsync(ct);
+                _lastSnapshotDate = default;
+                await CaptureSnapshotsIfDueAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failures.Add(ex);
+                _logger.LogError(ex, "Monitoring failed for tenant {TenantId}; other tenant checks continue", tenantId);
+            }
+        }
+        await using (var providerScope = _scopeFactory.CreateAsyncScope())
+        {
+            var providerMonitoring = providerScope.ServiceProvider.GetService<Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderMonitoringService>();
+            if (providerMonitoring is not null)
+            {
+                // Provider maintenance is a separate internal context, never a mission actor.
+                var providerContext = new TenantContext(Guid.Empty, isCspAdmin: true);
+                using var providerPush = _tenantAccessor.Push(providerContext);
+                var providerStore = ActivatorUtilities.CreateInstance<Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderAuthorizationStore>(
+                    providerScope.ServiceProvider, providerContext);
+                try { await new Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderMonitoringService(providerStore).RunDueAsync(ct); }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    failures.Add(ex);
+                    _logger.LogError(ex, "Provider monitoring failed; tenant checks have already completed");
+                }
+            }
+        }
+        if (failures.Count > 0) throw new AggregateException("Monitoring checks failed.", failures);
+    }
+
     /// <summary>
     /// Query all due monitoring configurations and run checks.
     /// </summary>
@@ -103,9 +165,9 @@ public class ComplianceWatchHostedService : BackgroundService
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
-        var dueConfigs = await db.MonitoringConfigurations
-            .Where(c => c.IsEnabled && c.NextRunAt <= now)
-            .ToListAsync(cancellationToken);
+        var enabledConfigs = await db.MonitoringConfigurations
+            .Where(c => c.IsEnabled).ToListAsync(cancellationToken);
+        var dueConfigs = enabledConfigs.Where(c => c.NextRunAt <= now).ToList();
 
         if (dueConfigs.Count == 0)
             return;
@@ -115,13 +177,17 @@ public class ComplianceWatchHostedService : BackgroundService
         foreach (var config in dueConfigs)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
+            config.LastAttemptAt = DateTimeOffset.UtcNow;
             try
             {
+                if (!await db.ComplianceBaselines.AnyAsync(x => x.SubscriptionId == config.SubscriptionId && x.IsActive, cancellationToken))
+                    throw new InvalidOperationException("Missing reviewed compliance baseline.");
                 var alertCount = await _watchService.RunMonitoringCheckAsync(config, cancellationToken);
 
                 // Advance NextRunAt
                 config.NextRunAt = ComplianceWatchService.ComputeNextRunAt(config.Frequency);
                 config.LastRunAt = DateTimeOffset.UtcNow;
+                config.CollectionError = null;
                 config.UpdatedAt = DateTimeOffset.UtcNow;
 
                 sw.Stop();
@@ -130,7 +196,7 @@ public class ComplianceWatchHostedService : BackgroundService
                     config.SubscriptionId, config.ResourceGroupName ?? "*",
                     sw.ElapsedMilliseconds, alertCount);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 sw.Stop();
                 _logger.LogError(ex,
@@ -140,6 +206,8 @@ public class ComplianceWatchHostedService : BackgroundService
 
                 // Still advance NextRunAt to prevent stuck loops
                 config.NextRunAt = ComplianceWatchService.ComputeNextRunAt(config.Frequency);
+                config.LastFailureAt = DateTimeOffset.UtcNow;
+                config.CollectionError = ex is InvalidOperationException ? "MissingBaselineOrInvalidCollection" : "CollectionFailed";
                 config.UpdatedAt = DateTimeOffset.UtcNow;
             }
         }
@@ -199,11 +267,13 @@ public class ComplianceWatchHostedService : BackgroundService
                 config.LastEventCheckAt = maxTimestamp;
                 config.UpdatedAt = DateTimeOffset.UtcNow;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex,
                     "Event-driven check failed for {Sub}/{RG} — falling back to scheduled",
                     config.SubscriptionId, config.ResourceGroupName ?? "*");
+                config.LastFailureAt = DateTimeOffset.UtcNow;
+                config.CollectionError = "EventCollectionFailed";
 
                 // Fallback: if Activity Log is unavailable, scheduled checks still run
                 // Do not advance LastEventCheckAt so events are re-polled next tick
@@ -237,11 +307,10 @@ public class ComplianceWatchHostedService : BackgroundService
         foreach (var config in configs)
         {
             // Check if snapshot already exists for today
-            var existing = await db.ComplianceSnapshots
-                .AnyAsync(s =>
-                    s.SubscriptionId == config.SubscriptionId
-                    && s.CapturedAt.Date == DateTimeOffset.UtcNow.Date,
-                    cancellationToken);
+            var capturedDates = await db.ComplianceSnapshots
+                .Where(s => s.SubscriptionId == config.SubscriptionId)
+                .Select(s => s.CapturedAt).ToListAsync(cancellationToken);
+            var existing = capturedDates.Any(date => date.UtcDateTime.Date == DateTime.UtcNow.Date);
 
             if (existing)
                 continue;

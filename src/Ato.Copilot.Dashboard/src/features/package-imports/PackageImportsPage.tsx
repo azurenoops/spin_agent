@@ -18,6 +18,7 @@ import { PackageUpload } from './PackageUpload';
 import { PackageImportError } from './request';
 import { packagePublicationKey } from './publication';
 import { usePublicationIntent } from './usePublicationIntent';
+import { authorizationHref } from '../provider-authorizations/api';
 import type { PackageCandidate, PackageDecision, PackagePreview, PackagePublication, PackageSelection, PackageStatus } from './types';
 
 export function PackageImportsPage({ packageId }: { packageId?: string }) {
@@ -71,7 +72,8 @@ export function PackageDetail({ packageId, offeringId, packageVersionId, boundar
   const stalePreview = !!preview && (previewIsStale || preview.revision !== remote.data?.revision);
   const mismatchedReads = !!review.data && !!remote.data && review.data.revision !== remote.data.revision;
   const validPreview = !stalePreview ? preview : null;
-  const disabled = busy || processing || !!editing || remote.loading || !!remote.error || review.loading || !!review.error || mismatchedReads || !!publicationIntent.error;
+  const readOnly = !!(remote.data?.supersededAt || remote.data?.archivedAt);
+  const disabled = readOnly || busy || processing || !!editing || remote.loading || !!remote.error || review.loading || !!review.error || mismatchedReads || !!publicationIntent.error;
   const mutationDisabled = disabled || publicationPending || enrichmentPending;
 
   useEffect(() => {
@@ -120,7 +122,9 @@ export function PackageDetail({ packageId, offeringId, packageVersionId, boundar
 
   return <div className="space-y-6">
     <div className="flex flex-wrap gap-3">
-      <Link className={secondaryButtonClass} to={api.packageImportHref()}>All packages</Link>
+      <Link className={secondaryButtonClass} to={offeringId ? authorizationHref(offeringId, 'packages') : api.packageImportHref()}>
+        {offeringId ? 'All source packages' : 'All packages'}
+      </Link>
       <button type="button" disabled={busy} className={secondaryButtonClass} onClick={reload}>Refresh package</button>
     </div>
     <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
@@ -128,12 +132,12 @@ export function PackageDetail({ packageId, offeringId, packageVersionId, boundar
     {remote.data && <>
       <PackageSummary item={remote.data} onSources={() => setView('sources')} />
       <details className={`${surfaceClass} rounded-xl px-5 py-3`}>
-        <summary className="cursor-pointer text-sm font-medium">Processing details and retry</summary>
+        <summary className="cursor-pointer text-sm font-medium">{readOnly ? 'Retained processing details' : 'Processing details and retry'}</summary>
         <div className="mt-4 space-y-4">
           <PackageReceiptCard item={remote.data} />
-          {remote.data.analysisProfileVersion !== undefined && <PackageEnrichment status={remote.data} disabled={disabled || publicationPending}
+          {!readOnly && remote.data.analysisProfileVersion !== undefined && <PackageEnrichment status={remote.data} disabled={disabled || publicationPending}
             onPendingChange={setEnrichmentPending} onChanged={() => { invalidate(); reload(); }} />}
-      {['Failed', 'NeedsAttention'].includes(remote.data.processingState) && <button type="button" className={secondaryButtonClass} disabled={mutationDisabled}
+      {!readOnly && ['Failed', 'NeedsAttention'].includes(remote.data.processingState) && <button type="button" className={secondaryButtonClass} disabled={mutationDisabled}
         onClick={() => void run(async () => {
           retryKey.current ??= crypto.randomUUID();
           await api.retryPackage(packageId, retryKey.current);
@@ -144,31 +148,31 @@ export function PackageDetail({ packageId, offeringId, packageVersionId, boundar
       <div role="group" aria-label="Package review views" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 dark:border-slate-700">
         <button type="button" aria-pressed={view === 'records'} className={view === 'records' ? buttonClass : secondaryButtonClass} onClick={() => setView('records')}>Extracted records</button>
         <button type="button" aria-pressed={view === 'sources'} className={view === 'sources' ? buttonClass : secondaryButtonClass} onClick={() => setView('sources')}>Source files</button>
-        <span className="ml-auto self-center text-sm text-slate-500">{selected.length} selected for publication</span>
+        <span className="ml-auto self-center text-sm text-slate-500">{readOnly ? 'Read-only source history' : `${selected.length} selected for publication`}</span>
       </div>
     </>}
     <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
     <div className="min-w-0 space-y-6">
       {remote.data && <>
       <div hidden={view !== 'records'} className="space-y-5">
-      <PackageCandidates packageId={packageId} revision={remote.data.revision + refresh} selected={selected} disabled={mutationDisabled}
+      <PackageCandidates packageId={packageId} revision={remote.data.revision + refresh} selected={selected} disabled={mutationDisabled} readOnly={readOnly}
         onSelect={changeSelection} onReview={setEditing}
         onRevisionChanged={() => { invalidate(); setNotice('Candidate revision changed. Review current records and generate a fresh preview.'); }} />
-      {editing && (isClaimKind(editing.type)
+      {editing && !readOnly && (isClaimKind(editing.type)
         ? <ClaimReview key={`${editing.candidateId}:${editing.revision}`} candidate={editing} packageId={packageId}
             onCancel={() => setEditing(null)} onReload={() => { invalidate(); reload(); }} onSaved={() => { invalidate(); reload(); }} />
         : <CandidateReview key={`${editing.candidateId}:${editing.revision}`} candidate={editing} packageId={packageId}
             onCancel={() => setEditing(null)} onReload={() => { invalidate(); reload(); }} onSaved={() => { invalidate(); reload(); }} />)}
       </div>
       <div hidden={view !== 'sources'}>
-      <PackageEntries packageId={packageId} revision={remote.data.revision + refresh} disabled={mutationDisabled}
+      <PackageEntries packageId={packageId} revision={remote.data.revision + refresh} disabled={mutationDisabled} readOnly={readOnly}
         onChanged={() => { invalidate(); reload(); }} />
       </div>
       </>}
     </div>
     <aside aria-label="Approval and publication" className={`${surfaceClass} min-w-0 space-y-4 p-5 lg:sticky lg:top-4`}>
-      <h2 className="text-lg font-semibold">Publish reviewed records</h2>
-      <p className="text-sm text-slate-500">Review records → select components and capabilities → preview → approve → publish.</p>
+      <h2 className="text-lg font-semibold">{readOnly ? 'Read-only review history' : 'Publish reviewed records'}</h2>
+      <p className="text-sm text-slate-500">{readOnly ? 'Saved decisions remain inspectable. Publication actions are disabled for this retired receipt.' : 'Review records → select components and capabilities → preview → approve → publish.'}</p>
       <details open={selected.length > 0 || !!preview || !!publication || !!error || publicationPending || !!review.error || !!publicationIntent.error || mismatchedReads}>
       <summary className="cursor-pointer text-sm font-medium">Publication controls{selected.length ? ` · ${selected.length} selected` : ''}</summary>
       <div className="mt-4 space-y-4">
@@ -177,8 +181,8 @@ export function PackageDetail({ packageId, offeringId, packageVersionId, boundar
         {publicationIntent.error && <p role="alert" className={errorClass}>{publicationIntent.error}</p>}
         {mismatchedReads && <p role="alert" className={warningClass}>Package changed while loading saved decisions. Refresh the package before making another decision.</p>}
       </section>
-      <p className="text-sm text-gray-600">{selected.length} exact candidate revisions selected. The server checks coverage, evidence, review, duplicates and all dependencies.</p>
-      {offeringId && <ImpactReviewSelection offeringId={offeringId} packageVersionId={packageVersionId}
+      <p className="text-sm text-gray-600">{readOnly ? 'Saved selections refer to historical candidate revisions; no new decision can be made on this receipt.' : `${selected.length} exact candidate revisions selected. The server checks coverage, evidence, review, duplicates and all dependencies.`}</p>
+      {offeringId && !readOnly && <ImpactReviewSelection offeringId={offeringId} packageVersionId={packageVersionId}
         packageId={packageId} boundaryRevisionId={boundaryRevisionId} value={impactIds} disabled={mutationDisabled}
         onChange={value => { setImpactIds(value); setPreview(null); }} />}
       <button type="button" className={secondaryButtonClass} disabled={mutationDisabled || !selected.length || !!impactSelectionError(impactIds)} onClick={() => void run(async () => {
@@ -196,7 +200,7 @@ export function PackageDetail({ packageId, offeringId, packageVersionId, boundar
           <li key={item.candidateId} className="break-all"><code>{item.candidateId}</code> · Revision {item.revision}</li>)}</ul>
         <p className="break-all text-xs text-gray-600">Preview {preview.previewId} · Hash {preview.previewHash}</p>
         <AuthorizationContextSummary contextSnapshotHash={preview.contextSnapshotHash} impactReviewIds={preview.impactReviewIds} />
-        {stalePreview && <p role="alert" className={warningClass}>This saved preview is stale. Review current candidates and generate a fresh preview before approval or publication.</p>}
+        {stalePreview && <p role="alert" className={warningClass}>{readOnly ? 'This saved preview is retained history only. The receipt is read-only.' : 'This saved preview is stale. Review current candidates and generate a fresh preview before approval or publication.'}</p>}
         {preview.blockers.length > 0 ? <ul role="alert" className={errorClass}>{preview.blockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>
           : !stalePreview && <p className="text-sm">{preview.state === 'Preview'
             ? 'Server preview returned no blockers. Approval is still required before publication.'
@@ -222,7 +226,7 @@ export function PackageDetail({ packageId, offeringId, packageVersionId, boundar
           })}>Publish approved set</button>
       </div>
       {busy && <p role="status">Saving package operation...</p>}
-      {publicationPending && !busy && <p role="status" className={warningClass}>Publication outcome is unknown. Retry the same approved set or refresh to recover server status before changing the selection.</p>}
+      {publicationPending && !busy && !readOnly && <p role="status" className={warningClass}>Publication outcome is unknown. Retry the same approved set or refresh to recover server status before changing the selection.</p>}
       {error && <p role="alert" className={errorClass}>{error}</p>}
       {conflict && <button type="button" className={secondaryButtonClass} onClick={() => { invalidate(); reload(); }}>Reload current package</button>}
       {publication && <section aria-label="Persisted publication outcome" className="space-y-2 rounded border border-emerald-200 bg-emerald-50 p-4">

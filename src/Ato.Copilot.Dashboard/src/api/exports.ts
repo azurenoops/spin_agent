@@ -18,6 +18,81 @@ export interface ExportDetail extends ExportSummary {
   systemId: string;
   contentHash: string | null;
   expiresAt: string;
+  sourcePreviewId?: string | null;
+  sourceManifest?: DocumentSourceManifest | null;
+}
+
+export interface DocumentSourceReference {
+  kind: string;
+  recordId: string;
+  versionId: string;
+  contentHash: string;
+}
+
+export interface DocumentSourceManifest {
+  scope: string;
+  profiles: DocumentSourceReference[];
+  providerSources: DocumentSourceReference[];
+  narratives: DocumentSourceReference[];
+  otherSources: string;
+}
+
+export interface SspPreview {
+  previewId?: string | null;
+  sourceManifest?: DocumentSourceManifest | null;
+  systemId: string;
+  format: 'json';
+  contentType: 'application/json';
+  content: string;
+  contentHash: string;
+  generatedAt: string;
+  sourceGaps: { code: string; message: string }[];
+  isPreview: true;
+  sourceState: 'CurrentWorkingData';
+}
+
+export async function getSspPreview(systemId: string, signal?: AbortSignal): Promise<SspPreview> {
+  const { data } = await apiClient.get<SspPreview>(
+    `/systems/${encodeURIComponent(systemId)}/documents/ssp/preview`, { signal },
+  );
+  return checkedPreview(data, systemId);
+}
+
+function checkedPreview(data: SspPreview, systemId: string): SspPreview {
+  if (data?.systemId !== systemId || data.format !== 'json' || data.contentType !== 'application/json'
+    || data.isPreview !== true || data.sourceState !== 'CurrentWorkingData'
+    || typeof data.content !== 'string' || typeof data.contentHash !== 'string'
+    || typeof data.generatedAt !== 'string' || !Array.isArray(data.sourceGaps)
+    || data.sourceGaps.some(gap => !gap || typeof gap.code !== 'string' || typeof gap.message !== 'string')) {
+    throw new Error('The server returned an invalid or differently scoped document preview.');
+  }
+  if (data.sourceManifest && (!Array.isArray(data.sourceManifest.profiles)
+    || !Array.isArray(data.sourceManifest.providerSources) || !Array.isArray(data.sourceManifest.narratives)
+    || typeof data.sourceManifest.scope !== 'string' || typeof data.sourceManifest.otherSources !== 'string'
+    || [...data.sourceManifest.profiles, ...data.sourceManifest.providerSources, ...data.sourceManifest.narratives]
+      .some(item => !item || typeof item.kind !== 'string' || typeof item.recordId !== 'string'
+        || typeof item.versionId !== 'string' || typeof item.contentHash !== 'string'))) {
+    throw new Error('The server returned an invalid document source manifest.');
+  }
+  return data;
+}
+
+export async function retainSspPreview(systemId: string, key: string, signal?: AbortSignal): Promise<SspPreview> {
+  const { data } = await apiClient.post<SspPreview>(
+    `/systems/${encodeURIComponent(systemId)}/documents/ssp/preview`, {},
+    { headers: { 'Idempotency-Key': key }, signal },
+  );
+  const result = checkedPreview(data, systemId);
+  if (typeof result.previewId !== 'string' || !result.previewId) throw new Error('The server did not return a retained preview identity.');
+  return result;
+}
+
+export async function requestPreviewExport(systemId: string, previewId: string, key: string, signal?: AbortSignal): Promise<ExportSummary> {
+  const { data } = await apiClient.post<ExportSummary>(
+    `/systems/${encodeURIComponent(systemId)}/exports`, { format: 'json', sourcePreviewId: previewId },
+    { headers: { 'Idempotency-Key': key }, signal },
+  );
+  return data;
 }
 
 export interface TemplateInfo {

@@ -31,15 +31,41 @@ public class PackageValidationService : IPackageValidationService
         _logger = logger;
     }
 
+    public Task<PackageValidationResult> ValidateAsync(
+        string systemId,
+        string validatedBy = "mcp-user",
+        CancellationToken cancellationToken = default) =>
+        ValidateAsync(systemId, PackagePurpose.Legacy, validatedBy, cancellationToken);
+
     public async Task<PackageValidationResult> ValidateAsync(
         string systemId,
+        PackagePurpose purpose,
         string validatedBy = "mcp-user",
         CancellationToken cancellationToken = default)
     {
+        if (!Enum.IsDefined(purpose)) throw new ArgumentOutOfRangeException(nameof(purpose));
         var findings = new List<ValidationFinding>();
+        if (purpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
+            return new PackageValidationResult
+            {
+                ValidatedBy = validatedBy, IsValid = false, ErrorCount = 1,
+                Findings = [Error("retained-baseline", null, "Select a completed retained package, its content hash, and a recorded authorization decision.",
+                    "Use retained-context validation for archive/change purposes.")]
+            };
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var system = await db.RegisteredSystems.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == systemId, cancellationToken)
+            ?? throw new InvalidOperationException("System not found in the current workspace.");
+        var providerGaps = new List<string>();
+        await ProviderDocumentProvenance.ResolveAsync(db, system, providerGaps, cancellationToken);
+        findings.AddRange(providerGaps.Select(gap => Error("provider-authorization", "ssp", gap,
+            "Review the selected provider adoption and its recorded source metadata before generating a final package.")));
+        var profileGaps = new List<string>();
+        await ApprovedProfileDocumentData.LoadAsync(db, systemId, profileGaps, cancellationToken);
+        findings.AddRange(profileGaps.Select(gap => Error("profile-approval", "ssp", gap,
+            "Review and approve the scalar values and structured rows together before final generation.")));
 
         // ─── 1. AO Authorization Decision ──────────────────────────────────
         var now = DateTime.UtcNow;
@@ -48,7 +74,7 @@ public class PackageValidationService : IPackageValidationService
                 && decision.IsActive
                 && (decision.ExpirationDate == null || decision.ExpirationDate > now),
                 cancellationToken);
-        if (!hasActiveDecision)
+        if (purpose == PackagePurpose.Legacy && !hasActiveDecision)
         {
             findings.Add(Error("authorization-decision", "ato-letter",
                 "No active authorization decision found, or the latest decision has expired.",
@@ -70,6 +96,13 @@ public class PackageValidationService : IPackageValidationService
             .Where(s => s.RegisteredSystemId == systemId)
             .Select(s => new { s.SectionNumber, s.SectionTitle, s.Status })
             .ToListAsync(cancellationToken);
+
+        if (purpose == PackagePurpose.InitialSubmission)
+        {
+            foreach (var number in Enumerable.Range(1, 13).Except(sspSections.Select(s => s.SectionNumber)))
+                findings.Add(Error("ssp", "ssp", $"Required SSP section §{number} is missing.",
+                    $"Author and approve SSP section §{number} before preparing the initial submission."));
+        }
 
         if (sspSections.Count == 0)
         {
@@ -187,10 +220,14 @@ public class PackageValidationService : IPackageValidationService
                         schemaHint));
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Schema validation for {Model} could not be completed", model);
-                findings.Add(Warning("schema", model,
+                findings.Add(Error("schema", model,
                     $"OSCAL {model} schema validation could not be completed: {ex.Message}",
                     $"Ensure the {model} data exists. Check the relevant page (Narratives for SSP, POA&M, or Assessments) and verify data can be exported."));
             }
@@ -207,9 +244,15 @@ public class PackageValidationService : IPackageValidationService
                     "Go to Evidence to upload artifacts for controls with missing coverage."));
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Evidence coverage check could not be completed for system {SystemId}", systemId);
+            findings.Add(Error("evidence", null, "Evidence coverage could not be verified.",
+                "Restore evidence availability and retry validation before generating a final package."));
         }
 
         // ─── Build Result ───────────────────────────────────────────────────

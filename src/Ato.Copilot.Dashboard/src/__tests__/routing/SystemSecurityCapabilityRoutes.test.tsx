@@ -13,9 +13,9 @@ describe('system security capability navigation', () => {
     const capabilities = items.filter(item => item.path === 'security-capabilities');
     // Assert
     expect(capabilities).toHaveLength(1);
-    expect(capabilities[0]?.label).toBe('Security Capabilities');
+    expect(capabilities[0]?.label).toBe('Applied capabilities');
     expect(items.some(item => ['components', 'capability-coverage'].includes(item.path))).toBe(false);
-    expect(items.map(item => item.path)).toEqual(expect.arrayContaining(['roles', 'boundaries', 'inheritance', 'narratives']));
+    expect(items.map(item => item.path)).toEqual(expect.arrayContaining(['roles', 'boundaries', 'inheritance/subscriptions', 'narratives']));
   });
 
   it.each([

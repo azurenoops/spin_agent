@@ -21,6 +21,10 @@ public sealed class ProviderOffering : ProviderOwnedRow
 {
     [MaxLength(256)] public string Name { get; set; } = "";
     [MaxLength(8000)] public string Description { get; set; } = "";
+    [MaxLength(64)] public string? ServiceModel { get; set; }
+    [MaxLength(64)] public string? ManagementArrangement { get; set; }
+    [MaxLength(256)] public string? ServiceOwner { get; set; }
+    [MaxLength(256)] public string? SecurityContact { get; set; }
     public string EnvironmentsJson { get; set; } = "[]";
     [MaxLength(32)] public string Lifecycle { get; set; } = "Draft";
     public Guid? CurrentBoundaryRevisionId { get; set; }

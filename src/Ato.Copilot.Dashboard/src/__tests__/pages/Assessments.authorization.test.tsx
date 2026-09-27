@@ -27,6 +27,9 @@ vi.mock('../../api/sar', () => ({ getLatestSar: vi.fn().mockResolvedValue(null),
 vi.mock('../../api/components', () => ({ getAssessmentComponentRisks: vi.fn().mockResolvedValue(null) }));
 vi.mock('../../components/remediation/CreateRemediationTaskModal', () => ({ default: () => <div>Task dialog</div> }));
 vi.mock('../../components/AddDeviationDialog', () => ({ default: () => <div>Deviation dialog</div> }));
+vi.mock('../../features/systems/SapDraftEditor', () => ({
+  default: ({ systemId }: { systemId: string }) => <section aria-label="Assessment draft record">{systemId}</section>,
+}));
 
 function session(permissions: Partial<SystemWorkspacePermissions> = {}, roles = ['MissionOwner']): WorkspaceSession {
   return workspaceSession(systemId, permissions, roles);
@@ -64,6 +67,29 @@ beforeEach(() => {
 afterEach(() => { cleanup(); localStorage.clear(); });
 
 describe('Assessment mutation authorization (#1017)', () => {
+  it('opens the assessment-plan task without rendering run and results actions', async () => {
+    // Arrange
+    render(page(`${canonicalPath}?tab=plan`));
+    // Act
+    await screen.findByRole('button', { name: 'Finalize SAP' });
+    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+    // Assert
+    expect(screen.getByRole('heading', { name: 'Plan the assessment' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Run Assessment' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Generate SAR' })).not.toBeInTheDocument();
+    expect(generateSap).not.toHaveBeenCalled();
+  });
+
+  it('offers the actual assessment-configuration handoff on the results task', async () => {
+    // Arrange
+    render(page());
+    // Act
+    await screen.findByRole('button', { name: 'Finalize SAP' });
+    // Assert
+    expect(screen.getByRole('link', { name: 'Configure assessment' })).toHaveAttribute('href', `/systems/${systemId}/assessments/environment`);
+    expect(screen.getByRole('heading', { name: 'Assessments & results' })).toBeVisible();
+  });
+
   it.each(['AO', 'ISSM'])('ignores a MissionOwner forged %s browser preference', async role => {
     // Arrange
     localStorage.setItem('ato-dashboard-settings', JSON.stringify({ role }));

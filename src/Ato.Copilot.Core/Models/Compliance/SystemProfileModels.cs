@@ -62,6 +62,10 @@ public class SystemProfileSection
     [MaxLength(16000)]
     public string? ApprovedContent { get; set; }
 
+    /// <summary>Exact retained approval audit entry including scalar and structured row values.</summary>
+    [MaxLength(36)]
+    public string? ApprovedSnapshotId { get; set; }
+
     /// <summary>Computed completeness of this individual section's fields (0–100%).</summary>
     [Range(0, 100)]
     public int CompletionPercentage { get; set; }
@@ -453,6 +457,12 @@ public class BusinessContextControlFlag
 [TenantScoped]
 public class ProfileAuditEntry
 {
+    /// <summary>Immutable reviewed scalar and child-row content; null for legacy or non-approval entries.</summary>
+    public string? SnapshotJson { get; set; }
+
+    [MaxLength(64)]
+    public string? SnapshotHash { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

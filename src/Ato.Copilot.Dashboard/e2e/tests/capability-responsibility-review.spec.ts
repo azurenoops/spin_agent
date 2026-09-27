@@ -166,7 +166,7 @@ for (const width of [1440, 390]) {
     await page.getByRole('link', { name: 'Review subscription responsibilities' }).click();
     // Assert
     await expect(page).toHaveURL(`${baseURL}${systemRoot}/inheritance/subscriptions`);
-    await expect(page.getByRole('heading', { name: 'Subscription responsibility review' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Control responsibilities' })).toBeVisible();
     const snapshot = page.getByRole('region', { name: 'Current provider snapshot' });
     await expect(snapshot.getByText('Published access capability', { exact: true })).toBeVisible();
     await expect(snapshot.getByText('[redacted]', { exact: true })).toBeVisible();
@@ -192,8 +192,10 @@ for (const width of [1440, 390]) {
     expect(writes.map(write => write.path)).toEqual([`${apiRoot}/11111111-1111-1111-1111-111111111111/responsibilities`, `${apiRoot}/review-impacts/dispatch`]);
     await page.reload();
     await expect(page.getByText('Shared · CspSubscription')).toBeVisible();
-    await page.getByRole('link', { name: 'System capabilities', exact: true }).click();
-    await page.getByRole('link', { name: 'Review subscription responsibilities' }).click();
+    await page.getByRole('navigation', { name: 'Responsibility review navigation' })
+      .getByRole('link', { name: 'Applied capabilities', exact: true }).click();
+    await page.getByRole('navigation', { name: 'System task views' })
+      .getByRole('link', { name: 'Responsibilities', exact: true }).click();
     await expect(page).toHaveURL(`${baseURL}${systemRoot}/inheritance/subscriptions`);
     await expect(page.getByText('Shared · CspSubscription')).toBeVisible();
   });

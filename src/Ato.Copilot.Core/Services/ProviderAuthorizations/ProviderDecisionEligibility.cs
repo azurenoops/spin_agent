@@ -22,17 +22,19 @@ public static class ProviderDecisionEligibility
     {
         ArgumentNullException.ThrowIfNull(revision);
         ArgumentNullException.ThrowIfNull(events);
-        if (requiredRecordKind is not ("ProviderDecision" or "InheritedMicrosoftReference"))
-            throw new ArgumentException("Require ProviderDecision or InheritedMicrosoftReference.", nameof(requiredRecordKind));
+        if (requiredRecordKind is not ("ProviderDecision" or "InheritedMicrosoftReference" or "InheritedProviderReference"))
+            throw new ArgumentException("Require a provider decision or an explicit inherited-reference category.", nameof(requiredRecordKind));
 
         var source = Read<CreateProviderDecisionRequest>(revision.SnapshotJson);
         ProviderImpactBlocker Block(string message) => new("DECISION_NOT_ELIGIBLE", message, revision.Id.ToString());
-        if (source.RecordKind is not ("ProviderDecision" or "InheritedMicrosoftReference"))
-            return Block("Review the source record kind; use ProviderDecision or InheritedMicrosoftReference.");
+        if (source.RecordKind is not ("ProviderDecision" or "InheritedMicrosoftReference" or "InheritedProviderReference"))
+            return Block("Review the source record kind; use a provider decision or inherited provider reference.");
         if (source.RecordKind != requiredRecordKind)
             return requiredRecordKind == "ProviderDecision"
-                ? new("PROVIDER_DECISION_REQUIRED", "Select a recorded provider decision; an inherited Microsoft reference cannot substitute for provider authority.", revision.Id.ToString())
-                : Block("Select an inherited Microsoft reference for this reference context, not a provider decision.");
+                ? new("PROVIDER_DECISION_REQUIRED", "Select a recorded provider decision; an inherited provider reference cannot substitute for provider authority.", revision.Id.ToString())
+                : Block("Select the required inherited-reference category for this context, not a provider decision.");
+        if (source.RecordKind == "InheritedProviderReference" && string.IsNullOrWhiteSpace(source.UpstreamProvider))
+            return Block("Record the explicit upstream provider identity; the reference category does not identify its provider.");
         if (revision.MetadataReviewState != "Recorded" || string.IsNullOrWhiteSpace(revision.RecordedBy) || revision.RecordedAt is null)
             return Block("A human must record the exact source decision metadata before it can support this context.");
         if (Hash(revision.SnapshotJson) != revision.SnapshotHash)

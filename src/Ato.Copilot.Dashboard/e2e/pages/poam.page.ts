@@ -22,6 +22,7 @@ export class PoamPage {
   }
 
   async expectSummaryCards() {
+    await this.page.getByText('Remediation summary', { exact: true }).click();
     await expect(this.page.getByText(/open|total/i).first()).toBeVisible();
   }
 

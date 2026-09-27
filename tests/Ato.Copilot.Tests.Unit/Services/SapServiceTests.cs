@@ -22,6 +22,23 @@ namespace Ato.Copilot.Tests.Unit.Services;
 /// </summary>
 public class SapServiceTests : IDisposable
 {
+    [Fact]
+    public async Task UpdateSap_StoresManualDraftFields_RendersContent_AndRejectsStaleEdit()
+    {
+        // Arrange
+        SeedBaseline();
+        var draft = await _service.GenerateSapAsync(new SapGenerationInput(TestSystemId), "author");
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(draft.Content))).ToLowerInvariant();
+        var input = new SapUpdateInput(draft.SapId, ScopeNotes: "Reviewed mission boundary",
+            Title: "Initial mission assessment", AssessmentLead: "Assigned assessor", AssessmentApproach: "Examine, interview and test", ExpectedContentHash: hash);
+        // Act
+        var updated = await _service.UpdateSapAsync(input);
+        // Assert
+        updated.Title.Should().Be("Initial mission assessment");
+        updated.Content.Should().Contain("Assigned assessor").And.Contain("Examine, interview and test").And.Contain("Reviewed mission boundary");
+        await FluentActions.Awaiting(() => _service.UpdateSapAsync(input)).Should().ThrowAsync<InvalidOperationException>().WithMessage("*changed*");
+    }
+
     private const string TestSystemId = "sys-001";
     private const string TestAssessmentId = "assess-001";
 

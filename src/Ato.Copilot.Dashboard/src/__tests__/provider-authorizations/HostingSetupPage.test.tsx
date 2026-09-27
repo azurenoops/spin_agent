@@ -11,14 +11,14 @@ import type { HostingScopeRevision } from '../../features/provider-authorization
 import '../helpers/dialog';
 
 vi.mock('../../features/provider-authorizations/api', async original => ({
-  ...await original<typeof api>(), getOffering: vi.fn(), getBoundary: vi.fn(), getBoundaryOverview: vi.fn(), listMicrosoftReferences: vi.fn(),
+  ...await original<typeof api>(), getOffering: vi.fn(), getBoundary: vi.fn(), getBoundaryOverview: vi.fn(), listInheritedProviderReferences: vi.fn(),
 }));
 vi.mock('../../features/provider-authorizations/hostingApi', async original => ({
   ...await original<typeof hosting>(), getHostingScope: vi.fn(), listHostingScopes: vi.fn(),
 }));
 vi.mock('../../features/provider-authorizations/HostingPanel', () => ({
-  HostingPanel: ({ initialScope, onChanged, onPendingChange }: { initialScope?: HostingScopeRevision; onChanged: () => void; onPendingChange: (value: boolean) => void }) =>
-    <section aria-label="Configure hosting form"><input aria-label="Hosting scope name" defaultValue={initialScope?.name ?? ''} />
+  HostingPanel: ({ initialScope, task, onChanged, onPendingChange }: { initialScope?: HostingScopeRevision; task?: string; onChanged: () => void; onPendingChange: (value: boolean) => void }) =>
+    <section aria-label="Configure hosting form" data-task={task}><input aria-label="Hosting scope name" defaultValue={initialScope?.name ?? ''} />
       <button onClick={() => onPendingChange(true)}>Simulate pending write</button><button onClick={onChanged}>Simulate saved scope</button></section>,
 }));
 const referenceRefresh = vi.hoisted(() => ({ current: undefined as (() => Promise<void>) | undefined }));
@@ -51,15 +51,33 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(hosting.listHostingScopes).mockResolvedValue(page([]));
   vi.mocked(hosting.getHostingScope).mockResolvedValue(current);
-  vi.mocked(api.listMicrosoftReferences).mockResolvedValue(page([]));
+  vi.mocked(api.listInheritedProviderReferences).mockResolvedValue(page([]));
   vi.mocked(api.getBoundary).mockResolvedValue({ ...boundary,
     providerResponsibilities: ['Operate platform monitoring'], customerResponsibilities: ['Review mission access'] });
   vi.mocked(api.getBoundaryOverview).mockResolvedValue(overview);
 });
 
 describe('task-led CSP hosting setup', () => {
+  it('uses business identity and the exact scope revision while retaining recovery markers only in provenance', async () => {
+    // Arrange
+    const recordedName = 'SYNTHETIC Azure IL5 · azure-il5/release-1.2:b892d1e27191';
+    vi.mocked(hosting.getHostingScope).mockResolvedValue({ ...current, name: recordedName,
+      purpose: 'Shared platform logging and network protection' });
+    mount(true);
+    // Act
+    const context = await screen.findByRole('region', { name: 'Technical hosting scope' });
+    // Assert
+    expect(await within(context).findByRole('heading', { name: `${offering.name} · Scope revision 2` })).toBeInTheDocument();
+    expect(within(context).getByText('Shared platform logging and network protection')).toBeVisible();
+    expect(within(context).getByText(recordedName)).not.toBeVisible();
+    expect(within(context).getByText(current.snapshot.snapshotHash)).not.toBeVisible();
+    fireEvent.click(within(context).getByText('Hosting provenance'));
+    expect(within(context).getByText(recordedName)).toBeVisible();
+    expect(within(context).getByText(current.snapshot.snapshotHash)).toBeVisible();
+  });
+
   it.each([
-    ['hosting', 'Configure Azure hosting'], ['capabilities', 'Review offering capabilities'], ['missions', 'Mission system associations'],
+    ['hosting', 'Configure Azure hosting'], ['missions', 'Mission system associations'],
   ])('opens the requested %s overview task in a dialog without a mutation', async (task, title) => {
     // Arrange / Act
     render(<MemoryRouter initialEntries={[`/?task=${task}`]}><HostingSetupPage offering={offering} onChanged={vi.fn()} /></MemoryRouter>);
@@ -69,15 +87,25 @@ describe('task-led CSP hosting setup', () => {
   });
   it('ignores unsupported deep-linked tasks rather than opening administration', async () => {
     // Arrange / Act
-    render(<MemoryRouter initialEntries={['/?task=allocations']}><HostingSetupPage offering={offering} onChanged={vi.fn()} /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/?task=unsupported-admin']}><HostingSetupPage offering={offering} onChanged={vi.fn()} /></MemoryRouter>);
     // Assert
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'Azure hosting' })).getByRole('button', { name: 'Configure hosting' })).toBeEnabled());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+  it('opens the existing provider allocation workflow from its explicit task link', async () => {
+    // Arrange / Act
+    render(<MemoryRouter initialEntries={['/?task=allocations']}><HostingSetupPage
+      offering={{ ...offering, currentHostingScopeRevisionId: current.snapshot.revisionId }} onChanged={vi.fn()} /></MemoryRouter>);
+    // Assert
+    expect(await screen.findByRole('dialog', { name: 'Provider hosting allocation' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText('Hosting scope name')).toBeEnabled());
+    expect(screen.getByLabelText('Hosting scope name')).toHaveValue(current.name);
+    expect(screen.getByRole('region', { name: 'Configure hosting form' })).toHaveAttribute('data-task', 'allocations');
+  });
   it.each([
     ['Suggested next step', 'Configure hosting', 'Configure Azure hosting'],
     ['Azure hosting', 'Configure hosting', 'Configure Azure hosting'],
-    ['Microsoft authorization references', 'Add reference', 'Add or review Microsoft references'],
+    ['Upstream provider authorization references', 'Add reference', 'Add or review upstream provider references'],
     ['Security capabilities', 'Review capabilities', 'Review offering capabilities'],
     ['Mission systems', 'View associations', 'Mission system associations'],
     ['Shared responsibilities', 'Review responsibilities', 'Review responsibilities'],
@@ -106,7 +134,7 @@ describe('task-led CSP hosting setup', () => {
     // Arrange
     vi.mocked(api.getOffering).mockResolvedValue({ ...offering, revision: offering.revision + 1 });
     mount();
-    const card = screen.getByRole('region', { name: 'Microsoft authorization references' });
+    const card = screen.getByRole('region', { name: 'Upstream provider authorization references' });
     await waitFor(() => expect(within(card).getByRole('button', { name: 'Add reference' })).toBeEnabled());
     fireEvent.click(within(card).getByRole('button', { name: 'Add reference' }));
     // Act
@@ -127,7 +155,7 @@ describe('task-led CSP hosting setup', () => {
       expiresOn: null, expiryBasis: 'NotRecorded', scopeStatement: 'Named services only.',
       conditions: [], citations: [], metadataReviewState: 'Recorded', currentStanding: 'Undetermined',
       recordedBy: 'reviewer', recordedAt: '2026-09-25T12:00:00Z', impactReviewRequired: false };
-    vi.mocked(api.listMicrosoftReferences).mockResolvedValue(page([reference]));
+    vi.mocked(api.listInheritedProviderReferences).mockResolvedValue(page([reference]));
     mount(true);
     const trigger = await screen.findByRole('button', { name: 'Review saved references' });
     trigger.focus();
@@ -135,7 +163,7 @@ describe('task-led CSP hosting setup', () => {
     fireEvent.click(trigger);
     // Assert
     expect(screen.getByRole('region', { name: 'Microsoft reference form' })).toHaveAttribute('data-action', 'review');
-    expect(screen.getByRole('dialog')).toHaveAccessibleName('Add or review Microsoft references');
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Add or review upstream provider references');
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Close task' }));
     // Assert
@@ -187,7 +215,7 @@ describe('task-led CSP hosting setup', () => {
     const next = await screen.findByRole('region', { name: 'Suggested next step' });
     await waitFor(() => expect(within(next).getByRole('button', { name: 'Configure hosting' })).toBeEnabled());
     // Assert
-    for (const name of ['Azure hosting', 'Microsoft authorization references', 'Security capabilities', 'Mission systems', 'Shared responsibilities']) {
+    for (const name of ['Azure hosting', 'Upstream provider authorization references', 'Security capabilities', 'Mission systems', 'Shared responsibilities']) {
       expect(screen.getByRole('heading', { name, level: 2 })).toBeInTheDocument();
     }
     expect(screen.getByRole('list', { name: 'Offering setup checklist' }).children).toHaveLength(5);
@@ -241,13 +269,13 @@ describe('task-led CSP hosting setup', () => {
   it('explains reference documents and opens an explicitly named reference task', async () => {
     // Arrange
     mount(true);
-    const card = await screen.findByRole('region', { name: 'Microsoft authorization references' });
+    const card = await screen.findByRole('region', { name: 'Upstream provider authorization references' });
     await waitFor(() => expect(within(card).getByRole('button', { name: 'Add reference' })).toBeEnabled());
     // Act
     fireEvent.click(within(card).getByRole('button', { name: 'Add reference' }));
     // Assert
     expect(await screen.findByRole('region', { name: 'Microsoft reference form' })).toBeInTheDocument();
-    expect(card).toHaveTextContent('Microsoft-issued');
+    expect(card).toHaveTextContent('upstream service authorization documents');
     expect(card).toHaveTextContent('provider');
     expect(screen.queryByLabelText('Hosting scope name')).not.toBeInTheDocument();
   });

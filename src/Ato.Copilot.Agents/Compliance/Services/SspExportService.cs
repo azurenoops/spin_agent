@@ -17,7 +17,7 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 /// background processing for Word/PDF/OSCAL JSON formats.
 /// Also manages custom DOCX templates (upload, list, delete, rename).
 /// </summary>
-public class SspExportService : ISspExportService
+public partial class SspExportService : ISspExportService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISspService _sspService;
@@ -28,6 +28,8 @@ public class SspExportService : ISspExportService
     private readonly ILogger<SspExportService> _logger;
     private readonly ExportSettings _settings;
     private readonly Channel<SspExportJob> _exportChannel;
+    private readonly Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderEvidenceSharingService? _evidenceSharing;
+    private readonly ICapabilityResponsibilityService? _responsibilities;
 
     public SspExportService(
         IServiceScopeFactory scopeFactory,
@@ -38,7 +40,9 @@ public class SspExportService : ISspExportService
         ISspExportNotifier notifier,
         ILogger<SspExportService> logger,
         IOptions<ExportSettings> settings,
-        Channel<SspExportJob> exportChannel)
+        Channel<SspExportJob> exportChannel,
+        Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderEvidenceSharingService? evidenceSharing = null,
+        ICapabilityResponsibilityService? responsibilities = null)
     {
         _scopeFactory = scopeFactory;
         _sspService = sspService;
@@ -49,6 +53,8 @@ public class SspExportService : ISspExportService
         _logger = logger;
         _settings = settings.Value;
         _exportChannel = exportChannel;
+        _evidenceSharing = evidenceSharing;
+        _responsibilities = responsibilities;
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -110,7 +116,7 @@ public class SspExportService : ISspExportService
 
         var query = db.SspExports
             .AsNoTracking()
-            .Where(e => e.SystemId == systemId);
+            .Where(e => e.SystemId == systemId && e.Status != "Preview");
 
         if (!includeFailed)
             query = query.Where(e => e.Status != "Failed");
@@ -142,7 +148,7 @@ public class SspExportService : ISspExportService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
-        return await db.SspExports
+        var result = await db.SspExports
             .AsNoTracking()
             .Where(e => e.Id == exportId)
             .Select(e => new ExportDetailDto
@@ -159,8 +165,15 @@ public class SspExportService : ISspExportService
                 CompletedAt = e.CompletedAt,
                 TemplateName = e.Template != null ? e.Template.Name : null,
                 ExpiresAt = e.ExpiresAt,
+                SourcePreviewId = e.SourcePreviewId,
             })
             .FirstOrDefaultAsync(cancellationToken);
+        if (result == null) return null;
+        var manifest = await db.SspExports.Where(e => e.Id == exportId).Select(e => e.SourceManifestJson).SingleAsync(cancellationToken);
+        return result with
+        {
+            SourceManifest = manifest == null ? null : System.Text.Json.JsonSerializer.Deserialize<DocumentSourceManifest>(manifest)
+        };
     }
 
     /// <inheritdoc />
@@ -177,6 +190,8 @@ public class SspExportService : ISspExportService
 
         if (export is null)
             return null;
+
+        await ValidateCurrentEvidenceAsync(export.SourceManifestJson, export.SystemId, cancellationToken);
 
         if (export.Status != "Completed" || string.IsNullOrEmpty(export.FilePath))
             return (null, null, null);
@@ -483,8 +498,12 @@ public class SspExportService : ISspExportService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
-        var expired = await db.SspExports
-            .Where(e => e.ExpiresAt < DateTimeOffset.UtcNow)
+        var now = DateTimeOffset.UtcNow;
+        var expirationQuery = db.Database.IsSqlite()
+            ? db.SspExports.FromSqlInterpolated($"SELECT * FROM SspExports WHERE julianday(ExpiresAt) < julianday({now.ToString("O")})")
+            : db.SspExports.Where(e => e.ExpiresAt < now);
+        var expired = await expirationQuery
+            .Where(e => e.RequestScopeKey == null || e.FilePath != null)
             .ToListAsync(cancellationToken);
 
         foreach (var export in expired)
@@ -500,7 +519,9 @@ public class SspExportService : ISspExportService
             }
         }
 
-        db.SspExports.RemoveRange(expired);
+        db.SspExports.RemoveRange(expired.Where(e => e.RequestScopeKey == null));
+        foreach (var keyed in expired.Where(e => e.RequestScopeKey != null))
+            keyed.FilePath = null;
         await db.SaveChangesAsync(cancellationToken);
 
         if (expired.Count > 0)
@@ -555,12 +576,33 @@ public class SspExportService : ISspExportService
         SspExportJob job, AtoCopilotContext db, CancellationToken cancellationToken)
     {
         await ReportProgressAsync(job.UserId, job.ExportId, "Generating OSCAL JSON", 60);
+        var retained = await db.SspExports.FindAsync([job.ExportId], cancellationToken);
+        if (retained?.SourcePreviewId is Guid previewId)
+        {
+            await ValidateWorkerEvidenceAsync(retained, cancellationToken);
+            var preview = await RequirePreviewAsync(db, job.SystemId, previewId, cancellationToken);
+            var bytes = await ReadPreviewBytesAsync(preview, cancellationToken);
+            var validationResult = await _schemaValidator.ValidateAsync(System.Text.Encoding.UTF8.GetString(bytes), "ssp", cancellationToken);
+            if (!validationResult.IsValid)
+                throw new InvalidOperationException("OSCAL_SCHEMA_VALIDATION_FAILED: Retained preview does not pass the SSP schema.");
+            return (bytes, preview.ControlCount ?? 0);
+        }
 
         var result = await _oscalService.ExportAsync(
             job.SystemId,
             includeBackMatter: true,
             prettyPrint: true,
             cancellationToken);
+
+        if (result.ProviderProvenanceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("; ", result.ProviderProvenanceGaps));
+        if (result.ProfileSourceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("; ", result.ProfileSourceGaps));
+        if (retained != null)
+        {
+            retained.SourceManifestJson = System.Text.Json.JsonSerializer.Serialize(result.SourceManifest);
+            await db.SaveChangesAsync(cancellationToken);
+        }
 
         var validation = await _schemaValidator.ValidateAsync(
             result.OscalJson, "ssp", cancellationToken);

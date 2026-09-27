@@ -28,6 +28,7 @@ public sealed class EmassWorkflowEndpointsTests : IAsyncLifetime
     private const string TestAuthScheme = "EmassWorkflowTest";
     private WebApplication _app = null!;
     private HttpClient _client = null!;
+    private readonly Mock<IEmassRoundTripSyncService> _syncService = new();
 
     public async Task InitializeAsync()
     {
@@ -49,7 +50,7 @@ public sealed class EmassWorkflowEndpointsTests : IAsyncLifetime
 
         builder.Services.AddSingleton(statusService.Object);
         builder.Services.AddSingleton(Mock.Of<IEmassExportReadinessService>());
-        builder.Services.AddSingleton(Mock.Of<IEmassRoundTripSyncService>());
+        builder.Services.AddSingleton(_syncService.Object);
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ICurrentUserService, CurrentUserService>();
         builder.Services
@@ -103,6 +104,50 @@ public sealed class EmassWorkflowEndpointsTests : IAsyncLifetime
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Theory]
+    [InlineData(ConflictStatus.AcceptEmass)]
+    [InlineData(ConflictStatus.KeepSpin)]
+    [InlineData(ConflictStatus.Deferred)]
+    public async Task ResolveConflict_BindsRationaleAndAuthenticatedActor(ConflictStatus resolution)
+    {
+        // Arrange
+        SetRole(ComplianceRoles.Auditor);
+        _syncService.Setup(service => service.ResolveConflictAsync("system-1", "conflict-1",
+                It.IsAny<ResolveConflictRequest>(), "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, string _, ResolveConflictRequest request, string actor, CancellationToken _) =>
+                new EmassConflictDto("conflict-1", "SystemInfo", null, "SystemInfo.SystemName", "Original", "Returned",
+                    request.Resolution, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow, actor, request.Rationale));
+        // Act
+        var response = await _client.PutAsJsonAsync("/api/systems/system-1/emass/conflicts/conflict-1",
+            new { resolution, rationale = "Reviewed returned source.", resolvedBy = "forged-client-actor" });
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var data = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        data.GetProperty("rationale").GetString().Should().Be("Reviewed returned source.");
+        data.GetProperty("resolvedBy").GetString().Should().Be("test-user");
+        data.GetProperty("spinValue").GetString().Should().Be("Original");
+        _syncService.Verify(service => service.ResolveConflictAsync("system-1", "conflict-1",
+            It.Is<ResolveConflictRequest>(request => request.Rationale == "Reviewed returned source." && request.Resolution == resolution),
+            "test-user", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResolveConflict_ChangedSourceReturnsConflictInsteadOfSuccessfulOverwrite()
+    {
+        // Arrange
+        SetRole(ComplianceRoles.Auditor);
+        _syncService.Setup(service => service.ResolveConflictAsync("system-1", "conflict-1",
+                It.IsAny<ResolveConflictRequest>(), "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Ato.Copilot.Agents.Compliance.Services.EmassConflictChangedException("conflict-1"));
+        // Act
+        var response = await _client.PutAsJsonAsync("/api/systems/system-1/emass/conflicts/conflict-1",
+            new ResolveConflictRequest(ConflictStatus.AcceptEmass, Rationale: "Compared source."));
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("errors")[0].GetProperty("code").GetString().Should().Be("CONFLICT_CHANGED");
     }
 
     private void SetRole(string role)

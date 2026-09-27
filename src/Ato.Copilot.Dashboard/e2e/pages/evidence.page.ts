@@ -20,6 +20,7 @@ export class EvidencePage {
   }
 
   async expectSummaryMetrics() {
+    await this.page.getByText('Evidence catalog summary', { exact: true }).click();
     await expect(this.page.getByText(/total/i).first()).toBeVisible();
   }
 

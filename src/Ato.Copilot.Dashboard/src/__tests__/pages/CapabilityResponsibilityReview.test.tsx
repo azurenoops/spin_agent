@@ -36,6 +36,19 @@ beforeEach(() => {
 });
 
 describe('system subscription responsibility review', () => {
+  it('presents the responsibility matrix and links each real record to its existing review form', async () => {
+    // Arrange
+    renderReview();
+    // Act
+    const matrix = await screen.findByRole('region', { name: 'Responsibility matrix' });
+    // Assert
+    expect(within(matrix).getByRole('columnheader', { name: 'Control / duty' })).toBeVisible();
+    expect(within(matrix).getByRole('link', { name: 'Review allocation for AC-1' })).toHaveAttribute('href', '#subscription-review-subscription-a');
+    expect(screen.getByRole('region', { name: 'Subscription subscription-a' })).toHaveAttribute('id', 'subscription-review-subscription-a');
+    expect(within(matrix).getByRole('link', { name: 'Review evidence for AC-1' })).toHaveAttribute('href', '/workspaces/organizations/org-a/systems/system-a/evidence');
+    expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
+  });
+
   it('requires a baseline and preserves the organization scope on the baseline link', async () => {
     // Arrange
     vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ baselineId: null, items: [item('MissingBaseline')] }));

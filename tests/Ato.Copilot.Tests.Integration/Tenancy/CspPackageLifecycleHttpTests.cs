@@ -119,6 +119,8 @@ public sealed class CspPackageLifecycleHttpTests : IClassFixture<MultiTenantWebA
         reviewed.ReviewState.Should().Be("Reviewed");
         rejected.Revision.Should().Be(reviewed.Revision + 1);
         retained.Should().BeEquivalentTo(rejected);
+        proposed.AnalysisProfileVersion.Should().NotBeNull("this candidate has matching retained analysis provenance");
+        rejected.AnalysisProfileVersion.Should().Be(proposed.AnalysisProfileVersion);
         retained.ReviewState.Should().Be("Rejected");
         retained.Rationale.Should().Be(rationale);
         retained.AuthorizationReference!.Issuer.Should().Be("Human-corrected synthetic issuer");
@@ -273,6 +275,8 @@ public sealed class CspPackageLifecycleHttpTests : IClassFixture<MultiTenantWebA
         resumed.Coverage.Unsupported.Should().Be(1);
         var preserved = (await DataAsync<Page<PackageCandidateResponse>>(await _client.GetAsync(path + "/candidates"))).Items.Single();
         preserved.Should().BeEquivalentTo(reviewed);
+        candidate.AnalysisProfileVersion.Should().NotBeNull("this completed candidate has retained analysis provenance");
+        reviewed.AnalysisProfileVersion.Should().Be(candidate.AnalysisProfileVersion);
         var entries = (await DataAsync<Page<PackageEntryResponse>>(await _client.GetAsync(path + "/entries"))).Items;
         var incomplete = entries.Single(x => x.ArchivePath.EndsWith("incomplete.txt"));
         (await _client.PatchAsJsonAsync(path + $"/entries/{incomplete.EntryId:D}",

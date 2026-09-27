@@ -1,0 +1,488 @@
+using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Channels;
+using Ato.Copilot.Agents.Compliance.Services;
+using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Dtos.Dashboard;
+using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.Storage;
+using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Services.ProviderAuthorizations;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using FluentAssertions;
+using Moq;
+using Xunit;
+
+namespace Ato.Copilot.Tests.Unit.Services;
+
+public sealed class RetainedPackageTests
+{
+    [Theory]
+    [InlineData("DifferentSameSystemBaseline")]
+    [InlineData("DifferentHash")]
+    [InlineData("MissingLinkedHash")]
+    [InlineData("MissingLinkedId")]
+    public async Task RecordedDecisionBaselineLink_CannotBeRepairedBySelectingAnotherPackage(string mismatch)
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var original = await db.AuthorizationPackages.SingleAsync();
+            var other = new AuthorizationPackage
+            {
+                RegisteredSystemId = original.RegisteredSystemId, TenantId = original.TenantId,
+                Status = PackageStatus.Completed, FilePath = original.FilePath, ContentHash = original.ContentHash,
+                ExpiresAt = original.ExpiresAt
+            };
+            db.Add(other);
+            var decision = await db.AuthorizationDecisions.SingleAsync();
+            decision.BaselinePackageId = mismatch == "DifferentSameSystemBaseline" ? other.Id
+                : mismatch == "MissingLinkedId" ? null : selection.BaselinePackageId;
+            decision.BaselinePackageHash = mismatch == "DifferentHash" ? new string('0', 64)
+                : mismatch == "MissingLinkedHash" ? null : selection.BaselineContentHash;
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+
+        // Assert
+        validation.IsValid.Should().BeFalse();
+        validation.Findings.Should().Contain(f => f.Description.Contains("baseline linkage"));
+        fixture.Channel.Reader.TryRead(out _).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DecisionBaselineLink_ExactMatchOrExplicitLegacyUncertainty(bool recordedLink)
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+        if (recordedLink)
+        {
+            using var scope = fixture.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var decision = await db.AuthorizationDecisions.SingleAsync();
+            decision.BaselinePackageId = selection.BaselinePackageId;
+            decision.BaselinePackageHash = selection.BaselineContentHash.ToUpperInvariant();
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+
+        // Assert
+        validation.IsValid.Should().BeTrue();
+        if (recordedLink)
+            validation.Findings.Should().NotContain(f => f.Category == "decision-baseline-linkage");
+        else
+        {
+            validation.RetainedContext!.BundleScope.Should().Contain("no recorded baseline linkage");
+            validation.Findings.Should().Contain(f => f.Category == "decision-baseline-linkage"
+                && f.Severity == ValidationSeverity.Warning && f.Description.Contains("does not establish authorization coverage"));
+        }
+    }
+
+    [Fact]
+    public async Task ContextOptionsHashes_BindValidationToFinalSourceReadWithoutCaptureClockDrift()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var options = await AuthorizationPackageContextOptions.ReadAsync(db,
+            new ExportSettings { DataPath = fixture.DirectoryPath }, "mission", CancellationToken.None);
+        selection = selection with { ExpectedDecisionSnapshotHash = options.Decisions.Single().SnapshotHash };
+        var validated = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+        selection = selection with { ExpectedSourceContextHash = validated.SourceContextHash };
+
+        // Act
+        var package = await fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+
+        // Assert
+        validated.IsValid.Should().BeTrue();
+        AuthorizationPackageContextOptions.SourceContextHash(package.RetainedContextJson!).Should().Be(validated.SourceContextHash);
+        options.Decisions.Single().SnapshotHash.Should().Be(validated.RetainedContext!.DecisionSnapshotHash);
+        package.RetainedContextHash.Should().Be(ProviderAuthorizationStore.Hash(package.RetainedContextJson!));
+    }
+
+    [Fact]
+    public async Task ValidatedSourceContext_RejectsDecisionDriftWithoutSeparateDecisionHash()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+        var validated = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+        selection = selection with { ExpectedSourceContextHash = validated.SourceContextHash };
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.AuthorizationDecisions.SingleAsync()).TermsAndConditions = "Changed after validation";
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var final = () => fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+
+        // Assert
+        await final.Should().ThrowAsync<InvalidOperationException>().WithMessage("*source context changed*");
+        fixture.Channel.Reader.TryRead(out _).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("MissingBaseline")]
+    [InlineData("MissingDecision")]
+    [InlineData("ForeignSystem")]
+    [InlineData("ForeignTenant")]
+    [InlineData("ForeignDecisionSystem")]
+    [InlineData("ForeignDecisionTenant")]
+    [InlineData("HashMismatch")]
+    [InlineData("FileChanged")]
+    [InlineData("FailedBaselineValidation")]
+    [InlineData("DeniedDecision")]
+    public async Task InvalidSelection_BlocksBeforeQueueing(string invalid)
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+        if (invalid == "MissingBaseline") selection = selection with { BaselinePackageId = "missing" };
+        if (invalid == "MissingDecision") selection = selection with { AuthorizationDecisionId = "missing" };
+        if (invalid == "HashMismatch") selection = selection with { BaselineContentHash = new string('0', 64) };
+        if (invalid == "FileChanged") await File.WriteAllTextAsync(fixture.BaselinePath, "tampered");
+        if (invalid is "ForeignSystem" or "ForeignTenant")
+        {
+            using var scope = fixture.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var baseline = await db.AuthorizationPackages.SingleAsync();
+            if (invalid == "ForeignSystem") baseline.RegisteredSystemId = "other";
+            else baseline.TenantId = Guid.NewGuid();
+            await db.SaveChangesAsync();
+        }
+        if (invalid is "ForeignDecisionSystem" or "ForeignDecisionTenant")
+        {
+            using var scope = fixture.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var decision = await db.AuthorizationDecisions.SingleAsync();
+            if (invalid == "ForeignDecisionSystem") decision.RegisteredSystemId = "other";
+            else decision.TenantId = Guid.NewGuid();
+            await db.SaveChangesAsync();
+        }
+        if (invalid is "FailedBaselineValidation" or "DeniedDecision")
+        {
+            using var scope = fixture.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            if (invalid == "DeniedDecision") (await db.AuthorizationDecisions.SingleAsync()).DecisionType = AuthorizationDecisionType.Dato;
+            else (await db.AuthorizationPackages.SingleAsync()).ValidationPassed = false;
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var validate = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+        var enqueue = () => fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+
+        // Assert
+        validate.IsValid.Should().BeFalse();
+        await enqueue.Should().ThrowAsync<InvalidOperationException>();
+        fixture.Channel.Reader.TryRead(out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Archive_CopiesExactRetainedPackage_AndPinsDecisionWithoutRegenerating()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+        var original = await File.ReadAllBytesAsync(fixture.BaselinePath);
+        var archived = await fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+        fixture.Channel.Reader.TryRead(out var job).Should().BeTrue();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.AuthorizationDecisions.SingleAsync()).TermsAndConditions = "Later draft must not replace pinned decision.";
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        await fixture.Worker.ProcessJobAsync(job!, CancellationToken.None);
+        var result = await fixture.Service.GetPackageAsync(archived.Id);
+        var originalArchiveHash = result!.ContentHash;
+        await fixture.Worker.ProcessJobAsync(job!, CancellationToken.None);
+        (await fixture.Service.GetPackageAsync(archived.Id))!.ContentHash.Should().Be(originalArchiveHash);
+
+        // Assert
+        result!.Status.Should().Be(PackageStatus.Completed);
+        using var zip = ZipFile.OpenRead(result.FilePath!);
+        await using var baselineStream = zip.GetEntry("retained-baseline.zip")!.Open();
+        using var copied = new MemoryStream();
+        await baselineStream.CopyToAsync(copied);
+        copied.ToArray().Should().Equal(original);
+        using var reader = new StreamReader(zip.GetEntry("package-context.json")!.Open());
+        var manifest = await reader.ReadToEndAsync();
+        manifest.Should().Contain(selection.BaselinePackageId).And.Contain(selection.BaselineContentHash)
+            .And.Contain("DEMO recorded conditions").And.NotContain("Later draft");
+        (await File.ReadAllBytesAsync(fixture.BaselinePath)).Should().Equal(original);
+        using var verification = fixture.Services.CreateScope();
+        var verifyDb = verification.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await verifyDb.AuthorizationDecisions.CountAsync()).Should().Be(1);
+        (await verifyDb.AuthorizationPackages.SingleAsync(p => p.Id == selection.BaselinePackageId)).Status.Should().Be(PackageStatus.Completed);
+    }
+
+    [Fact]
+    public async Task ChangeBundle_RetainsPredecessorAndExactReviewedSsp_WithExplicitLimitedScope()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+        selection = await fixture.SeedReviewedChangeAsync(selection);
+        var package = await fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+        fixture.Channel.Reader.TryRead(out var job).Should().BeTrue();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.ControlImplementations.SingleAsync()).TechnicalNarrative = "Later mutable draft must not leak.";
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        await fixture.Worker.ProcessJobAsync(job!, CancellationToken.None);
+        var completed = await fixture.Service.GetPackageAsync(package.Id);
+
+        // Assert
+        completed!.Status.Should().Be(PackageStatus.Completed);
+        using var zip = ZipFile.OpenRead(completed.FilePath!);
+        using var reader = new StreamReader(zip.GetEntry("changes/oscal-ssp.json")!.Open());
+        var changedSsp = await reader.ReadToEndAsync();
+        changedSsp.Should().Contain("DEMO reviewed technical").And.NotContain("Later mutable draft");
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(changedSsp))).ToLowerInvariant().Should().Be(selection.ChangeContentHash);
+        using var contextReader = new StreamReader(zip.GetEntry("package-context.json")!.Open());
+        var context = await contextReader.ReadToEndAsync();
+        context.Should().Contain("other current artifacts are not regenerated")
+            .And.Contain(selection.BaselinePackageId).And.Contain(selection.ChangePreviewId!.Value.ToString());
+        completed.Artifacts.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task ChangeSubmission_WithoutReviewedSnapshot_IsBlocked()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeFalse();
+        validation.Findings.Should().Contain(f => f.Description.Contains("reviewed SSP preview"));
+    }
+
+    [Fact]
+    public async Task ChangeSubmission_UnapprovedNarrativePin_IsBlocked()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedReviewedChangeAsync(await fixture.SeedAsync());
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.Set<NarrativeVersion>().SingleAsync()).Status = SspSectionStatus.Draft;
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeFalse();
+        validation.Findings.Should().Contain(f => f.Description.Contains("retained approval"));
+    }
+
+    [Fact]
+    public async Task Archive_SourceChangedAfterQueue_FailsWithoutRegeneration()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+        var package = await fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+        fixture.Channel.Reader.TryRead(out var job).Should().BeTrue();
+        await File.WriteAllTextAsync(fixture.BaselinePath, "source changed after selection");
+
+        // Act
+        await fixture.Worker.ProcessJobAsync(job!, CancellationToken.None);
+
+        // Assert
+        var failed = await fixture.Service.GetPackageAsync(package.Id);
+        failed!.Status.Should().Be(PackageStatus.Failed);
+        failed.FilePath.Should().BeNull();
+        failed.RetainedContextJson.Should().Contain(selection.BaselineContentHash);
+    }
+
+    [Fact]
+    public async Task DecisionChangedAfterSelection_IsRejectedWhenExpectedSnapshotHashProvided()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+        var reviewed = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+        selection = selection with { ExpectedDecisionSnapshotHash = reviewed.RetainedContext!.DecisionSnapshotHash };
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.AuthorizationDecisions.SingleAsync()).TermsAndConditions = "Revised recorded terms";
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
+
+        // Assert
+        validation.IsValid.Should().BeFalse();
+        validation.Findings.Should().Contain(f => f.Description.Contains("changed since selection"));
+    }
+
+    [Fact]
+    public async Task RetainedRequestKey_ReplaysSamePackageAndRejectsChangedSelection()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedAsync();
+
+        // Act
+        var first = await fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive,
+            selection, idempotencyKey: "retained-request");
+        var replay = await fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive,
+            selection, idempotencyKey: "retained-request");
+        var changed = () => fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive,
+            selection with { AuthorizationDecisionId = "different" }, idempotencyKey: "retained-request");
+
+        // Assert
+        replay.Id.Should().Be(first.Id);
+        await changed.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        fixture.Channel.Reader.TryRead(out _).Should().BeTrue();
+        fixture.Channel.Reader.TryRead(out _).Should().BeFalse();
+    }
+
+    private sealed class Fixture : IDisposable
+    {
+        public string DirectoryPath { get; } = Path.Combine(Directory.GetCurrentDirectory(), $"retained-package-tests-{Guid.NewGuid():N}");
+        public string BaselinePath => Path.Combine(DirectoryPath, "baseline.zip");
+        public ServiceProvider Services { get; }
+        public Channel<PackageExportJob> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<PackageExportJob>();
+        public AuthorizationPackageService Service { get; }
+        public PackageBackgroundService Worker { get; }
+        private readonly Guid tenant = Guid.NewGuid();
+
+        public Fixture()
+        {
+            Directory.CreateDirectory(DirectoryPath);
+            var database = Guid.NewGuid().ToString();
+            Services = new ServiceCollection().AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(database))
+                .AddSingleton(Options.Create(new ExportSettings { DataPath = DirectoryPath }))
+                .AddSingleton<IOscalSchemaValidationService>(new OscalSchemaValidationService(
+                    Mock.Of<IEmassExportService>(), Mock.Of<IOscalSapExportService>(), NullLogger<OscalSchemaValidationService>.Instance))
+                .BuildServiceProvider();
+            var scopes = Services.GetRequiredService<IServiceScopeFactory>();
+            Service = new(scopes, Mock.Of<IEvidenceArtifactService>(), Mock.Of<IFileStorageProvider>(),
+                Mock.Of<IPackageValidationService>(), Channel, NullLogger<AuthorizationPackageService>.Instance);
+            Worker = new(Channel, scopes, Mock.Of<IPackageExportNotifier>(), NullLogger<PackageBackgroundService>.Instance);
+        }
+
+        public async Task<RetainedPackageSelection> SeedAsync()
+        {
+            using (var zip = ZipFile.Open(BaselinePath, ZipArchiveMode.Create))
+            {
+                using var writer = new StreamWriter(zip.CreateEntry("oscal-ssp.json").Open());
+                await writer.WriteAsync("{\"retained\":\"DEMO original artifact\"}");
+            }
+            var hash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(BaselinePath))).ToLowerInvariant();
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var package = new AuthorizationPackage
+            {
+                TenantId = tenant, RegisteredSystemId = "mission", Status = PackageStatus.Completed,
+                FilePath = BaselinePath, ContentHash = hash, ExpiresAt = DateTimeOffset.UtcNow.AddDays(10)
+            };
+            var decision = new AuthorizationDecision
+            {
+                TenantId = tenant, RegisteredSystemId = "mission", DecisionType = AuthorizationDecisionType.Ato,
+                DecisionDate = new DateTime(2025, 4, 17), IssuedBy = "DEMO AO", IssuedByName = "DEMO recorded authority",
+                TermsAndConditions = "DEMO recorded conditions"
+            };
+            db.AddRange(new RegisteredSystem { Id = "mission", TenantId = tenant, Name = "DEMO mission" }, package, decision);
+            await db.SaveChangesAsync();
+            return new(package.Id, hash, decision.Id);
+        }
+
+        public async Task<RetainedPackageSelection> SeedReviewedChangeAsync(RetainedPackageSelection selection)
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.RegisteredSystems.SingleAsync()).OperationalStatus = OperationalStatus.UnderDevelopment;
+            var categorization = new SecurityCategorization { TenantId = tenant, RegisteredSystemId = "mission" };
+            categorization.InformationTypes.Add(new InformationType
+            {
+                Name = "DEMO changed data", Category = "Synthetic", Sp80060Id = "D.1.1",
+                ConfidentialityImpact = ImpactValue.Moderate, IntegrityImpact = ImpactValue.Moderate, AvailabilityImpact = ImpactValue.Moderate
+            });
+            var implementation = new ControlImplementation
+            {
+                TenantId = tenant, RegisteredSystemId = "mission", ControlId = "AU-2",
+                PolicyNarrative = "DEMO reviewed policy", TechnicalNarrative = "DEMO reviewed technical",
+                ApprovalStatus = SspSectionStatus.Approved
+            };
+            var version = new NarrativeVersion
+            {
+                TenantId = tenant, ControlImplementationId = implementation.Id, Status = SspSectionStatus.Approved,
+                SnapshotJson = NarrativeContentSnapshot.Capture(implementation)
+            };
+            implementation.ApprovedVersionId = version.Id;
+            db.AddRange(categorization, implementation, version,
+                new ControlBaseline { TenantId = tenant, RegisteredSystemId = "mission", BaselineLevel = "Moderate", ControlIds = ["AU-2"], TotalControls = 1 },
+                new RmfRoleAssignment { TenantId = tenant, RegisteredSystemId = "mission", UserId = "reviewer", UserDisplayName = "DEMO reviewer", RmfRole = RmfRole.Issm, IsActive = true },
+                new AuthorizationBoundaryDefinition { TenantId = tenant, RegisteredSystemId = "mission", Name = "DEMO documented boundary" },
+                new SystemComponent { TenantId = tenant, RegisteredSystemId = "mission", Name = "DEMO component", Description = "DEMO existing component", ComponentType = ComponentType.Thing });
+            foreach (var type in Enum.GetValues<ProfileSectionType>().Where(t => t != ProfileSectionType.LeveragedAuthorizations))
+                db.Add(new SystemProfileSection { TenantId = tenant, RegisteredSystemId = "mission", SectionType = type,
+                    GovernanceStatus = SspSectionStatus.UnderReview, DraftContent = $"DEMO reviewed {type}" });
+            await db.SaveChangesAsync();
+            await new SystemProfileService(Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<SystemProfileService>.Instance)
+                .BatchApproveSectionsAsync("mission", "reviewer", RmfRole.Issm);
+            // The fixture has no stamping interceptor; retain the real owning tenant on newly created approval entries.
+            foreach (var entry in await db.ProfileAuditEntries.ToListAsync()) entry.TenantId = tenant;
+            await db.SaveChangesAsync();
+            var generated = await new OscalSspExportService(Services.GetRequiredService<IServiceScopeFactory>(),
+                NullLogger<OscalSspExportService>.Instance).ExportAsync("mission");
+            var exportDirectory = Path.Combine(DirectoryPath, "exports");
+            Directory.CreateDirectory(exportDirectory);
+            await File.WriteAllTextAsync(Path.Combine(exportDirectory, "reviewed-change.json"), generated.OscalJson);
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(generated.OscalJson))).ToLowerInvariant();
+            var preview = new SspExport
+            {
+                SystemId = "mission", Format = "json", Status = "Preview", FilePath = "reviewed-change.json",
+                ContentHash = hash, SourceManifestJson = JsonSerializer.Serialize(generated.SourceManifest),
+                SourceGapsJson = "[]", ExpiresAt = DateTimeOffset.UtcNow.AddDays(10)
+            };
+            db.Add(preview);
+            await db.SaveChangesAsync();
+            return selection with { ChangePreviewId = preview.Id, ChangeContentHash = hash };
+        }
+
+        public void Dispose()
+        {
+            Services.Dispose();
+            if (Directory.Exists(DirectoryPath)) Directory.Delete(DirectoryPath, true);
+        }
+    }
+}

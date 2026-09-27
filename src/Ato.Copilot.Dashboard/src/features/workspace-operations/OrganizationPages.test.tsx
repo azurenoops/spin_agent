@@ -358,13 +358,14 @@ describe('provider organization mock-aligned pages', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('The current enrollment operation has no stable recovery key.');
   });
 
-  it('uses light surfaces and preserves the shared gradient hero', async () => {
+  it('uses light surfaces and the required plain provider task header', async () => {
     // Arrange
     page('/organizations/org-1');
     // Act
     const heading = await screen.findByRole('heading', { name: 'Coastal Watch' });
     // Assert
-    expect(heading.closest('.bg-gradient-to-r')).toBeInTheDocument();
+    expect(heading.closest('.bg-gradient-to-r')).toBeNull();
+    expect(heading.closest('header')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Organization profile' }).closest('section')).toHaveClass('bg-white', 'border-slate-200');
     expect(screen.getByRole('heading', { name: 'Systems' }).closest('section')).toHaveClass('bg-white');
   });

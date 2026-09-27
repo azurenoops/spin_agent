@@ -1,0 +1,45 @@
+{
+  "poamItems": [
+    {
+      "id": "AZ-POAM-001",
+      "name": "Logging evidence handoff corrective plan",
+      "claim": {
+        "poamItem": {
+          "sourcePoamId": "AZ-POAM-001",
+          "correctiveAction": "Add a second scheduled export attempt, retry failed deliveries, alert on evidence age at 18 hours, and verify 14 consecutive days of bundles delivered within 24 hours. No finding closure is asserted.",
+          "ownerAsStated": "SYNTHETIC Northstar Shared Services Demo Team Evidence Lead <shared-services@example.invalid>",
+          "statusAsStated": "Planned; not completed",
+          "milestones": [
+            {
+              "description": "Review export schedule and failure-retry design",
+              "dueDate": "2026-09-18"
+            },
+            {
+              "description": "Exercise retry and 18-hour delivery-age alert",
+              "dueDate": "2026-09-25"
+            },
+            {
+              "description": "Complete 14-day delivery validation and independent review",
+              "dueDate": "2026-10-09"
+            }
+          ],
+          "requiredClosureEvidence": [
+            "Fourteen-day timestamped delivery ledger meeting the 24-hour target",
+            "Failed-delivery replay and alert exercise results",
+            "Independent synthetic reviewer sign-off"
+          ],
+          "submittedEvidenceReferences": []
+        },
+        "qualifications": [
+          "SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence."
+        ],
+        "relationships": [
+          {
+            "kind": "PoamFinding",
+            "targetSourceId": "AZ-F-001"
+          }
+        ]
+      }
+    }
+  ]
+}

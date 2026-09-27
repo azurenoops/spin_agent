@@ -9,6 +9,9 @@ export interface PackageStatus {
   packageId: string; operationId: string; name: string; revision: number;
   processingState: string; publicationState: string; coverage: PackageCoverage;
   lastError: string | null; createdAt: string; updatedAt: string;
+  archivedAt?: string | null; archivedBy?: string | null; archiveReason?: string | null;
+  supersededByPackageId?: string | null; supersededAt?: string | null;
+  supersededBy?: string | null; supersedeReason?: string | null;
   analysisProfileVersion?: number;
   analysisProgress?: {
     completedSegments: number; totalSegments: number; modelCalls: number;

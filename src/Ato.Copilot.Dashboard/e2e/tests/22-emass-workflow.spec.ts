@@ -98,7 +98,7 @@ test('ISSO resolves an eMASS conflict and the resolution persists after reload',
   await page.goto(`/systems/${systemId}/emass/status`);
 
   // Assert
-  await expect(page.getByRole('heading', { name: 'eMASS workflow' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'eMASS round-trip review' })).toBeVisible();
   await expect(page.getByText('Register the eMASS ID.')).toBeVisible();
   await expect(page.getByText('Partially Implemented')).toBeVisible();
 
@@ -109,7 +109,8 @@ test('ISSO resolves an eMASS conflict and the resolution persists after reload',
     buffer: Buffer.from('deterministic workbook fixture'),
   });
   await page.getByRole('button', { name: 'Sync workbook' }).click();
-  await page.getByRole('button', { name: 'Keep SPIN' }).click();
+  await page.getByLabel('Resolution', { exact: true }).selectOption('KeepSpin');
+  await page.getByRole('button', { name: 'Record resolution' }).click();
 
   // Assert
   await expect(page.getByText('No unresolved conflicts.')).toBeVisible();

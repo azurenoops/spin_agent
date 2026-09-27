@@ -1,11 +1,6 @@
-export type CloudEnvironment = 'AzureCloud' | 'AzureUSGovernment';
-
-export interface AzureScope {
-  cloud: CloudEnvironment;
-  directoryTenantId: string;
-  subscriptionId: string;
-  resourceId: string;
-}
+import type { OfferingEnvironment, ProviderScope } from '../provider-authorizations/types';
+export type { AzureScope, ServiceScope, ProviderScope } from '../provider-authorizations/types';
+export type CloudEnvironment = OfferingEnvironment;
 
 export interface Citation {
   packageId: string;
@@ -97,7 +92,7 @@ export interface SystemHostingAllocation {
   offeringName: string;
   systemId: string;
   systemName: string;
-  assignedScopes: AzureScope[];
+  assignedScopes: ProviderScope[];
   canAssociate: boolean;
   providerName: string | null;
   hostingScopeName: string | null;
@@ -116,7 +111,7 @@ export interface ProviderRelationship {
   boundaryRevisionId: string | null;
   reviewedBy: string | null;
   reviewedAt: string | null;
-  assignedScopes: AzureScope[];
+  assignedScopes: ProviderScope[];
   offeringName: string | null;
   providerName: string | null;
   systemName: string | null;

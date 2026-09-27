@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from '../features/workspaces/workspaceNavigation';
+import { SystemTaskHeading, systemPanel } from '../features/systems/SystemTaskPresentation';
 import {
   getBaselineDetail,
   getSystemDetail,
@@ -59,6 +60,7 @@ export default function BaselineManagement() {
   const [noBaseline, setNoBaseline] = useState(false);
   const [categorization, setCategorization] = useState<CategorizationInfo | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [loadFailure, setLoadFailure] = useState<string | null>(null);
   const requireManagement = () => {
     if (canManage) return true;
     setActionError('You do not have permission to manage categorization or baseline.');
@@ -83,16 +85,18 @@ export default function BaselineManagement() {
     setLoading(true);
     setNoBaseline(false);
     setActionError(null);
+    setLoadFailure(null);
     try {
       const [data, detail] = await Promise.all([
         getBaselineDetail(systemId).catch((err: unknown) => {
           const status = (err as { response?: { status?: number } })?.response?.status;
-          if (status === 404) setNoBaseline(true);
-          else setActionError('Failed to load baseline');
+          const code = (err as { errorCode?: string })?.errorCode;
+          if (status === 404 || code === 'BASELINE_NOT_FOUND') setNoBaseline(true);
+          else setLoadFailure('Failed to load baseline');
           return null;
         }),
         getSystemDetail(systemId).catch(() => {
-          setActionError('Failed to load system categorization');
+          setLoadFailure('Failed to load system categorization');
           return null;
         }),
       ]);
@@ -150,18 +154,19 @@ export default function BaselineManagement() {
     );
   }
 
+  if (loadFailure) return <section className={systemPanel}>
+    <h1 className="text-2xl font-semibold">Categorization &amp; control baseline</h1>
+    <p role="alert" className="mt-4 text-sm text-amber-900">{loadFailure}</p>
+    <button type="button" className="mt-4 rounded border px-4 py-2 text-sm" onClick={() => void fetchBaseline()}>Retry categorization and baseline</button>
+  </section>;
+
   // ─── No Baseline State ─────────────────────────────────────────────────────
 
   if (noBaseline || !baseline) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         {actionError && <p role="alert">{actionError}</p>}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Categorization & Baseline</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage the FIPS 199 security categorization and NIST 800-53 control baseline for this system.
-          </p>
-        </div>
+        <SystemTaskHeading title="Categorization & control baseline" description="Review information impacts and the resulting control set before assigning implementation work." />
 
         {/* No Categorization */}
         {!categorization && (
@@ -240,23 +245,18 @@ export default function BaselineManagement() {
   );
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {actionError && <p role="alert">{actionError}</p>}
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">Categorization & Baseline</h1>
-          <LevelBadge level={baseline.baselineLevel} />
+      <SystemTaskHeading title="Categorization & control baseline"
+        description="Review information impacts and the resulting control set before assigning implementation work."
+        status={<div className="flex flex-wrap items-center gap-3"><LevelBadge level={baseline.baselineLevel} />
           {baseline.overlayApplied && (
             <span className="inline-flex items-center rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700">
               {baseline.overlayApplied}
             </span>
           )}
-        </div>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage the FIPS 199 security categorization and NIST 800-53 control baseline, including family breakdown and tailoring history.
-        </p>
-      </div>
+        </div>} />
 
       {/* Organization Framework Indicator */}
       <div className="flex items-center gap-2 rounded-lg bg-indigo-50 border border-indigo-200 px-4 py-2">
@@ -318,7 +318,7 @@ export default function BaselineManagement() {
             </button>
           </div>
           <div className="px-6 py-4">
-            <div className="grid grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {(['confidentiality', 'integrity', 'availability'] as const).map(dim => (
                 <div key={dim} className="text-center">
                   <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2">{dim}</p>
@@ -358,6 +358,24 @@ export default function BaselineManagement() {
           </div>
         </div>
       )}
+
+      {categorization && <section className={systemPanel}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Information type rationale</h2>
+          <Link className="text-sm text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/profile/DataTypes`}>Review information types</Link>
+        </div>
+        <p className="mb-4 text-sm text-slate-500">These recorded information types support the current impact determination. Changes must be reviewed against the actual mission.</p>
+        {categorization.informationTypes.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800"><tr>{['Information', 'Confidentiality', 'Integrity', 'Availability'].map(label => <th scope="col" key={label} className="px-3 py-3 font-medium">{label}</th>)}</tr></thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">{categorization.informationTypes.map((type, index) => <tr key={`${type.name}:${index}`}>
+            <td className="px-3 py-3 font-medium">{type.name}</td><td className="px-3 py-3">{type.confidentiality}</td>
+            <td className="px-3 py-3">{type.integrity}</td><td className="px-3 py-3">{type.availability}</td>
+          </tr>)}</tbody>
+        </table></div> : <p className="text-sm text-slate-500">No supporting information types were returned for this categorization.</p>}
+        <p className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
+          Review any categorization change together with the resulting baseline, narratives and assessment scope. Saving categorization does not approve those downstream records.
+        </p>
+      </section>}
 
       {/* Metadata */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">

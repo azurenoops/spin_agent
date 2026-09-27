@@ -31,7 +31,12 @@ public sealed partial class ProviderImpactService
         await using var db = await store.Factory.CreateDbContextAsync(ct);
         var offering = await store.OfferingAsync(db, offeringId, ct);
         ValidateOptionKind(kind);
-        if (!(await OptionIdsAsync(db, offering, kind, ct)).Contains(id))
+        var linkedCandidate = kind is "Component" or "Capability" && await db.CspPackageCandidates.AsNoTracking().AnyAsync(x =>
+            x.Id == id && x.Type == kind && db.CspPackages.Any(p => p.Id == x.PackageId && p.SupersededAt == null
+                && p.ProviderId == offering.ProviderId && (p.OfferingId == offering.Id
+                    || db.Set<ProviderPackageVersion>().Any(v => v.ProviderId == offering.ProviderId
+                        && v.OfferingId == offering.Id && v.PackageId == p.Id))), ct);
+        if (!linkedCandidate && !(await OptionIdsAsync(db, offering, kind, ct)).Contains(id))
             throw new KeyNotFoundException("The selected context record is not linked to this offering.");
         return await ProjectOptionAsync(db, offering, kind, id, ct);
     }
@@ -64,11 +69,12 @@ public sealed partial class ProviderImpactService
                 .OrderByDescending(x => x.Revision).ThenBy(x => x.Id).Select(x => x.Id).ToListAsync(ct);
         if (kind == "Package")
             return await db.Set<ProviderPackageVersion>().AsNoTracking()
-                .Where(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id)
+                .Where(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id
+                    && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == offering.ProviderId))
                 .OrderByDescending(x => x.Version).ThenBy(x => x.Id).Select(x => x.Id).ToListAsync(ct);
 
         var linked = await db.CspPackageCandidates.AsNoTracking().Where(x => x.Type == kind
-            && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == offering.ProviderId
+            && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == offering.ProviderId && p.SupersededAt == null
                 && (p.OfferingId == offering.Id || db.Set<ProviderPackageVersion>().Any(v =>
                     v.ProviderId == offering.ProviderId && v.OfferingId == offering.Id && v.PackageId == p.Id))))
             .Select(x => x.Id).ToListAsync(ct);
@@ -109,10 +115,20 @@ public sealed partial class ProviderImpactService
         else
         {
             var candidate = await db.CspPackageCandidates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.Type == kind
-                && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == offering.ProviderId), ct);
-            if (candidate is not null && (candidate.ReviewState == "Rejected"
-                || Read<PackageCandidateResponse>(candidate.PayloadJson).PublishedRecordId.HasValue))
+                && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == offering.ProviderId && p.SupersededAt == null), ct);
+            if (candidate?.ReviewState == "Rejected")
                 return new(id, name, $"Revision {candidate.Revision}", $"{candidate.ReviewState} source candidate; context only. Select the canonical record for subsequent changes.", null);
+            if (candidate is not null && Read<PackageCandidateResponse>(candidate.PayloadJson).PublishedRecordId is { } publishedId)
+            {
+                var ownedSelfAlias = publishedId == id && (kind == "Component"
+                    ? await db.CspInheritedComponents.AnyAsync(x => x.Id == id && x.CspProfileId == offering.ProviderId, ct)
+                    : await db.CspInheritedCapabilities.AnyAsync(x => x.Id == id
+                        && x.CspInheritedComponent.CspProfileId == offering.ProviderId, ct));
+                if (!ownedSelfAlias)
+                    return new(id, name, $"Revision {candidate.Revision}", $"{candidate.ReviewState} source candidate; context only. Select the canonical record for subsequent changes.", null);
+                // Package publication can retain the candidate ID as the canonical ID.
+                candidate = null;
+            }
             if (kind == "Capability" && candidate is null && !await db.ProviderCapabilityWorkingRevisions.AnyAsync(x => x.CapabilityId == id, ct))
                 return new(id, name, "No working revision", "Context only; create an explicit canonical working revision before reviewing a change.", null);
             change = await ChangeAsync(db, offering.ProviderId, kind, id, ct);
@@ -134,7 +150,7 @@ public sealed partial class ProviderImpactService
         if (kind is "Component" or "Capability")
         {
             var payload = await db.CspPackageCandidates.AsNoTracking().Where(x => x.Id == id && x.Type == kind
-                && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == offering.ProviderId))
+                && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == offering.ProviderId && p.SupersededAt == null))
                 .Select(x => x.PayloadJson).SingleOrDefaultAsync(ct);
             if (payload is not null) return Read<PackageCandidateResponse>(payload).Name;
             return kind == "Component"

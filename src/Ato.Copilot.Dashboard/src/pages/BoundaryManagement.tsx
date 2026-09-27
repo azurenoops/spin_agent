@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from '../features/workspaces/workspaceNavigation';
+import { SystemTaskHeading, systemPrimaryAction } from '../features/systems/SystemTaskPresentation';
+import SystemBoundaryInventory from '../features/systems/SystemBoundaryInventory';
+import SetupDialog from '../features/workspace-operations/SetupDialog';
 import { BoundaryForm } from '../components/forms/BoundaryForm';
 import { usePolling } from '../hooks/usePolling';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
@@ -20,7 +23,7 @@ import {
   releaseLock,
   checkLockStatus,
 } from '../api/boundaries';
-import { listComponents } from '../api/components';
+import { getComponents } from '../api/components';
 import type { OrgComponentDto } from '../api/components';
 import type { BoundaryResourceDto } from '../api/boundaries';
 import type {
@@ -78,7 +81,7 @@ export default function BoundaryManagement() {
 
   useEffect(() => {
     if (!systemId) return;
-    listComponents({ page: 1, pageSize: 1 })
+    getComponents(systemId, { pageSize: 1 })
       .then(res => setSystemComponentCount(res.totalCount))
       .catch(() => setSystemComponentCount(null));
   }, [systemId]);
@@ -193,22 +196,28 @@ export default function BoundaryManagement() {
   return (
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Authorization Boundaries</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Define and manage system boundaries — assign components and track coverage
-            </p>
-          </div>
-          <button
+        <SystemTaskHeading title="Inventory & system boundary"
+          description="Confirm which components and resources are included in the documented system."
+          action={<button
             type="button"
             disabled={!canManage}
             onClick={() => { if (!requireManagement()) return; setFormMode({ kind: 'create' }); setFormError(null); }}
-            className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            className={systemPrimaryAction}
           >
             + Add Boundary
-          </button>
-        </div>
+          </button>} />
+        <section className="rounded-[10px] border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-lg font-semibold">Mission system boundary</h2>
+          <p className="mt-2 text-sm text-slate-500">Review each recorded boundary and its included or excluded components. Provider dependencies remain distinct from system-owned resources.</p>
+          <nav aria-label="Boundary task handoffs" className="mt-4 flex flex-wrap gap-4 text-sm text-indigo-700 dark:text-indigo-300">
+            <Link className="underline" to={`/systems/${systemId}/security-capabilities/inventory`}>Manage component inventory</Link>
+            <Link className="underline" to={`/systems/${systemId}/assessments/environment`}>Review assessment scope</Link>
+            <Link className="underline" to={`/systems/${systemId}/conmon`}>Review monitoring scope</Link>
+          </nav>
+        </section>
+
+        {systemId && <SystemBoundaryInventory key={systemId} systemId={systemId} boundaries={boundaries}
+          onReview={boundaryId => { void handleExpandBoundary(boundaryId); }} />}
 
         {/* P-16 Guidance: Component Library first (Feature 040 US7) */}
         {systemComponentCount !== null && systemComponentCount === 0 && (
@@ -231,6 +240,7 @@ export default function BoundaryManagement() {
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
           <input
+            aria-label="Search boundaries"
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -238,6 +248,7 @@ export default function BoundaryManagement() {
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
           <select
+            aria-label="Boundary type"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
@@ -252,7 +263,9 @@ export default function BoundaryManagement() {
 
         {/* Banners */}
         {error && (
-          <div role="alert" className="bg-red-50 text-red-700 p-3 rounded text-sm">{error}</div>
+          <div role="alert" className="bg-red-50 text-red-700 p-3 rounded text-sm">{error}
+            <button type="button" className="ml-3 underline" onClick={() => void fetchData()}>Retry boundaries</button>
+          </div>
         )}
         {deleteResult && (
           <div className="bg-green-50 text-green-800 p-3 rounded text-sm">
@@ -272,7 +285,7 @@ export default function BoundaryManagement() {
             </p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -292,7 +305,9 @@ export default function BoundaryManagement() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">{b.name}</span>
+                        <button type="button" aria-label={`Review ${b.name} boundary`}
+                          className="text-left text-sm font-medium text-indigo-700 underline-offset-4 hover:underline dark:text-indigo-300"
+                          onClick={event => { event.stopPropagation(); void handleExpandBoundary(b.id); }}>{b.name}</button>
                         {b.isPrimary && (
                           <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded font-medium">Primary</span>
                         )}
@@ -385,20 +400,9 @@ export default function BoundaryManagement() {
 
         {/* Resource / Component Management Dialog */}
         {expandedBoundary && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-lg bg-white shadow-xl mx-4">
-              {/* Dialog header */}
-              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  {boundaries.find((b) => b.id === expandedBoundary)?.name} — Details
-                </h2>
-                <button
-                  onClick={() => setExpandedBoundary(null)}
-                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-                >
-                  &times;
-                </button>
-              </div>
+          <SetupDialog busy={false} onClose={() => setExpandedBoundary(null)}
+            title={`${boundaries.find(b => b.id === expandedBoundary)?.name ?? 'Boundary'} — Details`}
+            description="Review component placements and their explicit included or excluded scope.">
 
               {/* Tab header */}
               <div className="flex border-b border-gray-200 px-6">
@@ -427,8 +431,7 @@ export default function BoundaryManagement() {
                   }}
                 />
               </div>
-            </div>
-          </div>
+          </SetupDialog>
         )}
       </div>
   );

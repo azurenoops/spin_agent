@@ -1,6 +1,7 @@
 import { packageRequest } from '../package-imports/request';
 import { offeringPath } from './api';
-import type { AzureScope, Citation, Page, SnapshotRef } from './types';
+import type { ProviderScope, Citation, Page, SnapshotRef } from './types';
+import { isProviderScope } from './scopes';
 import type { HostingAssignment, HostingAssignmentInput, HostingScopeInput, HostingScopeRevision } from './hostingTypes';
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object';
@@ -10,9 +11,7 @@ const nullableId = (value: unknown) => value === null || text(value);
 const array = <T>(value: unknown, valid: (item: unknown) => item is T): value is T[] => Array.isArray(value) && value.every(valid);
 const snapshot = (value: unknown): value is SnapshotRef => object(value)
   && text(value.revisionId) && positive(value.revision) && text(value.snapshotHash);
-const scope = (value: unknown): value is AzureScope => object(value)
-  && (value.cloud === 'AzureCloud' || value.cloud === 'AzureUSGovernment')
-  && text(value.directoryTenantId) && text(value.subscriptionId) && text(value.resourceId);
+const scope = isProviderScope;
 const citation = (value: unknown): value is Citation => object(value)
   && text(value.packageId) && text(value.artifactId) && text(value.archivePath) && text(value.locator) && text(value.quote);
 function scopeRevision(value: unknown): value is HostingScopeRevision {
@@ -33,11 +32,13 @@ function hostingPage<T extends { offeringId: string }>(value: unknown, id: strin
   }
   return { items: value.items, page, pageSize: value.pageSize, total: value.total };
 }
-const scopeKey = (value: AzureScope) => [
+const scopeKey = (value: ProviderScope) => value.kind === 'Service' ? JSON.stringify([
+  'Service', value.serviceId.trim(), value.serviceName.trim(), value.environment, value.tenantReference?.trim() ?? null,
+]) : [
   value.cloud, value.directoryTenantId.trim().toLowerCase(), value.subscriptionId.trim().toLowerCase(),
   value.resourceId.trim().replace(/\/+$/, '').toLowerCase(),
 ].join('|');
-const sameScopes = (left: AzureScope[], right: AzureScope[]) =>
+const sameScopes = (left: ProviderScope[], right: ProviderScope[]) =>
   JSON.stringify(left.map(scopeKey).sort()) === JSON.stringify(right.map(scopeKey).sort());
 const sameMaterial = <T>(left: T[], right: T[], key: (value: T) => string) =>
   JSON.stringify(left.map(key).sort()) === JSON.stringify(right.map(key).sort());
@@ -66,6 +67,16 @@ export async function listHostingAssignments(id: string, page = 1, signal?: Abor
     url: `${offeringPath(id)}/hosting-assignments`, params: { page, pageSize: 25 }, signal,
   });
   return hostingPage(data, id, page, assignment);
+}
+export async function getHostingAssignment(id: string, assignmentId: string, signal?: AbortSignal): Promise<HostingAssignment> {
+  const data = await packageRequest<unknown>({
+    url: `${offeringPath(id)}/hosting-assignments/${encodeURIComponent(assignmentId)}`, signal,
+  });
+  if (!assignment(data) || data.offeringId !== id || data.assignmentId !== assignmentId
+    || (data.systemName != null && typeof data.systemName !== 'string')
+    || (data.targetTenantName != null && typeof data.targetTenantName !== 'string'))
+    throw new Error('The server did not return the requested allocation for this offering. Retry without selecting a substitute.');
+  return data;
 }
 export async function createHostingScope(id: string, data: HostingScopeInput, key: string): Promise<HostingScopeRevision> {
   const receipt = await packageRequest<unknown>({

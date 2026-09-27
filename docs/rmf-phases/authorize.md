@@ -18,6 +18,26 @@
 
 ## Persona Responsibilities
 
+### Record a received external decision in Systems
+
+`Systems → Recorded decisions → Record external decision` is separate from
+**Issue Authorization**. An authorized AO selects an existing mission evidence
+artifact, records the issuing authority and dates from that source, and selects
+an existing **completed, available, unexpired** package. The server retains both exact content hashes,
+the authenticated recording actor, and the conditions. It rejects changed
+source/package hashes and a changed active-decision context.
+
+Records default to historical. Making a record current explicitly supersedes the
+previous current record without deleting it; an older decision cannot replace a
+newer current decision. Recording does not advance RMF phase, generate a package,
+or infer eMASS receipt. The existing Issue action retains its authorization
+prerequisites and phase-transition behavior.
+
+The read context is `GET /api/dashboard/systems/{id}/authorization/record-context`
+(`page`, 50 records per source/package/history page). The explicit write is
+`POST /api/dashboard/systems/{id}/authorization/records`. Legacy decision rows
+receive no invented source metadata.
+
 ### AO (Lead — Decision)
 
 **Tasks in this phase**:

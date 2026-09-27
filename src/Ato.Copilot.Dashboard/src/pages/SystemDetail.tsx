@@ -25,6 +25,7 @@ import { rolesApi } from '../api/roles';
 import type { RmfRole } from '../types/roles';
 import { RBAC_ASSIGNABLE_BY } from '../types/roles';
 import type { HeatmapResponse, ProfileCompletenessResponse } from '../types/dashboard';
+import SystemReadinessOverview from '../features/systems/SystemReadinessOverview';
 
 export default function SystemDetail() {
   const { detail, refetch } = useSystemContext();
@@ -77,6 +78,10 @@ export default function SystemDetail() {
 
   return (
     <>
+      <SystemReadinessOverview key={detail.systemId} systemId={detail.systemId} systemName={detail.name} currentPhase={detail.currentRmfPhase} />
+      <details className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+        <summary className="cursor-pointer text-sm font-semibold">System diagnostics &amp; RMF phase management</summary>
+        <div className="mt-5">
       {/* No-role prompt banner (FR-046) */}
       {!workspace && !settings.role && (
         <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700 flex items-center gap-2">
@@ -352,6 +357,8 @@ export default function SystemDetail() {
         </div>
         <ActivityFeed activities={detail.recentActivity} />
       </div>
+        </div>
+      </details>
     </>
   );
 }

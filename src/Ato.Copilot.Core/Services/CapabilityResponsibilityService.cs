@@ -100,6 +100,14 @@ public sealed partial class CapabilityResponsibilityService(
 
     public Task<CapabilitySubscriptionChangeResponse> SubscribeAsync(
         string systemId, Guid capabilityId, string actor, CancellationToken ct = default) =>
+        SubscribeCoreAsync(systemId, capabilityId, actor, false, ct);
+
+    public Task<CapabilitySubscriptionChangeResponse> SubscribeForAdoptionAsync(
+        string systemId, Guid capabilityId, string actor, CancellationToken ct = default) =>
+        SubscribeCoreAsync(systemId, capabilityId, actor, true, ct);
+
+    private Task<CapabilitySubscriptionChangeResponse> SubscribeCoreAsync(
+        string systemId, Guid capabilityId, string actor, bool adoptionSubscription, CancellationToken ct) =>
         MutateAsync(systemId, actor, async () =>
         {
             var capability = await db.CspInheritedCapabilities.Include(c => c.CspInheritedComponent)
@@ -122,6 +130,8 @@ public sealed partial class CapabilityResponsibilityService(
             if (!alreadyActive)
             {
                 sub.IsActive = true;
+                sub.CurrentAdoptionSnapshotId = null;
+                sub.AdoptionSelectionRevision = checked(sub.AdoptionSelectionRevision + 1);
                 sub.SubscribedAt = DateTime.UtcNow;
                 sub.SubscribedBy = actor;
                 AddActivity(systemId, sub.Id, actor, "CapabilitySubscribed", $"Subscribed to CSP capability: {capability.Name}");
@@ -134,8 +144,9 @@ public sealed partial class CapabilityResponsibilityService(
             await db.SaveChangesAsync(ct);
             var state = await LoadAsync(systemId, ct);
             await ApplyAsync(state, actor, "SubscriptionAdded", ct);
-            return new CapabilitySubscriptionChangeResponse(sub.Id, alreadyActive, false, await ResponseAsync(state, true, ct), created);
-        }, ct);
+            var canConfirm = await AuthorizeAsync(systemId, false, ct);
+            return new CapabilitySubscriptionChangeResponse(sub.Id, alreadyActive, false, await ResponseAsync(state, canConfirm, ct), created);
+        }, ct, adoptionSubscription);
 
     public Task<CapabilitySubscriptionChangeResponse> UnsubscribeAsync(
         string systemId, Guid capabilityId, string actor, CancellationToken ct = default) =>
@@ -148,6 +159,8 @@ public sealed partial class CapabilityResponsibilityService(
             if (sub.IsActive)
             {
                 sub.IsActive = false;
+                sub.CurrentAdoptionSnapshotId = null;
+                sub.AdoptionSelectionRevision = checked(sub.AdoptionSelectionRevision + 1);
                 var name = await db.CspInheritedCapabilities.Where(c => c.Id == capabilityId).Select(c => c.Name).SingleOrDefaultAsync(ct);
                 AddActivity(systemId, sub.Id, actor, "CapabilityUnsubscribed", $"Unsubscribed from CSP capability: {name ?? id}");
                 await db.SaveChangesAsync(ct);
@@ -191,11 +204,13 @@ public sealed partial class CapabilityResponsibilityService(
             return await ResponseAsync(state, true, ct);
         }, ct);
 
-    private async Task<T> MutateAsync<T>(string systemId, string actor, Func<Task<T>> mutation, CancellationToken ct)
+    private async Task<T> MutateAsync<T>(string systemId, string actor, Func<Task<T>> mutation, CancellationToken ct,
+        bool adoptionSubscription = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actor);
         if (actor.Length > 200) throw new ArgumentException("Actor is too long.");
-        await AuthorizeAsync(systemId, true, ct);
+        if (adoptionSubscription) await AuthorizeAdoptionSubscriptionAsync(systemId, ct);
+        else await AuthorizeAsync(systemId, true, ct);
         await using var transaction = db.Database.CurrentTransaction is null
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         var result = await mutation();
@@ -203,6 +218,19 @@ public sealed partial class CapabilityResponsibilityService(
         if (transaction is not null) await transaction.CommitAsync(ct);
         logger.LogInformation("Reconciled subscription responsibilities for system {SystemId} in tenant {TenantId}", systemId, TenantId);
         return result;
+    }
+
+    private async Task AuthorizeAdoptionSubscriptionAsync(string systemId, CancellationToken ct)
+    {
+        if (tenant.IsCspAdmin || tenant.ImpersonatedTenantId.HasValue || TenantId == Guid.Empty || tenant.PersonId is null)
+            throw new UnauthorizedAccessException("Use an assigned mission workspace for capability adoption.");
+        var permission = await access.GetAccessAsync(TenantId, tenant.PersonId, systemId, false, ct);
+        if (!permission.Permissions.CanRead || !await db.RegisteredSystems.AnyAsync(s =>
+                s.Id == systemId && s.TenantId == TenantId && s.IsActive, ct))
+            throw new KeyNotFoundException("System not found in this mission workspace.");
+        if (!permission.Roles.Any(r => r is nameof(RmfRole.MissionOwner) or nameof(RmfRole.SystemOwner)
+                or nameof(RmfRole.Issm) or nameof(RmfRole.Isso)))
+            throw new UnauthorizedAccessException("An assigned Mission Owner, System Owner, ISSM or ISSO is required for adoption.");
     }
 
     private async Task<State> LoadAsync(string systemId, CancellationToken ct, Guid? authorizedReadTenant = null)

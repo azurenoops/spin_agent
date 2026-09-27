@@ -1,0 +1,111 @@
+{
+  "components": [
+    {
+      "id": "AZ-component-audit",
+      "type": "service",
+      "name": "Central audit collector and archive",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Collect administrative and platform security events from the enrolled shared-service boundary; retain 90 days searchable and 365 days archived in this scenario."
+    },
+    {
+      "id": "AZ-component-network",
+      "type": "service",
+      "name": "Shared hub firewall and private routing",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Inspect approved north-south shared-hub flows and maintain documented private routing for enrolled spokes."
+    },
+    {
+      "id": "AZ-component-identity",
+      "type": "service",
+      "name": "Provider operations identity service",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Control provider operator accounts with MFA and time-limited privileged access; customer identities remain a separate administration responsibility."
+    },
+    {
+      "id": "AZ-component-configuration",
+      "type": "service",
+      "name": "Shared-service configuration repository",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Version the shared-service baseline and capture approved changes; application code and mission images are excluded."
+    },
+    {
+      "id": "AZ-component-encryption",
+      "type": "service",
+      "name": "Shared-service key vault and transport configuration",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Manage fictional shared-service keys and transport settings for provider-owned endpoints only."
+    },
+    {
+      "id": "AZ-component-incident",
+      "type": "service",
+      "name": "Provider incident coordination desk",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Coordinate incidents affecting the shared-service boundary using a fictional 24-hour on-call roster."
+    },
+    {
+      "id": "AZ-component-vulnerability",
+      "type": "service",
+      "name": "Shared infrastructure scan and patch service",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Scan provider-maintained hosts weekly and evaluate urgent advisories daily; mission applications are excluded."
+    },
+    {
+      "id": "AZ-component-backup",
+      "type": "service",
+      "name": "Shared configuration backup vault",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Back up shared configuration daily; exercise quarterly restore with a scenario target of 24-hour RPO and eight-hour RTO."
+    }
+  ],
+  "boundaryClaims": [
+    {
+      "id": "AZ-BOUNDARY-001",
+      "name": "Azure IL5 · Shared services synthetic boundary",
+      "claim": {
+        "boundary": {
+          "subject": "Azure IL5 · Shared services",
+          "relationship": "Included",
+          "scope": "Only the eight listed provider-operated shared services; no mission workloads or SaaS collaboration tenant. SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Azure; cloud=AzureUSGovernment; directoryTenantId=07900000-0000-0000-0000-000000000101; subscriptionId=07900000-0000-0000-0000-000000000102; resourceId=/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services. No live resource, tenant entitlement, or connector is asserted.",
+          "environment": "AzureUSGovernment",
+          "resourceIds": [
+            "/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services"
+          ],
+          "responsibilities": [
+            "Provider owns only listed shared/SaaS operations.",
+            "Customer owns mission authorization, information handling and the customer duties in the matrix."
+          ],
+          "decisionReference": "AZ-REF-001"
+        },
+        "qualifications": [
+          "SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence."
+        ],
+        "relationships": [
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "AZ-component-audit"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "AZ-component-network"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "AZ-component-identity"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "AZ-component-configuration"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "AZ-component-encryption"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "AZ-component-incident"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "AZ-component-vulnerability"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "AZ-component-backup"
+          }
+        ]
+      }
+    }
+  ]
+}

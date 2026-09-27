@@ -28,6 +28,15 @@ public class AuthorizationPackage
     [Required]
     public PackageStatus Status { get; set; } = PackageStatus.Pending;
 
+    public PackagePurpose Purpose { get; set; } = PackagePurpose.Legacy;
+    public string? RetainedContextJson { get; set; }
+    [MaxLength(64)]
+    public string? RetainedContextHash { get; set; }
+    [MaxLength(64)]
+    public string? RequestScopeKey { get; set; }
+    [MaxLength(64)]
+    public string? RequestIntentHash { get; set; }
+
     [MaxLength(4000)]
     public string? FailureReason { get; set; }
 

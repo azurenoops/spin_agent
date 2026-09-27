@@ -8,6 +8,23 @@ namespace Ato.Copilot.Tests.Unit.Services;
 public class DocumentTemplateDualNarrativeTests
 {
     [Fact]
+    public void BuildControlNarratives_DoesNotSilentlyDropControlsAfterFifty()
+    {
+        // Arrange
+        var implementations = Enumerable.Range(1, 51).Select(number => new ControlImplementation
+        {
+            ControlId = $"DEMO-{number:00}", PolicyNarrative = $"Recorded policy {number}",
+            TechnicalNarrative = $"Recorded implementation {number}"
+        });
+
+        // Act
+        var result = DocumentTemplateService.BuildControlNarratives(implementations);
+
+        // Assert
+        result.Should().Contain("Recorded implementation 51");
+    }
+
+    [Fact]
     public void BuildControlNarratives_LabelsBothHalvesInCanonicalOrder()
     {
         // Arrange

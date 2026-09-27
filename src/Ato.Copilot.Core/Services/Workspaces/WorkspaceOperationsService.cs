@@ -1671,6 +1671,11 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
                 {
                     subscription.CspInheritedCapabilityId = request.RecordId;
                     subscription.RoutingCapabilityId = request.RecordId;
+                    if (!subscription.IsActive)
+                    {
+                        subscription.CurrentAdoptionSnapshotId = null;
+                        subscription.AdoptionSelectionRevision = checked(subscription.AdoptionSelectionRevision + 1);
+                    }
                     subscription.IsActive = true;
                 }
                 row.SubscriptionState = "Completed";

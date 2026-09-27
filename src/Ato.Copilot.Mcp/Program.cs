@@ -510,8 +510,11 @@ async Task RunHttpModeAsync(string[] args)
         Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderMissionService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderFindingService,
         Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderFindingService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderEvidenceSharingService,
+        Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderEvidenceSharingService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderImpactService,
         Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderImpactService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderMonitoringService>();
     builder.Services.AddSingleton<Ato.Copilot.Core.Interfaces.PackageImports.ICspPackageAnalyzer,
         Ato.Copilot.Agents.Services.PackageImports.CspPackageAnalyzer>();
     builder.Services.AddHostedService<Ato.Copilot.Mcp.Services.CspPackageWorker>();
@@ -630,7 +633,9 @@ async Task RunHttpModeAsync(string[] args)
 
     // Map Dashboard REST API endpoints (Feature 030)
     app.MapDashboardEndpoints();
+    app.MapSystemDecisionDraftEndpoints();
     app.MapEmassWorkflowEndpoints();
+    app.MapEmassExchangeEndpoints();
     app.MapControlValidationEndpoints();
     app.MapNarrativeDualEndpoints();
     app.MapNarrativeLibraryEndpoints();
@@ -643,6 +648,7 @@ async Task RunHttpModeAsync(string[] args)
 
     // Map Authorization Package & SAR endpoints (Feature 041)
     app.MapPackageEndpoints();
+    app.MapPackageContextOptions();
 
     // Map Notification REST API endpoints
     app.MapNotificationEndpoints();
@@ -682,7 +688,9 @@ async Task RunHttpModeAsync(string[] args)
     app.MapProviderHostingEndpoints();
     app.MapProviderMissionEndpoints();
     app.MapProviderFindingEndpoints();
+    app.MapProviderEvidenceSharingEndpoints();
     app.MapProviderImpactEndpoints();
+    app.MapProviderMonitoringEndpoints();
     app.MapWorkspaceOperationsEndpoints();
     // Feature 048 (T181 [US8]): CSP-Admin cross-tenant operational dashboard.
     app.MapCspDashboardEndpoints();
@@ -1334,6 +1342,14 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderAuthorizationSchemaAdditions
         .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderMonitoringSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderEvidenceSharingSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.PackagePurposeSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.DocumentSourceSnapshotSchemaAdditions
+        .ApplyAsync(db, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.WorkspaceOperationsSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationCatalogSchemaAdditions
@@ -1341,10 +1357,17 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     // Create workspace/catalog tables before retrofitting TenantId; legacy indexes below need the retrofit first.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantIdColumnAdditions
         .ApplyAsync(db, logger, ct);
+    // Legacy monitoring indexes reference TenantId; the ownership retrofit must complete first.
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ScopedMonitoringSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.EmassExchangeSchemaAdditions
+        .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.NotificationPreferencesSchemaAdditions
         .ApplyAsync(db, logger, ct);
     // Issue 834: separate, auditable authorization override annotations.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.AuthorizationOverridesSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.SystemDecisionDraftSchemaAdditions
         .ApplyAsync(db, logger, ct);
     // Feature 048 (T073): Adds AuditLogs.ActorTenantId / ImpersonatedTenantId
     // columns plus the two composite tenant-attribution indexes.

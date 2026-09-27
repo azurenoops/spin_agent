@@ -118,7 +118,7 @@ public sealed partial class ProviderMissionService(AtoCopilotContext db, ITenant
         return new(relationship?.Id, relationship?.Revision ?? 0, allocation.Id, allocation.Revision, offering.Id,
             allocation.SystemId, relationship?.State ?? "Undetermined", stale, relationship?.AuthorizationRevisionId,
             relationship?.BoundaryRevisionId, relationship?.ReviewedBy, relationship?.ReviewedAt,
-            Read<ProviderAzureScope[]>(allocation.AssignedScopesJson), offering.Name, providerName, systemName,
+            Read<ProviderScope[]>(allocation.AssignedScopesJson), offering.Name, providerName, systemName,
             Read<CreateProviderHostingScopeRequest>(hosting.SnapshotJson).Name,
             relationship is null && CanAssociate(permission) && offering.Lifecycle != "Retired"
                 && offering.CurrentHostingScopeRevisionId == hosting.Id);

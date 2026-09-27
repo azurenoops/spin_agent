@@ -10,6 +10,15 @@ namespace Ato.Copilot.Core.Models.Compliance;
 [Table("SspExports")]
 public class SspExport
 {
+    /// <summary>SHA-256 of tenant/system/actor/operation/client key; null for legacy non-idempotent requests.</summary>
+    [MaxLength(64)]
+    public string? RequestScopeKey { get; set; }
+    public Guid? SourceTenantId { get; set; }
+    public Guid? RequestedPersonId { get; set; }
+    public string? SourceManifestJson { get; set; }
+    public string? SourceGapsJson { get; set; }
+    public Guid? SourcePreviewId { get; set; }
+
     /// <summary>Unique export identifier.</summary>
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();

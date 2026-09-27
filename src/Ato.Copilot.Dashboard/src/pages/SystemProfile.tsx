@@ -6,8 +6,11 @@ import { useWorkspaceSession } from '../features/workspaces/WorkspaceBoundary';
 import { displayWorkspaceRoles } from '../features/workspaces/workspaceRoles';
 import ProfileSectionForm from '../components/forms/ProfileSectionForm';
 import { getProfileSection, saveProfileSection, submitSections, withdrawSections, reviewSection } from '../api/systemProfile';
-import { formatProfileSectionLabel } from '../utils/profileSections';
 import AsyncErrorState from '../components/AsyncErrorState';
+import SystemHostingSummary from '../features/systems/SystemHostingSummary';
+import { systemProfileTasks } from '../features/systems/systemProfileTasks';
+import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport, systemPanel } from '../features/systems/SystemTaskPresentation';
+import SystemInterconnections from '../features/systems/SystemInterconnections';
 import type {
   ProfileSectionDetail,
   ProfileSectionType,
@@ -176,8 +179,9 @@ function SystemProfileSection() {
     }
   };
 
-  const label = formatProfileSectionLabel(sectionType);
+  const task = systemProfileTasks[sectionType];
   const status: GovernanceStatus = section?.governanceStatus ?? 'NotStarted';
+  if (!task) return <p role="alert">This system profile section is not available.</p>;
 
   return (
     <div className="space-y-6">
@@ -194,8 +198,7 @@ function SystemProfileSection() {
       ) : (
         <div className="space-y-6">
           {/* Section Header */}
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{label}</h1>
+          <SystemTaskHeading title={task.title} description={task.description} status={<div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${approvalVariant(status)}`}>
               {status}
             </span>
@@ -204,11 +207,19 @@ function SystemProfileSection() {
                 Read-only
               </span>
             )}
-          </div>
-          {sectionType === 'EnvironmentAndDeployment' && <p className="text-sm text-gray-600 dark:text-gray-300">
-            Where does this system run, and which provider services does it use?
-            {' '}Describe the environment below. Network, recovery and operating details can be expanded when needed.
-          </p>}
+          </div>} />
+          <SystemTaskColumns support={<>
+            <SystemTaskSupport title="Contributes to"><p>{task.contribution}</p><p>{task.guidance}</p></SystemTaskSupport>
+            <SystemTaskSupport title="Review state">
+              <p>Current section: <strong>{status}</strong></p>
+              <p>{isReadOnly ? 'This record is read-only with your current access or review state.' : 'You can edit this draft. Saving does not approve the record.'}</p>
+              {section?.reviewerComments && <p className="whitespace-pre-wrap">{section.reviewerComments}</p>}
+            </SystemTaskSupport>
+            <SystemTaskSupport title="Next in Systems">
+              {task.next.map(next => <Link key={next.path} className="block text-indigo-700 underline dark:text-indigo-300"
+                to={`/systems/${encodeURIComponent(systemId)}/${next.path}`}>{next.label}</Link>)}
+            </SystemTaskSupport>
+          </>}>
 
           {/* Success message */}
           {successMsg && (
@@ -216,7 +227,15 @@ function SystemProfileSection() {
           )}
 
           {/* Section Form */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+          {sectionType === 'EnvironmentAndDeployment' && <SystemHostingSummary systemId={systemId} />}
+          <div className={systemPanel}>
+            {!['UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices'].includes(sectionType) && <h2 className="mb-5 text-lg font-semibold">{task.record}</h2>}
+            {sectionType === 'MissionAndPurpose' && <dl className="mb-6 grid gap-4 border-b border-slate-100 pb-5 text-sm sm:grid-cols-2 dark:border-slate-700">
+              <div><dt className="text-xs text-slate-500">System name</dt><dd className="mt-1 font-medium">{detail.name ?? systemId}</dd></div>
+              <div><dt className="text-xs text-slate-500">Accountable system roles</dt><dd className="mt-1">
+                <Link className="text-indigo-700 underline dark:text-indigo-300" to={`/systems/${encodeURIComponent(systemId)}/roles`}>Review System team</Link>
+              </dd></div>
+            </dl>}
             <ProfileSectionForm
               systemId={systemId}
               sectionType={sectionType}
@@ -244,12 +263,14 @@ function SystemProfileSection() {
               onRequestRevision={handleRequestRevision}
             />
           </div>
+          {sectionType === 'PortsProtocolsAndServices' && <SystemInterconnections key={systemId} systemId={systemId} />}
           {sectionType === 'EnvironmentAndDeployment' && <p className="text-sm text-gray-600 dark:text-gray-300">
             Azure scan configuration is a separate task in{' '}
             <Link className="underline" to={`/systems/${encodeURIComponent(systemId)}/assessments/environment`}>
               Assessments: configure Azure assessment
             </Link>. Track overall profile completeness on the <Link className="underline" to={`/systems/${encodeURIComponent(systemId)}`}>system overview</Link>.
           </p>}
+          </SystemTaskColumns>
         </div>
       )}
 

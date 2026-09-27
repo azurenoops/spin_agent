@@ -16,6 +16,38 @@ namespace Ato.Copilot.Tests.Unit.ProviderAuthorizations;
 
 public sealed partial class ProviderImpactPublicationTests
 {
+    [Fact]
+    public async Task ImpactRead_ExactCandidateLookupDoesNotExpandEveryCanonicalProviderGraph()
+    {
+        // Arrange
+        await LinkAsync();
+        var package = Guid.NewGuid();
+        var component = Guid.NewGuid();
+        var capability = Guid.NewGuid();
+        await SeedCandidatePackageAsync(package, component, capability);
+        await using (var db = new AtoCopilotContext(_options))
+        {
+            for (var i = 0; i < 25; i++)
+                db.CspInheritedComponents.Add(new()
+                {
+                    Id = Guid.NewGuid(), CspProfileId = _provider,
+                    Name = $"Unrelated provider component {i}", Description = "Not linked to this source candidate."
+                });
+            await db.SaveChangesAsync();
+        }
+        var counter = new ImpactReadCommandCounter();
+        _options = new DbContextOptionsBuilder<AtoCopilotContext>().UseSqlite(_connection).AddInterceptors(counter).Options;
+        await using var app = await HttpApiAsync();
+        using var client = app.GetTestClient();
+
+        // Act
+        var response = await client.GetAsync($"/api/csp/offerings/{_offering}/impact-options/Component/{component}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        counter.Count.Should().BeLessThan(20, "an exact source candidate lookup must not traverse unrelated canonical graphs");
+    }
+
     [Theory]
     [InlineData("Boundary")]
     [InlineData("HostingScope")]
@@ -412,6 +444,93 @@ public sealed partial class ProviderImpactPublicationTests
         data.GetProperty("summary").GetString().Should().Contain(state);
         canonical.StatusCode.Should().Be(HttpStatusCode.OK);
         (await canonical.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data").GetProperty("change").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Theory]
+    [InlineData("Capability")]
+    [InlineData("Component")]
+    public async Task ImpactRead_PublishedSelfAliasSelectsOwnedCanonicalMaterial(string kind)
+    {
+        // Arrange
+        await LinkAsync();
+        await WorkingAsync();
+        var working = await WorkingAsync();
+        working.Revision.Should().Be(2);
+        await SeedCandidatePackageAsync(Guid.NewGuid(), _component, _capability);
+        var id = kind == "Capability" ? _capability : _component;
+        await SetPublishedAliasAsync(id, id);
+        await using var app = await HttpApiAsync();
+        using var client = app.GetTestClient();
+
+        // Act
+        var result = await client.GetAsync($"/api/csp/offerings/{_offering}/impact-options/{kind}/{id}");
+
+        // Assert
+        result.StatusCode.Should().Be(HttpStatusCode.OK);
+        var data = (await result.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        data.GetProperty("change").ValueKind.Should().Be(JsonValueKind.Object);
+        await using var db = new AtoCopilotContext(_options);
+        var canonical = await ProviderImpactService.ChangeAsync(db, _provider, kind, id, default);
+        data.GetProperty("change").Deserialize<ProviderImpactChange>(ProviderAuthorizationStore.JsonOptions)
+            .Should().Be(canonical);
+        data.GetProperty("summary").GetString().Should().Contain("canonical working material");
+    }
+
+    [Theory]
+    [InlineData("Capability", "missing")]
+    [InlineData("Component", "missing")]
+    [InlineData("Component", "reused")]
+    public async Task ImpactRead_PublishedAliasWithoutExactOwnedCanonicalRemainsContextOnly(string kind, string scenario)
+    {
+        // Arrange
+        await LinkAsync();
+        var candidateComponent = Guid.NewGuid();
+        var candidateCapability = Guid.NewGuid();
+        await SeedCandidatePackageAsync(Guid.NewGuid(), candidateComponent, candidateCapability);
+        var id = kind == "Capability" ? candidateCapability : candidateComponent;
+        await SetPublishedAliasAsync(id, scenario == "reused" ? _component : id);
+        await using var app = await HttpApiAsync();
+        using var client = app.GetTestClient();
+
+        // Act
+        var result = await client.GetAsync($"/api/csp/offerings/{_offering}/impact-options/{kind}/{id}");
+
+        // Assert
+        result.StatusCode.Should().Be(HttpStatusCode.OK);
+        var data = (await result.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        data.GetProperty("change").ValueKind.Should().Be(JsonValueKind.Null);
+        data.GetProperty("summary").GetString().Should().Contain("context only");
+    }
+
+    [Fact]
+    public async Task ImpactRead_PublishedCapabilitySelfAliasStillRequiresExplicitWorkingRevision()
+    {
+        // Arrange
+        await LinkAsync();
+        await SeedCandidatePackageAsync(Guid.NewGuid(), _component, _capability);
+        await SetPublishedAliasAsync(_capability, _capability);
+        await using var app = await HttpApiAsync();
+        using var client = app.GetTestClient();
+
+        // Act
+        var result = await client.GetAsync($"/api/csp/offerings/{_offering}/impact-options/Capability/{_capability}");
+
+        // Assert
+        result.StatusCode.Should().Be(HttpStatusCode.OK);
+        var data = (await result.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        data.GetProperty("change").ValueKind.Should().Be(JsonValueKind.Null);
+        data.GetProperty("version").GetString().Should().Be("No working revision");
+    }
+
+    private async Task SetPublishedAliasAsync(Guid candidateId, Guid canonicalId)
+    {
+        await using var db = new AtoCopilotContext(_options);
+        var candidate = await db.CspPackageCandidates.SingleAsync(x => x.Id == candidateId);
+        var payload = ProviderAuthorizationStore.Read<Ato.Copilot.Core.Interfaces.PackageImports.PackageCandidateResponse>(candidate.PayloadJson);
+        candidate.ReviewState = "Published";
+        candidate.PayloadJson = ProviderAuthorizationStore.Json(payload with
+        { ReviewState = "Published", PublishedRecordId = canonicalId });
+        await db.SaveChangesAsync();
     }
 
     [Fact]

@@ -1,0 +1,108 @@
+{
+  "capabilities": [
+    {
+      "id": "AZ-capability-audit",
+      "name": "Audit collection",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Collect administrative and platform security events from the enrolled shared-service boundary; retain 90 days searchable and 365 days archived in this scenario.",
+      "componentIds": [
+        "AZ-component-audit"
+      ],
+      "controlIds": [
+        "AU-2",
+        "AU-6",
+        "AU-11"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-network",
+      "name": "Network protection",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Inspect approved north-south shared-hub flows and maintain documented private routing for enrolled spokes.",
+      "componentIds": [
+        "AZ-component-network"
+      ],
+      "controlIds": [
+        "SC-7"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-identity",
+      "name": "Privileged identity",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Control provider operator accounts with MFA and time-limited privileged access; customer identities remain a separate administration responsibility.",
+      "componentIds": [
+        "AZ-component-identity"
+      ],
+      "controlIds": [
+        "IA-2",
+        "AC-2"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-configuration",
+      "name": "Configuration baselines",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Version the shared-service baseline and capture approved changes; application code and mission images are excluded.",
+      "componentIds": [
+        "AZ-component-configuration"
+      ],
+      "controlIds": [
+        "CM-2",
+        "CM-3"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-encryption",
+      "name": "Encryption and key handling",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Manage fictional shared-service keys and transport settings for provider-owned endpoints only.",
+      "componentIds": [
+        "AZ-component-encryption"
+      ],
+      "controlIds": [
+        "SC-12",
+        "SC-13"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-incident",
+      "name": "Incident coordination",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Coordinate incidents affecting the shared-service boundary using a fictional 24-hour on-call roster.",
+      "componentIds": [
+        "AZ-component-incident"
+      ],
+      "controlIds": [
+        "IR-4",
+        "IR-6"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-vulnerability",
+      "name": "Vulnerability management",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Scan provider-maintained hosts weekly and evaluate urgent advisories daily; mission applications are excluded.",
+      "componentIds": [
+        "AZ-component-vulnerability"
+      ],
+      "controlIds": [
+        "RA-5",
+        "SI-2"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-backup",
+      "name": "Backup and recovery",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Back up shared configuration daily; exercise quarterly restore with a scenario target of 24-hour RPO and eight-hour RTO.",
+      "componentIds": [
+        "AZ-component-backup"
+      ],
+      "controlIds": [
+        "CP-9",
+        "CP-10"
+      ],
+      "responsibility": "Shared"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { errorClass, secondaryButtonClass } from '../workspace-operations/workspaceUi';
-import type { AzureScope, ApplicableProviderCapability } from './types';
+import type { ProviderScope, ApplicableProviderCapability } from './types';
+import { offeringEnvironments, scopeLabel } from '../provider-authorizations/scopes';
 
 export const taskSteps = ['Select system', 'Choose CSP hosting scope', 'Select security capabilities', 'Review responsibilities', 'Confirm associations'];
 export const capabilityName = (item: ApplicableProviderCapability) => item.capabilityName?.trim() || 'Capability name unavailable';
@@ -44,11 +45,14 @@ export function ReadStatus({ state, name }: {
   </div>;
 }
 
-export function ScopeDetails({ scopes }: { scopes: AzureScope[] }) {
+export function ScopeDetails({ scopes }: { scopes: ProviderScope[] }) {
   return <details className="text-sm"><summary className="cursor-pointer">Hosting scope details</summary>
-    <ul className="space-y-3 pt-2">{scopes.map(scope => <li className="break-all" key={`${scope.cloud}:${scope.resourceId}`}>
-      <p>Cloud: {scope.cloud}</p><p>Directory: {scope.directoryTenantId}</p>
-      <p>Subscription: {scope.subscriptionId}</p><p>Resource scope: {scope.resourceId}</p>
+    <ul className="space-y-3 pt-2">{scopes.map((scope, index) => <li className="break-all" key={`${scopeLabel(scope)}:${index}`}>
+      {scope.kind === 'Service' ? <><p>Service: {scope.serviceName}</p><p>Service identifier: {scope.serviceId}</p>
+        <p>Environment: {offeringEnvironments[scope.environment]}</p><p>Service tenant reference: {scope.tenantReference ?? 'Not recorded'}</p>
+        <p>Manually documented relationship · no live connector asserted</p></>
+        : <><p>Cloud: {scope.cloud}</p><p>Directory: {scope.directoryTenantId}</p>
+          <p>Subscription: {scope.subscriptionId}</p><p>Resource scope: {scope.resourceId}</p></>}
     </li>)}</ul>
   </details>;
 }

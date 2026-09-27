@@ -19,7 +19,7 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
 }));
 vi.mock('../../features/provider-authorizations/api', async original => ({
   ...await original<typeof api>(), getOffering: vi.fn(), getOfferingOverview: vi.fn(), listDecisions: vi.fn(),
-  listBoundaries: vi.fn(), createDecision: vi.fn(), recordDecision: vi.fn(), listDecisionHistory: vi.fn(),
+  listBoundaries: vi.fn(), createDecision: vi.fn(), recordDecision: vi.fn(), listDecisionHistory: vi.fn(), listFindings: vi.fn(),
 }));
 
 function mount() {
@@ -45,6 +45,7 @@ beforeEach(() => {
   vi.mocked(api.listDecisions).mockResolvedValue(page([]));
   vi.mocked(api.listBoundaries).mockResolvedValue(page([boundary]));
   vi.mocked(api.listDecisionHistory).mockResolvedValue(page([recordedAuthorization]));
+  vi.mocked(api.listFindings).mockResolvedValue(page([]));
 });
 
 describe('Offering overview', () => {
@@ -55,7 +56,7 @@ describe('Offering overview', () => {
     const authorization = await screen.findByRole('region', { name: 'Authorization' });
     // Assert
     expect(screen.getByRole('heading', { name: 'Offering overview' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Offering overview' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
     expect(within(authorization).getByText('Not recorded', { exact: true })).toBeInTheDocument();
     expect(within(authorization).getByText(/does not mean this offering has no ATO/)).toBeInTheDocument();
     expect(screen.getByText('Uploaded authorization documents.zip', { exact: true })).toBeInTheDocument();

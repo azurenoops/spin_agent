@@ -53,7 +53,8 @@ public sealed partial class CspPackageService
                 candidateId, request.ExpectedRevision, candidate.Revision, request.ReviewAction, request.Rationale,
                 request.DuplicateResolution, SnapshotHash = Hash(Json(payload))
             }));
-            return payload;
+            // Match GET's retained-provenance projection without stamping analysis metadata into the edited payload.
+            return (await CandidatesWithRetainedClaimsAsync(db, package, [candidate], ct)).Single();
         }, ct);
 
     public Task<PackageEntryResponse> ExcludeAsync(Guid id, Guid entryId, ExcludePackageEntryRequest request, string actor, CancellationToken ct) =>

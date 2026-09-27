@@ -75,7 +75,7 @@ describe('Assessments Azure environment configuration (#981)', () => {
     expect(attachment).toHaveAttribute('id', 'azure-assessment-environment');
     expect(configurationUrl()).toContain(`#${attachment.id}`);
     expect(screen.queryByRole('textbox', { name: 'Profile description' })).not.toBeInTheDocument();
-    expect(within(attachment).getByRole('checkbox', { name: /Synthetic Commercial Alpha/i })).toBeEnabled();
+    expect(await within(attachment).findByRole('checkbox', { name: /Synthetic Commercial Alpha/i })).toBeEnabled();
     expect(within(attachment).queryByLabelText(/password|client secret|access key|credential/i)).not.toBeInTheDocument();
   });
 

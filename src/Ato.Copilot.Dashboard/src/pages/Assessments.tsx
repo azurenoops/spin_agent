@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Link, useNavigate } from '../features/workspaces/workspaceNavigation';
+import { Link, useLocation, useNavigate } from '../features/workspaces/workspaceNavigation';
+import { SystemTaskHeading, systemPrimaryAction } from '../features/systems/SystemTaskPresentation';
+import SapDraftEditor from '../features/systems/SapDraftEditor';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { usePolling } from '../hooks/usePolling';
@@ -67,6 +69,8 @@ function SeverityBadge({ severity }: { severity: string }) {
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Assessments() {
+  const location = useLocation();
+  const planView = new URLSearchParams(location.search).get('tab') === 'plan';
   const { detail } = useSystemContext();
   const systemId = detail.systemId;
   const canRunAssessments = useSystemMutationPermission(systemId, 'canRunAssessments');
@@ -98,6 +102,9 @@ export default function Assessments() {
   const [sapLoading, setSapLoading] = useState(false);
   const [sapError, setSapError] = useState<string | null>(null);
   const [sapData, setSapData] = useState<SapResponse | null>(null);
+  const [sapReadLoading, setSapReadLoading] = useState(true);
+  const [sapReadError, setSapReadError] = useState<string | null>(null);
+  const [sapReadAttempt, setSapReadAttempt] = useState(0);
 
   // SAR state
   const [showSarDialog, setShowSarDialog] = useState(false);
@@ -145,7 +152,21 @@ export default function Assessments() {
   // Fetch latest SAP & SAR status on mount
   useEffect(() => {
     if (!systemId) return;
-    getLatestSap(systemId).then(setSapData).catch(() => setSapData(null));
+    let current = true;
+    setSapReadLoading(true);
+    setSapReadError(null);
+    setSapData(null);
+    getLatestSap(systemId).then(value => { if (current) setSapData(value); }).catch(reason => {
+      if (!current) return;
+      if ((reason as { response?: { status?: number } })?.response?.status !== 404) {
+        setSapReadError(reason instanceof Error ? reason.message : 'Unable to load the assessment plan.');
+      }
+    }).finally(() => { if (current) setSapReadLoading(false); });
+    return () => { current = false; };
+  }, [systemId, sapReadAttempt]);
+
+  useEffect(() => {
+    if (!systemId) return;
     getLatestSar(systemId).then(setSarData).catch(() => setSarData(null));
   }, [systemId]);
 
@@ -275,20 +296,18 @@ export default function Assessments() {
   return (
     <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Compliance Assessments</h2>
-            <p className="mt-1 text-sm text-gray-500">Assessments run against this system.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <input
+        <SystemTaskHeading title={planView ? 'Plan the assessment' : 'Assessments & results'}
+          description={planView ? 'Define the assessment scope, procedures and responsible assessors.' : 'Run configured checks or import results, then review what the evidence establishes.'}
+          action={!planView && <Link className={systemPrimaryAction} to={`/systems/${systemId}/assessments/environment`}>Configure assessment</Link>} />
+          <div className="flex flex-wrap items-center gap-3">
+            {!planView && <input
               type="text"
               placeholder="Filter assessments..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-            <div className="flex flex-col items-start gap-0.5">
+            />}
+            {!planView && <div className="flex flex-col items-start gap-0.5">
               <button
                 onClick={() => {
                   if (!requirePermission(canGenerateSap, 'generate a SAP')) return;
@@ -311,8 +330,8 @@ export default function Assessments() {
                   No baseline selected — set one here →
                 </Link>
               )}
-            </div>
-            <button
+            </div>}
+            {!planView && <><button
               onClick={() => {
                 if (!requirePermission(canGenerateSar, 'generate a SAR')) return;
                 setShowSarDialog(true); setSarError(null);
@@ -342,12 +361,13 @@ export default function Assessments() {
               </svg>
               Run Assessment
             </button>
+            </>}
           </div>
-        </div>
 
         {mutationError && <p role="alert" className="text-sm text-red-700">{mutationError}</p>}
+        {planView && <SapDraftEditor key={systemId} systemId={systemId} onSaved={() => setSapReadAttempt(value => value + 1)} />}
 
-        <div id="assessment-readiness" aria-live="polite" className="rounded-lg border border-gray-200 bg-white p-4 text-sm">
+        {!planView && <div id="assessment-readiness" aria-live="polite" className="rounded-lg border border-gray-200 bg-white p-4 text-sm">
           <p className="font-medium text-gray-900">Run Assessment uses real Azure resources only.</p>
           {accessRequired && <p className="mt-2 font-semibold text-amber-900">Azure assessment access required</p>}
           <p className="mt-1 text-gray-700">
@@ -362,11 +382,13 @@ export default function Assessments() {
               Retry readiness check
             </button>}
           </div>
-        </div>
+        </div>}
 
         {/* Summary cards */}
-        {assessments.length > 0 && (
-          <div className="grid grid-cols-4 gap-4">
+        {!planView && assessments.length > 0 && (
+          <details className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <summary className="cursor-pointer text-sm font-semibold">Assessment metrics</summary>
+          <div className="mt-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
             <div className="rounded-lg border border-gray-200 bg-white p-4">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total</p>
               <p className="mt-1 text-2xl font-bold text-gray-900">{assessments.length}</p>
@@ -386,11 +408,18 @@ export default function Assessments() {
               <p className="mt-1 text-2xl font-bold text-amber-600">{assessments.reduce((sum, a) => sum + a.totalFindings, 0)}</p>
             </div>
           </div>
+          </details>
         )}
 
         {/* SAP / SAR Status */}
+        {sapReadLoading && planView && <p role="status">Loading assessment plan…</p>}
+        {sapReadError && <div className="space-y-2 rounded border border-amber-200 bg-amber-50 p-4 text-sm">
+          <p role="alert">{sapReadError}</p>
+          <button type="button" className="rounded border px-3 py-2" onClick={() => setSapReadAttempt(value => value + 1)}>Retry assessment plan</button>
+        </div>}
+        {planView && !sapReadLoading && !sapReadError && !sapData && <p className="rounded-lg border p-4 text-sm">No assessment plan has been generated for this system.</p>}
         {(sapData || sarData) && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className={`grid gap-4 ${planView ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
             {sapData && (
               <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
                 <div className="flex items-center justify-between">
@@ -434,7 +463,7 @@ export default function Assessments() {
                 )}
               </div>
             )}
-            {sarData && (
+            {!planView && sarData && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -472,17 +501,17 @@ export default function Assessments() {
         )}
 
         {/* Loading / error */}
-        {loading && !assessments && (
+        {!planView && loading && !assessments && (
           <div className="flex items-center justify-center py-16">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
           </div>
         )}
-        {error && (
+        {!planView && error && (
           <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">{String(error)}</div>
         )}
 
         {/* Table */}
-        {assessments && (
+        {!planView && assessments && (
           <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">

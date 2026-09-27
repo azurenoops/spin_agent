@@ -160,6 +160,10 @@ public static class EmassWorkflowEndpoints
             {
                 return Results.Conflict(ErrorEnvelope("CONFLICT_ALREADY_RESOLVED", exception.Message));
             }
+            catch (EmassConflictChangedException exception)
+            {
+                return Results.Conflict(ErrorEnvelope("CONFLICT_CHANGED", exception.Message));
+            }
             catch (ArgumentException exception)
             {
                 return BadRequest("INVALID_RESOLUTION", exception.Message);

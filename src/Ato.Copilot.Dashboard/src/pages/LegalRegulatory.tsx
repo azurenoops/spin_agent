@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from '../features/workspaces/workspaceNavigation';
 import { usePolling } from '../hooks/usePolling';
+import { useWorkspaceSession } from '../features/workspaces/WorkspaceBoundary';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
+import { SystemTaskHeading, systemPrimaryAction, systemSecondaryAction } from '../features/systems/SystemTaskPresentation';
 import {
   getComponents,
   listComponents,
@@ -26,6 +29,9 @@ const COMMON_POLICIES = [
 
 export default function LegalRegulatory() {
   const { id: systemId } = useParams<{ id: string }>();
+  const canManage = useSystemMutationPermission(systemId, 'canManageSystem');
+  const workspace = useWorkspaceSession();
+  const canCreate = canManage && workspace?.workspace.permissions.canManageOrganization === true;
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
@@ -43,6 +49,15 @@ export default function LegalRegulatory() {
   const [orgItems, setOrgItems] = useState<OrgComponentDto[]>([]);
   const [orgSearch, setOrgSearch] = useState('');
   const [loadingOrg, setLoadingOrg] = useState(false);
+  const [orgError, setOrgError] = useState<string | null>(null);
+  const message = (reason: unknown) => reason instanceof Error ? reason.message
+    : reason && typeof reason === 'object' && 'error' in reason && typeof reason.error === 'string'
+      ? reason.error : 'The policy operation failed. Review the current assignment and retry.';
+  const requireManagement = () => {
+    if (canManage) return true;
+    setFormError('Your current system permission does not allow policy assignments.');
+    return false;
+  };
 
   // System-scoped: only policies assigned to THIS system
   const fetcher = useCallback(
@@ -51,8 +66,8 @@ export default function LegalRegulatory() {
       : Promise.reject('No systemId'),
     [systemId, search],
   );
-  const { data, refresh } = usePolling<{ systemId: string; items: SystemComponentDto[]; totalCount: number }>(fetcher, 30000);
-  const items = data?.items ?? [];
+  const { data, loading, error, refresh } = usePolling<{ systemId: string; items: SystemComponentDto[]; totalCount: number }>(fetcher, 30000);
+  const items = data && data.systemId === systemId ? data.items : [];
 
   const resetForm = () => {
     setFormName('');
@@ -62,6 +77,7 @@ export default function LegalRegulatory() {
   };
 
   const openCreate = () => {
+    if (!canCreate) { setFormError('Organization-management permission is required to create a library policy.'); return; }
     resetForm();
     setShowCreate(true);
   };
@@ -69,6 +85,7 @@ export default function LegalRegulatory() {
   // Create org-wide policy and assign to this system
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireManagement() || !canCreate || submitting) return;
     if (!formName.trim() || !systemId) { setFormError('Name is required'); return; }
     setSubmitting(true);
     setFormError(null);
@@ -85,8 +102,8 @@ export default function LegalRegulatory() {
       setShowCreate(false);
       resetForm();
       refresh();
-    } catch (err: any) {
-      setFormError(err?.response?.data?.error ?? 'Failed to save');
+    } catch (err: unknown) {
+      setFormError(message(err));
     } finally {
       setSubmitting(false);
     }
@@ -94,29 +111,33 @@ export default function LegalRegulatory() {
 
   // Remove assignment from this system (not the org-wide component)
   const handleRemoveAssignment = async (componentId: string) => {
-    if (!systemId) return;
+    if (!systemId || !requireManagement() || submitting) return;
+    setSubmitting(true);
+    setFormError(null);
     try {
       // Find the assignment for this system
       const orgData = await listComponents({ type: 'Policy', pageSize: 200 });
       const comp = orgData.items.find(c => c.id === componentId);
       const assignment = comp?.systemAssignments?.find(a => a.registeredSystemId === systemId);
-      if (assignment) {
-        await removeAssignment(componentId, assignment.id);
-      }
+      if (!assignment) throw new Error('The current policy assignment was not returned. Refresh the source library before removing it.');
+      await removeAssignment(componentId, assignment.id);
       setRemoveConfirm(null);
       refresh();
-    } catch { /* ignore */ }
+    } catch (reason) { setFormError(message(reason)); }
+    finally { setSubmitting(false); }
   };
 
   // Quick Add: create org-wide (if not exists) and assign to system
   const handleQuickAdd = async (policy: typeof COMMON_POLICIES[number]) => {
-    if (!systemId) return;
+    if (!systemId || !requireManagement() || submitting) return;
     setSubmitting(true);
+    setFormError(null);
     try {
       // Check org-wide library first
       const orgData = await listComponents({ type: 'Policy', search: policy.name, pageSize: 10 });
       let orgComp = orgData.items.find(c => c.name === policy.name);
       if (!orgComp) {
+        if (!canCreate) throw new Error('This policy is not in the library. An organization administrator must create it before assignment.');
         orgComp = await createOrgComponent({
           name: policy.name,
           componentType: 'Policy',
@@ -124,37 +145,38 @@ export default function LegalRegulatory() {
           status: 'Active',
         });
       }
-      // Assign to this system (ignore 409 if already assigned)
-      try {
-        await assignToSystem(orgComp.id, { registeredSystemId: systemId });
-      } catch { /* already assigned */ }
+      await assignToSystem(orgComp.id, { registeredSystemId: systemId });
       refresh();
-    } catch { /* duplicate or error — ignore */ }
+    } catch (reason) { setFormError(message(reason)); }
     finally { setSubmitting(false); }
   };
 
   // Open assign-from-library dialog
   const openAssignExisting = async () => {
+    if (!requireManagement()) return;
     setShowAssign(true);
     setLoadingOrg(true);
     setOrgSearch('');
+    setOrgError(null);
+    setFormError(null);
     try {
       const orgData = await listComponents({ type: 'Policy', pageSize: 200 });
       setOrgItems(orgData.items);
-    } catch { setOrgItems([]); }
+    } catch (reason) { setOrgItems([]); setOrgError(message(reason)); }
     finally { setLoadingOrg(false); }
   };
 
   const handleAssignExisting = async (comp: OrgComponentDto) => {
-    if (!systemId) return;
+    if (!systemId || !requireManagement() || submitting) return;
     setSubmitting(true);
+    setFormError(null);
     try {
       await assignToSystem(comp.id, { registeredSystemId: systemId });
       refresh();
       // Refresh org list to update assignment state
       const orgData = await listComponents({ type: 'Policy', pageSize: 200 });
       setOrgItems(orgData.items);
-    } catch { /* already assigned or error */ }
+    } catch (reason) { setFormError(message(reason)); }
     finally { setSubmitting(false); }
   };
 
@@ -164,16 +186,17 @@ export default function LegalRegulatory() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Legal &amp; Regulatory</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Laws, regulations, and policies applicable to this system — required for FedRAMP SSP Section 13.
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <SystemTaskHeading title="Applicable policies & references"
+        description="Review source policies and record why they apply to this system."
+        action={<button type="button" disabled={!canManage} onClick={() => void openAssignExisting()}
+          className={systemPrimaryAction}>Add policy reference</button>} />
+      <section className="rounded-[10px] border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="text-lg font-semibold">System policy references</h2>
+        <p className="mt-2 text-sm text-slate-500">Assignments link retained organization-library sources to this system. A source marked Active is not a separate approval of system applicability.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
+            disabled={!canManage}
             onClick={() => setShowQuickAdd(!showQuickAdd)}
             className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
@@ -181,7 +204,8 @@ export default function LegalRegulatory() {
           </button>
           <button
             type="button"
-            onClick={openAssignExisting}
+            disabled={!canManage}
+            onClick={() => void openAssignExisting()}
             className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             Assign Existing
@@ -189,12 +213,18 @@ export default function LegalRegulatory() {
           <button
             type="button"
             onClick={openCreate}
+            disabled={!canCreate}
             className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
-            + Legal &amp; Regulatory
+            Create library policy
           </button>
         </div>
-      </div>
+        <Link className="mt-4 inline-block text-sm text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/narratives`}>Review related implementation narratives</Link>
+      </section>
+      {formError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{formError}</p>}
+      {error && <div className="rounded-lg border border-amber-200 p-4 text-sm"><p role="alert">{message(error)}</p>
+        <button type="button" className={`mt-3 ${systemSecondaryAction}`} onClick={refresh}>Retry policy references</button></div>}
+      {loading && <p role="status">Loading system policy references…</p>}
 
       {/* Quick Add Panel */}
       {showQuickAdd && (
@@ -208,7 +238,7 @@ export default function LegalRegulatory() {
                 <button
                   key={p.name}
                   type="button"
-                  disabled={alreadyAdded || submitting}
+                  disabled={!canManage || alreadyAdded || submitting}
                   onClick={() => handleQuickAdd(p)}
                   className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     alreadyAdded
@@ -227,6 +257,7 @@ export default function LegalRegulatory() {
       {/* Search */}
       <div className="flex gap-3">
         <input
+          aria-label="Search system policy references"
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -239,7 +270,7 @@ export default function LegalRegulatory() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -257,13 +288,14 @@ export default function LegalRegulatory() {
                 <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{item.subType || '—'}</td>
                 <td className="px-6 py-4 text-sm text-gray-500 max-w-md truncate">{item.description || '—'}</td>
                 <td className="whitespace-nowrap px-6 py-4">
-                  <span className="inline-flex rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200">
+                  <span className="inline-flex rounded-full bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700 border border-slate-200">
                     {item.status}
                   </span>
                 </td>
                 <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                   <button
                     type="button"
+                    disabled={!canManage || submitting}
                     onClick={() => setRemoveConfirm({ componentId: item.id, name: item.name })}
                     className="text-red-600 hover:text-red-800"
                   >
@@ -272,10 +304,10 @@ export default function LegalRegulatory() {
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {!loading && !error && items.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500">
-                  No policies or regulations added yet. Click "+ Legal &amp; Regulatory" or use Quick Add to get started.
+                  No policy references are assigned to this system. Add a reference from the organization library to begin.
                 </td>
               </tr>
             )}
@@ -362,7 +394,7 @@ export default function LegalRegulatory() {
             </p>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setRemoveConfirm(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button type="button" onClick={() => handleRemoveAssignment(removeConfirm.componentId)} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Remove</button>
+              <button type="button" disabled={!canManage || submitting} onClick={() => void handleRemoveAssignment(removeConfirm.componentId)} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Remove</button>
             </div>
           </div>
         </div>
@@ -373,6 +405,8 @@ export default function LegalRegulatory() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl max-h-[80vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Assign from Organization Library</h3>
+            {orgError && <div className="mb-3 text-sm text-amber-900"><p>{orgError}</p><button type="button" className="underline" onClick={() => void openAssignExisting()}>Retry organization library</button></div>}
+            {formError && <p className="mb-3 text-sm text-amber-900">{formError}</p>}
             <input
               type="text"
               value={orgSearch}
@@ -399,7 +433,7 @@ export default function LegalRegulatory() {
                         ) : (
                           <button
                             type="button"
-                            disabled={submitting}
+                            disabled={!canManage || submitting}
                             onClick={() => handleAssignExisting(comp)}
                             className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                           >
@@ -409,7 +443,7 @@ export default function LegalRegulatory() {
                       </div>
                     );
                   })}
-                {orgItems.filter(c => !orgSearch || c.name.toLowerCase().includes(orgSearch.toLowerCase())).length === 0 && (
+                {!orgError && orgItems.filter(c => !orgSearch || c.name.toLowerCase().includes(orgSearch.toLowerCase())).length === 0 && (
                   <p className="text-sm text-gray-500 text-center py-4">No policies found in the organization library.</p>
                 )}
               </div>

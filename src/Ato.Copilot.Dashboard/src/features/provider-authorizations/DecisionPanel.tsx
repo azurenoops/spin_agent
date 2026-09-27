@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   createDecision, lifecycleDecision, listBoundaries, listDecisionHistory, listDecisions,
-  recordDecision, reviseDecision, listMicrosoftReferences,
+  recordDecision, reviseDecision, listInheritedProviderReferences,
 } from './api';
 import { CitationFields, compact, Field, Lines, MutationForm } from './forms';
 import type { Citation, ExternalDecision, ExternalDecisionInput, Offering } from './types';
@@ -13,6 +13,7 @@ import {
 
 type Props = {
   offering: Offering; inheritedOnly?: boolean; onChanged: () => void;
+  initialDecision?: ExternalDecision;
   initialAction?: Action; onPendingChange?: (pending: boolean) => void;
   onRefreshOffering?: () => Promise<void>;
 };
@@ -25,7 +26,8 @@ const expiryLabels = {
 };
 const kindLabels = {
   ProviderDecision: 'Provider decision',
-  InheritedMicrosoftReference: 'Inherited Microsoft reference',
+  InheritedMicrosoftReference: 'Inherited Microsoft reference (legacy category)',
+  InheritedProviderReference: 'Inherited provider reference',
 };
 const validCitations = (citations: Citation[]) => citations.length <= 100
   && citations.every(citation => Object.values(citation).every(value => value.trim().length > 0));
@@ -53,6 +55,8 @@ function SourceSnapshot({ decision }: { decision: ExternalDecision }) {
       <Value label="Snapshot hash">{decision.snapshotHash}</Value>
       <Value label="Boundary revision ID">{decision.boundaryRevisionId}</Value>
       <Value label="Issuing authority as stated">{decision.issuingAuthority ?? 'Not recorded'}</Value>
+      <Value label="Upstream provider">{decision.upstreamProvider ?? 'Not recorded'}</Value>
+      <Value label="Issuing authority type">{decision.issuingAuthorityType ?? 'Not recorded'}</Value>
       <Value label="Decision as stated">{decision.decisionAsStated ?? 'Not recorded'}</Value>
       <Value label="Issue date">{decision.issuedOn ?? 'Not recorded'}</Value>
       <Value label="Effective date">{decision.effectiveOn ?? 'Not recorded'}</Value>
@@ -149,16 +153,16 @@ function BoundarySelector({ offeringId, value, onChange }: { offeringId: string;
 
 function emptyInput(kind: ExternalDecisionInput['recordKind']): ExternalDecisionInput {
   return {
-    recordKind: kind, boundaryRevisionId: '', sourceCandidateRefs: [], reference: '', issuingAuthority: null,
+    recordKind: kind, boundaryRevisionId: '', sourceCandidateRefs: [], reference: '', issuingAuthority: null, issuingAuthorityType: null, upstreamProvider: null,
     decisionAsStated: null, issuedOn: null, effectiveOn: null, expiresOn: null, expiryBasis: 'NotRecorded',
     scopeStatement: '', conditions: [], citations: [],
   };
 }
 function sourceInput(decision: ExternalDecision): ExternalDecisionInput {
-  const { recordKind, boundaryRevisionId, sourceCandidateRefs, reference, issuingAuthority, decisionAsStated,
+  const { recordKind, boundaryRevisionId, sourceCandidateRefs, reference, issuingAuthority, issuingAuthorityType, upstreamProvider, decisionAsStated,
     issuedOn, effectiveOn, expiresOn, expiryBasis, scopeStatement, conditions, citations } = decision;
   return { recordKind, boundaryRevisionId, sourceCandidateRefs, reference, issuingAuthority, decisionAsStated,
-    issuedOn, effectiveOn, expiresOn, expiryBasis, scopeStatement, conditions, citations };
+    issuingAuthorityType: issuingAuthorityType ?? null, upstreamProvider: upstreamProvider ?? null, issuedOn, effectiveOn, expiresOn, expiryBasis, scopeStatement, conditions, citations };
 }
 
 function DraftFields({ offeringId, input, setInput, candidates, setCandidates }: {
@@ -167,11 +171,32 @@ function DraftFields({ offeringId, input, setInput, candidates, setCandidates }:
 }) {
   return <>
     <p className="text-sm">Draft kind: {kindLabels[input.recordKind]}. Saving creates unconfirmed metadata, not a recorded decision.</p>
+    {input.recordKind === 'InheritedMicrosoftReference' && <div className="space-y-2">
+      <p className="text-xs">The legacy category remains in retained history. Change it only by explicitly saving and reviewing a new successor.</p>
+      <button type="button" className={secondaryButtonClass}
+        onClick={() => setInput({ ...input, recordKind: 'InheritedProviderReference' })}>Use generic upstream-provider category</button>
+    </div>}
     <BoundarySelector offeringId={offeringId} value={input.boundaryRevisionId}
       onChange={boundaryRevisionId => setInput({ ...input, boundaryRevisionId })} />
     <Field label="Reference" value={input.reference} required onChange={reference => setInput({ ...input, reference })} />
+    {input.recordKind !== 'ProviderDecision' && <>
+      <Field label="Upstream provider" value={input.upstreamProvider ?? ''} maxLength={256}
+        onChange={upstreamProvider => setInput({ ...input, upstreamProvider: upstreamProvider || null })} />
+      <p className="text-xs">Name the actual upstream provider. Its identity is separate from the source issuer, authority type, and authorization category. A generic reference requires this identity before recording.</p>
+    </>}
     <Field label="Issuing authority as stated" value={input.issuingAuthority ?? ''}
       onChange={issuingAuthority => setInput({ ...input, issuingAuthority: issuingAuthority || null })} />
+    <label className="grid gap-1 text-sm">Issuing authority type
+      <select className={inputClass} value={input.issuingAuthorityType ?? ''} onChange={event => {
+        const value = event.target.value;
+        if (value === '' || value === 'person' || value === 'organization')
+          setInput({ ...input, issuingAuthorityType: value || null });
+      }}>
+        <option value="">Not recorded</option><option value="person">Person</option><option value="organization">Organization</option>
+      </select>
+    </label>
+    <p className="text-xs">Select only the type supported by reviewed source metadata, never inferred from the issuer name.
+      Leveraged OSCAL export requires an explicitly reviewed type. Saving a draft does not update recorded decisions or adopted releases.</p>
     <Field label="Decision as stated" value={input.decisionAsStated ?? ''}
       onChange={decisionAsStated => setInput({ ...input, decisionAsStated: decisionAsStated || null })} />
     <div className="grid gap-3 sm:grid-cols-3">
@@ -277,7 +302,8 @@ function DecisionEditor({ offering, kind, original, action, onSaved, onCancel, o
     if (action === 'record') {
       requireValid(base.metadataReviewState === 'Unconfirmed' && confirmed && !!rationale.trim()
         && !!base.issuingAuthority?.trim() && !!base.reference.trim() && !!base.scopeStatement.trim()
-        && !!base.boundaryRevisionId && base.citations.length > 0 && validCitations(base.citations),
+        && !!base.boundaryRevisionId && base.citations.length > 0 && validCitations(base.citations)
+        && (base.recordKind !== 'InheritedProviderReference' || !!base.upstreamProvider?.trim()),
       'Recording requires explicit human review, rationale, source authority/reference/scope and supporting citations.');
       return recordDecision(offering.offeringId, base, rationale);
     }
@@ -320,7 +346,7 @@ function DecisionEditor({ offering, kind, original, action, onSaved, onCancel, o
         }}>Use refreshed revision with retained inputs</button>}
       {!base && <p className="text-sm">Submitted offering revision: {offeringRevision}. Current offering revision: {offering.revision}.</p>}
     </div>}
-    <MutationForm label={action === 'draft' ? base ? 'Save successor draft' : kind === 'InheritedMicrosoftReference' ? 'Save reference draft' : 'Save draft'
+    <MutationForm label={action === 'draft' ? base ? 'Save successor draft' : kind !== 'ProviderDecision' ? 'Save reference draft' : 'Save draft'
       : action === 'record' ? 'Record external metadata' : 'Save lifecycle event'}
       submit={submit} onSaved={() => { if (result.current) onSaved(result.current); }} disabled={stale || unavailable} onPendingChange={onPendingChange}>
       {action === 'draft' ? <DraftFields offeringId={offering.offeringId} input={input} setInput={setInput}
@@ -350,44 +376,48 @@ function DecisionEditor({ offering, kind, original, action, onSaved, onCancel, o
   </section>;
 }
 
-function DecisionWorkspace({ offering, inheritedOnly = false, onChanged, initialAction, onPendingChange, onRefreshOffering }: Props) {
+function DecisionWorkspace({ offering, inheritedOnly = false, initialDecision, onChanged, initialAction, onPendingChange, onRefreshOffering }: Props) {
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<ExternalDecision | null>(null);
+  const [selected, setSelected] = useState<ExternalDecision | null>(initialDecision ?? null);
   const [action, setAction] = useState<Action | null>(initialAction ?? null);
   const [showHistory, setShowHistory] = useState(false);
-  const kind = inheritedOnly ? 'InheritedMicrosoftReference' : 'ProviderDecision';
-  const decisions = useRemote(signal => inheritedOnly
-    ? listMicrosoftReferences(offering.offeringId, page, signal) : listDecisions(offering.offeringId, page, signal, 'ProviderDecision'),
-  [offering.offeringId, page, inheritedOnly]);
+  const kind = inheritedOnly ? 'InheritedProviderReference' : 'ProviderDecision';
+  const matchesKind = (record: ExternalDecision) => inheritedOnly
+    ? record.recordKind === 'InheritedProviderReference' || record.recordKind === 'InheritedMicrosoftReference'
+    : record.recordKind === 'ProviderDecision';
+  const decisions = useRemote(signal => initialDecision
+    ? Promise.resolve({ items: [initialDecision], page: 1, pageSize: 25, total: 1 }) : inheritedOnly
+    ? listInheritedProviderReferences(offering.offeringId, page, signal) : listDecisions(offering.offeringId, page, signal, 'ProviderDecision'),
+  [offering.offeringId, page, inheritedOnly, initialDecision?.revision]);
   const refresh = () => { decisions.retry(); onChanged(); };
   return <section className="min-w-0 space-y-4">
-    <h2 className="text-lg font-semibold">{inheritedOnly ? 'Microsoft reference records' : 'Existing authorization records'}</h2>
+    <h2 className="text-lg font-semibold">{inheritedOnly ? 'Upstream provider references' : 'Existing authorization records'}</h2>
     {!inheritedOnly && <p className={warningClass}>SPIN does not issue a mission ATO or independently verify external authorization.
-      Provider decisions and inherited Microsoft references are separate records. Hosting allocation is not covered workload status.</p>
+      Provider decisions and inherited upstream-provider references are separate records. Hosting allocation is not covered workload status.</p>
     }
-    <section aria-label="Decision list" className={`${surfaceClass} space-y-3 p-4`}>
+    {!initialDecision && <section aria-label="Decision list" className={`${surfaceClass} space-y-3 p-4`}>
       <Status loading={decisions.loading} error={decisions.error} retry={decisions.retry} />
       {decisions.data && <>
-        <p className="text-xs">{inheritedOnly ? 'Microsoft reference records; totals include only this record kind.' : 'Provider authorization records only; inherited Microsoft references are listed separately.'}</p>
-        <ul className="space-y-3">{decisions.data.items.filter(item => item.recordKind === kind).map(item =>
+        <p className="text-xs">{inheritedOnly ? 'Upstream references, including unchanged legacy Microsoft records; totals include both inherited categories.' : 'Provider authorization records only; upstream references are listed separately.'}</p>
+        <ul className="space-y-3">{decisions.data.items.filter(matchesKind).map(item =>
           <li key={item.recordId} className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
             <span className="break-words text-sm">{item.reference} · {item.metadataReviewState} · {item.currentStanding}</span>
             <button type="button" className={secondaryButtonClass} disabled={action !== null} onClick={() => {
               setSelected(item); setShowHistory(false);
             }}>Open {item.reference}</button>
           </li>)}</ul>
-        {!decisions.data.items.some(item => item.recordKind === kind) && <p>No decisions on this page.</p>}
+        {!decisions.data.items.some(matchesKind) && <p>No decisions on this page.</p>}
         <fieldset disabled={action !== null}><Pager {...decisions.data} onPage={setPage} /></fieldset>
       </>}
       <button type="button" className={secondaryButtonClass} disabled={action !== null || decisions.loading || !!decisions.error}
         onClick={() => { setSelected(null); setShowHistory(false); setAction('draft'); }}>{inheritedOnly ? 'Add reference' : 'Add authorization record'}</button>
       <button type="button" className={secondaryButtonClass} disabled={action !== null || decisions.loading}
         onClick={() => { setSelected(null); setShowHistory(false); refresh(); }}>Refresh decisions</button>
-    </section>
+    </section>}
     {selected && <section aria-label="Selected decision" className={`${surfaceClass} space-y-4 p-4`}>
       <h3 className="font-semibold">Selected immutable decision snapshot</h3>
       <p className="font-medium">{selected.reference}</p>
-      <details><summary className="cursor-pointer font-medium">Details</summary><SourceSnapshot decision={selected} /></details>
+      <details open={!!initialDecision}><summary className="cursor-pointer font-medium">Details</summary><SourceSnapshot decision={selected} /></details>
       {!exactSnapshot(selected) && <p role="alert" className={errorClass}>Exact revision and snapshot are unavailable. Refresh before making changes.</p>}
       {action === null && <div className="flex flex-wrap gap-2">
         <button type="button" className={secondaryButtonClass} disabled={!exactSnapshot(selected)} onClick={() => setAction('draft')}>Revise draft</button>

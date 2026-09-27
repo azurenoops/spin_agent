@@ -8,6 +8,27 @@ namespace Ato.Copilot.Tests.Unit.ProviderAuthorizations;
 
 public sealed class ProviderDecisionEligibilityTests
 {
+    [Fact]
+    public void GenericUpstreamReference_PreservesIdentityButCannotSubstituteForProviderAuthority()
+    {
+        // Arrange
+        var revision = Revision(recordKind: "InheritedProviderReference");
+        var source = ProviderAuthorizationStore.Read<CreateProviderDecisionRequest>(revision.SnapshotJson) with
+        { UpstreamProvider = "Synthetic non-Microsoft SaaS", IssuingAuthorityType = "person" };
+        revision.SnapshotJson = ProviderAuthorizationStore.Json(source);
+        revision.SnapshotHash = ProviderAuthorizationStore.Hash(revision.SnapshotJson);
+
+        // Act
+        var upstream = ProviderDecisionEligibility.Evaluate(revision, [], "InheritedProviderReference");
+        var provider = ProviderDecisionEligibility.Evaluate(revision, []);
+
+        // Assert
+        upstream.Should().BeNull();
+        provider!.Code.Should().Be("PROVIDER_DECISION_REQUIRED");
+        ProviderAuthorizationStore.Read<CreateProviderDecisionRequest>(revision.SnapshotJson)
+            .IssuingAuthorityType.Should().Be("person", "the upstream provider name does not choose the authority's party type");
+    }
+
     private static ProviderAuthorizationRevision Revision(string? statement = "ATO",
         string recordKind = "ProviderDecision", string? issued = null, string? effective = "2020-01-01",
         string? expires = "2099-12-31", string expiryBasis = "DateStated")

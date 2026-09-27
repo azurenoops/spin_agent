@@ -122,10 +122,10 @@ public sealed partial class ProviderMissionService
         if (offering.CurrentHostingScopeRevisionId != allocation.HostingScopeRevisionId)
             blockers.Add(new("HOSTING_CONTEXT_STALE", "The existing allocation requires a current hosting scope."));
         var body = Read<CreateProviderBoundaryRequest>(boundary.SnapshotJson);
-        var scopes = Read<ProviderAzureScope[]>(allocation.AssignedScopesJson);
+        var scopes = Read<ProviderScope[]>(allocation.AssignedScopesJson);
         if (scopes.Length == 0 || scopes.Any(x => !body.IncludedScopes.Any(p => Contains(p, x))
             || body.Exclusions.Any(e => e.Scope is null || Contains(e.Scope, x) || Contains(x, e.Scope))))
-            blockers.Add(new("OUTSIDE_RECORDED_SCOPE", "The allocation is not within the recorded Azure scope."));
+            blockers.Add(new("OUTSIDE_RECORDED_SCOPE", "The allocation is not within the exact recorded hosting or service scope."));
         return blockers;
     }
 

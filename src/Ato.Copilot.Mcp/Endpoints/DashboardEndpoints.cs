@@ -41,6 +41,7 @@ public static partial class DashboardEndpoints
             .RequireAuthorization();
 
         MapSystemRoutes(group, app, currentUser);
+        MapSystemHistoryRoutes(group);
         MapComponentRoutes(group, app, currentUser);
         MapCapabilityRoutes(group, app);
         MapRoadmapRoutes(group, app);

@@ -28,7 +28,7 @@ public sealed partial class ProviderAuthorizationService
         {
             var package = await db.CspPackages.SingleOrDefaultAsync(x => x.Id == packageId && x.ProviderId == provider, ct)
                 ?? throw new KeyNotFoundException("Package was not found in this provider.");
-            if (package.Revision != request.ExpectedPackageRevision || package.ProcessingState == "Processing")
+            if (package.SupersededAt.HasValue || package.Revision != request.ExpectedPackageRevision || package.ProcessingState == "Processing")
                 throw new DbUpdateConcurrencyException("The package changed or is processing; reload before association.");
             var version = await CspPackageService.AssociateOfferingAsync(db, package,
                 new(request.OfferingId, request.ExpectedOfferingRevision, request.BoundaryRevisionId,
@@ -48,7 +48,8 @@ public sealed partial class ProviderAuthorizationService
     {
         await using var db = await store.Factory.CreateDbContextAsync(ct);
         var offering = await store.OfferingAsync(db, id, ct);
-        var query = db.Set<ProviderPackageVersion>().AsNoTracking().Where(x => x.ProviderId == offering.ProviderId && x.OfferingId == id);
+        var query = db.Set<ProviderPackageVersion>().AsNoTracking().Where(x => x.ProviderId == offering.ProviderId && x.OfferingId == id
+            && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == offering.ProviderId && p.SupersededAt == null));
         if (seriesId.HasValue) query = query.Where(x => x.SeriesId == seriesId);
         return await PageAsync(query.OrderBy(x => x.SeriesId).ThenByDescending(x => x.Version), page, pageSize, PackageVersion, ct);
     }

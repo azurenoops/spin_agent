@@ -605,6 +605,11 @@ public class AtoCopilotContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<SspExport>().HasIndex(x => x.RequestScopeKey).IsUnique()
+            .HasDatabaseName("IX_SspExports_RequestScopeKey").HasFilter("[RequestScopeKey] IS NOT NULL");
+        modelBuilder.Entity<AuthorizationPackage>().HasIndex(x => x.RequestScopeKey).IsUnique()
+            .HasDatabaseName("IX_AuthorizationPackages_RequestScopeKey").HasFilter("[RequestScopeKey] IS NOT NULL");
+
         // ─── Value Converters ────────────────────────────────────────────────────
         var stringListConverter = new ValueConverter<List<string>, string>(
             v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
@@ -1127,7 +1132,7 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ResourceGroupName).HasMaxLength(200);
             entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
 
-            entity.HasIndex(e => new { e.SubscriptionId, e.ResourceGroupName })
+            entity.HasIndex(e => new { e.TenantId, e.SubscriptionId, e.ResourceGroupName })
                 .IsUnique()
                 .HasDatabaseName("IX_MonitoringConfig_Sub_RG");
             entity.HasIndex(e => new { e.NextRunAt, e.IsEnabled })
@@ -3398,18 +3403,22 @@ public class AtoCopilotContext : DbContext
         modelBuilder.Entity<CspPackageCandidate>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
         modelBuilder.Entity<CspPackageApproval>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
         modelBuilder.Entity<CspPackageAudit>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
-        modelBuilder.Entity<CspPackage>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
+        modelBuilder.Entity<CspPackage>().HasQueryFilter(x => x.ArchivedAt == null && (TenantFilterDisabled || TenantFilterCspAdminAll));
         modelBuilder.Entity<CspPackageEntry>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
         modelBuilder.Entity<CspPackageCandidate>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
         modelBuilder.Entity<CspPackageApproval>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
         modelBuilder.Entity<CspPackageAudit>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
         Ato.Copilot.Core.Data.Configurations.ProviderAuthorizationModelConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.ProviderMonitoringModelConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.ScopedMonitoringModelConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.ProviderEvidenceSharingConfiguration.Configure(modelBuilder);
 
         // ─── Tenant query filters (Feature 048 T042) ─────────────────────────────
         // Applied last so all entity types are present in the model. Walks the
         // model and attaches a HasQueryFilter to every CLR type decorated with
         // [TenantScoped]. The filter resolves the active tenant via the
         // ambient accessor captured into the closure.
+        modelBuilder.ApplyConfiguration(new Ato.Copilot.Core.Data.Configurations.EmassExchangeConfiguration());
         ApplyTenantQueryFilters(modelBuilder);
     }
 

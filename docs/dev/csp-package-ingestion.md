@@ -4,6 +4,62 @@ This workflow extends Features 048 and 078. It must be manually accepted before
 being declared complete. Local implementation/testing does not authorize a
 Docker deployment, live provider changes, GitHub updates or pushes.
 
+## Archive superseded unpublished sources
+
+When a published canonical context still cites an old unpublished source, archival
+correctly refuses it. Instead use
+`POST /api/csp/package-imports/{id}/supersede-review` with `expectedRevision`,
+`replacementPackageId` (an active Published receipt in the same offering), and
+`reason`. This retires review work only: original sources remain available to
+canonical contexts and history, source-document counts remain intact, and no
+candidate is falsely marked reviewed. Retired review work is read-only and hidden
+from active receipt lists and candidate work options. Matching replays are
+idempotent; this operation does not weaken archival guards.
+
+Review retirement adds nullable ledger metadata: `SupersededByPackageId`,
+`SupersededAt`, `SupersededBy`, and `SupersedeReason`. SQLite legacy-schema
+upgrade/replay and SQL Server additive-DDL assertions are covered. The combined
+archive, retirement and provider regression selection passed 489 tests locally,
+including unchanged canonical context, retained bytes, HTTP authorization,
+published-replacement validation, active review counts and candidate-option
+denial. Runtime invocation and manual acceptance remain separate.
+
+Direct retired-package navigation shows the retirement reason, actor and
+replacement link. Candidate filters, retained citations and source downloads
+remain available; review, exclusion, retry, enrichment and publication actions
+are hidden or disabled. Saved previews are displayed as stale read-only history,
+not revalidated as new publication work.
+Historical-navigation follow-up validation passed 128 package UI tests, 60
+targeted retirement/archive/recovery backend tests, and Dashboard `tsc -b`.
+
+Use `POST /api/csp/package-imports/{id}/archive` with the current
+`expectedRevision` and a nonblank `reason` (at most 2000 characters).
+This requires an ordinary CSP administrator, not support impersonation.
+Queued/processing packages, live worker leases, publication and canonical
+source references block archival. Replaying the same revision, actor and reason
+returns the saved archive without another audit event.
+
+Archival preserves source bytes and every ledger row; it does not approve,
+publish or delete anything. Active package lists, offering source counts and
+boundary candidate counts exclude archived receipts. Explicit
+`GET /api/csp/package-imports/{id}/history` returns receipt metadata and audit
+events. Existing ID-specific entries, candidates and artifact-content routes
+remain authorized read-only history access. Archived receipts reject mutations.
+
+For manual acceptance, archive only the intended unpublished receipt, inspect
+its history and original download, and verify unrelated and published receipts
+and capability counts remain unchanged. No deployment or data mutation is
+performed by the automated tests.
+
+Local archive verification: 472 targeted package-service, schema, worker,
+review-recovery, provider-authorization and archive tests passed. Archive-specific
+coverage includes HTTP authorization/409/422 behavior, replay without duplicate
+archive audit, legacy SQLite additive upgrades, retained bytes/approvals,
+canonical-reference denial, matching offering/boundary counts, and archived
+candidate/package exclusion from impact-option lists and exact lookups. SQL Server
+additive DDL is asserted; no live SQL Server archive or manual acceptance is
+claimed by that test result.
+
 ## Approved local AI connection - September 24, 2026
 
 The retained Flank Speed receipt `b75da9a4-3b95-41ff-b87b-26668a412a77`

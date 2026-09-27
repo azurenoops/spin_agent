@@ -6,6 +6,7 @@ import EvidenceUploadDialog from '../../components/EvidenceUploadDialog';
 import EvidenceDetailPanel from '../../components/EvidenceDetailPanel';
 import * as evidence from '../../api/evidence';
 import apiClient from '../../api/client';
+import { listMissionEvidence } from '../../features/provider-authorizations/evidenceSharingApi';
 import { useWorkspaceSession, type WorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 import type { SystemWorkspacePermissions } from '../../features/workspaces/types';
 import type { EvidenceArtifactDto } from '../../types/evidence';
@@ -13,6 +14,9 @@ import { invokeClick, workspaceSession } from '../helpers/domainPermissions';
 
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
 vi.mock('../../api/client', () => ({ default: { get: vi.fn().mockResolvedValue({ data: [] }) } }));
+vi.mock('../../features/provider-authorizations/evidenceSharingApi', () => ({
+  listMissionEvidence: vi.fn(), summaryUrl: vi.fn(),
+}));
 vi.mock('../../api/evidence', () => ({
   listEvidence: vi.fn(), getEvidenceSummary: vi.fn().mockResolvedValue(null),
   getEvidence: vi.fn(), getEvidenceVersions: vi.fn().mockResolvedValue([]),
@@ -53,6 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(useWorkspaceSession).mockReturnValue(session());
   vi.mocked(apiClient.get).mockResolvedValue({ data: [] });
+  vi.mocked(listMissionEvidence).mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 25 });
   vi.mocked(evidence.listEvidence).mockResolvedValue({ items: [artifact], page: 1, pageSize: 50, totalCount: 1 });
   vi.mocked(evidence.getEvidence).mockResolvedValue(artifact);
   vi.mocked(evidence.replaceEvidence).mockResolvedValue(artifact);
@@ -63,6 +68,41 @@ beforeEach(() => {
 afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
 
 describe('Evidence mutation authorization (#1017)', () => {
+  it('shows mission records and provider summary availability without an extra reveal action', async () => {
+    // Arrange / Act
+    render(wrapped(<EvidenceRepository />));
+    // Assert
+    expect(await screen.findByRole('region', { name: 'Provider-approved evidence' })).toBeVisible();
+    expect(await screen.findByText(/No approved provider evidence is available/)).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Mission evidence' })).toBeVisible();
+    expect(screen.getByRole('table', { name: 'Mission evidence records' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'View provider-approved evidence' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload Evidence' })).toBeDisabled();
+    expect(evidence.uploadEvidence).not.toHaveBeenCalled();
+  });
+
+  it('opens a retained artifact through a keyboard-accessible review action', async () => {
+    // Arrange
+    render(wrapped(<EvidenceRepository />));
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Review evidence evidence.json' }));
+    // Assert
+    expect(screen.getByRole('heading', { name: 'Evidence for control assessment' })).toBeVisible();
+    expect(await screen.findByText('test-hash')).toBeVisible();
+    expect(evidence.getEvidence).toHaveBeenCalledWith(systemId, artifact.id);
+  });
+
+  it('does not present a failed evidence query as an empty repository', async () => {
+    // Arrange
+    vi.mocked(evidence.listEvidence).mockRejectedValue(new Error('Evidence query unavailable'));
+    // Act
+    render(wrapped(<EvidenceRepository />));
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('Evidence query unavailable');
+    expect(screen.getByRole('button', { name: 'Retry evidence records' })).toBeVisible();
+    expect(screen.queryByText('No evidence found. Upload evidence or adjust your filters.')).not.toBeInTheDocument();
+  });
+
   it.each(['AO', 'ISSM'])('ignores MissionOwner forged %s preference for repository controls and handlers', async role => {
     // Arrange
     localStorage.setItem('ato-dashboard-settings', JSON.stringify({ role }));

@@ -649,6 +649,10 @@ public class EmassExportService : IEmassExportService
         // Delegate to the dedicated OSCAL 1.1.2 SSP export service
         var result = await _oscalSspExportService.ExportAsync(
             system.Id, includeBackMatter: true, prettyPrint: true, cancellationToken);
+        if (result.ProviderProvenanceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("; ", result.ProviderProvenanceGaps));
+        if (result.ProfileSourceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("; ", result.ProfileSourceGaps));
         return result.OscalJson;
     }
 

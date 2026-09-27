@@ -1,10 +1,58 @@
 namespace Ato.Copilot.Core.Dtos.Dashboard;
 
+public sealed record DocumentSourceReference(string Kind, string RecordId, string VersionId, string ContentHash);
+/// <summary>Tracked profile/provider sources; other SSP inputs remain explicitly current working data.</summary>
+public sealed record DocumentSourceManifest(string Scope, IReadOnlyList<DocumentSourceReference> Profiles,
+    IReadOnlyList<DocumentSourceReference> ProviderSources)
+{
+    public IReadOnlyList<DocumentSourceReference> Narratives { get; init; } = [];
+    public string OtherSources => "CurrentWorkingDataAtGeneration";
+    public IReadOnlyList<DocumentEvidenceReference> Evidence { get; init; } = [];
+    public string EvidenceStatus { get; init; } = "NotEvaluated";
+    public IReadOnlyList<DocumentResponsibilityReference> Responsibilities { get; init; } = [];
+}
+
+public sealed record DocumentResponsibilityReference(string? BaselineId, string SubscriptionId, Guid CapabilityId,
+    string ControlId, string State, string SourceRevision, string ReviewRevision, string? ReviewedSourceRevision,
+    string? InheritanceType, string? Provider, string? CustomerResponsibility, string? ConfirmedBy, DateTimeOffset? ConfirmedAt);
+
+public sealed record DocumentEvidenceReference(Guid ShareId, Guid EvidenceId, long Version, Guid? PreviousVersionId,
+    string ContentHash, string SourceSha256, long EvidenceRevision, Guid AssignmentId, long AssignmentRevision,
+    string ApprovedBy, DateTimeOffset ApprovedAt)
+{
+    public string Permission => "ApprovedSummaryOnly";
+    public bool PrivateAttachmentAccess => false;
+}
+
+/// <summary>
+/// Actual OSCAL generated from currently visible working data. Not an approved baseline,
+/// retained export, package readiness result, or immutable source-manifest snapshot.
+/// </summary>
+public sealed record DocumentPreviewDto(
+    string SystemId,
+    string Format,
+    string ContentType,
+    string Content,
+    string ContentHash,
+    DateTimeOffset GeneratedAt,
+    IReadOnlyList<DocumentSourceGapDto> SourceGaps)
+{
+    public Guid? PreviewId { get; init; }
+    public DocumentSourceManifest? SourceManifest { get; init; }
+    public bool IsPreview => true;
+    public string SourceState => "CurrentWorkingData";
+}
+
+/// <summary>A diagnostic emitted by the generator, not a browser-derived readiness conclusion.</summary>
+public sealed record DocumentSourceGapDto(string Code, string Message);
+
 /// <summary>
 /// Request body for POST /systems/{systemId}/exports.
 /// </summary>
 public record CreateExportRequest
 {
+    /// <summary>Optional retained OSCAL preview. Currently supported only for JSON.</summary>
+    public Guid? SourcePreviewId { get; init; }
     /// <summary>Export format: docx, pdf, json.</summary>
     public required string Format { get; init; }
 
@@ -33,6 +81,8 @@ public record ExportSummaryDto
 /// </summary>
 public record ExportDetailDto
 {
+    public Guid? SourcePreviewId { get; init; }
+    public DocumentSourceManifest? SourceManifest { get; init; }
     public Guid ExportId { get; init; }
     public string SystemId { get; init; } = string.Empty;
     public string Format { get; init; } = string.Empty;

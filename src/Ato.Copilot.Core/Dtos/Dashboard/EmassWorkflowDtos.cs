@@ -44,11 +44,13 @@ public record EmassConflictDto(
     ConflictStatus ConflictStatus,
     DateTimeOffset DetectedAt,
     DateTimeOffset? ResolvedAt,
-    string? ResolvedBy);
+    string? ResolvedBy,
+    string? Rationale = null);
 
 public record ResolveConflictRequest(
     ConflictStatus Resolution,
-    string? Notes = null);
+    string? Notes = null,
+    string? Rationale = null);
 
 public record EmassSyncResult(
     string BatchId,

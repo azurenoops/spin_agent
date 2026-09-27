@@ -12,6 +12,7 @@ import type { DeviationListItem } from '../types/dashboard';
 import SyncIndicator from '../components/poam/SyncIndicator';
 import CreateRemediationTaskModal from '../components/remediation/CreateRemediationTaskModal';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
+import { SystemTaskHeading, systemPrimaryAction } from '../features/systems/SystemTaskPresentation';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ export default function Remediation() {
   const { data: summary, loading, error, refresh } = usePolling<RemediationSummary>(fetchSummary, pollInterval);
 
   const fetchTasks = useCallback(() => getRemediationTasks({ systemId }), [systemId]);
-  const { data: tasksData, refresh: refreshTasks } = usePolling(fetchTasks, pollInterval);
+  const { data: tasksData, loading: tasksLoading, error: tasksError, refresh: refreshTasks } = usePolling(fetchTasks, pollInterval);
 
   // DnD state
   const dragTaskRef = useRef<string | null>(null);
@@ -216,6 +217,12 @@ export default function Remediation() {
       t.severity.toLowerCase().includes(q)
     );
   }, [tasksData, searchText]);
+  const priorityTask = useMemo(() => {
+    const priority: Record<string, number> = { CatI: 0, CatII: 1, CatIII: 2, Critical: 0, High: 1, Medium: 2, Low: 3 };
+    return [...(tasksData?.items ?? [])].filter(task => task.status !== 'Done')
+      .sort((a, b) => (priority[a.catSeverity ?? a.severity] ?? 99) - (priority[b.catSeverity ?? b.severity] ?? 99)
+        || new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
+  }, [tasksData]);
 
   // POA&M search for Link to POA&M picker
   const handleLinkPoamSearch = async (query: string) => {
@@ -228,8 +235,9 @@ export default function Remediation() {
         id: p.id, controlId: p.controlId, weakness: p.weakness, status: p.status,
         hasTask: !!p.remediationTaskId,
       })));
-    } catch {
+    } catch (reason) {
       setLinkPoamResults([]);
+      setLinkError(reason instanceof Error ? reason.message : 'The POA&M search failed.');
     }
   };
 
@@ -265,12 +273,12 @@ export default function Remediation() {
           </div>
         )}
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Remediation Tasks</h2>
-            <p className="mt-1 text-sm text-gray-500">Track remediation tasks and manage task lifecycle.</p>
-          </div>
-          <div className="flex items-center gap-3">
+        <SystemTaskHeading title="Findings & remediation"
+          description="Assign corrective work and verify the outcome before closing a finding."
+          action={<button type="button" className={systemPrimaryAction} disabled={!priorityTask || !!tasksError}
+            title="Highest recorded severity, then earliest due date, among open tasks."
+            onClick={() => { if (priorityTask) setSelectedTask(priorityTask); }}>Review highest-priority task</button>} />
+          <div className="flex flex-wrap items-center gap-3">
             {/* fix(#441): Create Task button — standalone task creation */}
             <button
               type="button"
@@ -326,7 +334,10 @@ export default function Remediation() {
             {/* Export CSV */}
             <button
               type="button"
-              onClick={() => void exportTasks(systemId)}
+              onClick={async () => {
+                try { await exportTasks(systemId); }
+                catch (reason) { setMoveError(reason instanceof Error ? reason.message : 'Task export failed.'); }
+              }}
               className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
             >
               <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -335,7 +346,9 @@ export default function Remediation() {
               Export CSV
             </button>
           </div>
-        </div>
+        <p className="rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
+          Contributes to SAR findings and linked POA&amp;M remediation. Review verification evidence before closing work; task completion is not an authorization decision.
+        </p>
 
         {/* Loading / Error */}
         {loading && !summary && (
@@ -346,9 +359,16 @@ export default function Remediation() {
         {error && (
           <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">{String(error)}</div>
         )}
+        {tasksLoading && !tasksData && <p role="status">Loading remediation records…</p>}
+        {tasksError && <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm">
+          <p role="alert">{String(tasksError)}</p><button type="button" className="mt-2 underline" onClick={refreshTasks}>Retry remediation tasks</button>
+        </div>}
 
-        {summary && (
+        {tasksData && !tasksError && (
           <>
+            {summary && <details className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <summary className="cursor-pointer text-sm font-semibold">Remediation summary and pipeline</summary>
+              <div className="mt-4 space-y-4">
             {/* ──── Task Summary Cards ──── */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -409,11 +429,13 @@ export default function Remediation() {
               </div>
             )}
 
+              </div>
+            </details>}
             {/* ──── View Switcher: Table vs Kanban ──── */}
             {viewMode === 'table' ? (
               <>
                 {/* Task Table */}
-                <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead className="bg-gray-50">
                       <tr>

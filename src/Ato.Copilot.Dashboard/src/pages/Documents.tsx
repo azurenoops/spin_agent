@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Link } from '../features/workspaces/workspaceNavigation';
+import { Link, useLocation } from '../features/workspaces/workspaceNavigation';
 import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { getSystemDocuments } from '../api/documents';
@@ -17,6 +17,7 @@ import PackageGenerationDialog from '../components/PackageGenerationDialog';
 import { listPackages, downloadPackageUrl } from '../api/package';
 import type { PackageSummary } from '../api/package';
 import AuthenticatedDownload from '../components/AuthenticatedDownload';
+import SystemPackageValidation from '../features/systems/SystemPackageValidation';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -410,18 +411,32 @@ function ImportHistorySection({ imports }: { imports: ScanImportInfo[] }) {
 function ExportsSection({ data, onExportClick, onManageTemplates }: { data: SystemDocumentsResponse; onExportClick: () => void; onManageTemplates: () => void }) {
   const [exportHistory, setExportHistory] = useState<ExportSummary[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyAttempt, setHistoryAttempt] = useState(0);
 
   useEffect(() => {
+    let current = true;
+    setHistoryLoading(true);
+    setHistoryError(null);
     listExports(data.systemId, { limit: 10 })
-      .then(res => setExportHistory(res.items))
-      .catch(() => setExportHistory([]));
-  }, [data.systemId]);
+      .then(res => {
+        if (!Array.isArray(res?.items)) throw new Error('The server did not return export history.');
+        if (current) setExportHistory(res.items);
+      })
+      .catch(reason => {
+        if (current) setHistoryError(reason instanceof Error ? reason.message : 'Export history unavailable.');
+      })
+      .finally(() => { if (current) setHistoryLoading(false); });
+    return () => { current = false; };
+  }, [data.systemId, historyAttempt]);
 
+  const base = `/systems/${encodeURIComponent(data.systemId)}`;
   const exports = [
-    { label: 'eMASS Controls Export', format: '.xlsx', available: data.hasBaseline },
-    { label: 'eMASS POA&M Export', format: '.xlsx', available: data.poamCount > 0 },
+    { label: 'eMASS Controls Export', format: '.xlsx', available: data.hasBaseline, to: `${base}/emass/status` },
+    { label: 'eMASS POA&M Export', format: '.xlsx', available: data.poamCount > 0, to: `${base}/poam` },
     { label: 'OSCAL SSP (JSON)', format: '.json', available: data.ssp.totalNarratives > 0 },
-    { label: 'HW/SW Inventory', format: '.xlsx', available: data.inventoryItemCount > 0 },
+    { label: 'HW/SW Inventory', format: '.xlsx', available: data.inventoryItemCount > 0, to: `${base}/security-capabilities/inventory` },
     { label: 'OSCAL POA&M (JSON)', format: '.json', available: data.poamCount > 0, href: oscalPoamUrl(data.systemId) },
     { label: 'OSCAL Assessment Results (JSON)', format: '.json', available: data.hasBaseline, href: oscalAssessmentResultsUrl(data.systemId) },
     { label: 'OSCAL Assessment Plan (JSON)', format: '.json', available: data.hasBaseline, href: oscalSapUrl(data.systemId) },
@@ -444,7 +459,7 @@ function ExportsSection({ data, onExportClick, onManageTemplates }: { data: Syst
         icon="📤"
         title="Exports"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={onManageTemplates}
               className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -485,15 +500,20 @@ function ExportsSection({ data, onExportClick, onManageTemplates }: { data: Syst
                 </svg>
                 Download
               </AuthenticatedDownload>
+            ) : exp.to ? (
+              <Link to={exp.to} className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50">
+                Open workflow
+              </Link>
             ) : (
               <button
                 disabled={!exp.available}
+                onClick={onExportClick}
                 className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                 </svg>
-                Download
+                Export SSP
               </button>
             )}
           </div>
@@ -501,7 +521,13 @@ function ExportsSection({ data, onExportClick, onManageTemplates }: { data: Syst
       </div>
 
       {/* Export History */}
-      {exportHistory.length > 0 && (
+      {historyLoading && <p role="status" className="p-4 text-sm text-gray-500">Loading export history…</p>}
+      {historyError && <div className="space-y-2 p-4 text-sm text-amber-900">
+        <p role="alert">{historyError}</p>
+        <button className="rounded border px-3 py-2" type="button" onClick={() => setHistoryAttempt(value => value + 1)}>Retry export history</button>
+      </div>}
+      {!historyLoading && !historyError && exportHistory.length === 0 && <p className="p-4 text-sm text-gray-500">No SSP exports generated yet.</p>}
+      {!historyLoading && !historyError && exportHistory.length > 0 && (
         <>
           <div className="border-t border-gray-200 px-5 py-2 bg-gray-50">
             <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Export History</h4>
@@ -595,12 +621,25 @@ function PackageHistorySection({
 }) {
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyAttempt, setHistoryAttempt] = useState(0);
 
   useEffect(() => {
+    let current = true;
+    setHistoryLoading(true);
+    setHistoryError(null);
     listPackages(systemId, { limit: 10, includeFailed: true })
-      .then((res) => setPackages(Array.isArray(res?.items) ? res.items : []))
-      .catch(() => setPackages([]));
-  }, [systemId, refreshKey]);
+      .then(res => {
+        if (!Array.isArray(res?.items)) throw new Error('The server did not return package history.');
+        if (current) setPackages(res.items);
+      })
+      .catch(reason => {
+        if (current) setHistoryError(reason instanceof Error ? reason.message : 'Package history unavailable.');
+      })
+      .finally(() => { if (current) setHistoryLoading(false); });
+    return () => { current = false; };
+  }, [systemId, refreshKey, historyAttempt]);
 
   const visible = showAll ? packages : packages.slice(0, 5);
 
@@ -629,7 +668,12 @@ function PackageHistorySection({
         }
       />
 
-      {packages.length === 0 ? (
+      {historyLoading ? <p role="status" className="p-4 text-sm">Loading package history…</p> : historyError ? (
+        <div className="space-y-2 p-4 text-sm text-amber-900">
+          <p role="alert">{historyError}</p>
+          <button type="button" className="rounded border px-3 py-2" onClick={() => setHistoryAttempt(value => value + 1)}>Retry package history</button>
+        </div>
+      ) : packages.length === 0 ? (
         <div className="px-5 py-8 text-center">
           <p className="text-sm text-gray-500">No authorization packages generated yet.</p>
           <p className="text-xs text-gray-400 mt-1">Click "Generate Package" to create your first package.</p>
@@ -643,6 +687,7 @@ function PackageHistorySection({
                   <th className="px-5 py-2 font-medium">Date</th>
                   <th className="px-5 py-2 font-medium">Status</th>
                   <th className="px-5 py-2 font-medium text-right">Artifacts</th>
+                  <th className="px-5 py-2 font-medium">Purpose</th>
                   <th className="px-5 py-2 font-medium text-right">Size</th>
                   <th className="px-5 py-2 font-medium">Validation</th>
                   <th className="px-5 py-2 font-medium">Generated By</th>
@@ -657,6 +702,10 @@ function PackageHistorySection({
                       <StatusBadge status={pkg.status} variant={variantForStatus(pkg.status)} />
                     </td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-gray-700">{pkg.artifactCount}</td>
+                    <td className="px-5 py-2.5 text-gray-700">{pkg.purpose === 'InitialSubmission' ? 'Initial ATO submission'
+                      : pkg.purpose === 'AuthorizedBaselineArchive' ? 'Authorized baseline archive'
+                        : pkg.purpose === 'ChangeSubmission' ? 'Retained baseline and SSP change'
+                          : pkg.purpose === 'Legacy' ? 'Legacy authorization package' : 'Not recorded'}</td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-gray-700">{formatBytes(pkg.fileSize)}</td>
                     <td className="px-5 py-2.5">
                       {pkg.validationPassed === true && (
@@ -709,23 +758,30 @@ function PackageHistorySection({
 
 export default function Documents() {
   const { id } = useParams<{ id: string }>();
+  return <SystemDocuments key={id} systemId={id} />;
+}
+
+function SystemDocuments({ systemId: id }: { systemId?: string }) {
+  const location = useLocation();
+  const exportsView = new URLSearchParams(location.search).get('tab') === 'exports';
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [packageRefreshKey, setPackageRefreshKey] = useState(0);
 
   const fetcher = useCallback(() => getSystemDocuments(id!), [id]);
-  const { data, loading, error } = usePolling<SystemDocumentsResponse>(fetcher, 30000);
+  const { data, loading, error, refresh } = usePolling<SystemDocumentsResponse>(fetcher, 30000, !!id);
 
   if (loading) {
     return <p className="text-gray-500">Loading document catalog...</p>;
   }
 
-  if (error || !data) {
+  if (error || !data || data.systemId !== id) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p className="text-yellow-800 font-medium">Document catalog unavailable</p>
         <p className="text-yellow-600 text-sm mt-1">Unable to load documents for this system.</p>
+        <button type="button" className="mt-3 rounded border border-yellow-500 px-3 py-2 text-sm" onClick={refresh}>Retry document catalog</button>
       </div>
     );
   }
@@ -734,19 +790,31 @@ export default function Documents() {
     <>
       {/* Header */}
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Documents</h2>
+        <h1 className="text-2xl font-bold text-gray-900">{exportsView ? 'Generate & export a package' : 'Readiness checklist'}</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Authorization package artifacts, SSP sections, narrative governance, privacy documents, and export history.
+          {exportsView ? 'Generate retained artifacts with the existing export and validation services. Review recorded status before downloading.'
+            : 'Review current package records and follow each task to its authoritative source.'}
         </p>
+        {!exportsView && <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm">
+          <p>The document catalog does not determine submission readiness. Package validation remains a separate server-evaluated action.</p>
+          <nav aria-label="Document source tasks" className="mt-3 flex flex-wrap gap-4 text-indigo-700">
+            <Link className="underline" to={`/systems/${id}/inheritance/subscriptions`}>Review responsibilities</Link>
+            <Link className="underline" to={`/systems/${id}/narratives`}>Review narratives</Link>
+            <Link className="underline" to={`/systems/${id}/evidence`}>Review evidence</Link>
+            <Link className="underline" to={`/systems/${id}/documents?tab=exports`}>Generate & export a package</Link>
+          </nav>
+        </div>}
       </div>
 
       {/* Phase indicator */}
+      <SystemPackageValidation systemId={data.systemId} />
       <div className="mb-6 flex items-center gap-2">
         <span className="text-xs text-gray-500">Current Phase:</span>
         <StatusBadge status={data.currentPhase} variant="blue" />
       </div>
 
       <div className="space-y-6">
+        {!exportsView && <>
         {/* Authorization Package */}
         <AuthPackageSection data={data} />
 
@@ -764,7 +832,10 @@ export default function Documents() {
 
         {/* Scan & Import History */}
         <ImportHistorySection imports={data.importHistory} />
+        <InventoryRow count={data.inventoryItemCount} />
+        </>}
 
+        {exportsView && <>
         {/* Exports */}
         <ExportsSection data={data} onExportClick={() => setShowExportDialog(true)} onManageTemplates={() => setShowTemplateDialog(true)} />
 
@@ -774,9 +845,7 @@ export default function Documents() {
           refreshKey={packageRefreshKey}
           onGenerateClick={() => setShowPackageDialog(true)}
         />
-
-        {/* Inventory */}
-        <InventoryRow count={data.inventoryItemCount} />
+        </>}
       </div>
 
       {/* Export SSP Dialog */}

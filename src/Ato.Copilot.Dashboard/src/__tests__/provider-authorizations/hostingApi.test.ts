@@ -33,6 +33,19 @@ function reply(data: unknown) {
 beforeEach(() => vi.clearAllMocks());
 
 describe('hosting transport grounded in IProviderHostingService', () => {
+  it('reads an exact provider-owned allocation and rejects cross-offering responses', async () => {
+    // Arrange
+    reply(assignment);
+    const signal = new AbortController().signal;
+    // Act
+    expect(await api.getHostingAssignment('offering/a', assignment.assignmentId, signal)).toEqual(assignment);
+    // Assert
+    expect(axios.request).toHaveBeenCalledWith(expect.objectContaining({
+      url: '/api/csp/offerings/offering%2Fa/hosting-assignments/assignment-a', signal,
+    }));
+    reply({ ...assignment, offeringId: 'other-offering' });
+    await expect(api.getHostingAssignment('offering/a', assignment.assignmentId)).rejects.toThrow('requested allocation');
+  });
   it('reads the exact current hosting snapshot with cancellation and encoded identities', async () => {
     // Arrange
     reply(revision);

@@ -6,6 +6,18 @@ import { receipt } from './testData';
 vi.mock('axios', () => ({ default: { request: vi.fn(), isAxiosError: vi.fn(() => false) } }));
 beforeEach(() => vi.clearAllMocks());
 describe('offering intake exact transport contract', () => {
+  it('reads the exact current external decision using its existing individual endpoint', async () => {
+    // Arrange
+    const data = { offeringId: 'offering-1', recordId: 'decision-1', revisionId: 'revision-1', revision: 2, snapshotHash: 'retained-hash' };
+    vi.mocked(axios.request).mockResolvedValue({ status: 200, data: { status: 'success', data } });
+    // Act
+    const result = await api.getDecision('offering-1', 'decision-1');
+    // Assert
+    expect(result).toEqual(data);
+    expect(axios.request).toHaveBeenCalledWith(expect.objectContaining({
+      url: '/api/csp/offerings/offering-1/authorization-records/decision-1',
+    }));
+  });
   it('requests server-filtered Microsoft references with independently correct totals', async () => {
     // Arrange
     const data = { items: [], page: 2, pageSize: 25, total: 26 };
@@ -18,6 +30,17 @@ describe('offering intake exact transport contract', () => {
     expect(axios.request).toHaveBeenCalledWith(expect.objectContaining({
       url: '/api/csp/offerings/offering-1/authorization-records',
       params: { page: 2, pageSize: 25, recordKind: 'InheritedMicrosoftReference' }, signal,
+    }));
+  });
+  it('requests both inherited categories through the explicit upstream-reference group', async () => {
+    // Arrange
+    vi.mocked(axios.request).mockResolvedValue({ status: 200, data: { status: 'success', data: { items: [], total: 0, page: 2, pageSize: 25 } } });
+    // Act
+    await api.listInheritedProviderReferences('offering-1', 2);
+    // Assert
+    expect(axios.request).toHaveBeenCalledWith(expect.objectContaining({
+      url: '/api/csp/offerings/offering-1/authorization-records',
+      params: { page: 2, pageSize: 25, recordKind: 'InheritedReferences' },
     }));
   });
   it('reads the exact current boundary rather than choosing a revision from a paged history', async () => {

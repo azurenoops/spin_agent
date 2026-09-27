@@ -47,6 +47,28 @@ beforeEach(() => {
 });
 
 describe('Narratives workspace', () => {
+  it('opens the real proposed-versus-retained comparison as the primary task and keeps one editor active', async () => {
+    // Arrange
+    workspace.session = { roles: ['Issm'], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canReviewNarratives: true } } };
+    vi.mocked(library.getProposals).mockResolvedValue([{ id: 'proposal-1', controlId: 'AC-2', narrativeType: 'Technical', baseVersion: 7,
+      beforeContent: 'Old accounts', proposedContent: 'Federated accounts', stateHash: 'SYNTHETIC', provenance: {}, conflicts: [],
+      missingEvidence: [], status: 'Draft', revision: 1, createdAt: '2026-01-01T00:00:00Z',
+      createdBy: 'author', reviewedAt: null, reviewedBy: null, reviewNote: null, acceptedVersion: null, isStale: false, canReview: true }]);
+    // Act
+    open('');
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'Previous v7' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Proposed v8' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Control implementation narratives' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Control Narratives' })).not.toBeInTheDocument();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Narratives' }));
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'Control Narratives' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Previous v7' })).not.toBeInTheDocument();
+    expect(library.reviewProposal).not.toHaveBeenCalled();
+  });
+
   it('does not turn a MissionOwner reference-author grant into narrative generation authority', async () => {
     // Arrange
     workspace.session = { roles: ['MissionOwner'], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canAuthorNarratives: false } } };

@@ -1,0 +1,122 @@
+[
+  {
+    "name": "Readiness",
+    "file": "01-readiness.png"
+  },
+  {
+    "name": "Mission",
+    "file": "02-mission.png"
+  },
+  {
+    "name": "Users",
+    "file": "03-users.png"
+  },
+  {
+    "name": "Environment & hosting",
+    "file": "04-environment-hosting.png"
+  },
+  {
+    "name": "Data",
+    "file": "05-data.png"
+  },
+  {
+    "name": "Inventory & boundary",
+    "file": "06-inventory-boundary.png"
+  },
+  {
+    "name": "Ports & interconnections",
+    "file": "07-ports-interconnections.png"
+  },
+  {
+    "name": "Categorization & baseline",
+    "file": "08-categorization-baseline.png"
+  },
+  {
+    "name": "Applied capabilities",
+    "file": "09-applied-capabilities.png"
+  },
+  {
+    "name": "Responsibilities",
+    "file": "10-responsibilities.png"
+  },
+  {
+    "name": "Narratives",
+    "file": "11-narratives.png"
+  },
+  {
+    "name": "Evidence",
+    "file": "12-evidence.png"
+  },
+  {
+    "name": "Policies",
+    "file": "13-policies.png"
+  },
+  {
+    "name": "Assessment plan",
+    "file": "14-assessment-plan.png"
+  },
+  {
+    "name": "Assessments & results",
+    "file": "15-assessments-results.png"
+  },
+  {
+    "name": "Findings & remediation",
+    "file": "16-findings-remediation.png"
+  },
+  {
+    "name": "POA&M",
+    "file": "17-poa-m.png"
+  },
+  {
+    "name": "Exceptions",
+    "file": "18-exceptions.png"
+  },
+  {
+    "name": "Readiness checklist",
+    "file": "19-readiness-checklist.png"
+  },
+  {
+    "name": "Document previews",
+    "file": "20-document-previews.png"
+  },
+  {
+    "name": "Export packages",
+    "file": "21-export-packages.png"
+  },
+  {
+    "name": "eMASS reconciliation",
+    "file": "22-emass-reconciliation.png"
+  },
+  {
+    "name": "Recorded decisions",
+    "file": "23-recorded-decisions.png"
+  },
+  {
+    "name": "Coverage & health",
+    "file": "24-coverage-health.png"
+  },
+  {
+    "name": "Rules",
+    "file": "25-rules.png"
+  },
+  {
+    "name": "Detected changes",
+    "file": "26-detected-changes.png"
+  },
+  {
+    "name": "Impact reviews",
+    "file": "27-impact-reviews.png"
+  },
+  {
+    "name": "Reports",
+    "file": "28-reports.png"
+  },
+  {
+    "name": "System team",
+    "file": "29-system-team.png"
+  },
+  {
+    "name": "Audit history",
+    "file": "30-audit-history.png"
+  }
+]

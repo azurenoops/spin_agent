@@ -23,6 +23,7 @@ vi.mock('../../features/package-imports/api', () => ({
 vi.mock('../../features/workspace-operations/api', async importOriginal => ({
   WorkspaceOperationError: (await importOriginal<typeof api>()).WorkspaceOperationError,
   listProviderCatalog: vi.fn(),
+  getDirectoryConnections: vi.fn(),
   getProviderCatalogOverview: vi.fn(),
   getProviderCapability: vi.fn(),
   createProviderCapability: vi.fn(),
@@ -118,6 +119,11 @@ function page(route: string, entries = [route]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(api.getDirectoryConnections).mockResolvedValue([]);
+  vi.mocked(api.getOrganizationProvisioning).mockReset().mockRejectedValue(
+    new api.WorkspaceOperationError('No saved provisioning operation.', 404, 'PROVISIONING_NOT_FOUND'));
+  vi.mocked(api.beginOrganizationProvisioning).mockReset();
+  vi.mocked(api.resumeOrganizationProvisioning).mockReset();
   vi.mocked(authorizationApi.listOfferings).mockResolvedValue({ ...emptyImpactPage, total: 1, items: [offering] });
   vi.mocked(authorizationApi.listImpactReviews).mockResolvedValue({ ...emptyImpactPage, total: 1, items: [acceptedImpact] });
   session.target = { kind: 'csp' };
@@ -700,7 +706,7 @@ describe('workspace operations dashboard T050-T059', () => {
     // Act
     await screen.findByRole('heading', { name: 'Organizations' });
     // Assert
-    expect(screen.getByText('No organizations are available.')).toBeInTheDocument();
+    expect(await screen.findByText('No organizations are available.')).toBeInTheDocument();
     expect(screen.queryByText(/support workspace active/i)).not.toBeInTheDocument();
   });
 
@@ -756,10 +762,12 @@ describe('workspace operations dashboard T050-T059', () => {
 
   it('T055 keeps administrator and membership enrollment outcomes separate', async () => {
     // Arrange
-    vi.mocked(api.beginOrganizationProvisioning).mockResolvedValue({
+    const operation = {
       operationId: 'operation-1', tenantId: 'org-1', tenantState: 'Completed',
       administratorState: 'Pending', membershipState: 'Completed', lastError: 'Administrator failed',
-    });
+    };
+    vi.mocked(api.beginOrganizationProvisioning).mockResolvedValue(operation);
+    vi.mocked(api.getOrganizationProvisioning).mockResolvedValue(operation);
     page('/organizations/org-1/provisioning');
     // Act
     fireEvent.click(await screen.findByRole('button', { name: 'Start enrollment' }));
@@ -802,6 +810,11 @@ describe('workspace operations dashboard T050-T059', () => {
   it('T055 resolves a keyless enrollment route through the current operation without creating another', async () => {
     // Arrange
     vi.mocked(api.getCurrentOrganizationProvisioning).mockResolvedValue({
+      operationId: 'operation-current', tenantId: 'org-1', tenantState: 'Completed',
+      administratorState: 'Pending', membershipState: 'Completed', lastError: null,
+      idempotencyKey: 'stable-current-key',
+    });
+    vi.mocked(api.getOrganizationProvisioning).mockResolvedValue({
       operationId: 'operation-current', tenantId: 'org-1', tenantState: 'Completed',
       administratorState: 'Pending', membershipState: 'Completed', lastError: null,
       idempotencyKey: 'stable-current-key',
@@ -854,6 +867,7 @@ describe('workspace operations dashboard T050-T059', () => {
       new Promise(resolve => { finishResume = resolve; }));
     page('/organizations/org-a/provisioning?key=key-a');
     await screen.findByText('Administrator: Pending');
+    fireEvent.click(screen.getByRole('button', { name: 'Enter manually' }));
     fireEvent.click(screen.getByLabelText('Use an existing Person record'));
     for (const [name, value] of [
       ['Directory tenant ID', '11111111-1111-1111-1111-111111111111'],
@@ -881,6 +895,7 @@ describe('workspace operations dashboard T050-T059', () => {
       idempotencyKey: 'key-b',
     });
     expect(await screen.findByText('Administrator: Failed')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enter manually' }));
     expect(screen.getByLabelText('Directory tenant ID')).toHaveValue('');
   });
 

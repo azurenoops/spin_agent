@@ -54,6 +54,19 @@ beforeEach(() => {
 });
 
 describe('#1017 remediation page permissions', () => {
+  it('opens the highest-priority retained task without granting mutation permission', async () => {
+    // Arrange
+    mount();
+    await screen.findByText('Repair A');
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Review highest-priority task' }));
+    // Assert
+    expect(screen.getByRole('heading', { name: 'Findings & remediation' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Link to POA&M' })).toBeDisabled();
+    expect(state.move).not.toHaveBeenCalled();
+    expect(state.link).not.toHaveBeenCalled();
+  });
+
   it.each(['AO', 'ISSM'])('denies forged %s authority while preserving task reads and CSV export', async role => {
     // Arrange
     state.role = role;

@@ -36,7 +36,7 @@ public sealed partial class ProviderAuthorizationService
     {
         var versions = db.Set<ProviderPackageVersion>().AsNoTracking()
             .Where(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id);
-        var linkedPackages = db.CspPackages.AsNoTracking().Where(x => x.ProviderId == offering.ProviderId
+        var linkedPackages = db.CspPackages.AsNoTracking().Where(x => x.ProviderId == offering.ProviderId && x.SupersededAt == null
             && (x.OfferingId == offering.Id || versions.Any(v => v.PackageId == x.Id)));
         var sources = await (from candidate in db.CspPackageCandidates.AsNoTracking()
                              join package in linkedPackages on candidate.PackageId equals package.Id
@@ -62,7 +62,7 @@ public sealed partial class ProviderAuthorizationService
         foreach (var context in contexts)
             if (!catalog.ContainsKey(context.CapabilityId!.Value)
                 || !releases.TryGetValue(context.ReleaseId!.Value, out var release)
-                || release.CapabilityId != context.CapabilityId)
+                || release.CapabilityId != context.CapabilityId || release.Revision < 1)
                 throw new InvalidDataException("An offering capability context does not identify a retained provider release.");
 
         var published = new Dictionary<Guid, OfferingBoundaryCapability>();
@@ -75,7 +75,10 @@ public sealed partial class ProviderAuthorizationService
             var capability = catalog[group.Key];
             published.Add(group.Key, new(capability.Id, null, null, capability.Name, capability.Status.ToString(),
                 capability.Status == CspInheritedCapabilityStatus.Archived ? "Archived" : "Published",
-                context.ReleaseId, material.BoundaryRevisionId));
+                context.ReleaseId, material.BoundaryRevisionId)
+            {
+                ReleaseRevision = releases[context.ReleaseId!.Value].Revision
+            });
         }
 
         var rows = new List<OfferingBoundaryCapability>();
@@ -142,7 +145,7 @@ public sealed partial class ProviderAuthorizationService
                     ? "ReviewRequired" : relationship.State;
             return new OfferingBoundaryMission(assignment.Id, assignment.SystemId,
                 names.GetValueOrDefault(assignment.Id), state, relationship is not null,
-                counts.GetValueOrDefault(assignment.Id), Read<ProviderAzureScope[]>(assignment.AssignedScopesJson));
+                counts.GetValueOrDefault(assignment.Id), Read<ProviderScope[]>(assignment.AssignedScopesJson));
         }).ToArray(), page, pageSize, total);
     }
 

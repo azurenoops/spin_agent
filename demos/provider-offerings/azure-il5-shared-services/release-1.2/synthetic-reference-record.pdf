@@ -1,0 +1,69 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 1 /Kids [5 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 3373 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 17 Tf 0.08 0.19 0.31 rg 48 730 Td (Azure IL5 ∑ Shared services) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 702 Td (Synthetic decision and reference record) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 679 Td (SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 651 Td (authorization, a customer entitlement, or operational evidence.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Release 1.2 | Scenario date: 2026-09-15 | Provider-managed shared services) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 609 Td (Source identification) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 586 Td (Source title: Azure IL5 ∑ Shared services Fictional Service Release Review.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 565 Td (Issuer: SYNTHETIC Northstar Shared Services Demo Team Review Board.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 544 Td (Type: invented demonstration distribution decision and reference; NOT an ATO, P-ATO,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 530 Td (accreditation, or DoD memo.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 509 Td (Reference ID: AZ-REF-001.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 488 Td (Issued: 2026-09-01. Scenario expiration: 2027-08-31. Scenario review: 2026-12-01.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 467 Td (Status as stated: Approved. Decision type: fictional demonstration distribution approval; NOT) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 453 Td (ATO. Approved ONLY for fictional customer demonstration by the synthetic review board. No) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 439 Td (real signature or official seal exists.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 418 Td (Scope and exclusions) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 395 Td (Only the eight listed provider-operated shared services; no mission workloads or SaaS) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 381 Td (collaboration tenant.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 360 Td (Excluded: Customer application code, databases, mission data, workstation configuration,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 346 Td (customer subscriptions not explicitly enrolled, Microsoft 365, and any actual IL5 approval.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 325 Td (Conditions) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 302 Td (- Customer must complete its own authorization and allocation checks.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 281 Td (- Retain the open moderate logging evidence-delay finding and corrective milestones.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 260 Td (- PRIVATE working papers are not cleared for customer distribution.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 239 Td (Evidence basis) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 216 Td (The reference cites the customer assessment summary, responsibility matrix and synthetic) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 202 Td (evidence index. Underlying samples are constructed examples, not observed provider) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 188 Td (operations.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 1 of 1) Tj ET
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000218 00000 n 
+0000000320 00000 n 
+0000000456 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+3881
+%%EOF

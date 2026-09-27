@@ -31,11 +31,15 @@ public sealed partial class ProviderAuthorizationService(
     public Task<ProviderOfferingResponse> CreateAsync(CreateProviderOfferingRequest request, string key, string actor, CancellationToken ct) =>
         store.WriteAsync(null, "OfferingCreated", key, request, actor, (db, provider, _) =>
         {
-            var environments = Environments(request.Environments);
+            var environments = Environments(request.Environments, request.ServiceModel);
             var row = new ProviderOffering
             {
                 ProviderId = provider, Name = Text(request.Name, "name", 256),
                 Description = Text(request.Description, "description", 8000, false),
+                ServiceModel = ServiceModel(request.ServiceModel),
+                ManagementArrangement = ManagementArrangement(request.ManagementArrangement),
+                ServiceOwner = OptionalIdentity(request.ServiceOwner, "service owner"),
+                SecurityContact = OptionalIdentity(request.SecurityContact, "security contact"),
                 EnvironmentsJson = Json(environments), CreatedBy = actor
             };
             row.OfferingId = row.Id;
@@ -50,7 +54,11 @@ public sealed partial class ProviderAuthorizationService(
             Expected(row, request.ExpectedRevision);
             row.Name = Text(request.Name, "name", 256);
             row.Description = Text(request.Description, "description", 8000, false);
-            row.EnvironmentsJson = Json(Environments(request.Environments));
+            row.EnvironmentsJson = Json(Environments(request.Environments, request.ServiceModel ?? row.ServiceModel));
+            if (request.ServiceModel is not null) row.ServiceModel = ServiceModel(request.ServiceModel);
+            if (request.ManagementArrangement is not null) row.ManagementArrangement = ManagementArrangement(request.ManagementArrangement);
+            if (request.ServiceOwner is not null) row.ServiceOwner = OptionalIdentity(request.ServiceOwner, "service owner");
+            if (request.SecurityContact is not null) row.SecurityContact = OptionalIdentity(request.SecurityContact, "security contact");
             row.Revision++;
             await InvalidateAsync(db, row, actor, "Offering identity or environment changed", ct);
             return Offering(row);
@@ -114,7 +122,6 @@ public sealed partial class ProviderAuthorizationService(
             if (!await db.Set<ProviderCatalogContextSnapshot>().AnyAsync(x => x.Id == component
                 && x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id && x.ComponentId != null, ct))
                 throw new KeyNotFoundException("Component snapshot was not found in this offering.");
-        var environments = Read<string[]>(offering.EnvironmentsJson);
         var scopes = request.IncludedScopes.Select(Normalize).ToArray();
         var exclusions = request.Exclusions.Select(x => x with
         {
@@ -122,7 +129,7 @@ public sealed partial class ProviderAuthorizationService(
             Description = Text(x.Description, "exclusion", 2000),
             Rationale = Text(x.Rationale, "exclusion rationale", 2000)
         }).ToArray();
-        if (scopes.Concat(exclusions.Where(x => x.Scope is not null).Select(x => x.Scope!)).Any(x => !environments.Contains(x.Cloud)))
+        if (scopes.Concat(exclusions.Where(x => x.Scope is not null).Select(x => x.Scope!)).Any(x => !ScopeMatchesOffering(offering, x)))
             throw new ArgumentException("Boundary scopes must use an explicitly recorded offering environment.");
         await store.CitationsAsync(db, offering.ProviderId, request.Citations, ct);
         return request with { Name = request.Name.Trim(), ScopeStatement = request.ScopeStatement.Trim(), IncludedScopes = scopes, Exclusions = exclusions };
@@ -130,7 +137,25 @@ public sealed partial class ProviderAuthorizationService(
 
     internal static ProviderOfferingResponse Offering(ProviderOffering row) => new(row.Id, row.ProviderId, row.Name,
         row.Description, Read<string[]>(row.EnvironmentsJson), row.Revision, row.Lifecycle,
-        row.CurrentBoundaryRevisionId, row.CurrentHostingScopeRevisionId);
+        row.CurrentBoundaryRevisionId, row.CurrentHostingScopeRevisionId)
+    {
+        ServiceModel = row.ServiceModel, ManagementArrangement = row.ManagementArrangement,
+        ServiceOwner = row.ServiceOwner, SecurityContact = row.SecurityContact
+    };
+
+    private static string? OptionalIdentity(string? value, string field)
+    {
+        var text = Text(value, field, 256, false);
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    private static string? ServiceModel(string? value) => string.IsNullOrWhiteSpace(value) ? null
+        : value is "InfrastructureSharedServices" or "PlatformService" or "SoftwareAsAService" or "BrokeredCloudSpace"
+            ? value : throw new ArgumentException("Choose an explicit supported service model; authorization is never inferred.");
+
+    private static string? ManagementArrangement(string? value) => string.IsNullOrWhiteSpace(value) ? null
+        : value is "ProviderManaged" or "SharedOperations" or "MissionOwnerManaged"
+            ? value : throw new ArgumentException("Choose ProviderManaged, SharedOperations or MissionOwnerManaged.");
 
     internal static ProviderBoundaryResponse Boundary(ProviderBoundaryRevision row, long offeringRevision)
     {
@@ -140,11 +165,13 @@ public sealed partial class ProviderAuthorizationService(
             body.Exclusions, body.ProviderResponsibilities, body.CustomerResponsibilities, body.Citations);
     }
 
-    private static string[] Environments(IReadOnlyList<string> values)
+    private static string[] Environments(IReadOnlyList<string> values, string? serviceModel)
     {
         Bounded(values, "environments", 1);
-        if (values.Any(x => x is not ("AzureCloud" or "AzureUSGovernment")))
-            throw new ArgumentException("Choose AzureCloud or AzureUSGovernment; environments are never inferred.");
+        if (values.Any(x => x is not ("AzureCloud" or "AzureUSGovernment" or "Microsoft365DoD" or "ManualService")))
+            throw new ArgumentException("Choose an Azure environment or a manually documented Microsoft365DoD/ManualService environment.");
+        if (values.Any(x => x is "Microsoft365DoD" or "ManualService") && ServiceModel(serviceModel) is null)
+            throw new ArgumentException("Manual service environments require an explicit service model; no connector is inferred.");
         return values.Distinct().Order(StringComparer.Ordinal).ToArray();
     }
 

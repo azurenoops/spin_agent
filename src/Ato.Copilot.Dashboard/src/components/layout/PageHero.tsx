@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useOrganizationContext } from '../../hooks/useOrganizationContext';
 import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
+import WorkspacePageHeader from './WorkspacePageHeader';
 
 interface PageHeroProps {
   /** Section eyebrow above the title (e.g. "Portfolio"). */
@@ -35,6 +36,10 @@ export default function PageHero({
   const displayName = session
     ? session.target.kind === 'organization' ? session.workspace.displayName : null
     : organization.displayName;
+
+  if (session?.target.kind === 'csp' || session?.systemAccess) {
+    return <WorkspacePageHeader title={title} description={description} eyebrow={eyebrow} actions={actions} />;
+  }
 
   return (
     <div className="relative -mx-6 -mt-6 mb-6 overflow-hidden bg-gradient-to-r from-indigo-700 via-indigo-700 to-sky-600 text-white shadow-sm dark:from-indigo-950 dark:via-indigo-950 dark:to-sky-900">

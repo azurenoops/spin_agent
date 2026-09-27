@@ -24,6 +24,7 @@ import apiClient from '../../api/client';
 import type { BoundaryComponentDto, BoundaryDefinitionDto, CategorizationInfo, SystemComponentDto, SystemDetailResponse } from '../../types/dashboard';
 import { invokeClick, requireElement, workspaceSession } from '../helpers/domainPermissions';
 import { systemDetail as assessmentSystemDetail } from '../fixtures/assessmentEnvironment';
+import '../helpers/dialog';
 
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
 vi.mock('../../hooks/usePolling', async () => {
@@ -121,6 +122,40 @@ async function openBoundary() {
   fireEvent.click(await screen.findByText('Production'));
   await screen.findByRole('button', { name: 'Excluded' });
 }
+
+describe('mock-defined boundary and baseline tasks', () => {
+  it('opens a real boundary review from an accessible named action', async () => {
+    // Arrange
+    render(page('boundaries'));
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Production boundary' }));
+    // Assert
+    expect(screen.getByRole('heading', { name: 'Inventory & system boundary' })).toBeVisible();
+    expect(await screen.findByRole('button', { name: 'Excluded' })).toBeVisible();
+    expect(boundaries.listBoundaryComponents).toHaveBeenCalled();
+    expect(components.getComponents).toHaveBeenCalledWith(systemId, { pageSize: 1 });
+  });
+
+  it('shows recorded information impacts rather than illustrative baseline rows', async () => {
+    // Arrange
+    vi.mocked(baseline.getBaselineDetail).mockResolvedValue(baselineDetail);
+    render(page('baseline'));
+    // Act / Assert
+    expect(await screen.findByRole('heading', { name: 'Categorization & control baseline' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Information type rationale' })).toBeVisible();
+    expect(screen.getByRole('cell', { name: 'Health Care' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Review information types' })).toHaveAttribute('href', `/systems/${systemId}/profile/DataTypes`);
+  });
+  it('recognizes the real baseline-not-found envelope without treating permission failures as an empty baseline', async () => {
+    // Arrange
+    vi.mocked(baseline.getBaselineDetail).mockRejectedValue({ errorCode: 'BASELINE_NOT_FOUND', error: 'No baseline configured for this system' });
+    // Act
+    render(page('baseline'));
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'No Baseline Configured' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Retry categorization and baseline' })).not.toBeInTheDocument();
+  });
+});
 
 beforeEach(() => {
   vi.resetAllMocks();

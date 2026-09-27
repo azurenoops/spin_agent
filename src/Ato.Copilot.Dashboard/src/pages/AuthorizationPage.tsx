@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from '../features/workspaces/workspaceNavigation';
 import apiClient from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { useSettings } from '../hooks/useSettings';
-import { useWorkspaceSession } from '../features/workspaces/WorkspaceBoundary';
+import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
+import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport, systemPanel } from '../features/systems/SystemTaskPresentation';
+import ExternalDecisionRecords from '../features/systems/ExternalDecisionRecords';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -16,6 +18,9 @@ interface AuthorizationDecision {
   issuedByName: string;
   decisionDate: string;
   override: AuthorizationOverride | null;
+  externalIssuingAuthority?: string | null;
+  recordedBy?: string | null;
+  recordedAt?: string | null;
 }
 
 interface AuthorizationOverride {
@@ -64,14 +69,8 @@ async function getDecision(systemId: string): Promise<AuthorizationDecision | nu
 }
 
 async function getRiskAcceptances(systemId: string): Promise<RiskAcceptance[]> {
-  try {
-    const { data } = await apiClient.get<RiskAcceptance[]>(
-      `/systems/${systemId}/risk-acceptances`,
-    );
-    return data;
-  } catch {
-    return [];
-  }
+  const { data } = await apiClient.get<RiskAcceptance[]>(`/systems/${systemId}/risk-acceptances`);
+  return data;
 }
 
 async function issueAuthorization(
@@ -112,9 +111,8 @@ const RISK_LEVELS = ['Low', 'Medium', 'High', 'Critical'] as const;
 export default function AuthorizationPage() {
   const { id: systemId = '' } = useParams<{ id: string }>();
   const { settings } = useSettings();
-  const workspace = useWorkspaceSession();
-  const canIssue = workspace ? workspace.systemAccess?.permissions.canDecideAuthorization === true : true;
-  const canApplyOverride = workspace ? canIssue : settings.role === 'AO';
+  const canIssue = useSystemMutationPermission(systemId, 'canDecideAuthorization');
+  const canApplyOverride = useSystemMutationPermission(systemId, 'canDecideAuthorization', settings.role === 'AO');
 
   const [formOpen, setFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -135,8 +133,8 @@ export default function AuthorizationPage() {
   const fetchDecision = useCallback(() => getDecision(systemId), [systemId]);
   const fetchRisks = useCallback(() => getRiskAcceptances(systemId), [systemId]);
 
-  const { data: decision, refresh: refreshDecision } = usePolling(fetchDecision, 30_000);
-  const { data: risks } = usePolling(fetchRisks, 30_000);
+  const { data: decision, refresh: refreshDecision, loading: decisionLoading, error: decisionError } = usePolling(fetchDecision, 30_000);
+  const { data: risks, refresh: refreshRisks, loading: risksLoading, error: risksError } = usePolling(fetchRisks, 30_000);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,16 +206,11 @@ export default function AuthorizationPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Authorization</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            RMF Step 5 — Issue or review the Authorization to Operate (ATO) decision.
-          </p>
-        </div>
-        {canIssue && !formOpen && (
+      <SystemTaskHeading title="Recorded authorization decisions"
+        description="Retain the issuing authority, conditions and recorded authorization outcome without inferring a decision from export success."
+        action={canIssue && !formOpen && (
           <button
             type="button"
             onClick={() => { setFormOpen(true); setError(null); setSuccess(null); }}
@@ -225,8 +218,28 @@ export default function AuthorizationPage() {
           >
             Issue Authorization
           </button>
-        )}
-      </div>
+        )} />
+      <SystemTaskColumns support={<>
+        <SystemTaskSupport title="Contributes to"><p>Authorization decision record / Baseline reference</p></SystemTaskSupport>
+        <SystemTaskSupport title="Distinct decision authority">
+          <p>Initial package preparation does not require an already-issued ATO. Formal decisions here are attributed to the authenticated AO.</p>
+          <p>Use Record external decision to retain a received source and exact completed package. Issue Authorization remains a distinct action attributed to the authenticated AO.</p>
+        </SystemTaskSupport>
+        <SystemTaskSupport title="Next in Systems">
+          <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/documents`}>Submission readiness</Link>
+          <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/deviations`}>Risk decisions &amp; exceptions</Link>
+          <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/history`}>Activity &amp; decision history</Link>
+        </SystemTaskSupport>
+      </>}>
+      <ExternalDecisionRecords key={systemId} systemId={systemId} onRecorded={refreshDecision} />
+      {decisionLoading && <p role="status">Loading decision records…</p>}
+      {decisionError && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p role="alert">{decisionError.message}</p><button type="button" className="mt-3 rounded border px-3 py-2" onClick={refreshDecision}>Retry decision records</button>
+      </div>}
+      {!decisionLoading && !decisionError && !decision && <section className={systemPanel}>
+        <h2 className="text-lg font-semibold">Prepare now, record the decision when received</h2>
+        <p className="mt-3 text-sm text-slate-500">No active authorization decision was returned for this system. Continue preparing reviewed system records and the package before the separate AO decision.</p>
+      </section>}
 
       {/* Feedback */}
       {success && (
@@ -237,7 +250,7 @@ export default function AuthorizationPage() {
       )}
 
       {/* Active decision */}
-      {decision && (
+      {decision && !decisionError && (
         <section aria-label="Active authorization decision">
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3">
@@ -249,9 +262,12 @@ export default function AuthorizationPage() {
               </span>
             </div>
             <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div><dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Decision record</dt>
+                <dd className="mt-1 break-all text-sm text-gray-900">{decision.id}</dd></div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Issued By</dt>
-                <dd className="mt-1 text-sm text-gray-900">{decision.issuedByName} ({decision.issuedBy})</dd>
+                <dd className="mt-1 text-sm text-gray-900">{decision.externalIssuingAuthority ?? `${decision.issuedByName} (${decision.issuedBy})`}</dd>
+                {decision.recordedBy && <p className="mt-1 text-xs text-gray-500">Recorded by {decision.recordedBy} · {decision.recordedAt}</p>}
               </div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Issued At</dt>
@@ -442,7 +458,11 @@ export default function AuthorizationPage() {
               Residual risks formally accepted as part of the authorization.
             </p>
           </div>
-          {!risks || risks.length === 0 ? (
+          {risksLoading ? <p role="status" className="p-5 text-sm">Loading recorded risk acceptances…</p> : risksError ? (
+            <div className="p-5 text-sm text-amber-900"><p role="alert">{risksError.message}</p>
+              <button type="button" className="mt-3 rounded border px-3 py-2" onClick={refreshRisks}>Retry risk acceptances</button>
+            </div>
+          ) : !risks || risks.length === 0 ? (
             <div className="px-6 py-8 text-center text-sm text-gray-500">
               No risk acceptances on record for this system.
             </div>
@@ -511,6 +531,7 @@ export default function AuthorizationPage() {
           )}
         </div>
       </section>
+      </SystemTaskColumns>
     </div>
   );
 }

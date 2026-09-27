@@ -4,8 +4,6 @@ using System.Text.Json.Serialization;
 
 namespace Ato.Copilot.Core.Interfaces.ProviderAuthorizations;
 
-/// <summary>Explicitly recorded Azure scope; this is not a permission or authorization grant.</summary>
-public sealed record ProviderAzureScope(string Cloud, Guid DirectoryTenantId, Guid SubscriptionId, string ResourceId);
 /// <summary>An exact immutable source citation.</summary>
 public sealed record ProviderCitation(Guid PackageId, Guid ArtifactId, string ArchivePath, string Locator, string Quote);
 /// <summary>An immutable stored revision.</summary>
@@ -13,25 +11,45 @@ public sealed record ProviderSnapshotRef(Guid RevisionId, long Revision, string 
 /// <summary>Provider-owned service identity.</summary>
 public sealed record ProviderOfferingResponse(Guid OfferingId, Guid ProviderId, string Name, string Description,
     IReadOnlyList<string> Environments, long Revision, string Lifecycle, Guid? CurrentBoundaryRevisionId,
-    Guid? CurrentHostingScopeRevisionId);
+    Guid? CurrentHostingScopeRevisionId)
+{
+    public string? ServiceModel { get; init; }
+    public string? ManagementArrangement { get; init; }
+    public string? ServiceOwner { get; init; }
+    public string? SecurityContact { get; init; }
+}
 /// <summary>Read-only offering summary with independent bounded pages and complete offering-scoped counts.</summary>
 public sealed record OfferingOverview(Guid OfferingId, long OfferingRevision,
     OfferingOverviewAuthorizations Authorizations, OfferingOverviewPackages Packages,
-    OfferingOverviewCapabilities Capabilities, OfferingOverviewHosting Hosting);
+    OfferingOverviewCapabilities Capabilities, OfferingOverviewHosting Hosting)
+{
+    /// <summary>Latest allocation relationships explicitly requiring review plus distinct actionable provider-sourced narrative drafts/failed generations for current active adoptions. Null means the review store cannot be read; internal delivery jobs are not customer actions.</summary>
+    public int? CustomerActionCount { get; init; }
+    /// <summary>All provider/offering findings whose workflow state is not Closed, independent of pages.</summary>
+    public int OpenFindingCount { get; init; }
+}
 /// <summary>Current provider decisions only; review-state totals cover all pages.</summary>
 public sealed record OfferingOverviewAuthorizations(IReadOnlyList<ProviderDecisionResponse> Items,
     int Page, int PageSize, int Total, int Recorded, int Unconfirmed, int Rejected);
 /// <summary>Associated receipts and global processing, source-review and next-source facts.</summary>
 public sealed record OfferingOverviewPackages(IReadOnlyList<OfferingOverviewPackage> Items,
     int Page, int PageSize, int Total, int NeedsAttention, int Processing, int AwaitingReview,
-    OfferingAuthorizationReviewTarget? PreferredAuthorizationReview);
+    OfferingAuthorizationReviewTarget? PreferredAuthorizationReview)
+{
+    /// <summary>Retained source entries across all associated receipts, including excluded and unreadable files.</summary>
+    public int SourceDocumentCount { get; init; }
+}
 /// <summary>Existing receipt projection with exact retained version provenance and candidate counts.</summary>
 public sealed record OfferingOverviewPackage(PackageStatus Package, Guid? PackageVersionId, int? Version,
     Guid? BoundaryRevisionId, int AwaitingReview, int AuthorizationDetails);
 /// <summary>Offering-scoped source review link; type identifies the existing candidate filter.</summary>
 public sealed record OfferingAuthorizationReviewTarget(Guid PackageId, string PackageName, string Type);
 /// <summary>Identity-deduplicated unpublished proposals and separate canonical publication totals.</summary>
-public sealed record OfferingOverviewCapabilities(int Proposed, int AwaitingReview, int AwaitingApproval, int Published, int Archived);
+public sealed record OfferingOverviewCapabilities(int Proposed, int AwaitingReview, int AwaitingApproval, int Published, int Archived)
+{
+    /// <summary>Distinct current published capability revisions linked to this offering; not document editions or an offering-wide version.</summary>
+    public IReadOnlyList<long> PublishedReleaseRevisions { get; init; } = [];
+}
 /// <summary>Exact current technical hosting scope and distinct associated mission systems, not authorization coverage.</summary>
 public sealed record OfferingOverviewHosting(string? Name, bool Configured, int ScopeCount,
     int AssignmentCount, int AssociatedSystemCount);
@@ -43,27 +61,51 @@ public sealed record OfferingBoundaryCapabilities(IReadOnlyList<OfferingBoundary
     int Page, int PageSize, int Total, int AwaitingReview, int Published);
 /// <summary>A private source proposal or canonical release with its exact retained boundary context.</summary>
 public sealed record OfferingBoundaryCapability(Guid? CapabilityId, Guid? CandidateId, Guid? PackageId,
-    string Name, string ReviewState, string PublicationState, Guid? ReleaseId, Guid? BoundaryRevisionId);
+    string Name, string ReviewState, string PublicationState, Guid? ReleaseId, Guid? BoundaryRevisionId)
+{
+    /// <summary>Canonical integer revision of the exact retained release; null for unpublished proposals.</summary>
+    public long? ReleaseRevision { get; init; }
+}
 /// <summary>An assignment with separately observed association and active, assignment-bound adoption count.</summary>
 public sealed record OfferingBoundaryMission(Guid AssignmentId, string SystemId, string? SystemName,
-    string RelationshipState, bool Associated, int AdoptedCapabilityCount, IReadOnlyList<ProviderAzureScope> AssignedScopes);
+    string RelationshipState, bool Associated, int AdoptedCapabilityCount, IReadOnlyList<ProviderScope> AssignedScopes);
 /// <summary>Create a service offering without asserting authorization.</summary>
-public sealed record CreateProviderOfferingRequest(string Name, string Description, IReadOnlyList<string> Environments);
-/// <summary>Optimistic update of service identity.</summary>
-public sealed record UpdateProviderOfferingRequest(long ExpectedRevision, string Name, string Description, IReadOnlyList<string> Environments);
+public sealed record CreateProviderOfferingRequest(string Name, string Description, IReadOnlyList<string> Environments)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ServiceModel { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ManagementArrangement { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ServiceOwner { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SecurityContact { get; init; }
+}
+/// <summary>Optimistic identity update. Omitted/null additive fields preserve legacy clients; empty strings explicitly clear them.</summary>
+public sealed record UpdateProviderOfferingRequest(long ExpectedRevision, string Name, string Description, IReadOnlyList<string> Environments)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ServiceModel { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ManagementArrangement { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ServiceOwner { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SecurityContact { get; init; }
+}
 /// <summary>An explicit recorded exclusion.</summary>
-public sealed record ProviderBoundaryExclusion(ProviderAzureScope? Scope, string Description, string Rationale);
+public sealed record ProviderBoundaryExclusion(ProviderScope? Scope, string Description, string Rationale);
 /// <summary>Create an immutable boundary version before receipt or as an explicitly proposed successor.</summary>
 public sealed record CreateProviderBoundaryRequest(long ExpectedOfferingRevision, Guid? PredecessorRevisionId,
     string Name, string ScopeStatement, IReadOnlyList<string> Services, IReadOnlyList<Guid> ComponentSnapshotIds,
-    IReadOnlyList<ProviderAzureScope> IncludedScopes, IReadOnlyList<ProviderBoundaryExclusion> Exclusions,
+    IReadOnlyList<ProviderScope> IncludedScopes, IReadOnlyList<ProviderBoundaryExclusion> Exclusions,
     IReadOnlyList<string> ProviderResponsibilities, IReadOnlyList<string> CustomerResponsibilities,
     IReadOnlyList<ProviderCitation> Citations);
 /// <summary>Exact source-stated boundary, not verified coverage.</summary>
 public sealed record ProviderBoundaryResponse(Guid OfferingId, long OfferingRevision, Guid BoundaryRevisionId,
     long Version, string SnapshotHash, Guid? PredecessorRevisionId, DateTimeOffset CreatedAt,
     string Name, string ScopeStatement, IReadOnlyList<string> Services, IReadOnlyList<Guid> ComponentSnapshotIds,
-    IReadOnlyList<ProviderAzureScope> IncludedScopes, IReadOnlyList<ProviderBoundaryExclusion> Exclusions,
+    IReadOnlyList<ProviderScope> IncludedScopes, IReadOnlyList<ProviderBoundaryExclusion> Exclusions,
     IReadOnlyList<string> ProviderResponsibilities, IReadOnlyList<string> CustomerResponsibilities,
     IReadOnlyList<ProviderCitation> Citations);
 /// <summary>Offering association retained separately from package processing.</summary>
@@ -83,19 +125,35 @@ public sealed record ProviderSourceCandidateRef(Guid PackageId, Guid CandidateId
 public sealed record CreateProviderDecisionRequest(long ExpectedOfferingRevision, Guid BoundaryRevisionId,
     IReadOnlyList<ProviderSourceCandidateRef> SourceCandidateRefs, string RecordKind, string Reference,
     string? IssuingAuthority, string? DecisionAsStated, string? IssuedOn, string? EffectiveOn, string? ExpiresOn,
-    string ExpiryBasis, string ScopeStatement, IReadOnlyList<string> Conditions, IReadOnlyList<ProviderCitation> Citations);
+    string ExpiryBasis, string ScopeStatement, IReadOnlyList<string> Conditions, IReadOnlyList<ProviderCitation> Citations)
+{
+    /// <summary>Source-reviewed OSCAL party kind (person/organization), or null when unknown.</summary>
+    public string? IssuingAuthorityType { get; init; }
+    /// <summary>Explicit upstream service/provider identity, independent of the decision category and issuing authority.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UpstreamProvider { get; init; }
+}
 /// <summary>Successor draft; never modifies a previously recorded version.</summary>
 public sealed record UpdateProviderDecisionRequest(long ExpectedRevision, Guid BoundaryRevisionId,
     IReadOnlyList<ProviderSourceCandidateRef> SourceCandidateRefs, string RecordKind, string Reference,
     string? IssuingAuthority, string? DecisionAsStated, string? IssuedOn, string? EffectiveOn, string? ExpiresOn,
-    string ExpiryBasis, string ScopeStatement, IReadOnlyList<string> Conditions, IReadOnlyList<ProviderCitation> Citations);
+    string ExpiryBasis, string ScopeStatement, IReadOnlyList<string> Conditions, IReadOnlyList<ProviderCitation> Citations)
+{
+    public string? IssuingAuthorityType { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UpstreamProvider { get; init; }
+}
 /// <summary>Flat externally issued decision projection and independent review state.</summary>
 public sealed record ProviderDecisionResponse(Guid RecordId, Guid OfferingId, Guid RevisionId, long Revision,
     string SnapshotHash, string MetadataReviewState, string CurrentStanding, string? RecordedBy,
     DateTimeOffset? RecordedAt, bool ImpactReviewRequired, Guid BoundaryRevisionId,
     IReadOnlyList<ProviderSourceCandidateRef> SourceCandidateRefs, string RecordKind, string Reference,
     string? IssuingAuthority, string? DecisionAsStated, string? IssuedOn, string? EffectiveOn, string? ExpiresOn,
-    string ExpiryBasis, string ScopeStatement, IReadOnlyList<string> Conditions, IReadOnlyList<ProviderCitation> Citations);
+    string ExpiryBasis, string ScopeStatement, IReadOnlyList<string> Conditions, IReadOnlyList<ProviderCitation> Citations)
+{
+    public string? IssuingAuthorityType { get; init; }
+    public string? UpstreamProvider { get; init; }
+}
 /// <summary>Record the exact reviewed source decision; does not issue an ATO.</summary>
 public sealed record RecordProviderDecisionRequest(long ExpectedRevision, Guid RevisionId, string SnapshotHash, string Rationale);
 /// <summary>Append a source-backed external lifecycle change.</summary>

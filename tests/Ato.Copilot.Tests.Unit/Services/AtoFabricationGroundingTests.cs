@@ -334,6 +334,7 @@ public class AtoFabricationGroundingTests : IDisposable
     [Fact]
     public async Task GenerateSspAsync_ApprovedNarrativeWithoutSourceMissing_NoGroundingViolation()
     {
+        // Arrange
         var system = new RegisteredSystem
         {
             Id = Guid.NewGuid().ToString(),
@@ -351,10 +352,26 @@ public class AtoFabricationGroundingTests : IDisposable
             Narrative = "The system implements AC-1 using Azure Active Directory with conditional access policies configured per the organization's security baseline.",
             TechnicalNarrative = "The system implements AC-1 using Azure Active Directory with conditional access policies configured per the organization's security baseline.",
             AiSuggested = false,
-            ApprovedVersionId = "some-approved-version-id",
+            ApprovalStatus = SspSectionStatus.Approved,
             AuthoredBy = "reviewer@test.com"
         };
+        var approvedVersion = new NarrativeVersion
+        {
+            ControlImplementationId = ci.Id,
+            Content = ci.Narrative!,
+            SnapshotJson = NarrativeContentSnapshot.Capture(ci),
+            Status = SspSectionStatus.Approved,
+            AuthoredBy = ci.AuthoredBy
+        };
+        ci.ApprovedVersionId = approvedVersion.Id;
         _db.ControlImplementations.Add(ci);
+        _db.Set<NarrativeVersion>().Add(approvedVersion);
+        _db.Set<NarrativeReview>().Add(new NarrativeReview
+        {
+            NarrativeVersionId = approvedVersion.Id,
+            ReviewedBy = "reviewer@test.com",
+            Decision = ReviewDecision.Approve
+        });
 
         var baseline = new ControlBaseline
         {
@@ -365,8 +382,10 @@ public class AtoFabricationGroundingTests : IDisposable
         _db.ControlBaselines.Add(baseline);
         await _db.SaveChangesAsync();
 
+        // Act
         var doc = await _sspService.GenerateSspAsync(system.Id);
 
+        // Assert
         doc.Warnings.Should().NotContain(w => w.Contains("GROUNDING_VIOLATION"),
             "a sourced, approved narrative should not trigger grounding violations (fix #685)");
     }

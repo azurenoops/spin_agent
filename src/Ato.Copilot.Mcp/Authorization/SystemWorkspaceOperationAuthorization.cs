@@ -13,7 +13,7 @@ public enum SystemWorkspaceOperation
     CreateSystem, ManageSystem, AuthorNarratives, ReviewNarratives, ManageEvidence,
     RunAssessments, ManageRemediation, DecideAuthorization,
     GenerateSap, FinalizeSap, GenerateSar, CreateRemediationTask, MoveRemediationTask,
-    AssignSystemRole, ManageValidationLinks
+    AssignSystemRole, ManageValidationLinks, ReadSystem
 }
 
 /// <summary>Enforces scoped permissions before a mapped handler can perform any mutation.</summary>
@@ -77,6 +77,7 @@ public static class SystemWorkspaceOperationAuthorization
             if (!access.Permissions.CanRead) return NotFound();
             var allowed = operation switch
             {
+                SystemWorkspaceOperation.ReadSystem => access.Permissions.CanRead,
                 SystemWorkspaceOperation.ManageSystem => access.Permissions.CanManageSystem,
                 SystemWorkspaceOperation.AuthorNarratives => access.Permissions.CanAuthorNarratives,
                 SystemWorkspaceOperation.ReviewNarratives => access.Permissions.CanReviewNarratives,

@@ -1,11 +1,13 @@
-import type { AzureScope, Citation, SnapshotRef } from './types';
+import type { ProviderScope, Citation, SnapshotRef } from './types';
 
-export interface HostingExclusion { scope: AzureScope; rationale: string }
+export interface HostingExclusion { scope: ProviderScope; rationale: string }
 export interface HostingScopeInput {
   expectedOfferingRevision: number;
   predecessorRevisionId: string | null;
   name: string;
-  permittedScopes: AzureScope[];
+  purpose?: string | null;
+  changeRationale?: string | null;
+  permittedScopes: ProviderScope[];
   exclusions: HostingExclusion[];
   citations: Citation[];
 }
@@ -16,7 +18,9 @@ export interface HostingScopeRevision {
   impactReviewId: string | null;
   predecessorRevisionId: string | null;
   name: string;
-  permittedScopes: AzureScope[];
+  purpose?: string | null;
+  changeRationale?: string | null;
+  permittedScopes: ProviderScope[];
   exclusions: HostingExclusion[];
   citations: Citation[];
 }
@@ -24,7 +28,7 @@ export interface HostingAssignmentInput {
   targetTenantId: string;
   systemId: string;
   hostingScopeRevisionId: string;
-  assignedScopes: AzureScope[];
+  assignedScopes: ProviderScope[];
   references: Citation[];
 }
 export interface HostingAssignment {
@@ -33,6 +37,8 @@ export interface HostingAssignment {
   offeringId: string;
   systemId: string;
   hostingScope: SnapshotRef;
-  assignedScopes: AzureScope[];
+  assignedScopes: ProviderScope[];
   relationshipState: string;
+  systemName?: string | null;
+  targetTenantName?: string | null;
 }

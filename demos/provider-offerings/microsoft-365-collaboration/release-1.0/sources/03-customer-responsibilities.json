@@ -1,0 +1,109 @@
+{
+  "responsibilities": [
+    {
+      "id": "M365-capability-exchange-provider",
+      "name": "Exchange Online collaboration mail — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Maintain documented mail-flow defaults, operator access controls and service-impact notifications for the demo boundary. Evidence: M365-E01: synthetic mail-flow review and mailbox access sample.",
+      "capabilityId": "M365-capability-exchange",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "M365-capability-exchange-shared",
+      "name": "Exchange Online collaboration mail — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Review approved external mail domains and investigate delivery-policy exceptions with tenant administrators. Evidence: M365-E01: synthetic mail-flow review and mailbox access sample.",
+      "capabilityId": "M365-capability-exchange",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "M365-capability-exchange-customer",
+      "name": "Exchange Online collaboration mail — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Approve mailboxes, review distribution groups, label messages and enforce mission-specific handling restrictions. Evidence: M365-E01: synthetic mail-flow review and mailbox access sample.",
+      "capabilityId": "M365-capability-exchange",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "M365-capability-teams-provider",
+      "name": "Teams meetings and messaging — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Version baseline meeting policies and track changes to guest, federation and anonymous-join defaults. Evidence: M365-E02: synthetic meeting-policy export and guest access test.",
+      "capabilityId": "M365-capability-teams",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "M365-capability-teams-shared",
+      "name": "Teams meetings and messaging — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Review external collaboration requests and test meeting restrictions with designated customer administrators. Evidence: M365-E02: synthetic meeting-policy export and guest access test.",
+      "capabilityId": "M365-capability-teams",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "M365-capability-teams-customer",
+      "name": "Teams meetings and messaging — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Approve team membership, meeting organizers and guests; manage meeting content and user training. Evidence: M365-E02: synthetic meeting-policy export and guest access test.",
+      "capabilityId": "M365-capability-teams",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "M365-capability-sharepoint-provider",
+      "name": "SharePoint and OneDrive content — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Maintain baseline external-sharing limits and publish tested administrative configuration guidance. Evidence: M365-E03: synthetic site-sharing review and access revocation test.",
+      "capabilityId": "M365-capability-sharepoint",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "M365-capability-sharepoint-shared",
+      "name": "SharePoint and OneDrive content — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Validate site exceptions and review sharing reports with customer information owners every month. Evidence: M365-E03: synthetic site-sharing review and access revocation test.",
+      "capabilityId": "M365-capability-sharepoint",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "M365-capability-sharepoint-customer",
+      "name": "SharePoint and OneDrive content — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Assign site owners, remove stale sharing links, classify content and approve site-level permissions. Evidence: M365-E03: synthetic site-sharing review and access revocation test.",
+      "capabilityId": "M365-capability-sharepoint",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "M365-capability-purview-provider",
+      "name": "Purview retention and audit — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Maintain audit export schedules and retention-policy templates; document gaps in the customer evidence handoff. Evidence: M365-E04: synthetic audit-delivery ledger and retention retrieval rehearsal.",
+      "capabilityId": "M365-capability-purview",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "M365-capability-purview-shared",
+      "name": "Purview retention and audit — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Confirm licensed functionality before any real deployment and reconcile evidence delivery with customer reviewers. Evidence: M365-E04: synthetic audit-delivery ledger and retention retrieval rehearsal.",
+      "capabilityId": "M365-capability-purview",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "M365-capability-purview-customer",
+      "name": "Purview retention and audit — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Select records schedules, perform legal review, investigate user activity and approve legal holds. Evidence: M365-E04: synthetic audit-delivery ledger and retention retrieval rehearsal.",
+      "capabilityId": "M365-capability-purview",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "M365-capability-identity-provider",
+      "name": "Tenant access safeguards — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Version MFA and privileged-admin policy guidance and track provider support account approvals. Evidence: M365-E05: synthetic MFA policy review and emergency-access rehearsal.",
+      "capabilityId": "M365-capability-identity",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "M365-capability-identity-shared",
+      "name": "Tenant access safeguards — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Test emergency access procedures and review privileged roles jointly every month. Evidence: M365-E05: synthetic MFA policy review and emergency-access rehearsal.",
+      "capabilityId": "M365-capability-identity",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "M365-capability-identity-customer",
+      "name": "Tenant access safeguards — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Enroll users, enforce device compliance, run joiner/mover/leaver processes and approve conditional-access exceptions. Evidence: M365-E05: synthetic MFA policy review and emergency-access rehearsal.",
+      "capabilityId": "M365-capability-identity",
+      "responsibility": "Customer"
+    }
+  ]
+}

@@ -9,7 +9,7 @@ export class DeviationsPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.addBtn = page.getByRole('button', { name: /add deviation/i });
+    this.addBtn = page.getByRole('button', { name: /request exception/i });
     this.searchInput = page.getByPlaceholder(/search/i);
     this.statusFilter = page.getByLabel(/status/i);
     this.severityFilter = page.getByLabel(/severity/i);
@@ -20,6 +20,7 @@ export class DeviationsPage {
   }
 
   async expectSummaryCards() {
+    await this.page.getByText('Exception summary', { exact: true }).click();
     await expect(this.page.getByText(/total/i).first()).toBeVisible();
     await expect(this.page.getByText(/approved|pending|denied/i).first()).toBeVisible();
   }

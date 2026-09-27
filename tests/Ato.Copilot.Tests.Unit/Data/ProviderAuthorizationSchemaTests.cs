@@ -19,6 +19,68 @@ namespace Ato.Copilot.Tests.Unit.Data;
 
 public sealed class ProviderAuthorizationSchemaTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OfferingIdentityColumns_AreNullableAndBoundedOnBothProviders(bool sqlServer)
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<AtoCopilotContext>();
+        if (sqlServer) options.UseSqlServer("Server=unused;Database=metadata-only;Integrated Security=true");
+        else options.UseSqlite("Data Source=:memory:");
+        using var db = new AtoCopilotContext(options.Options);
+
+        // Act
+        var entity = db.Model.FindEntityType(typeof(ProviderOffering))!;
+        var scripts = string.Join("\n", ProviderAuthorizationSchemaAdditions.Scripts(sqlServer));
+
+        // Assert
+        foreach (var name in new[] { "ServiceModel", "ManagementArrangement", "ServiceOwner", "SecurityContact" })
+        {
+            var property = entity.FindProperty(name);
+            property.Should().NotBeNull(name);
+            property!.IsNullable.Should().BeTrue(name);
+            property.GetMaxLength().Should().NotBeNull(name);
+            scripts.Should().Contain(name);
+            if (sqlServer) scripts.Should().Contain($"COL_LENGTH(N'dbo.ProviderOfferings', N'{name}')");
+        }
+    }
+
+    [Fact]
+    public async Task OfferingIdentityUpgrade_PreservesLegacyRowsAndReplaysWithoutReplacingMetadata()
+    {
+        // Arrange
+        await using var connection = await OpenBaselineAsync();
+        await using var db = CreateDb(connection);
+        await ApplyAsync(db);
+        var offering = await AddOfferingAsync(db);
+        offering.Name = "Retained legacy service";
+        offering.Revision = 7;
+        await db.SaveChangesAsync();
+        foreach (var name in new[] { "ServiceModel", "ManagementArrangement", "ServiceOwner", "SecurityContact" })
+            await db.Database.ExecuteSqlRawAsync($"ALTER TABLE ProviderOfferings DROP COLUMN [{name}]");
+        db.ChangeTracker.Clear();
+
+        // Act
+        await ApplyAsync(db);
+        var upgraded = await db.Set<ProviderOffering>().SingleAsync();
+        upgraded.ServiceOwner = "Explicitly entered owner";
+        upgraded.ServiceModel = "SoftwareAsAService";
+        await db.SaveChangesAsync();
+        await ApplyAsync(db);
+        db.ChangeTracker.Clear();
+        var retained = await db.Set<ProviderOffering>().SingleAsync();
+
+        // Assert
+        retained.Id.Should().Be(offering.Id);
+        retained.Name.Should().Be("Retained legacy service");
+        retained.Revision.Should().Be(7);
+        retained.ServiceOwner.Should().Be("Explicitly entered owner");
+        retained.ServiceModel.Should().Be("SoftwareAsAService");
+        retained.ManagementArrangement.Should().BeNull("legacy ownership is not inferred");
+        retained.SecurityContact.Should().BeNull();
+    }
+
     private static readonly Type[] RowTypes = typeof(ProviderOwnedRow).Assembly.GetTypes()
         .Where(t => t.IsSubclassOf(typeof(ProviderOwnedRow)) && !t.IsAbstract).ToArray();
 
@@ -40,7 +102,7 @@ public sealed class ProviderAuthorizationSchemaTests
 
         // Assert
         model.FindEntityType(typeof(ProviderOwnedRow)).Should().BeNull();
-        RowTypes.Should().HaveCount(20);
+        RowTypes.Should().HaveCount(23);
         foreach (var type in RowTypes)
         {
             var entity = model.FindEntityType(type);
@@ -363,10 +425,11 @@ public sealed class ProviderAuthorizationSchemaTests
         using var db = new AtoCopilotContext(options.Options);
 
         // Act
-        var scripts = ProviderAuthorizationSchemaAdditions.Scripts(sqlServer);
+        var scripts = ProviderAuthorizationSchemaAdditions.Scripts(sqlServer)
+            .Concat(ProviderMonitoringSchemaAdditions.Scripts(sqlServer)).ToArray();
 
         // Assert
-        foreach (var type in RowTypes)
+        foreach (var type in RowTypes.Where(t => t != typeof(ProviderEvidenceShare)))
         {
             var entity = db.Model.FindEntityType(type)!;
             var table = entity.GetTableName()!;
@@ -412,6 +475,10 @@ public sealed class ProviderAuthorizationSchemaTests
         return offering;
     }
 
-    private static Task ApplyAsync(AtoCopilotContext db) =>
-        ProviderAuthorizationSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+    private static async Task ApplyAsync(AtoCopilotContext db)
+    {
+        await ProviderAuthorizationSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+        await ProviderEvidenceSharingSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+        await ProviderMonitoringSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+    }
 }

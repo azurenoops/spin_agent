@@ -1,0 +1,237 @@
+{
+  "scope": "Standalone UI prototype only",
+  "screens": [
+    {
+      "screen": "overview",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "offerings",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "create",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "offering",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "sources",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "import",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "analysis",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "source-review",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "authorization",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "scope",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "scope-edit",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "capabilities",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "capability",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "release",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "evidence",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "evidence-detail",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "finding",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "missions",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "allocation",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "customer",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "changes",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "impact",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "monitoring",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "rule",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "administration",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "history",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "system-hosting",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "system-capabilities",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "system-duties",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "system-evidence",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "system-documents",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "system-package",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "system-impact",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "system-monitoring",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "onboarding",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    },
+    {
+      "screen": "onboarding-status",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primaryAction": "pass"
+    }
+  ],
+  "states": [
+    "empty",
+    "error",
+    "restricted"
+  ],
+  "flows": [
+    "Publication confirmation",
+    "Association prerequisite",
+    "Adoption prerequisite",
+    "Customer duties remain open",
+    "Source review",
+    "Rule evaluation",
+    "Offering filter",
+    "Unavailable retry"
+  ],
+  "browserErrors": []
+}

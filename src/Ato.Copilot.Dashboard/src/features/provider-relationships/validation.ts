@@ -1,11 +1,11 @@
 import type { ApplicableProviderCapability, PagedResult, ProviderRelationship } from './types';
+import { isProviderScope } from '../provider-authorizations/scopes';
 
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
 const integer = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const strings = (value: unknown) => Array.isArray(value) && value.every(item => typeof item === 'string');
-const scope = (value: unknown) => record(value) && ['AzureCloud', 'AzureUSGovernment'].includes(String(value.cloud))
-  && ['directoryTenantId', 'subscriptionId', 'resourceId'].every(key => text(value[key]));
+const scope = isProviderScope;
 const scopes = (value: unknown) => Array.isArray(value) && value.every(scope);
 const snapshot = (value: unknown) => record(value) && text(value.revisionId) && integer(value.revision) && text(value.snapshotHash);
 const nullableText = (value: unknown) => value === null || typeof value === 'string';

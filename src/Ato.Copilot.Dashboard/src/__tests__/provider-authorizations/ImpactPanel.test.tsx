@@ -345,6 +345,7 @@ describe('purpose-led exact change impact', () => {
       return kind === 'Capability' ? { ...option, version: 'Working revision 8', change: currentChange } : option;
     });
     // Act
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh selected versions' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Refresh selected versions' }));
     await screen.findByText('Logging coverage · Working revision 8');
     // Assert

@@ -42,19 +42,46 @@ public class TenantScopedEndpointHttpPipelineTests
     public TenantScopedEndpointHttpPipelineTests(MultiTenantWebApplicationFactory<McpProgram> factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
         _tenantA = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
         _tenantB = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
 
-        // Default context: active, non-impersonated Tenant-A user.
-        var ctx = factory.GetActiveContext();
-        ctx.TenantId = _tenantA;
-        ctx.IsCspAdmin = false;
-        ctx.ImpersonatedTenantId = null;
-        ctx.Status = TenantStatus.Active;
+        // Legacy tenancy contract, not the prior collection test's workspace/person selection.
+        factory.ResetLegacyTenantContext(_tenantA);
+        _client = factory.CreateClient();
     }
 
     // ─── Tests ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task LegacyFixtureSetup_ClearsPreviousWorkspaceIdentity_AndReadsNewTenantRecords()
+    {
+        // Arrange: model a preceding workspace test using the collection's shared mutable context.
+        var previous = _factory.GetActiveContext();
+        previous.PersonId = Guid.NewGuid();
+        previous.OrganizationId = Guid.NewGuid();
+        previous.IsWorkspaceRequest = true;
+        previous.IsCspAdmin = true;
+        previous.ImpersonatedTenantId = _tenantB;
+
+        // Act: xUnit constructs each legacy test with this same collection factory.
+        var next = new TenantScopedEndpointHttpPipelineTests(_factory);
+        using var client = next._client;
+        var ownSystem = await next.SeedSystemAsync(_tenantA, "Fresh-legacy-tenant-A");
+        var foreignSystem = await next.SeedSystemAsync(_tenantB, "Fresh-legacy-tenant-B");
+        var response = await client.GetAsync("/api/dashboard/systems");
+
+        // Assert: retain the original exact tenant visibility contract, not workspace-user visibility.
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var items = body.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+            ? data.GetProperty("items") : body.GetProperty("items");
+        var ids = items.EnumerateArray().Select(item => item.GetProperty("systemId").GetString()).ToArray();
+        ids.Should().Contain(ownSystem.ToString()).And.NotContain(foreignSystem.ToString());
+        _factory.GetActiveContext().PersonId.Should().BeNull();
+        _factory.GetActiveContext().OrganizationId.Should().BeNull();
+        _factory.GetActiveContext().IsWorkspaceRequest.Should().BeFalse();
+        _factory.GetActiveContext().ImpersonatedTenantId.Should().BeNull();
+    }
 
     [Theory]
     [InlineData(RmfRole.MissionOwner, "MissionAndPurpose")]
@@ -393,6 +420,29 @@ public class TenantScopedEndpointHttpPipelineTests
             ids.Should().NotContain(bId.ToString(),
                 because: $"Tenant-B system {bId} must NOT be visible to Tenant-A user");
         }
+
+    }
+
+    [Fact]
+    public async Task TenantIdInventory_PreservesValidNonGuidSystemIdentifiers()
+    {
+        // Arrange
+        var id = $"legacy-{Guid.NewGuid():N}"[..36];
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.RegisteredSystems.Add(new RegisteredSystem
+        {
+            Id = id, TenantId = _tenantB, Name = "Synthetic legacy system",
+            SystemType = SystemType.MajorApplication, MissionCriticality = MissionCriticality.MissionSupport,
+            HostingEnvironment = "Manual", CurrentRmfStep = RmfPhase.Prepare, CreatedBy = "test"
+        });
+        await db.SaveChangesAsync();
+
+        // Act
+        var ids = await GetSystemIdsForTenantAsync(_tenantB);
+
+        // Assert
+        ids.Should().Contain(id);
     }
 
     /// <summary>
@@ -529,14 +579,14 @@ public class TenantScopedEndpointHttpPipelineTests
         return id;
     }
 
-    private async Task<List<Guid>> GetSystemIdsForTenantAsync(Guid tenantId)
+    private async Task<List<string>> GetSystemIdsForTenantAsync(Guid tenantId)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         return await db.RegisteredSystems
             .IgnoreQueryFilters()
             .Where(s => s.TenantId == tenantId)
-            .Select(s => Guid.Parse(s.Id))
+            .Select(s => s.Id)
             .ToListAsync();
     }
 }

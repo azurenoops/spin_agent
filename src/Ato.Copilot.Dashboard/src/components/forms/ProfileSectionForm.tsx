@@ -211,6 +211,12 @@ const childConfig: Partial<Record<ProfileSectionType, { childKey: ChildType; col
   },
 };
 
+const childTaskLabels: Partial<Record<ProfileSectionType, { title: string; add: string; context: string }>> = {
+  UsersAndAccess: { title: 'User categories', add: 'Add user category', context: 'Access context' },
+  DataTypes: { title: 'Information types', add: 'Add data type', context: 'Information handling context' },
+  PortsProtocolsAndServices: { title: 'Ports and services', add: 'Add connection', context: 'Communication context' },
+};
+
 // ─── Helper types ───────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -311,6 +317,7 @@ export default function ProfileSectionForm({
 }: ProfileSectionFormProps) {
   const fields = sectionFields[sectionType] ?? [];
   const child = childConfig[sectionType];
+  const childTask = childTaskLabels[sectionType];
   const [prefilled, setPrefilled] = useState(false);
 
   // ─── Scalar field state ─────────────────────────────────────────────
@@ -326,8 +333,11 @@ export default function ProfileSectionForm({
   const [rows, setRows] = useState<ChildRow[]>(() =>
     initialChildItems ? [...(initialChildItems as ChildRow[])] : [],
   );
+  const sourceInput = useRef({ content: initialContent, children: initialChildItems });
 
   useEffect(() => {
+    if (sourceInput.current.content === initialContent && sourceInput.current.children === initialChildItems) return;
+    sourceInput.current = { content: initialContent, children: initialChildItems };
     try {
       setValues(initialContent ? JSON.parse(initialContent) : {});
     } catch {
@@ -412,8 +422,11 @@ export default function ProfileSectionForm({
         </div>
       )}
 
+      {child && childTask && <ChildEntityTable columns={child.columns} rows={rows} onChange={setRows}
+        isReadOnly={isReadOnly} title={childTask.title} addLabel={childTask.add} />}
+
       {/* Scalar fields */}
-      {groups.map(group => <FieldGroup key={group.label ?? 'primary'} label={group.label}>
+      {groups.map(group => <FieldGroup key={group.label ?? 'primary'} label={group.label ?? childTask?.context}>
         {group.keys.flatMap(key => fields.filter(field => field.key === key)).map((field) => (
           <div key={field.key}>
             <label htmlFor={field.type === 'multiselect' ? undefined : `profile-${field.key}`} className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">
@@ -482,7 +495,7 @@ export default function ProfileSectionForm({
       </FieldGroup>)}
 
       {/* Child entity CRUD table */}
-      {child && (
+      {child && !childTask && (
         <ChildEntityTable
           columns={child.columns}
           rows={rows}
@@ -492,7 +505,7 @@ export default function ProfileSectionForm({
       )}
 
       {/* Action buttons */}
-      <div className="flex items-center gap-3 pt-2">
+      <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5 dark:border-slate-700">
         {!isReadOnly && (
           <>
             <button
@@ -666,9 +679,11 @@ interface ChildEntityTableProps {
   rows: ChildRow[];
   onChange: (rows: ChildRow[]) => void;
   isReadOnly: boolean;
+  title?: string;
+  addLabel?: string;
 }
 
-function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTableProps) {
+function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel = 'Add Row' }: ChildEntityTableProps) {
   const addRow = () => {
     const newRow: ChildRow = { _tempId: crypto.randomUUID(), sortOrder: rows.length };
     columns.forEach((col) => {
@@ -698,25 +713,30 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTa
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full text-sm">
+      {title && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        {!isReadOnly && <button type="button" onClick={addRow}
+          className="rounded-[7px] bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">{addLabel}</button>}
+      </div>}
+      <div className="relative overflow-x-auto rounded-lg border border-gray-200">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-gray-50 text-left">
             <tr>
-              {!isReadOnly && <th className="px-2 py-2 w-16" />}
+              {!isReadOnly && <th className="px-2 py-2 w-16"><span className="sr-only">Order</span></th>}
               {columns.map((col) => (
                 <th key={col.key} className={`px-3 py-2 font-medium text-gray-600 ${col.width ?? ''}`}>
                   {col.label}
                   {col.required && <span className="text-red-500 ml-0.5">*</span>}
                 </th>
               ))}
-              {!isReadOnly && <th className="px-2 py-2 w-10" />}
+              {!isReadOnly && <th className="px-2 py-2 w-10"><span className="sr-only">Remove</span></th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.length === 0 && (
               <tr>
                 <td colSpan={columns.length + (isReadOnly ? 0 : 2)} className="px-3 py-6 text-center text-gray-400">
-                  No entries yet.{!isReadOnly && ' Click "Add Row" to begin.'}
+                  No entries yet.{!isReadOnly && ` Choose "${addLabel}" to begin.`}
                 </td>
               </tr>
             )}
@@ -742,8 +762,9 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTa
                 )}
                 {columns.map((col) => (
                   <td key={col.key} className="px-3 py-1.5">
-                    {col.type === 'select' ? (
+                    {isReadOnly ? <span className="block min-w-24 py-2 text-slate-700 dark:text-slate-200">{row[col.key] ?? '—'}</span> : col.type === 'select' ? (
                       <select
+                        aria-label={`${col.label}, row ${ri + 1}`}
                         value={row[col.key] ?? ''}
                         onChange={(e) => updateCell(ri, col.key, e.target.value)}
                         disabled={isReadOnly}
@@ -756,6 +777,7 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTa
                       </select>
                     ) : col.type === 'number' ? (
                       <input
+                        aria-label={`${col.label}, row ${ri + 1}`}
                         type="number"
                         value={row[col.key] ?? ''}
                         onChange={(e) => updateCell(ri, col.key, e.target.value ? Number(e.target.value) : null)}
@@ -764,6 +786,7 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTa
                       />
                     ) : (
                       <input
+                        aria-label={`${col.label}, row ${ri + 1}`}
                         type="text"
                         value={row[col.key] ?? ''}
                         onChange={(e) => updateCell(ri, col.key, e.target.value)}
@@ -789,7 +812,7 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTa
           </tbody>
         </table>
       </div>
-      {!isReadOnly && (
+      {!isReadOnly && !title && (
         <button
           type="button"
           onClick={addRow}
@@ -798,7 +821,7 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly }: ChildEntityTa
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
-          Add Row
+          {addLabel}
         </button>
       )}
     </div>

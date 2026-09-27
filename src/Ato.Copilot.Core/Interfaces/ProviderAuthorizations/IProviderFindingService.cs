@@ -47,7 +47,10 @@ public sealed record ProviderFindingReviewResponse(Guid ReviewId, Guid FindingId
 /// <summary>Evidence metadata and latest explicit outcome; storage paths are never exposed.</summary>
 public sealed record ProviderFindingEvidenceResponse(Guid EvidenceId, Guid FindingId, Guid OfferingId,
     long FindingRevision, string FileName, string MediaType, long ByteLength, string Sha256,
-    string Description, string State, DateTimeOffset CreatedAt, ProviderFindingReviewResponse? LatestReview);
+    string Description, string State, DateTimeOffset CreatedAt, ProviderFindingReviewResponse? LatestReview)
+{
+    public long EvidenceRevision { get; init; }
+}
 
 /// <summary>Authorized retained bytes, returned only as a private download.</summary>
 public sealed record ProviderFindingContent(Stream Content, string FileName, string MediaType);

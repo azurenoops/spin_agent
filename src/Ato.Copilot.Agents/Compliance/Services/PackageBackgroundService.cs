@@ -20,7 +20,7 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 /// Artifacts are generated in sequence: SSP → POA&M → AR → SAP → SAR → Evidence.
 /// Each job gets a 15-minute hard timeout per FR-036a.
 /// </summary>
-public class PackageBackgroundService : BackgroundService
+public partial class PackageBackgroundService : BackgroundService
 {
     private readonly Channel<PackageExportJob> _channel;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -90,9 +90,17 @@ public class PackageBackgroundService : BackgroundService
         _logger.LogInformation("PackageBackgroundService stopped");
     }
 
-    private async Task ProcessJobAsync(PackageExportJob job, CancellationToken ct)
+    internal async Task ProcessJobAsync(PackageExportJob job, CancellationToken ct)
     {
         _logger.LogInformation("Processing package job {PackageId} for system {SystemId}", job.PackageId, job.SystemId);
+        if (job.Purpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
+        {
+            using var readScope = _scopeFactory.CreateScope();
+            var context = readScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            if (await context.AuthorizationPackages.AsNoTracking().AnyAsync(p => p.Id == job.PackageId
+                && p.RegisteredSystemId == job.SystemId && p.Purpose == job.Purpose && p.Status == PackageStatus.Completed, ct))
+                return;
+        }
 
         // Update status to Generating
         await UpdateStatusAsync(job.PackageId, PackageStatus.Generating, ct);
@@ -100,6 +108,12 @@ public class PackageBackgroundService : BackgroundService
 
         using var scope = _scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
+
+        if (job.Purpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
+        {
+            await ProcessRetainedJobAsync(job, sp, ct);
+            return;
+        }
 
         var emassExportService = sp.GetRequiredService<IEmassExportService>();
         var sapExportService = sp.GetRequiredService<IOscalSapExportService>();
@@ -119,6 +133,14 @@ public class PackageBackgroundService : BackgroundService
         {
             using var zipStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write);
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: false);
+
+            await WriteZipEntryAsync(archive, "package-metadata.json", JsonSerializer.Serialize(new
+            {
+                packageId = job.PackageId,
+                systemId = job.SystemId,
+                purpose = job.Purpose.ToString(),
+                receivingWorkflowOutcome = "NotRecorded"
+            }));
 
             // Generate OSCAL artifacts in parallel (T047 - Performance)
             currentArtifact = "oscal-generation";

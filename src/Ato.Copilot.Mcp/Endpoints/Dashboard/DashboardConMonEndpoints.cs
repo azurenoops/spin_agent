@@ -28,10 +28,12 @@ public static partial class DashboardEndpoints
 {
     private static void MapConMonRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app)
     {
+        MapScopedMonitoringRoutes(group);
         group.MapGet("/systems/{systemId}/conmon", async (
                 string systemId,
                 AtoCopilotContext context,
                 IConMonService conMonService,
+                ScopedMonitoringService scopedMonitoring,
                 CancellationToken ct) =>
             {
                 var system = await context.RegisteredSystems
@@ -96,13 +98,15 @@ public static partial class DashboardEndpoints
                         p.ActualCompletionDate == null,
                         ct);
 
-                var subscriptionIds = system.AzureProfile?.SubscriptionIds ?? new List<string>();
-                var monitoringConfigs = subscriptionIds.Count == 0
-                    ? new List<MonitoringConfiguration>()
-                    : await context.MonitoringConfigurations
-                        .AsNoTracking()
-                        .Where(mc => subscriptionIds.Contains(mc.SubscriptionId) && mc.IsEnabled)
-                        .ToListAsync(ct);
+                var resources = (await scopedMonitoring.ScopeAsync(systemId, null, ct))
+                    .Where(x => x.ResourceId != null).Select(x => x.ResourceId!).ToList();
+                var subscriptionIds = resources.Select(x => x.Split('/'))
+                    .Where(x => x.Length > 2 && x[1].Equals("subscriptions", StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x[2]).Distinct().ToList();
+                var tenantConfigs = await context.MonitoringConfigurations.AsNoTracking()
+                    .Where(mc => mc.IsEnabled).ToListAsync(ct);
+                var monitoringConfigs = tenantConfigs.Where(config => resources.Any(resource =>
+                    ScopedMonitoringService.ResourceInConfiguration(resource, config))).ToList();
 
                 var monitoringEnabled = monitoringConfigs.Count > 0;
                 var lastMonitoringCheck = monitoringConfigs
@@ -112,16 +116,9 @@ public static partial class DashboardEndpoints
                     .Cast<DateTime?>()
                     .FirstOrDefault();
 
-                var driftAlertCount = subscriptionIds.Count == 0
-                    ? 0
-                    : await context.ComplianceAlerts
-                        .AsNoTracking()
-                        .CountAsync(a =>
-                            subscriptionIds.Contains(a.SubscriptionId) &&
-                            a.Type == AlertType.Drift &&
-                            a.Status != AlertStatus.Resolved &&
-                            a.Status != AlertStatus.Dismissed,
-                            ct);
+                var driftAlertCount = (await scopedMonitoring.ChangesAsync(systemId, ct))
+                    .Count(x => x.Kind == "Alert" && x.Alert.Type == AlertType.Drift &&
+                        x.Alert.Status != AlertStatus.Resolved && x.Alert.Status != AlertStatus.Dismissed);
 
                 var autoRemediationRuleCount = subscriptionIds.Count == 0
                     ? 0

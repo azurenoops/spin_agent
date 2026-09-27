@@ -59,6 +59,13 @@ public static partial class DashboardEndpoints
                 residualRiskLevel = decision.ResidualRiskLevel.ToString(),
                 decision.IssuedBy,
                 decision.IssuedByName,
+                decision.ExternalIssuingAuthority,
+                decision.RecordedBy,
+                decision.RecordedAt,
+                decision.SourceEvidenceId,
+                decision.SourceEvidenceHash,
+                decision.BaselinePackageId,
+                decision.BaselinePackageHash,
                 @override = annotation is null ? null : new
                 {
                     annotation.Id,

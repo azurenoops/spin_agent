@@ -53,6 +53,7 @@ public class SecurityAssessmentPlan
 
     /// <summary>SAP lifecycle status (Draft or Finalized).</summary>
     [Required]
+    [ConcurrencyCheck]
     public SapStatus Status { get; set; } = SapStatus.Draft;
 
     /// <summary>SAP document title (e.g., "Security Assessment Plan — ACME System — FY26 Q2").</summary>
@@ -69,6 +70,12 @@ public class SecurityAssessmentPlan
     [MaxLength(4000)]
     public string? ScopeNotes { get; set; }
 
+    [MaxLength(200)]
+    public string? AssessmentLead { get; set; }
+
+    [MaxLength(4000)]
+    public string? AssessmentApproach { get; set; }
+
     /// <summary>Assessment constraints, availability windows, escalation procedures.</summary>
     [MaxLength(4000)]
     public string? RulesOfEngagement { get; set; }
@@ -81,6 +88,7 @@ public class SecurityAssessmentPlan
 
     /// <summary>Full rendered SAP content (Markdown).</summary>
     [Required]
+    [ConcurrencyCheck]
     public string Content { get; set; } = string.Empty;
 
     /// <summary>SHA-256 hash of Content when finalized — integrity verification.</summary>
@@ -299,7 +307,11 @@ public record SapUpdateInput(
     string? ScopeNotes = null,
     string? RulesOfEngagement = null,
     List<SapTeamMemberInput>? TeamMembers = null,
-    List<SapMethodOverrideInput>? MethodOverrides = null);
+    List<SapMethodOverrideInput>? MethodOverrides = null,
+    string? Title = null,
+    string? AssessmentLead = null,
+    string? AssessmentApproach = null,
+    string? ExpectedContentHash = null);
 
 /// <summary>Result of SAP generation or retrieval.</summary>
 public class SapDocument
@@ -315,6 +327,9 @@ public class SapDocument
 
     /// <summary>SAP document title.</summary>
     public string Title { get; set; } = string.Empty;
+    public string? AssessmentLead { get; set; }
+    public string? AssessmentApproach { get; set; }
+    public string? ScopeNotes { get; set; }
 
     /// <summary>SAP status (Draft or Finalized).</summary>
     public string Status { get; set; } = "Draft";

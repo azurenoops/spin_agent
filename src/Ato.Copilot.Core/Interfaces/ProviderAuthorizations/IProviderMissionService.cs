@@ -15,7 +15,7 @@ public sealed record ReviewMissionProviderRelationshipRequest(long ExpectedRevis
 public sealed record MissionProviderRelationshipResponse(Guid? RelationshipId, long Revision, Guid AssignmentId,
     long AssignmentRevision, Guid OfferingId, string SystemId, string State, bool ReviewRequired,
     Guid? AuthorizationRevisionId, Guid? BoundaryRevisionId, string? ReviewedBy, DateTimeOffset? ReviewedAt,
-    IReadOnlyList<ProviderAzureScope> AssignedScopes, string? OfferingName = null, string? ProviderName = null,
+    IReadOnlyList<ProviderScope> AssignedScopes, string? OfferingName = null, string? ProviderName = null,
     string? SystemName = null, string? HostingScopeName = null, bool CanAssociate = false);
 /// <summary>Exact relationship review input and blocking prerequisites.</summary>
 public sealed record MissionProviderRelationshipPreviewResponse(Guid PreviewId, string PreviewHash, long Revision,

@@ -119,7 +119,7 @@ public sealed partial class ProviderImpactService
             var record = await db.Set<ProviderAuthorizationRecord>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == row.RecordId
                 && x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id, ct);
             var eligibility = ProviderDecisionEligibility.Evaluate(row, events,
-                source.RecordKind == "InheritedMicrosoftReference" ? "InheritedMicrosoftReference" : "ProviderDecision");
+                source.RecordKind is "InheritedMicrosoftReference" or "InheritedProviderReference" ? source.RecordKind : "ProviderDecision");
             if (eligibility is not null) blockers.Add(eligibility);
             if (record?.CurrentRevisionId != id || row.BoundaryRevisionId != boundary.Id)
                 blockers.Add(new("DECISION_NOT_ELIGIBLE", "Use a current, source-backed recorded positive decision for this boundary. Recording metadata does not verify external authority.", id.ToString()));
@@ -163,7 +163,7 @@ public sealed partial class ProviderImpactService
         if (kind is "Component" or "Capability")
         {
             var candidate = await db.CspPackageCandidates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.Type == kind
-                && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == providerId), ct);
+                && db.CspPackages.Any(p => p.Id == x.PackageId && p.ProviderId == providerId && p.SupersededAt == null), ct);
             if (candidate is not null && Read<PackageCandidateResponse>(candidate.PayloadJson).PublishedRecordId is null)
                 return new(kind, id, candidate.Revision, Hash(candidate.PayloadJson));
         }

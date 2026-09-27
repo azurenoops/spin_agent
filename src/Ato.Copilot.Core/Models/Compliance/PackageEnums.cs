@@ -1,6 +1,19 @@
 namespace Ato.Copilot.Core.Models.Compliance;
 
 /// <summary>
+/// Legacy requests retain the existing decision gate. Initial submission requests
+/// seek a decision and must not manufacture one. Archive/change bundles require explicit retained context.
+/// </summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
+public enum PackagePurpose
+{
+    Legacy = 0,
+    InitialSubmission = 1,
+    AuthorizedBaselineArchive = 2,
+    ChangeSubmission = 3
+}
+
+/// <summary>
 /// Lifecycle status of an authorization package generation job.
 /// Follows strict state machine: Pending → Generating → Validating → Completed|Failed.
 /// </summary>
@@ -34,7 +47,10 @@ public enum PackageArtifactType
     OscalAssessmentResults = 2,
     OscalAssessmentPlan = 3,
     Sar = 4,
-    EvidenceManifest = 5
+    EvidenceManifest = 5,
+    RetainedBaseline = 6,
+    PackageContext = 7,
+    ReviewedSspChange = 8
 }
 
 /// <summary>

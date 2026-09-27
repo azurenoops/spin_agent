@@ -12,6 +12,8 @@ import PoamExportDialog from '../components/poam/PoamExportDialog';
 import type { PoamListItem, PoamListQuery, CreatePoamRequest } from '../types/poam';
 import AsyncErrorState from '../components/AsyncErrorState';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
+import { Link } from '../features/workspaces/workspaceNavigation';
+import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport } from '../features/systems/SystemTaskPresentation';
 
 type ViewTab = 'overview' | 'trends' | 'ticketing';
 
@@ -48,20 +50,17 @@ export default function PoamManagement() {
     if (!canManageRemediation) throw new Error('Permission denied: you cannot manage remediation for this system.');
     await create(systemId, req);
     setShowCreateForm(false);
-  }, [systemId, create, canManageRemediation]);
+    refreshList();
+    refreshMetrics();
+  }, [systemId, create, canManageRemediation, refreshList, refreshMetrics]);
 
   return (
     <div className="space-y-6">
       {permissionError && <p role="alert" className="text-sm text-red-600">{permissionError}</p>}
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">POA&amp;M Management</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Plan of Action &amp; Milestones — track, prioritize, and resolve security findings
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <SystemTaskHeading title="Plan of Action & Milestones"
+        description="Track accepted remediation plans, owners, dates and evidence of completion."
+        action={<div className="flex flex-wrap gap-2">
           <button
             onClick={() => setShowExportDialog(true)}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -87,8 +86,7 @@ export default function PoamManagement() {
             </svg>
             Add POA&amp;M
           </button>
-        </div>
-      </div>
+        </div>} />
 
       {/* Tab Switcher */}
       <div className="border-b border-gray-200">
@@ -100,6 +98,7 @@ export default function PoamManagement() {
           ].map(tab => (
             <button
               key={tab.key}
+              aria-pressed={activeTab === tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.key
@@ -113,8 +112,19 @@ export default function PoamManagement() {
         </nav>
       </div>
 
+      <SystemTaskColumns support={<>
+        <SystemTaskSupport title="Contributes to"><p>POA&amp;M · Submission and ongoing updates</p></SystemTaskSupport>
+        <SystemTaskSupport title="Verify before closure">
+          <p>Keep the weakness, responsible owner, milestones and completion evidence together. A completed task alone does not approve a risk acceptance.</p>
+          <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/remediation`}>Review linked remediation</Link>
+          <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/evidence`}>Review supporting evidence</Link>
+        </SystemTaskSupport>
+      </>}>
       {activeTab === 'overview' ? (
         <>
+          <details className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <summary className="cursor-pointer text-sm font-semibold">Remediation summary</summary>
+            <div className="mt-4 space-y-4">
           {/* Summary Cards */}
           {metrics && <PoamSummaryCards metrics={metrics} />}
 
@@ -133,12 +143,13 @@ export default function PoamManagement() {
           {metrics && metrics.totalOpen > 0 && (
             <PoamSeverityHeatbar catI={metrics.catICount} catII={metrics.catIICount} catIII={metrics.catIIICount} />
           )}
+            </div>
+          </details>
 
           {/* Table */}
           {listError && poamData && (
             <AsyncErrorState title="Unable to refresh POA&amp;M items." onRetry={refreshList} />
           )}
-
           {listError && !poamData ? (
             <AsyncErrorState title="Unable to load POA&amp;M items." onRetry={refreshList} />
           ) : (
@@ -157,6 +168,7 @@ export default function PoamManagement() {
       ) : (
         <TicketingConfig systemId={systemId} />
       )}
+      </SystemTaskColumns>
 
       {/* Detail Drawer */}
       {selectedPoam && (

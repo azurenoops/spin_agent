@@ -7,6 +7,7 @@ import AuthorizationPage from '../../pages/AuthorizationPage';
 const workspace = vi.hoisted(() => ({
   value: null as { systemAccess: { permissions: { canDecideAuthorization: boolean } } } | null,
 }));
+const polling = vi.hoisted(() => ({ error: null as Error | null, retry: vi.fn() }));
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => workspace.value }));
 
 vi.mock('../../api/client', () => ({
@@ -17,18 +18,36 @@ vi.mock('../../api/client', () => ({
 }));
 
 vi.mock('../../hooks/usePolling', () => ({
-  usePolling: vi.fn(() => ({ data: null, refresh: vi.fn() })),
+  usePolling: vi.fn(() => ({ data: null, refresh: polling.retry, error: polling.error, loading: false })),
 }));
 
 vi.mock('../../hooks/useSettings', () => ({
   useSettings: vi.fn(() => ({ settings: { role: 'AO' } })),
+}));
+vi.mock('../../features/systems/ExternalDecisionRecords', () => ({
+  default: ({ systemId }: { systemId: string }) => <section aria-label="Externally issued decision records">{systemId}</section>,
 }));
 
 describe('AuthorizationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     workspace.value = null;
+    polling.error = null;
     vi.mocked(apiClient.post).mockResolvedValue({ data: {} });
+  });
+
+  it('distinguishes unavailable decision records from a legitimate not-yet-recorded decision', () => {
+    // Arrange
+    polling.error = new Error('Decision records unavailable');
+    // Act
+    render(<MemoryRouter initialEntries={['/systems/system-1/authorization']}><Routes>
+      <Route path="/systems/:id/authorization" element={<AuthorizationPage />} /></Routes></MemoryRouter>);
+    // Assert
+    expect(screen.getByRole('heading', { name: 'Recorded authorization decisions' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Retry decision records' })).toBeVisible();
+    expect(screen.queryByText('Prepare now, record the decision when received')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry decision records' }));
+    expect(polling.retry).toHaveBeenCalled();
   });
 
   it('does not infer AO authority from browser settings in a workspace', () => {

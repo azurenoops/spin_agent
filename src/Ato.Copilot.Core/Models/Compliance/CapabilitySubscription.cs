@@ -42,4 +42,11 @@ public class CapabilitySubscription
     /// Soft-delete preserves the audit trail.
     /// </summary>
     public bool IsActive { get; set; } = true;
+
+    /// <summary>The explicitly selected mission adoption; historical snapshots are never used as an implicit selection.</summary>
+    public Guid? CurrentAdoptionSnapshotId { get; set; }
+
+    /// <summary>Optimistic fence for adoption selection and subscription lifecycle changes.</summary>
+    [ConcurrencyCheck]
+    public long AdoptionSelectionRevision { get; set; }
 }

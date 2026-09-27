@@ -509,6 +509,9 @@ public class SspService : ISspService
             .OrderBy(ci => ci.ControlId)
             .ToListAsync(cancellationToken);
 
+        foreach (var narrative in narratives) context.Entry(narrative).State = EntityState.Detached;
+        await ApprovedNarrativeDocumentData.ApplyAsync(context, narratives, cancellationToken);
+
         // Load approved NarrativeVersion content for SSP generation (Feature 024)
         var approvedVersionIds = narratives
             .Where(ci => !string.IsNullOrWhiteSpace(ci.ApprovedVersionId))
@@ -558,6 +561,9 @@ public class SspService : ISspService
 
         var contingencyPlan = await context.ContingencyPlanReferences
             .FirstOrDefaultAsync(c => c.RegisteredSystemId == systemId, cancellationToken);
+        var profileGaps = new List<string>();
+        var approvedProfiles = await ApprovedProfileDocumentData.LoadAsync(context, systemId, profileGaps, cancellationToken);
+        var providerSources = await ProviderDocumentProvenance.ProjectDocumentAsync(context, system, cancellationToken);
 
         var tailorings = await context.ControlTailorings
             .Where(t => t.ControlBaselineId == (baseline != null ? baseline.Id : ""))
@@ -590,6 +596,9 @@ public class SspService : ISspService
         };
 
         var sb = new StringBuilder();
+        doc.Warnings.AddRange(profileGaps);
+        doc.Warnings.AddRange(providerSources.SourceGaps);
+        doc.Warnings.AddRange(providerSources.AccessGaps);
         var includedSectionKeys = new List<string>();
 
         progress?.Report("Loading system data for SSP generation...");
@@ -693,6 +702,9 @@ public class SspService : ISspService
             }
 
             sb.AppendLine(content);
+            if (sectionNum == 9) sb.AppendLine(providerSources.Content);
+            foreach (var profile in approvedProfiles.Where(p => ApprovedProfileDocumentData.DestinationSection(p.Type) == sectionNum))
+                sb.AppendLine(ApprovedProfileDocumentData.Render(profile));
             sb.AppendLine();
 
             // Track control statistics from §10
@@ -720,7 +732,8 @@ public class SspService : ISspService
             if (!ci.HasCanonicalNarrative()) continue; // missing → warning already added above
 
             bool isUngroundedScaffold = (ci.AiSuggested || ci.IsAutoPopulated) && string.IsNullOrWhiteSpace(ci.ApprovedVersionId);
-            var canonicalNarrative = $"{ci.PolicyNarrative}\n{ci.TechnicalNarrative}";
+            var canonicalNarrative = ci.ApprovedVersionId != null && ci.PolicyNarrative == null && ci.TechnicalNarrative == null
+                ? ci.Narrative ?? "" : $"{ci.PolicyNarrative}\n{ci.TechnicalNarrative}";
             bool hasSourceMissingMarker = canonicalNarrative.Contains("[SOURCE MISSING", StringComparison.OrdinalIgnoreCase);
             bool hasUnverifiedScaffold = canonicalNarrative.Contains("[scaffold reference — unverified]", StringComparison.OrdinalIgnoreCase);
 
@@ -781,6 +794,9 @@ public class SspService : ISspService
             .OrderBy(ci => ci.ControlId)
             .ToListAsync(cancellationToken);
 
+        foreach (var narrative in narratives) context.Entry(narrative).State = EntityState.Detached;
+        await ApprovedNarrativeDocumentData.ApplyAsync(context, narratives, cancellationToken);
+
         var approvedVersionIds = narratives
             .Where(ci => !string.IsNullOrWhiteSpace(ci.ApprovedVersionId))
             .Select(ci => ci.ApprovedVersionId!)
@@ -829,6 +845,10 @@ public class SspService : ISspService
 
         var contingencyPlan = await context.ContingencyPlanReferences
             .FirstOrDefaultAsync(c => c.RegisteredSystemId == systemId, cancellationToken);
+
+        var profileGaps = new List<string>();
+        var approvedProfiles = await ApprovedProfileDocumentData.LoadAsync(context, systemId, profileGaps, cancellationToken);
+        var providerSources = await ProviderDocumentProvenance.ProjectDocumentAsync(context, system, cancellationToken);
 
         var sectionList = sections?.ToList();
         var includeAll = sectionList == null || sectionList.Count == 0;
@@ -895,6 +915,11 @@ public class SspService : ISspService
                 }
             }
 
+            if (sectionNum == 9) content += "\n\n" + providerSources.Content;
+            foreach (var profile in approvedProfiles.Where(p => ApprovedProfileDocumentData.DestinationSection(p.Type) == sectionNum))
+                content += "\n\n" + ApprovedProfileDocumentData.Render(profile);
+            if (sectionNum == 1 && profileGaps.Count > 0)
+                content += "\n\nProfile approval gaps:\n" + string.Join("\n", profileGaps);
             yield return (sectionNum, content);
         }
     }

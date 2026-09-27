@@ -160,6 +160,8 @@ public sealed partial class CapabilityResponsibilityTests
         subscription.RoutingTenantId.Should().Be(_tenant);
         subscription.RoutingCapabilityId.Should().Be(_capability.ToString());
         subscription.IsActive.Should().BeTrue();
+        subscription.CurrentAdoptionSnapshotId.Should().BeNull("historical rows must not receive an inferred adoption");
+        subscription.AdoptionSelectionRevision.Should().Be(0);
     }
 
     [Fact]

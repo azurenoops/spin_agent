@@ -115,6 +115,11 @@ nav:
     - Agent & Tool Catalog: architecture/agent-tool-catalog.md
     - RMF Step Map: architecture/rmf-step-map.md
     - Security: architecture/security.md
+    - Provider-to-Mission Lineage: architecture/adr-004-provider-mission-lineage.md
+  - Design & Validation:
+    - Design Index: design/index.md
+    - Provider Product Validation: design/csp-product-validation-2026-09-26.md
+    - Systems Product Audit: design/system-product-goal-audit-2026-09-26.md
   - API:
     - MCP Server: api/mcp-server.md
     - VS Code Extension: api/vscode-extension.md

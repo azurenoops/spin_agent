@@ -198,7 +198,7 @@ export default function SystemCapabilityList({ tenantId, systemId, systemName }:
       </div>
       <Link className={`${linkClass} text-sm`} to={`${base}/inventory`}>Manage inventory</Link>
     </div>
-    <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <label className="relative text-sm"><span className="mb-1 block">Search this system</span>
         <Search size={15} className="absolute bottom-3 left-3 text-gray-400" aria-hidden />
         <input type="search" className={`${inputClass} w-full pl-9`} value={query.search ?? ''} maxLength={200}

@@ -1,0 +1,36 @@
+{
+  "assessmentFindings": [
+    {
+      "id": "AZ-F-001",
+      "name": "Moderate logging evidence collection delay",
+      "claim": {
+        "assessmentFinding": {
+          "sourceFindingId": "AZ-F-001",
+          "observation": "In the fictional 2026-08-18 through 2026-08-24 seven-day sample, two of seven daily customer evidence bundles arrived 31 and 38 hours after period close against a 24-hour target. All 700 expected synthetic events remained present in the source ledger; no event loss was observed in this invented sample. A single daily export worker and missing delivery-age alert delayed the handoff. The sample does not establish production effectiveness.",
+          "severityAsStated": "Moderate",
+          "statusAsStated": "Open",
+          "assessor": "SYNTHETIC Northstar Shared Services Demo Team Assurance Cell",
+          "assessmentDate": "2026-08-28",
+          "controlIds": [
+            "AU-6",
+            "AU-11"
+          ],
+          "evidenceReferences": [
+            "AZ-E01",
+            "AZ-PRIVATE-WP-001"
+          ]
+        },
+        "qualifications": [
+          "SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.",
+          "Open corrective action is not risk acceptance or finding closure."
+        ],
+        "relationships": [
+          {
+            "kind": "FindingCapability",
+            "targetSourceId": "AZ-capability-audit"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -14,7 +14,48 @@ attachAuthInterceptor(v1Client, getMsalInstance, DEFAULT_API_SCOPES);
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+export type PackagePurpose = 'Legacy' | 'InitialSubmission' | 'AuthorizedBaselineArchive' | 'ChangeSubmission';
+
+export interface RetainedPackageSelection {
+  baselinePackageId: string;
+  baselineContentHash: string;
+  authorizationDecisionId: string;
+  expectedDecisionSnapshotHash?: string;
+  expectedSourceContextHash?: string;
+  changePreviewId?: string;
+  changeContentHash?: string;
+}
+
+export interface PackageContextOptions {
+  baselines: { id: string; purpose: string; generatedAt: string; contentHash: string }[];
+  decisions: { id: string; decisionType: string; decisionDate: string; issuer: string; snapshotHash: string }[];
+  previews: { id: string; generatedAt: string; contentHash: string }[];
+}
+
+export async function getPackageContextOptions(systemId: string, signal?: AbortSignal): Promise<PackageContextOptions> {
+  const { data } = await v1Client.get<PackageContextOptions>(`/systems/${encodeURIComponent(systemId)}/packages/context-options`, { signal });
+  if (!data || !Array.isArray(data.baselines) || !Array.isArray(data.decisions) || !Array.isArray(data.previews)) {
+    throw new Error('Retained package context options are unavailable from this server.');
+  }
+  if (data.baselines.some(item => !item || typeof item.id !== 'string' || typeof item.contentHash !== 'string'
+    || typeof item.purpose !== 'string' || typeof item.generatedAt !== 'string')
+    || data.decisions.some(item => !item || typeof item.id !== 'string' || typeof item.snapshotHash !== 'string'
+      || typeof item.decisionType !== 'string' || typeof item.decisionDate !== 'string' || typeof item.issuer !== 'string')
+    || data.previews.some(item => !item || typeof item.id !== 'string' || typeof item.contentHash !== 'string'
+      || typeof item.generatedAt !== 'string')) {
+    throw new Error('Retained context options are missing source identities or hashes.');
+  }
+  return data;
+}
+
+function requireConfirmedPurpose(response: { purpose?: PackagePurpose } | null | undefined, requested?: PackagePurpose) {
+  if (requested && requested !== 'Legacy' && response?.purpose !== requested) {
+    throw new Error('The server did not confirm the requested package purpose. Refresh history before retrying generation and verify the API version.');
+  }
+}
+
 export interface PackageSummary {
+  purpose?: PackagePurpose;
   packageId: string;
   status: string;
   artifactCount: number;
@@ -55,6 +96,8 @@ export interface PackageValidation {
 }
 
 export interface PackageDetail {
+  sourceContextHash?: string | null;
+  purpose?: PackagePurpose;
   packageId: string;
   systemId: string;
   status: string;
@@ -78,12 +121,16 @@ export interface PackageListResponse {
 }
 
 export interface GeneratePackageResponse {
+  sourceContextHash?: string | null;
+  purpose?: PackagePurpose;
   packageId: string;
   status: string;
   message: string;
 }
 
 export interface ReadinessResult {
+  sourceContextHash?: string | null;
+  purpose?: PackagePurpose;
   isValid: boolean;
   errorCount: number;
   warningCount: number;
@@ -117,12 +164,15 @@ export async function generatePackage(
   systemId: string,
   evidenceMode: 'Embedded' | 'ManifestOnly' = 'Embedded',
   signal?: AbortSignal,
+  purpose?: PackagePurpose,
+  retainedContext?: RetainedPackageSelection,
 ): Promise<GeneratePackageResponse> {
   const { data } = await v1Client.post<GeneratePackageResponse>(
     `/systems/${systemId}/packages`,
-    { evidenceMode, includeEvidence: true },
+    { evidenceMode, includeEvidence: true, ...(purpose ? { purpose } : {}), ...(retainedContext ? { retainedContext } : {}) },
     { signal },
   );
+  requireConfirmedPurpose(data, purpose);
   return data;
 }
 
@@ -156,12 +206,15 @@ export function downloadPackageUrl(systemId: string, packageId: string): string 
 export async function validatePackage(
   systemId: string,
   signal?: AbortSignal,
+  purpose?: PackagePurpose,
+  retainedContext?: RetainedPackageSelection,
 ): Promise<ReadinessResult> {
   const { data } = await v1Client.post<ReadinessResult>(
     `/systems/${systemId}/packages/validate`,
-    undefined,
-    { signal },
+    retainedContext,
+    { signal, ...(purpose ? { params: { purpose } } : {}) },
   );
+  requireConfirmedPurpose(data, purpose);
   return data;
 }
 

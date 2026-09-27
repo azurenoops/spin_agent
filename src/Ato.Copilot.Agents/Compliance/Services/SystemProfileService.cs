@@ -430,7 +430,8 @@ public class SystemProfileService : ISystemProfileService
             section.ReviewedBy = reviewerId;
             section.ReviewedAt = DateTime.UtcNow;
             section.ReviewerComments = null;
-            AddAuditEntry(db, section, "Approved", reviewerId, previousStatus, SspSectionStatus.Approved, comments);
+            var approval = AddAuditEntry(db, section, "Approved", reviewerId, previousStatus, SspSectionStatus.Approved, comments);
+            await ApprovedProfileDocumentData.CaptureAsync(db, section, approval, cancellationToken);
         }
         else
         {
@@ -487,7 +488,8 @@ public class SystemProfileService : ISystemProfileService
             section.ReviewedAt = DateTime.UtcNow;
             section.ReviewerComments = null;
             approved.Add(section.SectionType);
-            AddAuditEntry(db, section, "Approved", reviewerId, SspSectionStatus.UnderReview, SspSectionStatus.Approved);
+            var approval = AddAuditEntry(db, section, "Approved", reviewerId, SspSectionStatus.UnderReview, SspSectionStatus.Approved);
+            await ApprovedProfileDocumentData.CaptureAsync(db, section, approval, cancellationToken);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -917,7 +919,7 @@ public class SystemProfileService : ISystemProfileService
                 cancellationToken);
     }
 
-    private static void AddAuditEntry(
+    private static ProfileAuditEntry AddAuditEntry(
         AtoCopilotContext db,
         SystemProfileSection section,
         string action,
@@ -926,7 +928,7 @@ public class SystemProfileService : ISystemProfileService
         SspSectionStatus newStatus,
         string? comments = null)
     {
-        db.ProfileAuditEntries.Add(new ProfileAuditEntry
+        var entry = new ProfileAuditEntry
         {
             SystemProfileSectionId = section.Id,
             Action = action,
@@ -935,7 +937,9 @@ public class SystemProfileService : ISystemProfileService
             PreviousStatus = previousStatus,
             NewStatus = newStatus,
             Comments = comments
-        });
+        };
+        db.ProfileAuditEntries.Add(entry);
+        return entry;
     }
 
     private static string FormatSectionLabel(ProfileSectionType type) => type switch

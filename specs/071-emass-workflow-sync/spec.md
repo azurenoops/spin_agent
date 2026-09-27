@@ -1,5 +1,12 @@
 # Feature Specification: eMASS Workflow Sync & OSCAL 1.1.2 Upgrade
 
+> Coordination: [Feature 079](../079-provider-system-workflow-consolidation/spec.md)
+> retains file-based reconciliation and adds shared purpose-specific readiness
+> and truthful exchange states. Historical assertions below about eMASS
+> acceptance are not evidence of a verified receiving-system contract. Export,
+> transfer, receipt, import acceptance, conflict resolution and AO decisions must
+> remain separately recorded.
+
 **Feature**: 071-emass-workflow-sync
 **Branch**: `071-emass-workflow-sync`
 **Created**: 2026-06-11

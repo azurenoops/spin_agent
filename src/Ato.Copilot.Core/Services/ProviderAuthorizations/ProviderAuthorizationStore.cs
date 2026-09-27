@@ -20,6 +20,8 @@ public sealed class ProviderAuthorizationStore(
 {
     public IDbContextFactory<AtoCopilotContext> Factory => factory;
     public ITenantContext Tenant => tenant;
+    internal void CustomerActionsUnavailable(Guid offeringId, Exception error) =>
+        logger.LogWarning(error, "Provider offering {OfferingId} customer-action count is unavailable; no zero inferred", offeringId);
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     public static string Json<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
     public static T Read<T>(string value) => JsonSerializer.Deserialize<T>(value, JsonOptions)
@@ -98,12 +100,35 @@ public sealed class ProviderAuthorizationStore(
         return scope with { ResourceId = string.Join('/', segments).ToLowerInvariant() };
     }
 
-    public static bool Contains(ProviderAzureScope parent, ProviderAzureScope child)
+    public static ProviderScope Normalize(ProviderScope scope) => scope switch
+    {
+        ProviderAzureScope azure => Normalize(azure),
+        ProviderServiceScope service when service.Environment is "AzureCloud" or "AzureUSGovernment" or "Microsoft365DoD" or "ManualService" =>
+            service with
+            {
+                ServiceId = Text(service.ServiceId, "service identifier", 256),
+                ServiceName = Text(service.ServiceName, "service name", 256),
+                TenantReference = service.TenantReference is null ? null : Text(service.TenantReference, "service tenant reference", 256)
+            },
+        _ => throw new ArgumentException("Specify a supported Azure scope or an explicit manually documented service relationship.")
+    };
+
+    public static bool ScopeMatchesOffering(ProviderOffering offering, ProviderScope scope) =>
+        Read<string[]>(offering.EnvironmentsJson).Contains(scope.ScopeEnvironment)
+        && (scope is ProviderAzureScope
+            || (offering.ServiceModel is "InfrastructureSharedServices" or "PlatformService" or "SoftwareAsAService" or "BrokeredCloudSpace")
+            && (offering.ManagementArrangement is "ProviderManaged" or "SharedOperations" or "MissionOwnerManaged"));
+
+    public static bool Contains(ProviderScope parent, ProviderScope child)
     {
         parent = Normalize(parent); child = Normalize(child);
-        return parent.Cloud == child.Cloud && parent.DirectoryTenantId == child.DirectoryTenantId
-            && parent.SubscriptionId == child.SubscriptionId
-            && (parent.ResourceId == child.ResourceId || child.ResourceId.StartsWith(parent.ResourceId + "/", StringComparison.Ordinal));
+        if (parent is ProviderServiceScope service && child is ProviderServiceScope assigned)
+            return service.ServiceId == assigned.ServiceId && service.Environment == assigned.Environment
+                && service.TenantReference == assigned.TenantReference;
+        return parent is ProviderAzureScope azure && child is ProviderAzureScope resource
+            && azure.Cloud == resource.Cloud && azure.DirectoryTenantId == resource.DirectoryTenantId
+            && azure.SubscriptionId == resource.SubscriptionId
+            && (azure.ResourceId == resource.ResourceId || resource.ResourceId.StartsWith(azure.ResourceId + "/", StringComparison.Ordinal));
     }
 
     public async Task CitationsAsync(AtoCopilotContext db, Guid providerId, IReadOnlyList<ProviderCitation> citations,
@@ -131,7 +156,7 @@ public sealed class ProviderAuthorizationStore(
         if (reference is null) return;
         var candidate = await (from c in db.CspPackageCandidates
                                join p in db.CspPackages on c.PackageId equals p.Id
-                               where p.ProviderId == providerId && p.Id == reference.PackageId && c.Id == reference.CandidateId
+                               where p.ProviderId == providerId && p.SupersededAt == null && p.Id == reference.PackageId && c.Id == reference.CandidateId
                                select c).SingleOrDefaultAsync(ct);
         if (candidate is null || candidate.Type != kind || candidate.Revision != reference.Revision
             || candidate.ReviewState != "Reviewed" || candidate.ReviewedBy is null)

@@ -8,6 +8,17 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// </summary>
 public interface IAuthorizationPackageService
 {
+    Task<PackageValidationResult> ValidateRetainedPackageAsync(string systemId, PackagePurpose purpose,
+        RetainedPackageSelection? selection, string validatedBy = "mcp-user", CancellationToken cancellationToken = default);
+    Task<AuthorizationPackage> EnqueueRetainedPackageAsync(string systemId, PackagePurpose purpose,
+        RetainedPackageSelection selection, string generatedBy = "mcp-user", CancellationToken cancellationToken = default, string? idempotencyKey = null);
+    Task<AuthorizationPackage> EnqueuePackageAsync(
+        string systemId,
+        PackagePurpose purpose,
+        EvidenceMode evidenceMode = EvidenceMode.Embedded,
+        string generatedBy = "mcp-user",
+        CancellationToken cancellationToken = default);
+
     Task<AuthorizationPackage> EnqueuePackageAsync(
         string systemId,
         EvidenceMode evidenceMode = EvidenceMode.Embedded,

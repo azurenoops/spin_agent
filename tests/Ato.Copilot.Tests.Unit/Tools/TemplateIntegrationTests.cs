@@ -130,22 +130,43 @@ public class TemplateIntegrationTests
     [Fact]
     public async Task ValidateTemplate_AllFieldsPresent_IsValid()
     {
+        // Arrange
         var service = CreateRealService();
         var allSspFields = new[] {
             "SystemName", "SystemAcronym", "SystemType", "MissionCriticality",
             "HostingEnvironment", "SecurityCategorization", "BaselineLevel",
             "TotalControls", "ImplementedControls", "PartialControls", "PlannedControls",
             "ControlNarratives", "InheritedControls", "SharedControls",
-            "AuthorizationBoundary", "PreparedBy", "PreparedDate"
+            "AuthorizationBoundary", "PreparedBy", "PreparedDate",
+            "ApprovedProfileMissionAndPurpose", "ApprovedProfileUsersAndAccess", "ApprovedProfileEnvironmentAndDeployment",
+            "ApprovedProfileDataTypes", "ApprovedProfilePortsProtocolsAndServices", "ApprovedProfileLeveragedAuthorizations",
+            "ProviderAuthorizationSources"
         };
 
         var docxBytes = CreateMinimalDocx(allSspFields);
 
+        // Act
         var result = await service.ValidateTemplateAsync(docxBytes, "ssp");
 
+        // Assert
         result.IsValid.Should().BeTrue();
         result.MergeFieldsMissing.Should().BeEmpty();
         result.MergeFieldsFound.Should().HaveCount(allSspFields.Length);
+    }
+
+    [Fact]
+    public async Task RenderSsp_TemplateMissingSourceFields_IsRejectedBeforeReadingSystemData()
+    {
+        // Arrange
+        var service = CreateRealService();
+        var template = await service.UploadTemplateAsync("Incomplete SSP", "ssp",
+            CreateMinimalDocx("SystemName"), "template-author");
+
+        // Act
+        var render = () => service.RenderDocxAsync("system", "ssp", template.TemplateId);
+
+        // Assert
+        await render.Should().ThrowAsync<InvalidOperationException>().WithMessage("*required SSP merge fields*");
     }
 
     [Fact]

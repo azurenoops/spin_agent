@@ -1,0 +1,162 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 3 /Kids [5 0 R 7 0 R 9 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4102 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 17 Tf 0.08 0.19 0.31 rg 48 730 Td (Microsoft 365 ∑ Collaboration) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 702 Td (Service guide and customer onboarding) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 679 Td (SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 651 Td (authorization, a customer entitlement, or operational evidence.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Release 1.0 | Scenario date: 2026-09-15 | SaaS collaboration) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 609 Td (Service boundary) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 586 Td (Only the five listed SaaS collaboration policy services; independent of Azure shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 572 Td (infrastructure and its customer allocations.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 551 Td (Environment: Flank Speed Demo \(fictional tenant; separate service boundary\).) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 530 Td (Exclusions) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 507 Td (Azure hubs and subscriptions, mission applications, endpoint compliance operations, telephony) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 493 Td (carriers, third-party apps, real tenant entitlements, and actual Flank Speed authorization.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 472 Td (Synthetic hosting identity) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 449 Td (SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Service;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 435 Td (serviceId=synthetic-m365-collaboration-001; serviceName=Flank Speed Demo - Collaboration) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 421 Td (\(SYNTHETIC\); environment=Microsoft365DoD; tenantReference=synthetic-flank-speed-demo-tenant.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 407 Td (No live resource, tenant entitlement, or connector is asserted.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 386 Td (Operating team) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 363 Td (Harbor Collaboration Demo Team | collaboration@example.invalid. This address is intentionally) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 349 Td (non-routable.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 328 Td (Customer onboarding and acceptance) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 305 Td (1. Identify a fictional mission information owner and select only applicable capabilities.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 284 Td (2. Review the boundary, customer duties, reference conditions, and disclosed moderate) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 270 Td (finding.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 249 Td (3. Confirm the application records a reviewed provider release and a separate customer) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 235 Td (association; importing a file creates neither entitlement nor authority.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 214 Td (4. Record customer-owned controls and evidence tasks before any inheritance decision.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 193 Td (5. Obtain mission-level review through the normal authorization process. No synthetic) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 179 Td (reference substitutes for it.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 158 Td (Service change and exit) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 135 Td (The team provides a fictional ten-business-day notice for planned customer-impacting changes.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 121 Td (Emergency changes require a next-business-day review. On exit, agree evidence export scope,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 107 Td (revoke demo associations, and document customer retention obligations; this package does not) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 93 Td (implement those actions.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 1 of 3) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 4073 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 730 Td (Exchange Online collaboration mail) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 707 Td (Component: M365-component-exchange ó Demo Exchange mail and transport configuration.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 686 Td (Coverage: AC-2, SC-7. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (Provide a fictional SaaS collaboration mail configuration for Flank Speed Demo; no Azure) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 651 Td (subscription resources are included.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Provider: Maintain documented mail-flow defaults, operator access controls and service-impact) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 616 Td (notifications for the demo boundary.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 595 Td (Shared: Review approved external mail domains and investigate delivery-policy exceptions with) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 581 Td (tenant administrators.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 560 Td (Customer: Approve mailboxes, review distribution groups, label messages and enforce) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 546 Td (mission-specific handling restrictions.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 525 Td (Review evidence: M365-E01: synthetic mail-flow review and mailbox access sample.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 504 Td (Teams meetings and messaging) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 481 Td (Component: M365-component-teams ó Demo Teams meeting policy service.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 460 Td (Coverage: AC-2, AC-4. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 439 Td (Cover tenant-level meeting and messaging policy templates; voice carrier connectivity and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 425 Td (endpoint configuration are excluded.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 404 Td (Provider: Version baseline meeting policies and track changes to guest, federation and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 390 Td (anonymous-join defaults.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 369 Td (Shared: Review external collaboration requests and test meeting restrictions with designated) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 355 Td (customer administrators.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 334 Td (Customer: Approve team membership, meeting organizers and guests; manage meeting content and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 320 Td (user training.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 299 Td (Review evidence: M365-E02: synthetic meeting-policy export and guest access test.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 278 Td (SharePoint and OneDrive content) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 255 Td (Component: M365-component-sharepoint ó Demo document collaboration policy service.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 234 Td (Coverage: AC-3, AC-6. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 213 Td (Cover fictional site-sharing templates and document access policy; no customer content is) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 199 Td (imported.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 178 Td (Provider: Maintain baseline external-sharing limits and publish tested administrative) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 164 Td (configuration guidance.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 143 Td (Shared: Validate site exceptions and review sharing reports with customer information owners) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 129 Td (every month.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 108 Td (Customer: Assign site owners, remove stale sharing links, classify content and approve) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 94 Td (site-level permissions.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 2 of 3) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 2977 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (Review evidence: M365-E03: synthetic site-sharing review and access revocation test.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 709 Td (Purview retention and audit) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 686 Td (Component: M365-component-purview ó Demo collaboration audit and retention service.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (Coverage: AU-2, AU-6, AU-11. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 644 Td (Describe configured collaboration audit categories and a fictional 365-day retention design,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (not a purchased license entitlement.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 609 Td (Provider: Maintain audit export schedules and retention-policy templates; document gaps in) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 595 Td (the customer evidence handoff.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 574 Td (Shared: Confirm licensed functionality before any real deployment and reconcile evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 560 Td (delivery with customer reviewers.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 539 Td (Customer: Select records schedules, perform legal review, investigate user activity and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 525 Td (approve legal holds.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 504 Td (Review evidence: M365-E04: synthetic audit-delivery ledger and retention retrieval rehearsal.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 483 Td (Tenant access safeguards) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 460 Td (Component: M365-component-identity ó Demo Entra collaboration access policy.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 439 Td (Coverage: IA-2, AC-2. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 418 Td (Cover SaaS collaboration access policy templates for the demo tenant, independently of Azure) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 404 Td (shared-service operations.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 383 Td (Provider: Version MFA and privileged-admin policy guidance and track provider support account) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 369 Td (approvals.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 348 Td (Shared: Test emergency access procedures and review privileged roles jointly every month.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 327 Td (Customer: Enroll users, enforce device compliance, run joiner/mover/leaver processes and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 313 Td (approve conditional-access exceptions.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 292 Td (Review evidence: M365-E05: synthetic MFA policy review and emergency-access rehearsal.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 3 of 3) Tj ET
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000133 00000 n 
+0000000230 00000 n 
+0000000332 00000 n 
+0000000468 00000 n 
+0000004622 00000 n 
+0000004758 00000 n 
+0000008883 00000 n 
+0000009020 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+12050
+%%EOF

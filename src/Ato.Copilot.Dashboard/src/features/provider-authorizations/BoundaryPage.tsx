@@ -5,9 +5,10 @@ import { buttonClass, Pager, secondaryButtonClass, Status, surfaceClass, useRemo
 import { BoundaryEditor } from './OfferingIntake';
 import SetupDialog from '../workspace-operations/SetupDialog';
 import * as api from './api';
-import type { AzureScope, Cloud, Offering, OfferingBoundaryOverview } from './types';
+import type { ProviderScope, OfferingEnvironment, Offering, OfferingBoundaryOverview } from './types';
+import { offeringEnvironments, scopeLabel } from './scopes';
 
-const cloudName = (cloud: Cloud) => cloud === 'AzureUSGovernment' ? 'Azure Government' : 'Azure Commercial';
+const cloudName = (cloud: OfferingEnvironment) => offeringEnvironments[cloud];
 const linkClass = 'text-sm font-medium text-indigo-700 underline underline-offset-2 dark:text-indigo-300';
 const mutedClass = 'text-sm text-slate-600 dark:text-slate-300';
 
@@ -27,14 +28,14 @@ function Statements({ values, empty, label }: { values: string[]; empty: string;
   </ul> : <p className={mutedClass}>{empty}</p>;
 }
 
-function ResourceScopes({ scopes }: { scopes: AzureScope[] }) {
+function ResourceScopes({ scopes }: { scopes: ProviderScope[] }) {
   return <ul className="space-y-3">{scopes.map((scope, index) => <li key={index} className="rounded border border-slate-200 p-3 dark:border-gray-700">
-    <dl className="grid gap-3 break-all text-sm sm:grid-cols-2">
+    {scope.kind === 'Service' ? <p className="break-words text-sm">{scopeLabel(scope)} · Manually documented relationship</p> : <dl className="grid gap-3 break-all text-sm sm:grid-cols-2">
       <div><dt className={mutedClass}>Cloud</dt><dd>{cloudName(scope.cloud)}</dd></div>
       <div><dt className={mutedClass}>Directory tenant</dt><dd>{scope.directoryTenantId}</dd></div>
       <div><dt className={mutedClass}>Subscription</dt><dd>{scope.subscriptionId}</dd></div>
       <div className="sm:col-span-2"><dt className={mutedClass}>Resource group or resource scope</dt><dd>{scope.resourceId}</dd></div>
-    </dl>
+    </dl>}
   </li>)}</ul>;
 }
 
@@ -110,7 +111,7 @@ function BoundaryHistory({ offering }: { offering: Offering }) {
             <p className="whitespace-pre-wrap break-words text-sm">{item.scopeStatement}</p>
             <Statements values={item.services} empty="No services recorded." label="Previous services" />
             <ResourceScopes scopes={item.includedScopes} />
-            <Statements values={item.exclusions.map(value => `${value.description} - ${value.rationale}${value.scope ? ` (${value.scope.resourceId})` : ''}`)} empty="No exclusions recorded." label="Previous exclusions" />
+            <Statements values={item.exclusions.map(value => `${value.description} - ${value.rationale}${value.scope ? ` (${scopeLabel(value.scope)})` : ''}`)} empty="No exclusions recorded." label="Previous exclusions" />
             <Statements values={item.providerResponsibilities} empty="No CSP responsibilities recorded." label="Previous CSP responsibilities" />
             <Statements values={item.customerResponsibilities} empty="No Mission Owner responsibilities recorded." label="Previous Mission Owner responsibilities" />
             <Statements values={item.componentSnapshotIds} empty="No component snapshots recorded." label="Component snapshot references" />
@@ -177,7 +178,7 @@ export function BoundaryPage({ offering, refresh }: { offering: Offering; refres
         {boundary?.includedScopes.length ? <ResourceScopes scopes={boundary.includedScopes} />
           : <p className={mutedClass}>No tenant, subscription or resource identifiers recorded. This is not universal resource coverage.</p>}
         <h3 className="font-medium">Outside this boundary</h3>
-        <Statements values={boundary?.exclusions.map(value => `${value.description} - ${value.rationale}${value.scope ? ` (${value.scope.resourceId})` : ''}`) ?? []} empty="No explicit exclusions recorded; this does not expand the included scope." />
+        <Statements values={boundary?.exclusions.map(value => `${value.description} - ${value.rationale}${value.scope ? ` (${scopeLabel(value.scope)})` : ''}`) ?? []} empty="No explicit exclusions recorded; this does not expand the included scope." />
       </>}
     </Card>
     <Status loading={linked.loading} error={linked.error} retry={linked.retry} />

@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -15,6 +17,12 @@ namespace Ato.Copilot.Mcp.Endpoints;
 /// </summary>
 public static class PackageEndpoints
 {
+    private static bool TryPurpose(string? value, out PackagePurpose purpose)
+    {
+        purpose = PackagePurpose.Legacy;
+        return value == null || (Enum.TryParse(value, true, out purpose) && Enum.IsDefined(purpose));
+    }
+
     public static IEndpointRouteBuilder MapPackageEndpoints(this IEndpointRouteBuilder app)
     {
         var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
@@ -284,12 +292,35 @@ public static class PackageEndpoints
 
         systems.MapPost("/packages/validate", async (
                 string systemId,
+                string? purpose,
+                HttpRequest request,
                 IPackageValidationService service,
+                IAuthorizationPackageService packages,
                 CancellationToken ct) =>
             {
-                var result = await service.ValidateAsync(systemId, currentUser.CurrentUserId, ct);
+                if (!TryPurpose(purpose, out var parsedPurpose))
+                    return Results.BadRequest(new ErrorResponse { Error = "Use Legacy, InitialSubmission, AuthorizedBaselineArchive or ChangeSubmission.", ErrorCode = "INVALID_PACKAGE_PURPOSE" });
+                PackageValidationResult result;
+                if (parsedPurpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
+                {
+                    RetainedPackageSelection? selection = null;
+                    try
+                    {
+                        if (request.ContentLength > 0 || request.Headers.TransferEncoding.Count > 0 || request.HasJsonContentType())
+                            selection = await request.ReadFromJsonAsync<RetainedPackageSelection>(ct);
+                        result = await packages.ValidateRetainedPackageAsync(systemId, parsedPurpose, selection, currentUser.CurrentUserId, ct);
+                    }
+                    catch (JsonException) { return Results.BadRequest(new ErrorResponse { Error = "Invalid retained-context JSON.", ErrorCode = "INVALID_RETAINED_CONTEXT" }); }
+                    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+                }
+                else result = parsedPurpose == PackagePurpose.Legacy
+                        ? await service.ValidateAsync(systemId, currentUser.CurrentUserId, ct)
+                        : await service.ValidateAsync(systemId, parsedPurpose, currentUser.CurrentUserId, ct);
                 return Results.Ok(new
                 {
+                    purpose = parsedPurpose.ToString(),
+                    retainedContext = result.RetainedContext,
+                    sourceContextHash = result.SourceContextHash,
                     isValid = result.IsValid,
                     errorCount = result.ErrorCount,
                     warningCount = result.WarningCount,
@@ -304,24 +335,48 @@ public static class PackageEndpoints
                     })
                 });
             })
-            .WithName("ValidatePackage");
+            .WithName("ValidatePackage")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
 
         // ─── Package Generation & Management Endpoints ──────────────────────
 
         systems.MapPost("/packages", async (
                 string systemId,
                 GeneratePackageRequest request,
+                HttpRequest httpRequest,
                 IAuthorizationPackageService service,
                 CancellationToken ct) =>
             {
                 try
                 {
-                    var package = await service.EnqueuePackageAsync(systemId, request.EvidenceMode, currentUser.CurrentUserId, ct);
+                    if (!Enum.IsDefined(request.Purpose))
+                        return Results.BadRequest(new ErrorResponse { Error = "Use Legacy, InitialSubmission, AuthorizedBaselineArchive or ChangeSubmission.", ErrorCode = "INVALID_PACKAGE_PURPOSE" });
+                    AuthorizationPackage package;
+                    if (request.Purpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
+                    {
+                        var keys = httpRequest.Headers["Idempotency-Key"];
+                        if (keys.Count > 1) throw new ArgumentException("Supply one Idempotency-Key header.");
+                        package = await service.EnqueueRetainedPackageAsync(systemId, request.Purpose,
+                            request.RetainedContext ?? throw new InvalidOperationException("RetainedContext is required for archive/change packages."),
+                            currentUser.CurrentUserId, ct, keys.Count == 0 ? null : keys[0]);
+                    }
+                    else
+                    {
+                        if (request.RetainedContext != null)
+                            throw new InvalidOperationException("RetainedContext applies only to archive/change purposes.");
+                        package = request.Purpose == PackagePurpose.Legacy
+                            ? await service.EnqueuePackageAsync(systemId, request.EvidenceMode, currentUser.CurrentUserId, ct)
+                            : await service.EnqueuePackageAsync(systemId, request.Purpose, request.EvidenceMode, currentUser.CurrentUserId, ct);
+                    }
                     return Results.Accepted(
                         $"/api/v1/systems/{systemId}/packages/{package.Id}",
                         new
                         {
                             packageId = package.Id,
+                            purpose = package.Purpose.ToString(),
+                            retainedContextHash = package.RetainedContextHash,
+                            sourceContextHash = package.RetainedContextJson == null ? null :
+                                Ato.Copilot.Agents.Compliance.Services.AuthorizationPackageContextOptions.SourceContextHash(package.RetainedContextJson),
                             status = package.Status.ToString(),
                             message = "Package generation has been queued."
                         });
@@ -330,8 +385,18 @@ public static class PackageEndpoints
                 {
                     return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "READINESS_CHECK_FAILED" });
                 }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    return Results.Conflict(new ErrorResponse { Error = ex.Message, ErrorCode = "PACKAGE_REQUEST_CONFLICT" });
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_RETAINED_CONTEXT" });
+                }
+                catch (UnauthorizedAccessException) { return Results.Forbid(); }
             })
-            .WithName("GeneratePackage");
+            .WithName("GeneratePackage")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
 
         systems.MapGet("/packages", async (
                 string systemId,
@@ -364,6 +429,12 @@ public static class PackageEndpoints
                 return Results.Ok(new PackageDetailResponse
                 {
                     PackageId = package.Id,
+                    Purpose = package.Purpose.ToString(),
+                    RetainedContext = package.RetainedContextJson == null ? null :
+                        JsonSerializer.Deserialize<RetainedPackageManifest>(package.RetainedContextJson, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+                    RetainedContextHash = package.RetainedContextHash,
+                    SourceContextHash = package.RetainedContextJson == null ? null :
+                        Ato.Copilot.Agents.Compliance.Services.AuthorizationPackageContextOptions.SourceContextHash(package.RetainedContextJson),
                     SystemId = package.RegisteredSystemId,
                     Status = package.Status.ToString(),
                     EvidenceMode = package.EvidenceMode.ToString(),
@@ -415,7 +486,18 @@ public static class PackageEndpoints
                 if (package == null || package.RegisteredSystemId != systemId)
                     return Results.NotFound();
 
-                var stream = await service.DownloadPackageAsync(packageId, ct);
+                Stream? stream;
+                try { stream = await service.DownloadPackageAsync(packageId, ct); }
+                catch (UnauthorizedAccessException) { return Results.Forbid(); }
+                catch (KeyNotFoundException) { return Results.NotFound(); }
+                catch (IOException)
+                {
+                    return Results.Conflict(new ErrorResponse { Error = "Retained package evidence could not be verified.", ErrorCode = "PACKAGE_EVIDENCE_UNAVAILABLE" });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.Conflict(new ErrorResponse { Error = ex.Message, ErrorCode = "PACKAGE_CONTEXT_UNAVAILABLE" });
+                }
                 if (stream == null)
                     return Results.NotFound(new ErrorResponse
                     {
@@ -427,7 +509,8 @@ public static class PackageEndpoints
                     "application/zip",
                     $"authorization-package-{packageId[..8]}.zip");
             })
-            .WithName("DownloadPackage");
+            .WithName("DownloadPackage")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
 
         return app;
     }

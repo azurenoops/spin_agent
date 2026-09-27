@@ -38,7 +38,7 @@ describe('system capability layout integration', () => {
     // Assert
     await screen.findByRole('heading', { name: 'Applied security capabilities' });
     const navigation = screen.getByRole('navigation', { name: 'System navigation' });
-    expect(within(navigation).getByRole('link', { name: 'Security Capabilities' })).toHaveAttribute('href', '/systems/system-a/security-capabilities');
+    expect(within(navigation).getByRole('link', { name: 'Applied capabilities' })).toHaveAttribute('href', '/systems/system-a/security-capabilities');
     expect(screen.getByRole('link', { name: 'Mission Alpha' })).toHaveAttribute('href', '/systems/system-a');
     expect(await screen.findByRole('heading', { name: 'System capability follow-up' })).toBeVisible();
     // Act

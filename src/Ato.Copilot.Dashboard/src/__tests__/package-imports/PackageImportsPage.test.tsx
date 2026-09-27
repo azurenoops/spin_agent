@@ -48,6 +48,32 @@ const selectAndPreview = async () => {
 };
 
 describe('private package portal', () => {
+  it('shows superseded history and replacement without enabling review mutations or hiding original sources', async () => {
+    // Arrange
+    vi.mocked(api.getPackageStatus).mockResolvedValue(packageStatus({
+      processingState: 'NeedsAttention', supersededAt: '2026-09-26T18:00:00Z',
+      supersededByPackageId: 'replacement-1', supersededBy: 'provider-admin',
+      supersedeReason: 'Replaced by the published Azure baseline',
+    }));
+    renderDetail();
+    // Act
+    await screen.findByRole('heading', { name: 'Review work superseded · read-only' });
+    // Assert
+    expect(screen.getByText('Replaced by the published Azure baseline')).toBeVisible();
+    expect(screen.getByText(/provider-admin/)).toBeVisible();
+    expect(screen.getByRole('link', { name: 'View replacement package' })).toHaveAttribute('href', api.packageImportHref('replacement-1'));
+    expect(await screen.findByRole('heading', { name: 'Synthetic source component' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Review Synthetic/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Candidate type')).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Retry unfinished analysis' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publish approved set' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Source files' }));
+    expect(await screen.findByRole('button', { name: 'Download source' })).toBeEnabled();
+    expect(screen.queryByText('Exclude source entry')).not.toBeInTheDocument();
+    expect(api.retryPackage).not.toHaveBeenCalled();
+    expect(api.publishPackage).not.toHaveBeenCalled();
+  });
+
   it('binds offering impact reviews to a fresh package preview and invalidates it on changed review selection', async () => {
     // Arrange
     vi.mocked(api.previewPackage).mockResolvedValue(preview({
@@ -61,6 +87,8 @@ describe('private package portal', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /^Boundary coverage change/ }));
     await selectAndPreview();
     // Assert
+    expect(screen.getByRole('link', { name: 'All source packages' })).toHaveAttribute('href',
+      '/workspaces/csp/authorizations/offerings/offering-1/packages');
     expect(api.previewPackage).toHaveBeenCalledWith('package-1', {
       expectedRevision: 4, candidates: [{ candidateId: 'candidate-1', revision: 1 }], impactReviewIds: ['impact-1', 'impact-2'],
     });

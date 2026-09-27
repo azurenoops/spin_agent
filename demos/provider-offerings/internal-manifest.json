@@ -1,0 +1,2588 @@
+{
+  "demonstrationNotice": "SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.",
+  "scenarioDate": "2026-09-15",
+  "format": "native-structured-inventory-not-oscal",
+  "hashAlgorithm": "SHA-256",
+  "files": [
+    {
+      "path": "CATALOG.md",
+      "bytes": 7139,
+      "sha256": "a7be8d6248d3f1a309eb0cbd61661d356c498cbb2220bd79f72936271512fd93",
+      "distribution": "INTERNAL"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5964,
+      "sha256": "f38127725e631b011fdad373ae8413b0ccf31f575559a4af4fb61c4435601c46",
+      "distribution": "INTERNAL"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/PRIVATE-assessment-working-paper.docx",
+      "bytes": 3163,
+      "sha256": "f3ea1309572abf174e7afee5fca05ec28157f240627d6f05fb56af46526ce240",
+      "distribution": "PRIVATE"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/PRIVATE-assessment-working-paper.md",
+      "bytes": 2168,
+      "sha256": "9e8fe032a4a6eba8a3733126f163eb684cc9479189316eca5381dd9ae30f7d52",
+      "distribution": "PRIVATE"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/PRIVATE-assessment-working-paper.pdf",
+      "bytes": 4628,
+      "sha256": "69917110584ee1dd6a958062d471b386483448b6b056f4376a02780464289c5d",
+      "distribution": "PRIVATE"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/customer-assessment-summary.docx",
+      "bytes": 3472,
+      "sha256": "b2053650cf5d23a276c9776d2059bbc0863070c6742c310089f36d998ebb2c49",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/customer-assessment-summary.md",
+      "bytes": 2701,
+      "sha256": "d85b93fae24774077cd17149d8b259db1e706a36dd7a3350b023f415f4a36089",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/customer-assessment-summary.pdf",
+      "bytes": 5992,
+      "sha256": "389e67e2216218eb7240907c2afa97c7f1261df53c109b6e68768bc5c54ab90b",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/customer-bundle.zip",
+      "bytes": 48644,
+      "sha256": "3e00b986c1c2486b60805b404a38c23e441543f15ba89c36c2bc2a9087bc6261",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.csv",
+      "bytes": 9544,
+      "sha256": "d489be140f7d3b62f6523da5cc93234767b0a79ea3f83d4f675f3e45cb65ef83",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.docx",
+      "bytes": 4202,
+      "sha256": "303afcfe849d4fed072eee0a3b395d3c30ad5d5d5aa23bc56550c57d1bd323c2",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md",
+      "bytes": 6020,
+      "sha256": "a3d68a02dd62d105b876a4dc716376a702665e496ce95fad916bda99773bbb9b",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.pdf",
+      "bytes": 11989,
+      "sha256": "b2d6c73188381201a0a681a4077538cb77444dfc19ec8ca451f51c7fd1321254",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/evidence-index.csv",
+      "bytes": 2812,
+      "sha256": "d33b07b5268ac74d0289f5fba3cd7955f56ff66965a078261b224931fc501a9a",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/evidence-index.docx",
+      "bytes": 3192,
+      "sha256": "bdb580101b160a8cc806e17a64ea950178b55072479f95716c2ed17c1c213eb9",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/evidence-index.md",
+      "bytes": 3844,
+      "sha256": "8a861afed54ac65f2b369979634db903d4eefb279ad65b1fdd79e5cb0223414e",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/evidence-index.pdf",
+      "bytes": 7737,
+      "sha256": "3eb04db49cabab1e8cc8bf909e62c671a15e400261011217f3207cea775a8af7",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/release-notes.docx",
+      "bytes": 2931,
+      "sha256": "06e743d6006b78dcdff4c17f922708c844d859a5e4bfee667b1b2ea24a5795e7",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/release-notes.md",
+      "bytes": 1500,
+      "sha256": "fed1f66fa3bf3624afed1a7a18b26dae4fa4be788d0119b2392a2092bd9be149",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/release-notes.pdf",
+      "bytes": 3431,
+      "sha256": "8bef8ed8b96f2df2628cbe93d1b4d45d98547254b66be7963b8c1b5d85680008",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/review-source.zip",
+      "bytes": 7720,
+      "sha256": "45c7868bf8e0e611ca207515001c36b2c13e253bb87048fd94dcacc71c79ec24",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/service-guide.docx",
+      "bytes": 5421,
+      "sha256": "f20d9669b5b4d660261376414ceea5e1d7eaeb0fdb4f0d4e7d3cd13d89e6378a",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/service-guide.md",
+      "bytes": 8477,
+      "sha256": "d09485ca43d3e9cacb29878db493c063866f867dda27d50654997ea21752132c",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/service-guide.pdf",
+      "bytes": 17083,
+      "sha256": "60071438d670542d16554693eb540fa5cf5ff4f5f33bd5212dba9c9bd382878b",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+      "bytes": 5025,
+      "sha256": "3e23fb3fb58b6c13d29859a46f5c9856ed878ff77268da2b240b6a1add0014d3",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+      "bytes": 3435,
+      "sha256": "37ea7c739ef6711a369a2e68bae59a024061a9f9a500256c907e1cb6e193e03f",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+      "bytes": 10846,
+      "sha256": "1c4b1fc62e29da42d3e4ccc181e06270ebc8746e6be7d088f9908081d63f5c93",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/sources/04-synthetic-reference-record.json",
+      "bytes": 2347,
+      "sha256": "1c535950407c95dd152dcb916d0ba9841a8e798f31726304eae8b404828cd37b",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/sources/05-assessment-summary.json",
+      "bytes": 1616,
+      "sha256": "495bf4542322948af794adcb6a9c5f7e0052deecda93d61620e96ffe23de9b05",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/sources/06-corrective-plan.json",
+      "bytes": 1846,
+      "sha256": "09730bd83b0234d5116902ba86e40a98b222ab8e139fe11d71c43fd19a113ac1",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/synthetic-reference-record.docx",
+      "bytes": 3022,
+      "sha256": "e324d85c24819fa7445e56882408f380e275b490a83f17e58714648a67d86191",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/synthetic-reference-record.md",
+      "bytes": 1774,
+      "sha256": "85e458de8ff453441b47b1627d9fefff23477fab9fb165df15f30bf8b2219c59",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.2/synthetic-reference-record.pdf",
+      "bytes": 4085,
+      "sha256": "2af235493b4a33033ff76ad58242e352334c3a10096c6121eb2748555326c145",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/proposed-release-notes.docx",
+      "bytes": 2811,
+      "sha256": "3f669db31e367ff5bb706c05040f1d91ee4443493696a4859be0c45c6979e7b6",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/proposed-release-notes.md",
+      "bytes": 1205,
+      "sha256": "b815b09eae3748754524cc67392b4f93cc0339df7556d3f569ab8a168fa03e23",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/proposed-release-notes.pdf",
+      "bytes": 2994,
+      "sha256": "1329cf12647641283c1561b69802bee7a82762cbeca64e14f78ba9cd36ae7ff5",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/review-source.zip",
+      "bytes": 7868,
+      "sha256": "bd1459a8c4789080a8591a07416181d801c4ff2a28acb3de5df0cb42a08e007f",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+      "bytes": 5025,
+      "sha256": "3e23fb3fb58b6c13d29859a46f5c9856ed878ff77268da2b240b6a1add0014d3",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+      "bytes": 3726,
+      "sha256": "bd5893bffcf635274577f61539853a0dfa26d5ed899424463aad4e81618b065c",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+      "bytes": 10846,
+      "sha256": "1c4b1fc62e29da42d3e4ccc181e06270ebc8746e6be7d088f9908081d63f5c93",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/sources/04-synthetic-reference-record.json",
+      "bytes": 2347,
+      "sha256": "1c535950407c95dd152dcb916d0ba9841a8e798f31726304eae8b404828cd37b",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/sources/05-assessment-summary.json",
+      "bytes": 1616,
+      "sha256": "495bf4542322948af794adcb6a9c5f7e0052deecda93d61620e96ffe23de9b05",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "azure-il5-shared-services/release-1.3-proposed/sources/06-corrective-plan.json",
+      "bytes": 1846,
+      "sha256": "09730bd83b0234d5116902ba86e40a98b222ab8e139fe11d71c43fd19a113ac1",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "build_demo.py",
+      "bytes": 53405,
+      "sha256": "78aa106bb370801d2ca4e1ab1c85f9272a91e8e6dda35e8cd6b5897b468432ec",
+      "distribution": "INTERNAL"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/PRIVATE-assessment-working-paper.docx",
+      "bytes": 3157,
+      "sha256": "5bab29aee48f0b344749a89e69d14b801123b43ce9872757b751951820c7de02",
+      "distribution": "PRIVATE"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/PRIVATE-assessment-working-paper.md",
+      "bytes": 2158,
+      "sha256": "27cee89b431c35d6e5d92d9a374e371c67364d74dca3ec891f87724fbbd30c77",
+      "distribution": "PRIVATE"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/PRIVATE-assessment-working-paper.pdf",
+      "bytes": 4618,
+      "sha256": "5b5e3dca49d3bcba6260890b3e1bcddf967f9ef23ea8095098b418b2a0d7d3a8",
+      "distribution": "PRIVATE"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/customer-assessment-summary.docx",
+      "bytes": 3464,
+      "sha256": "6a2a7e3bfc1061b4492064280ee26d5226803ed3499470cf4208e829a53850c9",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/customer-assessment-summary.md",
+      "bytes": 2708,
+      "sha256": "8965d98b807bba509db3dd4c53f9663a90377698f23af5cf784534459afa2574",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/customer-assessment-summary.pdf",
+      "bytes": 5999,
+      "sha256": "06d1bc9586a5de0a68ee44df4ed65356c7b7aa711ed5d15c7994633580a2d434",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/customer-bundle.zip",
+      "bytes": 41045,
+      "sha256": "116198fc44bc0bed815269f8aa562ddc2619a5a20e0b9e9bd4dddceeefcdff56",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.csv",
+      "bytes": 6296,
+      "sha256": "e026d25f1a27e53ac13064464075e945d1913ad0151b6c080e430089f8a36e26",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.docx",
+      "bytes": 3468,
+      "sha256": "ba126ed395d4ef7bea7704c32291e00a10fac6019c02ba3a6bd1338d4ad051c2",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md",
+      "bytes": 3770,
+      "sha256": "2e88cf538c132df3e9cfed535c2b2d111c5395388b1c09851737b53568f13eb2",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.pdf",
+      "bytes": 7840,
+      "sha256": "2f6a7f7c99dcbdee2d0c7dc3944b39041c7ae2cbef316d030227ef59db3886f7",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/evidence-index.csv",
+      "bytes": 1959,
+      "sha256": "c8ff0f8739964572e56b54e5e521fbbb0d6ec23cd47d4da4b02daba215b970e9",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/evidence-index.docx",
+      "bytes": 2966,
+      "sha256": "a299d35259d69c21d79c10ff7ee0b22c67c3cb93a8046fbea57103a339722ffc",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/evidence-index.md",
+      "bytes": 2686,
+      "sha256": "57a67439e59ed4f94205d8a4bac7076229a1511c231a0885cbd62766e75723e8",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/evidence-index.pdf",
+      "bytes": 5965,
+      "sha256": "76ba878ca9b9594f2aab74bf71089b8b62ca50cf48dd10594389e37b14d1ef4d",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/release-notes.docx",
+      "bytes": 2685,
+      "sha256": "a82f1cca177f742d7470d80ca760e0a2b58f3814f6691da5cee25b8eb509f35a",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/release-notes.md",
+      "bytes": 986,
+      "sha256": "843e60d4e04e3da49dc2e5ba7436f01a61b7857ba5f8560bdcc6d2861c151f80",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/release-notes.pdf",
+      "bytes": 2628,
+      "sha256": "f58443cde474f4b2890b8673d48da10ee4b5e6a3ffc53f45a97736ec6514a7d0",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/review-source.zip",
+      "bytes": 6367,
+      "sha256": "66f136e7aa983509cc7912fb5fe5d8eac70d1abcf6c63568e5d2eb4c63edab20",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/service-guide.docx",
+      "bytes": 4490,
+      "sha256": "3c87d7bfa2d2303209a6fb37523e8fa78477026f5e76c7dbe1ff5db4cbdfc385",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/service-guide.md",
+      "bytes": 6008,
+      "sha256": "60d20a6e2d0348e589fc82be07609e9e1173b7a3125805d45e3eb2145228bced",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/service-guide.pdf",
+      "bytes": 12337,
+      "sha256": "7a563f2c7a253953eb713e6b6fc2da0fd754fd38efb0d89305a436148e0c338d",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/sources/01-service-scope.json",
+      "bytes": 3664,
+      "sha256": "a33082ffd4ea22a28f7756f46d51ed0a267143e94a5b3c5d5965954374ac9423",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/sources/02-capability-catalog.json",
+      "bytes": 2222,
+      "sha256": "972d75b63da6605896856154f77636c28ec17e4be7b2baed1beda86c923486ec",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+      "bytes": 6762,
+      "sha256": "d2e34a3b0fc47f504d0eebee193fae2053220122295155179650adb63f27cc53",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/sources/04-synthetic-reference-record.json",
+      "bytes": 2390,
+      "sha256": "fa2730bf849f2e9ec328fa174ee1a5ef0c79ab8c1398725d058e61e66a02c8d9",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/sources/05-assessment-summary.json",
+      "bytes": 1623,
+      "sha256": "70ee4ddc394f265c20eea5e7754d123447a7e38d838da27a0ee33fe4b0196f70",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/sources/06-corrective-plan.json",
+      "bytes": 1845,
+      "sha256": "0895118f76c760b3e5953a21ad5a3c09d3456ac5033f378572741313747f415a",
+      "distribution": "REVIEW-ONLY"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/synthetic-reference-record.docx",
+      "bytes": 3030,
+      "sha256": "e804bb759200a9f9461d565cbff2c3a2d36c1cd51c425895156b87ef82bd35fd",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/synthetic-reference-record.md",
+      "bytes": 1798,
+      "sha256": "1d2b933d4d752e21bd43f6fd9b0533e39b2f36b50c8beb813112ed25e56fe6e2",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "microsoft-365-collaboration/release-1.0/synthetic-reference-record.pdf",
+      "bytes": 4158,
+      "sha256": "7dcaa2ffff8226bc53908971d57ce7bdc9831fbec929628dc873db8686fafb52",
+      "distribution": "CUSTOMER-DEMO"
+    },
+    {
+      "path": "validate_demo.py",
+      "bytes": 10701,
+      "sha256": "4d7276b39e3eaeccc0c604720327a3dba85aa5a1617a39ddeebaca07ee49194a",
+      "distribution": "INTERNAL"
+    }
+  ],
+  "sources": [
+    {
+      "offering": "Azure IL5 · Shared services",
+      "sourceReleaseLabel": "1.2",
+      "importZip": "azure-il5-shared-services/release-1.2/review-source.zip",
+      "environments": [
+        "AzureUSGovernment"
+      ],
+      "hostingScopes": [
+        {
+          "kind": "Azure",
+          "cloud": "AzureUSGovernment",
+          "directoryTenantId": "07900000-0000-0000-0000-000000000101",
+          "subscriptionId": "07900000-0000-0000-0000-000000000102",
+          "resourceId": "/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services"
+        }
+      ],
+      "hostingScopeCitations": [
+        {
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "locator": "$/boundaryClaims[0]",
+          "quote": "SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Azure; cloud=AzureUSGovernment; directoryTenantId=07900000-0000-0000-0000-000000000101; subscriptionId=07900000-0000-0000-0000-000000000102; resourceId=/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services. No live resource, tenant entitlement, or connector is asserted."
+        }
+      ],
+      "sourceDocumentCount": 6,
+      "expectedEntryCountIncludingContainer": 7,
+      "expectedSemanticModelCalls": 0,
+      "sourceFiles": [
+        "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+        "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+        "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+        "azure-il5-shared-services/release-1.2/sources/04-synthetic-reference-record.json",
+        "azure-il5-shared-services/release-1.2/sources/05-assessment-summary.json",
+        "azure-il5-shared-services/release-1.2/sources/06-corrective-plan.json"
+      ],
+      "sourceDocuments": [
+        {
+          "archivePath": "01-service-scope.json",
+          "expectedCandidates": {
+            "Component": 8,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 1,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "02-capability-catalog.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 8,
+            "ControlMapping": 16,
+            "Responsibility": 8,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "03-customer-responsibilities.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 24,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "04-synthetic-reference-record.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 1,
+            "AuthorizationDecisionClaim": 1,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "05-assessment-summary.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 1,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "06-corrective-plan.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 1
+          },
+          "expectedAnalysisComplete": true
+        }
+      ],
+      "expectedCandidates": {
+        "Component": 8,
+        "Capability": 8,
+        "ControlMapping": 16,
+        "Responsibility": 32,
+        "AuthorizationReference": 1,
+        "AuthorizationDecisionClaim": 1,
+        "BoundaryClaim": 1,
+        "AssessmentFinding": 1,
+        "PoamItem": 1
+      },
+      "declarations": [
+        {
+          "sourceId": "AZ-component-audit",
+          "kind": "components",
+          "locator": "$/components[0]",
+          "controlCoverage": [
+            "AU-11",
+            "AU-2",
+            "AU-6"
+          ],
+          "description": "Central audit collector and archive",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-audit\",\n      \"type\": \"service\",\n      \"name\": \"Central audit collector and archive\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Collect administrative and platform security events from the enrolled shared-service boundary; retain 90 days searchable and 365 days archived in this scenario.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-network",
+          "kind": "components",
+          "locator": "$/components[1]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Shared hub firewall and private routing",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-network\",\n      \"type\": \"service\",\n      \"name\": \"Shared hub firewall and private routing\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Inspect approved north-south shared-hub flows and maintain documented private routing for enrolled spokes.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-identity",
+          "kind": "components",
+          "locator": "$/components[2]",
+          "controlCoverage": [
+            "AC-2",
+            "IA-2"
+          ],
+          "description": "Provider operations identity service",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-identity\",\n      \"type\": \"service\",\n      \"name\": \"Provider operations identity service\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Control provider operator accounts with MFA and time-limited privileged access; customer identities remain a separate administration responsibility.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-configuration",
+          "kind": "components",
+          "locator": "$/components[3]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Shared-service configuration repository",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-configuration\",\n      \"type\": \"service\",\n      \"name\": \"Shared-service configuration repository\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Version the shared-service baseline and capture approved changes; application code and mission images are excluded.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-encryption",
+          "kind": "components",
+          "locator": "$/components[4]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Shared-service key vault and transport configuration",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-encryption\",\n      \"type\": \"service\",\n      \"name\": \"Shared-service key vault and transport configuration\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Manage fictional shared-service keys and transport settings for provider-owned endpoints only.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-incident",
+          "kind": "components",
+          "locator": "$/components[5]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Provider incident coordination desk",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-incident\",\n      \"type\": \"service\",\n      \"name\": \"Provider incident coordination desk\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Coordinate incidents affecting the shared-service boundary using a fictional 24-hour on-call roster.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-vulnerability",
+          "kind": "components",
+          "locator": "$/components[6]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Shared infrastructure scan and patch service",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-vulnerability\",\n      \"type\": \"service\",\n      \"name\": \"Shared infrastructure scan and patch service\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Scan provider-maintained hosts weekly and evaluate urgent advisories daily; mission applications are excluded.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-backup",
+          "kind": "components",
+          "locator": "$/components[7]",
+          "controlCoverage": [
+            "CP-10",
+            "CP-9"
+          ],
+          "description": "Shared configuration backup vault",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-backup\",\n      \"type\": \"service\",\n      \"name\": \"Shared configuration backup vault\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Back up shared configuration daily; exercise quarterly restore with a scenario target of 24-hour RPO and eight-hour RTO.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-audit",
+          "kind": "capabilities",
+          "locator": "$/capabilities[0]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Audit collection",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-audit\",\n      \"name\": \"Audit collection\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Collect administrative and platform security events from the enrolled shared-service boundary; retain 90 days searchable and 365 days archived in this scenario.\",\n      \"componentIds\": [\n        \"AZ-component-audit\"\n      ],\n      \"controlIds\": [\n        \"AU-2\",\n        \"AU-6\",\n        \"AU-11\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-network",
+          "kind": "capabilities",
+          "locator": "$/capabilities[1]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Network protection",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-network\",\n      \"name\": \"Network protection\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Inspect approved north-south shared-hub flows and maintain documented private routing for enrolled spokes.\",\n      \"componentIds\": [\n        \"AZ-component-network\"\n      ],\n      \"controlIds\": [\n        \"SC-7\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-identity",
+          "kind": "capabilities",
+          "locator": "$/capabilities[2]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Privileged identity",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-identity\",\n      \"name\": \"Privileged identity\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Control provider operator accounts with MFA and time-limited privileged access; customer identities remain a separate administration responsibility.\",\n      \"componentIds\": [\n        \"AZ-component-identity\"\n      ],\n      \"controlIds\": [\n        \"IA-2\",\n        \"AC-2\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-configuration",
+          "kind": "capabilities",
+          "locator": "$/capabilities[3]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Configuration baselines",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-configuration\",\n      \"name\": \"Configuration baselines\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Version the shared-service baseline and capture approved changes; application code and mission images are excluded.\",\n      \"componentIds\": [\n        \"AZ-component-configuration\"\n      ],\n      \"controlIds\": [\n        \"CM-2\",\n        \"CM-3\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-encryption",
+          "kind": "capabilities",
+          "locator": "$/capabilities[4]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Encryption and key handling",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-encryption\",\n      \"name\": \"Encryption and key handling\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Manage fictional shared-service keys and transport settings for provider-owned endpoints only.\",\n      \"componentIds\": [\n        \"AZ-component-encryption\"\n      ],\n      \"controlIds\": [\n        \"SC-12\",\n        \"SC-13\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-incident",
+          "kind": "capabilities",
+          "locator": "$/capabilities[5]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Incident coordination",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-incident\",\n      \"name\": \"Incident coordination\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Coordinate incidents affecting the shared-service boundary using a fictional 24-hour on-call roster.\",\n      \"componentIds\": [\n        \"AZ-component-incident\"\n      ],\n      \"controlIds\": [\n        \"IR-4\",\n        \"IR-6\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-vulnerability",
+          "kind": "capabilities",
+          "locator": "$/capabilities[6]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Vulnerability management",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-vulnerability\",\n      \"name\": \"Vulnerability management\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Scan provider-maintained hosts weekly and evaluate urgent advisories daily; mission applications are excluded.\",\n      \"componentIds\": [\n        \"AZ-component-vulnerability\"\n      ],\n      \"controlIds\": [\n        \"RA-5\",\n        \"SI-2\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-backup",
+          "kind": "capabilities",
+          "locator": "$/capabilities[7]",
+          "controlCoverage": [
+            "CP-9",
+            "CP-10"
+          ],
+          "description": "Backup and recovery",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-backup\",\n      \"name\": \"Backup and recovery\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Back up shared configuration daily; exercise quarterly restore with a scenario target of 24-hour RPO and eight-hour RTO.\",\n      \"componentIds\": [\n        \"AZ-component-backup\"\n      ],\n      \"controlIds\": [\n        \"CP-9\",\n        \"CP-10\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-audit-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[0]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Audit collection — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-audit-provider\",\n      \"name\": \"Audit collection — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Operate collector health checks every 15 minutes; reconcile ingestion counts daily; protect archived events from routine operator modification. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.\",\n      \"capabilityId\": \"AZ-capability-audit\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-audit-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[1]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Audit collection — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-audit-shared\",\n      \"name\": \"Audit collection — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Agree event categories and triage escalation with each mission; investigate missing source intervals jointly within one business day. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.\",\n      \"capabilityId\": \"AZ-capability-audit\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-audit-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[2]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Audit collection — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-audit-customer\",\n      \"name\": \"Audit collection — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Enable workload audit sources, review mission-specific events each business day, and set longer retention when mission policy requires it. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.\",\n      \"capabilityId\": \"AZ-capability-audit\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-network-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[3]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Network protection — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-network-provider\",\n      \"name\": \"Network protection — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Maintain deny-by-default hub rules, review exceptions monthly, and record firewall changes with rollback instructions. Evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.\",\n      \"capabilityId\": \"AZ-capability-network\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-network-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[4]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Network protection — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-network-shared\",\n      \"name\": \"Network protection — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Approve traffic purpose and route changes jointly; exercise a denied-traffic test before connecting a new spoke. Evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.\",\n      \"capabilityId\": \"AZ-capability-network\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-network-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[5]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Network protection — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-network-customer\",\n      \"name\": \"Network protection — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Manage application ingress, workload NSGs, DNS dependencies and endpoints outside the provider hub. Evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.\",\n      \"capabilityId\": \"AZ-capability-network\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-identity-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[6]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Privileged identity — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-identity-provider\",\n      \"name\": \"Privileged identity — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Require MFA for operators; review privileged membership monthly; remove provider leavers within four hours of confirmed notice. Evidence: AZ-E03: synthetic access review, activation record and leaver test.\",\n      \"capabilityId\": \"AZ-capability-identity\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-identity-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[7]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Privileged identity — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-identity-shared\",\n      \"name\": \"Privileged identity — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Maintain named escalation contacts and reconcile emergency access use after every activation. Evidence: AZ-E03: synthetic access review, activation record and leaver test.\",\n      \"capabilityId\": \"AZ-capability-identity\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-identity-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[8]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Privileged identity — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-identity-customer\",\n      \"name\": \"Privileged identity — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Approve mission accounts, enforce mission MFA, perform access reviews, and disable customer leavers. Evidence: AZ-E03: synthetic access review, activation record and leaver test.\",\n      \"capabilityId\": \"AZ-capability-identity\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-configuration-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[9]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Configuration baselines — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-configuration-provider\",\n      \"name\": \"Configuration baselines — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Record baseline version, approver, test result and rollback plan; compare deployed shared settings weekly. Evidence: AZ-E04: baseline revision, drift review and approved change sample.\",\n      \"capabilityId\": \"AZ-capability-configuration\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-configuration-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[10]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Configuration baselines — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-configuration-shared\",\n      \"name\": \"Configuration baselines — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Assess mission impact before changing shared defaults; agree maintenance windows and exception expiration. Evidence: AZ-E04: baseline revision, drift review and approved change sample.\",\n      \"capabilityId\": \"AZ-capability-configuration\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-configuration-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[11]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Configuration baselines — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-configuration-customer\",\n      \"name\": \"Configuration baselines — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Maintain application baselines and approve workload changes; remediate customer-owned configuration drift. Evidence: AZ-E04: baseline revision, drift review and approved change sample.\",\n      \"capabilityId\": \"AZ-capability-configuration\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-encryption-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[12]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Encryption and key handling — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-encryption-provider\",\n      \"name\": \"Encryption and key handling — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Restrict key administration, test rotation every 90 days, record custody, and enforce TLS 1.2 or higher on covered endpoints. Evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.\",\n      \"capabilityId\": \"AZ-capability-encryption\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-encryption-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[13]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Encryption and key handling — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-encryption-shared\",\n      \"name\": \"Encryption and key handling — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Document key ownership and coordinate rotation windows for dependent workloads; test trust-chain changes jointly. Evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.\",\n      \"capabilityId\": \"AZ-capability-encryption\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-encryption-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[14]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Encryption and key handling — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-encryption-customer\",\n      \"name\": \"Encryption and key handling — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Configure workload encryption and certificates; manage customer keys and classify data before using a covered endpoint. Evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.\",\n      \"capabilityId\": \"AZ-capability-encryption\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-incident-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[15]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Incident coordination — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-incident-provider\",\n      \"name\": \"Incident coordination — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Acknowledge severity-one tickets within 30 minutes in the scenario; preserve provider records and issue initial impact notices. Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.\",\n      \"capabilityId\": \"AZ-capability-incident\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-incident-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[16]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Incident coordination — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-incident-shared\",\n      \"name\": \"Incident coordination — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Exercise incident handoffs quarterly; coordinate containment approval where provider action affects mission service. Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.\",\n      \"capabilityId\": \"AZ-capability-incident\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-incident-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[17]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Incident coordination — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-incident-customer\",\n      \"name\": \"Incident coordination — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Own mission incident declarations, regulatory reporting, application containment and mission recovery decisions. Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.\",\n      \"capabilityId\": \"AZ-capability-incident\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-vulnerability-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[18]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Vulnerability management — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-vulnerability-provider\",\n      \"name\": \"Vulnerability management — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Triage critical results within one business day, schedule fixes by risk, and verify remediation with a follow-up scan. Evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.\",\n      \"capabilityId\": \"AZ-capability-vulnerability\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-vulnerability-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[19]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Vulnerability management — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-vulnerability-shared\",\n      \"name\": \"Vulnerability management — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Agree outage windows and compensating controls for shared infrastructure exceptions; review overdue items weekly. Evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.\",\n      \"capabilityId\": \"AZ-capability-vulnerability\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-vulnerability-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[20]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Vulnerability management — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-vulnerability-customer\",\n      \"name\": \"Vulnerability management — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Scan and patch customer applications, containers and mission hosts; document mission risk acceptance separately. Evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.\",\n      \"capabilityId\": \"AZ-capability-vulnerability\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-backup-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[21]",
+          "controlCoverage": [
+            "CP-9",
+            "CP-10"
+          ],
+          "description": "Backup and recovery — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-backup-provider\",\n      \"name\": \"Backup and recovery — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Monitor backup jobs daily, protect recovery copies from ordinary operator deletion, and record restore results quarterly. Evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.\",\n      \"capabilityId\": \"AZ-capability-backup\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-backup-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[22]",
+          "controlCoverage": [
+            "CP-9",
+            "CP-10"
+          ],
+          "description": "Backup and recovery — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-backup-shared\",\n      \"name\": \"Backup and recovery — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Agree recovery sequence and validate shared dependencies during a joint recovery exercise. Evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.\",\n      \"capabilityId\": \"AZ-capability-backup\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-backup-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[23]",
+          "controlCoverage": [
+            "CP-9",
+            "CP-10"
+          ],
+          "description": "Backup and recovery — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-backup-customer\",\n      \"name\": \"Backup and recovery — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Back up mission data and applications, define mission RTO/RPO, and validate business transactions after recovery. Evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.\",\n      \"capabilityId\": \"AZ-capability-backup\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-REF-001",
+          "kind": "authorizationReferences",
+          "locator": "$/authorizationReferences[0]",
+          "controlCoverage": [],
+          "description": "SYNTHETIC Azure IL5 · Shared services demo release reference",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/04-synthetic-reference-record.json",
+          "archivePath": "04-synthetic-reference-record.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-REF-001\",\n      \"name\": \"SYNTHETIC Azure IL5 · Shared services demo release reference\",\n      \"reference\": \"SYNTHETIC DEMONSTRATION ONLY; AZ-REF-001; fictional service-release review record, NOT ATO or approval to operate; only Azure IL5 · Shared services; customer duties and logging evidence-delay plan remain required.\",\n      \"issuer\": \"SYNTHETIC Northstar Shared Services Demo Team Review Board\",\n      \"issuedAt\": \"2026-09-01\",\n      \"expiresAt\": \"2027-08-31\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Source title: Azure IL5 · Shared services Fictional Service Release Review. Type: demonstration reference record. Dates apply only to this scenario.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/synthetic-reference-record.md"
+        },
+        {
+          "sourceId": "AZ-DECISION-001",
+          "kind": "authorizationDecisionClaims",
+          "locator": "$/authorizationDecisionClaims[0]",
+          "controlCoverage": [],
+          "description": "Synthetic demonstration distribution decision",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/04-synthetic-reference-record.json",
+          "archivePath": "04-synthetic-reference-record.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-DECISION-001\",\n      \"name\": \"Synthetic demonstration distribution decision\",\n      \"claim\": {\n        \"authorizationDecision\": {\n          \"subjectKind\": \"Provider\",\n          \"subject\": \"SYNTHETIC DEMONSTRATION ONLY: Azure IL5 · Shared services\",\n          \"reference\": \"AZ-REF-001\",\n          \"authority\": \"SYNTHETIC Northstar Shared Services Demo Team Review Board\",\n          \"decisionType\": \"Fictional demonstration distribution approval; NOT ATO\",\n          \"statusAsStated\": \"Approved\",\n          \"decisionDate\": \"2026-09-01\",\n          \"expirationDate\": \"2027-08-31\",\n          \"scope\": \"Only the eight listed provider-operated shared services; no mission workloads or SaaS collaboration tenant.\",\n          \"conditions\": [\n            \"Customer must complete its own authorization and allocation checks.\",\n            \"Retain the open moderate logging evidence-delay finding and corrective milestones.\",\n            \"PRIVATE working papers are not cleared for customer distribution.\"\n          ],\n          \"exclusions\": [\n            \"Customer application code, databases, mission data, workstation configuration, customer subscriptions not explicitly enrolled, Microsoft 365, and any actual IL5 approval.\"\n          ]\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\"\n        ]\n      }\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/synthetic-reference-record.md"
+        },
+        {
+          "sourceId": "AZ-BOUNDARY-001",
+          "kind": "boundaryClaims",
+          "locator": "$/boundaryClaims[0]",
+          "controlCoverage": [
+            "AC-2",
+            "AU-11",
+            "AU-2",
+            "AU-6",
+            "CM-2",
+            "CM-3",
+            "CP-10",
+            "CP-9",
+            "IA-2",
+            "IR-4",
+            "IR-6",
+            "RA-5",
+            "SC-12",
+            "SC-13",
+            "SC-7",
+            "SI-2"
+          ],
+          "description": "Azure IL5 · Shared services synthetic boundary",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-BOUNDARY-001\",\n      \"name\": \"Azure IL5 · Shared services synthetic boundary\",\n      \"claim\": {\n        \"boundary\": {\n          \"subject\": \"Azure IL5 · Shared services\",\n          \"relationship\": \"Included\",\n          \"scope\": \"Only the eight listed provider-operated shared services; no mission workloads or SaaS collaboration tenant. SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Azure; cloud=AzureUSGovernment; directoryTenantId=07900000-0000-0000-0000-000000000101; subscriptionId=07900000-0000-0000-0000-000000000102; resourceId=/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services. No live resource, tenant entitlement, or connector is asserted.\",\n          \"environment\": \"AzureUSGovernment\",\n          \"resourceIds\": [\n            \"/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services\"\n          ],\n          \"responsibilities\": [\n            \"Provider owns only listed shared/SaaS operations.\",\n            \"Customer owns mission authorization, information handling and the customer duties in the matrix.\"\n          ],\n          \"decisionReference\": \"AZ-REF-001\"\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\"\n        ],\n        \"relationships\": [\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-audit\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-network\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-identity\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-configuration\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-encryption\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-incident\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-vulnerability\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-backup\"\n          }\n        ]\n      }\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-F-001",
+          "kind": "assessmentFindings",
+          "locator": "$/assessmentFindings[0]",
+          "controlCoverage": [
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Moderate logging evidence collection delay",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/05-assessment-summary.json",
+          "archivePath": "05-assessment-summary.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-F-001\",\n      \"name\": \"Moderate logging evidence collection delay\",\n      \"claim\": {\n        \"assessmentFinding\": {\n          \"sourceFindingId\": \"AZ-F-001\",\n          \"observation\": \"In the fictional 2026-08-18 through 2026-08-24 seven-day sample, two of seven daily customer evidence bundles arrived 31 and 38 hours after period close against a 24-hour target. All 700 expected synthetic events remained present in the source ledger; no event loss was observed in this invented sample. A single daily export worker and missing delivery-age alert delayed the handoff. The sample does not establish production effectiveness.\",\n          \"severityAsStated\": \"Moderate\",\n          \"statusAsStated\": \"Open\",\n          \"assessor\": \"SYNTHETIC Northstar Shared Services Demo Team Assurance Cell\",\n          \"assessmentDate\": \"2026-08-28\",\n          \"controlIds\": [\n            \"AU-6\",\n            \"AU-11\"\n          ],\n          \"evidenceReferences\": [\n            \"AZ-E01\",\n            \"AZ-PRIVATE-WP-001\"\n          ]\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\",\n          \"Open corrective action is not risk acceptance or finding closure.\"\n        ],\n        \"relationships\": [\n          {\n            \"kind\": \"FindingCapability\",\n            \"targetSourceId\": \"AZ-capability-audit\"\n          }\n        ]\n      }\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/PRIVATE-assessment-working-paper.md"
+        },
+        {
+          "sourceId": "AZ-POAM-001",
+          "kind": "poamItems",
+          "locator": "$/poamItems[0]",
+          "controlCoverage": [
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Logging evidence handoff corrective plan",
+          "sourceFile": "azure-il5-shared-services/release-1.2/sources/06-corrective-plan.json",
+          "archivePath": "06-corrective-plan.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-POAM-001\",\n      \"name\": \"Logging evidence handoff corrective plan\",\n      \"claim\": {\n        \"poamItem\": {\n          \"sourcePoamId\": \"AZ-POAM-001\",\n          \"correctiveAction\": \"Add a second scheduled export attempt, retry failed deliveries, alert on evidence age at 18 hours, and verify 14 consecutive days of bundles delivered within 24 hours. No finding closure is asserted.\",\n          \"ownerAsStated\": \"SYNTHETIC Northstar Shared Services Demo Team Evidence Lead <shared-services@example.invalid>\",\n          \"statusAsStated\": \"Planned; not completed\",\n          \"milestones\": [\n            {\n              \"description\": \"Review export schedule and failure-retry design\",\n              \"dueDate\": \"2026-09-18\"\n            },\n            {\n              \"description\": \"Exercise retry and 18-hour delivery-age alert\",\n              \"dueDate\": \"2026-09-25\"\n            },\n            {\n              \"description\": \"Complete 14-day delivery validation and independent review\",\n              \"dueDate\": \"2026-10-09\"\n            }\n          ],\n          \"requiredClosureEvidence\": [\n            \"Fourteen-day timestamped delivery ledger meeting the 24-hour target\",\n            \"Failed-delivery replay and alert exercise results\",\n            \"Independent synthetic reviewer sign-off\"\n          ],\n          \"submittedEvidenceReferences\": []\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\"\n        ],\n        \"relationships\": [\n          {\n            \"kind\": \"PoamFinding\",\n            \"targetSourceId\": \"AZ-F-001\"\n          }\n        ]\n      }\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-assessment-summary.md"
+        }
+      ]
+    },
+    {
+      "offering": "Microsoft 365 · Collaboration",
+      "sourceReleaseLabel": "1.0",
+      "importZip": "microsoft-365-collaboration/release-1.0/review-source.zip",
+      "environments": [
+        "Microsoft365DoD"
+      ],
+      "hostingScopes": [
+        {
+          "kind": "Service",
+          "serviceId": "synthetic-m365-collaboration-001",
+          "serviceName": "Flank Speed Demo - Collaboration (SYNTHETIC)",
+          "environment": "Microsoft365DoD",
+          "tenantReference": "synthetic-flank-speed-demo-tenant"
+        }
+      ],
+      "hostingScopeCitations": [
+        {
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/01-service-scope.json",
+          "locator": "$/boundaryClaims[0]",
+          "quote": "SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Service; serviceId=synthetic-m365-collaboration-001; serviceName=Flank Speed Demo - Collaboration (SYNTHETIC); environment=Microsoft365DoD; tenantReference=synthetic-flank-speed-demo-tenant. No live resource, tenant entitlement, or connector is asserted."
+        }
+      ],
+      "sourceDocumentCount": 6,
+      "expectedEntryCountIncludingContainer": 7,
+      "expectedSemanticModelCalls": 0,
+      "sourceFiles": [
+        "microsoft-365-collaboration/release-1.0/sources/01-service-scope.json",
+        "microsoft-365-collaboration/release-1.0/sources/02-capability-catalog.json",
+        "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+        "microsoft-365-collaboration/release-1.0/sources/04-synthetic-reference-record.json",
+        "microsoft-365-collaboration/release-1.0/sources/05-assessment-summary.json",
+        "microsoft-365-collaboration/release-1.0/sources/06-corrective-plan.json"
+      ],
+      "sourceDocuments": [
+        {
+          "archivePath": "01-service-scope.json",
+          "expectedCandidates": {
+            "Component": 5,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 1,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "02-capability-catalog.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 5,
+            "ControlMapping": 11,
+            "Responsibility": 5,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "03-customer-responsibilities.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 15,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "04-synthetic-reference-record.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 1,
+            "AuthorizationDecisionClaim": 1,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "05-assessment-summary.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 1,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "06-corrective-plan.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 1
+          },
+          "expectedAnalysisComplete": true
+        }
+      ],
+      "expectedCandidates": {
+        "Component": 5,
+        "Capability": 5,
+        "ControlMapping": 11,
+        "Responsibility": 20,
+        "AuthorizationReference": 1,
+        "AuthorizationDecisionClaim": 1,
+        "BoundaryClaim": 1,
+        "AssessmentFinding": 1,
+        "PoamItem": 1
+      },
+      "declarations": [
+        {
+          "sourceId": "M365-component-exchange",
+          "kind": "components",
+          "locator": "$/components[0]",
+          "controlCoverage": [
+            "AC-2",
+            "SC-7"
+          ],
+          "description": "Demo Exchange mail and transport configuration",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"M365-component-exchange\",\n      \"type\": \"service\",\n      \"name\": \"Demo Exchange mail and transport configuration\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Provide a fictional SaaS collaboration mail configuration for Flank Speed Demo; no Azure subscription resources are included.\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-component-teams",
+          "kind": "components",
+          "locator": "$/components[1]",
+          "controlCoverage": [
+            "AC-2",
+            "AC-4"
+          ],
+          "description": "Demo Teams meeting policy service",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"M365-component-teams\",\n      \"type\": \"service\",\n      \"name\": \"Demo Teams meeting policy service\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Cover tenant-level meeting and messaging policy templates; voice carrier connectivity and endpoint configuration are excluded.\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-component-sharepoint",
+          "kind": "components",
+          "locator": "$/components[2]",
+          "controlCoverage": [
+            "AC-3",
+            "AC-6"
+          ],
+          "description": "Demo document collaboration policy service",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"M365-component-sharepoint\",\n      \"type\": \"service\",\n      \"name\": \"Demo document collaboration policy service\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Cover fictional site-sharing templates and document access policy; no customer content is imported.\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-component-purview",
+          "kind": "components",
+          "locator": "$/components[3]",
+          "controlCoverage": [
+            "AU-11",
+            "AU-2",
+            "AU-6"
+          ],
+          "description": "Demo collaboration audit and retention service",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"M365-component-purview\",\n      \"type\": \"service\",\n      \"name\": \"Demo collaboration audit and retention service\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Describe configured collaboration audit categories and a fictional 365-day retention design, not a purchased license entitlement.\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-component-identity",
+          "kind": "components",
+          "locator": "$/components[4]",
+          "controlCoverage": [
+            "AC-2",
+            "IA-2"
+          ],
+          "description": "Demo Entra collaboration access policy",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"M365-component-identity\",\n      \"type\": \"service\",\n      \"name\": \"Demo Entra collaboration access policy\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Cover SaaS collaboration access policy templates for the demo tenant, independently of Azure shared-service operations.\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-capability-exchange",
+          "kind": "capabilities",
+          "locator": "$/capabilities[0]",
+          "controlCoverage": [
+            "AC-2",
+            "SC-7"
+          ],
+          "description": "Exchange Online collaboration mail",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-exchange\",\n      \"name\": \"Exchange Online collaboration mail\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Provide a fictional SaaS collaboration mail configuration for Flank Speed Demo; no Azure subscription resources are included.\",\n      \"componentIds\": [\n        \"M365-component-exchange\"\n      ],\n      \"controlIds\": [\n        \"AC-2\",\n        \"SC-7\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-capability-teams",
+          "kind": "capabilities",
+          "locator": "$/capabilities[1]",
+          "controlCoverage": [
+            "AC-2",
+            "AC-4"
+          ],
+          "description": "Teams meetings and messaging",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-teams\",\n      \"name\": \"Teams meetings and messaging\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Cover tenant-level meeting and messaging policy templates; voice carrier connectivity and endpoint configuration are excluded.\",\n      \"componentIds\": [\n        \"M365-component-teams\"\n      ],\n      \"controlIds\": [\n        \"AC-2\",\n        \"AC-4\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-capability-sharepoint",
+          "kind": "capabilities",
+          "locator": "$/capabilities[2]",
+          "controlCoverage": [
+            "AC-3",
+            "AC-6"
+          ],
+          "description": "SharePoint and OneDrive content",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-sharepoint\",\n      \"name\": \"SharePoint and OneDrive content\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Cover fictional site-sharing templates and document access policy; no customer content is imported.\",\n      \"componentIds\": [\n        \"M365-component-sharepoint\"\n      ],\n      \"controlIds\": [\n        \"AC-3\",\n        \"AC-6\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-capability-purview",
+          "kind": "capabilities",
+          "locator": "$/capabilities[3]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Purview retention and audit",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-purview\",\n      \"name\": \"Purview retention and audit\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Describe configured collaboration audit categories and a fictional 365-day retention design, not a purchased license entitlement.\",\n      \"componentIds\": [\n        \"M365-component-purview\"\n      ],\n      \"controlIds\": [\n        \"AU-2\",\n        \"AU-6\",\n        \"AU-11\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-capability-identity",
+          "kind": "capabilities",
+          "locator": "$/capabilities[4]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Tenant access safeguards",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-identity\",\n      \"name\": \"Tenant access safeguards\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Cover SaaS collaboration access policy templates for the demo tenant, independently of Azure shared-service operations.\",\n      \"componentIds\": [\n        \"M365-component-identity\"\n      ],\n      \"controlIds\": [\n        \"IA-2\",\n        \"AC-2\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-capability-exchange-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[0]",
+          "controlCoverage": [
+            "AC-2",
+            "SC-7"
+          ],
+          "description": "Exchange Online collaboration mail — Provider duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-exchange-provider\",\n      \"name\": \"Exchange Online collaboration mail — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Maintain documented mail-flow defaults, operator access controls and service-impact notifications for the demo boundary. Evidence: M365-E01: synthetic mail-flow review and mailbox access sample.\",\n      \"capabilityId\": \"M365-capability-exchange\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-exchange-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[1]",
+          "controlCoverage": [
+            "AC-2",
+            "SC-7"
+          ],
+          "description": "Exchange Online collaboration mail — Shared duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-exchange-shared\",\n      \"name\": \"Exchange Online collaboration mail — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Review approved external mail domains and investigate delivery-policy exceptions with tenant administrators. Evidence: M365-E01: synthetic mail-flow review and mailbox access sample.\",\n      \"capabilityId\": \"M365-capability-exchange\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-exchange-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[2]",
+          "controlCoverage": [
+            "AC-2",
+            "SC-7"
+          ],
+          "description": "Exchange Online collaboration mail — Customer duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-exchange-customer\",\n      \"name\": \"Exchange Online collaboration mail — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Approve mailboxes, review distribution groups, label messages and enforce mission-specific handling restrictions. Evidence: M365-E01: synthetic mail-flow review and mailbox access sample.\",\n      \"capabilityId\": \"M365-capability-exchange\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-teams-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[3]",
+          "controlCoverage": [
+            "AC-2",
+            "AC-4"
+          ],
+          "description": "Teams meetings and messaging — Provider duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-teams-provider\",\n      \"name\": \"Teams meetings and messaging — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Version baseline meeting policies and track changes to guest, federation and anonymous-join defaults. Evidence: M365-E02: synthetic meeting-policy export and guest access test.\",\n      \"capabilityId\": \"M365-capability-teams\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-teams-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[4]",
+          "controlCoverage": [
+            "AC-2",
+            "AC-4"
+          ],
+          "description": "Teams meetings and messaging — Shared duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-teams-shared\",\n      \"name\": \"Teams meetings and messaging — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Review external collaboration requests and test meeting restrictions with designated customer administrators. Evidence: M365-E02: synthetic meeting-policy export and guest access test.\",\n      \"capabilityId\": \"M365-capability-teams\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-teams-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[5]",
+          "controlCoverage": [
+            "AC-2",
+            "AC-4"
+          ],
+          "description": "Teams meetings and messaging — Customer duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-teams-customer\",\n      \"name\": \"Teams meetings and messaging — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Approve team membership, meeting organizers and guests; manage meeting content and user training. Evidence: M365-E02: synthetic meeting-policy export and guest access test.\",\n      \"capabilityId\": \"M365-capability-teams\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-sharepoint-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[6]",
+          "controlCoverage": [
+            "AC-3",
+            "AC-6"
+          ],
+          "description": "SharePoint and OneDrive content — Provider duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-sharepoint-provider\",\n      \"name\": \"SharePoint and OneDrive content — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Maintain baseline external-sharing limits and publish tested administrative configuration guidance. Evidence: M365-E03: synthetic site-sharing review and access revocation test.\",\n      \"capabilityId\": \"M365-capability-sharepoint\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-sharepoint-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[7]",
+          "controlCoverage": [
+            "AC-3",
+            "AC-6"
+          ],
+          "description": "SharePoint and OneDrive content — Shared duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-sharepoint-shared\",\n      \"name\": \"SharePoint and OneDrive content — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Validate site exceptions and review sharing reports with customer information owners every month. Evidence: M365-E03: synthetic site-sharing review and access revocation test.\",\n      \"capabilityId\": \"M365-capability-sharepoint\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-sharepoint-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[8]",
+          "controlCoverage": [
+            "AC-3",
+            "AC-6"
+          ],
+          "description": "SharePoint and OneDrive content — Customer duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-sharepoint-customer\",\n      \"name\": \"SharePoint and OneDrive content — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Assign site owners, remove stale sharing links, classify content and approve site-level permissions. Evidence: M365-E03: synthetic site-sharing review and access revocation test.\",\n      \"capabilityId\": \"M365-capability-sharepoint\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-purview-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[9]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Purview retention and audit — Provider duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-purview-provider\",\n      \"name\": \"Purview retention and audit — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Maintain audit export schedules and retention-policy templates; document gaps in the customer evidence handoff. Evidence: M365-E04: synthetic audit-delivery ledger and retention retrieval rehearsal.\",\n      \"capabilityId\": \"M365-capability-purview\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-purview-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[10]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Purview retention and audit — Shared duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-purview-shared\",\n      \"name\": \"Purview retention and audit — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Confirm licensed functionality before any real deployment and reconcile evidence delivery with customer reviewers. Evidence: M365-E04: synthetic audit-delivery ledger and retention retrieval rehearsal.\",\n      \"capabilityId\": \"M365-capability-purview\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-purview-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[11]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Purview retention and audit — Customer duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-purview-customer\",\n      \"name\": \"Purview retention and audit — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Select records schedules, perform legal review, investigate user activity and approve legal holds. Evidence: M365-E04: synthetic audit-delivery ledger and retention retrieval rehearsal.\",\n      \"capabilityId\": \"M365-capability-purview\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-identity-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[12]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Tenant access safeguards — Provider duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-identity-provider\",\n      \"name\": \"Tenant access safeguards — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Version MFA and privileged-admin policy guidance and track provider support account approvals. Evidence: M365-E05: synthetic MFA policy review and emergency-access rehearsal.\",\n      \"capabilityId\": \"M365-capability-identity\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-identity-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[13]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Tenant access safeguards — Shared duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-identity-shared\",\n      \"name\": \"Tenant access safeguards — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Test emergency access procedures and review privileged roles jointly every month. Evidence: M365-E05: synthetic MFA policy review and emergency-access rehearsal.\",\n      \"capabilityId\": \"M365-capability-identity\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-capability-identity-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[14]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Tenant access safeguards — Customer duties",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"M365-capability-identity-customer\",\n      \"name\": \"Tenant access safeguards — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Enroll users, enforce device compliance, run joiner/mover/leaver processes and approve conditional-access exceptions. Evidence: M365-E05: synthetic MFA policy review and emergency-access rehearsal.\",\n      \"capabilityId\": \"M365-capability-identity\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "M365-REF-001",
+          "kind": "authorizationReferences",
+          "locator": "$/authorizationReferences[0]",
+          "controlCoverage": [],
+          "description": "SYNTHETIC Microsoft 365 · Collaboration demo release reference",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/04-synthetic-reference-record.json",
+          "archivePath": "04-synthetic-reference-record.json",
+          "sourceQuote": "{\n      \"id\": \"M365-REF-001\",\n      \"name\": \"SYNTHETIC Microsoft 365 · Collaboration demo release reference\",\n      \"reference\": \"SYNTHETIC DEMONSTRATION ONLY; M365-REF-001; fictional service-release review record, NOT ATO or approval to operate; only Microsoft 365 · Collaboration; customer duties and logging evidence-delay plan remain required.\",\n      \"issuer\": \"SYNTHETIC Harbor Collaboration Demo Team Review Board\",\n      \"issuedAt\": \"2026-09-01\",\n      \"expiresAt\": \"2027-08-31\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Source title: Microsoft 365 · Collaboration Fictional Service Release Review. Type: demonstration reference record. Dates apply only to this scenario.\"\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/synthetic-reference-record.md"
+        },
+        {
+          "sourceId": "M365-DECISION-001",
+          "kind": "authorizationDecisionClaims",
+          "locator": "$/authorizationDecisionClaims[0]",
+          "controlCoverage": [],
+          "description": "Synthetic demonstration distribution decision",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/04-synthetic-reference-record.json",
+          "archivePath": "04-synthetic-reference-record.json",
+          "sourceQuote": "{\n      \"id\": \"M365-DECISION-001\",\n      \"name\": \"Synthetic demonstration distribution decision\",\n      \"claim\": {\n        \"authorizationDecision\": {\n          \"subjectKind\": \"Provider\",\n          \"subject\": \"SYNTHETIC DEMONSTRATION ONLY: Microsoft 365 · Collaboration\",\n          \"reference\": \"M365-REF-001\",\n          \"authority\": \"SYNTHETIC Harbor Collaboration Demo Team Review Board\",\n          \"decisionType\": \"Fictional demonstration distribution approval; NOT ATO\",\n          \"statusAsStated\": \"Approved\",\n          \"decisionDate\": \"2026-09-01\",\n          \"expirationDate\": \"2027-08-31\",\n          \"scope\": \"Only the five listed SaaS collaboration policy services; independent of Azure shared infrastructure and its customer allocations.\",\n          \"conditions\": [\n            \"Customer must complete its own authorization and allocation checks.\",\n            \"Retain the open moderate logging evidence-delay finding and corrective milestones.\",\n            \"PRIVATE working papers are not cleared for customer distribution.\"\n          ],\n          \"exclusions\": [\n            \"Azure hubs and subscriptions, mission applications, endpoint compliance operations, telephony carriers, third-party apps, real tenant entitlements, and actual Flank Speed authorization.\"\n          ]\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\"\n        ]\n      }\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/synthetic-reference-record.md"
+        },
+        {
+          "sourceId": "M365-BOUNDARY-001",
+          "kind": "boundaryClaims",
+          "locator": "$/boundaryClaims[0]",
+          "controlCoverage": [
+            "AC-2",
+            "AC-3",
+            "AC-4",
+            "AC-6",
+            "AU-11",
+            "AU-2",
+            "AU-6",
+            "IA-2",
+            "SC-7"
+          ],
+          "description": "Microsoft 365 · Collaboration synthetic boundary",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"M365-BOUNDARY-001\",\n      \"name\": \"Microsoft 365 · Collaboration synthetic boundary\",\n      \"claim\": {\n        \"boundary\": {\n          \"subject\": \"Microsoft 365 · Collaboration\",\n          \"relationship\": \"Included\",\n          \"scope\": \"Only the five listed SaaS collaboration policy services; independent of Azure shared infrastructure and its customer allocations. SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Service; serviceId=synthetic-m365-collaboration-001; serviceName=Flank Speed Demo - Collaboration (SYNTHETIC); environment=Microsoft365DoD; tenantReference=synthetic-flank-speed-demo-tenant. No live resource, tenant entitlement, or connector is asserted.\",\n          \"environment\": \"Microsoft365DoD\",\n          \"resourceIds\": [\n            \"synthetic-m365-collaboration-001\"\n          ],\n          \"responsibilities\": [\n            \"Provider owns only listed shared/SaaS operations.\",\n            \"Customer owns mission authorization, information handling and the customer duties in the matrix.\"\n          ],\n          \"decisionReference\": \"M365-REF-001\"\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\"\n        ],\n        \"relationships\": [\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"M365-component-exchange\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"M365-component-teams\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"M365-component-sharepoint\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"M365-component-purview\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"M365-component-identity\"\n          }\n        ]\n      }\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/service-guide.md"
+        },
+        {
+          "sourceId": "M365-F-001",
+          "kind": "assessmentFindings",
+          "locator": "$/assessmentFindings[0]",
+          "controlCoverage": [
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Moderate logging evidence collection delay",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/05-assessment-summary.json",
+          "archivePath": "05-assessment-summary.json",
+          "sourceQuote": "{\n      \"id\": \"M365-F-001\",\n      \"name\": \"Moderate logging evidence collection delay\",\n      \"claim\": {\n        \"assessmentFinding\": {\n          \"sourceFindingId\": \"M365-F-001\",\n          \"observation\": \"In the fictional 2026-08-18 through 2026-08-24 seven-day sample, two of seven daily customer evidence bundles arrived 31 and 38 hours after period close against a 24-hour target. All 700 expected synthetic events remained present in the source ledger; no event loss was observed in this invented sample. A single daily export worker and missing delivery-age alert delayed the handoff. The sample does not establish production effectiveness.\",\n          \"severityAsStated\": \"Moderate\",\n          \"statusAsStated\": \"Open\",\n          \"assessor\": \"SYNTHETIC Harbor Collaboration Demo Team Assurance Cell\",\n          \"assessmentDate\": \"2026-08-28\",\n          \"controlIds\": [\n            \"AU-6\",\n            \"AU-11\"\n          ],\n          \"evidenceReferences\": [\n            \"M365-E04\",\n            \"M365-PRIVATE-WP-001\"\n          ]\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\",\n          \"Open corrective action is not risk acceptance or finding closure.\"\n        ],\n        \"relationships\": [\n          {\n            \"kind\": \"FindingCapability\",\n            \"targetSourceId\": \"M365-capability-purview\"\n          }\n        ]\n      }\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/PRIVATE-assessment-working-paper.md"
+        },
+        {
+          "sourceId": "M365-POAM-001",
+          "kind": "poamItems",
+          "locator": "$/poamItems[0]",
+          "controlCoverage": [
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Logging evidence handoff corrective plan",
+          "sourceFile": "microsoft-365-collaboration/release-1.0/sources/06-corrective-plan.json",
+          "archivePath": "06-corrective-plan.json",
+          "sourceQuote": "{\n      \"id\": \"M365-POAM-001\",\n      \"name\": \"Logging evidence handoff corrective plan\",\n      \"claim\": {\n        \"poamItem\": {\n          \"sourcePoamId\": \"M365-POAM-001\",\n          \"correctiveAction\": \"Add a second scheduled export attempt, retry failed deliveries, alert on evidence age at 18 hours, and verify 14 consecutive days of bundles delivered within 24 hours. No finding closure is asserted.\",\n          \"ownerAsStated\": \"SYNTHETIC Harbor Collaboration Demo Team Evidence Lead <collaboration@example.invalid>\",\n          \"statusAsStated\": \"Planned; not completed\",\n          \"milestones\": [\n            {\n              \"description\": \"Review export schedule and failure-retry design\",\n              \"dueDate\": \"2026-09-18\"\n            },\n            {\n              \"description\": \"Exercise retry and 18-hour delivery-age alert\",\n              \"dueDate\": \"2026-09-25\"\n            },\n            {\n              \"description\": \"Complete 14-day delivery validation and independent review\",\n              \"dueDate\": \"2026-10-09\"\n            }\n          ],\n          \"requiredClosureEvidence\": [\n            \"Fourteen-day timestamped delivery ledger meeting the 24-hour target\",\n            \"Failed-delivery replay and alert exercise results\",\n            \"Independent synthetic reviewer sign-off\"\n          ],\n          \"submittedEvidenceReferences\": []\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\"\n        ],\n        \"relationships\": [\n          {\n            \"kind\": \"PoamFinding\",\n            \"targetSourceId\": \"M365-F-001\"\n          }\n        ]\n      }\n    }",
+          "companionDocument": "microsoft-365-collaboration/release-1.0/customer-assessment-summary.md"
+        }
+      ]
+    },
+    {
+      "offering": "Azure IL5 · Shared services",
+      "sourceReleaseLabel": "1.3 proposed",
+      "importZip": "azure-il5-shared-services/release-1.3-proposed/review-source.zip",
+      "environments": [
+        "AzureUSGovernment"
+      ],
+      "hostingScopes": [
+        {
+          "kind": "Azure",
+          "cloud": "AzureUSGovernment",
+          "directoryTenantId": "07900000-0000-0000-0000-000000000101",
+          "subscriptionId": "07900000-0000-0000-0000-000000000102",
+          "resourceId": "/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services"
+        }
+      ],
+      "hostingScopeCitations": [
+        {
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "locator": "$/boundaryClaims[0]",
+          "quote": "SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Azure; cloud=AzureUSGovernment; directoryTenantId=07900000-0000-0000-0000-000000000101; subscriptionId=07900000-0000-0000-0000-000000000102; resourceId=/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services. No live resource, tenant entitlement, or connector is asserted."
+        }
+      ],
+      "sourceDocumentCount": 6,
+      "expectedEntryCountIncludingContainer": 7,
+      "expectedSemanticModelCalls": 0,
+      "sourceFiles": [
+        "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+        "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+        "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+        "azure-il5-shared-services/release-1.3-proposed/sources/04-synthetic-reference-record.json",
+        "azure-il5-shared-services/release-1.3-proposed/sources/05-assessment-summary.json",
+        "azure-il5-shared-services/release-1.3-proposed/sources/06-corrective-plan.json"
+      ],
+      "sourceDocuments": [
+        {
+          "archivePath": "01-service-scope.json",
+          "expectedCandidates": {
+            "Component": 8,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 1,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "02-capability-catalog.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 8,
+            "ControlMapping": 16,
+            "Responsibility": 8,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "03-customer-responsibilities.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 24,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "04-synthetic-reference-record.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 1,
+            "AuthorizationDecisionClaim": 1,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "05-assessment-summary.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 1,
+            "PoamItem": 0
+          },
+          "expectedAnalysisComplete": true
+        },
+        {
+          "archivePath": "06-corrective-plan.json",
+          "expectedCandidates": {
+            "Component": 0,
+            "Capability": 0,
+            "ControlMapping": 0,
+            "Responsibility": 0,
+            "AuthorizationReference": 0,
+            "AuthorizationDecisionClaim": 0,
+            "BoundaryClaim": 0,
+            "AssessmentFinding": 0,
+            "PoamItem": 1
+          },
+          "expectedAnalysisComplete": true
+        }
+      ],
+      "expectedCandidates": {
+        "Component": 8,
+        "Capability": 8,
+        "ControlMapping": 16,
+        "Responsibility": 32,
+        "AuthorizationReference": 1,
+        "AuthorizationDecisionClaim": 1,
+        "BoundaryClaim": 1,
+        "AssessmentFinding": 1,
+        "PoamItem": 1
+      },
+      "declarations": [
+        {
+          "sourceId": "AZ-component-audit",
+          "kind": "components",
+          "locator": "$/components[0]",
+          "controlCoverage": [
+            "AU-11",
+            "AU-2",
+            "AU-6"
+          ],
+          "description": "Central audit collector and archive",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-audit\",\n      \"type\": \"service\",\n      \"name\": \"Central audit collector and archive\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Collect administrative and platform security events from the enrolled shared-service boundary; retain 90 days searchable and 365 days archived in this scenario.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-network",
+          "kind": "components",
+          "locator": "$/components[1]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Shared hub firewall and private routing",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-network\",\n      \"type\": \"service\",\n      \"name\": \"Shared hub firewall and private routing\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Inspect approved north-south shared-hub flows and maintain documented private routing for enrolled spokes.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-identity",
+          "kind": "components",
+          "locator": "$/components[2]",
+          "controlCoverage": [
+            "AC-2",
+            "IA-2"
+          ],
+          "description": "Provider operations identity service",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-identity\",\n      \"type\": \"service\",\n      \"name\": \"Provider operations identity service\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Control provider operator accounts with MFA and time-limited privileged access; customer identities remain a separate administration responsibility.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-configuration",
+          "kind": "components",
+          "locator": "$/components[3]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Shared-service configuration repository",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-configuration\",\n      \"type\": \"service\",\n      \"name\": \"Shared-service configuration repository\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Version the shared-service baseline and capture approved changes; application code and mission images are excluded.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-encryption",
+          "kind": "components",
+          "locator": "$/components[4]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Shared-service key vault and transport configuration",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-encryption\",\n      \"type\": \"service\",\n      \"name\": \"Shared-service key vault and transport configuration\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Manage fictional shared-service keys and transport settings for provider-owned endpoints only.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-incident",
+          "kind": "components",
+          "locator": "$/components[5]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Provider incident coordination desk",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-incident\",\n      \"type\": \"service\",\n      \"name\": \"Provider incident coordination desk\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Coordinate incidents affecting the shared-service boundary using a fictional 24-hour on-call roster.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-vulnerability",
+          "kind": "components",
+          "locator": "$/components[6]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Shared infrastructure scan and patch service",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-vulnerability\",\n      \"type\": \"service\",\n      \"name\": \"Shared infrastructure scan and patch service\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Scan provider-maintained hosts weekly and evaluate urgent advisories daily; mission applications are excluded.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-component-backup",
+          "kind": "components",
+          "locator": "$/components[7]",
+          "controlCoverage": [
+            "CP-10",
+            "CP-9"
+          ],
+          "description": "Shared configuration backup vault",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-component-backup\",\n      \"type\": \"service\",\n      \"name\": \"Shared configuration backup vault\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Back up shared configuration daily; exercise quarterly restore with a scenario target of 24-hour RPO and eight-hour RTO.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-audit",
+          "kind": "capabilities",
+          "locator": "$/capabilities[0]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Audit collection",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-audit\",\n      \"name\": \"Audit collection\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Collect administrative and platform security events from the enrolled shared-service boundary; retain 90 days searchable and 365 days archived in this scenario. Proposed 1.3: add an 18-hour evidence delivery-age alert and secondary export attempt; 14-day validation is still required before finding closure.\",\n      \"componentIds\": [\n        \"AZ-component-audit\"\n      ],\n      \"controlIds\": [\n        \"AU-2\",\n        \"AU-6\",\n        \"AU-11\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-network",
+          "kind": "capabilities",
+          "locator": "$/capabilities[1]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Network protection",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-network\",\n      \"name\": \"Network protection\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Inspect approved north-south shared-hub flows and maintain documented private routing for enrolled spokes.\",\n      \"componentIds\": [\n        \"AZ-component-network\"\n      ],\n      \"controlIds\": [\n        \"SC-7\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-identity",
+          "kind": "capabilities",
+          "locator": "$/capabilities[2]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Privileged identity",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-identity\",\n      \"name\": \"Privileged identity\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Control provider operator accounts with MFA and time-limited privileged access; customer identities remain a separate administration responsibility.\",\n      \"componentIds\": [\n        \"AZ-component-identity\"\n      ],\n      \"controlIds\": [\n        \"IA-2\",\n        \"AC-2\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-configuration",
+          "kind": "capabilities",
+          "locator": "$/capabilities[3]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Configuration baselines",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-configuration\",\n      \"name\": \"Configuration baselines\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Version the shared-service baseline and capture approved changes; application code and mission images are excluded.\",\n      \"componentIds\": [\n        \"AZ-component-configuration\"\n      ],\n      \"controlIds\": [\n        \"CM-2\",\n        \"CM-3\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-encryption",
+          "kind": "capabilities",
+          "locator": "$/capabilities[4]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Encryption and key handling",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-encryption\",\n      \"name\": \"Encryption and key handling\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Manage fictional shared-service keys and transport settings for provider-owned endpoints only.\",\n      \"componentIds\": [\n        \"AZ-component-encryption\"\n      ],\n      \"controlIds\": [\n        \"SC-12\",\n        \"SC-13\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-incident",
+          "kind": "capabilities",
+          "locator": "$/capabilities[5]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Incident coordination",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-incident\",\n      \"name\": \"Incident coordination\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Coordinate incidents affecting the shared-service boundary using a fictional 24-hour on-call roster.\",\n      \"componentIds\": [\n        \"AZ-component-incident\"\n      ],\n      \"controlIds\": [\n        \"IR-4\",\n        \"IR-6\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-vulnerability",
+          "kind": "capabilities",
+          "locator": "$/capabilities[6]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Vulnerability management",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-vulnerability\",\n      \"name\": \"Vulnerability management\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Scan provider-maintained hosts weekly and evaluate urgent advisories daily; mission applications are excluded.\",\n      \"componentIds\": [\n        \"AZ-component-vulnerability\"\n      ],\n      \"controlIds\": [\n        \"RA-5\",\n        \"SI-2\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-backup",
+          "kind": "capabilities",
+          "locator": "$/capabilities[7]",
+          "controlCoverage": [
+            "CP-9",
+            "CP-10"
+          ],
+          "description": "Backup and recovery",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/02-capability-catalog.json",
+          "archivePath": "02-capability-catalog.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-backup\",\n      \"name\": \"Backup and recovery\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Back up shared configuration daily; exercise quarterly restore with a scenario target of 24-hour RPO and eight-hour RTO. Proposed 1.3: quarterly restore evidence includes dependency ordering and a customer witness acknowledgment; RPO and RTO targets are unchanged.\",\n      \"componentIds\": [\n        \"AZ-component-backup\"\n      ],\n      \"controlIds\": [\n        \"CP-9\",\n        \"CP-10\"\n      ],\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-capability-audit-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[0]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Audit collection — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-audit-provider\",\n      \"name\": \"Audit collection — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Operate collector health checks every 15 minutes; reconcile ingestion counts daily; protect archived events from routine operator modification. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.\",\n      \"capabilityId\": \"AZ-capability-audit\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-audit-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[1]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Audit collection — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-audit-shared\",\n      \"name\": \"Audit collection — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Agree event categories and triage escalation with each mission; investigate missing source intervals jointly within one business day. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.\",\n      \"capabilityId\": \"AZ-capability-audit\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-audit-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[2]",
+          "controlCoverage": [
+            "AU-2",
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Audit collection — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-audit-customer\",\n      \"name\": \"Audit collection — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Enable workload audit sources, review mission-specific events each business day, and set longer retention when mission policy requires it. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.\",\n      \"capabilityId\": \"AZ-capability-audit\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-network-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[3]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Network protection — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-network-provider\",\n      \"name\": \"Network protection — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Maintain deny-by-default hub rules, review exceptions monthly, and record firewall changes with rollback instructions. Evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.\",\n      \"capabilityId\": \"AZ-capability-network\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-network-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[4]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Network protection — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-network-shared\",\n      \"name\": \"Network protection — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Approve traffic purpose and route changes jointly; exercise a denied-traffic test before connecting a new spoke. Evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.\",\n      \"capabilityId\": \"AZ-capability-network\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-network-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[5]",
+          "controlCoverage": [
+            "SC-7"
+          ],
+          "description": "Network protection — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-network-customer\",\n      \"name\": \"Network protection — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Manage application ingress, workload NSGs, DNS dependencies and endpoints outside the provider hub. Evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.\",\n      \"capabilityId\": \"AZ-capability-network\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-identity-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[6]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Privileged identity — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-identity-provider\",\n      \"name\": \"Privileged identity — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Require MFA for operators; review privileged membership monthly; remove provider leavers within four hours of confirmed notice. Evidence: AZ-E03: synthetic access review, activation record and leaver test.\",\n      \"capabilityId\": \"AZ-capability-identity\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-identity-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[7]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Privileged identity — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-identity-shared\",\n      \"name\": \"Privileged identity — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Maintain named escalation contacts and reconcile emergency access use after every activation. Evidence: AZ-E03: synthetic access review, activation record and leaver test.\",\n      \"capabilityId\": \"AZ-capability-identity\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-identity-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[8]",
+          "controlCoverage": [
+            "IA-2",
+            "AC-2"
+          ],
+          "description": "Privileged identity — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-identity-customer\",\n      \"name\": \"Privileged identity — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Approve mission accounts, enforce mission MFA, perform access reviews, and disable customer leavers. Evidence: AZ-E03: synthetic access review, activation record and leaver test.\",\n      \"capabilityId\": \"AZ-capability-identity\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-configuration-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[9]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Configuration baselines — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-configuration-provider\",\n      \"name\": \"Configuration baselines — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Record baseline version, approver, test result and rollback plan; compare deployed shared settings weekly. Evidence: AZ-E04: baseline revision, drift review and approved change sample.\",\n      \"capabilityId\": \"AZ-capability-configuration\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-configuration-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[10]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Configuration baselines — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-configuration-shared\",\n      \"name\": \"Configuration baselines — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Assess mission impact before changing shared defaults; agree maintenance windows and exception expiration. Evidence: AZ-E04: baseline revision, drift review and approved change sample.\",\n      \"capabilityId\": \"AZ-capability-configuration\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-configuration-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[11]",
+          "controlCoverage": [
+            "CM-2",
+            "CM-3"
+          ],
+          "description": "Configuration baselines — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-configuration-customer\",\n      \"name\": \"Configuration baselines — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Maintain application baselines and approve workload changes; remediate customer-owned configuration drift. Evidence: AZ-E04: baseline revision, drift review and approved change sample.\",\n      \"capabilityId\": \"AZ-capability-configuration\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-encryption-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[12]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Encryption and key handling — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-encryption-provider\",\n      \"name\": \"Encryption and key handling — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Restrict key administration, test rotation every 90 days, record custody, and enforce TLS 1.2 or higher on covered endpoints. Evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.\",\n      \"capabilityId\": \"AZ-capability-encryption\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-encryption-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[13]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Encryption and key handling — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-encryption-shared\",\n      \"name\": \"Encryption and key handling — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Document key ownership and coordinate rotation windows for dependent workloads; test trust-chain changes jointly. Evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.\",\n      \"capabilityId\": \"AZ-capability-encryption\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-encryption-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[14]",
+          "controlCoverage": [
+            "SC-12",
+            "SC-13"
+          ],
+          "description": "Encryption and key handling — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-encryption-customer\",\n      \"name\": \"Encryption and key handling — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Configure workload encryption and certificates; manage customer keys and classify data before using a covered endpoint. Evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.\",\n      \"capabilityId\": \"AZ-capability-encryption\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-incident-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[15]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Incident coordination — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-incident-provider\",\n      \"name\": \"Incident coordination — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Acknowledge severity-one tickets within 30 minutes in the scenario; preserve provider records and issue initial impact notices. Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.\",\n      \"capabilityId\": \"AZ-capability-incident\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-incident-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[16]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Incident coordination — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-incident-shared\",\n      \"name\": \"Incident coordination — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Exercise incident handoffs quarterly; coordinate containment approval where provider action affects mission service. Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.\",\n      \"capabilityId\": \"AZ-capability-incident\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-incident-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[17]",
+          "controlCoverage": [
+            "IR-4",
+            "IR-6"
+          ],
+          "description": "Incident coordination — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-incident-customer\",\n      \"name\": \"Incident coordination — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Own mission incident declarations, regulatory reporting, application containment and mission recovery decisions. Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.\",\n      \"capabilityId\": \"AZ-capability-incident\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-vulnerability-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[18]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Vulnerability management — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-vulnerability-provider\",\n      \"name\": \"Vulnerability management — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Triage critical results within one business day, schedule fixes by risk, and verify remediation with a follow-up scan. Evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.\",\n      \"capabilityId\": \"AZ-capability-vulnerability\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-vulnerability-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[19]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Vulnerability management — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-vulnerability-shared\",\n      \"name\": \"Vulnerability management — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Agree outage windows and compensating controls for shared infrastructure exceptions; review overdue items weekly. Evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.\",\n      \"capabilityId\": \"AZ-capability-vulnerability\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-vulnerability-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[20]",
+          "controlCoverage": [
+            "RA-5",
+            "SI-2"
+          ],
+          "description": "Vulnerability management — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-vulnerability-customer\",\n      \"name\": \"Vulnerability management — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Scan and patch customer applications, containers and mission hosts; document mission risk acceptance separately. Evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.\",\n      \"capabilityId\": \"AZ-capability-vulnerability\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-backup-provider",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[21]",
+          "controlCoverage": [
+            "CP-9",
+            "CP-10"
+          ],
+          "description": "Backup and recovery — Provider duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-backup-provider\",\n      \"name\": \"Backup and recovery — Provider duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Monitor backup jobs daily, protect recovery copies from ordinary operator deletion, and record restore results quarterly. Evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.\",\n      \"capabilityId\": \"AZ-capability-backup\",\n      \"responsibility\": \"Provider\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-backup-shared",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[22]",
+          "controlCoverage": [
+            "CP-9",
+            "CP-10"
+          ],
+          "description": "Backup and recovery — Shared duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-backup-shared\",\n      \"name\": \"Backup and recovery — Shared duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Agree recovery sequence and validate shared dependencies during a joint recovery exercise. Evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.\",\n      \"capabilityId\": \"AZ-capability-backup\",\n      \"responsibility\": \"Shared\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-capability-backup-customer",
+          "kind": "responsibilities",
+          "locator": "$/responsibilities[23]",
+          "controlCoverage": [
+            "CP-9",
+            "CP-10"
+          ],
+          "description": "Backup and recovery — Customer duties",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/03-customer-responsibilities.json",
+          "archivePath": "03-customer-responsibilities.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-capability-backup-customer\",\n      \"name\": \"Backup and recovery — Customer duties\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Back up mission data and applications, define mission RTO/RPO, and validate business transactions after recovery. Evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.\",\n      \"capabilityId\": \"AZ-capability-backup\",\n      \"responsibility\": \"Customer\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-responsibility-matrix.md"
+        },
+        {
+          "sourceId": "AZ-REF-001",
+          "kind": "authorizationReferences",
+          "locator": "$/authorizationReferences[0]",
+          "controlCoverage": [],
+          "description": "SYNTHETIC Azure IL5 · Shared services demo release reference",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/04-synthetic-reference-record.json",
+          "archivePath": "04-synthetic-reference-record.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-REF-001\",\n      \"name\": \"SYNTHETIC Azure IL5 · Shared services demo release reference\",\n      \"reference\": \"SYNTHETIC DEMONSTRATION ONLY; AZ-REF-001; fictional service-release review record, NOT ATO or approval to operate; only Azure IL5 · Shared services; customer duties and logging evidence-delay plan remain required.\",\n      \"issuer\": \"SYNTHETIC Northstar Shared Services Demo Team Review Board\",\n      \"issuedAt\": \"2026-09-01\",\n      \"expiresAt\": \"2027-08-31\",\n      \"description\": \"SYNTHETIC DEMONSTRATION ONLY. Source title: Azure IL5 · Shared services Fictional Service Release Review. Type: demonstration reference record. Dates apply only to this scenario.\"\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/synthetic-reference-record.md"
+        },
+        {
+          "sourceId": "AZ-DECISION-001",
+          "kind": "authorizationDecisionClaims",
+          "locator": "$/authorizationDecisionClaims[0]",
+          "controlCoverage": [],
+          "description": "Synthetic demonstration distribution decision",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/04-synthetic-reference-record.json",
+          "archivePath": "04-synthetic-reference-record.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-DECISION-001\",\n      \"name\": \"Synthetic demonstration distribution decision\",\n      \"claim\": {\n        \"authorizationDecision\": {\n          \"subjectKind\": \"Provider\",\n          \"subject\": \"SYNTHETIC DEMONSTRATION ONLY: Azure IL5 · Shared services\",\n          \"reference\": \"AZ-REF-001\",\n          \"authority\": \"SYNTHETIC Northstar Shared Services Demo Team Review Board\",\n          \"decisionType\": \"Fictional demonstration distribution approval; NOT ATO\",\n          \"statusAsStated\": \"Approved\",\n          \"decisionDate\": \"2026-09-01\",\n          \"expirationDate\": \"2027-08-31\",\n          \"scope\": \"Only the eight listed provider-operated shared services; no mission workloads or SaaS collaboration tenant.\",\n          \"conditions\": [\n            \"Customer must complete its own authorization and allocation checks.\",\n            \"Retain the open moderate logging evidence-delay finding and corrective milestones.\",\n            \"PRIVATE working papers are not cleared for customer distribution.\"\n          ],\n          \"exclusions\": [\n            \"Customer application code, databases, mission data, workstation configuration, customer subscriptions not explicitly enrolled, Microsoft 365, and any actual IL5 approval.\"\n          ]\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\"\n        ]\n      }\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/synthetic-reference-record.md"
+        },
+        {
+          "sourceId": "AZ-BOUNDARY-001",
+          "kind": "boundaryClaims",
+          "locator": "$/boundaryClaims[0]",
+          "controlCoverage": [
+            "AC-2",
+            "AU-11",
+            "AU-2",
+            "AU-6",
+            "CM-2",
+            "CM-3",
+            "CP-10",
+            "CP-9",
+            "IA-2",
+            "IR-4",
+            "IR-6",
+            "RA-5",
+            "SC-12",
+            "SC-13",
+            "SC-7",
+            "SI-2"
+          ],
+          "description": "Azure IL5 · Shared services synthetic boundary",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/01-service-scope.json",
+          "archivePath": "01-service-scope.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-BOUNDARY-001\",\n      \"name\": \"Azure IL5 · Shared services synthetic boundary\",\n      \"claim\": {\n        \"boundary\": {\n          \"subject\": \"Azure IL5 · Shared services\",\n          \"relationship\": \"Included\",\n          \"scope\": \"Only the eight listed provider-operated shared services; no mission workloads or SaaS collaboration tenant. SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Azure; cloud=AzureUSGovernment; directoryTenantId=07900000-0000-0000-0000-000000000101; subscriptionId=07900000-0000-0000-0000-000000000102; resourceId=/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services. No live resource, tenant entitlement, or connector is asserted.\",\n          \"environment\": \"AzureUSGovernment\",\n          \"resourceIds\": [\n            \"/subscriptions/07900000-0000-0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services\"\n          ],\n          \"responsibilities\": [\n            \"Provider owns only listed shared/SaaS operations.\",\n            \"Customer owns mission authorization, information handling and the customer duties in the matrix.\"\n          ],\n          \"decisionReference\": \"AZ-REF-001\"\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\"\n        ],\n        \"relationships\": [\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-audit\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-network\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-identity\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-configuration\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-encryption\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-incident\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-vulnerability\"\n          },\n          {\n            \"kind\": \"BoundaryComponent\",\n            \"targetSourceId\": \"AZ-component-backup\"\n          }\n        ]\n      }\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/service-guide.md"
+        },
+        {
+          "sourceId": "AZ-F-001",
+          "kind": "assessmentFindings",
+          "locator": "$/assessmentFindings[0]",
+          "controlCoverage": [
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Moderate logging evidence collection delay",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/05-assessment-summary.json",
+          "archivePath": "05-assessment-summary.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-F-001\",\n      \"name\": \"Moderate logging evidence collection delay\",\n      \"claim\": {\n        \"assessmentFinding\": {\n          \"sourceFindingId\": \"AZ-F-001\",\n          \"observation\": \"In the fictional 2026-08-18 through 2026-08-24 seven-day sample, two of seven daily customer evidence bundles arrived 31 and 38 hours after period close against a 24-hour target. All 700 expected synthetic events remained present in the source ledger; no event loss was observed in this invented sample. A single daily export worker and missing delivery-age alert delayed the handoff. The sample does not establish production effectiveness.\",\n          \"severityAsStated\": \"Moderate\",\n          \"statusAsStated\": \"Open\",\n          \"assessor\": \"SYNTHETIC Northstar Shared Services Demo Team Assurance Cell\",\n          \"assessmentDate\": \"2026-08-28\",\n          \"controlIds\": [\n            \"AU-6\",\n            \"AU-11\"\n          ],\n          \"evidenceReferences\": [\n            \"AZ-E01\",\n            \"AZ-PRIVATE-WP-001\"\n          ]\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\",\n          \"Open corrective action is not risk acceptance or finding closure.\"\n        ],\n        \"relationships\": [\n          {\n            \"kind\": \"FindingCapability\",\n            \"targetSourceId\": \"AZ-capability-audit\"\n          }\n        ]\n      }\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/PRIVATE-assessment-working-paper.md"
+        },
+        {
+          "sourceId": "AZ-POAM-001",
+          "kind": "poamItems",
+          "locator": "$/poamItems[0]",
+          "controlCoverage": [
+            "AU-6",
+            "AU-11"
+          ],
+          "description": "Logging evidence handoff corrective plan",
+          "sourceFile": "azure-il5-shared-services/release-1.3-proposed/sources/06-corrective-plan.json",
+          "archivePath": "06-corrective-plan.json",
+          "sourceQuote": "{\n      \"id\": \"AZ-POAM-001\",\n      \"name\": \"Logging evidence handoff corrective plan\",\n      \"claim\": {\n        \"poamItem\": {\n          \"sourcePoamId\": \"AZ-POAM-001\",\n          \"correctiveAction\": \"Add a second scheduled export attempt, retry failed deliveries, alert on evidence age at 18 hours, and verify 14 consecutive days of bundles delivered within 24 hours. No finding closure is asserted.\",\n          \"ownerAsStated\": \"SYNTHETIC Northstar Shared Services Demo Team Evidence Lead <shared-services@example.invalid>\",\n          \"statusAsStated\": \"Planned; not completed\",\n          \"milestones\": [\n            {\n              \"description\": \"Review export schedule and failure-retry design\",\n              \"dueDate\": \"2026-09-18\"\n            },\n            {\n              \"description\": \"Exercise retry and 18-hour delivery-age alert\",\n              \"dueDate\": \"2026-09-25\"\n            },\n            {\n              \"description\": \"Complete 14-day delivery validation and independent review\",\n              \"dueDate\": \"2026-10-09\"\n            }\n          ],\n          \"requiredClosureEvidence\": [\n            \"Fourteen-day timestamped delivery ledger meeting the 24-hour target\",\n            \"Failed-delivery replay and alert exercise results\",\n            \"Independent synthetic reviewer sign-off\"\n          ],\n          \"submittedEvidenceReferences\": []\n        },\n        \"qualifications\": [\n          \"SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence.\"\n        ],\n        \"relationships\": [\n          {\n            \"kind\": \"PoamFinding\",\n            \"targetSourceId\": \"AZ-F-001\"\n          }\n        ]\n      }\n    }",
+          "companionDocument": "azure-il5-shared-services/release-1.2/customer-assessment-summary.md"
+        }
+      ]
+    }
+  ]
+}

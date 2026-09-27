@@ -60,7 +60,10 @@ public partial class DocumentTemplateService : IDocumentTemplateService
             "HostingEnvironment", "SecurityCategorization", "BaselineLevel",
             "TotalControls", "ImplementedControls", "PartialControls", "PlannedControls",
             "ControlNarratives", "InheritedControls", "SharedControls",
-            "AuthorizationBoundary", "PreparedBy", "PreparedDate"
+            "AuthorizationBoundary", "PreparedBy", "PreparedDate",
+            "ApprovedProfileMissionAndPurpose", "ApprovedProfileUsersAndAccess", "ApprovedProfileEnvironmentAndDeployment",
+            "ApprovedProfileDataTypes", "ApprovedProfilePortsProtocolsAndServices", "ApprovedProfileLeveragedAuthorizations",
+            "ProviderAuthorizationSources"
         ],
         ["sar"] = [
             "SystemName", "SystemAcronym", "AssessmentDate", "AssessorName",
@@ -288,15 +291,20 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         var docType = documentType.ToLowerInvariant();
         _logger.LogInformation("Rendering DOCX {DocType} for system {SystemId}", docType, systemId);
 
-        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken);
-
+        StoredTemplate? template = null;
         if (templateId != null)
         {
-            if (!_templates.TryGetValue(templateId, out var template))
+            if (!_templates.TryGetValue(templateId, out template))
                 throw new InvalidOperationException($"Template '{templateId}' not found.");
-
-            return ApplyMailMerge(template.FileBytes, mergeData);
+            if (docType == "ssp")
+            {
+                var validation = ValidateDocxMergeFields(template.FileBytes, docType);
+                if (!validation.IsValid)
+                    throw new InvalidOperationException($"Template omits required SSP merge fields: {string.Join(", ", validation.MergeFieldsMissing)}.");
+            }
         }
+        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken);
+        if (template != null) return ApplyMailMerge(template.FileBytes, mergeData);
 
         // No custom template — generate a built-in DOCX with merge data
         return GenerateBuiltInDocx(docType, mergeData);
@@ -324,7 +332,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         // Replace {{FieldName}} with actual values
         foreach (var (key, value) in mergeData)
         {
-            xml = xml.Replace($"{{{{{key}}}}}", EscapeXml(value));
+            xml = xml.Replace($"{{{{{key}}}}}", EscapeXml(value), StringComparison.OrdinalIgnoreCase);
         }
 
         // Delete and re-create entry
@@ -351,17 +359,12 @@ public partial class DocumentTemplateService : IDocumentTemplateService
 
         foreach (var (key, value) in mergeData.Where(kvp => kvp.Key != "SystemName" && kvp.Key != "PreparedDate"))
         {
-            body.AppendLine($"<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>{EscapeXml(key)}: </w:t></w:r><w:r><w:t>{EscapeXml(TruncateForDocx(value))}</w:t></w:r></w:p>");
+            body.AppendLine($"<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>{EscapeXml(key)}</w:t></w:r></w:p>");
+            foreach (var line in value.Split('\n'))
+                body.AppendLine($"<w:p><w:r><w:t xml:space=\"preserve\">{EscapeXml(line.TrimEnd('\r'))}</w:t></w:r></w:p>");
         }
 
         return CreateMinimalDocx(body.ToString());
-    }
-
-    private static string TruncateForDocx(string value)
-    {
-        // Keep first 500 chars for inline display; full data is in the merge
-        if (value.Length <= 500) return value;
-        return value[..497] + "...";
     }
 
     /// <summary>Formats control narratives for the shared DOCX and PDF merge field.</summary>
@@ -369,8 +372,11 @@ public partial class DocumentTemplateService : IDocumentTemplateService
     {
         var sections = implementations
             .OrderBy(implementation => implementation.ControlId)
-            .Take(50)
             .Select(implementation =>
+                implementation.ApprovedVersionId != null && implementation.PolicyNarrative == null
+                    && implementation.TechnicalNarrative == null && !string.IsNullOrWhiteSpace(implementation.Narrative)
+                ? $"{implementation.ControlId}\nRetained approved implementation narrative:\n{implementation.Narrative}"
+                :
                 $"{implementation.ControlId}\n" +
                 "Implementation Statement (Policy):\n" +
                 $"{implementation.PolicyNarrative ?? "[Not Authored]"}\n\n" +
@@ -652,7 +658,18 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         data["PlannedControls"] = implementations
             .Count(ci => ci.ImplementationStatus == ImplementationStatus.Planned).ToString();
 
+        await ApprovedNarrativeDocumentData.ApplyAsync(db, implementations, ct);
         data["ControlNarratives"] = BuildControlNarratives(implementations);
+        var profileGaps = new List<string>();
+        var profiles = await ApprovedProfileDocumentData.LoadAsync(db, systemId, profileGaps, ct);
+        foreach (var profile in profiles)
+            data[$"ApprovedProfile{profile.Type}"] = ApprovedProfileDocumentData.Render(profile);
+        if (profileGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("\n", profileGaps));
+        var provider = await ProviderDocumentProvenance.ProjectDocumentAsync(db, system, ct);
+        if (provider.SourceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("\n", provider.SourceGaps));
+        data["ProviderAuthorizationSources"] = provider.Content;
 
         var boundaries = await db.AuthorizationBoundaries
             .AsNoTracking()

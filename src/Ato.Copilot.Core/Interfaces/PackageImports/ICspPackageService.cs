@@ -12,6 +12,9 @@ public interface ICspPackageService
         PackageOfferingContext context, string actor, CancellationToken ct);
     Task<PagedResult<PackageStatus>> ListAsync(int page, int pageSize, CancellationToken ct);
     Task<PackageStatus> GetAsync(Guid id, CancellationToken ct);
+    Task<PackageStatus> ArchiveAsync(Guid id, ArchivePackageRequest request, string actor, CancellationToken ct);
+    Task<PackageStatus> SupersedeReviewAsync(Guid id, SupersedePackageReviewRequest request, string actor, CancellationToken ct);
+    Task<PackageHistoryResponse> HistoryAsync(Guid id, CancellationToken ct);
     Task<PackageReviewStateResponse> ReviewStateAsync(Guid id, CancellationToken ct);
     Task<PagedResult<PackageEntryResponse>> EntriesAsync(Guid id, int page, int pageSize, CancellationToken ct);
     Task<PagedResult<PackageCandidateResponse>> CandidatesAsync(Guid id, int page, int pageSize, string? type, string? reviewState, CancellationToken ct);
@@ -27,6 +30,9 @@ public interface ICspPackageService
 
 /// <summary>Upload stream; ownership remains with the caller.</summary>
 public sealed record PackageUpload(string FileName, string MediaType, Stream Content);
+public sealed record ArchivePackageRequest(long ExpectedRevision, string Reason);
+public sealed record SupersedePackageReviewRequest(long ExpectedRevision, Guid ReplacementPackageId, string Reason);
+public sealed record PackageHistoryResponse(PackageStatus Package, IReadOnlyList<CspPackageAudit> Audits);
 /// <summary>Server-validated context for atomic wizard receipt association.</summary>
 public sealed record PackageOfferingContext(Guid OfferingId, long ExpectedOfferingRevision, Guid BoundaryRevisionId,
     Guid? SeriesId, Guid? PreviousVersionId);
@@ -40,7 +46,9 @@ public sealed record PackageCoverage(int Total, int Pending, int Processed, int 
 public sealed record PackageStatus(Guid PackageId, Guid OperationId, string Name, long Revision, string ProcessingState,
     string PublicationState, PackageCoverage Coverage, string? LastError, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
     PackageOfferingAssociation? Association = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CspPackageAnalysisProgress? AnalysisProgress = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CspPackageAnalysisProgress? AnalysisProgress = null,
+    DateTimeOffset? ArchivedAt = null, string? ArchivedBy = null, string? ArchiveReason = null,
+    Guid? SupersededByPackageId = null, DateTimeOffset? SupersededAt = null, string? SupersededBy = null, string? SupersedeReason = null);
 /// <summary>Manifest metadata without source bytes or storage keys.</summary>
 public sealed record PackageEntryResponse(Guid EntryId, Guid ArtifactId, string FileName, string ArchivePath, string MediaType,
     long ByteLength, string Sha256, string Status, string? Reason, int CandidateCount, string? ExclusionReason, long Revision);

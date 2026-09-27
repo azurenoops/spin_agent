@@ -6,6 +6,8 @@ import type { EvidenceArtifactDto, EvidenceSummaryDto, ArtifactCategory, Evidenc
 import EvidenceUploadDialog from '../components/EvidenceUploadDialog';
 import EvidenceDetailPanel from '../components/EvidenceDetailPanel';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
+import { ProviderEvidencePanel } from '../features/provider-authorizations/ProviderEvidencePanel';
+import { SystemTaskHeading, systemPrimaryAction } from '../features/systems/SystemTaskPresentation';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -88,7 +90,7 @@ export default function EvidenceRepository() {
     });
   }, [systemId, page, search, familyFilter, categoryFilter, sourceFilter, sortBy, sortOrder]);
 
-  const { data: evidenceData, refresh } = usePolling(fetchEvidence, 30000);
+  const { data: evidenceData, loading: evidenceLoading, error: evidenceError, refresh } = usePolling(fetchEvidence, 30000);
 
   const fetchSummary = useCallback(async () => {
     if (!systemId) return null;
@@ -96,7 +98,7 @@ export default function EvidenceRepository() {
   }, [systemId]);
 
   // T282: usePolling with 30s refresh; manual refresh after upload/collection
-  const { data: summary, refresh: refreshSummary } = usePolling<EvidenceSummaryDto | null>(fetchSummary, 30000);
+  const { data: summary, error: summaryError, refresh: refreshSummary } = usePolling<EvidenceSummaryDto | null>(fetchSummary, 30000);
 
   // T282: Collect Evidence handler — calls POST .../controls/{controlId}/collect-evidence
   const handleCollectEvidence = useCallback(
@@ -168,14 +170,9 @@ export default function EvidenceRepository() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Evidence Repository</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            All evidence artifacts for this system — manual uploads and automated collections.
-          </p>
-        </div>
-        <button
+      <SystemTaskHeading title="Evidence for control assessment"
+        description="Link artifacts to the controls they support and review their currency and relevance."
+        action={<button
           onClick={() => {
             if (!canManageEvidence) {
               setMutationError('You do not have permission to upload evidence in this workspace.');
@@ -186,16 +183,35 @@ export default function EvidenceRepository() {
           }}
           disabled={!canManageEvidence}
           title={!canManageEvidence ? 'You do not have permission to upload evidence' : undefined}
-          className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          className={systemPrimaryAction}
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Upload Evidence
-        </button>
-      </div>
+        </button>} />
+      <p className="rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm leading-relaxed text-indigo-900">
+        Contributes to assessment evidence and SSP supporting references. Availability, provider sharing approval and control assessment are distinct.
+        Inspect the retained source and version; this catalog does not declare a control satisfied.
+      </p>
 
+      <ProviderEvidencePanel key={systemId} systemId={systemId} />
+
+      <section aria-labelledby="mission-evidence-heading" className="min-w-0 space-y-4">
+        <div>
+          <h2 id="mission-evidence-heading" className="text-lg font-semibold">Mission evidence</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Retained uploads and automated artifacts for this system. Review workload-specific evidence separately from provider-approved summaries.</p>
+        </div>
       {mutationError && <p role="alert" className="text-sm text-red-700">{mutationError}</p>}
+      {evidenceLoading && !evidenceData && <p role="status" className="text-sm text-slate-500">Loading retained evidence records…</p>}
+      {evidenceError && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p role="alert">{evidenceError.message}</p>
+        {evidenceData && <p className="mt-2">Previously loaded records are shown. Open a record to recheck its current state.</p>}
+        <button type="button" className="mt-3 rounded border px-3 py-2" onClick={refresh}>Retry evidence records</button>
+      </div>}
+      {summaryError && <div className="text-sm text-amber-900"><p role="alert">Evidence summary is unavailable: {summaryError.message}</p>
+        <button type="button" className="mt-2 underline" onClick={refreshSummary}>Retry evidence summary</button>
+      </div>}
 
       {/* T282: Collect Evidence inline error */}
       {collectError && (
@@ -213,13 +229,17 @@ export default function EvidenceRepository() {
 
       {/* Summary Bar */}
       {summary && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <SummaryCard label="Total Evidence" value={summary.totalCount} />
+        <details className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <summary className="cursor-pointer text-sm font-semibold">Mission evidence summary</summary>
+          <p className="mt-2 text-xs text-slate-500">These counts describe mission evidence records only, not provider summaries or assessment sufficiency.</p>
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <SummaryCard label="Mission records" value={summary.totalCount} />
           <SummaryCard label="Manual" value={summary.manualCount} color="blue" />
           <SummaryCard label="Automated" value={summary.automatedCount} color="green" />
           <SummaryCard label="Controls Covered" value={`${summary.controlsWithEvidence}/${summary.totalControls}`} />
           <SummaryCard label="Coverage" value={`${summary.coveragePercentage.toFixed(1)}%`} color={summary.coveragePercentage >= 80 ? 'green' : summary.coveragePercentage >= 50 ? 'amber' : 'red'} />
         </div>
+        </details>
       )}
 
       {/* Filters */}
@@ -229,6 +249,7 @@ export default function EvidenceRepository() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
+            aria-label="Search evidence records"
             type="text"
             placeholder="Search by filename, control, or description..."
             value={search}
@@ -237,6 +258,7 @@ export default function EvidenceRepository() {
           />
         </div>
         <input
+          aria-label="Filter evidence by control family"
           type="text"
           placeholder="Family (e.g., AC)"
           value={familyFilter}
@@ -244,6 +266,7 @@ export default function EvidenceRepository() {
           className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
         />
         <select
+          aria-label="Filter evidence by category"
           value={categoryFilter}
           onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
           className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
@@ -253,6 +276,7 @@ export default function EvidenceRepository() {
           ))}
         </select>
         <select
+          aria-label="Filter evidence by source"
           value={sourceFilter}
           onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
           className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
@@ -264,43 +288,47 @@ export default function EvidenceRepository() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <table className="w-full text-sm">
+      <div className="relative overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <table aria-label="Mission evidence records" className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer" onClick={() => handleSort('fileName')}>
-                File <SortIcon col="fileName" />
+              <th aria-sort={sortBy === 'fileName' ? sortOrder === 'asc' ? 'ascending' : 'descending' : undefined} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <button type="button" onClick={() => handleSort('fileName')}>File <SortIcon col="fileName" /></button>
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Source</th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer" onClick={() => handleSort('category')}>
-                Category <SortIcon col="category" />
+              <th aria-sort={sortBy === 'category' ? sortOrder === 'asc' ? 'ascending' : 'descending' : undefined} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <button type="button" onClick={() => handleSort('category')}>Category <SortIcon col="category" /></button>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer" onClick={() => handleSort('controlId')}>
-                Control <SortIcon col="controlId" />
+              <th aria-sort={sortBy === 'controlId' ? sortOrder === 'asc' ? 'ascending' : 'descending' : undefined} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <button type="button" onClick={() => handleSort('controlId')}>Control <SortIcon col="controlId" /></button>
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Size</th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Uploader</th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer" onClick={() => handleSort('uploadedAt')}>
-                Date <SortIcon col="uploadedAt" />
+              <th aria-sort={sortBy === 'uploadedAt' ? sortOrder === 'asc' ? 'ascending' : 'descending' : undefined} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <button type="button" onClick={() => handleSort('uploadedAt')}>Date <SortIcon col="uploadedAt" /></button>
               </th>
               <th className="px-4 py-3 w-10" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {items.length === 0 ? (
+            {items.length === 0 ? (!evidenceLoading && !evidenceError && evidenceData && (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
                   No evidence found. Upload evidence or adjust your filters.
                 </td>
               </tr>
-            ) : items.map((item) => (
+            )) : items.map((item) => (
               <tr
                 key={item.id}
                 className={`hover:bg-gray-50 cursor-pointer ${selectedId === item.id ? 'bg-indigo-50' : ''}`}
                 onClick={() => setSelectedId(item.id)}
               >
                 <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">
-                  {item.fileName ?? <span className="italic text-gray-400">Automated</span>}
+                  <button type="button" aria-label={`Review evidence ${item.fileName ?? item.controlId ?? item.id}`}
+                    className="text-left text-indigo-700 underline-offset-4 hover:underline dark:text-indigo-300"
+                    onClick={event => { event.stopPropagation(); setSelectedId(item.id); }}>
+                    {item.fileName ?? 'Automated artifact'}
+                  </button>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
                   <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -417,6 +445,8 @@ export default function EvidenceRepository() {
           </div>
         )}
       </div>
+
+      </section>
 
       {/* Upload Dialog */}
       {showUpload && (

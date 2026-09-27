@@ -17,6 +17,7 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Mcp.Authorization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -137,7 +138,8 @@ public static partial class DashboardEndpoints
                     return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
                 }
             })
-            .WithName("SetCategorization");
+            .WithName("SetCategorization")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageSystem, Policies.ComplianceWriter);
 
         group.MapGet("/systems/{systemId}/categorization/history", async (
                 string systemId,
@@ -212,7 +214,8 @@ public static partial class DashboardEndpoints
                     return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
                 }
             })
-            .WithName("SelectBaseline");
+            .WithName("SelectBaseline")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageSystem, Policies.ComplianceWriter);
 
         // ─── GET Baseline Detail ─────────────────────────────────────────────
         group.MapGet("/systems/{systemId}/baseline", async (

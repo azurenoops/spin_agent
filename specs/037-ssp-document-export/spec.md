@@ -1,5 +1,11 @@
 # Feature Specification: SSP Document Export
 
+> Coordination: [Feature 079](../079-provider-system-workflow-consolidation/spec.md)
+> plans mock-defined previews and reviewed source/version lineage through this
+> existing export pipeline. Preserve approved content and historical exports;
+> planning is not verification of current output or permission to rebuild the
+> exporter. Historical requirements and evidence below remain unchanged.
+
 **Feature Branch**: `037-ssp-document-export`  
 **Created**: 2026-03-17  
 **Status**: Draft  

@@ -9,6 +9,7 @@ import { useSettings } from '../hooks/useSettings';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import NarrativeImpactHistory from '../components/narratives/NarrativeImpactHistory';
 import './NarrativeWorkspace.css';
+import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport, systemSecondaryAction } from '../features/systems/SystemTaskPresentation';
 
 function errorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'error' in error && typeof error.error === 'string') return error.error;
@@ -175,13 +176,27 @@ function Workspace({ systemId }: { systemId: string }) {
     });
   }
   const pending = proposals.filter(item => item.status === 'Draft');
+  const showReview = view === 'review' || view === 'narratives' && pending.length > 0;
+  const showRecords = !loading && !loadError && (view === 'records' || view === 'narratives' && !showReview);
 
   return <div className="narrative-workspace">
+    {['narratives', 'records', 'review'].includes(view) && <SystemTaskHeading title="Control implementation narratives"
+      description="Write and review statements describing how this system implements each control."
+      action={<button type="button" className={systemSecondaryAction} disabled={locked || proposals.length === 0} onClick={() => go('review')}>Review proposed update</button>} />}
+    <SystemTaskColumns support={<>
+      <SystemTaskSupport title="Contributes to"><p>SSP · Implementation statements</p></SystemTaskSupport>
+      <SystemTaskSupport title="Review against sources">
+        <p>Compare the retained statement and proposed changes before approval. Source changes do not replace the active narrative automatically.</p>
+        <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`${base}/library`}>Narrative library</Link>
+        <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/evidence`}>Supporting evidence</Link>
+        <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/inheritance/subscriptions`}>Control responsibilities</Link>
+      </SystemTaskSupport>
+    </>}>
     {(loadError || error) && <div role="alert" className="nw-alert"><ShieldAlert size={18} /><span>{loadError || error}</span>
       <button type="button" onClick={() => { setError(''); setRevision(current => current + 1); }} title="Retry loading"><RefreshCw size={16} /></button></div>}
     {loading && <p role="status" className="nw-muted">Loading narrative context...</p>}
 
-    {view === 'narratives' && <>
+    {showRecords && <>
       {pending.length > 0 && <div className="nw-notice"><GitCompareArrows size={18} /><span>{pending.length} proposed update{pending.length === 1 ? '' : 's'} awaiting review</span>
         <button onClick={() => go('review')}>Review changes</button></div>}
       <Narratives key={revision} onGenerateDraft={generate} proposals={proposals} canGenerate={canGenerate}
@@ -251,13 +266,13 @@ function Workspace({ systemId }: { systemId: string }) {
       </section>}
     </>}
 
-    {view === 'review' && <>
+    {showReview && <>
       <header className="nw-header"><div><h2>Review change</h2><p>Active content remains unchanged until approval.</p></div>
         <div className="flex flex-wrap gap-2">
           <button disabled={locked || !canRead} onClick={() => { setError(''); setRevision(current => current + 1); }}>
             <RefreshCw size={16} />Refresh proposal status
           </button>
-          <button onClick={() => go('narratives')}><ArrowLeft size={16} />Narratives</button>
+          <button onClick={() => go('records')}><ArrowLeft size={16} />Narratives</button>
         </div></header>
       {!proposal ? !loading && !loadError && !error && (requestedProposalId !== null
         ? <div className="nw-empty"><p role="alert">The requested proposal was not returned for this system. Refresh its status or choose another proposal.</p>
@@ -306,5 +321,6 @@ function Workspace({ systemId }: { systemId: string }) {
       </>}
     </>}
 
+    </SystemTaskColumns>
   </div>;
 }

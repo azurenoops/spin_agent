@@ -19,6 +19,7 @@ vi.mock('react-router-dom',() => ({
 vi.mock('../../components/layout/SystemLayout',() => ({ useSystemContext: () => ({ detail: { systemId: state.systemId } }) }));
 vi.mock('../../hooks/useSettings',() => ({ useSettings: () => ({ settings: { role: state.role } }) }));
 vi.mock('../../api/systemProfile',() => api);
+vi.mock('../../api/documents', () => ({ getSystemDocuments: async () => ({ systemId: state.systemId, interconnections: [] }) }));
 // Keep these tests focused on profile permissions, not Azure attachment requests.
 vi.mock('../../components/AssessmentEnvironmentPanel', () => ({
   default: () => <div data-testid="assessment-environment" />,
@@ -40,6 +41,40 @@ beforeEach(() => {
 });
 
 describe('server-authoritative profile editing (#968)',() => {
+  it.each([
+    ['MissionAndPurpose', 'Mission & purpose', 'System record'],
+    ['UsersAndAccess', 'Users & access', 'User categories'],
+    ['DataTypes', 'Data types & sensitivity', 'Information types'],
+    ['PortsProtocolsAndServices', 'Ports & interconnections', 'Ports and services'],
+  ])('uses the task-specific record composition for %s', async (type, title, recordTitle) => {
+    // Arrange
+    state.sectionType = type;
+    api.getProfileSection.mockResolvedValue(section(true, 'Draft'));
+    // Act
+    render(<SystemProfile />);
+    // Assert
+    expect(await screen.findByRole('heading', { name: title })).toBeVisible();
+    expect(screen.getByRole('heading', { name: recordTitle })).toBeVisible();
+    expect(screen.getAllByRole('button', { name: 'Save Draft' })).toHaveLength(1);
+    expect(screen.getByRole('complementary', { name: 'Document contribution and next tasks' })).toBeVisible();
+  });
+
+  it('adds and saves a real user-category row through the existing single editor', async () => {
+    // Arrange
+    state.sectionType = 'UsersAndAccess';
+    api.getProfileSection.mockResolvedValue(section(true, 'Draft'));
+    api.saveProfileSection.mockResolvedValue(section(true, 'Draft'));
+    render(<SystemProfile />);
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Add user category' }));
+    fireEvent.change(screen.getByLabelText('Category, row 1'), { target: { value: 'Application Users' } });
+    fireEvent.change(screen.getByLabelText('Count, row 1'), { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+    // Assert
+    await waitFor(() => expect(api.saveProfileSection).toHaveBeenCalledWith('system-a', 'UsersAndAccess',
+      expect.objectContaining({ childItems: [expect.objectContaining({ categoryName: 'Application Users', approximateCount: 12 })] })));
+  });
+
   it('does not infer profile approval from a browser ISSM preference in a workspace', async () => {
     // Arrange
     state.role = 'ISSM';

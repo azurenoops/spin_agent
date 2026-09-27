@@ -30,7 +30,8 @@ for (const width of [1440, 390]) {
           return route.fulfill({ status: 409, json: { status: 'error', error: { message: 'Offering revision changed' } } });
         }
         expect(input.expectedOfferingRevision).toBe(revision);
-        expect(input.recordKind).toBe('InheritedMicrosoftReference');
+        expect(input.recordKind).toBe('InheritedProviderReference');
+        expect(input.upstreamProvider).toBe('Synthetic SaaS Corporation');
         writes.push(input);
         return success({ ...input, recordId: 'reference-1', revisionId: 'reference-version-1', revision: 1,
           snapshotHash: 'reference-hash', metadataReviewState: 'Unconfirmed' });
@@ -39,7 +40,7 @@ for (const width of [1440, 390]) {
       if (path.endsWith('/hosting-scope-revisions/hosting-current')) return success(scope);
       if (path.endsWith('/hosting-scope-revisions')) return success(paged([scope]));
       if (path.endsWith('/authorization-records')) {
-        expect(url.searchParams.get('recordKind')).toBe('InheritedMicrosoftReference');
+        expect(url.searchParams.get('recordKind')).toBe('InheritedReferences');
         return success(paged([]));
       }
       if (path.endsWith(`/boundary-revisions/${boundary.boundaryRevisionId}`)) return success(boundary);
@@ -55,10 +56,10 @@ for (const width of [1440, 390]) {
     const hosting = page.getByRole('region', { name: 'Azure hosting', exact: true });
     await expect(hosting).toContainText('DoD platform hosting');
     // Assert
-    for (const name of ['Azure hosting', 'Microsoft authorization references', 'Security capabilities', 'Mission systems', 'Shared responsibilities'])
+    for (const name of ['Azure hosting', 'Upstream provider authorization references', 'Security capabilities', 'Mission systems', 'Shared responsibilities'])
       await expect(page.getByRole('heading', { name, exact: true, level: 2 })).toBeVisible();
     await expect(hosting.getByRole('textbox')).toHaveCount(0);
-    await expect(page.getByRole('region', { name: 'Microsoft authorization references', exact: true }).getByRole('textbox')).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Upstream provider authorization references', exact: true }).getByRole('textbox')).toHaveCount(0);
     await expect(page.getByText('hidden-hosting-hash', { exact: true })).toBeHidden();
     await expect(page.getByRole('region', { name: 'Suggested next step' }).getByRole('button')).toHaveCount(1);
     if (width < 640) {
@@ -95,11 +96,12 @@ for (const width of [1440, 390]) {
       await expect(dialog).toHaveCount(0);
       await expect(trigger).toBeFocused();
     }
-    await page.getByRole('region', { name: 'Microsoft authorization references', exact: true }).getByRole('button', { name: 'Add reference', exact: true }).click();
-    const referenceDialog = page.getByRole('dialog', { name: 'Add or review Microsoft references', exact: true });
+    await page.getByRole('region', { name: 'Upstream provider authorization references', exact: true }).getByRole('button', { name: 'Add reference', exact: true }).click();
+    const referenceDialog = page.getByRole('dialog', { name: 'Add or review upstream provider references', exact: true });
     await expect(referenceDialog).toBeVisible();
     await page.getByRole('combobox', { name: 'Boundary revision', exact: true }).selectOption(boundary.boundaryRevisionId);
-    await page.getByLabel('Reference', { exact: true }).fill('Synthetic Microsoft authorization letter');
+    await page.getByLabel('Reference', { exact: true }).fill('Synthetic non-Microsoft SaaS authorization letter');
+    await page.getByLabel('Upstream provider', { exact: true }).fill('Synthetic SaaS Corporation');
     await page.getByLabel('Scope statement', { exact: true }).fill('Named platform services only.');
     await page.getByRole('button', { name: 'Save reference draft', exact: true }).click();
     await expect(page.getByText(/Stale revision. Inputs retained/)).toBeVisible();
@@ -107,7 +109,8 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', { name: 'Use refreshed revision with retained inputs', exact: true }).click();
     // Assert
     await expect(referenceDialog).toBeVisible();
-    await expect(page.getByLabel('Reference', { exact: true })).toHaveValue('Synthetic Microsoft authorization letter');
+    await expect(page.getByLabel('Reference', { exact: true })).toHaveValue('Synthetic non-Microsoft SaaS authorization letter');
+    await expect(page.getByLabel('Upstream provider', { exact: true })).toHaveValue('Synthetic SaaS Corporation');
     await page.getByRole('button', { name: 'Save reference draft', exact: true }).click();
     await expect.poll(() => writes.length).toBe(1);
     expect(writes[0].scopeStatement).toBe('Named platform services only.');

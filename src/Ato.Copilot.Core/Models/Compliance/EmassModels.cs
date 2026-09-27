@@ -43,10 +43,12 @@ public class EmassConflict
     [MaxLength(4000)]
     public string? EmassValue { get; set; }
 
+    [ConcurrencyCheck]
     public ConflictStatus ConflictStatus { get; set; } = ConflictStatus.Unresolved;
 
     public DateTimeOffset DetectedAt { get; set; } = DateTimeOffset.UtcNow;
 
+    [ConcurrencyCheck]
     public DateTimeOffset? ResolvedAt { get; set; }
 
     [MaxLength(200)]

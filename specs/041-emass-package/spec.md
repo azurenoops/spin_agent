@@ -1,5 +1,13 @@
 # Feature Specification: eMASS Authorization Package Export
 
+> Coordination: [Feature 079](../079-provider-system-workflow-consolidation/spec.md)
+> plans purpose-specific initial submission, authorized archive and change
+> packages through the existing assembly pipeline. Artifact applicability must
+> be defined per purpose; initial preparation must not fabricate or require an
+> AO decision. Schema-valid export does not prove acceptance by an eMASS instance.
+> Historical requirements below are retained for reconciliation, not silently
+> relaxed or presented as current live verification.
+
 **Feature Branch**: `041-emass-package`
 **Created**: 2026-03-19
 **Status**: Draft

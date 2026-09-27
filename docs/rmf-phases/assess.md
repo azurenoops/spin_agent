@@ -18,6 +18,21 @@
 
 ## Assessment Approaches
 
+### Edit the assessment draft in Systems
+
+`Systems → Assessment plan` exposes the title, assessment lead, scope and
+assessment approach from the existing SAP record. Authorized SCA/ISSM users save
+through the existing SAP update service; the Markdown content is rerendered from
+the same plan, not a second authoring store. A content-hash fence and EF
+concurrency checks reject changed or finalized plans. Finalized plans stay
+read-only; creating another draft uses the existing generation action.
+
+The read route is `GET /api/v1/systems/{id}/sap/draft`; updates use
+`PUT /api/v1/systems/{id}/sap/{sapId}/draft` with `expectedContentHash`.
+Recording a lead name documents assessment responsibility; it does not assign
+an application role. Saving is distinct from finalization and from executing an
+assessment.
+
 The Assess phase uses **two distinct assessment tools** that serve different purposes:
 
 | Tool | Purpose | Who Runs It | How It Works |

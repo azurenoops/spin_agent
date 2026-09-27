@@ -33,12 +33,8 @@ public class TenantsEndpointsContractTests
     public TenantsEndpointsContractTests(MultiTenantWebApplicationFactory<McpProgram> factory)
     {
         _factory = factory;
+        factory.ResetLegacyTenantContext(MultiTenantWebApplicationFactory<McpProgram>.TenantAId, isCspAdmin: true);
         _client = factory.CreateClient();
-
-        var ctx = factory.GetActiveContext();
-        ctx.TenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
-        ctx.IsCspAdmin = true;
-        ctx.Status = TenantStatus.Active;
     }
 
     [Fact]
@@ -134,6 +130,29 @@ public class TenantsEndpointsContractTests
 
         // Per contract: deleting an absent cookie still returns 204.
         resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task Delete_Impersonation_LegacySetupAfterWorkspaceTest_StillReturns204WithoutCookie()
+    {
+        // Arrange: an earlier collection test selected a workspace-bound actor.
+        var previous = _factory.GetActiveContext();
+        previous.PersonId = Guid.NewGuid();
+        previous.OrganizationId = Guid.NewGuid();
+        previous.IsWorkspaceRequest = true;
+        previous.ImpersonatedTenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
+
+        // Act: legacy contract setup must not inherit workspace identity requirements.
+        var next = new TenantsEndpointsContractTests(_factory);
+        using var client = next._client;
+        var response = await client.DeleteAsync("/api/tenants/impersonation");
+
+        // Assert: deleting an absent legacy cookie remains exactly 204.
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        _factory.GetActiveContext().PersonId.Should().BeNull();
+        _factory.GetActiveContext().OrganizationId.Should().BeNull();
+        _factory.GetActiveContext().IsWorkspaceRequest.Should().BeFalse();
+        _factory.GetActiveContext().ImpersonatedTenantId.Should().BeNull();
     }
 
     // ── DEF-004: Update (PUT) ───────────────────────────────────────────────

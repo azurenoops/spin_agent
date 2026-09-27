@@ -50,7 +50,7 @@ public class OscalSspExportServiceTests
     }
 
     [Fact]
-    public void BuildMetadata_NoRoles_EmptyArraysAndWarning()
+    public void BuildMetadata_NoRoles_OmitsOptionalEmptyArraysAndWarns()
     {
         var system = MakeSystem();
         var warnings = new List<string>();
@@ -58,9 +58,9 @@ public class OscalSspExportServiceTests
         var result = OscalSspExportService.BuildMetadata(
             system, new List<RmfRoleAssignment>(), new Dictionary<string, string>(), warnings);
 
-        result["roles"].Should().BeEquivalentTo(Array.Empty<object>());
-        result["parties"].Should().BeEquivalentTo(Array.Empty<object>());
-        result["responsible-parties"].Should().BeEquivalentTo(Array.Empty<object>());
+        result.Should().NotContainKey("roles");
+        result.Should().NotContainKey("parties");
+        result.Should().NotContainKey("responsible-parties");
         warnings.Should().ContainSingle().Which.Should().Contain("No RMF role assignments");
     }
 
@@ -165,7 +165,7 @@ public class OscalSspExportServiceTests
     }
 
     [Fact]
-    public void BuildSystemCharacteristics_NoCategorization_PlaceholderWithWarning()
+    public void BuildSystemCharacteristics_NoCategorization_DoesNotInventImpactsOrStatus()
     {
         var system = MakeSystem();
         system.OperationalStatus = null;
@@ -174,10 +174,9 @@ public class OscalSspExportServiceTests
         var result = OscalSspExportService.BuildSystemCharacteristics(
             system, null, new Dictionary<int, SspSection>(), new List<SystemInterconnection>(), null, new List<AuthorizationBoundary>(), new List<RmfRoleAssignment>(), warnings);
 
-        result["security-sensitivity-level"].Should().Be("not-yet-determined");
-
-        var impactLevel = result["security-impact-level"] as Dictionary<string, string>;
-        impactLevel!["security-objective-confidentiality"].Should().Be("low");
+        result.Should().NotContainKey("security-sensitivity-level");
+        result.Should().NotContainKey("security-impact-level");
+        result.Should().NotContainKey("status");
 
         warnings.Should().Contain(w => w.Contains("No security categorization"));
         warnings.Should().Contain(w => w.Contains("§11 Authorization boundary"));
@@ -290,12 +289,12 @@ public class OscalSspExportServiceTests
             warnings);
 
         result["components"].Should().BeEquivalentTo(Array.Empty<object>());
-        result["inventory-items"].Should().BeEquivalentTo(Array.Empty<object>());
+        result.Should().NotContainKey("inventory-items");
         result["users"].Should().BeEquivalentTo(Array.Empty<object>());
     }
 
     [Fact]
-    public void BuildSystemImplementation_WithInheritanceProviders_IncludesLeveragedAuthorizations()
+    public void BuildSystemImplementation_WithInheritanceProviders_DoesNotInventLeveragedAuthorizations()
     {
         var baseline = new ControlBaseline
         {
@@ -324,10 +323,7 @@ public class OscalSspExportServiceTests
             new Dictionary<string, string>(),
             warnings);
 
-        result.Should().ContainKey("leveraged-authorizations");
-        var leveraged = result["leveraged-authorizations"] as List<Dictionary<string, object>>;
-        leveraged.Should().HaveCount(1);
-        leveraged![0]["title"].Should().Be("AWS GovCloud FedRAMP Authorization");
+        result.Should().NotContainKey("leveraged-authorizations");
     }
 
     // ─── BuildControlImplementation ──────────────────────────────────────────
@@ -369,7 +365,7 @@ public class OscalSspExportServiceTests
         reqs.Should().HaveCount(2);
 
         var ac1 = reqs!.First(r => (string)r["control-id"] == "ac-1");
-        ac1["description"].Should().Be("Policy and technical implementation statements for AC-1.");
+        ac1["remarks"].Should().Be("Policy and technical implementation statements for AC-1.");
         var ac1Props = ac1["props"] as Dictionary<string, string>[];
         ac1Props![0]["value"].Should().Be("implemented");
 
@@ -377,8 +373,8 @@ public class OscalSspExportServiceTests
         var au2Props = au2["props"] as Dictionary<string, string>[];
         au2Props![0]["value"].Should().Be("partial");
 
-        // by-components cross-refs present when componentMap is not empty
-        ac1.Should().ContainKey("by-components");
+        // Inventory alone does not establish a control-to-component relationship.
+        ac1.Should().NotContainKey("by-components");
 
         warnings.Should().BeEmpty();
     }
@@ -407,9 +403,9 @@ public class OscalSspExportServiceTests
         var statements = requirements!.Single()["statements"] as List<Dictionary<string, object>>;
         statements.Should().HaveCount(2);
         statements![0]["statement-id"].Should().Be("AC-2_smt.policy");
-        statements[0]["description"].Should().Be("Account policy is reviewed annually.");
+        statements[0]["remarks"].Should().Be("Account policy is reviewed annually.");
         statements[1]["statement-id"].Should().Be("AC-2_smt.technical");
-        statements[1]["description"].Should().Be("[Not Authored]");
+        statements[1]["remarks"].Should().Be("[Not Authored]");
     }
 
     [Fact]
@@ -427,7 +423,7 @@ public class OscalSspExportServiceTests
     }
 
     [Fact]
-    public void BuildControlImplementation_WithInheritance_IncludesResponsibleRoles()
+    public void BuildControlImplementation_WithInheritance_RecordsAllocationWithoutInventedRoles()
     {
         var system = MakeSystem();
         var implementations = new List<ControlImplementation>
@@ -466,10 +462,9 @@ public class OscalSspExportServiceTests
 
         var reqs = result["implemented-requirements"] as List<Dictionary<string, object>>;
         reqs.Should().HaveCount(1);
-        reqs![0].Should().ContainKey("responsible-roles");
-
-        var respRoles = reqs[0]["responsible-roles"] as Dictionary<string, string>[];
-        respRoles![0]["role-id"].Should().Be("provider");
+        reqs![0].Should().NotContainKey("responsible-roles");
+        var props = reqs[0]["props"] as Dictionary<string, string>[];
+        props.Should().Contain(p => p["name"] == "inheritance-type" && p["value"] == "Inherited");
     }
 
     // ─── BuildBackMatter ─────────────────────────────────────────────────────
@@ -535,8 +530,7 @@ public class OscalSspExportServiceTests
         var result = OscalSspExportService.BuildBackMatter(
             new List<SystemInterconnection>(), null, new List<Deviation>(), warnings);
 
-        var resources = result["resources"] as List<Dictionary<string, object>>;
-        resources.Should().BeEmpty();
+        result.Should().NotContainKey("resources");
     }
 
     // ─── OSCAL Version Constant ──────────────────────────────────────────────

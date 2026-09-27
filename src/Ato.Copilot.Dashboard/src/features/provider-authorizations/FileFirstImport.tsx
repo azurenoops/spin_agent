@@ -9,11 +9,12 @@ import { Pager, Status, secondaryButtonClass, surfaceClass, useRemote, warningCl
 import { OfferingIntake } from './OfferingIntake';
 import { authorizationHref, importHref } from './api';
 import type { BoundaryInput, Offering } from './types';
+import { ProviderPanel, ProviderSupport } from './ProviderPresentation';
 
 export function FileFirstImport({ offering }: { offering?: Offering }) {
   const navigate = useNavigate();
-  return <section aria-label="Import authorization package" className="mx-auto max-w-3xl space-y-5">
-    <div className={`${surfaceClass} space-y-3 rounded-xl p-6`}>
+  return <div className="provider-grid"><section aria-label="Import authorization package" className="space-y-5">
+    <ProviderPanel title="Choose source files"><div className="space-y-3">
       <FileUp size={28} aria-hidden="true" className="text-indigo-600" />
       <h2 className="text-xl font-semibold">Start with your authorization package</h2>
       <p className="text-sm text-slate-600 dark:text-gray-300">Upload the decision letter, SSP, and supporting documents. We’ll analyze the sources before {offering ? 'you confirm this offering’s boundary.' : 'you choose or create an offering and confirm its boundary.'}</p>
@@ -24,9 +25,11 @@ export function FileFirstImport({ offering }: { offering?: Offering }) {
       const receipt = await receivePackage(files, key);
       const destination = offering ? authorizationHref(offering.offeringId, 'import') : importHref;
       navigate(`${destination}?packageId=${encodeURIComponent(receipt.packageId)}`, { replace: true });
-    }} />
+    }} /></ProviderPanel>
     <p className="text-xs text-slate-500 dark:text-gray-400">Receipt is saved before analysis. Upload does not create an offering, record an authorization decision, or publish capabilities.</p>
-  </section>;
+  </section><ProviderSupport><ProviderPanel title="Review stays in the portal"><p>Continue reviewing retained packages here after onboarding. No extracted record is published without explicit review.</p></ProviderPanel>
+    <ProviderPanel title="What happens next"><ol className="list-decimal space-y-2 pl-4"><li>Inspect supported files.</li><li>Flag unreadable or excluded content.</li><li>Propose distinct record types.</li><li>Review and explicitly publish.</li></ol></ProviderPanel>
+    <ProviderPanel title="Source privacy"><p>Uploaded source content remains provider-private. Uploading it does not approve customer access.</p></ProviderPanel></ProviderSupport></div>;
 }
 
 export function PackagePreparation({ item, initialOfferingId }: { item: PackageStatus; initialOfferingId?: string }) {

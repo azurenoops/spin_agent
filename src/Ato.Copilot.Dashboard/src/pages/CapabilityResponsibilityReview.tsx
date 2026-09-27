@@ -133,14 +133,14 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
   }
 
   return (
-    <main className="space-y-6 p-4 sm:p-6">
+    <div className="min-w-0 space-y-6">
       <header className="space-y-3">
         <Link to={`${base}/inheritance`} className="text-sm text-indigo-700 underline">Back to Control Inheritance</Link>
-        <h1 className="text-2xl font-semibold">Subscription responsibility review</h1>
-        <p className="text-sm text-gray-700">Review explicit per-control allocations for this system. A capability subscription or mapped control is not proof of inheritance.</p>
+        <h1 className="text-2xl font-semibold">Control responsibilities</h1>
+        <p className="text-sm text-gray-700">Confirm what the provider delivers and what your team must implement. A capability subscription or mapped control is not proof of inheritance.</p>
         <nav aria-label="Responsibility review navigation" className="flex flex-wrap gap-4 text-sm text-indigo-700">
           <Link to={`${base}/baseline`} className="underline">Select or review baseline</Link>
-          <Link to={`${base}/capability-coverage`} className="underline">System capabilities</Link>
+          <Link to={`${base}/security-capabilities`} className="underline">Applied capabilities</Link>
           <Link to={`${base}/narratives/review`} className="underline">Narrative Review</Link>
         </nav>
       </header>
@@ -169,6 +169,36 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
           <button className={button} onClick={() => { setActionError(null); void load(); }} disabled={busy}>Retry preview</button>
         </div>
       ) : data && <>
+        <section aria-labelledby="responsibility-matrix-heading" className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+          <div className="border-b border-slate-200 p-5 dark:border-slate-700">
+            <h2 id="responsibility-matrix-heading" className="text-lg font-semibold">Responsibility matrix</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">One source of allocations. Review evidence separately; source availability is not evidence acceptance.</p>
+          </div>
+          {data.items.length ? <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                <tr>{['Control / duty', 'Accountable party', 'Evidence', 'State', 'Review'].map(label => <th key={label} scope="col" className="px-4 py-3 font-medium">{label}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {data.items.map(item => <tr key={`${item.subscriptionId}:${item.controlId}`}>
+                  <td className="min-w-48 px-4 py-4 align-top"><p className="font-medium">{item.controlId}</p>
+                    <p className="mt-1 text-xs text-slate-500">Revision {item.sourceRevision}</p>
+                    <p className="mt-2">{item.allocation?.customerResponsibility ?? 'Customer work has not been confirmed.'}</p></td>
+                  <td className="px-4 py-4 align-top">{item.allocation
+                    ? item.allocation.inheritanceType === 'Inherited' ? 'Provider (inherited)' : item.allocation.inheritanceType
+                    : 'Not confirmed'}</td>
+                  <td className="px-4 py-4 align-top"><Link className="text-indigo-700 underline dark:text-indigo-300"
+                    aria-label={`Review evidence for ${item.controlId}`} to={`${base}/evidence`}>Review evidence</Link>
+                    <p className="mt-1 text-xs text-slate-500">{item.sourceAvailable ? 'Provider source available' : 'Source unavailable'}</p></td>
+                  <td className="px-4 py-4 align-top text-xs">State: {item.state}</td>
+                  <td className="px-4 py-4 align-top"><a className="text-indigo-700 underline dark:text-indigo-300"
+                    aria-label={`Review allocation for ${item.controlId}`}
+                    href={`#subscription-review-${encodeURIComponent(item.subscriptionId)}`}>Review allocation</a></td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div> : <p className="p-5 text-sm text-slate-600 dark:text-slate-300">No subscription control contributions are available for this system.</p>}
+        </section>
         <section className="space-y-3 rounded border bg-gray-50 p-4" aria-label="Responsibility prerequisites">
           <p className="break-all text-sm"><strong>System:</strong> {data.systemId}</p>
           <p className="break-all text-sm"><strong>Baseline:</strong> {data.baselineId ?? 'Not selected'}</p>
@@ -184,7 +214,6 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
           </div>
           <p className="text-xs text-gray-600">Reconciliation preserves unowned overrides. Impact delivery marks review work only; generation and approval remain separate authorized narrative actions.</p>
         </section>
-        {data.items.length === 0 && <p>No subscription control contributions are available for this system.</p>}
         {[...groups].map(([subscriptionId, items]) => <SubscriptionReview key={`${generation}:${subscriptionId}`} items={items}
           baselineId={data.baselineId} canConfirm={data.canConfirm} busy={busy} onConfirm={confirm} systemId={systemId} />)}
         <section aria-label="Pending review impacts" className="space-y-3">
@@ -202,7 +231,7 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
           ))}
         </section>
       </>}
-    </main>
+    </div>
   );
 }
 
@@ -281,7 +310,8 @@ function SubscriptionReview({ items, baselineId, canConfirm, busy, onConfirm, sy
   };
 
   return (
-    <section aria-label={`Subscription ${first.subscriptionId}`} className="space-y-4 rounded border border-gray-300 p-4">
+    <section id={`subscription-review-${encodeURIComponent(first.subscriptionId)}`} tabIndex={-1}
+      aria-label={`Subscription ${first.subscriptionId}`} className="scroll-mt-4 space-y-4 rounded border border-gray-300 p-4">
       <header className="space-y-2 text-sm">
         <h2 className="break-all text-lg font-semibold">Subscription {first.subscriptionId}</h2>
         <p className="break-all">Capability: <Link className="text-indigo-700 underline" to={`/capability-library/${encodeURIComponent(first.capabilityId)}?systemId=${encodeURIComponent(systemId)}`}>{first.capabilityId}</Link></p>

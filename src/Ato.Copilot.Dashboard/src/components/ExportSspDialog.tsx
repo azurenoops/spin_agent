@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { requestExport, getExport, downloadExportUrl, listTemplates } from '../api/exports';
+import { requestExport, requestPreviewExport, getExport, downloadExportUrl, listTemplates } from '../api/exports';
 import type { ExportDetail, TemplateInfo } from '../api/exports';
 // Wave 6 GAP-018
 import apiClient from '../api/client';
@@ -10,6 +10,7 @@ import { ValidationBadge } from '../features/oscal';
 import AuthenticatedDownload from './AuthenticatedDownload';
 import { isProgressEvent, progressError, useJobProgress, useProgressSession, type ProgressSession } from '../hooks/useJobProgress';
 import ProgressTransportNotice from './ProgressTransportNotice';
+import SetupDialog from '../features/workspace-operations/SetupDialog';
 
 // ── Contract types for OSCAL SSP export ─────────────────────────────────────
 // GET /api/v1/systems/{systemId}/exports/oscal-ssp
@@ -29,6 +30,8 @@ interface OscalExportSummary {
 
 interface ExportSspDialogProps {
   systemId: string;
+  sourcePreviewId?: string;
+  sourceContentHash?: string;
   onClose: () => void;
   onExportComplete?: () => void;
 }
@@ -37,11 +40,12 @@ type ExportStatus = 'idle' | 'submitting' | 'processing' | 'completed' | 'failed
 
 export default function ExportSspDialog(props: ExportSspDialogProps) {
   const session = useProgressSession(props.systemId);
-  return <ExportSspContent key={session.key} {...props} session={session} />;
+  return <ExportSspContent key={`${session.key}:${props.sourcePreviewId ?? 'current'}`} {...props} session={session} />;
 }
 
-function ExportSspContent({ systemId, onClose, onExportComplete, session }: ExportSspDialogProps & { session: ProgressSession }) {
-  const [format, setFormat] = useState<'docx' | 'pdf'>('docx');
+function ExportSspContent({ systemId, sourcePreviewId, sourceContentHash, onClose, onExportComplete, session }: ExportSspDialogProps & { session: ProgressSession }) {
+  const [format, setFormat] = useState<'docx' | 'pdf' | 'json'>(sourcePreviewId ? 'json' : 'docx');
+  const previewRequestKey = useRef<string | null>(null);
   const [templateId, setTemplateId] = useState<string>('');
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [status, setStatus] = useState<ExportStatus>('idle');
@@ -50,7 +54,6 @@ function ExportSspContent({ systemId, onClose, onExportComplete, session }: Expo
   const hasRealtimeProgress = useRef(false);
   const [exportId, setExportId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
   // Wave 6 GAP-018
   const [oscalExporting, setOscalExporting] = useState<string | null>(null);
   const [oscalError, setOscalError] = useState<string | null>(null);
@@ -188,6 +191,10 @@ function ExportSspContent({ systemId, onClose, onExportComplete, session }: Expo
     poll: async signal => {
       if (!exportId) throw new Error('No export is selected.');
       const result = await getExport(systemId, exportId, signal);
+      if (sourcePreviewId && (result.sourcePreviewId !== sourcePreviewId
+        || result.format !== 'json' || result.status === 'Completed' && sourceContentHash && result.contentHash !== sourceContentHash)) {
+        throw new Error('The export does not match the selected retained preview.');
+      }
       if (result.exportId !== exportId || result.systemId !== systemId
         || !['Pending', 'Processing', 'Completed', 'Failed'].includes(result.status)) {
         throw new Error('Unexpected export status response.');
@@ -225,15 +232,6 @@ function ExportSspContent({ systemId, onClose, onExportComplete, session }: Expo
     },
   });
 
-  // Close on Escape
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && status !== 'processing') onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose, status]);
-
   // Load templates when format is docx
   useEffect(() => {
     if (format !== 'docx' || !session.ready) return;
@@ -251,7 +249,10 @@ function ExportSspContent({ systemId, onClose, onExportComplete, session }: Expo
     setStatus('submitting');
     setError(null);
     try {
-      const result = await requestExport(
+      previewRequestKey.current ??= crypto.randomUUID();
+      const result = sourcePreviewId
+        ? await requestPreviewExport(systemId, sourcePreviewId, previewRequestKey.current, request.signal)
+        : await requestExport(
         systemId,
         format,
         format === 'docx' && templateId ? templateId : undefined,
@@ -275,14 +276,10 @@ function ExportSspContent({ systemId, onClose, onExportComplete, session }: Expo
     }
   };
 
-  const handleBackdrop = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && status !== 'processing') onClose();
-  };
-
   const formatLabel: Record<string, string> = {
     docx: 'Word (.docx)',
     pdf: 'PDF (.pdf)',
-    // json removed — OSCAL SSP now has its own dedicated section (Issue #419)
+    json: 'OSCAL JSON (.json)',
   };
 
   const formatIcon: Record<string, string> = {
@@ -291,41 +288,20 @@ function ExportSspContent({ systemId, onClose, onExportComplete, session }: Expo
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={handleBackdrop}
-    >
-      <div
-        ref={dialogRef}
-        className="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden"
-        role="dialog"
-        aria-labelledby="export-dialog-title"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-200">
-          <h2 id="export-dialog-title" className="text-base font-semibold text-gray-900">
-            Export SSP Document
-          </h2>
-          {status !== 'processing' && (
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-              aria-label="Close"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
+    <SetupDialog title="Export SSP Document" description="Review the source, format and validation before generating a document."
+      busy={status === 'processing' || status === 'submitting'} onClose={onClose}>
 
         {/* Body */}
         <div className="px-5 py-4 space-y-4">
           <ProgressTransportNotice monitor={monitor} onClose={onClose} />
           {pkgJobId && <ProgressTransportNotice monitor={packageMonitor} onClose={onClose} />}
           {error && status !== 'failed' && <p role="alert">{error}</p>}
+          {sourcePreviewId && <p className="rounded border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
+            Exporting the exact retained OSCAL preview. Later source edits will not regenerate these bytes.
+            <span className="mt-1 block break-all text-xs">Preview: {sourcePreviewId}</span>
+          </p>}
           {/* Format selection */}
-          {(status === 'idle' || status === 'submitting') && (
+          {!sourcePreviewId && (status === 'idle' || status === 'submitting') && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Export Format</label>
@@ -430,7 +406,7 @@ function ExportSspContent({ systemId, onClose, onExportComplete, session }: Expo
           )}
 
           {/* #180: ATO Package exports — PDF, XLSX, eMASS */}
-          {(status === 'idle' || status === 'completed') && (
+          {!sourcePreviewId && (status === 'idle' || status === 'completed') && (
             <div className="border-t border-gray-100 pt-4">
               <p className="mb-2 text-sm font-medium text-gray-700">ATO Package Downloads</p>
               <div className="space-y-2">
@@ -466,7 +442,7 @@ function ExportSspContent({ systemId, onClose, onExportComplete, session }: Expo
           )}
 
           {/* Wave 7 #419: OSCAL Documents — SSP first-class, supplemental artifacts below */}
-          {(status === 'idle' || status === 'completed') && (
+          {!sourcePreviewId && (status === 'idle' || status === 'completed') && (
             <div className="border-t border-gray-100 pt-4">
               <p className="mb-3 text-sm font-medium text-gray-700">OSCAL Documents</p>
 
@@ -596,7 +572,6 @@ function ExportSspContent({ systemId, onClose, onExportComplete, session }: Expo
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </SetupDialog>
   );
 }

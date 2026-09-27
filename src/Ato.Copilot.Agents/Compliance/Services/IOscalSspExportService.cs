@@ -14,7 +14,13 @@ public interface IOscalSspExportService
 }
 
 /// <summary>Result of an OSCAL SSP export.</summary>
-public record OscalExportResult(string OscalJson, List<string> Warnings, OscalStatistics Statistics);
+public record OscalExportResult(string OscalJson, List<string> Warnings, OscalStatistics Statistics)
+{
+    public IReadOnlyList<string> ProviderProvenanceGaps { get; init; } = [];
+    public IReadOnlyList<string> ProfileSourceGaps { get; init; } = [];
+    public IReadOnlyList<string> EvidenceSourceGaps { get; init; } = [];
+    public Ato.Copilot.Core.Dtos.Dashboard.DocumentSourceManifest? SourceManifest { get; init; }
+}
 
 /// <summary>Counts of OSCAL structural elements.</summary>
 public record OscalStatistics(

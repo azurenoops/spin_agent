@@ -1,0 +1,214 @@
+%PDF-1.4
+%ту╧╙
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 4 /Kids [5 0 R 7 0 R 9 0 R 11 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 3670 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 17 Tf 0.08 0.19 0.31 rg 48 730 Td (Azure IL5 ╖ Shared services) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 702 Td (Service guide and customer onboarding) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 679 Td (SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 651 Td (authorization, a customer entitlement, or operational evidence.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Release 1.2 | Scenario date: 2026-09-15 | Provider-managed shared services) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 609 Td (Service boundary) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 586 Td (Only the eight listed provider-operated shared services; no mission workloads or SaaS) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 572 Td (collaboration tenant.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 551 Td (Environment: Azure Government \(fictional scenario\).) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 530 Td (Exclusions) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 507 Td (Customer application code, databases, mission data, workstation configuration, customer) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 493 Td (subscriptions not explicitly enrolled, Microsoft 365, and any actual IL5 approval.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 472 Td (Synthetic hosting identity) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 449 Td (SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Azure;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 435 Td (cloud=AzureUSGovernment; directoryTenantId=07900000-0000-0000-0000-000000000101;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 421 Td (subscriptionId=07900000-0000-0000-0000-000000000102; resourceId=/subscriptions/07900000-0000-) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 407 Td (0000-0000-000000000102/resourceGroups/rg-synthetic-il5-shared-services. No live resource,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 393 Td (tenant entitlement, or connector is asserted.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 372 Td (Operating team) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 349 Td (Northstar Shared Services Demo Team | shared-services@example.invalid. This address is) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 335 Td (intentionally non-routable.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 314 Td (Customer onboarding and acceptance) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 291 Td (1. Identify a fictional mission information owner and select only applicable capabilities.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 270 Td (2. Review the boundary, customer duties, reference conditions, and disclosed moderate) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 256 Td (finding.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 235 Td (3. Confirm the application records a reviewed provider release and a separate customer) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 221 Td (association; importing a file creates neither entitlement nor authority.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 200 Td (4. Record customer-owned controls and evidence tasks before any inheritance decision.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 179 Td (5. Obtain mission-level review through the normal authorization process. No synthetic) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 165 Td (reference substitutes for it.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 144 Td (Service change and exit) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 1 of 4) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 4301 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (The team provides a fictional ten-business-day notice for planned customer-impacting changes.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (Emergency changes require a next-business-day review. On exit, agree evidence export scope,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (revoke demo associations, and document customer retention obligations; this package does not) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 688 Td (implement those actions.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 667 Td (Audit collection) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 644 Td (Component: AZ-component-audit Ч Central audit collector and archive.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 623 Td (Coverage: AU-2, AU-6, AU-11. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 602 Td (Collect administrative and platform security events from the enrolled shared-service) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 588 Td (boundary; retain 90 days searchable and 365 days archived in this scenario.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 567 Td (Provider: Operate collector health checks every 15 minutes; reconcile ingestion counts daily;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 553 Td (protect archived events from routine operator modification.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 532 Td (Shared: Agree event categories and triage escalation with each mission; investigate missing) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 518 Td (source intervals jointly within one business day.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 497 Td (Customer: Enable workload audit sources, review mission-specific events each business day,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 483 Td (and set longer retention when mission policy requires it.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 462 Td (Review evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 441 Td (Network protection) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 418 Td (Component: AZ-component-network Ч Shared hub firewall and private routing.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 397 Td (Coverage: SC-7. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 376 Td (Inspect approved north-south shared-hub flows and maintain documented private routing for) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 362 Td (enrolled spokes.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 341 Td (Provider: Maintain deny-by-default hub rules, review exceptions monthly, and record firewall) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 327 Td (changes with rollback instructions.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 306 Td (Shared: Approve traffic purpose and route changes jointly; exercise a denied-traffic test) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 292 Td (before connecting a new spoke.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 271 Td (Customer: Manage application ingress, workload NSGs, DNS dependencies and endpoints outside) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 257 Td (the provider hub.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 236 Td (Review evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 215 Td (Privileged identity) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 192 Td (Component: AZ-component-identity Ч Provider operations identity service.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 171 Td (Coverage: IA-2, AC-2. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 150 Td (Control provider operator accounts with MFA and time-limited privileged access; customer) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 136 Td (identities remain a separate administration responsibility.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 115 Td (Provider: Require MFA for operators; review privileged membership monthly; remove provider) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 101 Td (leavers within four hours of confirmed notice.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 2 of 4) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 3978 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (Shared: Maintain named escalation contacts and reconcile emergency access use after every) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (activation.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 695 Td (Customer: Approve mission accounts, enforce mission MFA, perform access reviews, and disable) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 681 Td (customer leavers.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 660 Td (Review evidence: AZ-E03: synthetic access review, activation record and leaver test.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 639 Td (Configuration baselines) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 616 Td (Component: AZ-component-configuration Ч Shared-service configuration repository.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 595 Td (Coverage: CM-2, CM-3. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 574 Td (Version the shared-service baseline and capture approved changes; application code and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 560 Td (mission images are excluded.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 539 Td (Provider: Record baseline version, approver, test result and rollback plan; compare deployed) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 525 Td (shared settings weekly.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 504 Td (Shared: Assess mission impact before changing shared defaults; agree maintenance windows and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 490 Td (exception expiration.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 469 Td (Customer: Maintain application baselines and approve workload changes; remediate) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 455 Td (customer-owned configuration drift.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 434 Td (Review evidence: AZ-E04: baseline revision, drift review and approved change sample.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 413 Td (Encryption and key handling) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 390 Td (Component: AZ-component-encryption Ч Shared-service key vault and transport configuration.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 369 Td (Coverage: SC-12, SC-13. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 348 Td (Manage fictional shared-service keys and transport settings for provider-owned endpoints) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 334 Td (only.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 313 Td (Provider: Restrict key administration, test rotation every 90 days, record custody, and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 299 Td (enforce TLS 1.2 or higher on covered endpoints.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 278 Td (Shared: Document key ownership and coordinate rotation windows for dependent workloads; test) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 264 Td (trust-chain changes jointly.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 243 Td (Customer: Configure workload encryption and certificates; manage customer keys and classify) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 229 Td (data before using a covered endpoint.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 208 Td (Review evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 187 Td (Incident coordination) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 164 Td (Component: AZ-component-incident Ч Provider incident coordination desk.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 143 Td (Coverage: IR-4, IR-6. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 122 Td (Coordinate incidents affecting the shared-service boundary using a fictional 24-hour on-call) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 108 Td (roster.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 3 of 4) Tj ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 12 0 R >>
+endobj
+12 0 obj
+<< /Length 3711 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (Provider: Acknowledge severity-one tickets within 30 minutes in the scenario; preserve) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (provider records and issue initial impact notices.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 695 Td (Shared: Exercise incident handoffs quarterly; coordinate containment approval where provider) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 681 Td (action affects mission service.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 660 Td (Customer: Own mission incident declarations, regulatory reporting, application containment) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 646 Td (and mission recovery decisions.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 625 Td (Review evidence: AZ-E06: tabletop timeline, escalation roster and notification template.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 604 Td (Vulnerability management) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 581 Td (Component: AZ-component-vulnerability Ч Shared infrastructure scan and patch service.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 560 Td (Coverage: RA-5, SI-2. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 539 Td (Scan provider-maintained hosts weekly and evaluate urgent advisories daily; mission) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 525 Td (applications are excluded.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 504 Td (Provider: Triage critical results within one business day, schedule fixes by risk, and verify) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 490 Td (remediation with a follow-up scan.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 469 Td (Shared: Agree outage windows and compensating controls for shared infrastructure exceptions;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 455 Td (review overdue items weekly.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 434 Td (Customer: Scan and patch customer applications, containers and mission hosts; document) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 420 Td (mission risk acceptance separately.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 399 Td (Review evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 378 Td (Backup and recovery) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 355 Td (Component: AZ-component-backup Ч Shared configuration backup vault.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 334 Td (Coverage: CP-9, CP-10. This is partial control support, not full control satisfaction.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 313 Td (Back up shared configuration daily; exercise quarterly restore with a scenario target of) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 299 Td (24-hour RPO and eight-hour RTO.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 278 Td (Provider: Monitor backup jobs daily, protect recovery copies from ordinary operator deletion,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 264 Td (and record restore results quarterly.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 243 Td (Shared: Agree recovery sequence and validate shared dependencies during a joint recovery) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 229 Td (exercise.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 208 Td (Customer: Back up mission data and applications, define mission RTO/RPO, and validate) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 194 Td (business transactions after recovery.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 173 Td (Review evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 4 of 4) Tj ET
+endstream
+endobj
+xref
+0 13
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000140 00000 n 
+0000000237 00000 n 
+0000000339 00000 n 
+0000000475 00000 n 
+0000004197 00000 n 
+0000004333 00000 n 
+0000008686 00000 n 
+0000008823 00000 n 
+0000012854 00000 n 
+0000012992 00000 n 
+trailer
+<< /Size 13 /Root 1 0 R >>
+startxref
+16756
+%%EOF
