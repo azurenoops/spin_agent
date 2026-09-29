@@ -231,7 +231,7 @@ function SspSectionsSection({ sections, activeWaiverCount }: { sections: SspSect
   const completed = sections.filter(s => s.status === 'Approved').length;
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+    <div id="ssp-sections" className="scroll-mt-6 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
       <SectionHeader
         icon="📝"
         title="SSP Sections"

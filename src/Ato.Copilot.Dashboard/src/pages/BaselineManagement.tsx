@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from '../features/workspaces/workspaceNavigation';
 import {
   getBaselineDetail,
   getSystemDetail,
@@ -8,25 +8,23 @@ import {
   type BaselineDetailResponse,
   type InfoTypeInput,
 } from '../api/systemDetail';
-import type { CategorizationInfo, Sp80060InfoType } from '../types/dashboard';
+import { getProfileSection } from '../api/systemProfile';
+import type {
+  CategorizationInfo,
+  GovernanceStatus,
+  ProfileSectionDetail,
+  Sp80060InfoType,
+} from '../types/dashboard';
 import { useSettings } from '../hooks/useSettings';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import infoTypesData from '../data/sp800-60-information-types.json';
 
 // ─── Summary Card ────────────────────────────────────────────────────────────
 
-function Card({ label, value, color }: { label: string; value: number | string; color: string }) {
-  const colorMap: Record<string, string> = {
-    blue: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
-    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-    gray: 'bg-gray-50 text-gray-600 border-gray-200',
-    red: 'bg-red-50 text-red-700 border-red-200',
-  };
+function Card({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className={`rounded-xl border p-4 ${colorMap[color] ?? 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-      <p className="text-xs font-medium uppercase tracking-wider opacity-75">{label}</p>
+    <div data-testid="baseline-metric" className="rounded-lg border border-gray-200 bg-white p-4 text-gray-900">
+      <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
       <p className="mt-1 text-2xl font-bold">{value}</p>
     </div>
   );
@@ -35,15 +33,90 @@ function Card({ label, value, color }: { label: string; value: number | string; 
 // ─── Level Badge ─────────────────────────────────────────────────────────────
 
 function LevelBadge({ level }: { level: string }) {
-  const map: Record<string, string> = {
-    High: 'bg-red-100 text-red-700 ring-red-200',
-    Moderate: 'bg-amber-100 text-amber-700 ring-amber-200',
-    Low: 'bg-green-100 text-green-700 ring-green-200',
-  };
   return (
-    <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-inset ${map[level] ?? 'bg-gray-100 text-gray-700 ring-gray-200'}`}>
+    <span className="inline-flex items-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-sm font-medium text-gray-700">
       {level}
     </span>
+  );
+}
+
+const CONTROLS_AND_EVIDENCE_TABS = [
+  { label: 'Categorization & baseline', path: 'baseline' },
+  { label: 'Applied capabilities', path: 'security-capabilities' },
+  { label: 'Responsibilities', path: 'inheritance/subscriptions' },
+  { label: 'Narratives', path: 'narratives' },
+  { label: 'Evidence', path: 'evidence' },
+  { label: 'Policies', path: 'legal' },
+] as const;
+
+const governanceLabels: Record<GovernanceStatus, string> = {
+  NotStarted: 'Not started',
+  Draft: 'Draft',
+  UnderReview: 'Under review',
+  Approved: 'Approved',
+  NeedsRevision: 'Needs revision',
+};
+
+function systemPath(systemId: string, suffix = '') {
+  return `/systems/${encodeURIComponent(systemId)}${suffix}`;
+}
+
+function ControlsAndEvidenceTabs({ systemId }: { systemId: string }) {
+  return (
+    <nav
+      aria-label="Controls and evidence pages"
+      className="flex max-w-full gap-5 overflow-x-auto border-b border-gray-200"
+    >
+      {CONTROLS_AND_EVIDENCE_TABS.map(tab => (
+        <Link
+          key={tab.path}
+          to={systemPath(systemId, `/${tab.path}`)}
+          aria-current={tab.path === 'baseline' ? 'page' : undefined}
+          className={`whitespace-nowrap border-b-2 px-0 py-3 text-sm font-medium ${
+            tab.path === 'baseline'
+              ? 'border-indigo-600 text-indigo-700'
+              : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800'
+          }`}
+        >
+          {tab.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+function PageIntroduction({
+  systemId,
+  systemName,
+  canManage,
+  onReview,
+}: {
+  systemId: string;
+  systemName: string;
+  canManage: boolean;
+  onReview: () => void;
+}) {
+  return (
+    <>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{systemName}</p>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900">Categorization & control baseline</h1>
+          <p className="mt-1 max-w-3xl text-sm text-gray-500">
+            Review information impacts and the resulting control set before assigning implementation work.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={!canManage}
+          onClick={onReview}
+          className="self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Review categorization
+        </button>
+      </header>
+      <ControlsAndEvidenceTabs systemId={systemId} />
+    </>
   );
 }
 
@@ -58,6 +131,9 @@ export default function BaselineManagement() {
   const [loading, setLoading] = useState(true);
   const [noBaseline, setNoBaseline] = useState(false);
   const [categorization, setCategorization] = useState<CategorizationInfo | null>(null);
+  const [systemName, setSystemName] = useState('System');
+  const [dataTypesSection, setDataTypesSection] = useState<ProfileSectionDetail | null>(null);
+  const [dataTypesError, setDataTypesError] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const requireManagement = () => {
     if (canManage) return true;
@@ -83,8 +159,9 @@ export default function BaselineManagement() {
     setLoading(true);
     setNoBaseline(false);
     setActionError(null);
+    setDataTypesError(false);
     try {
-      const [data, detail] = await Promise.all([
+      const [data, detail, dataTypes] = await Promise.all([
         getBaselineDetail(systemId).catch((err: unknown) => {
           const status = (err as { response?: { status?: number } })?.response?.status;
           if (status === 404) setNoBaseline(true);
@@ -95,9 +172,15 @@ export default function BaselineManagement() {
           setActionError('Failed to load system categorization');
           return null;
         }),
+        getProfileSection(systemId, 'DataTypes').catch(() => {
+          setDataTypesError(true);
+          return null;
+        }),
       ]);
       setBaseline(data);
       setCategorization(detail?.categorization ?? null);
+      setSystemName(detail?.name ?? 'System');
+      setDataTypesSection(dataTypes);
     } finally {
       setLoading(false);
     }
@@ -139,7 +222,7 @@ export default function BaselineManagement() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="max-w-full min-w-0 space-y-6 overflow-x-hidden p-6">
         <h1 className="text-2xl font-bold text-gray-900">Categorization & Baseline</h1>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -154,14 +237,17 @@ export default function BaselineManagement() {
 
   if (noBaseline || !baseline) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="max-w-full min-w-0 space-y-6 overflow-x-hidden p-6">
         {actionError && <p role="alert">{actionError}</p>}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Categorization & Baseline</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage the FIPS 199 security categorization and NIST 800-53 control baseline for this system.
-          </p>
-        </div>
+        {dataTypesError && (
+          <p role="alert" className="text-sm text-amber-700">Data Types review metadata is unavailable.</p>
+        )}
+        <PageIntroduction
+          systemId={systemId}
+          systemName={systemName}
+          canManage={canManage}
+          onReview={() => { if (requireManagement()) setShowRecategorizeDialog(true); }}
+        />
 
         {/* No Categorization */}
         {!categorization && (
@@ -238,35 +324,173 @@ export default function BaselineManagement() {
   const filteredFamilies = baseline.familyBreakdown.filter(f =>
     !familySearch || f.family.toLowerCase().includes(familySearch.toLowerCase()),
   );
+  const reviewStatus = dataTypesError
+    ? 'Review unavailable'
+    : dataTypesSection
+      ? governanceLabels[dataTypesSection.governanceStatus]
+      : 'Not started';
+  const dataTypeByName = new Map(
+    (dataTypesSection?.dataTypeEntries ?? []).map(item => [item.dataTypeName.trim().toLowerCase(), item]),
+  );
 
   return (
     <div className="p-6 space-y-6">
       {actionError && <p role="alert">{actionError}</p>}
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">Categorization & Baseline</h1>
+      {dataTypesError && (
+        <p role="alert" className="text-sm text-amber-700">Data Types review metadata is unavailable.</p>
+      )}
+      <PageIntroduction
+        systemId={systemId}
+        systemName={systemName}
+        canManage={canManage}
+        onReview={() => { if (requireManagement()) setShowRecategorizeDialog(true); }}
+      />
+
+      <div
+        data-testid="categorization-summary"
+        className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <span className="font-medium">
+          {baseline.baselineLevel} baseline - {categorization ? 'Current categorization' : 'Categorization required'}
+        </span>
+        <span className="self-start text-xs text-gray-500 sm:self-auto">
+          Data Types - {reviewStatus}
+        </span>
+      </div>
+
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]">
+        <section
+          data-testid="information-type-panel"
+          className="min-w-0 rounded-lg border border-gray-200 bg-white p-5"
+          aria-labelledby="information-type-rationale"
+        >
+          {categorization ? (
+            <>
+              <div className="mb-6 grid gap-4 sm:grid-cols-3">
+                {(['confidentiality', 'integrity', 'availability'] as const).map(dimension => (
+                  <div key={dimension} className="rounded-lg border border-gray-200 p-4">
+                    <p className="text-xs font-medium capitalize text-gray-500">{dimension}</p>
+                    <p className="mt-1 text-xl font-bold text-gray-900">{categorization[dimension]}</p>
+                    <p className="mt-1 text-xs text-gray-500">Current impact</p>
+                  </div>
+                ))}
+              </div>
+              <h2 id="information-type-rationale" className="text-lg font-semibold text-gray-900">
+                Information type rationale
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Review each categorized information type against its Data Types source record before changing the control baseline.
+              </p>
+              <div className="mt-4 max-w-full overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                  <thead>
+                    <tr className="text-xs uppercase tracking-wide text-gray-500">
+                      <th className="px-3 py-2 font-medium">Information</th>
+                      <th className="px-3 py-2 font-medium">Source</th>
+                      <th className="px-3 py-2 font-medium">Owner</th>
+                      <th className="px-3 py-2 font-medium">Status</th>
+                      <th className="px-3 py-2 font-medium" aria-label="Action" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {categorization.informationTypes.map(infoType => {
+                      const dataType = dataTypeByName.get(infoType.name.trim().toLowerCase());
+                      return (
+                        <tr key={infoType.name}>
+                          <td className="px-3 py-3 font-medium text-gray-900">{infoType.name}</td>
+                          <td className="px-3 py-3 text-gray-600">{dataType?.source || 'SP 800-60'}</td>
+                          <td className="px-3 py-3 text-gray-600">{dataTypesSection?.lastEditedBy || 'Unassigned'}</td>
+                          <td className="px-3 py-3 text-gray-600">
+                            <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${
+                              dataTypesSection?.governanceStatus === 'Approved'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : dataTypesSection?.governanceStatus === 'UnderReview'
+                                  ? 'bg-amber-50 text-amber-800'
+                                  : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {reviewStatus}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <Link
+                              to={systemPath(systemId, '/profile/DataTypes')}
+                              aria-label={`Open ${infoType.name}`}
+                              className="inline-flex rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-gray-50"
+                            >
+                              Open
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                A categorization change previews its effect on the selected baseline, narratives, and assessment scope before it is saved.
+              </p>
+            </>
+          ) : (
+            <div className="py-8 text-center">
+              <h2 id="information-type-rationale" className="text-lg font-semibold text-gray-900">No categorization</h2>
+              <p className="mt-1 text-sm text-gray-500">Select information types to derive the FIPS 199 impacts.</p>
+            </div>
+          )}
+        </section>
+
+        <aside className="space-y-5" aria-label="Categorization supporting actions">
+          <section className="border-l-2 border-indigo-200 pl-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Used in your package</p>
+            <h2 className="mt-2 text-sm font-semibold text-gray-900">SSP - Security categorization / Applicable controls</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              This page supplies reviewed records to the SSP. Draft edits do not replace the approved baseline.
+            </p>
+            <Link
+              to={systemPath(systemId, '/documents#ssp-sections')}
+              className="mt-2 inline-flex rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Preview contribution <span aria-hidden="true" className="ml-1">→</span>
+            </Link>
+          </section>
+          <section className="border-l-2 border-indigo-200 pl-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Review & ownership</p>
+            <h2 className="mt-2 text-sm font-semibold text-gray-900">Keep the next action clear</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Data Types status: {reviewStatus}. Owner: {dataTypesSection?.lastEditedBy || 'Unassigned'}.
+            </p>
+          </section>
+          <section className="border-l-2 border-indigo-200 pl-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Related work</p>
+            <Link
+              to={systemPath(systemId)}
+              className="mt-2 inline-flex rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              View package readiness <span aria-hidden="true" className="ml-1">→</span>
+            </Link>
+          </section>
+        </aside>
+      </div>
+
+      <section className="space-y-6" aria-labelledby="baseline-details-heading">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 id="baseline-details-heading" className="text-xl font-semibold text-gray-900">Baseline details</h2>
           <LevelBadge level={baseline.baselineLevel} />
           {baseline.overlayApplied && (
-            <span className="inline-flex items-center rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700">
+            <span className="inline-flex items-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600">
               {baseline.overlayApplied}
             </span>
           )}
         </div>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage the FIPS 199 security categorization and NIST 800-53 control baseline, including family breakdown and tailoring history.
-        </p>
-      </div>
 
       {/* Organization Framework Indicator */}
-      <div className="flex items-center gap-2 rounded-lg bg-indigo-50 border border-indigo-200 px-4 py-2">
-        <svg className="h-4 w-4 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3">
+        <svg className="h-4 w-4 flex-shrink-0 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>
-        <span className="text-sm text-indigo-800">
+        <span className="text-sm text-gray-700">
           Organization framework: <strong>{settings.activeFramework}</strong>
         </span>
-        <span className="text-xs text-indigo-600">• This system&apos;s impact level: <strong>{baseline.baselineLevel}</strong></span>
+        <span className="text-xs text-gray-500">This system&apos;s impact level: <strong>{baseline.baselineLevel}</strong></span>
       </div>
 
       {/* Cascade Banner */}
@@ -279,11 +503,11 @@ export default function BaselineManagement() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <Card label="Total Controls" value={baseline.totalControls} color="blue" />
-        <Card label="Inherited" value={baseline.inheritedControls} color="green" />
-        <Card label="Shared" value={baseline.sharedControls} color="indigo" />
-        <Card label="Customer" value={baseline.customerControls} color="amber" />
-        <Card label="Undesignated" value={undesignated} color="gray" />
+        <Card label="Total Controls" value={baseline.totalControls} />
+        <Card label="Inherited" value={baseline.inheritedControls} />
+        <Card label="Shared" value={baseline.sharedControls} />
+        <Card label="Customer" value={baseline.customerControls} />
+        <Card label="Undesignated" value={undesignated} />
       </div>
 
       {/* FIPS 199 Categorization */}
@@ -306,7 +530,7 @@ export default function BaselineManagement() {
         </div>
       )}
       {categorization && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="rounded-lg border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <h3 className="text-sm font-semibold text-gray-900">FIPS 199 Security Categorization</h3>
             <button
@@ -360,7 +584,7 @@ export default function BaselineManagement() {
       )}
 
       {/* Metadata */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="rounded-lg border border-gray-200 bg-white">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h3 className="text-sm font-semibold text-gray-900">Baseline Details</h3>
           <button
@@ -405,7 +629,7 @@ export default function BaselineManagement() {
       </div>
 
       {/* Family Breakdown */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="rounded-lg border border-gray-200 bg-white">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h3 className="text-sm font-semibold text-gray-900">
             Control Families ({baseline.familyBreakdown.length} families, {baseline.totalControls} controls)
@@ -449,7 +673,7 @@ export default function BaselineManagement() {
 
       {/* Tailoring History */}
       {baseline.tailorings.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="rounded-lg border border-gray-200 bg-white">
           <div className="border-b border-gray-200 px-6 py-4">
             <h3 className="text-sm font-semibold text-gray-900">
               Tailoring History ({baseline.tailorings.length} actions)
@@ -513,6 +737,7 @@ export default function BaselineManagement() {
           onSaved={handleCategorizationSaved}
         />
       )}
+      </section>
     </div>
   );
 }
@@ -642,8 +867,8 @@ function RecategorizeDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[90vh] w-full min-w-0 max-w-3xl flex-col rounded-xl bg-white shadow-2xl">
         {/* Header */}
         <div className="border-b border-gray-200 px-6 py-4">
           <h3 className="text-lg font-semibold text-gray-900">Re-categorize System</h3>
@@ -654,8 +879,8 @@ function RecategorizeDialog({
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* FIPS 199 Summary */}
           {selected.length > 0 && (
-            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-              <h4 className="text-sm font-medium text-indigo-900 mb-2">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <h4 className="mb-2 text-sm font-medium text-gray-900">
                 FIPS 199 Overall Categorization: <span className="font-bold">{overallFips}</span>
               </h4>
               <div className="flex gap-6 text-sm">
@@ -670,8 +895,8 @@ function RecategorizeDialog({
           {selected.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">Selected Information Types ({selected.length})</h4>
-              <div className="overflow-hidden rounded-md border border-gray-200">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <div className="max-w-full overflow-x-auto rounded-md border border-gray-200">
+                <table className="min-w-[34rem] divide-y divide-gray-200 text-sm">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Info Type</th>

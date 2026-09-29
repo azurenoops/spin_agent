@@ -58,6 +58,18 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     /// <summary>Returns the live <see cref="TenantContext"/> the test is mutating.</summary>
     public TenantContext GetActiveContext() => _activeContext;
 
+    /// <summary>Reset the shared fixture identity before starting a legacy-contract test.</summary>
+    public void ResetLegacyTenantContext(Guid tenantId, bool isCspAdmin = false)
+    {
+        _activeContext.TenantId = tenantId;
+        _activeContext.OrganizationId = null;
+        _activeContext.IsCspAdmin = isCspAdmin;
+        _activeContext.ImpersonatedTenantId = null;
+        _activeContext.Status = TenantStatus.Active;
+        _activeContext.PersonId = null;
+        _activeContext.IsWorkspaceRequest = false;
+    }
+
     /// <summary>
     /// Re-seeds an Active <c>CspProfile</c> after a test wiped the shared
     /// fixture row. Invalidates the 30 s <see cref="CspProfileService"/> cache.

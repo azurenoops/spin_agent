@@ -33,12 +33,8 @@ public class TenantsEndpointsContractTests
     public TenantsEndpointsContractTests(MultiTenantWebApplicationFactory<McpProgram> factory)
     {
         _factory = factory;
+        _factory.ResetLegacyTenantContext(MultiTenantWebApplicationFactory<McpProgram>.TenantAId, isCspAdmin: true);
         _client = factory.CreateClient();
-
-        var ctx = factory.GetActiveContext();
-        ctx.TenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
-        ctx.IsCspAdmin = true;
-        ctx.Status = TenantStatus.Active;
     }
 
     [Fact]
@@ -134,6 +130,30 @@ public class TenantsEndpointsContractTests
 
         // Per contract: deleting an absent cookie still returns 204.
         resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task LegacyContractSetup_AfterWorkspaceTest_DoesNotInheritWorkspaceIdentity()
+    {
+        // Arrange
+        var context = _factory.GetActiveContext();
+        context.IsWorkspaceRequest = true;
+        context.PersonId = Guid.NewGuid();
+        context.OrganizationId = Guid.NewGuid();
+        context.ImpersonatedTenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
+        var nextTest = new TenantsEndpointsContractTests(_factory);
+        using var client = nextTest._client;
+
+        // Act
+        var response = await client.DeleteAsync("/api/tenants/impersonation");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        context.IsWorkspaceRequest.Should().BeFalse();
+        context.PersonId.Should().BeNull();
+        context.OrganizationId.Should().BeNull();
+        context.ImpersonatedTenantId.Should().BeNull();
+        context.TenantId.Should().Be(MultiTenantWebApplicationFactory<McpProgram>.TenantAId);
     }
 
     // ── DEF-004: Update (PUT) ───────────────────────────────────────────────

@@ -9,6 +9,74 @@
 Tasks are dependency ordered. Tests marked `RED` must fail for the intended
 reason before their production task begins. Every test follows Arrange/Act/Assert.
 
+## PR 1049 integration CI repair (September 29, 2026)
+
+CI run `36590187292`, integration job `109483043725`, built successfully but
+reported 14 failed tests (1434 passed; 20 unexecuted cases in the TRX inventory).
+The failed job log and uploaded TRX were read before inspecting implementation.
+
+- [x] CI1049-1 Fix incomplete global-reference cache publication: the CSP
+  bootstrap read is legitimately pre-tenant, but the interceptor treats a
+  partially populated dictionary as initialized. Publish a complete per-model
+  cache atomically; keep unknown/tenant tables denied without ambient context.
+- [x] CI1049-2 Reconcile relational HTTP fixture identities/role grants and GUID
+  materialization with the current persisted authorization contract; preserve
+  negative access and revocation assertions.
+- [x] CI1049-3 Verify why package lifecycle snapshots differ on
+  `AnalysisProfileVersion` during resume/review and fix the actual retention or
+  stale-fixture cause without weakening immutable-source assertions.
+- [x] CI1049-4 Preserve idempotent no-cookie support exit with the correct
+  authenticated identity contract and isolation between shared fixture tests.
+- [ ] CI1049-5 Run targeted failures, the CI-equivalent integration lane and
+  applicable compile/hygiene checks; publish only after push approval and verify
+  the replacement CI result.
+
+This repair targets `feature/1002-workspace-delivery-1037` in its existing
+checkout. PR 1050's worktree and the ongoing assessment-separation plan are not
+part of the repair. Unrelated design files remain untouched.
+
+Local failing-first evidence: two model-specific global-reference tests reproduce
+false rejection and cross-model exemption leakage. A separate HTTP regression
+reproduces leftover workspace/person/impersonation state in the shared legacy
+contract fixture. Package lifecycle investigation confirms PATCH retained raw
+payloads without checkpoint provenance, while GET recovered `AnalysisProfileVersion`.
+
+Targeted validation after repair: **7 tenant-query-guard unit tests and 67
+integration tests passed**, including all four CI failure classes. Existing
+tenant/unknown-table denial and role/reviewer/revocation checks are preserved.
+The new opaque-system-ID regression verifies tenant isolation without forcing
+string system identifiers through `Guid.Parse`.
+
+Local reproduction commands (run from the PR 1049 checkout):
+
+```bash
+dotnet test tests/Ato.Copilot.Tests.Unit --no-restore \
+  --filter 'FullyQualifiedName~TenantScopedQueryGuardGlobalReferenceTests'
+dotnet test tests/Ato.Copilot.Tests.Integration --no-restore \
+  --filter 'FullyQualifiedName~OrganizationCreationFlowTests|FullyQualifiedName~TenantScopedEndpointHttpPipelineTests|FullyQualifiedName~TenantsEndpointsContractTests|FullyQualifiedName~CspPackageLifecycleHttpTests'
+```
+
+No application authorization policy is broadened. No real organization, package,
+credential, role assignment or remote service is used by these synthetic tests.
+
+Release verification:
+
+- `dotnet build Ato.Copilot.sln -c Release --no-restore -nologo`: passed,
+  with existing repository warnings.
+- `dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj -c Release --no-build`:
+  **7231 passed, 0 failed, 0 skipped**.
+- Full integration lane with CI's `ATO_REQUIRE_DOCKER_TESTS=1`: **1406 passed,
+  45 failed** (1471 discovered; 20 pre-existing unexecuted cases). All 45 failures
+  report Docker/SQL Server fixture initialization unavailable; none are the
+  original 14 assertion/retention/context failures.
+- A bounded request to the active Docker Desktop socket also timed out. The
+  shared daemon was not restarted and required Docker tests were not disabled.
+  Required Linux Docker/RLS validation remains a remote CI gate, not a claimed
+  local success.
+
+Repair commits and verification are local pending explicit push approval.
+No untracked ConMon design assets or PR 1050 changes are included.
+
 ## System-level Security Capabilities (#1037)
 
 - [x] ENVUX001 Reorganize Environment around hosting model, description and actual

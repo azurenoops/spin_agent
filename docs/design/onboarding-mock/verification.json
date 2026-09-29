@@ -1,0 +1,150 @@
+{
+  "scope": "Static design prototype only",
+  "screens": [
+    {
+      "id": "start",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "resume",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "p-details",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "p-access",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "p-offering",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "p-sources",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "p-uncertain",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "p-review",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "p-ready",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "o-details",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "o-admin",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "directory-offline",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "o-review",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "o-ready",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "o-repair",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "s-details",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "s-team",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "s-sources",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "s-hosting",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "s-connect",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "s-review",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    },
+    {
+      "id": "s-ready",
+      "desktop": "pass",
+      "mobile": "pass",
+      "primary": "pass"
+    }
+  ],
+  "flows": [
+    "Uncertain upload blocks advancement",
+    "Receipt reconciliation",
+    "Provider handoff",
+    "Existing administrator reconciliation",
+    "Deferred enrollment remains pending",
+    "Entra identity selection does not grant role",
+    "Explicit hosting confirmation",
+    "Connection validation gate",
+    "Draft system handoff",
+    "Save/resume within session"
+  ],
+  "browserErrors": []
+}
