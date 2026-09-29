@@ -6,6 +6,52 @@
 
 ## Summary
 
+### September 29 package-readiness implementation slice
+
+Implement the [approved readiness contract](contracts/package-readiness-experience.md)
+under existing US1/US4 and issues #1042/#1043/#1046. This is a replacement of
+the passive Documents readiness body, not a redesign of authoring, assessment,
+submission or decision workflows.
+
+1. **Inspect/baseline**: preserve the dirty worktree; inspect the current Legacy
+   selection, services, issue hierarchy and actual output path. Capture solution
+   build/test baseline before modifying behavior.
+2. **Server facts**: instrument the existing package validators with explicit
+   check outcomes; add a purpose/source-bound retained readiness-run store.
+   Reuse retained archive/change context resolution and existing document,
+   role, exchange and decision records. Project current action permissions
+   separately from immutable evaluated facts.
+3. **Freshness/integrity**: deterministic source identities before/after checks,
+   stale/concurrent outcomes, immutable history, and generation guards at
+   enqueue/worker completion. Validate emitted artifact bytes; failed checks
+   cannot yield a Completed package.
+4. **UI**: preserve purpose in URL/navigation, require explicit purpose changes,
+   implement the task-oriented mock, direct-link drawer, scoped return link,
+   supporting-record summary and independent progress/RMF history. Keep
+   existing export, preview, reconciliation and decision screens accessible.
+5. **Verification**: synthetic purpose/conditional/concurrency/security tests,
+   source-to-preview/export assertions, actual archive inspection, keyboard and
+   desktop/mobile browser checks, then local deployment and manual walkthrough.
+
+**Storage decision**: existing `PackageValidationResult` requires a package FK,
+so a standalone check cannot be retained without a fake package or destructive
+FK migration. An additive tenant-scoped readiness-run record is justified by
+the explicit history requirement; retain the original package-linked results.
+No new database provider, framework, package manager or external connector.
+
+**Complexity justification (II/III)**: a fingerprint/check-history projection
+is necessary to distinguish current from stale results and bind exports. The
+rejected simpler alternative (browser timestamps or document counts) cannot
+detect concurrent edits or prove which records were evaluated. Use concrete
+existing record types rather than a generic workflow/rules engine.
+
+**Validation commands**: `dotnet build Ato.Copilot.sln`,
+`dotnet test Ato.Copilot.sln`, Dashboard `npx tsc -b`, targeted Vitest and
+Playwright suites. Expected result is passing changed paths and no new warnings;
+baseline failures/warnings must be reported separately, never suppressed.
+Rollback uses the previously recorded API/Dashboard image tags; additive
+history records and existing artifacts are retained, not deleted.
+
 The user explicitly authorized implementation of the screen/route contract on
 2026-09-26. Current work starts with mock-defined workspace navigation and real
 provider/System routes plus tested export integrity. Historical planning-only

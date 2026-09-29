@@ -256,14 +256,121 @@ The Components page focuses on asset inventory management. Per-component risk su
 
 ## Azure Assessment Prerequisites
 
+### Connected assessment workflow
+
+Use **Assessment & risk → Assessment plan** and **Assessments & results** for one
+connected **Plan → Collect results → Review → Prepare SAR** workflow.
+Both pages reference the same selected retained SAP, revision and scope.
+
+**Planning**
+
+- The plan summary distinguishes the system's baseline count from controls
+  included in the assessment. Details/history expose saved revisions and dates.
+- Choose a named lead without granting authorization roles. Edit scope through
+  retained control entries and explicit exclusions, not scope prose alone.
+- Approach, rules of engagement, team, schedule, methods and objectives remain
+  available through focused editors and progressive disclosure.
+- **Save draft** updates the same SAP. **Preview saved draft** reads persisted
+  content without generating another plan. Saved-plan DOCX/PDF downloads select
+  that plan explicitly.
+- Completeness warnings remain advisory under the existing service rules.
+  Permission, lifecycle and stale-revision blockers are separate. Finalization
+  locks the retained plan; a later draft does not rewrite finalized history.
+- Unsaved edits require confirmation on Cancel and remain resumable in the
+  current page after browser Back. They are not stored as saved SAP content.
+
+**Collection and results**
+
+- Preliminary collection/import remains supported without a finalized plan.
+  New results retain the selected plan ID/revision/hash and included/excluded
+  scope; legacy unlinked results remain visibly preliminary.
+- Azure execution uses actual admission checks and execution permission.
+  Configuration authority is projected independently from its existing writer
+  policy; a system-management or ISSM label does not grant it.
+- Guided collection includes all configured subscriptions where supported.
+  Resource/component-restricted boundaries that cannot be enforced by every
+  evaluator are explicitly blocked rather than scanned more broadly.
+- The mission HTTP import flow supports CKL, XCCDF and Nessus. Other parsers are
+  not advertised as exposed UI capabilities. Upload/poll/cancel reuse the
+  existing worker and records, with retained operation identity and file dedup.
+- Partial collection and imports completed with warnings remain explicit in
+  durable state, progress events and the UI. Refresh/retry does not create
+  duplicate plans, imports, runs or reports.
+- A completed scan or imported determination is not human assessment approval.
+  Collection no longer marks all baseline controls Satisfied when findings are
+  absent, nor silently creates unauthorized remediation/POA&M follow-up.
+- Result details show original plan scope, current-plan comparison, coverage
+  gaps, evidence/provenance, errors, exclusions, findings and actual review state.
+  Authorized SCA review uses the existing control-effectiveness/snapshot service.
+  Explicit reconciliation preserves the original collection association.
+- Current component-risk information remains available for assessment records.
+  Authorized finding-to-task actions and existing remediation/POA&M navigation
+  remain separate from control determinations.
+
+**SAR and downstream limits**
+
+Select retained result sets before preparing a SAR. Readiness distinguishes
+actual blockers from advisory review/evidence/coverage gaps; supported draft
+generation is not blocked merely because the SAP is still Draft. Duplicate
+observations are identified and counted once. Conflicting current determinations
+across selected sources remain pending rather than silently choosing the newest
+passing value.
+
+The selected-source SAR preview and DOCX use retained sections, findings,
+evidence hashes and review provenance. SAP Markdown/DOCX/PDF content is verified
+against the saved plan. These are not assertions of report approval, package
+readiness, eMASS submission or an AO decision.
+
+**Export gap:** standalone OSCAL SAR still selects the latest completed assessment;
+eMASS OSCAL assessment-results uses current system effectiveness and a separately
+selected finalized SAP. Initial/legacy package generation follows those paths and
+chooses the latest approved SAR for its Word artifact. Those exporters do not yet
+consume a caller-selected guided SAR's full source pins. Word's cover also uses
+the current system name; retained report sections are not a promise of immutable
+bytes for every piece of presentation metadata.
+
+Full API and local acceptance steps are in the
+[connected assessment contract](../../specs/018-sap-generation/contracts/assessment-workspace.md).
+
+### Findings, corrective work and commitments
+
+The connected-workspace redesign distinguishes the **finding** (the observed
+weakness), **remediation tasks** (corrective or verification work), and **POA&M
+items** (formal commitments with their own milestones and required fields).
+A finding can require more than one task; linking shared work must not duplicate
+the work or rewrite the originating assessment.
+
+**Review finding & linked work** from a result opens the finding by stable
+identity. A retained plan revision describes the source collection, not the
+current plan. Changing the plan must not relabel historical findings.
+
+Treat these states separately:
+
+- A completed external ticket is a provider snapshot, not local verification.
+- Completing corrective work does not close the finding or a linked POA&M.
+- Completing a milestone is not the overall scheduled completion date.
+- Linking an exception is not a decision. Pending, expired or revoked requests
+  are not risk acceptance and do not silently extend deadlines.
+- Document preparation/export is not eMASS submission or authorization.
+
+The [finding presentation contract](../../specs/039-poam-management/contracts/findings-workspace-ui.md)
+defines the redesigned queue, detail behavior and acceptance checks. Backend,
+connector and export verification and local manual steps are recorded in the
+[connected remediation contract](../../specs/039-poam-management/contracts/connected-remediation.md).
+The workspace supports shared POA&M/task links, existing unassociated task links,
+named owner selection, retained evidence, and independent human task verification.
+Jira and ServiceNow tickets use explicit manual read-only snapshots, not automatic
+or bidirectional synchronization. Arbitrary relinking of existing exception
+records is not available; use the supported request workflow.
+
 **Run Assessment performs an Azure-backed assessment.** Narrative or baseline
 completeness is not a substitute for a connected Azure environment.
 
 The Assessments page checks system readiness and explains blocked prerequisites.
 If you are a CSP administrator viewing **All organizations**, select the system's
 organization first so assessment data is written under the correct organization.
-Use **Configure Environment** to open the Azure assessment panel on the system's
-Environment page. This panel manages the system's actual Azure attachment;
+Use **Configure Azure assessment** to open the dedicated assessment-environment
+page when the server grants configuration access. This panel manages the system's actual Azure attachment;
 the descriptive Environment and Deployment form does not configure connectivity.
 
 An authorized compliance writer selects eligible organization subscriptions in
@@ -284,8 +391,11 @@ the attachment or revoking access cannot be bypassed by a previously enabled
 button. A rejection does not create a documentation-only assessment or successful
 downstream artifacts. Existing historical assessments are preserved.
 
-Complete scan-scope propagation and scan-result integrity are separately tracked
-in issues #982 and #983; passing admission does not certify those follow-ups.
+Related scope/result-integrity issues are tracked by
+[azurenoops/spin_agent#982](https://github.com/azurenoops/spin_agent/issues/982) and
+[azurenoops/spin_agent#983](https://github.com/azurenoops/spin_agent/issues/983).
+The guided path adds multi-subscription execution and honest result states, but
+does not claim support for resource restrictions that evaluators cannot enforce.
 
 ## Contextual Help
 
@@ -435,23 +545,84 @@ Evidence can also be attached at the capability level from the Capability Covera
 
 ### Evidence Repository Page
 
-Navigate to **Evidence** from the system sidebar. The page provides:
+Navigate to **Controls & evidence → Evidence** in the system workspace.
+The heading is **Evidence**, with the description **Find supporting records and
+see what still needs attention.**
 
-- **Summary bar** — five cards showing total evidence count, manual uploads, automated collections, control coverage percentage, and controls with evidence
-- **Search and filters** — text search across file names and descriptions, plus dropdowns for control family, category, and source (Manual/Automated)
-- **Sortable table** — columns for file name, source, category, control, size, uploader, date, and actions (download, delete)
-- **Pagination** — browse large evidence sets with Previous/Next controls
+- **All evidence / System evidence / Provider shared** show one catalog, not
+  separate tables. Source ownership and sharing permissions are unchanged.
+- **Search and Filters** combine search, family, category, source, dates, and
+  sorting. Counts reflect the same filters as the rows, before pagination.
+- **Evidence / Source / Linked controls / Next step** keep the catalog compact.
+  Exact timestamps, uploader, size, hashes, and versions live in details.
+- **Attention** identifies recorded missing control links as documentation work,
+  not a compliance finding.
+- **Partial availability** shows which source failed, offers retry, and labels
+  affected counts unavailable instead of reporting zero.
 
-Click any row to open the **detail panel**, a slide-over showing file preview (images and PDFs), metadata, description, SHA-256 integrity hash, and version history.
+Select **View evidence** or **View linking gap** to open the detail drawer.
+**Overview**, **Linked controls**, and **History** show the retained record,
+protected content access, actual provenance, and permitted actions. Unknown
+owner, review, currency, or relevance remains explicitly unknown. Uploader and
+sharing approver are not evidence-owner or assessor substitutes.
+
+The selected record, drawer tab, filters, and page are addressable in the URL.
+Refresh and browser Back preserve the list context. Escape closes the drawer and
+returns keyboard focus; the drawer fills the width on small screens.
+
+### Provider shared
+
+Only records explicitly shared for the active organization and system appear.
+The current provider-sharing contract supports **approved summaries only**.
+**Download approved summary** rechecks the sharing grant; it does not open the
+provider's private attachment. Revoked or inaccessible content is unavailable.
+
+When no provider records are accessible, this tab shows **No provider evidence
+shared yet.** and **Only records explicitly shared with this system appear
+here.** Use **Refresh access** after the provider approves sharing, or read
+**Sharing guidance**. The page does not send a sharing request.
 
 ### Automated Evidence
 
 Click **Collect Evidence** on a control narrative to trigger automated evidence collection from Azure Policy and Defender for Cloud. Automated evidence appears alongside manual uploads with an "Automated" badge.
 
+Collection requires a configured subscription and an existing system assessment.
+The catalog associates automated records through that assessment, not merely a
+matching control ID elsewhere. Automated records currently have no protected
+file-download route in the catalog; their file availability is shown as unknown.
+
 ### Delete and Replace
 
-Manual evidence can be soft-deleted (click the trash icon) or replaced with a newer version (click **Replace** in the detail panel). Replaced files are retained for a configurable period (default: 365 days) before automatic purge.
+Authorized users can expand **Manage evidence** in the drawer to replace or
+delete a system upload, or collect evidence where permitted. Server permissions,
+not the displayed persona, determine available actions. Replacement and deletion
+validate the retained content version and reject stale changes. History preserves
+retained-version downloads; files may be purged after their configured retention
+period (default: 365 days), while metadata remains.
+
+The catalog upload action requires an authorized control/capability target.
+Failed control lookup, validation errors, denied access, conflicts, and download
+failures are shown explicitly rather than dismissed as a successful operation.
+
+### SSP, assessment, and package meaning
+
+Expand **How evidence supports your SSP and assessment** for the distinction
+between documentation and assessment decisions:
+
+- SSP exports can retain approved provider-summary references and version/hash
+  provenance, with sharing rechecked at export access.
+- Authorization-package preparation can include uploaded artifact manifests and
+  files. It is not automatic eMASS submission.
+- Assessment snapshots separately retain automated evidence hashes and assessor
+  determinations.
+- Catalog control links do not automatically become SSP supporting citations.
+  Uploaded files, automated evidence, provider summaries, and validation links
+  do not yet have one complete versioned path through every SSP, assessment, and
+  eMASS output.
+
+An upload, approved share, or link does not mark a control satisfied, establish
+package readiness, or grant an authorization decision.
 
 ### Navigation
 
-Access from the System Detail sidebar: Portfolio → System → Evidence.
+Access: organization workspace → system → Controls & evidence → Evidence.

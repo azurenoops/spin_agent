@@ -94,6 +94,19 @@ docker compose -f docker-compose.mcp.yml up --build
 - Restart policy: `unless-stopped`
 - Isolated network: `ato-network`
 
+**Retained document storage:** the MCP image sets
+`ATO_ExportSettings__DataPath=/data` for previews, exports, templates, and packages.
+Keep this mounted directory writable by the non-root `atocopilot` user; do not
+grant write access to `/app`. The `ATO_` prefix is required: the HTTP host reloads
+JSON settings before applying prefixed environment overrides, so an unprefixed
+`ExportSettings__DataPath` can be replaced by the local-development default
+`./data` (which resolves to `/app/data` in the container).
+
+Retained-preview storage failures return HTTP **503**
+`DOCUMENT_STORAGE_UNAVAILABLE`, not a workspace-role denial. After correcting
+storage configuration, retry the same `Idempotency-Key`; a failed initial file
+write does not create a preview record. System authorization remains unchanged.
+
 ### Deployment Mode: SingleTenant vs MultiTenant
 
 Set `ATO_DEPLOYMENT__MODE` in `.env` to control how the MCP Server handles tenant context:
@@ -140,6 +153,7 @@ All configuration is passed via environment variables with `ATO_` prefix. See `.
 | `ASPNETCORE_ENVIRONMENT` | `Production` | Set to `Development` for CAC simulation |
 | `ATO_AZUREAD__CLOUDENVIRONMENT` | `AzureUSGovernment` | Azure cloud (`AzureCloud` for commercial) |
 | `ATO_DATABASE__PROVIDER` | `SqlServer` | `SQLite` (dev) or `SqlServer` (prod) |
+| `ATO_ExportSettings__DataPath` | `/data` in the MCP image | Writable root for retained previews, exports, templates, and packages |
 | `ATO_AZUREAI__ENABLED` | `false` | Enable AI-assisted recommendations |
 | `ATO_AZUREAI__ALLOWBACKENDFALLBACK` | `false` | Permit an audited Foundry-to-OpenAI fallback when both backends are approved |
 | `ATO_AUTH__IDLETIMEOUTMINUTES` | `30` | Session idle timeout (FedRAMP: must be ≤ 15) |
@@ -739,3 +753,34 @@ These files do not require external configuration.
   }
 }
 ```
+
+### Task ticket connectors: explicit manual mode
+
+The remediation task ticket panel supports Jira and ServiceNow. Operators must
+allowlist each destination hostname in `Ticketing:AllowedHosts` (for example,
+environment variable `Ticketing__AllowedHosts__0=tickets.example.com`). Only HTTPS
+origins on the default port are accepted; redirects are disabled.
+
+Provision credentials through the server's secret-backed configuration provider at
+`Ticketing:Credentials:{reference}`. For these Basic-auth connectors the resolved
+value is `username:token` (Jira) or `username:password` (ServiceNow). Do not put
+values in source-controlled configuration. Enter only the reference in the
+dashboard's **Server credential reference** field. The dashboard never receives
+the credential or stored reference. Direct Key Vault retrieval is not implemented
+by the connector; deployments must expose the secret through their configured
+secret provider.
+
+System managers configure the connector. Remediation managers explicitly create,
+link, refresh, or unlink task tickets. Refresh is a read-only external status and
+assignee snapshot, not an automated or bidirectional synchronization service.
+There are no incoming webhook routes. External closure never closes local work.
+
+Creation reserves a durable claim before sending HTTP. A timeout or interrupted
+request cannot safely be retried; search the provider UI for the task's displayed
+correlation key and link the existing ticket. Unlink never deletes remote tickets
+and does not reset the create reservation. Existing POA&M-owned ticket references
+remain separate legacy records.
+
+The additive `TaskTicketLinks` and `TaskTicketAudits` schema is installed for
+SQLite/SQL Server by startup initialization. Connector tests use synthetic HTTP
+handlers; no live-provider certification or SQL Server execution is claimed.

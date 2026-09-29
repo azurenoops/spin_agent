@@ -18,6 +18,35 @@ Path prefixes below are repository-relative:
 - `Unit` = `tests/Ato.Copilot.Tests.Unit`
 - `Integration` = `tests/Ato.Copilot.Tests.Integration`
 
+## September 29: approved package-readiness experience
+
+Existing story ownership: US1 (#1042/#1043, related #1039/#1041/#764) and US4
+(#1046), under #1038. External issue checklist append is preview/approval-gated.
+The approved mock's data is illustrative, not a fixture to seed into the demo.
+
+- [x] R001 — Inspect instructions, current purpose, validation/catalog/worker,
+  retained contexts, manual eMASS observations, recorded decisions and phase history.
+- [ ] R002 — Approve/synchronize the exact GitHub checklist append, preserving
+  existing parents and acceptance criteria; do not close issues automatically.
+  Preview offered September 29; user unavailable. GitHub remains unchanged.
+  Existing verified issue linkage is retained; local implementation continues.
+- [ ] R003 — Write failing server tests for check outcomes, current/stale/failed
+  history, purpose preservation and no-AO InitialSubmission.
+- [ ] R004 — Extend existing validators and add immutable scoped readiness runs,
+  source references/fingerprints, readable findings, ownership and action permissions.
+- [ ] R005 — Guard enqueue/worker against changed evaluated records and invalid
+  generated artifacts; retain exact run/source references and historical outputs.
+- [ ] R006 — Replace the readiness body with the approved task-oriented layout,
+  five package milestones, RMF phase/history and expandable supporting records.
+- [ ] R007 — Wire purpose confirmation, direct-link check drawer, safe source and
+  return navigation, history, stale refresh and generation context preservation.
+- [ ] R008 — Prove source changes affect actual previews/exports and validation,
+  including draft/approved separation, conditional privacy, POA&M and responsibility semantics.
+- [ ] R009 — Test tenant/system/action denial, request cancellation, concurrent
+  updates, real counts, unavailable sources and iterative historical workflows.
+- [ ] R010 — Run solution build/test, Dashboard typecheck/unit/browser suites,
+  distinguish baseline failures, deploy locally and provide manual acceptance URL/steps.
+
 ## Planning and first failing slice
 
 | ID | Story/dependency | Task |

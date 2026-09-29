@@ -9,6 +9,41 @@
 
 ## Product outcome and scope
 
+### September 29 refinement: authoritative ATO Package Readiness
+
+This implements the approved attached **Your path to ATO submission** mock as a
+bounded continuation of US1/US4, tracked by existing
+[readiness #1042](https://github.com/azurenoops/spin_agent/issues/1042),
+[unknown states #1043](https://github.com/azurenoops/spin_agent/issues/1043), and
+[system journey #1046](https://github.com/azurenoops/spin_agent/issues/1046), all
+verified children of [#1038](https://github.com/azurenoops/spin_agent/issues/1038).
+Purpose and artifact-integrity dependencies remain #1039, #1040, #1041 and #764.
+No new feature/story issue or duplicate editing workflow is introduced.
+
+- Preserve the current package purpose, including `Legacy` when the existing
+  URL has no purpose; do not substitute the mock's illustrative InitialSubmission.
+- Persist purpose-bound validation history and evaluated source identity.
+  Expose not-checked, checking, current, stale, failed and unavailable states.
+- Show one recommended task, blocking/follow-up/all checks and a deep-linkable
+  accessible detail drawer. Passed, conditional and unavailable checks must come
+  from the server; unknown ownership and unavailable edit actions stay explicit.
+- Show Prepare / Validate / Export / eMASS submission / AO decision milestones
+  from their separate actual records, independently of recorded RMF phase/history.
+- Preserve export/submission/decision history across later changes. Never infer
+  submission from download, authorization from submission, or initial-submission
+  readiness from an existing AO decision.
+- Summarize supporting documents/records without converting presence, narrative
+  counts, an available CRM or closed POA&Ms into proof of package readiness.
+- Detect source changes during validation and before queued generation completes.
+  A stale or failed snapshot cannot authorize a new export.
+- Preserve same-system source/return navigation, server action permissions,
+  tenant isolation, approved document versions and working-preview separation.
+
+The inspected path, additive contracts, prioritization and acceptance matrix are
+specified in [package-readiness-experience.md](contracts/package-readiness-experience.md).
+Existing issue checklist updates require external-write preview approval; this
+refinement does not close those issues or the broader Feature 079 release gates.
+
 Prepare a fully documented, reviewed mission system for its applicable eMASS
 submission workflow, then maintain reviewed documentation through monitoring
 and accountable change disposition. This is a coordinated refactor with
