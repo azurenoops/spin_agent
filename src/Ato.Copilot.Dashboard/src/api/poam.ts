@@ -25,6 +25,7 @@ import type {
 export async function listPoamItems(
   systemId: string,
   query?: PoamListQuery,
+  signal?: AbortSignal,
 ): Promise<PaginatedPoamResponse> {
   const params: Record<string, string | number | boolean> = {};
   if (query?.page) params.page = query.page;
@@ -36,7 +37,7 @@ export async function listPoamItems(
   if (query?.overdue) params.overdue = query.overdue;
   if (query?.componentId) params.componentId = query.componentId;
   if (query?.search) params.search = query.search;
-  const { data } = await apiClient.get<PaginatedPoamResponse>(`/systems/${systemId}/poam`, { params });
+  const { data } = await apiClient.get<PaginatedPoamResponse>(`/systems/${systemId}/poam`, { params, signal });
   return data;
 }
 
@@ -58,8 +59,8 @@ export async function listPoamItemsCrossSystem(
   return data;
 }
 
-export async function getPoamDetail(poamId: string): Promise<PoamDetail> {
-  const { data } = await apiClient.get<PoamDetail>(`/poam/${poamId}`);
+export async function getPoamDetail(poamId: string, signal?: AbortSignal): Promise<PoamDetail> {
+  const { data } = await apiClient.get<PoamDetail>(`/poam/${poamId}`, { signal });
   return data;
 }
 
@@ -85,8 +86,8 @@ export async function deletePoamItem(poamId: string): Promise<void> {
 
 // ─── Metrics & Trends ───────────────────────────────────────────────────────
 
-export async function getPoamMetrics(systemId: string): Promise<PoamMetrics> {
-  const { data } = await apiClient.get<PoamMetrics>(`/systems/${systemId}/poam/metrics`);
+export async function getPoamMetrics(systemId: string, signal?: AbortSignal): Promise<PoamMetrics> {
+  const { data } = await apiClient.get<PoamMetrics>(`/systems/${systemId}/poam/metrics`, { signal });
   return data;
 }
 

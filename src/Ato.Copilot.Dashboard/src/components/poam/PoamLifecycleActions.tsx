@@ -3,13 +3,15 @@ import type { PoamDetail, PoamStatus } from '../../types/poam';
 import { updatePoamStatus } from '../../api/poam';
 import CascadeConfirmDialog from './CascadeConfirmDialog';
 import { useSystemMutationPermission } from '../permissions/useSystemMutationPermission';
+import { poamErrorMessage } from '../../utils/poamErrors';
 
 interface PoamLifecycleActionsProps {
   detail: PoamDetail;
   onStatusChanged: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
-export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLifecycleActionsProps) {
+export default function PoamLifecycleActions({ detail, onStatusChanged, onBusyChange }: PoamLifecycleActionsProps) {
   const canManageRemediation = useSystemMutationPermission(detail.systemId, 'canManageRemediation');
   const [dialog, setDialog] = useState<'delay' | 'resume' | 'complete' | 'risk' | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,11 +32,13 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
   };
 
   const handleSubmit = async (newStatus: PoamStatus) => {
+    if (loading) return;
     if (!canManageRemediation) {
       setError('Permission denied: you cannot manage remediation for this system.');
       return;
     }
     setLoading(true);
+    onBusyChange?.(true);
     setError(null);
     try {
       const resp = await updatePoamStatus(detail.id, {
@@ -51,7 +55,7 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
         onStatusChanged();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = poamErrorMessage(err);
       if (msg.includes('409') || msg.includes('CONCURRENCY')) {
         setError('Concurrency conflict. Please reload and try again.');
       } else {
@@ -59,19 +63,25 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
       }
     } finally {
       setLoading(false);
+      onBusyChange?.(false);
     }
   };
 
   const handleCascadeConfirm = async () => {
     if (!canManageRemediation) throw new Error('Permission denied: you cannot manage remediation for this system.');
     if (!cascadePrompt) return;
-    await updatePoamStatus(detail.id, {
-      status: cascadePrompt.newStatus,
-      rowVersion: cascadePrompt.rowVersion,
-      cascadeToTask: true,
-    });
-    setCascadePrompt(null);
-    onStatusChanged();
+    onBusyChange?.(true);
+    try {
+      await updatePoamStatus(detail.id, {
+        status: cascadePrompt.newStatus,
+        rowVersion: cascadePrompt.rowVersion,
+        cascadeToTask: true,
+      });
+      setCascadePrompt(null);
+      onStatusChanged();
+    } finally {
+      onBusyChange?.(false);
+    }
   };
 
   const openDialog = (next: NonNullable<typeof dialog>) => {
@@ -112,7 +122,7 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
             onClick={() => openDialog('complete')}
             className="rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100"
           >
-            Mark Completed
+            Mark completed (manual disposition)
           </button>
         )}
         {canTransitionTo('RiskAccepted') && (
@@ -128,9 +138,9 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
 
       {/* Dialog overlay */}
       {dialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setDialog(null)}>
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="mb-4 text-lg font-bold text-gray-900">
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800" aria-label="Confirm lifecycle change">
+          <div className="[&_input]:dark:bg-slate-900 [&_textarea]:dark:bg-slate-900 [&_label]:dark:text-slate-200">
+            <h3 className="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">
               {dialog === 'delay' && 'Mark as Delayed'}
               {dialog === 'resume' && 'Resume POA&M'}
               {dialog === 'complete' && 'Mark as Completed'}
@@ -141,8 +151,9 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
               {dialog === 'delay' && (
                 <>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-500">Delay Reason *</label>
+                    <label htmlFor="poam-delay-reason" className="mb-1 block text-xs font-medium text-gray-500">Delay reason *</label>
                     <textarea
+                      id="poam-delay-reason"
                       rows={2}
                       required
                       className="w-full rounded-lg border px-3 py-2 text-sm"
@@ -152,31 +163,31 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-500">Revised Completion Date *</label>
-                    <input type="date" required className="w-full rounded-lg border px-3 py-2 text-sm" value={revisedDate} onChange={e => setRevisedDate(e.target.value)} />
+                    <label htmlFor="poam-revised-date" className="mb-1 block text-xs font-medium text-gray-500">Revised completion date *</label>
+                    <input id="poam-revised-date" type="date" required className="w-full rounded-lg border px-3 py-2 text-sm" value={revisedDate} onChange={e => setRevisedDate(e.target.value)} />
                   </div>
                 </>
               )}
 
               {dialog === 'resume' && (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Revised Completion Date *</label>
-                  <input type="date" required className="w-full rounded-lg border px-3 py-2 text-sm" value={revisedDate} onChange={e => setRevisedDate(e.target.value)} />
+                  <label htmlFor="poam-resume-date" className="mb-1 block text-xs font-medium text-gray-500">Revised completion date *</label>
+                  <input id="poam-resume-date" type="date" required className="w-full rounded-lg border px-3 py-2 text-sm" value={revisedDate} onChange={e => setRevisedDate(e.target.value)} />
                 </div>
               )}
 
               {dialog === 'complete' && (
                 <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-800">
-                  {detail.findingId
-                    ? 'The linked finding status will be validated.'
-                    : 'No linked finding — POA&M will be marked complete.'}
+                  This records POA&amp;M completion; it does not certify task verification or evidence review.
+                  Review retained task evidence and milestone completion first. Server validation and concurrency checks remain authoritative.
                 </div>
               )}
 
               {dialog === 'risk' && (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Deviation Record ID *</label>
+                  <label htmlFor="poam-deviation-id" className="mb-1 block text-xs font-medium text-gray-500">Deviation Record ID *</label>
                   <input
+                    id="poam-deviation-id"
                     required
                     className="w-full rounded-lg border px-3 py-2 text-sm"
                     value={deviationId}
@@ -189,7 +200,7 @@ export default function PoamLifecycleActions({ detail, onStatusChanged }: PoamLi
               {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
               <div className="flex justify-end gap-2 pt-2">
-                <button onClick={() => setDialog(null)} className="rounded-lg bg-gray-100 px-4 py-2 text-sm hover:bg-gray-200">
+                <button disabled={loading} onClick={() => setDialog(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700">
                   Cancel
                 </button>
                 <button

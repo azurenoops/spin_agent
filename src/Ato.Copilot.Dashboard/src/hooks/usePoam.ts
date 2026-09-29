@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { usePolling } from './usePolling';
+import { usePoamRead } from './usePoamRead';
+import { poamErrorMessage } from '../utils/poamErrors';
 import {
   listPoamItems,
   getPoamDetail,
@@ -23,29 +24,29 @@ import type {
 /** Fetches paginated POA&M list for a system with polling. */
 export function usePoamList(systemId: string | undefined, query?: PoamListQuery) {
   const fetcher = useCallback(
-    () => (systemId ? listPoamItems(systemId, query) : Promise.resolve(null)),
+    (signal: AbortSignal) => (systemId ? listPoamItems(systemId, query, signal) : Promise.resolve(null)),
     [systemId, query?.page, query?.pageSize, query?.sortBy, query?.sortDirection,
      query?.status, query?.catSeverity, query?.overdue, query?.componentId, query?.search],
   );
-  return usePolling<PaginatedPoamResponse | null>(fetcher);
+  return usePoamRead<PaginatedPoamResponse | null>(fetcher);
 }
 
 /** Fetches a single POA&M detail by ID. */
 export function usePoamDetail(poamId: string | undefined) {
   const fetcher = useCallback(
-    () => (poamId ? getPoamDetail(poamId) : Promise.resolve(null)),
+    (signal: AbortSignal) => (poamId ? getPoamDetail(poamId, signal) : Promise.resolve(null)),
     [poamId],
   );
-  return usePolling<PoamDetail | null>(fetcher);
+  return usePoamRead<PoamDetail | null>(fetcher);
 }
 
 /** Fetches POA&M metrics for a system (summary cards). */
 export function usePoamMetrics(systemId: string | undefined) {
   const fetcher = useCallback(
-    () => (systemId ? getPoamMetrics(systemId) : Promise.resolve(null)),
+    (signal: AbortSignal) => (systemId ? getPoamMetrics(systemId, signal) : Promise.resolve(null)),
     [systemId],
   );
-  return usePolling<PoamMetrics | null>(fetcher);
+  return usePoamRead<PoamMetrics | null>(fetcher);
 }
 
 // ─── Mutation Hooks ─────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ export function useCreatePoam() {
       const result = await createPoamItem(systemId, request);
       return result;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = poamErrorMessage(err);
       setError(msg);
       throw err;
     } finally {
@@ -85,7 +86,7 @@ export function useUpdatePoam() {
       const result = await updatePoamItem(poamId, request);
       return result;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = poamErrorMessage(err);
       setError(msg);
       throw err;
     } finally {
@@ -111,7 +112,7 @@ export function useUpdatePoamStatus() {
       const result = await updatePoamStatus(poamId, request);
       return result;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = poamErrorMessage(err);
       setError(msg);
       throw err;
     } finally {

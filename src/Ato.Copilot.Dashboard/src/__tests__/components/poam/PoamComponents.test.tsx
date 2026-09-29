@@ -96,6 +96,63 @@ describe('StatusBadge', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('PoamTable', () => {
+  it('shows the retained next milestone and server-projected readiness', () => {
+    // Arrange
+    const item = { ...baseItem, readyToVerify: true, nextMilestone: { id: 'm-2', description: 'Verify corrected timeout', targetDate: '2026-10-05T00:00:00Z', completedDate: null, sequence: 2, isOverdue: true } };
+    // Act
+    render(<PoamTable items={[item]} totalItems={1} query={defaultQuery} loading={false} onQueryChange={vi.fn()} onRowClick={vi.fn()} />);
+    // Assert
+    expect(screen.getByText('Verify corrected timeout')).toBeInTheDocument();
+    expect(screen.getByText('Ready to verify')).toBeInTheDocument();
+    expect(screen.getByText(/Milestone overdue/)).toBeInTheDocument();
+  });
+  it('renders calendar deadlines without shifting them into the previous day', () => {
+    // Arrange
+    const dateFormat = vi.spyOn(Date.prototype, 'toLocaleDateString');
+    render(<PoamTable items={[{ ...baseItem, dueDate: '2026-10-05T00:00:00Z' }]} totalItems={1} query={defaultQuery} loading={false} onQueryChange={vi.fn()} onRowClick={vi.fn()} />);
+    // Act / Assert
+    expect(dateFormat).toHaveBeenCalledWith(undefined, { timeZone: 'UTC' });
+    dateFormat.mockRestore();
+  });
+  it('keeps a truly empty queue free of filters and pagination', () => {
+    // Arrange
+    render(<PoamTable items={[]} totalItems={0} query={defaultQuery} loading={false} onQueryChange={vi.fn()} onRowClick={vi.fn()} />);
+    // Act
+    const table = screen.queryByRole('table');
+    // Assert
+    expect(table).toBeNull();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+  });
+
+  it('retains filters when a search has no results', () => {
+    // Arrange
+    render(<PoamTable items={[]} totalItems={0} query={{ ...defaultQuery, search: 'missing' }} loading={false} onQueryChange={vi.fn()} onRowClick={vi.fn()} />);
+    // Act
+    const search = screen.getByRole('textbox', { name: 'Search POA&M items' });
+    // Assert
+    expect(search).toHaveValue('missing');
+    expect(screen.getByText('No matching POA&M items')).toBeInTheDocument();
+  });
+  it('does not call a filtered empty queue an empty system', () => {
+    // Arrange
+    render(<PoamTable items={[]} totalItems={0} query={{ ...defaultQuery, view: 'closed' }} loading={false} onQueryChange={vi.fn()} onRowClick={vi.fn()} />);
+    // Act / Assert
+    expect(screen.getByText('No matching POA&M items')).toBeInTheDocument();
+    expect(screen.queryByText('No POA&M items recorded')).toBeNull();
+  });
+
+  it('opens commitments with a keyboard-accessible button and concise headers', () => {
+    // Arrange
+    const onRowClick = vi.fn();
+    render(<PoamTable items={[baseItem]} totalItems={1} query={defaultQuery} loading={false} onQueryChange={vi.fn()} onRowClick={onRowClick} />);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: /Weak password policy/ }));
+    // Assert
+    expect(onRowClick).toHaveBeenCalledWith(baseItem);
+    expect(screen.getByRole('columnheader', { name: 'Next milestone' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Owner' })).toBeInTheDocument();
+  });
   it('renders table rows for each item', () => {
     const items = [
       baseItem,

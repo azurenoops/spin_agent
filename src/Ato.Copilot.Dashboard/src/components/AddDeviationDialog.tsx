@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createDeviation } from '../api/deviations';
 import { listPoamItems } from '../api/poam';
 import type { CreateDeviationRequest } from '../types/dashboard';
+import SetupDialog from '../features/workspace-operations/SetupDialog';
+import { useSystemMutationPermission } from './permissions/useSystemMutationPermission';
+import { poamErrorMessage } from '../utils/poamErrors';
 
 interface Props {
   systemId: string;
@@ -13,6 +16,7 @@ interface Props {
   initialControlId?: string;
   /** Pre-fill title/description from assessment context. */
   initialTitle?: string;
+  initialPoamEntryId?: string;
 }
 
 const DEVIATION_TYPES = [
@@ -39,7 +43,8 @@ function defaultExpiration(): string {
   return d.toISOString().split('T')[0] ?? '';
 }
 
-export default function AddDeviationDialog({ systemId, onClose, onCreated, initialFindingId, initialControlId, initialTitle: _initialTitle }: Props) {  // eslint-disable-line @typescript-eslint/no-unused-vars
+export default function AddDeviationDialog({ systemId, onClose, onCreated, initialFindingId, initialControlId, initialPoamEntryId }: Props) {
+  const canManage = useSystemMutationPermission(systemId, 'canManageRemediation');
   const [deviationType, setDeviationType] = useState('');
   const [controlId, setControlId] = useState(initialControlId ?? '');
   const [catSeverity, setCatSeverity] = useState('');
@@ -48,27 +53,35 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
   const [expirationDate, setExpirationDate] = useState(defaultExpiration());
   const [reviewCycle, setReviewCycle] = useState('90');
   const [findingId, setFindingId] = useState(initialFindingId ?? '');
-  const [poamEntryId, setPoamEntryId] = useState('');
+  const [poamEntryId, setPoamEntryId] = useState(initialPoamEntryId ?? '');
   const [poamSearch, setPoamSearch] = useState('');
   const [poamResults, setPoamResults] = useState<{ id: string; controlId: string; weakness: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const searchRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => searchRequest.current?.abort(), [systemId]);
 
   const isValid = deviationType && controlId.trim() && catSeverity && justification.trim() && expirationDate;
 
   const handlePoamSearch = async (query: string) => {
     setPoamSearch(query);
-    if (query.length < 2) { setPoamResults([]); return; }
+    searchRequest.current?.abort();
+    setPoamResults([]); setSearchError(null);
+    if (query.length < 2) return;
+    const controller = new AbortController();
+    searchRequest.current = controller;
     try {
-      const resp = await listPoamItems(systemId, { search: query, pageSize: 8 });
-      setPoamResults(resp.items.map(p => ({ id: p.id, controlId: p.controlId, weakness: p.weakness })));
-    } catch {
-      setPoamResults([]);
+      const resp = await listPoamItems(systemId, { search: query, pageSize: 8 }, controller.signal);
+      if (!controller.signal.aborted) setPoamResults(resp.items.map(p => ({ id: p.id, controlId: p.controlId, weakness: p.weakness })));
+    } catch (failure) {
+      if (!controller.signal.aborted) setSearchError(poamErrorMessage(failure));
     }
   };
 
   const handleSubmit = async () => {
-    if (!isValid) return;
+    if (!canManage) { setError('Permission denied: exception requests require remediation management permission.'); return; }
+    if (!isValid || saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -86,55 +99,38 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
       await createDeviation(systemId, request);
       onCreated();
     } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const resp = (err as { response?: { data?: { error?: string; details?: string } } }).response;
-        setError(resp?.data?.details || resp?.data?.error || 'Failed to create deviation');
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to create deviation');
-      }
+      setError(poamErrorMessage(err));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-xl rounded-lg bg-white shadow-xl mx-4 max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Add Deviation</h3>
-            <p className="text-sm text-gray-500">Request a false positive, risk acceptance, or waiver</p>
-          </div>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-500">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
+    <SetupDialog placement="right" busy={saving} onClose={onClose} title="Request exception" description="A request requires a separate authorized decision; it does not accept risk or change deadlines.">
+      <div className="[&_input]:dark:bg-slate-800 [&_textarea]:dark:bg-slate-800 [&_select]:dark:bg-slate-800 [&_label]:dark:text-slate-200">
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-          {error && (
+        <div className="space-y-5">
+          {(error || !canManage) && (
             <div className="rounded-md bg-red-50 border border-red-200 p-3">
-              <p className="text-sm text-red-700">{error}</p>
+              <p role="alert" className="text-sm text-red-700">{error ?? 'Permission denied: exception requests require remediation management permission.'}</p>
             </div>
           )}
 
           {/* Deviation Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Deviation Type *</label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               {DEVIATION_TYPES.map((t) => (
                 <button
                   key={t.value}
                   type="button"
+                  disabled={saving || !canManage}
+                  aria-pressed={deviationType === t.value}
                   onClick={() => setDeviationType(t.value)}
                   className={`rounded-md border px-3 py-2.5 text-left transition ${
                     deviationType === t.value
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500 dark:bg-indigo-950 dark:text-indigo-200'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
                   }`}
                 >
                   <div className="text-sm font-medium">{t.label}</div>
@@ -147,8 +143,9 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
           {/* Control ID + Severity (side by side) */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Control ID *</label>
+              <label htmlFor="exception-control" className="block text-sm font-medium text-gray-700 mb-1">Control ID *</label>
               <input
+                            id="exception-control"
                             type="text"
                             value={controlId}
                             onChange={(e) => setControlId(e.target.value)}
@@ -158,8 +155,9 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Severity *</label>
+              <label htmlFor="exception-severity" className="block text-sm font-medium text-gray-700 mb-1">Severity *</label>
               <select
+                id="exception-severity"
                 value={catSeverity}
                 onChange={(e) => setCatSeverity(e.target.value)}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
@@ -174,8 +172,9 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
 
           {/* Justification */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Justification *</label>
+            <label htmlFor="exception-justification" className="block text-sm font-medium text-gray-700 mb-1">Justification *</label>
             <textarea
+              id="exception-justification"
               value={justification}
               onChange={(e) => setJustification(e.target.value)}
               rows={3}
@@ -187,8 +186,9 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
           {/* Compensating Controls */}
           {(deviationType === 'RiskAcceptance' || deviationType === 'Waiver') && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Compensating Controls</label>
+              <label htmlFor="exception-compensating" className="block text-sm font-medium text-gray-700 mb-1">Compensating Controls</label>
               <textarea
+                id="exception-compensating"
                 value={compensatingControls}
                 onChange={(e) => setCompensatingControls(e.target.value)}
                 rows={2}
@@ -201,8 +201,9 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
           {/* Expiration + Review Cycle */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Expiration Date *</label>
+              <label htmlFor="exception-expiration" className="block text-sm font-medium text-gray-700 mb-1">Expiration Date *</label>
               <input
+                id="exception-expiration"
                 type="date"
                 value={expirationDate}
                 onChange={(e) => setExpirationDate(e.target.value)}
@@ -210,8 +211,9 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Review Cycle</label>
+              <label htmlFor="exception-review-cycle" className="block text-sm font-medium text-gray-700 mb-1">Review Cycle</label>
               <select
+                id="exception-review-cycle"
                 value={reviewCycle}
                 onChange={(e) => setReviewCycle(e.target.value)}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
@@ -230,18 +232,20 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700">
                   {poamResults.find(p => p.id === poamEntryId)?.controlId ?? poamEntryId.slice(0, 8)}
-                  <button type="button" onClick={() => { setPoamEntryId(''); setPoamSearch(''); setPoamResults([]); }} className="text-indigo-400 hover:text-indigo-600">&times;</button>
+                  {!initialPoamEntryId && <button type="button" aria-label="Remove POA&M link" onClick={() => { setPoamEntryId(''); setPoamSearch(''); setPoamResults([]); }} className="text-indigo-400 hover:text-indigo-600">&times;</button>}
                 </span>
               </div>
             ) : (
               <div className="relative">
                 <input
                   type="text"
+                  aria-label="Search POA&M entries"
                   value={poamSearch}
                   onChange={(e) => void handlePoamSearch(e.target.value)}
                   placeholder="Search POA&M by control or weakness..."
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
+                {searchError && <p role="alert" className="mt-2 text-xs text-red-700 dark:text-red-300">{searchError}</p>}
                 {poamResults.length > 0 && (
                   <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">
                     {poamResults.map(p => (
@@ -264,8 +268,9 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
 
           {/* Finding ID (optional) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Finding ID</label>
+            <label htmlFor="exception-finding" className="block text-sm font-medium text-gray-700 mb-1">Finding ID</label>
             <input
+                          id="exception-finding"
                           type="text"
                           value={findingId}
                           onChange={(e) => setFindingId(e.target.value)}
@@ -281,21 +286,22 @@ export default function AddDeviationDialog({ systemId, onClose, onCreated, initi
         <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
           <button
             type="button"
+            disabled={saving}
             onClick={onClose}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!isValid || saving}
+            disabled={!canManage || !isValid || saving}
             className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Submitting...' : 'Submit Deviation'}
           </button>
         </div>
       </div>
-    </div>
+    </SetupDialog>
   );
 }
