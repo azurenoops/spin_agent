@@ -2,16 +2,48 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Ato.Copilot.Core.Dtos.Dashboard;
+using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.ProviderAuthorizations;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Services.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
 public partial class SspExportService
 {
-    private async Task<OscalExportResult> AddResponsibilitiesAsync(string systemId, OscalExportResult generated, CancellationToken ct)
+    private async Task<OscalExportResult> AddFinalDocumentSourcesAsync(
+        string systemId, SspExport? export, OscalExportResult generated, CancellationToken ct)
     {
-        if (_responsibilities == null) return generated;
-        var reviewed = await _responsibilities.PreviewAsync(systemId, ct);
+        if (_evidenceSharing == null && _responsibilities == null) return generated;
+        if (export?.SourceTenantId is not Guid tenantId || tenantId == Guid.Empty
+            || export.RequestedPersonId is not Guid personId || personId == Guid.Empty)
+            throw new UnauthorizedAccessException("Final document sources require a captured mission tenant and requester.");
+
+        // Queue consumers have no HTTP workspace. Restore only server-captured identity in a
+        // fresh scope; the existing source services reauthorize the requester's current access.
+        using var scope = _scopeFactory.CreateScope();
+        var tenant = scope.ServiceProvider.GetRequiredService<ITenantContext>() as TenantContext
+            ?? throw new UnauthorizedAccessException("Final document source workspace cannot be established.");
+        tenant.TenantId = tenantId;
+        tenant.PersonId = personId;
+        tenant.IsWorkspaceRequest = true;
+        using var context = scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Push(tenant);
+        var responsibilities = _responsibilities == null ? null
+            : scope.ServiceProvider.GetRequiredService<ICapabilityResponsibilityService>();
+        var evidence = _evidenceSharing == null ? null
+            : scope.ServiceProvider.GetRequiredService<IProviderEvidenceSharingService>();
+        generated = await AddResponsibilitiesAsync(systemId, generated, ct, responsibilities);
+        return await AddProviderEvidenceAsync(systemId, generated, ct, evidence);
+    }
+
+    private async Task<OscalExportResult> AddResponsibilitiesAsync(string systemId, OscalExportResult generated,
+        CancellationToken ct, ICapabilityResponsibilityService? responsibilities = null)
+    {
+        responsibilities ??= _responsibilities;
+        if (responsibilities == null) return generated;
+        var reviewed = await responsibilities.PreviewAsync(systemId, ct);
         var pins = reviewed.Items.Select(item => new DocumentResponsibilityReference(
             reviewed.BaselineId, item.SubscriptionId, item.CapabilityId, item.ControlId, item.State, item.SourceRevision,
             item.ReviewRevision, item.ReviewedSourceRevision, item.Allocation?.InheritanceType, item.Allocation?.Provider,
@@ -41,9 +73,11 @@ public partial class SspExportService
         };
     }
 
-    private async Task<OscalExportResult> AddProviderEvidenceAsync(string systemId, OscalExportResult generated, CancellationToken ct)
+    private async Task<OscalExportResult> AddProviderEvidenceAsync(string systemId, OscalExportResult generated,
+        CancellationToken ct, IProviderEvidenceSharingService? evidence = null)
     {
-        if (_evidenceSharing == null) return generated;
+        evidence ??= _evidenceSharing;
+        if (evidence == null) return generated;
         var root = JsonNode.Parse(generated.OscalJson)!.AsObject();
         var ssp = root["system-security-plan"]!.AsObject();
         var backMatter = ssp["back-matter"] as JsonObject ?? new JsonObject();
@@ -56,10 +90,10 @@ public partial class SspExportService
         {
             for (var page = 1; ; page++)
             {
-                var shares = await _evidenceSharing.ListMissionAsync(systemId, page, 100, ct);
+                var shares = await evidence.ListMissionAsync(systemId, page, 100, ct);
                 foreach (var share in shares.Items)
                 {
-                    var content = await _evidenceSharing.SummaryContentAsync(systemId, share.ShareId, ct);
+                    var content = await evidence.SummaryContentAsync(systemId, share.ShareId, ct);
                     if (!Convert.ToHexString(SHA256.HashData(content)).Equals(share.ContentHash, StringComparison.OrdinalIgnoreCase))
                         throw new IOException("Approved evidence summary changed between listing and capture.");
                     pins.Add(new(share.ShareId, share.EvidenceId, share.Version, share.PreviousVersionId, share.ContentHash,

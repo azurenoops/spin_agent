@@ -24,8 +24,10 @@ namespace Ato.Copilot.Tests.Unit.Services;
 
 public sealed class ProviderEvidenceDocumentTests
 {
-    [Fact]
-    public async Task GeneratedOscal_EmbedsOnlyApprovedSummaryBytes_AndPinsTheirContentHash()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GeneratedOscal_EmbedsOnlyApprovedSummaryBytes_AndPinsTheirContentHash(bool fromPreview)
     {
         // Arrange
         const string content = "{\"summary\":\"DEMO approved customer-visible evidence summary\"}";
@@ -38,14 +40,21 @@ public sealed class ProviderEvidenceDocumentTests
         var accessor = new TenantContextAccessor();
         using var tenantScope = accessor.Push(new TenantContext(share.TargetTenantId) { PersonId = person });
         service.Setup(s => s.ListMissionAsync("mission", 1, 100, It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                accessor.Current!.EffectiveTenantId.Should().Be(share.TargetTenantId);
+                accessor.Current.PersonId.Should().Be(person);
+            })
             .ReturnsAsync(new PagedResult<ProviderEvidenceShareResponse>([share], 1, 100, 1));
         service.Setup(s => s.SummaryContentAsync("mission", share.ShareId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Encoding.UTF8.GetBytes(content));
         service.Setup(s => s.VerifyForExportAsync(share.TargetTenantId, person, "mission", share.ShareId, hash, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        var responsibilities = new Mock<ICapabilityResponsibilityService>();
         var dbName = Guid.NewGuid().ToString();
         using var services = new ServiceCollection().AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(dbName))
-            .AddSingleton<ITenantContextAccessor>(accessor).AddSingleton(service.Object).BuildServiceProvider();
+            .AddSingleton<ITenantContextAccessor>(accessor).AddScoped<ITenantContext, TenantContext>()
+            .AddSingleton(service.Object).AddSingleton(responsibilities.Object).BuildServiceProvider();
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         db.Add(new RegisteredSystem { Id = "mission", Name = "DEMO mission", TenantId = share.TargetTenantId });
@@ -58,7 +67,6 @@ public sealed class ProviderEvidenceDocumentTests
         schema.Setup(s => s.ValidateAsync(It.IsAny<string>(), "ssp", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OscalSchemaValidationResult { IsValid = true });
         var channel = Channel.CreateUnbounded<SspExportJob>();
-        var responsibilities = new Mock<ICapabilityResponsibilityService>();
         responsibilities.Setup(s => s.PreviewAsync("mission", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CapabilityResponsibilityResponse("mission", "baseline-v1", null, false,
             [
@@ -73,38 +81,54 @@ public sealed class ProviderEvidenceDocumentTests
         legacyApprovedPreview.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
             .Returns((string system, bool backMatter, bool pretty, CancellationToken ct) =>
                 approvedProducer.ExportAsync(system, backMatter, pretty, ct));
+        legacyApprovedPreview.Setup(s => s.ExportAsync("mission", true, true, It.IsAny<CancellationToken>()))
+            .Returns((string system, bool backMatter, bool pretty, CancellationToken ct) =>
+                approvedProducer.ExportAsync(system, backMatter, pretty, ct));
         var exporter = new SspExportService(factory, Mock.Of<ISspService>(), Mock.Of<IDocumentTemplateService>(),
             legacyApprovedPreview.Object,
             schema.Object, Mock.Of<ISspExportNotifier>(),
             NullLogger<SspExportService>.Instance, Options.Create(new ExportSettings { DataPath = output.Path }),
             channel, service.Object, responsibilities.Object);
         var result = await exporter.CreatePreviewAsync("mission", "reviewer");
-        var export = await exporter.EnqueueFromPreviewAsync("mission", result.PreviewId!.Value, "reviewer");
+        var export = fromPreview
+            ? await exporter.EnqueueFromPreviewAsync("mission", result.PreviewId!.Value, "reviewer")
+            : await exporter.EnqueueExportAsync("mission", "json", null, "reviewer");
         channel.Reader.TryRead(out var job).Should().BeTrue();
-        await exporter.ProcessExportAsync(job!);
+        await ProcessWithoutRequestContextAsync(exporter, job!);
 
         // Assert
-        using var document = JsonDocument.Parse(result.Content);
+        var detail = await exporter.GetExportAsync(export.Id);
+        detail!.Status.Should().Be("Completed",
+            (await db.SspExports.AsNoTracking().SingleAsync(e => e.Id == export.Id)).ErrorMessage);
+        var final = await exporter.GetExportFileStreamAsync(export.Id);
+        using var reader = new StreamReader(final!.Value.Stream!);
+        var finalContent = await reader.ReadToEndAsync();
+        using var document = JsonDocument.Parse(finalContent);
         var resources = document.RootElement.GetProperty("system-security-plan").GetProperty("back-matter").GetProperty("resources");
         var resource = resources.EnumerateArray().Single(r => r.GetProperty("uuid").GetString() == share.ShareId.ToString());
         resource.GetProperty("description").GetString().Should().Be(share.Summary);
         var encoded = resource.GetProperty("base64").GetProperty("value").GetString()!;
         Encoding.UTF8.GetString(Convert.FromBase64String(encoded)).Should().Be(content);
-        result.Content.Should().NotContain("storageKey").And.NotContain("private/source");
-        result.Content.Should().Contain("Review events and retain customer evidence").And.NotContain("PRIVATE RAW SOURCE MUST NOT LEAK");
-        result.SourceManifest!.Responsibilities.Single().ReviewedSourceRevision.Should().Be("source-v1");
-        result.SourceManifest!.Evidence.Single().ShareId.Should().Be(share.ShareId);
-        result.SourceManifest.Evidence.Single().ContentHash.Should().Be(hash);
+        finalContent.Should().NotContain("storageKey").And.NotContain("private/source");
+        finalContent.Should().Contain("Review events and retain customer evidence").And.NotContain("PRIVATE RAW SOURCE MUST NOT LEAK");
+        detail.SourceManifest!.HasWorkingProfileSources.Should().BeFalse();
+        detail.SourceManifest.Responsibilities.Single().ReviewedSourceRevision.Should().Be("source-v1");
+        detail.SourceManifest.Evidence.Single().ShareId.Should().Be(share.ShareId);
+        detail.SourceManifest.Evidence.Single().ContentHash.Should().Be(hash);
         service.Verify(s => s.VerifyForExportAsync(share.TargetTenantId, person, "mission", share.ShareId, hash, It.IsAny<CancellationToken>()), Times.Once);
         (await exporter.GetExportAsync(export.Id))!.Status.Should().Be("Completed");
         var stored = await db.SspExports.AsNoTracking().SingleAsync(e => e.Id == export.Id);
+        stored.SourceTenantId.Should().Be(share.TargetTenantId);
+        stored.RequestedPersonId.Should().Be(person);
         var filePath = Path.Combine(output.Path, "exports", stored.FilePath!);
         File.Exists(filePath).Should().BeTrue();
-        var pending = await exporter.EnqueueFromPreviewAsync("mission", result.PreviewId!.Value, "reviewer");
+        var pending = fromPreview
+            ? await exporter.EnqueueFromPreviewAsync("mission", result.PreviewId!.Value, "reviewer")
+            : await exporter.EnqueueExportAsync("mission", "json", null, "reviewer");
         channel.Reader.TryRead(out var revokedJob).Should().BeTrue();
         service.Setup(s => s.VerifyForExportAsync(share.TargetTenantId, person, "mission", share.ShareId, hash, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new UnauthorizedAccessException("Requester lost evidence access after queueing."));
-        await exporter.ProcessExportAsync(revokedJob!);
+        await ProcessWithoutRequestContextAsync(exporter, revokedJob!);
         (await exporter.GetExportAsync(pending.Id))!.Status.Should().Be("Failed");
         (await db.SspExports.AsNoTracking().SingleAsync(e => e.Id == pending.Id)).FilePath.Should().BeNull();
         service.Setup(s => s.SummaryContentAsync("mission", share.ShareId, It.IsAny<CancellationToken>()))
@@ -113,6 +137,47 @@ public sealed class ProviderEvidenceDocumentTests
         await download.Should().ThrowAsync<KeyNotFoundException>();
         File.Exists(filePath).Should().BeTrue("revocation denies current access without deleting retained historical output");
         (await exporter.GetExportAsync(export.Id))!.Status.Should().Be("Completed");
+        if (!fromPreview)
+        {
+            service.Setup(s => s.VerifyForExportAsync(share.TargetTenantId, person, "mission", share.ShareId, hash, It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
+            var unavailable = await exporter.EnqueueExportAsync("mission", "json", null, "reviewer");
+            channel.Reader.TryRead(out var unavailableJob).Should().BeTrue();
+            await ProcessWithoutRequestContextAsync(exporter, unavailableJob!);
+            var failure = await exporter.GetExportAsync(unavailable.Id);
+            failure!.Status.Should().Be("Failed");
+            var unavailableRecord = await db.SspExports.AsNoTracking().SingleAsync(e => e.Id == unavailable.Id);
+            unavailableRecord.ErrorMessage.Should().Contain("Approved provider evidence summaries could not be verified");
+            unavailableRecord.FilePath.Should().BeNull();
+
+            service.Setup(s => s.SummaryContentAsync("mission", share.ShareId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Encoding.UTF8.GetBytes(content));
+            foreach (var deniedContext in new[]
+            {
+                new TenantContext(),
+                new TenantContext(share.TargetTenantId, isCspAdmin: true) { PersonId = person },
+                new TenantContext(Guid.NewGuid(), impersonatedTenantId: share.TargetTenantId) { PersonId = person }
+            })
+            {
+                using var deniedScope = accessor.Push(deniedContext);
+                var noIdentity = await exporter.EnqueueExportAsync("mission", "json", null, "reviewer");
+                channel.Reader.TryRead(out var noIdentityJob).Should().BeTrue();
+                await ProcessWithoutRequestContextAsync(exporter, noIdentityJob!);
+                var identityFailure = await exporter.GetExportAsync(noIdentity.Id);
+                identityFailure!.Status.Should().Be("Failed");
+                var noIdentityRecord = await db.SspExports.AsNoTracking().SingleAsync(e => e.Id == noIdentity.Id);
+                noIdentityRecord.ErrorMessage.Should().Contain("captured mission tenant and requester");
+                noIdentityRecord.FilePath.Should().BeNull();
+            }
+        }
+    }
+
+    private static async Task ProcessWithoutRequestContextAsync(SspExportService exporter, SspExportJob job)
+    {
+        Task worker;
+        using (ExecutionContext.SuppressFlow())
+            worker = Task.Run(() => exporter.ProcessExportAsync(job));
+        await worker;
     }
 
     private sealed class ExportDirectory : IDisposable

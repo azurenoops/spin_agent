@@ -414,15 +414,19 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
         replayedDocument.GetProperty("content").GetString().Should().Be(document.GetProperty("content").GetString());
         replayedDocument.GetProperty("contentHash").GetString().Should().Be(document.GetProperty("contentHash").GetString());
         var content = document.GetProperty("content").GetString()!;
-        using var oscal = JsonDocument.Parse(content);
-        oscal.RootElement.GetProperty("system-security-plan").GetProperty("system-characteristics")
+        using var previewOscal = JsonDocument.Parse(content);
+        previewOscal.RootElement.GetProperty("system-security-plan").GetProperty("system-characteristics")
             .GetProperty("system-name").GetString().Should().Be("SYNTHETIC F079 mission");
-        var exportRequest = new { format = "json", sourcePreviewId = document.GetProperty("previewId").GetGuid() };
-        var exported = await Post<JsonElement>(mission, missionRoot + "/exports", exportRequest,
-            HttpStatusCode.Accepted, key: "f079-retained-export", envelope: false);
-        var replayedExport = await Post<JsonElement>(mission, missionRoot + "/exports", exportRequest,
-            HttpStatusCode.Accepted, key: "f079-retained-export", envelope: false);
-        replayedExport.GetProperty("exportId").GetGuid().Should().Be(exported.GetProperty("exportId").GetGuid());
+        // Retained previews are explicitly working-data review artifacts, not final approved sources.
+        // Exercise that guard, then generate through the separate production final-export path.
+        document.GetProperty("canGenerate").GetBoolean().Should().BeFalse();
+        var rejected = await Post<JsonElement>(mission, missionRoot + "/exports",
+            new { format = "json", sourcePreviewId = document.GetProperty("previewId").GetGuid() },
+            HttpStatusCode.BadRequest, key: "f079-retained-export", envelope: false);
+        rejected.GetProperty("errorCode").GetString().Should().Be("VALIDATION_ERROR");
+        rejected.GetProperty("error").GetString().Should().Contain("Working profile previews are review-only");
+        var exported = await Read<JsonElement>(await mission.PostAsJsonAsync(missionRoot + "/exports", new { format = "json" }),
+            HttpStatusCode.Accepted, envelope: false);
         var exportPath = missionRoot + $"/exports/{exported.GetProperty("exportId").GetGuid():D}";
         var exportTimer = Stopwatch.StartNew();
         JsonElement export;
@@ -438,26 +442,33 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
             // validator; never substitute a schema stub or write a successful export record.
             await using var diagnostics = factory.Services.CreateAsyncScope();
             var schema = diagnostics.ServiceProvider.GetRequiredService<IOscalSchemaValidationService>();
-            output.WriteLine("Terminal retained-preview schema diagnostics: {0}",
+            output.WriteLine("Working-preview schema diagnostics (not the final artifact): {0}",
                 JsonSerializer.Serialize(await schema.ValidateAsync(content, "ssp"), Json));
             using var unavailable = await mission.GetAsync(exportPath + "/download");
             output.WriteLine("GET {0}/download -> {1}\n{2}", exportPath, (int)unavailable.StatusCode,
                 await unavailable.Content.ReadAsStringAsync());
         }
         export.GetProperty("status").GetString().Should().Be("Completed", "actual export state: {0}", export);
+        var finalManifest = export.GetProperty("sourceManifest").Deserialize<DocumentSourceManifest>(Json)!;
+        finalManifest.HasWorkingProfileSources.Should().BeFalse();
+        finalManifest.Profiles.Should().ContainSingle().Which.Kind.Should().Be("ApprovedProfile");
+        finalManifest.Evidence.Should().ContainSingle().Which.ShareId.Should().Be(share.ShareId);
         using (var download = await mission.GetAsync(exportPath + "/download"))
         {
             var bytes = await download.Content.ReadAsByteArrayAsync();
             download.StatusCode.Should().Be(HttpStatusCode.OK, "GET {0}/download -> {1}: {2}",
                 exportPath, (int)download.StatusCode, Encoding.UTF8.GetString(bytes));
-            Encoding.UTF8.GetString(bytes).Should().Be(content, "export must preserve the actual retained preview bytes");
-            SHA256.HashData(bytes).Should().Equal(Convert.FromHexString(document.GetProperty("contentHash").GetString()!),
-                "the digest must match exactly regardless of hexadecimal letter casing");
+            content = Encoding.UTF8.GetString(bytes);
+            SHA256.HashData(bytes).Should().Equal(Convert.FromHexString(export.GetProperty("contentHash").GetString()!),
+                "the final artifact digest must match its downloaded bytes, not a working preview");
             output.WriteLine("Terminal artifact verified: exportId={0}; bytes={1}; SHA256={2}",
                 exported.GetProperty("exportId").GetGuid(), bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
         }
+        using var oscal = JsonDocument.Parse(content);
         var ssp = oscal.RootElement.GetProperty("system-security-plan");
-        var retainedSummary = ssp.GetProperty("back-matter").GetProperty("resources").EnumerateArray()
+        ssp.TryGetProperty("back-matter", out var backMatter).Should().BeTrue(
+            "the final approved-source export must retain the explicitly shared summary, not just the working preview");
+        var retainedSummary = backMatter.GetProperty("resources").EnumerateArray()
             .Single(r => r.GetProperty("uuid").GetString() == share.ShareId.ToString());
         retainedSummary.GetProperty("description").GetString().Should().Be(share.Summary);
         var base64 = retainedSummary.GetProperty("base64");

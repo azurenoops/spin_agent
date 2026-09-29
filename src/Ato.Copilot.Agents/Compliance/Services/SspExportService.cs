@@ -8,6 +8,7 @@ using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
@@ -90,6 +91,13 @@ public partial class SspExportService : ISspExportService
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var requester = scope.ServiceProvider.GetService<ITenantContextAccessor>()?.Current;
+        if (requester is { IsCspAdmin: false, ImpersonatedTenantId: null }
+            && requester.EffectiveTenantId != Guid.Empty)
+        {
+            export.SourceTenantId = requester.EffectiveTenantId;
+            export.RequestedPersonId = requester.PersonId;
+        }
         db.SspExports.Add(export);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -598,9 +606,13 @@ public partial class SspExportService : ISspExportService
             throw new InvalidOperationException(string.Join("; ", result.ProviderProvenanceGaps));
         if (result.ProfileSourceGaps.Count > 0)
             throw new InvalidOperationException(string.Join("; ", result.ProfileSourceGaps));
+        result = await AddFinalDocumentSourcesAsync(job.SystemId, retained, result, cancellationToken);
+        if (result.EvidenceSourceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("; ", result.EvidenceSourceGaps));
         if (retained != null)
         {
             retained.SourceManifestJson = System.Text.Json.JsonSerializer.Serialize(result.SourceManifest);
+            await ValidateWorkerEvidenceAsync(retained, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
         }
 
