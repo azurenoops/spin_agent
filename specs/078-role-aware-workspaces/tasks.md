@@ -1,5 +1,48 @@
 # Tasks: Mock-Aligned CSP and Organization Workspaces
 
+## PR 1050 CI repair (September 29, 2026)
+
+Run `36609347042` reports two verified failure causes: four responsibility test
+fixtures omit newly required baseline/provider-release metadata arguments, and
+the grounding scanner mistakes the isolated Playwright screenshot comparison's
+`setContent` page setup for an application document claim insertion.
+
+- [x] CI1050-1 Update only the affected fixture constructors to the current
+  responsibility contracts, preserving all assertions and unknown metadata.
+- [x] CI1050-2 Distinguish the exact browser-test page-setup call from production
+  prose insertion. Keep other APIs, production paths and evidence/claim rules
+  enforced; test those boundaries with the real scanner.
+- [ ] CI1050-3 Run the guard, unit/build checks and replacement remote CI;
+  preserve unrelated work and obtain approval before publishing.
+
+After restoring compilation, the full unit lane exposed stale fixture contracts:
+notification test hosts did not register the new assessment-workspace upload
+dependencies; readiness/package fixtures lacked the current services; scan status,
+retained findings, failed STIG collection and evidence-content fixtures still
+expected older semantics. Update fixtures to the current PR 1050 contracts without
+weakening authorization, provenance retention or truthful failure handling.
+Keep the one-second classifier performance assertion; its isolated regression
+passes and must not be relaxed to hide full-suite contention.
+
+Verified in an isolated clone of the published PR head, without unrelated working
+tree edits: Release solution build passed; all **7750 unit tests passed**; the
+repository grounding scan and **six scanner boundary tests passed**. The scanner
+exception applies only to `comparison.setContent` in the single isolated
+screenshot-comparison fixture; production setContent, other mutation APIs, bare
+claim nodes and unknown evidence spans remain checked. No production workflow,
+authorization or assessment semantics were weakened.
+
+Run locally:
+
+```bash
+node --test packages/ato-shared/scripts/check-grounding-port.test.mjs
+node packages/ato-shared/scripts/check-grounding-port.mjs
+dotnet build Ato.Copilot.sln -c Release --no-restore
+dotnet test tests/Ato.Copilot.Tests.Unit -c Release --no-build
+```
+
+Replacement remote integration/CI verification follows publication approval.
+
 **Feature**: #1002
 
 **Delivery issues**: #1025-#1035
