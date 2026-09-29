@@ -122,7 +122,10 @@ public sealed partial class ProviderAuthorizationService
         var names = await (from system in db.RegisteredSystems.AsNoTracking()
                            join assignment in selected on new { system.TenantId, system.Id }
                                equals new { TenantId = assignment.TargetTenantId, Id = assignment.SystemId }
-                           select new { assignment.Id, system.Name }).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+                           join tenant in db.Tenants.AsNoTracking() on system.TenantId equals tenant.Id into tenants
+                           from tenant in tenants.DefaultIfEmpty()
+                           select new { assignment.Id, system.Name, TenantName = tenant == null ? null : tenant.DisplayName })
+            .ToDictionaryAsync(x => x.Id, ct);
         var relationships = await BoundaryRelationships(db, offering, selected).ToListAsync(ct);
         var adoptions = await (from adoption in db.Set<CapabilityAdoptionSnapshot>().AsNoTracking()
                                join assignment in selected on adoption.AssignmentId equals assignment.Id
@@ -131,10 +134,54 @@ public sealed partial class ProviderAuthorizationService
                                    && adoption.TenantId == assignment.TargetTenantId && adoption.SystemId == assignment.SystemId
                                    && subscription.IsActive && subscription.RegisteredSystemId == assignment.SystemId
                                    && subscription.RoutingTenantId == assignment.TargetTenantId
-                               select new { adoption.AssignmentId, adoption.CapabilityId, subscription.CspInheritedCapabilityId })
+                               select new
+                               {
+                                   adoption.AssignmentId, adoption.CapabilityId, subscription.CspInheritedCapabilityId,
+                                   adoption.ReleaseId, adoption.ContextSnapshotId,
+                                   IsCurrent = subscription.CurrentAdoptionSnapshotId == adoption.Id
+                               })
             .ToListAsync(ct);
-        var counts = adoptions.Where(x => Guid.TryParse(x.CspInheritedCapabilityId, out var id) && id == x.CapabilityId)
+        var matchedAdoptions = adoptions
+            .Where(x => Guid.TryParse(x.CspInheritedCapabilityId, out var id) && id == x.CapabilityId).ToArray();
+        var counts = matchedAdoptions
             .GroupBy(x => x.AssignmentId).ToDictionary(x => x.Key, x => x.Select(a => a.CapabilityId).Distinct().Count());
+        var pins = matchedAdoptions.Where(x => x.IsCurrent).ToArray();
+        var pinnedReleaseIds = pins.Select(x => x.ReleaseId).Distinct().ToArray();
+        var pinnedCapabilityIds = pins.Select(x => x.CapabilityId).Distinct().ToArray();
+        var retained = await (from release in db.ProviderCapabilityReleases.AsNoTracking()
+                              join capability in db.CspInheritedCapabilities.AsNoTracking()
+                                  on release.CapabilityId equals capability.Id
+                              where pinnedReleaseIds.Contains(release.Id) && release.Revision > 0
+                                  && capability.CspInheritedComponent.CspProfileId == offering.ProviderId
+                              select new { release.Id, release.CapabilityId, capability.Name, release.Revision })
+            .ToDictionaryAsync(x => x.Id, ct);
+        var linkedReleases = from context in db.Set<ProviderCatalogContextSnapshot>().AsNoTracking()
+                                    join release in db.ProviderCapabilityReleases.AsNoTracking()
+                                        on context.ReleaseId equals release.Id
+                                    join capability in db.CspInheritedCapabilities.AsNoTracking()
+                                        on release.CapabilityId equals capability.Id
+                                    where context.ProviderId == offering.ProviderId && context.OfferingId == offering.Id
+                                        && context.CapabilityId == release.CapabilityId && release.Revision > 0
+                                        && pinnedCapabilityIds.Contains(release.CapabilityId)
+                                        && capability.CspInheritedComponent.CspProfileId == offering.ProviderId
+                                    select new { context.Id, release.CapabilityId, ReleaseId = release.Id, release.Revision };
+        var pinnedContextIds = pins.Select(x => x.ContextSnapshotId).Distinct().ToArray();
+        var contexts = await linkedReleases.Where(x => pinnedContextIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+        var currentRevisions = await linkedReleases.GroupBy(x => x.CapabilityId)
+            .Select(x => new { CapabilityId = x.Key, Revision = x.Max(r => r.Revision) })
+            .ToDictionaryAsync(x => x.CapabilityId, x => x.Revision, ct);
+        var adoptedReleases = pins.Where(pin =>
+                retained.TryGetValue(pin.ReleaseId, out var release) && release.CapabilityId == pin.CapabilityId
+                && contexts.TryGetValue(pin.ContextSnapshotId, out var context)
+                && context.CapabilityId == pin.CapabilityId && context.ReleaseId == pin.ReleaseId)
+            .GroupBy(x => x.AssignmentId).ToDictionary(x => x.Key, x => x.Select(pin =>
+            {
+                var release = retained[pin.ReleaseId];
+                long? current = currentRevisions.TryGetValue(pin.CapabilityId, out var revision) ? revision : null;
+                return new OfferingMissionRelease(pin.CapabilityId, release.Name, release.Id, release.Revision,
+                    current, current > release.Revision);
+            }).Distinct().OrderBy(r => r.CapabilityName, StringComparer.Ordinal)
+                .ThenBy(r => r.CapabilityId).ThenBy(r => r.ReleaseId).ToArray());
         var latest = relationships.GroupBy(x => x.AssignmentId)
             .ToDictionary(x => x.Key, x => x.OrderByDescending(r => r.Revision).ThenBy(r => r.Id).First());
         return new(rows.Select(assignment =>
@@ -144,8 +191,13 @@ public sealed partial class ProviderAuthorizationService
                 : relationship.ReviewRequired || relationship.AssignmentRevision != assignment.Revision
                     ? "ReviewRequired" : relationship.State;
             return new OfferingBoundaryMission(assignment.Id, assignment.SystemId,
-                names.GetValueOrDefault(assignment.Id), state, relationship is not null,
-                counts.GetValueOrDefault(assignment.Id), Read<ProviderScope[]>(assignment.AssignedScopesJson));
+                names.GetValueOrDefault(assignment.Id)?.Name, state, relationship is not null,
+                counts.GetValueOrDefault(assignment.Id), Read<ProviderScope[]>(assignment.AssignedScopesJson))
+            {
+                TargetTenantId = assignment.TargetTenantId,
+                TargetTenantName = names.GetValueOrDefault(assignment.Id)?.TenantName,
+                AdoptedReleases = adoptedReleases.GetValueOrDefault(assignment.Id) ?? []
+            };
         }).ToArray(), page, pageSize, total);
     }
 

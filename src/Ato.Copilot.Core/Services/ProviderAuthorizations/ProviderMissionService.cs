@@ -18,6 +18,8 @@ public sealed partial class ProviderMissionService(AtoCopilotContext db, ITenant
     private Guid TenantId => tenant.EffectiveTenantId;
     private static bool CanAssociate(SystemWorkspaceAccessResponse permission) =>
         permission.Roles.Any(x => x is "MissionOwner" or "SystemOwner" or "Issm" or "Isso");
+    private static bool CanReviewCoveredScope(SystemWorkspaceAccessResponse permission) =>
+        permission.Permissions.CanDecideAuthorization && permission.Roles.Contains("AuthorizingOfficial");
 
     private async Task<SystemWorkspaceAccessResponse> AccessAsync(string systemId, CancellationToken ct)
     {
@@ -33,7 +35,7 @@ public sealed partial class ProviderMissionService(AtoCopilotContext db, ITenant
     public async Task AuthorizeAsync(string systemId, bool manage, bool covered, CancellationToken ct)
     {
         var permission = await AccessAsync(systemId, ct);
-        if (covered ? !permission.Permissions.CanDecideAuthorization || !permission.Roles.Contains("AuthorizingOfficial")
+        if (covered ? !CanReviewCoveredScope(permission)
             : manage && !CanAssociate(permission))
             throw new UnauthorizedAccessException(covered ? "An effective assigned AO is required for recorded coverage review."
                 : "An effective assigned Mission Owner, System Owner, ISSM or ISSO is required.");
@@ -115,13 +117,17 @@ public sealed partial class ProviderMissionService(AtoCopilotContext db, ITenant
         var systemName = await db.RegisteredSystems.Where(x => x.Id == allocation.SystemId && x.TenantId == TenantId)
             .Select(x => x.Name).SingleOrDefaultAsync(ct);
         var providerName = await db.CspProfiles.Where(x => x.Id == allocation.ProviderId).Select(x => x.DisplayName).SingleOrDefaultAsync(ct);
+        var currentAllocation = offering.Lifecycle != "Retired" && offering.CurrentHostingScopeRevisionId == hosting.Id;
+        var canReview = relationship is not null && currentAllocation;
         return new(relationship?.Id, relationship?.Revision ?? 0, allocation.Id, allocation.Revision, offering.Id,
             allocation.SystemId, relationship?.State ?? "Undetermined", stale, relationship?.AuthorizationRevisionId,
             relationship?.BoundaryRevisionId, relationship?.ReviewedBy, relationship?.ReviewedAt,
             Read<ProviderScope[]>(allocation.AssignedScopesJson), offering.Name, providerName, systemName,
             Read<CreateProviderHostingScopeRequest>(hosting.SnapshotJson).Name,
-            relationship is null && CanAssociate(permission) && offering.Lifecycle != "Retired"
-                && offering.CurrentHostingScopeRevisionId == hosting.Id);
+            relationship is null && CanAssociate(permission) && currentAllocation,
+            canReview && (relationship!.State == "ExplicitlyCoveredByRecordedScope"
+                ? CanReviewCoveredScope(permission) : CanAssociate(permission)),
+            canReview && CanReviewCoveredScope(permission));
     }
 
     private Task<T> WriteAsync<T>(ProviderHostingAssignment allocation, string action, string? key,

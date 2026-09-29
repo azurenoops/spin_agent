@@ -182,7 +182,8 @@ public sealed class OfferingBoundaryOverviewTests
         // Assert
         result.MissionSystems.Items.Single().Should().BeEquivalentTo(new
         {
-            SystemName = (string?)null, Associated = false, AdoptedCapabilityCount = 0, RelationshipState = "Undetermined"
+            SystemName = (string?)null, TargetTenantName = (string?)null,
+            Associated = false, AdoptedCapabilityCount = 0, RelationshipState = "Undetermined"
         });
     }
 
@@ -451,10 +452,17 @@ public sealed class OfferingBoundaryOverviewTests
                 db.Add(new CspInheritedCapability { Id = id, CspInheritedComponentId = component.Id, Name = name, Status = status });
             }
             var release = new ProviderCapabilityRelease { CapabilityId = id, Revision = revision, IdempotencyKey = Guid.NewGuid().ToString() };
+            var impactId = Impact;
+            if (offeringId.HasValue && offeringId != Offering)
+            {
+                var impact = new ProviderAuthorizationImpactReview { ProviderId = Provider, OfferingId = offeringId.Value };
+                db.Add(impact);
+                impactId = impact.Id;
+            }
             var context = new ProviderCatalogContextSnapshot
             {
                 ProviderId = Provider, OfferingId = offeringId ?? Offering, CapabilityId = id,
-                ReleaseId = release.Id, ImpactReviewId = Impact,
+                ReleaseId = release.Id, ImpactReviewId = impactId,
                 SnapshotJson = ProviderAuthorizationStore.Json(new ProviderPublicationContextMaterial(offeringId ?? Offering, 1, SourceBoundary, "", null, null, [], [], []))
             };
             db.AddRange(release, context);

@@ -80,6 +80,92 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
     }
 
     [Fact]
+    public async Task MissionRelationshipReview_PersistsSeparateBoundaryWithoutChangingSiblingOrAuthorization()
+    {
+        // Arrange
+        Environment.GetEnvironmentVariable("ATO_TEST_SQLSERVER_CONNSTRING").Should().BeNullOrEmpty(
+            "relationship review acceptance uses isolated local SQLite, never a live database");
+        using var provider = Client(Guid.Parse("07900000-0000-0000-0000-000000000003"), csp: true);
+        var actor = Guid.NewGuid();
+        var system = Guid.NewGuid().ToString();
+        await using (var seedScope = factory.Services.CreateAsyncScope())
+        {
+            var seed = seedScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            seed.Database.ProviderName.Should().Be("Microsoft.EntityFrameworkCore.Sqlite");
+            var person = new Person { TenantId = Tenant, DisplayName = "Synthetic scope reviewer",
+                Email = $"{actor:N}@example.invalid" };
+            seed.AddRange(person, new RegisteredSystem { Id = system, TenantId = Tenant, Name = "Synthetic review mission" });
+            seed.OrganizationMemberships.Add(new() { TenantId = Tenant, DirectoryTenantId = DirectoryId,
+                ObjectId = actor, PersonId = person.Id, GrantedBy = "fixture" });
+            seed.SystemRoleAssignments.Add(new() { TenantId = Tenant, PersonId = person.Id,
+                RegisteredSystemId = system, Role = OrganizationRole.MissionOwner });
+            await seed.SaveChangesAsync();
+        }
+        using var mission = Client(actor);
+        var missionRoot = $"/api/dashboard/systems/{system}/provider-relationships";
+        var scopes = new[] { new ProviderAzureScope("AzureCloud", DirectoryId, SubscriptionId,
+            $"/subscriptions/{SubscriptionId:D}/resourceGroups/synthetic-review") };
+        var relationships = new List<MissionProviderRelationshipResponse>();
+        var offerings = new List<ProviderOfferingResponse>();
+        foreach (var name in new[] { "Selected", "Sibling" })
+        {
+            var offering = await Post<ProviderOfferingResponse>(provider, "/api/csp/offerings",
+                new CreateProviderOfferingRequest($"SYNTHETIC {name} review", "Local acceptance only.", ["AzureCloud"]),
+                HttpStatusCode.Created);
+            var root = $"/api/csp/offerings/{offering.OfferingId:D}";
+            var hosting = await Post<ProviderHostingScopeResponse>(provider, root + "/hosting-scope-revisions",
+                new CreateProviderHostingScopeRequest(offering.Revision, null, "Synthetic hosting", scopes, [], []),
+                HttpStatusCode.Created);
+            var assignment = await Post<ProviderHostingAssignmentResponse>(provider, root + "/hosting-assignments",
+                new CreateProviderHostingAssignmentRequest(Tenant, system, hosting.Snapshot.RevisionId, scopes, []),
+                HttpStatusCode.Created);
+            relationships.Add(await Post<MissionProviderRelationshipResponse>(mission, missionRoot,
+                new CreateMissionProviderRelationshipRequest(assignment.AssignmentId, assignment.Revision)));
+            offerings.Add(await Get<ProviderOfferingResponse>(provider, root));
+        }
+        var selected = relationships[0];
+        var sibling = relationships[1];
+        var before = (await Get<JsonElement>(mission, missionRoot)).GetProperty("items").EnumerateArray()
+            .Single(x => x.GetProperty("relationshipId").GetGuid() == selected.RelationshipId);
+        before.GetProperty("canAssociate").GetBoolean().Should().BeFalse();
+        before.GetProperty("canReviewRelationship").GetBoolean().Should().BeTrue();
+        before.GetProperty("canReviewCoveredScope").GetBoolean().Should().BeFalse();
+        before.GetProperty("reviewRequired").GetBoolean().Should().BeTrue();
+        var relationshipRoot = $"{missionRoot}/{selected.RelationshipId:D}";
+
+        // Act
+        var preview = await Post<MissionProviderRelationshipPreviewResponse>(mission, relationshipRoot + "/previews",
+            new PreviewMissionProviderRelationshipRequest(selected.Revision, selected.AssignmentRevision,
+                "SeparateBoundaryConsumer", null, null, [], "Mission retains its separate authorization boundary."));
+        preview.CanReview.Should().BeTrue();
+        await Post<MissionProviderRelationshipResponse>(mission, relationshipRoot + "/review",
+            new ReviewMissionProviderRelationshipRequest(preview.Revision, preview.PreviewId, preview.PreviewHash,
+                "Reviewed this exact hosting relationship; not a mission authorization decision."));
+        using var refreshedClient = Client(actor);
+        var refreshed = (await Get<Page<MissionProviderRelationshipResponse>>(refreshedClient, missionRoot)).Items;
+
+        // Assert
+        var persisted = refreshed.Single(x => x.RelationshipId == selected.RelationshipId);
+        persisted.State.Should().Be("SeparateBoundaryConsumer");
+        persisted.ReviewRequired.Should().BeFalse();
+        persisted.ReviewedAt.Should().NotBeNull();
+        persisted.AuthorizationRevisionId.Should().BeNull();
+        persisted.BoundaryRevisionId.Should().BeNull();
+        refreshed.Single(x => x.RelationshipId == sibling.RelationshipId).Should().BeEquivalentTo(sibling);
+        foreach (var offering in offerings)
+            (await Get<ProviderOfferingResponse>(provider, $"/api/csp/offerings/{offering.OfferingId:D}"))
+                .Should().BeEquivalentTo(offering);
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var db = verificationScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await db.AuthorizationDecisions.IgnoreQueryFilters().CountAsync(x => x.RegisteredSystemId == system))
+            .Should().Be(0);
+        (await db.Set<ProviderAuthorizationRecord>().IgnoreQueryFilters()
+            .CountAsync(x => offerings.Select(o => o.OfferingId).Contains(x.OfferingId))).Should().Be(0);
+        (await db.Set<MissionProviderRelationshipReview>().IgnoreQueryFilters()
+            .SingleAsync(x => x.Id == selected.RelationshipId)).ReviewRequired.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ReviewedProviderSource_MissionOwnerAdoption_ProducesActualOscalWithoutInventingAuthorization()
     {
         // Arrange: refuse the factory's optional external database mode before starting the host.

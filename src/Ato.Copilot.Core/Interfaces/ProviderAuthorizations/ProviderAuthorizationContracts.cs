@@ -68,7 +68,16 @@ public sealed record OfferingBoundaryCapability(Guid? CapabilityId, Guid? Candid
 }
 /// <summary>An assignment with separately observed association and active, assignment-bound adoption count.</summary>
 public sealed record OfferingBoundaryMission(Guid AssignmentId, string SystemId, string? SystemName,
-    string RelationshipState, bool Associated, int AdoptedCapabilityCount, IReadOnlyList<ProviderScope> AssignedScopes);
+    string RelationshipState, bool Associated, int AdoptedCapabilityCount, IReadOnlyList<ProviderScope> AssignedScopes)
+{
+    public Guid? TargetTenantId { get; init; }
+    public string? TargetTenantName { get; init; }
+    /// <summary>Verified active subscription pins only; legacy unpinned adoptions remain counted without release details.</summary>
+    public IReadOnlyList<OfferingMissionRelease> AdoptedReleases { get; init; } = [];
+}
+/// <summary>Exact adopted release metadata, with the newest retained revision linked to the same offering and capability.</summary>
+public sealed record OfferingMissionRelease(Guid CapabilityId, string CapabilityName, Guid ReleaseId,
+    long Revision, long? CurrentReleaseRevision, bool UpdateAvailable);
 /// <summary>Create a service offering without asserting authorization.</summary>
 public sealed record CreateProviderOfferingRequest(string Name, string Description, IReadOnlyList<string> Environments)
 {
