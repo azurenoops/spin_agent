@@ -45,6 +45,8 @@ public class AuthorizationIntegrationTests : IDisposable
         services.AddDbContextFactory<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(dbName), ServiceLifetime.Scoped);
         services.AddLogging();
+        // Package validation now evaluates canonical interconnection agreements, even when none exist.
+        services.AddScoped<IInterconnectionService, InterconnectionService>();
 
         _serviceProvider = services.BuildServiceProvider();
         _scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();

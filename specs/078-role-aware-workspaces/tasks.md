@@ -43,6 +43,47 @@ dotnet test tests/Ato.Copilot.Tests.Unit -c Release --no-build
 
 Replacement remote integration/CI verification follows publication approval.
 
+Integration follow-up validation: **7754/7754 Release unit tests**, **114 targeted
+HTTP/isolation integration tests**, and **15 provider/export/authorization
+integration tests** passed. Final export tests retain approved-source,
+revoked-access, missing-identity and private-provider-byte exclusion assertions.
+The original user worktree remains untouched; these repairs are isolated from
+ongoing assessment, inventory and package changes.
+
+The next CI run passed all build/unit/guard checks and exposed integration
+host-registration drift plus two first-page-only tenant visibility assertions.
+Fix the test readers to inspect every actual page without weakening isolation.
+Evidence upload also rejected a legitimately applied local capability with no
+control mappings: system ownership must recognize the canonical system-capability
+link, not infer that every applied capability already has mapped controls.
+
+The simulation failure also exposed assessment cache writes missing `Size` under
+the production cache limit. Preserve the synthetic authentication test boundary,
+but fix both persistence cache write paths and verify save/cold-reload with a
+size-limited cache; do not merely hide the runtime exception behind a test mock.
+
+The unchanged one-second classifier threshold passed alone but failed twice when
+thousands of unrelated tests competed for CPU/SQLite execution. Its test class now
+uses a non-parallel xUnit collection so the wall-clock budget measures the
+classifier rather than cross-suite contention. It is neither skipped nor given a
+larger threshold; the full unit lane still executes the measured 1000-artifact
+operation and asserts all records were processed.
+
+The provider-to-mission integration regression now explicitly rejects promotion
+of working-profile previews and exercises the approved-source export route.
+Its failing-first downloaded-artifact check proves that final OSCAL generation
+omits the existing authorized evidence-summary and responsibility enrichment.
+Reuse those source-bound helpers for final generation, retain requester-bound
+permission verification and fail closed on unavailable evidence; never copy
+private provider attachments or relax working/approved source gates. Validate
+the actual final bytes, provenance, hash and no-invented-authorization assertions,
+then run the 15 owned integration cases and related document/export regressions.
+Verified locally under the clone's build lock: all 15 integration cases and 139
+related document/export checks pass. Regression coverage also rejects revoked
+access, unavailable summaries, missing requester identity and provider/support
+contexts replayed as ordinary mission requests. Manual acceptance remains
+available through the local preview/export workflow; no live data was changed.
+
 **Feature**: #1002
 
 **Delivery issues**: #1025-#1035

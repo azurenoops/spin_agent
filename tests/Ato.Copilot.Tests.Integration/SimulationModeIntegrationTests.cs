@@ -12,11 +12,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Mcp.Extensions;
 using Ato.Copilot.Mcp.Middleware;
 using Ato.Copilot.Mcp.Server;
 using Ato.Copilot.State.Extensions;
 using FluentAssertions;
+using Moq;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Integration;
@@ -33,6 +36,7 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
     private WebApplication _app = null!;
     private HttpClient _client = null!;
     private ClaimsPrincipal? _requestIdentity;
+    private readonly Mock<IAtoComplianceEngine> _assessmentEngine = new(MockBehavior.Strict);
     private readonly string _dbName = $"SimISSO_{Guid.NewGuid():N}";
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -84,6 +88,17 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
         });
 
         builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
+        // Exercise real authentication and tool dispatch without running Azure scans
+        // or assessment persistence against the synthetic subscription.
+        _assessmentEngine.Setup(engine => engine.RunComprehensiveAssessmentAsync(
+                "test-sub", null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ComplianceAssessment
+            {
+                Id = "simulated-isso-assessment",
+                SubscriptionId = "test-sub",
+                Status = AssessmentStatus.Completed
+            });
+        builder.Services.AddSingleton(_assessmentEngine.Object);
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>
                 policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
@@ -144,7 +159,15 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/mcp", request, _jsonOptions);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        using var payload = JsonDocument.Parse(content);
+        payload.RootElement.GetProperty("result").GetProperty("isError").GetBoolean().Should().BeFalse();
+        payload.RootElement.GetProperty("result").GetProperty("content")[0].GetProperty("text")
+            .GetString().Should().Contain("simulated-isso-assessment");
+        _assessmentEngine.Verify(engine => engine.RunComprehensiveAssessmentAsync(
+            "test-sub", null, null, It.IsAny<CancellationToken>()), Times.Once);
+        _assessmentEngine.VerifyNoOtherCalls();
         var principal = _requestIdentity.Should().BeOfType<ClaimsPrincipal>().Which;
         var identity = principal.Identity.Should().BeOfType<ClaimsIdentity>().Which;
         identity.IsAuthenticated.Should().BeTrue();
@@ -185,6 +208,7 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
     private WebApplication _app = null!;
     private HttpClient _client = null!;
     private ClaimsPrincipal? _requestIdentity;
+    private readonly Mock<IAtoComplianceEngine> _assessmentEngine = new(MockBehavior.Strict);
     private readonly string _dbName = $"SimEngineer_{Guid.NewGuid():N}";
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -235,6 +259,17 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
         });
 
         builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
+        // Exercise real authentication and tool dispatch without running Azure scans
+        // or assessment persistence against the synthetic subscription.
+        _assessmentEngine.Setup(engine => engine.RunComprehensiveAssessmentAsync(
+                "test-sub", null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ComplianceAssessment
+            {
+                Id = "simulated-engineer-assessment",
+                SubscriptionId = "test-sub",
+                Status = AssessmentStatus.Completed
+            });
+        builder.Services.AddSingleton(_assessmentEngine.Object);
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>
                 policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
@@ -295,7 +330,15 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/mcp", request, _jsonOptions);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        using var payload = JsonDocument.Parse(content);
+        payload.RootElement.GetProperty("result").GetProperty("isError").GetBoolean().Should().BeFalse();
+        payload.RootElement.GetProperty("result").GetProperty("content")[0].GetProperty("text")
+            .GetString().Should().Contain("simulated-engineer-assessment");
+        _assessmentEngine.Verify(engine => engine.RunComprehensiveAssessmentAsync(
+            "test-sub", null, null, It.IsAny<CancellationToken>()), Times.Once);
+        _assessmentEngine.VerifyNoOtherCalls();
         var principal = _requestIdentity.Should().BeOfType<ClaimsPrincipal>().Which;
         var identity = principal.Identity.Should().BeOfType<ClaimsIdentity>().Which;
         identity.IsAuthenticated.Should().BeTrue();
