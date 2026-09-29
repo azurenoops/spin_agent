@@ -1,0 +1,15 @@
+demonstration_notice,capability_source_id,capability_name,component_key,component_name,control_ids,responsibility
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-audit,Audit collection,monitor,Azure Monitor Logs (Log Analytics),AU-2;AU-6;AU-11,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-audit,Audit collection,blob,Azure Blob Storage,AU-2;AU-6;AU-11,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-network,Network protection,firewall,Azure Firewall,SC-7,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-network,Network protection,vnet,Azure Virtual Network,SC-7,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-identity,Privileged identity,entra,Microsoft Entra ID (Privileged Identity Management),IA-2;AC-2,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-configuration,Configuration baselines,policy,Azure Policy,CM-2;CM-3,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-configuration,Configuration baselines,blob,Azure Blob Storage,CM-2;CM-3,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-encryption,Encryption and key handling,keyvault,Azure Key Vault,SC-12;SC-13,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-incident,Incident coordination,sentinel,Microsoft Sentinel,IR-4;IR-6,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-incident,Incident coordination,logicapps,Azure Logic Apps,IR-4;IR-6,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-vulnerability,Vulnerability management,defender,Microsoft Defender for Cloud,RA-5;SI-2,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-vulnerability,Vulnerability management,updatemanager,Azure Update Manager,RA-5;SI-2,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-backup,Backup and recovery,backup,Azure Backup (Recovery Services vault),CP-9;CP-10,Shared; original duty review retained
+SYNTHETIC DEMONSTRATION ONLY,AZ-capability-backup,Backup and recovery,keyvault,Azure Key Vault,CP-9;CP-10,Shared; original duty review retained

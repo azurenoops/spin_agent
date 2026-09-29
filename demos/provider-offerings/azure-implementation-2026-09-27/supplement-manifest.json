@@ -1,0 +1,39 @@
+{
+  "supplementId": "azure-implementation-2026-09-27",
+  "demonstrationNotice": "SYNTHETIC DEMONSTRATION ONLY. These are explicitly authored Azure implementation choices, not live resources, operational evidence, license entitlements or government authorizations. Validate regional and Azure Government feature availability before real deployment.",
+  "baselineManifestSha256": "b892d1e271911444c85ab35080b9550f4e4de62fc59de505965573bb2354ccbe",
+  "capabilityCount": 8,
+  "componentCount": 12,
+  "files": [
+    {
+      "path": "implementation-map.json",
+      "bytes": 11147,
+      "sha256": "3f4aa063d8628376f4005a3defcccc8e842866b4c7ce1ffc48fbcf83782e64f2"
+    },
+    {
+      "path": "azure-implementation-guide.md",
+      "bytes": 16925,
+      "sha256": "8aee26f39ff7f83ac39edea7c4b688bd8d70eb18a3677d414d7807367cd6fd13"
+    },
+    {
+      "path": "azure-implementation-guide.docx",
+      "bytes": 7154,
+      "sha256": "d3dac153ae717289bad65a0884c11d0ba48afd6757c0d5143e74b256e96a9c9f"
+    },
+    {
+      "path": "azure-implementation-guide.pdf",
+      "bytes": 31900,
+      "sha256": "af66eb307cb45fb20bbf7099e14209c65068e7862c034587e6f25a7e8b3decb6"
+    },
+    {
+      "path": "capability-component-map.csv",
+      "bytes": 2276,
+      "sha256": "c6e92daad059eaa2af74299c376c6c31202bf26d7edb9b2aedf4fbd88a6c3c31"
+    },
+    {
+      "path": "customer-bundle.zip",
+      "bytes": 68930,
+      "sha256": "ec343267520e019cb47c8e2db20d3fd74d5f27a03f49405707e436fcaf65d2b0"
+    }
+  ]
+}
