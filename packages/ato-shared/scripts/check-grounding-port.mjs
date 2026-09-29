@@ -101,6 +101,11 @@ const GROUNDING_ALLOWLIST = new Set([
   // 'src/Ato.Copilot.Chat/ClientApp/src/features/citations/legacyCitationShim.ts',
 ]);
 
+// This Playwright page renders mock/current screenshots, not authored document
+// claims. Exempt only its comparison page setup; all other grounding rules apply.
+const SCREENSHOT_COMPARISON_FIXTURE =
+  'src/Ato.Copilot.Dashboard/e2e/isolated/provider-presentation.local.ts';
+
 // ---------------------------------------------------------------------------
 // Scanner
 // ---------------------------------------------------------------------------
@@ -156,6 +161,8 @@ for (const absPath of files) {
   for (const api of FORBIDDEN_DIRECT_INSERT_APIS) {
     const pattern = new RegExp(`\\b${api}\\s*\\(`, 'g');
     for (const match of src.matchAll(pattern)) {
+      if (rel === SCREENSHOT_COMPARISON_FIXTURE && api === 'setContent'
+          && /\bcomparison\.\s*$/.test(src.slice(Math.max(0, match.index - 64), match.index))) continue;
       if (!hasGroundingMarker) {
         violations.push({
           file: rel,

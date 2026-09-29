@@ -165,7 +165,9 @@ jobs:
           node-version: 20
 
       - name: Run grounding port static scan
-        run: node packages/ato-shared/scripts/check-grounding-port.mjs
+        run: |
+          node --test packages/ato-shared/scripts/check-grounding-port.test.mjs
+          node packages/ato-shared/scripts/check-grounding-port.mjs
 
   # ---------------------------------------------------------------------------
   # Research-workflow citation boundary lint (#2683)
@@ -707,4 +709,3 @@ jobs:
             -ignore 'SC2129:' \
             -ignore 'SC2015:' \
             -ignore 'SC2034:'
-
