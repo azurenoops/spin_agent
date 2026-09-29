@@ -6,6 +6,7 @@ using Ato.Copilot.Core.Models.Tenancy.Attributes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Logging;
 
 namespace Ato.Copilot.Core.Data.Interceptors;
@@ -54,12 +55,9 @@ public sealed class TenantScopedQueryGuardInterceptor : DbCommandInterceptor
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<TenantScopedQueryGuardInterceptor> _logger;
 
-    // Set of table names that belong exclusively to [GlobalReference] entities.
-    // Populated lazily from eventData.Context on the first intercepted command
-    // (same DbContext instance that is about to execute SQL), so Stage A0
-    // CspProfiles reads are classified correctly without a ctor→factory cycle.
-    // Thread-safe via ConcurrentDictionary used as a set (value byte unused).
-    private readonly ConcurrentDictionary<string, byte> _globalRefTableNames = new(StringComparer.OrdinalIgnoreCase);
+    // Publish only complete sets. A nonempty, still-populating dictionary can
+    // reject concurrent bootstrap reads or carry exemptions across EF models.
+    private readonly ConcurrentDictionary<IModel, Lazy<HashSet<string>>> _globalRefTableNames = new();
 
     public TenantScopedQueryGuardInterceptor(
         ITenantContextAccessor accessor,
@@ -182,13 +180,10 @@ public sealed class TenantScopedQueryGuardInterceptor : DbCommandInterceptor
     /// </remarks>
     private bool IsGlobalReferenceOnlyQuery(DbCommand command, CommandEventData eventData)
     {
-        // Seed from the executing context before classifying tables. Must happen
-        // here (not in the ctor) so Stage A0 CspProfiles reads are exempted
-        // without creating a DbContextFactory cycle.
-        if (_globalRefTableNames.IsEmpty && eventData.Context is not null)
-        {
-            PopulateGlobalRefTableNames(eventData.Context);
-        }
+        if (eventData.Context is null) return false;
+        var globalTables = _globalRefTableNames.GetOrAdd(eventData.Context.Model,
+            model => new Lazy<HashSet<string>>(() => PopulateGlobalRefTableNames(model),
+                LazyThreadSafetyMode.ExecutionAndPublication)).Value;
 
         // Extract table names from the SQL text. If we can't find any recognizable
         // table references → be conservative and let the guard proceed (return false).
@@ -202,7 +197,7 @@ public sealed class TenantScopedQueryGuardInterceptor : DbCommandInterceptor
         // global-ref set. A single [TenantScoped] table → guard fires.
         foreach (var table in tableNames)
         {
-            if (!_globalRefTableNames.ContainsKey(table))
+            if (!globalTables.Contains(table))
             {
                 // Not in the [GlobalReference] set → assume [TenantScoped] or unknown.
                 return false;
@@ -214,12 +209,12 @@ public sealed class TenantScopedQueryGuardInterceptor : DbCommandInterceptor
 
     /// <summary>
     /// Lazily populates <see cref="_globalRefTableNames"/> from the EF Core model.
-    /// Thread-safe (ConcurrentDictionary; worst case: two threads both populate once,
-    /// result is idempotent).
+    /// The caller publishes the completed set through a model-specific Lazy value.
     /// </summary>
-    private void PopulateGlobalRefTableNames(DbContext context)
+    private static HashSet<string> PopulateGlobalRefTableNames(IModel model)
     {
-        foreach (var entityType in context.Model.GetEntityTypes())
+        var tables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entityType in model.GetEntityTypes())
         {
             var clrType = entityType.ClrType;
             if (clrType is null) continue;
@@ -230,9 +225,9 @@ public sealed class TenantScopedQueryGuardInterceptor : DbCommandInterceptor
             var tableName = entityType.GetTableName();
             if (tableName is null) continue;
 
-            // Value byte: 1 = confirmed [GlobalReference]. The dictionary acts as a set.
-            _globalRefTableNames.TryAdd(tableName, 1);
+            tables.Add(tableName);
         }
+        return tables;
     }
 
     /// <summary>

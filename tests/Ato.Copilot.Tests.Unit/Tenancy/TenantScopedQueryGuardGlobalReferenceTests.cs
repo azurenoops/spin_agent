@@ -2,12 +2,14 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Data.Interceptors;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Models.Tenancy.Attributes;
 using Ato.Copilot.Core.Services.Tenancy;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -162,6 +164,74 @@ public class TenantScopedQueryGuardGlobalReferenceTests : IAsyncLifetime
 
         await act.Should().NotThrowAsync(
             because: "Tenant is [GlobalReference] and must be readable without a tenant context");
+    }
+
+    [Fact]
+    public async Task GlobalReferenceCache_IsCompleteForEachExecutingModel()
+    {
+        // Arrange
+        await using var command = _connection.CreateCommand();
+        command.CommandText = "CREATE TABLE GuardReferenceLookup (Id INTEGER PRIMARY KEY)";
+        await command.ExecuteNonQueryAsync();
+        var guard = new TenantScopedQueryGuardInterceptor(_accessor, _httpContextAccessorMock.Object,
+            NullLogger<TenantScopedQueryGuardInterceptor>.Instance);
+        await using var first = new FirstReferenceContext(new DbContextOptionsBuilder<FirstReferenceContext>()
+            .UseSqlite(_connection).AddInterceptors(guard).Options);
+        await using var second = new SecondReferenceContext(new DbContextOptionsBuilder<SecondReferenceContext>()
+            .UseSqlite(_connection).AddInterceptors(guard).Options);
+        await first.Set<ReferenceLookup>().CountAsync();
+
+        // Act
+        var read = () => second.Set<ReferenceLookup>().CountAsync();
+
+        // Assert
+        await read.Should().NotThrowAsync("a populated cache for one model is not a completed cache for another");
+    }
+
+    [Fact]
+    public async Task GlobalReferenceCache_CannotExemptATenantTableInAnotherModel()
+    {
+        // Arrange
+        await using var command = _connection.CreateCommand();
+        command.CommandText = "CREATE TABLE GuardReferenceLookup (Id INTEGER PRIMARY KEY)";
+        await command.ExecuteNonQueryAsync();
+        var guard = new TenantScopedQueryGuardInterceptor(_accessor, _httpContextAccessorMock.Object,
+            NullLogger<TenantScopedQueryGuardInterceptor>.Instance);
+        await using var global = new FirstReferenceContext(new DbContextOptionsBuilder<FirstReferenceContext>()
+            .UseSqlite(_connection).AddInterceptors(guard).Options);
+        await using var tenant = new TenantLookupContext(new DbContextOptionsBuilder<TenantLookupContext>()
+            .UseSqlite(_connection).AddInterceptors(guard).Options);
+        await global.Set<ReferenceLookup>().CountAsync();
+
+        // Act
+        var read = () => tenant.Set<PrivateLookup>().CountAsync();
+
+        // Assert
+        await read.Should().ThrowAsync<InvalidOperationException>().WithMessage("*[SEC]*");
+    }
+
+    [GlobalReference]
+    private sealed class ReferenceLookup { public int Id { get; set; } }
+
+    [TenantScoped]
+    private sealed class PrivateLookup { public int Id { get; set; } }
+
+    private sealed class FirstReferenceContext(DbContextOptions<FirstReferenceContext> options) : DbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+            modelBuilder.Entity<ReferenceLookup>().ToTable("GuardReferenceLookup");
+    }
+
+    private sealed class SecondReferenceContext(DbContextOptions<SecondReferenceContext> options) : DbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+            modelBuilder.Entity<ReferenceLookup>().ToTable("CspProfiles");
+    }
+
+    private sealed class TenantLookupContext(DbContextOptions<TenantLookupContext> options) : DbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+            modelBuilder.Entity<PrivateLookup>().ToTable("GuardReferenceLookup");
     }
 
     // ─── [TenantScoped] queries must still throw without tenant context ───
