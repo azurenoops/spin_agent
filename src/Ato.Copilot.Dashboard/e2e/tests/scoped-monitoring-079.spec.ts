@@ -40,11 +40,16 @@ for (const width of [1440, 390]) {
     // Act
     await page.getByRole('navigation', { name: 'System task views' }).getByRole('link', { name: 'Rules', exact: true }).click();
     await page.getByRole('button', { name: 'Create rule →' }).click();
+    await expect(page.getByRole('dialog', { name: 'Create monitoring rule' })).toBeVisible();
+    await page.keyboard.press('Shift+Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('dialog'))).toBe(true);
     await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Review drift');
     await page.getByRole('textbox', { name: 'Reviewed baseline reference' }).fill('DEMO baseline v1');
     await page.getByRole('textbox', { name: 'Owner', exact: true }).fill('DEMO ISSM');
     await page.getByRole('button', { name: 'Save reviewed rule' }).click();
     // Assert
+    await expect(page.getByRole('dialog', { name: 'Monitoring rule' })).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(page.getByRole('cell', { name: 'Review drift Version 1 · DEMO ISSM', exact: true })).toBeVisible();
     expect(saved).toEqual([expect.objectContaining({ name: 'Review drift', boundaryDefinitionId: 'boundary-a',
       baselineReference: 'DEMO baseline v1', ownerId: 'DEMO ISSM', condition: { field: 'Type', operator: 'Equals', value: 'Drift' } })]);

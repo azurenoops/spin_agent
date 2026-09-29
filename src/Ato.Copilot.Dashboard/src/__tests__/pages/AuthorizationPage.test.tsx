@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import apiClient from '../../api/client';
 import AuthorizationPage from '../../pages/AuthorizationPage';
+import '../helpers/dialog';
 
 const workspace = vi.hoisted(() => ({
   value: null as { systemAccess: { permissions: { canDecideAuthorization: boolean } } } | null,
@@ -80,16 +81,52 @@ describe('AuthorizationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Issue Authorization' }));
 
     // Assert
+    expect(screen.getByRole('dialog', { name: 'Issue Authorization Decision' })).toBeVisible();
     expect(screen.queryByLabelText(/Issued By/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Authorizing Official Name/)).not.toBeInTheDocument();
 
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Issue Authorization' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm authorization decision' }));
 
     // Assert
     await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith(
       '/systems/system-1/authorization',
       expect.not.objectContaining({ issuedBy: expect.anything(), issuedByName: expect.anything() }),
     ));
+  });
+
+  it('keeps failed decision input in its dialog and cancels without another write', async () => {
+    // Arrange
+    vi.mocked(apiClient.post).mockRejectedValue({ error: 'Decision context changed' });
+    render(<MemoryRouter initialEntries={['/systems/system-1/authorization']}><Routes>
+      <Route path="/systems/:id/authorization" element={<AuthorizationPage />} /></Routes></MemoryRouter>);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Issue Authorization' }));
+    fireEvent.change(screen.getByLabelText('Terms and Conditions'), { target: { value: 'Keep this draft' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm authorization decision' }));
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('Decision context changed');
+    expect(screen.getByRole('dialog')).toContainElement(screen.getByRole('alert'));
+    expect(screen.getByLabelText('Terms and Conditions')).toHaveValue('Keep this draft');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+  });
+  it('blocks dismissal while the decision is being recorded', async () => {
+    // Arrange
+    let finish!: (value: { data: object }) => void;
+    vi.mocked(apiClient.post).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    render(<MemoryRouter initialEntries={['/systems/system-1/authorization']}><Routes>
+      <Route path="/systems/:id/authorization" element={<AuthorizationPage />} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Issue Authorization' }));
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm authorization decision' }));
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    // Assert
+    expect(screen.getByRole('dialog')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+    await act(async () => finish({ data: {} }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

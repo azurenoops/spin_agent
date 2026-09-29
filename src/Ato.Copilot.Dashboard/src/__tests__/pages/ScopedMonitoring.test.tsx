@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import ScopedMonitoring from '../../pages/ScopedMonitoring';
 import * as api from '../../api/scopedMonitoring';
 import type { MonitoringWorkspace } from '../../api/scopedMonitoring';
+import '../helpers/dialog';
 
 vi.mock('../../components/layout/SystemLayout', () => ({
   useSystemContext: () => ({ detail: { systemId: 'system-a', name: 'Mission A' } }),
@@ -43,6 +44,7 @@ describe('scoped monitoring screens', () => {
     render(<MemoryRouter><ScopedMonitoring section="rules" /></MemoryRouter>);
     // Act
     fireEvent.click(await screen.findByRole('button', { name: 'Create rule →' }));
+    expect(screen.getByRole('dialog', { name: 'Create monitoring rule' })).toBeVisible();
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Network' } });
     fireEvent.change(screen.getByRole('textbox', { name: 'Reviewed baseline reference' }), { target: { value: 'baseline-1' } });
     fireEvent.change(screen.getByRole('textbox', { name: 'Owner' }), { target: { value: 'owner' } });
@@ -52,6 +54,25 @@ describe('scoped monitoring screens', () => {
       name: 'Network', boundaryDefinitionId: 'boundary-a', baselineReference: 'baseline-1',
       condition: { field: 'Type', operator: 'Equals', value: 'Drift' }, ownerId: 'owner',
     }), undefined));
+  });
+
+  it('retains rule edits and exposes save errors inside the dialog', async () => {
+    // Arrange
+    vi.mocked(api.saveMonitoringRule).mockRejectedValue(new Error('Rule version changed'));
+    render(<MemoryRouter><ScopedMonitoring section="rules" /></MemoryRouter>);
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Create rule →' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Preserved rule' } });
+    fireEvent.change(screen.getByLabelText('Reviewed baseline reference'), { target: { value: 'baseline-1' } });
+    fireEvent.change(screen.getByLabelText('Owner'), { target: { value: 'owner' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save reviewed rule' }));
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('Rule version changed');
+    expect(screen.getByRole('dialog')).toContainElement(screen.getByRole('alert'));
+    expect(screen.getByLabelText('Name')).toHaveValue('Preserved rule');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.saveMonitoringRule).toHaveBeenCalledTimes(1);
   });
 
   it('retains error state and does not infer write permission from local role', async () => {

@@ -1,65 +1,65 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from '../workspaces/workspaceNavigation';
 import SystemPackageValidation from './SystemPackageValidation';
+import SystemNextActions from './SystemNextActions';
 import { getConMonOverview, type ConMonOverviewResponse } from '../../api/conmon';
 import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport, systemPanel, systemPrimaryAction, systemSecondaryAction } from './SystemTaskPresentation';
+import { moveTabFocus, useQueryState } from '../workspace-operations/workspaceUi';
 
 export default function SystemReadinessOverview({ systemId, systemName, currentPhase }: { systemId: string; systemName: string; currentPhase?: string }) {
-  const [mode, setMode] = useState(currentPhase === 'Monitor' ? 'monitoring' : 'preparation');
-  return <>
-    <nav aria-label="System overview tasks" className="mb-5 flex flex-wrap gap-3">
-      <button type="button" aria-pressed={mode === 'preparation'} className={mode === 'preparation' ? systemPrimaryAction : systemSecondaryAction}
-        onClick={() => setMode('preparation')}>Preparing for ATO</button>
-      <button type="button" aria-pressed={mode === 'monitoring'} className={mode === 'monitoring' ? systemPrimaryAction : systemSecondaryAction}
-        onClick={() => setMode('monitoring')}>Monitoring &amp; follow-up</button>
-    </nav>
-    {mode === 'preparation' ? <SubmissionReadiness systemId={systemId} systemName={systemName} /> : <MonitoringNextActions systemId={systemId} />}
-  </>;
+  const { params, set } = useQueryState();
+  const requested = params.get('overview');
+  const mode = requested === 'readiness' ? 'readiness' : requested === 'monitoring' || currentPhase === 'Monitor' ? 'monitoring' : 'readiness';
+  const navigation = <nav role="tablist" aria-label="System overview tasks" className="system-section-tabs my-6" onKeyDown={moveTabFocus}>
+    {([['readiness', 'Readiness'], ['monitoring', 'Monitoring & follow-up']] as const).map(([value, label]) =>
+      <button key={value} type="button" id={`overview-tab-${value}`} role="tab" aria-selected={mode === value}
+        aria-controls={`overview-panel-${value}`} tabIndex={mode === value ? 0 : -1}
+        className={`shrink-0 whitespace-nowrap border-b-2 px-0 py-[11px] text-xs ${mode === value ? 'border-[#5143d7] text-[#5143d7]' : 'border-transparent text-slate-500'}`}
+        onClick={() => set({ overview: value })}>{label}</button>)}
+  </nav>;
+  return mode === 'readiness'
+    ? <SubmissionReadiness key={systemId} systemId={systemId} systemName={systemName} navigation={navigation} />
+    : <MonitoringNextActions key={systemId} systemId={systemId} systemName={systemName} navigation={navigation} />;
 }
 
-function SubmissionReadiness({ systemId, systemName }: { systemId: string; systemName: string }) {
+function SubmissionReadiness({ systemId, systemName, navigation }: { systemId: string; systemName: string; navigation: ReactNode }) {
+  const [nextPath, setNextPath] = useState<string | null>(null);
   const base = `/systems/${encodeURIComponent(systemId)}`;
+  const checklist = `${base}/documents?purpose=InitialSubmission`;
+  const continueTo = nextPath ? `${base}/${nextPath}` : checklist;
   return <section aria-label="Initial submission readiness" className="mb-6">
-    <SystemTaskHeading title="A clear path to your ATO package"
+    <SystemTaskHeading eyebrow={systemName} title="A clear path to your ATO package"
       description="Finish applicable documentation, review evidence, and prepare an initial submission."
-      status={<span className="rounded-full bg-indigo-50 px-3 py-1 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">Package preparation · {systemName}</span>}
-      action={<Link to={`${base}/documents`} className={systemPrimaryAction}>Continue preparation</Link>} />
+      action={<Link to={continueTo} className={systemPrimaryAction}>Continue preparation</Link>} />
+    {navigation}
+    <div role="tabpanel" id="overview-panel-readiness" aria-labelledby="overview-tab-readiness">
+    <SystemPackageValidation systemId={systemId} initialPurpose="InitialSubmission" summaryOnly />
     <SystemTaskColumns support={<>
-      <SystemTaskSupport title="Contributes to"><p>Complete reviewed submission package</p>
-        <p>SSP, assessment plan, assessment report, POA&amp;M and supporting evidence as required by the server validation.</p>
-      </SystemTaskSupport>
-      <SystemTaskSupport title="Next in Systems">
-        <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`${base}/documents`}>Readiness checklist</Link>
-        <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`${base}/documents?tab=exports`}>Generate &amp; export a package</Link>
-        <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`${base}/conmon`}>Coverage &amp; health</Link>
-      </SystemTaskSupport>
-      <SystemTaskSupport title="Keep the baseline distinct">
-        <p>A readiness check is not an authorization decision or eMASS acceptance. Monitoring an operational mission system remains a separate task.</p>
-      </SystemTaskSupport>
-    </>}>
-      <section className={systemPanel}>
-        <h2 className="text-lg font-semibold">Next actions for this system</h2>
-        <p className="mt-3 text-sm text-slate-500">Select the package purpose and validate the current records to identify applicable blockers. These task links are navigation, not completion claims.</p>
-        <div className="mt-4 divide-y divide-slate-100 dark:divide-slate-700">
-          {[
-            { title: 'Confirm system boundary', description: 'Define the SSP scope and included resources.', label: 'Review system boundary', path: 'boundaries' },
-            { title: 'Review mission profile', description: 'Review the system description used in the SSP.', label: 'Review mission profile', path: 'profile/MissionAndPurpose' },
-            { title: 'Prepare assessment plan', description: 'Define the procedures and assessors for the SAP.', label: 'Review assessment plan', path: 'assessments?tab=plan' },
-          ].map(task => <article key={task.path} className="flex flex-wrap items-center justify-between gap-3 py-5">
-            <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">{task.title}</h3><p className="mt-2 text-sm text-slate-500">{task.description}</p></div>
-            <Link aria-label={task.label} className={systemSecondaryAction} to={`${base}/${task.path}`}>Review →</Link>
-          </article>)}
-        </div>
-        <p className="mt-5 rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm leading-relaxed text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
-          Initial package preparation does not require an already-issued ATO. Applicability and blockers are determined by the shared readiness service.
-        </p>
+      <section className="border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px]">Used in your package</p>
+        <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Complete reviewed submission package</h2>
+        <p className="mb-3 leading-relaxed">Reviewed records supply the submission package. Draft edits must not replace the approved baseline.</p>
+        <Link className={systemSecondaryAction} to={`${base}/documents/preview`}>Preview contribution</Link>
+        <p className="mt-2 leading-relaxed">The preview uses current records; it is not an approved export.</p>
       </section>
-      <SystemPackageValidation systemId={systemId} initialPurpose="InitialSubmission" />
+      <section className="border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px]">Review &amp; ownership</p>
+        <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Keep the next action clear</h2>
+        <p className="leading-relaxed">Review responsible roles, source versions, review status and evidence in each task. A readiness check is not an authorization decision or eMASS acceptance.</p>
+      </section>
+      <section className="border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px]">Related work</p>
+        <Link className={systemSecondaryAction} to={checklist}>View package readiness</Link>
+      </section>
+    </>}>
+      <SystemNextActions systemId={systemId} onNextPathChange={setNextPath} />
     </SystemTaskColumns>
+    </div>
+    <p className="mt-6 text-xs text-slate-500">Inputs → reviewed records → document output → ongoing change review</p>
   </section>;
 }
 
-function MonitoringNextActions({ systemId }: { systemId: string }) {
+function MonitoringNextActions({ systemId, systemName, navigation }: { systemId: string; systemName: string; navigation: ReactNode }) {
   const [data, setData] = useState<ConMonOverviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,9 +77,11 @@ function MonitoringNextActions({ systemId }: { systemId: string }) {
   }, [systemId, attempt]);
   const base = `/systems/${encodeURIComponent(systemId)}`;
   return <section className="mb-6" aria-label="Monitoring follow-up">
-    <SystemTaskHeading title="Maintain the reviewed baseline"
+    <SystemTaskHeading eyebrow={systemName} title="Maintain the reviewed baseline"
       description="Review recorded changes and follow-up work before deciding whether reassessment or document updates are needed."
       action={<Link className={systemPrimaryAction} to={`${base}/conmon`}>Review monitoring</Link>} />
+    {navigation}
+    <div role="tabpanel" id="overview-panel-monitoring" aria-labelledby="overview-tab-monitoring">
     <SystemTaskColumns support={<>
       <SystemTaskSupport title="Contributes to"><p>Monitoring evidence / Reviewed baseline follow-up</p></SystemTaskSupport>
       <SystemTaskSupport title="Review scope and records">
@@ -116,5 +118,6 @@ function MonitoringNextActions({ systemId }: { systemId: string }) {
         </>}
       </section>
     </SystemTaskColumns>
+    </div>
   </section>;
 }

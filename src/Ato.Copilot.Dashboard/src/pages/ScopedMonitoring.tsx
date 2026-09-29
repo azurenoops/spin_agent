@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from '../features/workspaces/workspaceNavigation';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import WorkspacePageHeader from '../components/layout/WorkspacePageHeader';
+import SetupDialog from '../features/workspace-operations/SetupDialog';
 import { getMonitoringWorkspace, saveMonitoringRule, testMonitoringRule, dispositionMonitoringImpact,
   type MonitoringWorkspace, type MonitoringRule, type RuleInput, type MonitoringEvaluation } from '../api/scopedMonitoring';
 
@@ -65,6 +66,7 @@ function ScopedMonitoringContent({ system, section }: { system: { id: string; na
   currentSystem.current = system.id;
   const [data, setData] = useState<MonitoringWorkspace | null>(null);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const operationPending = useRef(false);
   const [editing, setEditing] = useState<MonitoringRule | null>(null);
@@ -84,23 +86,23 @@ function ScopedMonitoringContent({ system, section }: { system: { id: string; na
   }, [system.id]);
   useEffect(() => {
     let cancelled = false;
-    setData(null); setError(''); setSelected(null); setShowForm(false); setEditing(null); setTests(null);
+    setData(null); setError(''); setFormError(''); setSelected(null); setShowForm(false); setEditing(null); setTests(null);
     setDisposition(''); setRationale('');
     const refresh = () => load().catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Monitoring records could not be loaded.'); });
     void refresh();
     const interval = setInterval(() => void refresh(), 30_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [load]);
-  const act = async (operation: () => Promise<unknown>) => {
+  const act = async (operation: () => Promise<unknown>, inDialog = false) => {
     if (operationPending.current) return;
     operationPending.current = true;
-    setBusy(true); setError('');
+    setBusy(true); if (inDialog) setFormError(''); else setError('');
     try { await operation(); await load(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'The operation failed. Reload and retry.'); }
+    catch (e) { (inDialog ? setFormError : setError)(e instanceof Error ? e.message : 'The operation failed. Reload and retry.'); }
     finally { operationPending.current = false; setBusy(false); }
   };
   const edit = (rule: MonitoringRule) => {
-    setEditing(rule); setShowForm(true); setTests(null);
+    setEditing(rule); setShowForm(true); setTests(null); setFormError('');
     setForm({ name: rule.name, boundaryDefinitionId: rule.boundaryDefinitionId, baselineReference: rule.baselineReference,
       ownerId: rule.ownerId, signal: rule.signal, condition: JSON.parse(rule.triggerCondition),
       cadenceMinutes: rule.cadenceMinutes, severity: rule.severityOverride, isEnabled: rule.isEnabled, expectedVersion: rule.version });
@@ -112,7 +114,7 @@ function ScopedMonitoringContent({ system, section }: { system: { id: string; na
   return <div className="space-y-6 text-slate-800">
     <WorkspacePageHeader eyebrow={system.name} title={headings[section][0]} description={headings[section][1]} actions={<>
       {section === 'rules' && data?.canManageRules && <button className={`${button} bg-indigo-600 !text-white`} onClick={() => {
-        setEditing(null); setForm({ ...emptyRule, boundaryDefinitionId: data?.boundaries[0]?.id ?? '' }); setShowForm(true);
+        setEditing(null); setForm({ ...emptyRule, boundaryDefinitionId: data?.boundaries[0]?.id ?? '' }); setShowForm(true); setTests(null); setFormError('');
       }}>Create rule →</button>}
       {section === 'coverage' && <Link className={button} to={`/systems/${system.id}/boundaries`}>Review monitored scope →</Link>}
       <button className={button} disabled={busy} onClick={() => void act(load)}>Refresh</button>
@@ -147,10 +149,15 @@ function ScopedMonitoringContent({ system, section }: { system: { id: string; na
                 <td><Badge value={rule.isEnabled ? 'Enabled' : 'Disabled'} /></td><td><button className={button} onClick={() => edit(rule)}>Open →</button></td></tr>)}
             </tbody></table></div>
             {!data.rules.length && <p>No scoped rules. Create a rule after reviewing its boundary and baseline.</p>}
-            {showForm && <form className="space-y-4 border-t pt-5" onSubmit={event => {
-              event.preventDefault(); void act(async () => { const saved = await saveMonitoringRule(system.id, form, editing?.id); setEditing(saved); setForm({ ...form, expectedVersion: saved.version }); });
+            {showForm && <SetupDialog title={editing ? 'Monitoring rule' : 'Create monitoring rule'} busy={busy} onClose={() => setShowForm(false)}
+              description="Review the scope, condition and owner. Saving a rule does not issue an authorization decision.">
+            <form className="space-y-4" onSubmit={event => {
+              event.preventDefault();
+              if (!data.canManageRules) { setFormError('Rule-management permission is required.'); return; }
+              void act(async () => { const saved = await saveMonitoringRule(system.id, form, editing?.id); setEditing(saved); setForm({ ...form, expectedVersion: saved.version }); }, true);
             }}>
-              <h2 className="text-lg font-semibold">{editing ? 'Rule preview' : 'Create monitoring rule'}</h2>
+              {formError && <p role="alert" className="text-sm text-red-800">{formError}</p>}
+              <fieldset disabled={busy || !data.canManageRules} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label>Name<input required maxLength={200} className={inputClass} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
                 <label>Reviewed boundary<select required className={inputClass} value={form.boundaryDefinitionId} onChange={e => setForm({ ...form, boundaryDefinitionId: e.target.value })}><option value="">Select boundary</option>{data.boundaries.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
@@ -166,10 +173,12 @@ function ScopedMonitoringContent({ system, section }: { system: { id: string; na
               <label className="flex gap-2 text-sm"><input type="checkbox" checked={form.isEnabled} onChange={e => setForm({ ...form, isEnabled: e.target.checked })} />Enabled</label>
               <p className="text-sm text-slate-500">Saving records your reviewed boundary snapshot. A later scope change requires re-review. Response: create impact review; never automatic authorization.</p>
               <div className="flex gap-3"><button disabled={busy || !data.canManageRules} className={button}>Save reviewed rule</button>
-                {editing && <button type="button" className={button} disabled={busy || !data.canManageRules} onClick={() => void act(async () => setTests(await testMonitoringRule(system.id, editing.id)))}>Test saved rule (no writes)</button>}
-                <button type="button" className={button} onClick={() => setShowForm(false)}>Close</button></div>
-            </form>}
-            {tests && <div role="status"><h3 className="font-semibold">Test results</h3>{tests.length ? tests.map(e => <p key={e.id}>{e.outcome}</p>) : <p>Disabled rule: no evaluation or review work.</p>}</div>}
+                {editing && <button type="button" className={button} disabled={busy || !data.canManageRules} onClick={() => void act(async () => setTests(await testMonitoringRule(system.id, editing.id)), true)}>Test saved rule (no writes)</button>}</div>
+              </fieldset>
+              {tests && <div role="status"><h3 className="font-semibold">Test results</h3>{tests.length ? tests.map(e => <p key={e.id}>{e.outcome}</p>) : <p>Disabled rule: no evaluation or review work.</p>}</div>}
+              <button type="button" disabled={busy} className={button} onClick={() => setShowForm(false)}>Cancel</button>
+            </form>
+            </SetupDialog>}
             <details><summary className="cursor-pointer font-semibold">Version and evaluation history ({data.evaluations.length})</summary>
               {data.evaluations.map(e => <details key={e.id} className="mt-3 border-t pt-3"><summary>Version {e.ruleVersion} · {e.outcome} · {date(e.evaluatedAt)}</summary><Details value={e.ruleSnapshotJson} /><Details value={e.inputSnapshotJson} /></details>)}</details>
           </>}

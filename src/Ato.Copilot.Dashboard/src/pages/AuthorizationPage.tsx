@@ -6,6 +6,8 @@ import { useSettings } from '../hooks/useSettings';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport, systemPanel } from '../features/systems/SystemTaskPresentation';
 import ExternalDecisionRecords from '../features/systems/ExternalDecisionRecords';
+import SetupDialog from '../features/workspace-operations/SetupDialog';
+import { documentActionError } from '../features/systems/systemDecisionDraftApi';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -158,10 +160,7 @@ export default function AuthorizationPage() {
       setFormOpen(false);
       refreshDecision();
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'Failed to issue authorization. Please check the form and try again.';
-      setError(msg);
+      setError(documentActionError(err));
     } finally {
       setSubmitting(false);
     }
@@ -186,10 +185,7 @@ export default function AuthorizationPage() {
       setOverrideFormOpen(false);
       refreshDecision();
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'Failed to apply authorization override.';
-      setError(msg);
+      setError(documentActionError(err));
     } finally {
       setSubmitting(false);
     }
@@ -210,7 +206,7 @@ export default function AuthorizationPage() {
       {/* Page header */}
       <SystemTaskHeading title="Recorded authorization decisions"
         description="Retain the issuing authority, conditions and recorded authorization outcome without inferring a decision from export success."
-        action={canIssue && !formOpen && (
+        action={canIssue && (
           <button
             type="button"
             onClick={() => { setFormOpen(true); setError(null); setSuccess(null); }}
@@ -245,8 +241,8 @@ export default function AuthorizationPage() {
       {success && (
         <div className="rounded-md bg-green-50 p-4 text-sm text-green-800">{success}</div>
       )}
-      {error && (
-        <div className="rounded-md bg-red-50 p-4 text-sm text-red-800">{error}</div>
+      {error && !formOpen && !overrideFormOpen && (
+        <div role="alert" className="rounded-md bg-red-50 p-4 text-sm text-red-800">{error}</div>
       )}
 
       {/* Active decision */}
@@ -304,8 +300,8 @@ export default function AuthorizationPage() {
                 </dl>
               </div>
             )}
-            {canApplyOverride && !overrideFormOpen && (
-              <button type="button" onClick={() => setOverrideFormOpen(true)} className="mt-5 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+            {canApplyOverride && (
+              <button type="button" onClick={() => { setError(null); setOverrideFormOpen(true); }} className="mt-5 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
                 Apply Temporary Override
               </button>
             )}
@@ -314,10 +310,11 @@ export default function AuthorizationPage() {
       )}
 
       {canApplyOverride && decision && overrideFormOpen && (
-        <section aria-label="Apply authorization override form">
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-medium text-gray-900">Apply Temporary Override</h2>
+        <SetupDialog title="Apply Temporary Override" busy={submitting} onClose={() => setOverrideFormOpen(false)}
+          description="Record a justified temporary override without changing the underlying authorization verdict.">
+            {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
             <form onSubmit={(e) => { void handleOverrideSubmit(e); }} className="mt-4 space-y-4">
+              <fieldset disabled={submitting} className="space-y-4">
               <div>
                 <label htmlFor="override-status" className="block text-sm font-medium text-gray-700">Override Status</label>
                 <select id="override-status" value={overrideStatus} onChange={(e) => setOverrideStatus(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
@@ -336,19 +333,20 @@ export default function AuthorizationPage() {
                 <button type="button" onClick={() => setOverrideFormOpen(false)} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700">Cancel</button>
                 <button type="submit" disabled={submitting} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{submitting ? 'Applying...' : 'Apply Override'}</button>
               </div>
+              </fieldset>
             </form>
-          </div>
-        </section>
+        </SetupDialog>
       )}
 
       {/* Issue authorization form */}
       {canIssue && formOpen && (
-        <section aria-label="Issue authorization form">
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-medium text-gray-900">Issue Authorization Decision</h2>
+        <SetupDialog title="Issue Authorization Decision" busy={submitting} onClose={() => setFormOpen(false)}
+          description="Review the decision, residual risk and conditions. This action is attributed to the authenticated AO.">
+            {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
             <form onSubmit={(e) => { void handleSubmit(e); }} className="mt-4 space-y-4">
+              <fieldset disabled={submitting} className="space-y-4">
               {/* Decision type */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="decision-type" className="block text-sm font-medium text-gray-700">
                     Decision Type <span className="text-red-500">*</span>
@@ -441,12 +439,12 @@ export default function AuthorizationPage() {
                   disabled={submitting}
                   className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Issuing…' : 'Issue Authorization'}
+                  {submitting ? 'Issuing…' : 'Confirm authorization decision'}
                 </button>
               </div>
+              </fieldset>
             </form>
-          </div>
-        </section>
+        </SetupDialog>
       )}
 
       {/* Risk acceptances table */}

@@ -9,43 +9,26 @@ import {
   type BaselineDetailResponse,
   type InfoTypeInput,
 } from '../api/systemDetail';
-import type { CategorizationInfo, Sp80060InfoType } from '../types/dashboard';
-import { useSettings } from '../hooks/useSettings';
+import { getProfileSection } from '../api/systemProfile';
+import type {
+  CategorizationInfo,
+  GovernanceStatus,
+  ProfileSectionDetail,
+  Sp80060InfoType,
+} from '../types/dashboard';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import infoTypesData from '../data/sp800-60-information-types.json';
 
-// ─── Summary Card ────────────────────────────────────────────────────────────
+const governanceLabels: Record<GovernanceStatus, string> = {
+  NotStarted: 'Not started',
+  Draft: 'Draft',
+  UnderReview: 'Under review',
+  Approved: 'Approved',
+  NeedsRevision: 'Needs revision',
+};
 
-function Card({ label, value, color }: { label: string; value: number | string; color: string }) {
-  const colorMap: Record<string, string> = {
-    blue: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
-    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-    gray: 'bg-gray-50 text-gray-600 border-gray-200',
-    red: 'bg-red-50 text-red-700 border-red-200',
-  };
-  return (
-    <div className={`rounded-xl border p-4 ${colorMap[color] ?? 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-      <p className="text-xs font-medium uppercase tracking-wider opacity-75">{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
-    </div>
-  );
-}
-
-// ─── Level Badge ─────────────────────────────────────────────────────────────
-
-function LevelBadge({ level }: { level: string }) {
-  const map: Record<string, string> = {
-    High: 'bg-red-100 text-red-700 ring-red-200',
-    Moderate: 'bg-amber-100 text-amber-700 ring-amber-200',
-    Low: 'bg-green-100 text-green-700 ring-green-200',
-  };
-  return (
-    <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-inset ${map[level] ?? 'bg-gray-100 text-gray-700 ring-gray-200'}`}>
-      {level}
-    </span>
-  );
+function systemPath(systemId: string, suffix = '') {
+  return `/systems/${encodeURIComponent(systemId)}${suffix}`;
 }
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
@@ -53,12 +36,14 @@ function LevelBadge({ level }: { level: string }) {
 export default function BaselineManagement() {
   const { id: systemId } = useParams<{ id: string }>();
   const canManage = useSystemMutationPermission(systemId, 'canManageSystem');
-  const { settings } = useSettings();
 
   const [baseline, setBaseline] = useState<BaselineDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [noBaseline, setNoBaseline] = useState(false);
   const [categorization, setCategorization] = useState<CategorizationInfo | null>(null);
+  const [systemName, setSystemName] = useState('System');
+  const [dataTypesSection, setDataTypesSection] = useState<ProfileSectionDetail | null>(null);
+  const [dataTypesError, setDataTypesError] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadFailure, setLoadFailure] = useState<string | null>(null);
   const requireManagement = () => {
@@ -74,20 +59,15 @@ export default function BaselineManagement() {
   const [overlayName, setOverlayName] = useState('');
   const [selecting, setSelecting] = useState(false);
 
-  // Family table filter
-  const [familySearch, setFamilySearch] = useState('');
-
-  // Cascade banner
-  const [cascadeBanner, setCascadeBanner] = useState<string | null>(null);
-
   const fetchBaseline = useCallback(async () => {
     if (!systemId) return;
     setLoading(true);
     setNoBaseline(false);
     setActionError(null);
     setLoadFailure(null);
+    setDataTypesError(false);
     try {
-      const [data, detail] = await Promise.all([
+      const [data, detail, dataTypes] = await Promise.all([
         getBaselineDetail(systemId).catch((err: unknown) => {
           const status = (err as { response?: { status?: number } })?.response?.status;
           const code = (err as { errorCode?: string })?.errorCode;
@@ -99,9 +79,15 @@ export default function BaselineManagement() {
           setLoadFailure('Failed to load system categorization');
           return null;
         }),
+        getProfileSection(systemId, 'DataTypes').catch(() => {
+          setDataTypesError(true);
+          return null;
+        }),
       ]);
       setBaseline(data);
       setCategorization(detail?.categorization ?? null);
+      setSystemName(detail?.name ?? 'System');
+      setDataTypesSection(dataTypes);
     } finally {
       setLoading(false);
     }
@@ -109,12 +95,7 @@ export default function BaselineManagement() {
 
   useEffect(() => { fetchBaseline(); }, [fetchBaseline]);
 
-  const handleCategorizationSaved = async (cascade?: { baselineReselected: string; baselineControls: number; inheritancesReapplied: number } | null) => {
-    if (cascade) {
-      setCascadeBanner(
-        `Baseline auto-updated to ${cascade.baselineReselected} (${cascade.baselineControls} controls). ${cascade.inheritancesReapplied} inheritance designation${cascade.inheritancesReapplied !== 1 ? 's' : ''} reapplied.`
-      );
-    }
+  const handleCategorizationSaved = async () => {
     await fetchBaseline();
   };
 
@@ -166,7 +147,17 @@ export default function BaselineManagement() {
     return (
       <div className="space-y-6">
         {actionError && <p role="alert">{actionError}</p>}
-        <SystemTaskHeading title="Categorization & control baseline" description="Review information impacts and the resulting control set before assigning implementation work." />
+        {dataTypesError && <p role="alert" className="text-sm text-amber-700">Data Types review metadata is unavailable.</p>}
+        <SystemTaskHeading
+          eyebrow={systemName}
+          title="Categorization & control baseline"
+          description="Review information impacts and the resulting control set before assigning implementation work."
+          action={<button type="button" disabled={!canManage}
+            onClick={() => { if (requireManagement()) setShowRecategorizeDialog(true); }}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+            Review categorization
+          </button>}
+        />
 
         {/* No Categorization */}
         {!categorization && (
@@ -239,274 +230,130 @@ export default function BaselineManagement() {
 
   // ─── Baseline Detail View ──────────────────────────────────────────────────
 
-  const undesignated = baseline.totalControls - baseline.inheritedControls - baseline.sharedControls - baseline.customerControls;
-  const filteredFamilies = baseline.familyBreakdown.filter(f =>
-    !familySearch || f.family.toLowerCase().includes(familySearch.toLowerCase()),
+  const reviewStatus = dataTypesError
+    ? 'Review unavailable'
+    : dataTypesSection
+      ? governanceLabels[dataTypesSection.governanceStatus]
+      : 'Not started';
+  const dataTypeByName = new Map(
+    (dataTypesSection?.dataTypeEntries ?? []).map(item => [item.dataTypeName.trim().toLowerCase(), item]),
   );
 
   return (
     <div className="space-y-6">
       {actionError && <p role="alert">{actionError}</p>}
-      {/* Header */}
-      <SystemTaskHeading title="Categorization & control baseline"
+      {dataTypesError && <p role="alert" className="text-sm text-amber-700">Data Types review metadata is unavailable.</p>}
+      <SystemTaskHeading eyebrow={systemName} title="Categorization & control baseline"
         description="Review information impacts and the resulting control set before assigning implementation work."
-        status={<div className="flex flex-wrap items-center gap-3"><LevelBadge level={baseline.baselineLevel} />
-          {baseline.overlayApplied && (
-            <span className="inline-flex items-center rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700">
-              {baseline.overlayApplied}
-            </span>
-          )}
-        </div>} />
+        action={<button type="button" disabled={!canManage}
+          onClick={() => { if (requireManagement()) setShowRecategorizeDialog(true); }}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+          Review categorization
+        </button>} />
 
-      {/* Organization Framework Indicator */}
-      <div className="flex items-center gap-2 rounded-lg bg-indigo-50 border border-indigo-200 px-4 py-2">
-        <svg className="h-4 w-4 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-        </svg>
-        <span className="text-sm text-indigo-800">
-          Organization framework: <strong>{settings.activeFramework}</strong>
+      <div data-testid="categorization-summary"
+        className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-medium">
+          {baseline.baselineLevel} baseline - {categorization ? 'Current categorization' : 'Categorization required'}
         </span>
-        <span className="text-xs text-indigo-600">• This system&apos;s impact level: <strong>{baseline.baselineLevel}</strong></span>
+        <span className="self-start text-xs text-gray-500 sm:self-auto">Data Types - {reviewStatus}</span>
       </div>
 
-      {/* Cascade Banner */}
-      {cascadeBanner && (
-        <div className="flex items-center justify-between rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
-          <span>{cascadeBanner}</span>
-          <button onClick={() => setCascadeBanner(null)} className="ml-4 text-indigo-600 hover:text-indigo-800 font-medium">&times;</button>
-        </div>
-      )}
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <Card label="Total Controls" value={baseline.totalControls} color="blue" />
-        <Card label="Inherited" value={baseline.inheritedControls} color="green" />
-        <Card label="Shared" value={baseline.sharedControls} color="indigo" />
-        <Card label="Customer" value={baseline.customerControls} color="amber" />
-        <Card label="Undesignated" value={undesignated} color="gray" />
-      </div>
-
-      {/* FIPS 199 Categorization */}
-      {!categorization && (
-        <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white">
-          <div className="flex flex-col items-center justify-center py-10">
-            <svg className="h-8 w-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-            </svg>
-            <h3 className="text-sm font-semibold text-gray-700">No Categorization</h3>
-            <p className="mt-1 text-xs text-gray-500">This system has not been categorized yet.</p>
-            <button
-              disabled={!canManage}
-              onClick={() => { if (requireManagement()) setShowRecategorizeDialog(true); }}
-              className="mt-4 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-              Select Categorization
-            </button>
-          </div>
-        </div>
-      )}
-      {categorization && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-            <h3 className="text-sm font-semibold text-gray-900">FIPS 199 Security Categorization</h3>
-            <button
-              disabled={!canManage}
-              onClick={() => { if (requireManagement()) setShowRecategorizeDialog(true); }}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
-            >
-              Re-categorize
-            </button>
-          </div>
-          <div className="px-6 py-4">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {(['confidentiality', 'integrity', 'availability'] as const).map(dim => (
-                <div key={dim} className="text-center">
-                  <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2">{dim}</p>
-                  <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${
-                    categorization[dim] === 'High' ? 'bg-red-100 text-red-700' :
-                    categorization[dim] === 'Moderate' ? 'bg-amber-100 text-amber-700' :
-                    'bg-green-100 text-green-700'
-                  }`}>
-                    {categorization[dim]}
-                  </span>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]">
+        <section data-testid="information-type-panel"
+          className="min-w-0 rounded-lg border border-gray-200 bg-white p-5"
+          aria-labelledby="information-type-rationale">
+          {categorization ? <>
+            <div className="mb-6 grid gap-4 sm:grid-cols-3">
+              {(['confidentiality', 'integrity', 'availability'] as const).map(dimension => (
+                <div key={dimension} className="rounded-lg border border-gray-200 p-4">
+                  <p className="text-xs font-medium capitalize text-gray-500">{dimension}</p>
+                  <p className="mt-1 text-xl font-bold text-gray-900">{categorization[dimension]}</p>
+                  <p className="mt-1 text-xs text-gray-500">Current impact</p>
                 </div>
               ))}
-              <div className="text-center">
-                <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2">Overall</p>
-                <span className={`inline-flex rounded-full px-3 py-1 text-sm font-bold ${
-                  categorization.overall === 'High' ? 'bg-red-100 text-red-700' :
-                  categorization.overall === 'Moderate' ? 'bg-amber-100 text-amber-700' :
-                  'bg-green-100 text-green-700'
-                }`}>
-                  {categorization.overall}
-                </span>
-              </div>
             </div>
-            {(categorization.dodImpactLevel || categorization.informationTypes.length > 0) && (
-              <div className="mt-4 flex items-center gap-4 text-xs text-gray-500">
-                {categorization.dodImpactLevel && (
-                  <span>DoD Impact Level: <span className="font-medium text-gray-700">{categorization.dodImpactLevel}</span></span>
-                )}
-                {categorization.informationTypes.length > 0 && (
-                  <span>{categorization.informationTypes.length} information type{categorization.informationTypes.length !== 1 ? 's' : ''}</span>
-                )}
-                {categorization.formalNotation && (
-                  <span>SC: <span className="font-mono font-medium text-gray-700">{categorization.formalNotation}</span></span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {categorization && <section className={systemPanel}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Information type rationale</h2>
-          <Link className="text-sm text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/profile/DataTypes`}>Review information types</Link>
-        </div>
-        <p className="mb-4 text-sm text-slate-500">These recorded information types support the current impact determination. Changes must be reviewed against the actual mission.</p>
-        {categorization.informationTypes.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800"><tr>{['Information', 'Confidentiality', 'Integrity', 'Availability'].map(label => <th scope="col" key={label} className="px-3 py-3 font-medium">{label}</th>)}</tr></thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">{categorization.informationTypes.map((type, index) => <tr key={`${type.name}:${index}`}>
-            <td className="px-3 py-3 font-medium">{type.name}</td><td className="px-3 py-3">{type.confidentiality}</td>
-            <td className="px-3 py-3">{type.integrity}</td><td className="px-3 py-3">{type.availability}</td>
-          </tr>)}</tbody>
-        </table></div> : <p className="text-sm text-slate-500">No supporting information types were returned for this categorization.</p>}
-        <p className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
-          Review any categorization change together with the resulting baseline, narratives and assessment scope. Saving categorization does not approve those downstream records.
-        </p>
-      </section>}
-
-      {/* Metadata */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h3 className="text-sm font-semibold text-gray-900">Baseline Details</h3>
-          <button
-            onClick={() => setShowSelectDialog(true)}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
-          >
-            Re-select Baseline
-          </button>
-        </div>
-        <div className="grid grid-cols-2 gap-4 px-6 py-4 sm:grid-cols-4">
-          <div>
-            <p className="text-xs font-medium text-gray-500">Level</p>
-            <p className="mt-1 text-sm font-semibold text-gray-900">{baseline.baselineLevel}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-gray-500">Overlay</p>
-            <p className="mt-1 text-sm text-gray-900">{baseline.overlayApplied ?? 'None'}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-gray-500">Selected By</p>
-            <p className="mt-1 text-sm text-gray-900">{baseline.createdBy}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-gray-500">Selected At</p>
-            <p className="mt-1 text-sm text-gray-900">{new Date(baseline.createdAt).toLocaleDateString()}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-gray-500">Controls Added (Tailored In)</p>
-            <p className="mt-1 text-sm text-gray-900">{baseline.tailoredInControls}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-gray-500">Controls Removed (Tailored Out)</p>
-            <p className="mt-1 text-sm text-gray-900">{baseline.tailoredOutControls}</p>
-          </div>
-          {baseline.modifiedAt && (
-            <div>
-              <p className="text-xs font-medium text-gray-500">Last Modified</p>
-              <p className="mt-1 text-sm text-gray-900">{new Date(baseline.modifiedAt).toLocaleDateString()}</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 id="information-type-rationale" className="text-lg font-semibold text-gray-900">Information type rationale</h2>
+              <Link className="text-sm text-indigo-700 underline dark:text-indigo-300"
+                to={systemPath(systemId, '/profile/DataTypes')}>Review information types</Link>
             </div>
-          )}
-        </div>
-      </div>
+            <p className="mt-1 text-sm text-gray-600">
+              Review each categorized information type against its Data Types source record before changing the control baseline.
+            </p>
+            <div className="mt-4 max-w-full overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                <thead><tr className="text-xs uppercase tracking-wide text-gray-500">
+                  <th className="px-3 py-2 font-medium">Information</th>
+                  <th className="px-3 py-2 font-medium">Source</th>
+                  <th className="px-3 py-2 font-medium">Owner</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium" aria-label="Action" />
+                </tr></thead>
+                <tbody className="divide-y divide-gray-100">
+                  {categorization.informationTypes.map(infoType => {
+                    const dataType = dataTypeByName.get(infoType.name.trim().toLowerCase());
+                    return <tr key={infoType.name}>
+                      <td className="px-3 py-3 font-medium text-gray-900">{infoType.name}</td>
+                      <td className="px-3 py-3 text-gray-600">{dataType?.source || 'SP 800-60'}</td>
+                      <td className="px-3 py-3 text-gray-600">{dataTypesSection?.lastEditedBy || 'Unassigned'}</td>
+                      <td className="px-3 py-3 text-gray-600">
+                        <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${
+                          dataTypesSection?.governanceStatus === 'Approved'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : dataTypesSection?.governanceStatus === 'UnderReview'
+                              ? 'bg-amber-50 text-amber-800'
+                              : 'bg-gray-100 text-gray-600'
+                        }`}>{reviewStatus}</span>
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <Link to={systemPath(systemId, '/profile/DataTypes')} aria-label={`Open ${infoType.name}`}
+                          className="inline-flex rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-gray-50">
+                          Open
+                        </Link>
+                      </td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+              A categorization change previews its effect on the selected baseline, narratives, and assessment scope before it is saved.
+            </p>
+          </> : <div className="py-8 text-center">
+            <h2 id="information-type-rationale" className="text-lg font-semibold text-gray-900">No categorization</h2>
+            <p className="mt-1 text-sm text-gray-500">Select information types to derive the FIPS 199 impacts.</p>
+          </div>}
+        </section>
 
-      {/* Family Breakdown */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h3 className="text-sm font-semibold text-gray-900">
-            Control Families ({baseline.familyBreakdown.length} families, {baseline.totalControls} controls)
-          </h3>
-          <input
-            type="text"
-            placeholder="Filter families..."
-            value={familySearch}
-            onChange={e => setFamilySearch(e.target.value)}
-            className="w-48 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-        </div>
-        <div className="max-h-[400px] overflow-y-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50 sticky top-0">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Family</th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Controls</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Distribution</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 bg-white">
-              {filteredFamilies.map(f => (
-                <tr key={f.family} className="hover:bg-gray-50">
-                  <td className="whitespace-nowrap px-6 py-3 text-sm font-medium text-gray-900">{f.family}</td>
-                  <td className="whitespace-nowrap px-6 py-3 text-right text-sm text-gray-700">{f.count}</td>
-                  <td className="px-6 py-3">
-                    <div className="h-2 w-full max-w-xs rounded-full bg-gray-200">
-                      <div
-                        className="h-2 rounded-full bg-indigo-500"
-                        style={{ width: `${(f.count / baseline.totalControls) * 100}%` }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <aside className="space-y-5" aria-label="Categorization supporting actions">
+          <section className="border-l-2 border-indigo-200 pl-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Used in your package</p>
+            <h2 className="mt-2 text-sm font-semibold text-gray-900">SSP - Security categorization / Applicable controls</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              This page supplies reviewed records to the SSP. Draft edits do not replace the approved baseline.
+            </p>
+            <Link to={systemPath(systemId, '/documents#ssp-sections')}
+              className="mt-2 inline-flex rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              Preview contribution <span aria-hidden="true" className="ml-1">→</span>
+            </Link>
+          </section>
+          <section className="border-l-2 border-indigo-200 pl-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Review & ownership</p>
+            <h2 className="mt-2 text-sm font-semibold text-gray-900">Keep the next action clear</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Data Types status: {reviewStatus}. Owner: {dataTypesSection?.lastEditedBy || 'Unassigned'}.
+            </p>
+          </section>
+          <section className="border-l-2 border-indigo-200 pl-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Related work</p>
+            <Link to={systemPath(systemId)}
+              className="mt-2 inline-flex rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              View package readiness <span aria-hidden="true" className="ml-1">→</span>
+            </Link>
+          </section>
+        </aside>
       </div>
-
-      {/* Tailoring History */}
-      {baseline.tailorings.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-200 px-6 py-4">
-            <h3 className="text-sm font-semibold text-gray-900">
-              Tailoring History ({baseline.tailorings.length} actions)
-            </h3>
-          </div>
-          <div className="max-h-[300px] overflow-y-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Control</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Action</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Rationale</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Overlay Required</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">By</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {baseline.tailorings.map(t => (
-                  <tr key={t.id} className="hover:bg-gray-50">
-                    <td className="whitespace-nowrap px-6 py-3 text-sm font-medium text-gray-900">{t.controlId}</td>
-                    <td className="whitespace-nowrap px-6 py-3 text-sm">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                        t.action === 'Added' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        {t.action}
-                      </span>
-                    </td>
-                    <td className="max-w-xs truncate px-6 py-3 text-sm text-gray-600">{t.rationale}</td>
-                    <td className="whitespace-nowrap px-6 py-3 text-sm text-gray-500">{t.isOverlayRequired ? 'Yes' : 'No'}</td>
-                    <td className="whitespace-nowrap px-6 py-3 text-sm text-gray-500">{t.tailoredBy}</td>
-                    <td className="whitespace-nowrap px-6 py-3 text-sm text-gray-500">{new Date(t.tailoredAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* Select Dialog */}
       {showSelectDialog && (
@@ -660,8 +507,8 @@ function RecategorizeDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[90vh] w-full min-w-0 max-w-3xl flex-col rounded-xl bg-white shadow-2xl">
         {/* Header */}
         <div className="border-b border-gray-200 px-6 py-4">
           <h3 className="text-lg font-semibold text-gray-900">Re-categorize System</h3>
@@ -672,8 +519,8 @@ function RecategorizeDialog({
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* FIPS 199 Summary */}
           {selected.length > 0 && (
-            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-              <h4 className="text-sm font-medium text-indigo-900 mb-2">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <h4 className="mb-2 text-sm font-medium text-gray-900">
                 FIPS 199 Overall Categorization: <span className="font-bold">{overallFips}</span>
               </h4>
               <div className="flex gap-6 text-sm">
@@ -688,8 +535,8 @@ function RecategorizeDialog({
           {selected.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">Selected Information Types ({selected.length})</h4>
-              <div className="overflow-hidden rounded-md border border-gray-200">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <div className="max-w-full overflow-x-auto rounded-md border border-gray-200">
+                <table className="min-w-[34rem] divide-y divide-gray-200 text-sm">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Info Type</th>

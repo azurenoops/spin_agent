@@ -13,45 +13,32 @@ async function gotoFirstSystem(page: import('@playwright/test').Page) {
   return new SystemDetailPage(page);
 }
 
-test.describe('System Detail / Overview', () => {
-  test('should load system overview', async ({ page }) => {
+test.describe('System Detail / Readiness', () => {
+  test('should show readiness tasks without legacy diagnostics', async ({ page }) => {
+    // Arrange / Act
     const detail = await gotoFirstSystem(page);
-    await detail.expectMetricCards();
+    // Assert
+    await detail.expectReadinessTasks();
   });
 
-  test('should display compliance heatmap', async ({ page }) => {
-    const detail = await gotoFirstSystem(page);
-    await detail.expectComplianceHeatmap();
-  });
-
-  test('should open control drill-down on heatmap family click', async ({ page }) => {
-    const detail = await gotoFirstSystem(page);
-    // Find a family abbreviation (AC, AU, etc.) and click it
-    const families = page.locator('[class*="heatmap"] [class*="cell"], [class*="Heatmap"] div');
-    if (await families.first().isVisible()) {
-      await families.first().click();
-      await page.waitForTimeout(500);
-      // Modal or expanded view should appear
-      const modal = page.locator('[role="dialog"], [class*="modal"], [class*="Modal"], [class*="drill"]');
-      if (await modal.first().isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await expect(modal.first()).toBeVisible();
-      }
-    }
-  });
-
-  test('should display activity feed', async ({ page }) => {
-    const detail = await gotoFirstSystem(page);
-    await detail.expectActivityFeed();
-  });
-
-  test('should display RMF phase progress', async ({ page }) => {
-    const detail = await gotoFirstSystem(page);
-    await detail.expectPhaseProgress();
-  });
-
-  test('should show compliance trend chart', async ({ page }) => {
+  test('should retain package preparation links', async ({ page }) => {
+    // Arrange
     await gotoFirstSystem(page);
-    const chart = page.locator('svg, canvas, [class*="chart"], [class*="Chart"], [class*="trend"]');
-    await expect(chart.first()).toBeVisible({ timeout: 15_000 });
+    // Act
+    await page.getByRole('tab', { name: 'Readiness', exact: true }).click();
+    // Assert
+    await expect(page.getByRole('link', { name: 'Continue preparation', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Next actions for this system', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'View package readiness', exact: true })).toBeVisible();
+  });
+
+  test('should retain monitoring follow-up navigation', async ({ page }) => {
+    // Arrange
+    await gotoFirstSystem(page);
+    // Act
+    await page.getByRole('tab', { name: 'Monitoring & follow-up', exact: true }).click();
+    // Assert
+    await expect(page.getByRole('heading', { name: 'Maintain the reviewed baseline', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Review monitoring', exact: true })).toBeVisible();
   });
 });
